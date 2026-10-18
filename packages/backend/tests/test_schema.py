@@ -14,6 +14,8 @@ def test_expected_tables_exist():
         "image_gen_raw",
         "tag_meta",
         "gen_rulesets",
+        "workflow_names",
+        "workflow_files",
         "app_settings",
     }
 

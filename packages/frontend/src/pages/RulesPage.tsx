@@ -12,6 +12,9 @@ import {
   Search,
   AlertTriangle,
   MousePointerClick,
+  Pencil,
+  Upload,
+  ChevronRight,
 } from "lucide-react";
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
 import { Button } from "../components/ui/Button";
@@ -25,8 +28,18 @@ import {
   type PreviewResult,
   fetchSignatures,
   previewRuleset,
-  signatureTitle,
 } from "../lib/gen";
+import {
+  groupWorkflows,
+  importWorkflowFiles,
+  parseWorkflowFile,
+  putWorkflowName,
+} from "../lib/workflows";
+import { Input } from "../components/ui/Input";
+
+const COLLAPSED_KEY = "rules:collapsedWorkflows";
+// Collapse key for the group of images with no workflow id.
+const OTHER_FAMILY = "__other__";
 
 const FIELD_LABEL: Record<RuleField, string> = {
   prompt: "Positive prompt",
@@ -199,6 +212,81 @@ export default function RulesPage() {
 
   useEffect(() => loadSignatures(), [loadSignatures]);
 
+  const families = useMemo(() => groupWorkflows(sigs), [sigs]);
+  // undefined = not editing; a family id = that family's name is open.
+  const [editingFamily, setEditingFamily] = useState<string | null | undefined>();
+  const [nameDraft, setNameDraft] = useState("");
+  const [dragging, setDragging] = useState(false);
+
+  // Collapsed workflow groups, remembered per browser (a view preference, so
+  // localStorage is enough; it may be unavailable, hence the try/catch).
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "[]") as string[]);
+    } catch {
+      return new Set();
+    }
+  });
+  const setFamilyCollapsed = useCallback((key: string, value: boolean) => {
+    setCollapsed((prev) => {
+      if (prev.has(key) === value) return prev;
+      const next = new Set(prev);
+      if (value) next.add(key);
+      else next.delete(key);
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+      } catch {
+        // Storage blocked: the preference just won't survive a reload.
+      }
+      return next;
+    });
+  }, []);
+
+  const renameFamily = useCallback(
+    async (id: string, name: string) => {
+      setEditingFamily(undefined);
+      const current = sigs.find((s) => s.workflow_id === id)?.workflow_name ?? "";
+      if (name.trim() === current) return;
+      try {
+        await putWorkflowName(id, name);
+        loadSignatures();
+      } catch (e) {
+        push(`Rename failed: ${String(e)}`, "error");
+      }
+    },
+    [sigs, loadSignatures, push],
+  );
+
+  // Read dropped/picked workflow files in the browser and send only what the
+  // match needs (id, filename, node types).
+  const importFiles = useCallback(
+    async (list: FileList | null) => {
+      const picked = Array.from(list ?? []).filter((f) => /\.json$/i.test(f.name));
+      if (!picked.length) return;
+      const parsed = (
+        await Promise.all(picked.map(async (f) => parseWorkflowFile(await f.text(), f.name)))
+      ).filter((w): w is NonNullable<typeof w> => w !== null);
+      const skipped = picked.length - parsed.length;
+      if (!parsed.length) {
+        push("No ComfyUI workflow files found (use the saved .json, not an API export)", "error");
+        return;
+      }
+      try {
+        const { imported, known } = await importWorkflowFiles(parsed);
+        loadSignatures();
+        push(
+          `Imported ${imported} ${imported === 1 ? "file" : "files"}` +
+            (known ? "" : ". None belong to workflows in your library") +
+            (skipped ? ` · ${skipped} skipped (not a workflow)` : ""),
+          known ? "success" : "info",
+        );
+      } catch (e) {
+        push(`Import failed: ${String(e)}`, "error");
+      }
+    },
+    [loadSignatures, push],
+  );
+
   const confirm = useConfirm();
   const session = useRulesetSession({
     notify: push,
@@ -270,6 +358,20 @@ export default function RulesPage() {
     }
   }, [selected, fields, push]);
 
+  // A selected version is never hidden: picking one (or arriving from an
+  // image's "Edit rule" link) opens its group.
+  // Keyed on the selection only (families read through a ref), so a list
+  // reload after saving doesn't reopen a group the user just closed.
+  const familiesRef = useRef(families);
+  familiesRef.current = families;
+  useEffect(() => {
+    if (!selectedSig) return;
+    const fam = familiesRef.current.find((f) =>
+      f.versions.some((v) => v.row.workflow_sig === selectedSig),
+    );
+    if (fam) setFamilyCollapsed(fam.id ?? OTHER_FAMILY, false);
+  }, [selectedSig, setFamilyCollapsed]);
+
   // `selected` is the row as it was when picked; the list is refetched after
   // a save or reset, so it's the fresh source for whether pins exist.
   const hasRuleset =
@@ -319,54 +421,165 @@ export default function RulesPage() {
         />
       ) : (
         <div className="grid grid-cols-12 gap-4">
-          {/* Workflow picker. A workflow is identified by its node types, so
-              it's named by the nodes that set it apart and shown with a
-              sample image; the hash is only a tooltip. */}
-          <div className="col-span-12 lg:col-span-3 space-y-1.5">
-            <div className="px-1 pb-1 text-xs font-medium text-muted">Workflows</div>
-            {sigs.map((s) => {
-              const on = selected?.workflow_sig === s.workflow_sig;
+          {/* Workflow picker: one group per saved workflow (family), with
+              its versions under it, named after imported files when there
+              are any. Dropping .json files anywhere on it imports them. */}
+          <div
+            className={`col-span-12 lg:col-span-3 space-y-4 rounded-xl transition-colors ${
+              dragging ? "outline-dashed outline-2 outline-brand-500/60 outline-offset-4" : ""
+            }`}
+            onDragOver={(e) => {
+              if (!e.dataTransfer.types.includes("Files")) return;
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              void importFiles(e.dataTransfer.files);
+            }}
+          >
+            <div className="flex items-center justify-between gap-2 px-1">
+              <span className="text-xs font-medium text-muted">Workflows</span>
+              <label
+                className="inline-flex items-center gap-1.5 text-xs text-brand-300 hover:text-brand-200 cursor-pointer"
+                title="Pick your saved ComfyUI workflow .json files to name these after them. Only each file's id, name and node list are read."
+              >
+                <Upload size={13} /> Import files
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  multiple
+                  className="sr-only"
+                  onChange={(e) => {
+                    void importFiles(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+            {families.map((fam) => {
+              const famKey = fam.id ?? OTHER_FAMILY;
+              const open = !collapsed.has(famKey);
+              const listId = `workflow-versions-${famKey}`;
               return (
-                <button
-                  key={s.workflow_sig}
-                  onClick={() => void selectSig(s)}
-                  title={`Workflow ${s.workflow_sig}`}
-                  aria-current={on ? "true" : undefined}
-                  className={`w-full text-left p-2 rounded-lg border flex items-center gap-3 transition-colors ${
-                    on
-                      ? "bg-raised border-brand-500/60"
-                      : "bg-surface border-line hover:border-line-strong"
-                  }`}
-                >
-                  {s.sample_thumb_url ? (
-                    <img
-                      src={s.sample_thumb_url}
-                      alt=""
-                      loading="lazy"
-                      className="w-10 h-10 rounded-md object-cover shrink-0 bg-raised"
-                    />
+              <div key={famKey} className="space-y-1.5">
+                <div className="flex items-center gap-2 px-1 min-h-7">
+                  {editingFamily === fam.id && fam.id ? (
+                    <form
+                      className="flex-1"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void renameFamily(fam.id!, nameDraft);
+                      }}
+                    >
+                      <Input
+                        autoFocus
+                        className="h-7 text-sm"
+                        value={nameDraft}
+                        placeholder="Workflow name"
+                        aria-label="Workflow name"
+                        onChange={(e) => setNameDraft(e.target.value)}
+                        onBlur={() => void renameFamily(fam.id!, nameDraft)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") setEditingFamily(undefined);
+                        }}
+                      />
+                    </form>
                   ) : (
-                    <span className="w-10 h-10 rounded-md shrink-0 bg-raised inline-flex items-center justify-center text-faint">
-                      <Workflow size={16} />
-                    </span>
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm text-neutral-100 truncate">
-                      {signatureTitle(s)}
-                    </span>
-                    <span className="flex items-center gap-1.5 mt-0.5 text-xs text-faint tabular-nums">
-                      {s.count} {s.count === 1 ? "image" : "images"}
-                      {s.node_count ? <> · {s.node_count} nodes</> : null}
-                      {s.needs_mapping > 0 ? (
-                        <span className="ml-auto text-amber-300" title="Images whose prompt couldn't be found">
-                          {s.needs_mapping} unmapped
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setFamilyCollapsed(famKey, open)}
+                        aria-expanded={open}
+                        aria-controls={listId}
+                        className="flex items-center gap-1 min-w-0 -ml-1 pl-0.5 pr-1 py-0.5 rounded hover:bg-raised"
+                        title={fam.id ? `${fam.name}\nWorkflow id ${fam.id}` : fam.name}
+                      >
+                        <ChevronRight
+                          size={14}
+                          className={`shrink-0 text-faint transition-transform ${open ? "rotate-90" : ""}`}
+                        />
+                        <span
+                          className={`truncate text-sm font-semibold ${
+                            fam.unnamed ? "text-muted" : "text-neutral-100"
+                          }`}
+                        >
+                          {fam.name}
                         </span>
-                      ) : s.has_ruleset ? (
-                        <span className="ml-auto text-brand-300">Rules set</span>
-                      ) : null}
-                    </span>
-                  </span>
-                </button>
+                      </button>
+                      {fam.id && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingFamily(fam.id);
+                            setNameDraft(fam.unnamed ? "" : fam.name);
+                          }}
+                          className="shrink-0 p-1 rounded text-faint hover:text-neutral-100 hover:bg-raised"
+                          aria-label={`Rename ${fam.name}`}
+                          title="Rename"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                      )}
+                      <span className="ml-auto text-2xs text-faint tabular-nums shrink-0">
+                        {fam.versions.length} {fam.versions.length === 1 ? "version" : "versions"}
+                      </span>
+                    </>
+                  )}
+                </div>
+                {open && (
+                <div id={listId} className="space-y-1.5">
+                {fam.versions.map(({ row: s, title, note, file }) => {
+                  const on = selected?.workflow_sig === s.workflow_sig;
+                  return (
+                    <button
+                      key={s.workflow_sig}
+                      onClick={() => void selectSig(s)}
+                      title={`Signature ${s.workflow_sig}`}
+                      aria-current={on ? "true" : undefined}
+                      className={`w-full text-left p-2 rounded-lg border flex items-center gap-3 transition-colors ${
+                        on
+                          ? "bg-raised border-brand-500/60"
+                          : "bg-surface border-line hover:border-line-strong"
+                      }`}
+                    >
+                      {s.sample_thumb_url ? (
+                        <img
+                          src={s.sample_thumb_url}
+                          alt=""
+                          loading="lazy"
+                          className="w-10 h-10 rounded-md object-cover shrink-0 bg-raised"
+                        />
+                      ) : (
+                        <span className="w-10 h-10 rounded-md shrink-0 bg-raised inline-flex items-center justify-center text-faint">
+                          <Workflow size={16} />
+                        </span>
+                      )}
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm text-neutral-100 truncate">{title}</span>
+                        <span className="flex items-center gap-1.5 mt-0.5 text-xs text-faint tabular-nums min-w-0">
+                          <span className="truncate">
+                            {[note, file, `${s.count} ${s.count === 1 ? "image" : "images"}`]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                          {s.needs_mapping > 0 ? (
+                            <span className="ml-auto shrink-0 text-amber-300" title="Images whose prompt couldn't be found">
+                              {s.needs_mapping} unmapped
+                            </span>
+                          ) : s.has_ruleset ? (
+                            <span className="ml-auto shrink-0 text-brand-300">Rules set</span>
+                          ) : null}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+                </div>
+                )}
+              </div>
               );
             })}
           </div>

@@ -141,6 +141,29 @@ gen_rulesets = sa.Table(
     sa.Column("doc", sa.JSON),
 )
 
+# Names for ComfyUI workflow families. A family is every image whose embedded
+# editor graph carries the same top-level `id`; ComfyUI keeps that id when a
+# file is copied or saved under a new name, so one id spans many versions.
+workflow_names = sa.Table(
+    "workflow_names",
+    metadata,
+    sa.Column("workflow_id", sa.Text, primary_key=True),
+    sa.Column("name", sa.Text, nullable=False),
+    sa.Column("updated_at", sa.Float),
+)
+
+# Saved ComfyUI workflow files the user imported (only their id, filename and
+# editor node types; the file itself stays on the user's machine). Used to put
+# a real filename on each workflow version by matching node types.
+workflow_files = sa.Table(
+    "workflow_files",
+    metadata,
+    sa.Column("workflow_id", sa.Text, primary_key=True),
+    sa.Column("filename", sa.Text, primary_key=True),
+    sa.Column("node_types", sa.JSON, nullable=False),
+    sa.Column("imported_at", sa.Float),
+)
+
 # Singleton key/value store for app settings (currently only the "ai" row).
 app_settings = sa.Table(
     "app_settings",

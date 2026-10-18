@@ -355,6 +355,52 @@ def workflow_node_types(prompt_json: dict[str, Any] | None) -> list[str]:
     ]
 
 
+def editor_node_types(workflow_json: dict[str, Any] | None) -> list[str]:
+    """Node ``type``s of a ComfyUI *editor* graph (the ``workflow`` chunk, and
+    the format of a saved ``.json`` file), unsorted. The same function reads
+    both sides of a version-to-file match, so they're always comparable."""
+    if not isinstance(workflow_json, dict):
+        return []
+    nodes = workflow_json.get("nodes")
+    if not isinstance(nodes, list):
+        return []
+    return [
+        str(n.get("type", "")) for n in nodes if isinstance(n, dict) and n.get("type")
+    ]
+
+
+def node_type_similarity(a: list[str], b: list[str]) -> float:
+    """Multiset Jaccard similarity of two node-type lists, in [0, 1]."""
+    from collections import Counter
+
+    ca, cb = Counter(a), Counter(b)
+    union = sum((ca | cb).values())
+    return sum((ca & cb).values()) / union if union else 0.0
+
+
+# Below this, a file is a different version rather than the one that made the
+# image. Saved files keep changing after an image is made, so exact equality
+# is too strict; a few added or removed nodes still identify the file.
+FILE_MATCH_MIN = 0.8
+
+
+def match_workflow_file(
+    image_types: list[str], files: list[tuple[str, list[str]]]
+) -> tuple[str, float] | None:
+    """The imported file (``(filename, node_types)``) whose editor graph is
+    closest to the one embedded in an image, with its similarity, or None
+    when nothing clears :data:`FILE_MATCH_MIN`. Ties go to the filename that
+    sorts last, which for versioned names ("V2.1" < "V2.2") is the newest."""
+    if not image_types:
+        return None
+    best: tuple[str, float] | None = None
+    for filename, types in sorted(files, key=lambda f: f[0]):
+        score = node_type_similarity(image_types, types)
+        if score >= FILE_MATCH_MIN and (best is None or score >= best[1]):
+            best = (filename, score)
+    return best
+
+
 # Nodes that only display, annotate or route: they tell two workflows apart
 # by accident, not by what they do, so they never name one.
 _UI_ONLY_NODES = frozenset(

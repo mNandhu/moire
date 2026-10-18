@@ -440,3 +440,35 @@ def test_describe_signatures_ignores_unreadable_samples_for_baseline():
     assert out["a"]["distinct"] == []
     assert [d["type"] for d in out["b"]["distinct"]] == ["FaceDetailer"]
     assert out["broken"] == {"node_count": 0, "distinct": []}
+
+
+def test_editor_node_types_reads_ui_graph():
+    wf = {"nodes": [{"type": "KSampler"}, {"type": "Note"}, {"id": 3}, "junk"]}
+    assert gm.editor_node_types(wf) == ["KSampler", "Note"]
+    assert gm.editor_node_types({"nodes": "x"}) == []
+    assert gm.editor_node_types(None) == []
+
+
+def test_node_type_similarity_is_multiset_jaccard():
+    assert gm.node_type_similarity(["A", "B"], ["A", "B"]) == 1.0
+    assert gm.node_type_similarity(["A", "A"], ["A"]) == 0.5
+    assert gm.node_type_similarity([], []) == 0.0
+
+
+def test_match_workflow_file_picks_closest_above_threshold():
+    base = ["KSampler", "VAEDecode", "CLIPTextEncode", "CLIPTextEncode", "SaveImage"]
+    image = base + ["FaceDetailer"]
+    files = [
+        ("RemoteQV2.1", base),  # 5/6, just above threshold
+        ("RemoteQV2.2", image),  # exact
+        ("Other", ["LoadImage"]),
+    ]
+    assert gm.match_workflow_file(image, files) == ("RemoteQV2.2", 1.0)
+    # The file has gained many nodes since: no longer recognisably this one.
+    assert gm.match_workflow_file(["LoadImage", "X", "Y", "Z", "W"], files) is None
+    assert gm.match_workflow_file([], files) is None
+
+
+def test_match_workflow_file_ties_go_to_newest_name():
+    t = ["A", "B", "C"]
+    assert gm.match_workflow_file(t, [("V2.2", t), ("V2.1", t)]) == ("V2.2", 1.0)
