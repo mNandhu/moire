@@ -64,7 +64,7 @@ async def test_family_name_and_file_match(client, seed):
             {"workflow_id": "other", "filename": "Unused", "node_types": ["X"]},
         ],
     )
-    assert resp.json() == {"imported": 3, "known": 1}
+    assert resp.json() == {"imported": 3, "known": 1, "known_ids": [WID]}
     sigs = await _sigs(client)
     assert sigs["base"]["file_name"] == "RemoteQV2.1"
     assert sigs["face"]["file_name"] == "RemoteQV2.2"

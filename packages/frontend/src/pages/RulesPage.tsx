@@ -15,6 +15,8 @@ import {
   Pencil,
   Upload,
   ChevronRight,
+  FileJson,
+  FolderOpen,
 } from "lucide-react";
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
 import { Button } from "../components/ui/Button";
@@ -36,8 +38,11 @@ import {
   putWorkflowName,
 } from "../lib/workflows";
 import { Input } from "../components/ui/Input";
+import { DropdownMenu } from "../components/ui/DropdownMenu";
+import { filesFromDrop } from "../lib/dropFiles";
 
 const COLLAPSED_KEY = "rules:collapsedWorkflows";
+const isJson = (name: string) => /\.json$/i.test(name);
 // Collapse key for the group of images with no workflow id.
 const OTHER_FAMILY = "__other__";
 
@@ -217,6 +222,8 @@ export default function RulesPage() {
   const [editingFamily, setEditingFamily] = useState<string | null | undefined>();
   const [nameDraft, setNameDraft] = useState("");
   const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   // Collapsed workflow groups, remembered per browser (a view preference, so
   // localStorage is enough; it may be unavailable, hence the try/catch).
@@ -260,9 +267,12 @@ export default function RulesPage() {
   // Read dropped/picked workflow files in the browser and send only what the
   // match needs (id, filename, node types).
   const importFiles = useCallback(
-    async (list: FileList | null) => {
-      const picked = Array.from(list ?? []).filter((f) => /\.json$/i.test(f.name));
-      if (!picked.length) return;
+    async (list: FileList | File[] | null) => {
+      const picked = Array.from(list ?? []).filter((f) => isJson(f.name));
+      if (!picked.length) {
+        if (list && Array.from(list).length) push("No .json files in that selection", "info");
+        return;
+      }
       const parsed = (
         await Promise.all(picked.map(async (f) => parseWorkflowFile(await f.text(), f.name)))
       ).filter((w): w is NonNullable<typeof w> => w !== null);
@@ -276,7 +286,9 @@ export default function RulesPage() {
         loadSignatures();
         push(
           `Imported ${imported} ${imported === 1 ? "file" : "files"}` +
-            (known ? "" : ". None belong to workflows in your library") +
+            (known
+              ? ` · ${known} ${known === 1 ? "workflow" : "workflows"} in your library`
+              : ". None belong to workflows in your library") +
             (skipped ? ` · ${skipped} skipped (not a workflow)` : ""),
           known ? "success" : "info",
         );
@@ -423,7 +435,8 @@ export default function RulesPage() {
         <div className="grid grid-cols-12 gap-4">
           {/* Workflow picker: one group per saved workflow (family), with
               its versions under it, named after imported files when there
-              are any. Dropping .json files anywhere on it imports them. */}
+              are any. Dropping .json files or a folder of them anywhere on it
+              imports them. */}
           <div
             className={`col-span-12 lg:col-span-3 space-y-4 rounded-xl transition-colors ${
               dragging ? "outline-dashed outline-2 outline-brand-500/60 outline-offset-4" : ""
@@ -437,27 +450,62 @@ export default function RulesPage() {
             onDrop={(e) => {
               e.preventDefault();
               setDragging(false);
-              void importFiles(e.dataTransfer.files);
+              // Folders too: filesFromDrop walks into them.
+              void filesFromDrop(e.dataTransfer, isJson).then(importFiles);
             }}
           >
             <div className="flex items-center justify-between gap-2 px-1">
               <span className="text-xs font-medium text-muted">Workflows</span>
-              <label
-                className="inline-flex items-center gap-1.5 text-xs text-brand-300 hover:text-brand-200 cursor-pointer"
-                title="Pick your saved ComfyUI workflow .json files to name these after them. Only each file's id, name and node list are read."
-              >
-                <Upload size={13} /> Import files
-                <input
-                  type="file"
-                  accept=".json,application/json"
-                  multiple
-                  className="sr-only"
-                  onChange={(e) => {
-                    void importFiles(e.target.files);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
+              {/* Name versions after your saved ComfyUI workflows. Only each
+                  file's id, name and node list are read; files stay local. */}
+              <DropdownMenu
+                size="sm"
+                label={
+                  <>
+                    <Upload size={13} /> Import
+                  </>
+                }
+                items={[
+                  {
+                    label: "Workflow files…",
+                    icon: <FileJson size={15} />,
+                    onClick: () => fileInputRef.current?.click(),
+                  },
+                  {
+                    label: "A folder…",
+                    icon: <FolderOpen size={15} />,
+                    onClick: () => folderInputRef.current?.click(),
+                  },
+                ]}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                multiple
+                className="sr-only"
+                tabIndex={-1}
+                aria-hidden="true"
+                onChange={(e) => {
+                  void importFiles(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              {/* webkitdirectory picks a whole folder, subfolders included
+                  (ComfyUI keeps workflows in user/default/workflows). */}
+              <input
+                ref={folderInputRef}
+                type="file"
+                multiple
+                className="sr-only"
+                tabIndex={-1}
+                aria-hidden="true"
+                {...{ webkitdirectory: "" }}
+                onChange={(e) => {
+                  void importFiles(e.target.files);
+                  e.target.value = "";
+                }}
+              />
             </div>
             {families.map((fam) => {
               const famKey = fam.id ?? OTHER_FAMILY;

@@ -238,7 +238,8 @@ async def import_workflow_files(files: list[WorkflowFileBody]):
     """Record saved ComfyUI workflow files: id, filename and editor node types
     only (the browser reads the file; nothing else is uploaded). Re-importing
     a filename replaces its node types. Returns how many families matched an
-    image already in the library."""
+    image already in the library, and their ids (so a client importing in
+    batches can count distinct workflows across them)."""
     rows = [
         {
             "workflow_id": f.workflow_id.strip(),
@@ -250,7 +251,7 @@ async def import_workflow_files(files: list[WorkflowFileBody]):
         if f.workflow_id.strip() and f.filename.strip()
     ]
     if not rows:
-        return {"imported": 0, "known": 0}
+        return {"imported": 0, "known": 0, "known_ids": []}
     async with async_tx() as conn:
         stmt = sqlite_insert(t.workflow_files).values(rows)
         stmt = stmt.on_conflict_do_update(
@@ -267,8 +268,8 @@ async def import_workflow_files(files: list[WorkflowFileBody]):
     # Which of these ids appear on images at all (cheap: one sample per sig).
     sigs = await list_signatures()
     seen = {s["workflow_id"] for s in sigs if s["workflow_id"]}
-    known = len({r["workflow_id"] for r in rows} & seen)
-    return {"imported": len(rows), "known": known}
+    known_ids = sorted({r["workflow_id"] for r in rows} & seen)
+    return {"imported": len(rows), "known": len(known_ids), "known_ids": known_ids}
 
 
 @router.get("/{sig}")

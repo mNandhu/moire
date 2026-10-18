@@ -224,14 +224,27 @@ export async function putWorkflowName(id: string, name: string): Promise<void> {
   if (!r.ok) throw new Error(await r.text());
 }
 
+// The server takes at most 500 files per request; a whole workflows folder
+// can hold more, so imports go in batches.
+const IMPORT_BATCH = 200;
+
+/** Import files in batches; `known` counts distinct workflows in the library
+ * that any of them belong to. */
 export async function importWorkflowFiles(
   files: WorkflowFile[],
 ): Promise<{ imported: number; known: number }> {
-  const r = await fetch("/api/v1/rules/workflow-files", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(files),
-  });
-  if (!r.ok) throw new Error(await r.text());
-  return (await r.json()) as { imported: number; known: number };
+  let imported = 0;
+  const known = new Set<string>();
+  for (let i = 0; i < files.length; i += IMPORT_BATCH) {
+    const r = await fetch("/api/v1/rules/workflow-files", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(files.slice(i, i + IMPORT_BATCH)),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const res = (await r.json()) as { imported: number; known_ids?: string[] };
+    imported += res.imported;
+    for (const id of res.known_ids ?? []) known.add(id);
+  }
+  return { imported, known: known.size };
 }
