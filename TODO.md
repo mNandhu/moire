@@ -1,128 +1,64 @@
 # TODO
 
-A living checklist of work items for Moiré. Priorities: P0 (now), P1 (next), P2 (later).
+What's next for Moiré. Priorities: **P0** now, **P1** next, **P2** later.
+Last rewritten 2026-10-19. Done work lives in git history, not here.
 
-## Status snapshot
+## P0: Now
 
-- Core: Monorepo scaffolded (frontend + backend) [Done]
-- Backend: FastAPI app with CORS, /health, Mongo wired, scanning service, tags API (incl. AI placeholder), thumbnails served [Done]
-- Frontend: Vite + React + TS + Tailwind scaffolded, basic health check view [Done]
-- Dev UX: pnpm configured, concurrently one-command dev [Done]
+- Fix the review findings on the gallery/Overview commit (`1f4cc11`)
+  - Server-built feed cursors, so cache patches (scoring under Top) and
+    rescans can't skip or repeat images
+  - One shared workflow-family helper for the gallery filter and Rules,
+    resolved once per request
+  - Indexes for every feed order and filter combination
+  - Overview stats: indexed query, day boundaries correct across DST
+  - Stale `library_id` in the URL stays visible; reject `nan`/`inf` cursors
 
-## P0: Short-term deliverables
+## P1: Next
 
-- Libraries UI
-  - Add library form (path, name) and list existing libraries [Done]
-  - Trigger rescan, show indexed count and live progress bar [Done]
-  - Edit and delete libraries (delete removes thumbnails) [Done]
-- Gallery views
-  - All Images grid (virtualized), show thumbnails from `/thumbs` [Grid + lazy-load: Done; Full virtualization: Pending]
-  - Per-library image view [Done via filters + library dropdown and ImageView route]
-- Image details & tags
-  - Full-page image view with toggleable info panel [Done]
-  - Add/remove tags on image [Done]
-  - AI tagging button in image view [Done]
-  - Batch selection and batch tag add/remove [Selection UX: Done; Batch apply: Pending endpoint/UI]
-- Search & filters
-  - Search bar with tag chips; AND/OR logic [AND/OR + search input: Done]
-  - Library filter + URL-preserved filters [Done]
-  - “No tags” filter [Pending]
-- Scanner robustness
-  - Handle inaccessible paths and corrupt images gracefully [Pending]
-  - Option to skip very large images or unsupported formats [Pending]
-  - Background async scanning with progress (non-blocking) [Done]
-- Basic auth/config
-  - Configuration page for AI_TAGGING_URL and MONGO settings (read-only if env-based) [Pending]
-
-## P1: Next improvements
-
-- Async/background scanning
-  - Move scanning to background jobs; add progress endpoints [Done]
-  - UI progress bar [Done]
-  - Cancel/resume control [Pending]
-- AI tagging workflow
-  - Preview suggested tags > accept/reject before apply [Frontend]
-  - Batch AI tagging (selected images) [Frontend/Backend]
-- Tag management
-  - Tags browser (top tags with counts) and drill-down [Done: basic; Next: card visuals and multi-select]
-  - Rename/merge tags (migration) [Backend]
-- Thumbnail pipeline
-  - On-demand thumb regeneration and size presets [Backend]
-  - Blurhash or low-quality placeholder while loading [Frontend]
-- Error handling & UX
-  - Global toasts, retry flows, nicer error pages [Frontend]
-  - Structured error responses [Backend]
-
-## P2: Later / nice-to-have
-
-- Workflow data parsing (ComfyUI metadata extraction) [Backend]
-- Drag & drop image import / link external folders [Frontend]
-- User accounts and roles (local) [Full stack]
-- Export/import database (backup/restore) [Backend]
-- Dark/light themes + polished UI library adoption (shadcn) [Frontend]
-- Packaging: Docker Compose for Mongo + API + Frontend [Infra]
-
-## Technical debt & chores
-
-- Tests
-  - Backend: unit tests for scanner, tags, images, routers
-  - Frontend: component tests for gallery, tags, search
-- Lint/format tooling
-  - Backend: Ruff + mypy (optional)
-  - Frontend: ESLint + Prettier
-- CI
-  - Lint + test on PRs; build previews
-- Docs
-  - API reference (OpenAPI is available via FastAPI docs)
-
-## Acceptance notes / definitions of done
-
-- Scanning: can index a directory with 10k images without crashing; metadata visible and searchable; thumbnails generated and served.
-- Tagging: can add/remove tags individually and in batch; AI suggestions can be previewed and applied.
-- Gallery: smooth scroll with virtualization; search returns results < 200ms on indexed set (local).
-
-Testing note
-
-- Filters: Defer full verification of tag-based filters until a UI to add tags exists; add sample tags via API or UI before testing combinations (AND/OR, library filter, and no-tags).
-
-## Open questions / decisions pending
-
-- Where to store user preferences (localStorage vs DB)?
-- Pagination strategy for images (offset vs cursor) and server response shape.
-
-## Suggestions / next steps
-
-- Libraries
-  - Inline modal for editing name/path with validation; suggest rescan on path change; show indexed_count and last_scanned on cards. [Done]
-  - Add cancel/resume scan controls; show error state if scan fails. [Pending]
+- Direct ComfyUI integration
+  - Select an image and re-run it on ComfyUI with the same workflow (must be
+    mapped), straight from Moiré
+  - ComfyUI URL in Settings (local or remote/VPS), queue via its `/prompt`
+    API, progress over its websocket; outputs land back through the watched
+    library
+  - Tweak before sending: seed (re-roll), prompt edits, batch size; remember
+    which image a generation came from
+- New user / setup onboarding
+  - First run: add libraries, wait for the first scan, import workflow files
+    and name workflows, optionally start AI tagging
+  - Overview empty states double as the checklist ("2 of 4 done")
 - Gallery
-  - Move to react-window for virtualized masonry; preload next page while scrolling; skeleton placeholders.
-  - Add keyboard shortcuts for selection mode (S to toggle) and batch actions.
-- Image View
-  - Add zoom/pan (wheel/drag) with original/orient EXIF respect; previous/next preload for smooth nav.
-  - Share/deep-link copy button preserving filters in URL.
-- Routing & State
-  - Persist filters and selection in URL and localStorage; restore on load.
-- Batch actions
-  - Implement backend batch tag add/remove endpoint; UI multi-select flow with confirmation and toasts.
+  - Day headers in the grid, then generation sessions (runs of images with no
+    long gap)
+  - Score filter, so "Unrated" and "4+ stars" become real views
+  - Saved views: name any filter + sort and pin it to the sidebar
+- Triage
+  - Compare view for a batch: variations side by side, keep some, quarantine
+    the rest in one go
+  - Batch manual tags: add/remove a tag on a selection (today the selection
+    only offers AI tagging and quarantine)
 
-## Performance improvements
+## P2: Later
 
-- Frontend
-  - Switch GalleryGrid to react-window virtualized masonry; window up to ~2 screens above/below viewport.
-  - Debounce filter changes and coalesce requests; cancel in-flight fetches when filters update. [Partially applied; revisit after virtualization]
-  - Use Suspense-friendly data layer with SWR/React Query for caching and background refresh.
-  - Lazy-load non-critical routes (Tags, Settings) via code-splitting; prefetch on hover.
-  - Use content-visibility: auto on offscreen sections; apply will-change cautiously.
-  - Prefer CSS contain and transform-only animations to keep paint costs low.
-- Backend
-  - Add indexes on images: tags (multikey), library_id, and compound (library_id, tags) if needed.
-  - Paginate with stable sort (e.g., \_id) and consider cursor-based pagination for large collections.
-  - Stream original files efficiently; apply conditional GET with ETag/Last-Modified.
-  - Cache tag aggregations; maintain precomputed counts per library for faster Tags page.
+- Prompts and workflows
+  - Prompt diff between two images or two workflow versions
+  - Per-workflow stats: images, average score, last used
+- Library hygiene
+  - Near-duplicate detection (perceptual hash) to collapse re-saves and copies
+  - Tag rename / merge
+  - Cancel a running scan
+- Curation and output
+  - Collections / albums for hand-picked sets, independent of tags
+  - Export a selection (copy files or zip), optionally stripping metadata
+- Ops
+  - Backup / restore of `data/moire.db` and thumbnails
+  - Docker Compose for API + frontend behind nginx (`deploy/nginx.conf.example`)
 
-## Recent changes snapshot
+## Known issues
 
-- ImageView polished (overlay controls, slide-in info panel, distinct surface, image fade-in; back returns to gallery; hides indexed count while scanning).
-- Libraries page shows indexed_count and last_scanned; progress bar with polling; edit modal with optional rescan.
-- Backend scanning moved to background threads with per-library progress fields and progress endpoint.
+- Intermittent test flakes: one backend test (didn't reproduce in ~24 runs)
+  and the LibrariesPage test under heavy load
+- 11 longstanding ESLint warnings (mostly `no-explicit-any`)
+- Feed order uses file mtime as generation time; copying or moving files can
+  reset it
