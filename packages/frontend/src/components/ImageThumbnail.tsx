@@ -130,7 +130,9 @@ export function ImageThumbnail({
         src={assignedSrc ?? undefined}
         alt={alt}
         decoding="async"
-        fetchPriority={priority ? "high" : "low"}
+        // React 18 only knows the lowercase DOM attribute; the camelCase
+        // prop warns on every tile. (React 19 accepts fetchPriority.)
+        {...{ fetchpriority: priority ? "high" : "low" }}
         width={width}
         height={height}
         onLoad={onLoad}

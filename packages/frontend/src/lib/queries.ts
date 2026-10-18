@@ -10,6 +10,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
+import { fetchAiCoverage } from "./ai";
 
 export type Library = {
   _id: string;
@@ -55,5 +56,19 @@ export function useTagAggregate({ includePrompt = false } = {}) {
         `/api/v1/tags?include_manual=1${includePrompt ? "&include_prompt=1" : ""}`,
         { signal },
       ),
+  });
+}
+
+export const AI_COVERAGE_KEY = ["aiCoverage"] as const;
+
+/**
+ * How much of the library carries AI tags. Overview, Tags and AI Tagging all
+ * read it; `busy` (a job running) tightens the poll so numbers track progress.
+ */
+export function useAiCoverage({ busy = false } = {}) {
+  return useQuery({
+    queryKey: AI_COVERAGE_KEY,
+    queryFn: ({ signal }) => fetchAiCoverage(signal),
+    refetchInterval: busy ? 3000 : 15000,
   });
 }

@@ -13,9 +13,16 @@ export type DropdownItem = {
 export function DropdownMenu({
   label,
   items,
+  "aria-label": ariaLabel,
+  icon,
+  size,
 }: {
-  label: React.ReactNode;
+  label?: React.ReactNode;
   items: DropdownItem[];
+  "aria-label"?: string;
+  /** Icon-only trigger (e.g. a row's "more actions" ⋯) — no label, no chevron. */
+  icon?: React.ReactNode;
+  size?: "sm" | "md";
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -41,19 +48,28 @@ export function DropdownMenu({
   return (
     <div ref={ref} className="relative">
       <Button
-        variant="secondary"
+        variant={icon ? "ghost" : "secondary"}
+        size={icon ? undefined : size}
+        className={icon ? (size === "sm" ? "h-8 w-8 px-0" : "h-9 w-9 px-0") : undefined}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label={ariaLabel}
+        title={icon ? ariaLabel : undefined}
+        active={icon ? open : undefined}
       >
-        {label}
-        <ChevronDown size={14} className={cn("transition-transform", open && "rotate-180")} />
+        {icon ?? (
+          <>
+            {label}
+            <ChevronDown size={14} className={cn("transition-transform", open && "rotate-180")} />
+          </>
+        )}
       </Button>
 
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full mt-1 z-50 min-w-[160px] rounded-lg border border-neutral-700 bg-neutral-900 shadow-xl py-1"
+          className="absolute right-0 top-full mt-1 z-50 min-w-[180px] rounded-lg border border-line-strong bg-raised shadow-panel py-1"
         >
           {items.map((item) => (
             <button
@@ -62,8 +78,8 @@ export function DropdownMenu({
               className={cn(
                 "w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-left",
                 item.variant === "danger"
-                  ? "text-red-300 hover:bg-red-950/40"
-                  : "text-neutral-200 hover:bg-neutral-800",
+                  ? "text-red-300 hover:bg-red-600/15"
+                  : "text-neutral-200 hover:bg-line",
               )}
               onClick={() => {
                 setOpen(false);

@@ -72,7 +72,10 @@ export type AiLibraryCoverage = {
 export type AiCoverage = {
   total: number;
   ai_tagged: number;
+  /** Not AI-tagged (may still carry manual or prompt tags). */
   untagged: number;
+  /** No tags of any kind. Absent from older backends. */
+  no_tags?: number;
   per_library: AiLibraryCoverage[];
 };
 
@@ -110,6 +113,41 @@ export function fetchAiStatus(signal?: AbortSignal): Promise<AIStatus> {
 
 export function fetchAiJob(id: string, signal?: AbortSignal): Promise<AiJob> {
   return api<AiJob>(`/api/v1/ai/jobs/${encodeURIComponent(id)}`, { signal });
+}
+
+/**
+ * "just now" / "5 min ago" / "3 h ago" / "2 days ago" for a job's
+ * `created_at` (epoch seconds). `now` is injectable for tests.
+ */
+export function jobAgo(createdAtS: number, nowMs: number = Date.now()): string {
+  const s = Math.max(0, Math.round(nowMs / 1000 - createdAtS));
+  if (s < 60) return "just now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.round(h / 24);
+  return `${d} ${d === 1 ? "day" : "days"} ago`;
+}
+
+/** Human status for a job row. */
+export function jobStatusLabel(status: string): string {
+  switch (status) {
+    case "queued":
+      return "Queued";
+    case "running":
+      return "Running";
+    case "cancelling":
+      return "Cancelling";
+    case "done":
+      return "Done";
+    case "error":
+      return "Finished with errors";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return status;
+  }
 }
 
 export function fetchAiCoverage(signal?: AbortSignal): Promise<AiCoverage> {

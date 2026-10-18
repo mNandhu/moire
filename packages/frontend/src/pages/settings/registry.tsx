@@ -35,16 +35,14 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         id: "tagging",
         label: "AI Tagging",
         icon: Tags,
-        description:
-          "The wd-tagger model, scoring thresholds, and how many tags are kept per image. Run tagging and track jobs from the AI Tagging page.",
+        description: "How confident the tagger must be, how many tags it keeps, and which model it uses.",
         Component: TaggingSection,
       },
       {
         id: "prompt-tags",
         label: "Prompt Tags",
         icon: FileText,
-        description:
-          "Extract prompt: tags from embedded generation metadata (A1111 / ComfyUI). Separate from AI tagging.",
+        description: "Tags taken from the generation prompt embedded in each image (A1111 / ComfyUI).",
         Component: PromptTagsSection,
       },
     ],

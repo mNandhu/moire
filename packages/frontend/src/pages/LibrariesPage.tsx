@@ -1,15 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FolderOpen, Plus, RotateCw, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import {
+  FolderOpen,
+  Plus,
+  RotateCw,
+  Pencil,
+  Trash2,
+  Eye,
+  EyeOff,
+  MoreHorizontal,
+} from "lucide-react";
 import { useToast } from "../components/Toasts";
-import { PageHeader } from "../components/ui/PageHeader";
+import { PageHeader, PageBody } from "../components/ui/PageHeader";
+import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { Card } from "../components/ui/Card";
 import { Dialog } from "../components/ui/Dialog";
 import { AddLibraryDialog } from "../components/AddLibraryDialog";
 import { useConfirm } from "../components/ConfirmDialog";
 import { Button } from "../components/ui/Button";
 import { Input, Field } from "../components/ui/Input";
-import { Badge } from "../components/ui/Badge";
 import { Skeleton, Spinner } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
 import { api } from "../lib/api";
@@ -140,12 +149,38 @@ export default function LibrariesPage() {
     invalidateImageFeed();
   };
 
+  const rescan = async (l: Library) => {
+    setRescanning((s) => new Set(s).add(l._id));
+    try {
+      await api(`/api/v1/libraries/${l._id}/rescan`, { method: "POST" });
+      push(`Rescan started for ${l.name || l.path}`, "info");
+    } catch (e) {
+      push((e as Error)?.message || "Failed to start rescan", "error");
+    } finally {
+      refresh();
+      setRescanning((s) => {
+        const n = new Set(s);
+        n.delete(l._id);
+        return n;
+      });
+    }
+  };
+
+  const toggleWatch = async (l: Library) => {
+    try {
+      await updateLibrary(l._id, { watch_enabled: !l.watch_enabled });
+      push(l.watch_enabled ? "Stopped watching" : "Watching for changes", "success");
+    } catch (e) {
+      push((e as Error)?.message || "Failed to update watching", "error");
+    }
+  };
+
   return (
-    <div className="p-6 space-y-5">
+    <>
       <PageHeader
         title="Libraries"
         count={initialLoading ? undefined : libs.length}
-        description="Folders Moiré watches and indexes."
+        description="Folders Moiré indexes."
         actions={
           <div className="flex items-center gap-3">
             {refreshing && !initialLoading && (
@@ -155,11 +190,12 @@ export default function LibrariesPage() {
             )}
             <Button variant="primary" onClick={() => setAddOpen(true)}>
               <Plus size={16} />
-              Add libraries
+              Add library
             </Button>
           </div>
         }
       />
+      <PageBody className="space-y-5">
 
       <AddLibraryDialog
         open={addOpen}
@@ -215,7 +251,7 @@ export default function LibrariesPage() {
             actions={
               <Button variant="primary" onClick={() => setAddOpen(true)}>
                 <Plus size={16} />
-                Add libraries
+                Add library
               </Button>
             }
           />
@@ -223,115 +259,111 @@ export default function LibrariesPage() {
 
         {/* Libraries list */}
         {!initialLoading &&
-          libs.map((l) => (
-            <Card key={l._id} hover className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-semibold text-neutral-100 truncate">
-                    {l.name || l.path}
-                  </div>
-                  <div className="text-xs text-neutral-400 truncate">{l.path}</div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {!(progress[l._id]?.scanning || (l as any).scanning) &&
-                    typeof l.indexed_count === "number" && (
-                      <Badge>{l.indexed_count.toLocaleString()} indexed</Badge>
-                    )}
-                  {l.last_scanned && (
-                    <Badge>
-                      <span title={new Date(l.last_scanned).toLocaleString()}>
-                        {new Date(l.last_scanned).toLocaleDateString()}
+          libs.map((l) => {
+            const scanning = !!(progress[l._id]?.scanning || l.scanning);
+            const busy = scanning || rescanning.has(l._id);
+            // One quiet line of facts instead of a row of same-weight badges.
+            const facts = [
+              !scanning && typeof l.indexed_count === "number"
+                ? `${l.indexed_count.toLocaleString()} ${l.indexed_count === 1 ? "image" : "images"}`
+                : null,
+              l.last_scanned
+                ? `Scanned ${new Date(l.last_scanned).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`
+                : null,
+            ].filter(Boolean);
+            return (
+              <Card key={l._id} className="p-4">
+                <div className="flex items-center gap-4">
+                  <span className="hidden sm:inline-flex items-center justify-center w-10 h-10 rounded-lg shrink-0 text-brand-300 bg-brand-500/10">
+                    <FolderOpen size={18} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-neutral-100 truncate">
+                      {l.name || l.path}
+                    </div>
+                    <div className="text-xs text-faint truncate" title={l.path}>
+                      {l.path}
+                    </div>
+                    {/* Separators are a trailing dot on each fact, so a
+                        wrapped line never starts with one. */}
+                    <div className="mt-1 text-xs text-muted flex flex-wrap items-center gap-x-1.5">
+                      {facts.map((f, i) => (
+                        <span key={i} className="tabular-nums whitespace-nowrap">
+                          {f}
+                          <span className="text-faint ml-1.5">·</span>
+                        </span>
+                      ))}
+                      <span className="whitespace-nowrap">
+                        {l.watch_enabled ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Eye size={12} className="text-brand-300" /> Watching
+                          </span>
+                        ) : (
+                          <span className="text-faint">Not watching</span>
+                        )}
                       </span>
-                    </Badge>
-                  )}
-                  {rescanning.has(l._id) && (
-                    <Badge tone="brand">Rescanning…</Badge>
-                  )}
-                  <Badge tone={l.watch_enabled ? "brand" : undefined}>
-                    {l.watch_enabled ? "Watching" : "Watch off"}
-                  </Badge>
-                </div>
-              </div>
-
-              {progress[l._id]?.scanning && (
-                <div className="mt-3">
-                  <progress
-                    className="w-full h-2 [&::-webkit-progress-bar]:bg-neutral-800 [&::-webkit-progress-value]:bg-brand-600 [&::-moz-progress-bar]:bg-brand-600 rounded"
-                    value={Math.max(0, progress[l._id]?.scan_done || 0)}
-                    max={Math.max(1, progress[l._id]?.scan_total || 1)}
-                    aria-label="Scanning progress"
-                  />
-                  <div className="mt-1 text-xs text-neutral-400 tabular-nums">
-                    {progress[l._id]?.scan_done || 0} /{" "}
-                    {progress[l._id]?.scan_total || 0}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      size="sm"
+                      onClick={() => void rescan(l)}
+                      disabled={busy}
+                      aria-label="Rescan"
+                      title="Rescan this folder"
+                    >
+                      <RotateCw size={14} className={busy ? "animate-spin" : undefined} />
+                      <span className="hidden sm:inline">
+                        {scanning ? "Scanning…" : rescanning.has(l._id) ? "Rescanning…" : "Rescan"}
+                      </span>
+                    </Button>
+                    <DropdownMenu
+                      aria-label={`More actions for ${l.name || l.path}`}
+                      icon={<MoreHorizontal size={16} />}
+                      size="sm"
+                      items={[
+                        {
+                          label: l.watch_enabled ? "Stop watching" : "Watch for changes",
+                          icon: l.watch_enabled ? <EyeOff size={15} /> : <Eye size={15} />,
+                          onClick: () => void toggleWatch(l),
+                        },
+                        {
+                          label: "Edit",
+                          icon: <Pencil size={15} />,
+                          onClick: () => {
+                            setEditId(l._id);
+                            setEditName(l.name || "");
+                            setEditPath(l.path);
+                          },
+                        },
+                        {
+                          label: "Delete",
+                          icon: <Trash2 size={15} />,
+                          variant: "danger",
+                          onClick: () => void deleteLibrary(l._id),
+                        },
+                      ]}
+                    />
                   </div>
                 </div>
-              )}
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  onClick={async () => {
-                    setRescanning((s) => new Set(s).add(l._id));
-                    try {
-                      await api(`/api/v1/libraries/${l._id}/rescan`, {
-                        method: "POST",
-                      });
-                      push(`Rescan started for ${l.name || l.path}`, "info");
-                    } finally {
-                      refresh();
-                      setRescanning((s) => {
-                        const n = new Set(s);
-                        n.delete(l._id);
-                        return n;
-                      });
-                      push(`Rescan requested`, "success");
-                    }
-                  }}
-                  disabled={rescanning.has(l._id)}
-                >
-                  <RotateCw size={14} />
-                  {rescanning.has(l._id) ? "Rescanning…" : "Rescan"}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={async () => {
-                    try {
-                      await updateLibrary(l._id, { watch_enabled: !l.watch_enabled });
-                      push(
-                        l.watch_enabled ? "Watching disabled" : "Watching enabled",
-                        "success",
-                      );
-                    } catch (e: any) {
-                      push(e?.message || "Failed to update watching", "error");
-                    }
-                  }}
-                >
-                  {l.watch_enabled ? <EyeOff size={14} /> : <Eye size={14} />}
-                  {l.watch_enabled ? "Stop watching" : "Watch"}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setEditId(l._id);
-                    setEditName(l.name || "");
-                    setEditPath(l.path);
-                  }}
-                >
-                  <Pencil size={14} />
-                  Edit
-                </Button>
-                <Button
-                  size="sm"
-                  variant="dangerSoft"
-                  onClick={() => deleteLibrary(l._id)}
-                >
-                  <Trash2 size={14} />
-                  Delete
-                </Button>
-              </div>
-            </Card>
-          ))}
+                {progress[l._id]?.scanning && (
+                  <div className="mt-3">
+                    <progress
+                      className="w-full h-1.5 [&::-webkit-progress-bar]:bg-raised [&::-webkit-progress-value]:bg-brand-500 [&::-moz-progress-bar]:bg-brand-500 rounded"
+                      value={Math.max(0, progress[l._id]?.scan_done || 0)}
+                      max={Math.max(1, progress[l._id]?.scan_total || 1)}
+                      aria-label="Scanning progress"
+                    />
+                    <div className="mt-1 text-xs text-muted tabular-nums">
+                      {(progress[l._id]?.scan_done || 0).toLocaleString()} /{" "}
+                      {(progress[l._id]?.scan_total || 0).toLocaleString()}
+                    </div>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
       </div>
 
       <Dialog
@@ -386,6 +418,7 @@ export default function LibrariesPage() {
           )}
         </div>
       </Dialog>
-    </div>
+      </PageBody>
+    </>
   );
 }

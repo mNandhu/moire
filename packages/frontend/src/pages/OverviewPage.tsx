@@ -4,19 +4,18 @@ import {
   Images,
   Tags as TagsIcon,
   FolderOpen,
-  Cpu,
   Sparkles,
   Plus,
   Loader2,
 } from "lucide-react";
 import { StatCard } from "../components/ui/StatCard";
-import { PageHeader } from "../components/ui/PageHeader";
+import { PageHeader, PageBody } from "../components/ui/PageHeader";
 import { ButtonLink } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { useAiStatus } from "../hooks/useAiStatus";
 import { isActiveJob } from "../lib/ai";
-import { useLibraries, useTagAggregate } from "../lib/queries";
+import { useAiCoverage, useLibraries, useTagAggregate } from "../lib/queries";
 import { isManual } from "../lib/tags";
 
 export default function OverviewPage() {
@@ -43,41 +42,38 @@ export default function OverviewPage() {
   );
   const scanning = useMemo(() => (libs || []).filter((l) => l.scanning), [libs]);
   const latestJob = ai?.jobs?.recent?.[0];
-
-  const modelLoaded = Boolean(ai?.model?.loaded);
-  const modelLoading = ai?.model_load?.status === "loading";
-  const modelState = modelLoading
-    ? "Loading…"
-    : modelLoaded
-      ? "Loaded"
-      : "Unloaded";
+  // Progress, not plumbing: whether the model happens to be resident is an
+  // implementation detail (it loads on demand); how much is tagged is not.
+  const { data: cov } = useAiCoverage();
+  const aiPct = cov && cov.total ? Math.round((cov.ai_tagged / cov.total) * 100) : 0;
 
   return (
-    <div className="p-6">
+    <>
       <PageHeader
         title="Overview"
-        description="Your local image library at a glance."
         actions={
           <ButtonLink variant="primary" to="/libraries">
             <Plus size={16} /> Add library
           </ButtonLink>
         }
       />
+      <PageBody>
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <StatCard
           icon={Images}
           label="Images indexed"
-          tone="brand"
           loading={totalImages === undefined}
           value={totalImages?.toLocaleString()}
           to="/"
         />
         <StatCard
           icon={TagsIcon}
-          label="Tags"
-          tone="blue"
+          // Prompt tags are excluded from this aggregate (they're long-tail
+          // and live on the Tags page behind a toggle); say so, or an image
+          // full of prompt tags sits beside a "0 Tags" card.
+          label="AI & manual tags"
           loading={tags === null}
           value={tags?.length.toLocaleString()}
           hint={manualCount ? `${manualCount} manual` : undefined}
@@ -86,18 +82,17 @@ export default function OverviewPage() {
         <StatCard
           icon={FolderOpen}
           label="Libraries"
-          tone="emerald"
           loading={libs === null}
           value={libs?.length.toLocaleString()}
           hint={scanning.length ? `${scanning.length} scanning` : undefined}
           to="/libraries"
         />
         <StatCard
-          icon={Cpu}
-          label="AI model"
-          tone="neutral"
-          value={modelState}
-          hint={ai?.model?.repo ?? undefined}
+          icon={Sparkles}
+          label="AI-tagged"
+          loading={!cov}
+          value={`${aiPct}%`}
+          hint={cov?.untagged ? `${cov.untagged.toLocaleString()} to go` : undefined}
           to="/ai-tagging"
         />
       </div>
@@ -106,7 +101,7 @@ export default function OverviewPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-3">
-            <Sparkles size={16} className="text-brand-300" />
+            <Sparkles size={16} className="text-faint" />
             <h3 className="font-semibold text-neutral-100">AI tagging</h3>
           </div>
           {latestJob ? (
@@ -126,7 +121,7 @@ export default function OverviewPage() {
                 </Badge>
               </div>
               <progress
-                className="w-full h-2 [&::-webkit-progress-bar]:bg-neutral-800 [&::-webkit-progress-value]:bg-brand-600 [&::-moz-progress-bar]:bg-brand-600 rounded"
+                className="w-full h-1.5 [&::-webkit-progress-bar]:bg-raised [&::-webkit-progress-value]:bg-brand-500 [&::-moz-progress-bar]:bg-brand-500 rounded"
                 value={latestJob.done + latestJob.failed}
                 max={Math.max(1, latestJob.total)}
               />
@@ -147,7 +142,7 @@ export default function OverviewPage() {
 
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-3">
-            <FolderOpen size={16} className="text-emerald-300" />
+            <FolderOpen size={16} className="text-faint" />
             <h3 className="font-semibold text-neutral-100">Libraries</h3>
           </div>
           {libs === null ? (
@@ -185,6 +180,7 @@ export default function OverviewPage() {
           )}
         </Card>
       </div>
-    </div>
+      </PageBody>
+    </>
   );
 }

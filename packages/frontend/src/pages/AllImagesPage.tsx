@@ -592,8 +592,17 @@ export default function AllImagesPage() {
   }, [focusedIndex, getScrollContainer]);
 
   return (
-    <div ref={containerRef} className="p-6 space-y-3">
+    <div ref={containerRef}>
+      {/* One sticky band: title, search and every view control in a single
+          64px row (the sidebar's brand row is the same height), with active
+          filter chips or the filter panel folding out beneath it. */}
+      <div
+        ref={headerRef}
+        className="sticky top-0 z-10 bg-canvas/85 backdrop-blur-md border-b border-line shadow-bar"
+      >
       <PageHeader
+        sticky={false}
+        width="full"
         title={
           filters.quarantined
             ? "Quarantined Images"
@@ -612,11 +621,7 @@ export default function AllImagesPage() {
         // bare number that climbs as you scroll and looks like a bug.
         count={items.length}
         countLabel="loaded"
-        description={
-          selectionMode
-            ? `${selection.size} selected`
-            : "Browse, filter, and tag your library."
-        }
+        description={selectionMode ? `${selection.size} selected` : undefined}
         actions={
           <>
             <DensityControl
@@ -627,7 +632,7 @@ export default function AllImagesPage() {
             />
             <Button
               size="icon"
-              variant="secondary"
+              variant="ghost"
               onClick={() => setShowShortcuts(true)}
               aria-label="Keyboard shortcuts"
               title="Keyboard shortcuts (?)"
@@ -636,10 +641,6 @@ export default function AllImagesPage() {
             </Button>
           </>
         }
-      />
-      <div
-        ref={headerRef}
-        className="sticky top-0 z-10 -mx-6 px-6 py-3 bg-canvas/85 backdrop-blur border-b border-line shadow-bar"
       >
         <div className="flex items-center gap-2">
           <Button
@@ -681,8 +682,10 @@ export default function AllImagesPage() {
             }
             aria-label={filters.group ? "Ungroup batches" : "Group batches"}
             title="Group batches (same prompt + workflow)"
+            className="xl:w-auto xl:px-3 xl:gap-2"
           >
             <Layers size={18} />
+            <span className="hidden xl:inline">Group</span>
           </Button>
           <Button
             size="icon"
@@ -693,8 +696,10 @@ export default function AllImagesPage() {
               selectionMode ? "Exit selection mode" : "Enter selection mode"
             }
             title={selectionMode ? "Done selecting" : "Select (S)"}
+            className="xl:w-auto xl:px-3 xl:gap-2"
           >
             {selectionMode ? <CheckSquare size={18} /> : <Square size={18} />}
+            <span className="hidden xl:inline">{selectionMode ? "Done" : "Select"}</span>
           </Button>
           {selectionMode && selectionActive && (
             <DropdownMenu
@@ -726,10 +731,12 @@ export default function AllImagesPage() {
           )}
         </div>
 
+      </PageHeader>
+      <div className="px-4 md:px-6 empty:hidden">
         {/* With the panel closed, active filters would otherwise be invisible
             (the title changing to "Filtered Images" was the only hint). */}
         {!filtersOpen && filterChips.length > 0 && (
-          <div className="mt-2.5 flex flex-wrap items-center gap-1.5" aria-label="Active filters">
+          <div className="pb-3 flex flex-wrap items-center gap-1.5" aria-label="Active filters">
             {filterChips.map((chip) => (
               <span
                 key={chip.key}
@@ -770,7 +777,7 @@ export default function AllImagesPage() {
         {filtersOpen && (
           <div
             ref={filtersPanelRef}
-            className="pt-4 pb-1"
+            className="pt-1 pb-4"
             role="dialog"
             aria-label="Filters"
           >
@@ -1006,7 +1013,9 @@ export default function AllImagesPage() {
           </div>
         )}
       </div>
+      </div>
 
+      <div className="px-4 md:px-6 py-4 space-y-3">
       {activeFeed.isLoading && items.length === 0 && (
         <GallerySkeleton density={density.density} />
       )}
@@ -1071,6 +1080,7 @@ export default function AllImagesPage() {
       )}
 
       <div ref={sentinelRef} className="h-8" />
+      </div>
 
       {showShortcuts && (
         <ShortcutOverlay onClose={() => setShowShortcuts(false)} />

@@ -1,8 +1,119 @@
-import { Card } from "../../../components/ui/Card";
+import { Link } from "react-router-dom";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
-import { Badge } from "../../../components/ui/Badge";
 import { formatBytes, useSettings } from "../SettingsContext";
 
+/**
+ * The tagger model loads on demand (a job's first image waits for it) and
+ * unloads after `idle_unload_s` idle, so its residency is plumbing. The UI
+ * only speaks up when that plumbing affects the user: a first-run download,
+ * a load in progress, or a failure to retry. Manual preload/unload is an
+ * advanced control and lives in Settings ({@link ModelSection}).
+ */
+
+function shortRepo(repo?: string | null) {
+  return repo ? repo.split("/").pop() : "the tagger model";
+}
+
+/** Per-file download progress, shown only while a download is relevant. */
+function DownloadProgress() {
+  const { status, running, loadModel, cancelModelDownload } = useSettings();
+  const dl = status?.model_download;
+  if (!dl || !["downloading", "error", "cancelled"].includes(dl.status)) return null;
+  const files = dl.files || [];
+  const done = files.reduce((n, f) => n + (f.downloaded || 0), 0);
+  const total = files.reduce((n, f) => n + (f.total || 0), 0);
+  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3 text-sm">
+        {dl.status === "downloading" ? (
+          <span className="text-neutral-200">
+            Downloading {shortRepo(status?.model?.repo)}
+            {total > 0 && (
+              <span className="text-muted tabular-nums">
+                {" "}
+                · {formatBytes(done)} of {formatBytes(total)}
+              </span>
+            )}
+            {dl.cancel_requested && <span className="text-faint"> (cancelling)</span>}
+          </span>
+        ) : dl.status === "error" ? (
+          <span className="text-red-300">
+            Model download failed{dl.error ? `: ${dl.error}` : ""}
+          </span>
+        ) : (
+          <span className="text-muted">Model download cancelled</span>
+        )}
+        {dl.status === "downloading" ? (
+          <Button size="sm" onClick={cancelModelDownload} disabled={running}>
+            Cancel
+          </Button>
+        ) : (
+          <Button size="sm" onClick={loadModel} disabled={running}>
+            Retry
+          </Button>
+        )}
+      </div>
+      {dl.status === "downloading" && (
+        <progress
+          className="w-full h-1.5 [&::-webkit-progress-bar]:bg-raised [&::-webkit-progress-value]:bg-brand-500 [&::-moz-progress-bar]:bg-brand-500 rounded"
+          value={pct}
+          max={100}
+          aria-label="Model download progress"
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * One quiet line about the model for the AI Tagging page. Silent detail in
+ * the normal case; download progress, loading, or an error when they happen.
+ */
+export function ModelStatusLine() {
+  const { status, settings, isModelLoaded, isModelLoading, loadModel, running } =
+    useSettings();
+  const dl = status?.model_download?.status;
+  if (dl && ["downloading", "error", "cancelled"].includes(dl)) return <DownloadProgress />;
+
+  // The status repo is only set once loaded; the configured one names it before.
+  const name = shortRepo(status?.model?.repo || settings?.model_repo);
+  const loadError = status?.model_load?.error;
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="inline-flex items-center gap-1.5 text-red-300 min-w-0">
+          <AlertTriangle size={14} className="shrink-0" />
+          <span className="truncate">Couldn't load {name}: {loadError}</span>
+        </span>
+        <Button size="sm" onClick={loadModel} disabled={running}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="text-xs text-faint">
+      {isModelLoading ? (
+        <span className="inline-flex items-center gap-1.5 text-muted">
+          <Loader2 size={12} className="animate-spin" /> Loading {name}…
+        </span>
+      ) : (
+        <>
+          Uses <span className="text-muted">{name}</span>
+          {isModelLoaded ? ", ready." : ", loaded automatically when tagging starts."}
+        </>
+      )}{" "}
+      <Link to="/settings?section=tagging" className="text-brand-300 hover:underline">
+        Model settings
+      </Link>
+    </div>
+  );
+}
+
+/** Settings: model state with the manual preload/unload controls. */
 export function ModelSection() {
   const {
     status,
@@ -11,146 +122,42 @@ export function ModelSection() {
     isModelLoading,
     loadModel,
     cancelModelLoad,
-    cancelModelDownload,
     unloadModel,
   } = useSettings();
+  const idle = status?.model?.idle_unload_s;
 
   return (
-    <Card className="p-5 space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          <Badge
-            tone={
-              isModelLoading
-                ? "warning"
-                : status?.model?.loaded
-                  ? "success"
-                  : "neutral"
-            }
-          >
-            {isModelLoading
-              ? "loading"
-              : status?.model?.loaded
-                ? "loaded"
-                : "unloaded"}
-          </Badge>
-          <div className="text-xs text-neutral-400">
-            {status?.model?.repo ? status.model.repo : ""}
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-sm">
+          <div className="text-neutral-200">
+            {isModelLoading ? "Loading…" : isModelLoaded ? "Loaded in memory" : "Not loaded"}
+          </div>
+          <div className="text-xs text-faint mt-0.5">
+            Loads automatically when tagging starts
+            {idle ? `; unloads after ${Math.round(idle / 60) || 1} min idle` : ""}.
           </div>
           {status?.model_load?.error && (
-            <div className="text-xs text-red-300 mt-1">
-              {status.model_load.error}
-            </div>
+            <div className="text-xs text-red-300 mt-1">{status.model_load.error}</div>
           )}
         </div>
-        <div className="flex gap-2">
-          {!isModelLoaded && !isModelLoading && (
-            <Button onClick={loadModel} disabled={running}>
-              Load
-            </Button>
-          )}
-
-          {isModelLoading && (
-            <Button
-              variant="dangerSoft"
-              onClick={cancelModelLoad}
-              disabled={running}
-              title="Stops an in-progress download/load."
-            >
+        <div className="flex gap-2 shrink-0">
+          {isModelLoading ? (
+            <Button size="sm" onClick={cancelModelLoad} disabled={running}>
               Stop
             </Button>
-          )}
-
-          {isModelLoaded && !isModelLoading && (
-            <Button onClick={unloadModel} disabled={running}>
-              Unload
+          ) : isModelLoaded ? (
+            <Button size="sm" onClick={unloadModel} disabled={running}>
+              Unload now
+            </Button>
+          ) : (
+            <Button size="sm" onClick={loadModel} disabled={running}>
+              Preload
             </Button>
           )}
         </div>
       </div>
-
-      {status?.model_download &&
-        ["downloading", "error", "cancelled"].includes(
-          status.model_download.status
-        ) && (
-          <div
-            className={`rounded border p-3 space-y-2 ${
-              status.model_download.status === "error"
-                ? "border-red-900/60 bg-red-950/20"
-                : "border-neutral-800 bg-neutral-950/40"
-            }`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-sm">
-                {status.model_download.status === "downloading" ? (
-                  <>
-                    Downloading model files…
-                    {status.model_download.cancel_requested ? (
-                      <span className="text-faint"> (cancelling)</span>
-                    ) : null}
-                  </>
-                ) : status.model_download.status === "error" ? (
-                  <span className="text-red-300">
-                    Download failed
-                    {status.model_download.error
-                      ? `: ${status.model_download.error}`
-                      : ""}
-                  </span>
-                ) : (
-                  <span className="text-neutral-400">Download cancelled</span>
-                )}
-              </div>
-              {status.model_download.status === "downloading" ? (
-                <Button
-                  size="sm"
-                  variant="dangerSoft"
-                  onClick={cancelModelDownload}
-                  disabled={running}
-                  title="Cancel the current download (partial files will be removed)."
-                >
-                  Cancel download
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  onClick={loadModel}
-                  disabled={running}
-                  title="Retry downloading and loading the model."
-                >
-                  Retry
-                </Button>
-              )}
-            </div>
-
-            {(status.model_download.files || []).map((f) => {
-              const pct =
-                f.total && f.total > 0
-                  ? Math.min(100, Math.round((f.downloaded / f.total) * 100))
-                  : 0;
-              return (
-                <div key={f.name} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs text-neutral-400">
-                    <div>
-                      <span className="font-mono">{f.name}</span> · {f.status}
-                      {f.error ? (
-                        <span className="text-red-300"> · {f.error}</span>
-                      ) : null}
-                    </div>
-                    <div className="text-faint">
-                      {formatBytes(f.downloaded)}
-                      {f.total ? ` / ${formatBytes(f.total)}` : ""}
-                    </div>
-                  </div>
-                  <progress
-                    className="w-full h-2 [&::-webkit-progress-bar]:bg-neutral-800 [&::-webkit-progress-value]:bg-emerald-600 [&::-moz-progress-bar]:bg-emerald-600"
-                    value={pct}
-                    max={100}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-    </Card>
+      <DownloadProgress />
+    </div>
   );
 }

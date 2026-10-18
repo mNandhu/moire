@@ -216,9 +216,9 @@ export function useRulesetSession({
     const sig = selected.workflow_sig;
     if (
       !(await confirmDiscard({
-        title: "Delete this ruleset?",
-        message: "Images with this signature are reprojected with the built-in rules.",
-        confirmLabel: "Delete ruleset",
+        title: "Reset to built-in extraction?",
+        message: "Your pins for this workflow are removed and its images are re-read with the built-in rules.",
+        confirmLabel: "Reset",
         tone: "danger",
       }))
     )

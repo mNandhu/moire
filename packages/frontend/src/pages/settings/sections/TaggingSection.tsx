@@ -1,4 +1,5 @@
-import { Card } from "../../../components/ui/Card";
+import { Section } from "../../../components/ui/Card";
+import { ModelSection } from "./ModelSection";
 import { Button } from "../../../components/ui/Button";
 import { Input, Field } from "../../../components/ui/Input";
 import { Checkbox } from "../../../components/ui/Checkbox";
@@ -8,15 +9,17 @@ export function TaggingSection() {
   const { settings, setSettings, saving, save } = useSettings();
 
   return (
-    <Card className="p-5 space-y-4">
+    <div className="space-y-5">
       {settings ? (
-        <div className="space-y-6">
-          {/* Tagging output controls */}
-          <div className="space-y-3">
-            <div className="text-2xs font-semibold uppercase tracking-wider text-faint">
-              Tagging
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <>
+          <Section
+            title="Thresholds"
+            description="Minimum confidence for a tag to be kept, and a cap per image."
+          >
+            <div className="space-y-4">
+            {/* Four short numbers: one row of compact fields, not four
+                half-page-wide inputs holding "0.35". */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Field label="General threshold" htmlFor="ai_general_thresh">
                 <Input
                   id="ai_general_thresh"
@@ -79,8 +82,8 @@ export function TaggingSection() {
                 id="general_mcut"
                 checked={settings.general_mcut}
                 onChange={(v) => setSettings({ ...settings, general_mcut: v })}
-                label="General MCUT"
-                hint="Auto-pick the threshold from the biggest drop between sorted tag scores."
+                label="Auto threshold for general tags (MCut)"
+                hint="Cut at the biggest drop between sorted tag scores instead of a fixed value."
               />
               <Checkbox
                 id="character_mcut"
@@ -88,20 +91,19 @@ export function TaggingSection() {
                 onChange={(v) =>
                   setSettings({ ...settings, character_mcut: v })
                 }
-                label="Character MCUT"
-                hint="Same MCUT auto-threshold, applied to character tags."
+                label="Auto threshold for character tags (MCut)"
+                hint="The same, applied to character tags."
               />
             </div>
-          </div>
-
-          {/* Model & storage */}
-          <div className="space-y-3">
-            <div className="text-2xs font-semibold uppercase tracking-wider text-faint">
-              Model &amp; storage
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          </Section>
+
+          <Section title="Model">
+            <div className="space-y-5">
+            <ModelSection />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-4 border-t border-line">
               <Field
-                label="Model repo"
+                label="Model (Hugging Face repo)"
                 htmlFor="ai_model_repo"
                 hint={
                   <a
@@ -124,7 +126,7 @@ export function TaggingSection() {
                 />
               </Field>
               <Field
-                label="Idle unload (seconds)"
+                label="Unload after idle (seconds)"
                 htmlFor="ai_idle_unload"
                 hint="0 disables auto-unload."
               >
@@ -142,7 +144,7 @@ export function TaggingSection() {
                 />
               </Field>
               <Field
-                label="Model cache dir"
+                label="Download folder"
                 htmlFor="ai_cache_dir"
                 hint="Relative paths resolve from the repo root."
                 className="md:col-span-2"
@@ -156,17 +158,18 @@ export function TaggingSection() {
                 />
               </Field>
             </div>
-          </div>
-        </div>
+            </div>
+          </Section>
+        </>
       ) : (
         <div className="text-sm text-faint">Loading settings…</div>
       )}
 
-      <div className="flex items-center gap-2 pt-1">
+      <div className="flex justify-end">
         <Button variant="primary" onClick={save} disabled={!settings || saving}>
-          {saving ? "Saving…" : "Save settings"}
+          {saving ? "Saving…" : "Save changes"}
         </Button>
       </div>
-    </Card>
+    </div>
   );
 }

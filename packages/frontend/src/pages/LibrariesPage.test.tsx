@@ -43,7 +43,11 @@ describe("LibrariesPage › delete invalidates the gallery", () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(await screen.findByText("Delete"));
+    // Delete lives in the row's overflow menu.
+    fireEvent.click(
+      await screen.findByRole("button", { name: "More actions for Lib One" }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
 
     await waitFor(() => {
       const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));

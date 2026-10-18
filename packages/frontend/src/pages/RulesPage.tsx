@@ -2,8 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useRulesetSession } from "../hooks/useRulesetSession";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
-import { Workflow, Save, Trash2, Play, X, Plus, Search, AlertTriangle } from "lucide-react";
-import { PageHeader } from "../components/ui/PageHeader";
+import {
+  Workflow,
+  Save,
+  Trash2,
+  Play,
+  X,
+  Plus,
+  Search,
+  AlertTriangle,
+  MousePointerClick,
+} from "lucide-react";
+import { PageHeader, PageBody } from "../components/ui/PageHeader";
 import { Button } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 import { useToast } from "../components/Toasts";
@@ -15,6 +25,7 @@ import {
   type PreviewResult,
   fetchSignatures,
   previewRuleset,
+  signatureTitle,
 } from "../lib/gen";
 
 const FIELD_LABEL: Record<RuleField, string> = {
@@ -284,12 +295,14 @@ export default function RulesPage() {
   }, []);
 
   return (
-    <div className="p-6 space-y-4">
+    <>
       <PageHeader
-        title="Extraction Rules"
+        title="Rules"
         count={sigs.length}
-        description="Pin where each generation field lives in your custom workflows."
+        width="wide"
+        description="Tell Moiré where prompt, seed and model live in your custom ComfyUI workflows."
       />
+      <PageBody width="wide">
 
       {sigs.length === 0 ? (
         <EmptyState
@@ -299,39 +312,66 @@ export default function RulesPage() {
         />
       ) : (
         <div className="grid grid-cols-12 gap-4">
-          {/* Signature picker */}
+          {/* Workflow picker. A workflow is identified by its node types, so
+              it's named by the nodes that set it apart and shown with a
+              sample image; the hash is only a tooltip. */}
           <div className="col-span-12 lg:col-span-3 space-y-1.5">
-            {sigs.map((s) => (
-              <button
-                key={s.workflow_sig}
-                onClick={() => void selectSig(s)}
-                className={`w-full text-left px-3 py-2 rounded-lg border text-sm ${
-                  selected?.workflow_sig === s.workflow_sig
-                    ? "bg-neutral-800 border-neutral-600"
-                    : "bg-neutral-900 border-neutral-800 hover:border-neutral-700"
-                }`}
-              >
-                <div className="font-mono text-xs truncate">{s.workflow_sig}</div>
-                <div className="flex items-center gap-2 mt-1 text-2xs">
-                  <span className="text-neutral-400">{s.count} imgs</span>
-                  {s.needs_mapping > 0 && (
-                    <span className="px-1.5 rounded-full bg-amber-900/40 border border-amber-800 text-amber-200">
-                      {s.needs_mapping} unmapped
+            <div className="px-1 pb-1 text-xs font-medium text-muted">Workflows</div>
+            {sigs.map((s) => {
+              const on = selected?.workflow_sig === s.workflow_sig;
+              return (
+                <button
+                  key={s.workflow_sig}
+                  onClick={() => void selectSig(s)}
+                  title={`Workflow ${s.workflow_sig}`}
+                  aria-current={on ? "true" : undefined}
+                  className={`w-full text-left p-2 rounded-lg border flex items-center gap-3 transition-colors ${
+                    on
+                      ? "bg-raised border-brand-500/60"
+                      : "bg-surface border-line hover:border-line-strong"
+                  }`}
+                >
+                  {s.sample_thumb_url ? (
+                    <img
+                      src={s.sample_thumb_url}
+                      alt=""
+                      loading="lazy"
+                      className="w-10 h-10 rounded-md object-cover shrink-0 bg-raised"
+                    />
+                  ) : (
+                    <span className="w-10 h-10 rounded-md shrink-0 bg-raised inline-flex items-center justify-center text-faint">
+                      <Workflow size={16} />
                     </span>
                   )}
-                  {s.has_ruleset && (
-                    <span className="px-1.5 rounded-full bg-emerald-900/40 border border-emerald-800 text-emerald-200">
-                      ruleset
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm text-neutral-100 truncate">
+                      {signatureTitle(s)}
                     </span>
-                  )}
-                </div>
-              </button>
-            ))}
+                    <span className="flex items-center gap-1.5 mt-0.5 text-xs text-faint tabular-nums">
+                      {s.count} {s.count === 1 ? "image" : "images"}
+                      {s.node_count ? <> · {s.node_count} nodes</> : null}
+                      {s.needs_mapping > 0 ? (
+                        <span className="ml-auto text-amber-300" title="Images whose prompt couldn't be found">
+                          {s.needs_mapping} unmapped
+                        </span>
+                      ) : s.has_ruleset ? (
+                        <span className="ml-auto text-brand-300">Rules set</span>
+                      ) : null}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           {!selected ? (
-            <div className="col-span-12 lg:col-span-9 text-faint text-sm">
-              Select a signature to map its fields.
+            <div className="col-span-12 lg:col-span-9 rounded-xl border border-dashed border-line">
+              <EmptyState
+                compact
+                icon={MousePointerClick}
+                title="Pick a workflow"
+                description="Choose one on the left to see its graph. Click any value in it to say which field it is — say, the node that holds your positive prompt."
+              />
             </div>
           ) : (
             <div className="col-span-12 lg:col-span-9 grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -352,8 +392,8 @@ export default function RulesPage() {
                       <span className="ml-1 w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
                     )}
                   </Button>
-                  <Button onClick={() => void remove()} disabled={busy}>
-                    <Trash2 size={14} /> Delete
+                  <Button variant="ghost" onClick={() => void remove()} disabled={busy}>
+                    <Trash2 size={14} /> Reset to built-in
                   </Button>
                   {isDirty && (
                     <span className="flex items-center gap-1 text-2xs text-amber-400">
@@ -367,8 +407,8 @@ export default function RulesPage() {
                     key={field}
                     className={`rounded-lg border p-2.5 ${
                       activeField === field
-                        ? "border-brand-600 bg-brand-500/5"
-                        : "border-neutral-800 bg-neutral-900"
+                        ? "border-brand-500/60 bg-brand-500/5"
+                        : "border-line bg-surface"
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
@@ -405,9 +445,9 @@ export default function RulesPage() {
                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono border ${
                               preview
                                 ? ok
-                                  ? "bg-emerald-900/30 border-emerald-800 text-emerald-100"
-                                  : "bg-neutral-800 border-neutral-700 text-neutral-400"
-                                : "bg-neutral-800 border-neutral-700"
+                                  ? "bg-brand-500/15 border-brand-500/50 text-brand-100"
+                                  : "bg-raised border-line-strong text-muted"
+                                : "bg-raised border-line-strong"
                             }`}
                             title={
                               fired ? `resolved: ${String(fired.coerced)}` : undefined
@@ -426,7 +466,7 @@ export default function RulesPage() {
                       })}
                       {(fields[field] || []).length === 0 && (
                         <span className="text-2xs text-faint">
-                          built-in extraction (click a tree leaf to override)
+                          Built-in — click a value in the graph to override
                         </span>
                       )}
                     </div>
@@ -437,11 +477,11 @@ export default function RulesPage() {
               {/* Raw graph tree */}
               <div
                 ref={graphScrollRef}
-                className="rounded-lg border border-neutral-800 bg-neutral-950/50 p-3 overflow-auto max-h-[70vh]"
+                className="rounded-lg border border-line bg-canvas p-3 overflow-auto max-h-[70vh]"
               >
                 {/* Sticky header: stays put while the tree scrolls, so the search
                     box and the surfaced matches are always reachable. */}
-                <div className="sticky -top-3 -mx-3 -mt-3 px-3 pt-3 pb-2 bg-neutral-950 z-10 border-b border-neutral-800">
+                <div className="sticky -top-3 -mx-3 -mt-3 px-3 pt-3 pb-2 bg-canvas z-10 border-b border-line">
                   <div className="text-xs text-neutral-400 mb-2">
                     Sample graph — click a value to pin it to{" "}
                     <span className="text-brand-300">{FIELD_LABEL[activeField]}</span>
@@ -456,7 +496,7 @@ export default function RulesPage() {
                       value={graphQuery}
                       onChange={(e) => setGraphQuery(e.target.value)}
                       placeholder="Find a node — id, class_type, or prompt word (e.g. masterpiece)"
-                      className="w-full pl-8 pr-2 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-xs placeholder:text-faint focus:border-neutral-600 focus:outline-none"
+                      className="w-full pl-8 pr-2 py-1.5 rounded-lg bg-surface border border-line text-xs placeholder:text-faint focus:border-brand-500/70 focus:outline-none"
                     />
                   </div>
                   {graphQuery.trim() && (
@@ -513,6 +553,7 @@ export default function RulesPage() {
           )}
         </div>
       )}
-    </div>
+      </PageBody>
+    </>
   );
 }

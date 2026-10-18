@@ -35,16 +35,21 @@ export function Section({
   return (
     <Card className={cn("p-5", className)}>
       {(title || actions) && (
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div>
+        <div
+          className={cn(
+            "flex items-center justify-between gap-4",
+            children != null && "mb-4",
+          )}
+        >
+          <div className="min-w-0">
             {title && (
               <h3 className="font-semibold text-neutral-100">{title}</h3>
             )}
             {description && (
-              <p className="text-xs text-muted mt-0.5">{description}</p>
+              <p className="text-sm text-muted mt-0.5">{description}</p>
             )}
           </div>
-          {actions && <div className="flex items-center gap-2">{actions}</div>}
+          {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
         </div>
       )}
       {children}

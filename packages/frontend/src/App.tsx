@@ -1,6 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
+import { MobileNavContext } from "./components/ui/PageHeader";
+import { cn } from "./lib/cn";
 import { useOverlayOpen } from "./lib/backgroundLocation";
 import { restoreAmbient } from "./lib/ambient";
 
@@ -10,10 +12,15 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem("sidebar:collapsed") === "1",
   );
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const openMobileNav = useCallback(() => setMobileNavOpen(true), []);
   const loc = useLocation();
-  // `loc` is the background location while ImageView is open over the gallery.
-  const isGallery = loc.pathname === "/";
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  // Navigating closes the mobile drawer.
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [loc.pathname]);
 
   useEffect(() => {
     localStorage.setItem("sidebar:collapsed", collapsed ? "1" : "0");
@@ -114,37 +121,46 @@ export default function App() {
     // Transparent, not `bg-neutral-900`: index.css paints the app's radial
     // gradients on <body>, and an opaque root covered every one of them — the
     // designed background was in the stylesheet but had never been visible.
-    <div className="h-dvh text-white">
-      <div className="ambient-wash" aria-hidden="true" />
-      {/* Fixed sidebar */}
-      <div
-        className={
-          "fixed inset-y-0 left-0 z-20 transition-[width] duration-200 " +
-          (collapsed ? "w-16" : "w-60")
-        }
-      >
-        <Sidebar
-          status={status}
-          collapsed={collapsed}
-          onToggle={() => setCollapsed((v) => !v)}
-        />
-      </div>
-      {/* Main column shifted right of sidebar */}
-      <div
-        className={
-          "h-full flex flex-col transition-[margin] duration-200 " +
-          (collapsed ? "ml-16" : "ml-60")
-        }
-      >
-        <div ref={scrollRef} className="flex-1 overflow-auto">
-          {/* Text/form pages read best capped and centered; the gallery uses
-              every pixel instead — capped, it sat centered between gutters
-              that grew with the window (96px each side at 1920px). */}
-          <div className={isGallery ? undefined : "mx-auto max-w-screen-2xl"}>
+    <MobileNavContext.Provider value={openMobileNav}>
+      <div className="h-dvh text-white">
+        <div className="ambient-wash" aria-hidden="true" />
+        {/* Small screens: the sidebar is an off-canvas drawer over a scrim,
+            opened from the page header's menu button. */}
+        {mobileNavOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/60 md:hidden"
+            onClick={() => setMobileNavOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+        {/* Fixed sidebar */}
+        <div
+          className={cn(
+            "fixed inset-y-0 left-0 z-40 md:z-20 w-60 transition-[width,transform] duration-200",
+            mobileNavOpen ? "translate-x-0" : "-translate-x-full",
+            "md:translate-x-0",
+            collapsed && "md:w-16",
+          )}
+        >
+          <Sidebar
+            status={status}
+            collapsed={collapsed && !mobileNavOpen}
+            onToggle={() => setCollapsed((v) => !v)}
+          />
+        </div>
+        {/* Main column shifted right of sidebar. Each page caps its own
+            width (PageHeader/PageBody) so title and content share one edge. */}
+        <div
+          className={cn(
+            "h-full flex flex-col transition-[margin] duration-200",
+            collapsed ? "md:ml-16" : "md:ml-60",
+          )}
+        >
+          <div ref={scrollRef} className="flex-1 overflow-auto">
             <Outlet />
           </div>
         </div>
       </div>
-    </div>
+    </MobileNavContext.Provider>
   );
 }

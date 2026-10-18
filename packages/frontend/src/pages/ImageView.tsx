@@ -679,7 +679,7 @@ export default function ImageView() {
         {data && (
           <>
             {/* Header: filename + quick actions */}
-            <div className="flex items-start justify-between gap-2 p-3 border-b border-line shrink-0">
+            <div className="flex items-start justify-between gap-2 px-4 py-3 border-b border-line shrink-0">
               <div className="min-w-0">
                 <div
                   className="text-sm font-semibold truncate"
@@ -717,7 +717,9 @@ export default function ImageView() {
             </div>
 
             {/* Scrollable body */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
+            {/* Flat sections split by rules: the sidebar is already a panel,
+                so boxing each section again read as cards inside a card. */}
+            <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-line">
               {/* Curation (Moiré-specific) */}
               <Section title="Curation">
                 <div className="flex items-center justify-between gap-2">
@@ -933,7 +935,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-line bg-canvas/50 p-3 space-y-3">
+    <section className="px-4 py-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">{title}</h2>
         {right}
@@ -947,7 +949,9 @@ const KIND_TEXT: Record<TagKind, string> = {
   character: "text-brand-300 font-semibold",
   ai: "text-neutral-100",
   manual: "text-emerald-300",
-  prompt: "text-sky-300",
+  // Prompt tags are the bulk on most images; in a link-blue they turned the
+  // whole run into what looked like a wall of hyperlinks.
+  prompt: "text-muted",
 };
 const KIND_LABEL: Record<TagKind, string> = {
   character: "character",
@@ -1117,7 +1121,7 @@ function GenPanel({
 }) {
   if (!gen || !gen.source) return null;
   return (
-    <section className="rounded-xl border border-line bg-canvas/50 p-3 space-y-4">
+    <section className="px-4 py-4 space-y-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Generation data</h2>
         <div className="flex items-center gap-3">
@@ -1230,7 +1234,7 @@ function RatingEditor({
             : "group-hover:scale-[1.02] group-hover:brightness-110"
         }`}
       >
-        <span className="font-medium">{v}</span>
+        <span className="font-medium">{v === "-" ? "Unrated" : v}</span>
         <ChevronDown size={12} className="opacity-70" />
       </div>
       <select
@@ -1240,7 +1244,7 @@ function RatingEditor({
         onChange={(e) => void setRating(e.target.value)}
         title="Change rating"
       >
-        <option value="-">-</option>
+        <option value="-">Unrated</option>
         <option value="general">general</option>
         <option value="sensitive">sensitive</option>
         <option value="questionable">questionable</option>

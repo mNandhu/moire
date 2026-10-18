@@ -321,7 +321,7 @@ function SourceBlock({
         </div>
       )}
       {s.fell_back_to_root && (
-        <div className="px-3 pt-2 text-xs text-sky-300">
+        <div className="px-3 pt-2 text-xs text-muted">
           No subfolders here — the folder itself will be added as one library.
         </div>
       )}

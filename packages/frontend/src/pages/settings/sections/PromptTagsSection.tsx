@@ -1,4 +1,4 @@
-import { Card } from "../../../components/ui/Card";
+import { Section } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { Checkbox } from "../../../components/ui/Checkbox";
 import { useSettings } from "../SettingsContext";
@@ -7,7 +7,8 @@ export function PromptTagsSection() {
   const { settings, setSettings, saving, save } = useSettings();
 
   return (
-    <Card className="p-5 space-y-4">
+    <div className="space-y-5">
+      <Section>
       {settings ? (
         <Checkbox
           id="prompt_positive_only"
@@ -21,12 +22,13 @@ export function PromptTagsSection() {
       ) : (
         <div className="text-sm text-faint">Loading settings…</div>
       )}
+      </Section>
 
-      <div className="flex items-center gap-2 pt-1">
+      <div className="flex justify-end">
         <Button variant="primary" onClick={save} disabled={!settings || saving}>
-          {saving ? "Saving…" : "Save settings"}
+          {saving ? "Saving…" : "Save changes"}
         </Button>
       </div>
-    </Card>
+    </div>
   );
 }

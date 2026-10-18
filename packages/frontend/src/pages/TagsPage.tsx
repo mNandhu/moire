@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Tag as TagIcon, Slash, Search } from "lucide-react";
-import { PageHeader } from "../components/ui/PageHeader";
+import { PageHeader, PageBody } from "../components/ui/PageHeader";
+import { EmptyState } from "../components/ui/EmptyState";
 import { Badge } from "../components/ui/Badge";
 import { Skeleton } from "../components/ui/Skeleton";
-import { Button } from "../components/ui/Button";
+import { Button, ButtonLink } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { cn } from "../lib/cn";
 import { api } from "../lib/api";
-import { useTagAggregate, type TagAgg } from "../lib/queries";
+import { useAiCoverage, useTagAggregate, type TagAgg } from "../lib/queries";
 import { formatTag, isManual, isPrompt } from "../lib/tags";
 
 type Sample = { _id: string; thumb_url: string };
@@ -30,6 +31,8 @@ export default function TagsPage() {
     () => tagsQuery.data ?? (tagsQuery.isError ? [] : null),
     [tagsQuery.data, tagsQuery.isError],
   );
+
+  const { data: cov } = useAiCoverage();
 
   // Reset paging when the search term changes.
   useEffect(() => setVisible(PAGE), [q]);
@@ -62,13 +65,10 @@ export default function TagsPage() {
   }, [shown]);
 
   return (
-    <div className="p-6">
-      <PageHeader
-        title="Browse by Tag"
-        count={tags?.length}
-        description="Jump into any tag, or surface what still needs tagging."
-      >
-        <div className="flex items-center gap-3">
+    <>
+      <PageHeader title="Tags" count={tags?.length} width="wide" />
+      <PageBody width="wide">
+        <div className="flex items-center gap-3 mb-5">
           <div className="relative max-w-md flex-1">
             <Search
               size={16}
@@ -89,30 +89,50 @@ export default function TagsPage() {
             {includePrompt ? "Hide prompt tags" : "Show prompt tags"}
           </Button>
         </div>
-      </PageHeader>
 
-      {/* Special tiles */}
-      <div className="flex flex-wrap gap-3 mb-5">
+      {/* Shortcuts to what still needs work */}
+      <div className="flex flex-wrap gap-3 mb-6">
         <SpecialTile
-          color="text-brand-300"
           title="Untagged"
-          subtitle="No tags at all"
+          subtitle={
+            cov?.no_tags != null
+              ? `${cov.no_tags.toLocaleString()} ${cov.no_tags === 1 ? "image" : "images"} with no tags`
+              : "No tags at all"
+          }
           to="/?no_tags=1"
         />
         <SpecialTile
-          color="text-emerald-300"
-          title="AI Untagged"
-          subtitle="Missing AI tags"
+          title="Missing AI tags"
+          subtitle={
+            cov
+              ? `${cov.untagged.toLocaleString()} ${cov.untagged === 1 ? "image" : "images"} not AI-tagged`
+              : "Not yet AI-tagged"
+          }
           to="/?no_ai_tags=1"
         />
       </div>
 
       {tags !== null && filtered.length === 0 && (
-        <p className="text-sm text-faint py-10 text-center">
-          {q.trim()
-            ? `No tags match “${q.trim()}”.`
-            : "No tags yet — run AI tagging or add tags to your images."}
-        </p>
+        q.trim() ? (
+          <EmptyState
+            compact
+            icon={Search}
+            title={`No tags match “${q.trim()}”`}
+            description={includePrompt ? undefined : "Prompt tags are hidden — try showing them."}
+          />
+        ) : (
+          <EmptyState
+            compact
+            icon={TagIcon}
+            title="No tags yet"
+            description="Run AI tagging, or add tags to images from their detail view."
+            actions={
+              <ButtonLink variant="primary" to="/ai-tagging">
+                Go to AI Tagging
+              </ButtonLink>
+            }
+          />
+        )
       )}
 
       <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3">
@@ -146,17 +166,16 @@ export default function TagsPage() {
           </Button>
         </div>
       )}
-    </div>
+      </PageBody>
+    </>
   );
 }
 
 function SpecialTile({
-  color,
   title,
   subtitle,
   to,
 }: {
-  color: string;
   title: string;
   subtitle: string;
   to: string;
@@ -170,7 +189,7 @@ function SpecialTile({
       <div className="flex items-center gap-2 font-semibold">
         <span className="relative inline-flex items-center justify-center w-5 h-5">
           <TagIcon size={16} />
-          <Slash size={16} className={cn("absolute inset-0 opacity-90", color)} />
+          <Slash size={16} className="absolute inset-0 text-brand-300" />
         </span>
         {title}
       </div>
@@ -198,12 +217,12 @@ function TagCard({
         <div className="text-sm font-semibold flex items-center gap-2">
           <span className="truncate">{formatTag(tag._id)}</span>
           {isManual(tag._id) && (
-            <Badge tone="success" className="text-2xs shrink-0">
+            <Badge className="text-2xs shrink-0">
               manual
             </Badge>
           )}
           {isPrompt(tag._id) && (
-            <Badge tone="info" className="text-2xs shrink-0">
+            <Badge className="text-2xs shrink-0">
               prompt
             </Badge>
           )}
@@ -224,7 +243,7 @@ function Mosaic({ samples }: { samples: Sample[] | undefined }) {
   }
   if (samples.length === 0) {
     return (
-      <div className="w-full aspect-square bg-neutral-800 flex items-center justify-center text-faint">
+      <div className="w-full aspect-square bg-raised flex items-center justify-center text-faint">
         <TagIcon size={28} />
       </div>
     );
@@ -240,7 +259,7 @@ function Mosaic({ samples }: { samples: Sample[] | undefined }) {
   };
 
   return (
-    <div className="grid grid-cols-2 grid-rows-2 gap-px aspect-square bg-neutral-800">
+    <div className="grid grid-cols-2 grid-rows-2 gap-px aspect-square bg-raised">
       {cells.map((s, i) => (
         <div
           key={s._id}

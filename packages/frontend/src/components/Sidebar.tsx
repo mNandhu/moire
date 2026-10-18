@@ -8,7 +8,6 @@ import {
   Settings,
   Sparkles,
   PanelLeftClose,
-  PanelLeftOpen,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "../lib/cn";
@@ -16,25 +15,25 @@ import { MoireMark } from "./ui/Logo";
 
 type Status = string;
 
+// Browse first (where the images are), then the places you manage them.
 const NAV = [
-  { section: null, items: [{ label: "Overview", path: "/overview", icon: Home }] },
   {
-    section: "Library",
+    section: null,
     items: [
+      { label: "Overview", path: "/overview", icon: Home },
       { label: "All Images", path: "/", icon: Images },
-      { label: "Libraries", path: "/libraries", icon: FolderOpen },
       { label: "Tags", path: "/tags", icon: TagsIcon },
+    ],
+  },
+  {
+    section: "Manage",
+    items: [
+      { label: "Libraries", path: "/libraries", icon: FolderOpen },
       { label: "AI Tagging", path: "/ai-tagging", icon: Sparkles },
       { label: "Rules", path: "/rules", icon: Workflow },
     ],
   },
 ] as const;
-
-const STATUS_META: Record<string, { dot: string; label: string }> = {
-  ok: { dot: "bg-emerald-400", label: "Connected" },
-  offline: { dot: "bg-red-400", label: "Offline" },
-  loading: { dot: "bg-amber-400 animate-pulse", label: "Connecting…" },
-};
 
 export function Sidebar({
   status = "loading",
@@ -45,8 +44,6 @@ export function Sidebar({
   collapsed?: boolean;
   onToggle?: () => void;
 }) {
-  const meta = STATUS_META[status] ?? STATUS_META.loading;
-
   const NavButton = ({
     label,
     path,
@@ -88,16 +85,43 @@ export function Sidebar({
 
   return (
     <aside className="h-dvh w-full bg-sunken shadow-rail flex flex-col overflow-hidden">
-      {/* Brand */}
+      {/* Brand — same 64px height and border as every page header, so the
+          two read as one line across the app. Collapsed, the mark itself
+          is the expand control. */}
       <div
         className={cn(
-          "h-16 flex items-center border-b border-line select-none",
-          collapsed ? "justify-center px-0" : "px-4 gap-2.5",
+          // box-content: 64px of row plus the 1px border, exactly like the
+          // page header (min-h-16 inside, border on the outer element).
+          "h-16 box-content shrink-0 flex items-center border-b border-line select-none",
+          collapsed ? "justify-center px-0" : "pl-4 pr-2 gap-2.5",
         )}
       >
-        <MoireMark size={28} />
+        {collapsed && onToggle ? (
+          <button
+            onClick={onToggle}
+            title="Expand sidebar"
+            aria-label="Expand sidebar"
+            className="p-1.5 rounded-lg hover:bg-raised/60"
+          >
+            <MoireMark size={28} />
+          </button>
+        ) : (
+          <MoireMark size={28} />
+        )}
         {!collapsed && (
-          <span className="text-lg font-semibold text-neutral-50">Moiré</span>
+          <>
+            <span className="text-lg font-semibold text-neutral-50">Moiré</span>
+            {onToggle && (
+              <button
+                onClick={onToggle}
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+                className="ml-auto hidden md:inline-flex p-1.5 rounded-lg text-faint hover:text-neutral-100 hover:bg-raised/60 transition-colors"
+              >
+                <PanelLeftClose size={18} />
+              </button>
+            )}
+          </>
         )}
       </div>
 
@@ -120,46 +144,23 @@ export function Sidebar({
         ))}
       </nav>
 
-      {/* Footer */}
+      {/* Footer. The backend only earns a line when something is wrong —
+          a permanent "Connected" is noise. */}
       <div className="px-3 py-3 border-t border-line space-y-1">
-        <NavButton label="Settings" path="/settings" icon={Settings} />
-
-        {onToggle && (
-          <button
-            onClick={onToggle}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        {status === "offline" && (
+          <div
             className={cn(
-              "w-full flex items-center gap-3 rounded-lg text-sm text-muted hover:bg-raised/60 hover:text-neutral-100 transition-colors",
-              collapsed ? "justify-center px-0 py-2.5" : "px-3 py-2",
+              "flex items-center gap-2 py-1.5 text-xs text-red-300",
+              collapsed ? "justify-center" : "px-3",
             )}
+            title="Can't reach the Moiré backend"
+            role="status"
           >
-            {collapsed ? (
-              <PanelLeftOpen size={18} />
-            ) : (
-              <PanelLeftClose size={18} />
-            )}
-            {!collapsed && <span>Collapse</span>}
-          </button>
-        )}
-
-        {!collapsed ? (
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 text-xs text-faint"
-            title={`Backend: ${status}`}
-          >
-            <span className={cn("h-2 w-2 rounded-full", meta.dot)} />
-            <span>Backend</span>
-            <span className="ml-auto text-faint">{meta.label}</span>
-          </div>
-        ) : (
-          <div
-            className="flex justify-center py-1.5"
-            title={`Backend: ${meta.label}`}
-          >
-            <span className={cn("h-2 w-2 rounded-full", meta.dot)} />
+            <span className="h-2 w-2 rounded-full bg-red-400 shrink-0" />
+            {!collapsed && <span>Backend offline</span>}
           </div>
         )}
+        <NavButton label="Settings" path="/settings" icon={Settings} />
       </div>
     </aside>
   );

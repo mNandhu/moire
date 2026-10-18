@@ -70,16 +70,18 @@ async def test_groups_span_page_order_desc(client, seed):
 async def test_ai_coverage_per_library_counts(client, seed):
     seed("L1:a", tags=("1girl",), library_id="L1")  # ai-tagged
     seed("L1:b", tags=("manual:fav",), library_id="L1")  # not ai-tagged
+    seed("L1:c", library_id="L1")  # no tags at all
     seed("L2:a", tags=("1girl",), library_id="L2")
     seed("L2:q", tags=("1girl",), library_id="L2", quarantined=True)  # excluded
 
     resp = await client.get("/ai/coverage")
     data = resp.json()
-    assert data["total"] == 3  # quarantined excluded
+    assert data["total"] == 4  # quarantined excluded
     assert data["ai_tagged"] == 2
-    assert data["untagged"] == 1
+    assert data["untagged"] == 2
+    assert data["no_tags"] == 1
     per = {r["library_id"]: r for r in data["per_library"]}
-    assert per["L1"] == {"library_id": "L1", "total": 2, "ai_tagged": 1}
+    assert per["L1"] == {"library_id": "L1", "total": 3, "ai_tagged": 1}
     assert per["L2"] == {"library_id": "L2", "total": 1, "ai_tagged": 1}
 
 

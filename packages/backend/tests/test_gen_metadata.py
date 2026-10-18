@@ -378,3 +378,52 @@ def test_to_int_rejects_non_finite():
     assert gm._to_int(float("nan")) is None
     assert gm._to_int(float("inf")) is None
     assert gm._to_int(20) == 20
+
+
+def test_workflow_node_types_reads_class_types():
+    graph = {
+        "1": {"class_type": "KSampler"},
+        "2": {"class_type": "LoraLoader"},
+        "3": {"inputs": {}},
+        "x": "not a node",
+    }
+    assert sorted(gm.workflow_node_types(graph)) == ["KSampler", "LoraLoader"]
+    assert gm.workflow_node_types(None) == []
+
+
+def test_describe_signatures_subtracts_shared_baseline():
+    base = ["KSampler", "CLIPTextEncode", "CLIPTextEncode", "VAEDecode"]
+    out = gm.describe_signatures(
+        {
+            "a": base,
+            "b": base + ["LoraLoader", "LoraLoader", "FaceDetailer"],
+        }
+    )
+    assert out["a"] == {"node_count": 4, "distinct": []}
+    assert out["b"]["node_count"] == 7
+    assert out["b"]["distinct"] == [
+        {"type": "LoraLoader", "count": 2},
+        {"type": "FaceDetailer", "count": 1},
+    ]
+
+
+def test_describe_signatures_prefers_rare_nodes_and_skips_ui_nodes():
+    base = ["KSampler"]
+    out = gm.describe_signatures(
+        {
+            "a": base + ["PreviewImage", "PreviewImage", "Upscale"],
+            "b": base + ["Upscale", "FaceDetailer"],
+            "c": base,
+        }
+    )
+    # FaceDetailer is in one sig, Upscale in two: the rarer names it first.
+    assert [d["type"] for d in out["b"]["distinct"]] == ["FaceDetailer", "Upscale"]
+    assert [d["type"] for d in out["a"]["distinct"]] == ["Upscale"]
+
+
+def test_describe_single_signature_lists_its_most_common_nodes():
+    out = gm.describe_signatures({"a": ["A", "B", "B", "C"]}, limit=2)
+    assert out["a"]["distinct"] == [
+        {"type": "B", "count": 2},
+        {"type": "A", "count": 1},
+    ]

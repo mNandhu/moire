@@ -23,7 +23,7 @@ export function DensityControl({
   atMax: boolean;
 }) {
   return (
-    <div className="flex items-center rounded-lg border border-neutral-700 bg-neutral-800 overflow-hidden shrink-0">
+    <div className="flex items-center rounded-lg border border-line bg-raised overflow-hidden shrink-0">
       <Button
         size="icon"
         variant="ghost"
@@ -35,7 +35,7 @@ export function DensityControl({
       >
         <ZoomOut size={17} />
       </Button>
-      <span className="w-px self-stretch bg-neutral-700" aria-hidden="true" />
+      <span className="w-px self-stretch bg-line" aria-hidden="true" />
       <Button
         size="icon"
         variant="ghost"

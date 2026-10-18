@@ -25,7 +25,7 @@ export type Confirm = (opts: ConfirmOptions | string) => Promise<boolean>;
 const Ctx = createContext<Confirm | null>(null);
 
 const TONE_ICON = {
-  default: <Info size={18} className="text-sky-300" />,
+  default: <Info size={18} className="text-brand-300" />,
   warning: <AlertTriangle size={18} className="text-amber-300" />,
   danger: <Trash2 size={18} className="text-red-300" />,
 } as const;

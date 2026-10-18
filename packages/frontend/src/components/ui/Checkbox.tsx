@@ -30,7 +30,10 @@ export function Checkbox({
         // Grid: box + label share row 1 (items-center aligns them to each
         // other regardless of line-height); the hint drops to row 2 under
         // the label. Avoids strut/line-height misalignment entirely.
-        "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2.5 select-none",
+        // content-start: in a stretched grid cell (two checkboxes side by
+        // side, one with a longer hint) the spare height would otherwise be
+        // shared into row 1 and push the shorter one's box down.
+        "grid grid-cols-[auto_minmax(0,1fr)] content-start items-center gap-x-2.5 select-none",
         disabled ? "opacity-50" : "cursor-pointer",
         className,
       )}

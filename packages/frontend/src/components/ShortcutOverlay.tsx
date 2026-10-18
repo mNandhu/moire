@@ -62,7 +62,7 @@ export function ShortcutOverlay({ onClose }: { onClose: () => void }) {
       aria-label="Keyboard shortcuts"
     >
       <div
-        className="w-full max-w-2xl rounded-2xl border border-neutral-700 bg-neutral-900 p-6 shadow-2xl"
+        className="w-full max-w-2xl rounded-2xl border border-line-strong bg-surface p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-baseline justify-between mb-5">
@@ -79,7 +79,7 @@ export function ShortcutOverlay({ onClose }: { onClose: () => void }) {
                 {g.keys.map(([key, desc]) => (
                   <div key={key} className="flex items-baseline justify-between gap-3">
                     <dt className="shrink-0">
-                      <kbd className="px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-2xs font-mono text-neutral-200">
+                      <kbd className="px-1.5 py-0.5 rounded bg-raised border border-line-strong text-2xs font-mono text-neutral-200">
                         {key}
                       </kbd>
                     </dt>

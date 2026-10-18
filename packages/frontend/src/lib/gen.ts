@@ -43,7 +43,28 @@ export type SignatureRow = {
   needs_mapping: number;
   sample_image_id: string;
   has_ruleset: boolean;
+  /** Human summary (added server-side; absent from older backends). */
+  sample_thumb_url?: string;
+  model?: string | null;
+  node_count?: number;
+  /** Node types this workflow has beyond what every workflow shares. */
+  distinct?: Array<{ type: string; count: number }>;
 };
+
+/**
+ * A readable name for a workflow signature: the nodes that set it apart
+ * ("FaceDetailer, LoraLoader ×2"), else "Base workflow" for the one with
+ * nothing extra. The hash itself is never a name a person can use.
+ */
+export function signatureTitle(row: SignatureRow, max = 2): string {
+  const d = row.distinct ?? [];
+  if (!d.length) return row.node_count ? "Base workflow" : "Workflow";
+  const named = d
+    .slice(0, max)
+    .map((n) => (n.count > 1 ? `${n.type} ×${n.count}` : n.type))
+    .join(", ");
+  return d.length > max ? `${named} +${d.length - max}` : named;
+}
 
 export type PreviewResult = {
   gen: GenMeta | null;

@@ -190,6 +190,17 @@ async def ai_coverage():
             sa.func.coalesce(
                 sa.func.sum(sa.cast(t.images.c.has_ai_tags, sa.Integer)), 0
             ).label("ai_tagged"),
+            # No tags of any kind (`has_tags` false) — the gallery's no_tags
+            # filter, counted so the Tags page shortcut can show its size.
+            sa.func.coalesce(
+                sa.func.sum(
+                    sa.case(
+                        (sa.func.coalesce(t.images.c.has_tags, False).is_(False), 1),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("no_tags"),
         )
         .where(sa.func.coalesce(t.images.c.quarantined, False).is_(False))
         .group_by(t.images.c.library_id)
@@ -211,5 +222,6 @@ async def ai_coverage():
         "total": total,
         "ai_tagged": ai_tagged,
         "untagged": total - ai_tagged,
+        "no_tags": sum(int(r.no_tags) for r in rows),
         "per_library": per_library,
     }

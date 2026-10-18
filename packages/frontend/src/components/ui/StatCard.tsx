@@ -10,7 +10,6 @@ export function StatCard({
   label,
   value,
   hint,
-  tone = "brand",
   loading,
   to,
 }: {
@@ -18,18 +17,10 @@ export function StatCard({
   label: React.ReactNode;
   value?: React.ReactNode;
   hint?: React.ReactNode;
-  tone?: "brand" | "emerald" | "blue" | "neutral";
   loading?: boolean;
   /** Where the card leads; renders it as a link. */
   to?: string;
 }) {
-  const tones = {
-    brand: "text-brand-300 bg-brand-500/10",
-    emerald: "text-emerald-300 bg-emerald-500/10",
-    blue: "text-blue-300 bg-blue-500/10",
-    neutral: "text-neutral-300 bg-neutral-700/30",
-  }[tone];
-
   const className = cn(
     "rounded-xl border border-white/5 bg-surface bg-sheen shadow-panel p-4 text-left flex items-center gap-4",
     to && "card-hover",
@@ -38,8 +29,8 @@ export function StatCard({
     <>
       <span
         className={cn(
-          "inline-flex items-center justify-center w-11 h-11 rounded-lg shrink-0",
-          tones,
+          // One tint for every metric: colour here would only decorate.
+          "inline-flex items-center justify-center w-10 h-10 rounded-lg shrink-0 text-brand-300 bg-brand-500/10",
         )}
       >
         <Icon size={20} />
@@ -52,8 +43,12 @@ export function StatCard({
             {value}
           </div>
         )}
-        <div className="text-xs text-neutral-400 mt-1.5 truncate">{label}</div>
-        {hint && <div className="text-2xs text-faint truncate">{hint}</div>}
+        {/* Hint shares the label's line: a second line would lift this
+            card's number above its neighbours'. */}
+        <div className="text-xs text-muted mt-1.5 truncate">
+          {label}
+          {hint && <span className="text-faint"> · {hint}</span>}
+        </div>
       </div>
     </>
   );

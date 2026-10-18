@@ -1,12 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
-import { PageHeader } from "../components/ui/PageHeader";
-import { Card } from "../components/ui/Card";
-import { fetchAiCoverage, isStatusBusy } from "../lib/ai";
+import { CheckCircle2, Sparkles } from "lucide-react";
+import { PageHeader, PageBody } from "../components/ui/PageHeader";
+import { Section } from "../components/ui/Card";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
+import { isActiveJob, isStatusBusy } from "../lib/ai";
+import { useAiCoverage, useLibraries } from "../lib/queries";
 import { SettingsProvider, useSettings } from "./settings/SettingsContext";
-import { ModelSection } from "./settings/sections/ModelSection";
-import { JobsSection } from "./settings/sections/JobsSection";
-import { useLibraries } from "../lib/queries";
-
+import { ModelStatusLine } from "./settings/sections/ModelSection";
+import { ActiveJob, RecentJobs, ResetAiTags } from "./settings/sections/JobsSection";
 
 function pct(part: number, whole: number) {
   if (!whole) return 0;
@@ -17,7 +18,7 @@ function pct(part: number, whole: number) {
 function CoverageBar({ tagged, total }: { tagged: number; total: number }) {
   return (
     <progress
-      className="w-full h-2 [&::-webkit-progress-bar]:bg-neutral-800 [&::-webkit-progress-value]:bg-brand-600 [&::-moz-progress-bar]:bg-brand-600"
+      className="w-full h-1.5 rounded [&::-webkit-progress-bar]:bg-raised [&::-webkit-progress-value]:bg-brand-500 [&::-moz-progress-bar]:bg-brand-500"
       value={pct(tagged, total)}
       max={100}
     />
@@ -25,66 +26,51 @@ function CoverageBar({ tagged, total }: { tagged: number; total: number }) {
 }
 
 /**
- * AI-tag coverage overview. Counts come from `/api/v1/ai/coverage` (the
- * `has_ai_tags` flag); library names are joined from `/api/v1/libraries`.
- * Polls faster while the AI subsystem is busy so the numbers track a running
- * job, idle otherwise.
+ * Coverage and the action that changes it, in one place: how much is
+ * AI-tagged, the button to tag the rest, the running job, and — only when it
+ * matters — the model. Counts come from `/api/v1/ai/coverage` (the
+ * `has_ai_tags` flag) and poll faster while a job runs.
  */
-function CoveragePanel() {
-  const { status } = useSettings();
+function TaggingPanel() {
+  const { status, running, untaggedLimit, setUntaggedLimit, latestJob, runUntagged } =
+    useSettings();
   const busy = isStatusBusy(status);
-
-  const { data: cov } = useQuery({
-    queryKey: ["aiCoverage"],
-    queryFn: ({ signal }) => fetchAiCoverage(signal),
-    refetchInterval: busy ? 3000 : 15000,
-  });
+  const { data: cov } = useAiCoverage({ busy });
   const { data: libs } = useLibraries();
+  const nameOf = (id: string) => libs?.find((l) => l._id === id)?.name || id;
 
-  const nameOf = (id: string) =>
-    libs?.find((l) => l._id === id)?.name || id;
+  const activeJob = latestJob && isActiveJob(latestJob.status) ? latestJob : null;
+  const remaining = cov?.untagged ?? 0;
+  const batch = Math.min(remaining, untaggedLimit || 0);
 
   return (
-    <Card className="p-5 space-y-4">
-      <div className="font-semibold">Coverage</div>
-
+    <Section title="Coverage">
       {cov ? (
-        <>
+        <div className="space-y-5">
           <div className="space-y-2">
-            <div className="flex items-end justify-between">
-              <div className="text-3xl font-bold tabular-nums text-neutral-100">
+            <div className="flex items-end justify-between gap-3">
+              <div className="text-3xl font-semibold tabular-nums text-neutral-100">
                 {cov.ai_tagged.toLocaleString()}
                 <span className="text-lg font-medium text-faint">
                   {" "}
                   / {cov.total.toLocaleString()}
                 </span>
               </div>
-              <div className="text-sm text-neutral-400">
+              <div className="text-sm text-muted tabular-nums">
                 {pct(cov.ai_tagged, cov.total)}% AI-tagged
-                <span className="text-faint">
-                  {" "}
-                  · {cov.untagged.toLocaleString()} untagged
-                </span>
               </div>
             </div>
             <CoverageBar tagged={cov.ai_tagged} total={cov.total} />
           </div>
 
           {cov.per_library.length > 1 && (
-            <div className="space-y-3 pt-1">
-              <div className="text-2xs font-semibold uppercase tracking-wider text-faint">
-                By library
-              </div>
+            <div className="space-y-3">
               {cov.per_library.map((l) => (
                 <div key={l.library_id} className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="truncate text-neutral-300">
-                      {nameOf(l.library_id)}
-                    </span>
+                    <span className="truncate text-neutral-300">{nameOf(l.library_id)}</span>
                     <span className="text-faint tabular-nums">
-                      {l.ai_tagged.toLocaleString()} /{" "}
-                      {l.total.toLocaleString()} ·{" "}
-                      {pct(l.ai_tagged, l.total)}%
+                      {l.ai_tagged.toLocaleString()} / {l.total.toLocaleString()}
                     </span>
                   </div>
                   <CoverageBar tagged={l.ai_tagged} total={l.total} />
@@ -92,34 +78,61 @@ function CoveragePanel() {
               ))}
             </div>
           )}
-        </>
+
+          <div className="pt-4 border-t border-line space-y-4">
+            {activeJob ? (
+              <ActiveJob job={activeJob} />
+            ) : remaining === 0 ? (
+              <div className="flex items-center gap-2 text-sm text-muted">
+                <CheckCircle2 size={16} className="text-brand-300" />
+                Every image has AI tags.
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-3">
+                <Button variant="primary" onClick={runUntagged} disabled={running || !batch}>
+                  <Sparkles size={16} />
+                  Tag {batch.toLocaleString()} {batch === 1 ? "image" : "images"}
+                </Button>
+                <label className="flex items-center gap-2 text-xs text-muted">
+                  At most
+                  <Input
+                    type="number"
+                    className="w-20 h-8"
+                    value={untaggedLimit}
+                    onChange={(e) => setUntaggedLimit(Number(e.target.value))}
+                    min={1}
+                    max={5000}
+                    aria-label="Most images to tag in one run"
+                  />
+                  per run
+                </label>
+                <span className="text-xs text-faint ml-auto tabular-nums">
+                  {remaining.toLocaleString()} without AI tags
+                </span>
+              </div>
+            )}
+            <ModelStatusLine />
+          </div>
+        </div>
       ) : (
         <div className="text-sm text-faint">Loading coverage…</div>
       )}
-    </Card>
+    </Section>
   );
 }
 
 export default function AITaggingPage() {
   return (
     <SettingsProvider>
-      <div className="p-6 space-y-6">
-        <PageHeader
-          title="AI Tagging"
-          description="Tag your library with the wd-tagger model and track progress."
-        />
-
-        <CoveragePanel />
-
-        <section className="space-y-2">
-          <div className="text-2xs font-semibold uppercase tracking-wider text-faint">
-            Model
-          </div>
-          <ModelSection />
-        </section>
-
-        <JobsSection />
-      </div>
+      <PageHeader
+        title="AI Tagging"
+        description="Tag images with a local WD tagger model."
+      />
+      <PageBody className="space-y-5">
+        <TaggingPanel />
+        <RecentJobs />
+        <ResetAiTags />
+      </PageBody>
     </SettingsProvider>
   );
 }

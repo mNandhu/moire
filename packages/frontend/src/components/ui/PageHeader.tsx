@@ -1,11 +1,29 @@
-import React from "react";
+import React, { createContext, useContext } from "react";
+import { Menu } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
 
 /**
- * Per-page title bar: title + optional count and right-aligned actions.
- * Gives every route a consistent anchor so users always know where they are.
- * No icon tile: the sidebar already carries each route's icon.
+ * How wide a page's content runs. Forms and lists read best capped; browsers
+ * (tags, rules) want more room; the gallery uses every pixel. Header and body
+ * share the same cap so the title lines up with the content under it.
+ */
+export type PageWidth = "narrow" | "wide" | "full";
+
+const WIDTH: Record<PageWidth, string> = {
+  narrow: "max-w-5xl",
+  wide: "max-w-screen-2xl",
+  full: "",
+};
+
+/** Opens the off-canvas sidebar on small screens. Null outside the app shell
+ * (pages rendered alone in tests), which simply hides the menu button. */
+export const MobileNavContext = createContext<(() => void) | null>(null);
+
+/**
+ * Per-page title bar: one 64px row (the sidebar's brand row is the same
+ * height, so the two borders meet in one line) holding the title, an optional
+ * count and one-line description, an optional inline toolbar, and actions.
  */
 export function PageHeader({
   title,
@@ -13,6 +31,8 @@ export function PageHeader({
   countLabel,
   description,
   actions,
+  width = "narrow",
+  sticky = true,
   className,
   children,
 }: {
@@ -21,39 +41,87 @@ export function PageHeader({
   /** Qualifier rendered after the count, e.g. "loaded" for a paged feed whose
    * total isn't known. Without it a growing number reads as a wrong total. */
   countLabel?: string;
+  /** One quiet line beside the title. Only where it explains something the
+   * title doesn't — not a slogan. */
   description?: React.ReactNode;
   actions?: React.ReactNode;
+  width?: PageWidth;
+  /** Pin to the top of the scroller. Off when a parent owns the sticky band. */
+  sticky?: boolean;
   className?: string;
-  /** Optional row rendered below the title (search, filters, tabs…). */
+  /** Inline toolbar between title and actions (e.g. the gallery search). */
   children?: React.ReactNode;
 }) {
   // Plain-string titles also name the browser tab; every routed page has one.
   useDocumentTitle(typeof title === "string" ? title : null);
+  const openNav = useContext(MobileNavContext);
 
   return (
-    <div className={cn("mb-5", className)}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-            <h2 className="text-2xl font-semibold text-neutral-50 flex items-baseline gap-2.5 truncate">
-              {title}
-              {typeof count === "number" && (
-                <span className="text-sm font-normal text-faint tabular-nums">
-                  {count.toLocaleString()}
-                  {countLabel && (
-                    <span className="ml-1 font-normal">{countLabel}</span>
-                  )}
-                </span>
-              )}
-            </h2>
-            {description && (
-              <p className="mt-0.5 text-sm text-muted truncate">{description}</p>
-            )}
+    <header
+      className={cn(
+        sticky &&
+          "sticky top-0 z-10 bg-canvas/40 backdrop-blur-md border-b border-line",
+        className,
+      )}
+    >
+      <div
+        className={cn(
+          "mx-auto min-h-16 px-4 md:px-6 py-3 flex flex-wrap items-center gap-x-3 gap-y-2",
+          WIDTH[width],
+        )}
+      >
+        {openNav && (
+          <button
+            type="button"
+            onClick={openNav}
+            aria-label="Open navigation"
+            className="md:hidden -ml-1 p-1.5 rounded-lg text-muted hover:text-neutral-100 hover:bg-raised"
+          >
+            <Menu size={20} />
+          </button>
+        )}
+        <div className="min-w-0 flex items-baseline gap-2.5">
+          <h1 className="text-lg font-semibold text-neutral-50 truncate">
+            {title}
+          </h1>
+          {typeof count === "number" && (
+            <span className="text-sm text-faint tabular-nums shrink-0">
+              {count.toLocaleString()}
+              {countLabel && <span className="ml-1">{countLabel}</span>}
+            </span>
+          )}
+          {description && (
+            <p className="hidden lg:block text-sm text-faint truncate">
+              {description}
+            </p>
+          )}
         </div>
+        {children && (
+          <div className="order-last basis-full md:order-none md:basis-auto md:flex-1 min-w-0">
+            {children}
+          </div>
+        )}
         {actions && (
-          <div className="flex items-center gap-2 shrink-0">{actions}</div>
+          <div className="ml-auto flex items-center gap-2 shrink-0">{actions}</div>
         )}
       </div>
-      {children && <div className="mt-4">{children}</div>}
+    </header>
+  );
+}
+
+/** The content area under a PageHeader, capped to the same width. */
+export function PageBody({
+  width = "narrow",
+  className,
+  children,
+}: {
+  width?: PageWidth;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("mx-auto px-4 md:px-6 py-6", WIDTH[width], className)}>
+      {children}
     </div>
   );
 }

@@ -19,6 +19,7 @@ from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ..services import gen_metadata
 from ..services.image_tags import id_candidates
+from ._utils import thumb_url
 
 router = APIRouter()
 
@@ -67,10 +68,39 @@ async def list_signatures():
         rows = (await conn.execute(stmt)).fetchall()
         mapped = {
             r.sig
-            for r in (
-                await conn.execute(sa.select(t.gen_rulesets.c.sig))
-            ).fetchall()
+            for r in (await conn.execute(sa.select(t.gen_rulesets.c.sig))).fetchall()
         }
+        # One sample per signature: its graph names the nodes (to describe the
+        # workflow in words) and its model is the friendliest label we have.
+        samples = [r.sample_image_id for r in rows]
+        raw_by_id: dict[str, object] = {}
+        model_by_id: dict[str, str | None] = {}
+        if samples:
+            for r in (
+                await conn.execute(
+                    sa.select(t.image_gen_raw.c._id, t.image_gen_raw.c.raw).where(
+                        t.image_gen_raw.c._id.in_(samples)
+                    )
+                )
+            ).fetchall():
+                raw_by_id[r._id] = r.raw
+            for r in (
+                await conn.execute(
+                    sa.select(t.images.c._id, t.images.c.gen_model).where(
+                        t.images.c._id.in_(samples)
+                    )
+                )
+            ).fetchall():
+                model_by_id[r._id] = r.gen_model
+    types_by_sig = {
+        r.workflow_sig: gen_metadata.workflow_node_types(
+            (raw_by_id.get(r.sample_image_id) or {}).get("prompt")
+            if isinstance(raw_by_id.get(r.sample_image_id), dict)
+            else None
+        )
+        for r in rows
+    }
+    described = gen_metadata.describe_signatures(types_by_sig)
     return [
         {
             "workflow_sig": r.workflow_sig,
@@ -78,6 +108,9 @@ async def list_signatures():
             "needs_mapping": int(r.needs_mapping or 0),
             "sample_image_id": r.sample_image_id,
             "has_ruleset": r.workflow_sig in mapped,
+            "sample_thumb_url": thumb_url(r.sample_image_id),
+            "model": model_by_id.get(r.sample_image_id),
+            **described.get(r.workflow_sig, {"node_count": 0, "distinct": []}),
         }
         for r in rows
     ]
@@ -117,9 +150,7 @@ async def put_ruleset(sig: str, body: RulesetBody):
 @router.delete("/{sig}")
 async def delete_ruleset(sig: str):
     async with async_tx() as conn:
-        await conn.execute(
-            sa.delete(t.gen_rulesets).where(t.gen_rulesets.c.sig == sig)
-        )
+        await conn.execute(sa.delete(t.gen_rulesets).where(t.gen_rulesets.c.sig == sig))
     from ..services.reproject import reproject_by_sig_async
 
     reproject_by_sig_async(sig)

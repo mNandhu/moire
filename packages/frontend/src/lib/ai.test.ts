@@ -4,6 +4,8 @@ import {
   isTerminalJob,
   isActiveJob,
   isStatusBusy,
+  jobAgo,
+  jobStatusLabel,
   postAiJobCancel,
   postAiTag,
   postClearAiTags,
@@ -175,5 +177,27 @@ describe("AI commands", () => {
       vi.fn(async () => new Response("model busy", { status: 409 })),
     );
     await expect(postModelLoad()).rejects.toThrow("model busy");
+  });
+});
+
+describe("jobAgo", () => {
+  const now = 1_000_000 * 1000;
+  it.each([
+    [now / 1000 - 10, "just now"],
+    [now / 1000 - 5 * 60, "5 min ago"],
+    [now / 1000 - 3 * 3600, "3 h ago"],
+    [now / 1000 - 86400, "1 day ago"],
+    [now / 1000 - 3 * 86400, "3 days ago"],
+    [now / 1000 + 30, "just now"],
+  ])("%s → %s", (createdAt, want) => {
+    expect(jobAgo(createdAt, now)).toBe(want);
+  });
+});
+
+describe("jobStatusLabel", () => {
+  it("humanises known statuses and passes unknown ones through", () => {
+    expect(jobStatusLabel("error")).toBe("Finished with errors");
+    expect(jobStatusLabel("done")).toBe("Done");
+    expect(jobStatusLabel("weird")).toBe("weird");
   });
 });
