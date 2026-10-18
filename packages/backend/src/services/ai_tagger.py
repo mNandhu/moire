@@ -23,7 +23,7 @@ from .ai_tagger_download import (
     model_target,
 )
 
-logger = logging.getLogger("tagify.ai_tagger")
+logger = logging.getLogger("moire.ai_tagger")
 
 KAOMOJIS = {
     "0_0",

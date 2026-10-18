@@ -1,4 +1,4 @@
-# Plan: Tagify AI Art Enhancements (v2 — post-grill)
+# Plan: Moiré AI Art Enhancements (v2 — post-grill)
 
 Supersedes `plan-aiArtEnchancements.md`. This version reflects the current
 codebase (not the state the original plan assumed) and the design decisions

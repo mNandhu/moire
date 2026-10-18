@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [Unreleased]
+
+### Changed
+
+- Renamed the project from Tagify to Moiré. Code identifiers, paths and settings use `moire`: the database defaults to `data/moire.db`, the model cache to `.cache/moire/models`, logs to `moire.log`, the Docker volume is `moire_data`, and environment variables are `MOIRE_*` (formerly `TAGIFY_*`). There is no automatic migration; move an existing `tagify.db` (with its `-wal`/`-shm` files) to the new name by hand.
+- New design tokens and a polish pass over the gallery and image view; new Moiré logo and favicon.
+
 ## [0.1.1] - 2025-08-13
 
 ### Fixed
@@ -71,4 +78,4 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 - Backend verified locally: `/health` returns `{ "status": "ok" }`.
 - Frontend requires pnpm to install and run dev server.
 
-[0.1.0]: https://example.com/tagify/releases/0.1.0
+[0.1.0]: https://example.com/moire/releases/0.1.0

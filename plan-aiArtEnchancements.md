@@ -1,6 +1,6 @@
-## Plan: Tagify AI Art Enhancements
+## Plan: Moiré AI Art Enhancements
 
-**TL;DR:** To serve AI Art creators better, Tagify needs to evolve from a generic, manual-tagging image gallery into a metadata-first, fast curation workspace. We will prioritize extracting embedded generation data (ComfyUI/A1111), adding rapid curation tools (rating/quarantine), and optimizing storage, making Tagify an indispensable companion to diffusion workflows.
+**TL;DR:** To serve AI Art creators better, Moiré needs to evolve from a generic, manual-tagging image gallery into a metadata-first, fast curation workspace. We will prioritize extracting embedded generation data (ComfyUI/A1111), adding rapid curation tools (rating/quarantine), and optimizing storage, making Moiré an indispensable companion to diffusion workflows.
 
 **Evaluation of Current State:**
 - **Pros:** Fast masonry gallery, background library scanning, simple manual tagging, isolated architecture (MinIO).

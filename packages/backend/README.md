@@ -1,4 +1,4 @@
-# Tagify Backend (FastAPI + uv)
+# Moiré Backend (FastAPI + uv)
 
 ## Development
 
@@ -26,10 +26,10 @@ Environment variables (see `.env.example`). Relative paths resolve against the
 repo root, not the process working directory.
 
 - Storage
-  - `SQLITE_PATH` SQLite database file (default: `./data/tagify.db`)
+  - `SQLITE_PATH` SQLite database file (default: `./data/moire.db`)
   - `SQLITE_BUSY_TIMEOUT_MS` wait for the SQLite write lock (default: 5000)
   - `THUMB_ROOT` thumbnail directory (default: `./data/thumbs`)
-  - `MODEL_CACHE_DIR` downloaded tagger models (default: `./.cache/tagify/models`)
+  - `MODEL_CACHE_DIR` downloaded tagger models (default: `./.cache/moire/models`)
 
 - Scanner / watcher
   - `SCANNER_MAX_WORKERS` worker threads per scan (0 = auto)
@@ -41,7 +41,7 @@ repo root, not the process working directory.
 
 - Logging
   - `LOG_LEVEL` (default: `INFO`)
-  - `LOG_TO_FILE` / `LOG_DIR` rotating `tagify.log` (default: on, `./data/logs`)
+  - `LOG_TO_FILE` / `LOG_DIR` rotating `moire.log` (default: on, `./data/logs`)
   - `LOG_SLOW_REQUESTS_MS` warn on requests slower than this (default: 1000)
 
 - Ops / safety

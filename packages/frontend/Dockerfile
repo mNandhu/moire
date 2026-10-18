@@ -1,4 +1,4 @@
-# Multi-stage build for Tagify frontend
+# Multi-stage build for Moiré frontend
 FROM node:20-alpine AS build
 
 # Install pnpm (pinned to the version the lockfile was written with)

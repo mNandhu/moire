@@ -1,4 +1,4 @@
-# Tagify – Phase: Functional Features & UX Improvements
+# Moiré – Phase: Functional Features & UX Improvements
 
 Date started: 2026-01-05  
 Scope: This phase focuses on functional changes and new features (not primarily refactors), while keeping the existing baseline stable.
@@ -33,7 +33,7 @@ Scope: This phase focuses on functional changes and new features (not primarily 
 - Support sort modes (tentative):
   - `mtime` (file modified time)
   - `ctime` (file created time; note Windows semantics can vary)
-  - optionally `indexed_at` / `added` (when Tagify indexed it)
+  - optionally `indexed_at` / `added` (when Moiré indexed it)
 - Cursor pagination must match sort key and use a stable tiebreaker:
   - recommended cursor: `(sort_value, _id)`
 - Add indexes aligned to sort + common filters.
@@ -202,7 +202,7 @@ Scope: This phase focuses on functional changes and new features (not primarily 
 
 ### 7) Internal AI tagging (no external endpoint)
 
-**User need**: Avoid setting up external AI endpoint; run tagging inside Tagify.
+**User need**: Avoid setting up external AI endpoint; run tagging inside Moiré.
 
 **Design**
 

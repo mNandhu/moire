@@ -27,7 +27,7 @@ import time
 
 from ..core.config import settings
 
-logger = logging.getLogger("tagify.scanner")
+logger = logging.getLogger("moire.scanner")
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 

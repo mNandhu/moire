@@ -1,8 +1,8 @@
-# Tagify
+# Moiré
 
 **AI-generated image management made simple.**
 
-Tagify is purpose-built for organizing and exploring large collections of AI-generated images from ComfyUI and other AI art tools. Use powerful tag-based organization with optional AI autotagging to keep your diffusion models and generated artwork easily discoverable.
+Moiré is purpose-built for organizing and exploring large collections of AI-generated images from ComfyUI and other AI art tools. Use powerful tag-based organization with optional AI autotagging to keep your diffusion models and generated artwork easily discoverable.
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
@@ -44,12 +44,12 @@ Tagify is purpose-built for organizing and exploring large collections of AI-gen
 
 ### Docker Compose (Recommended)
 
-The fastest way to get Tagify running:
+The fastest way to get Moiré running:
 
 ```bash
 # Clone the repository
-git clone https://github.com/mNandhu/Tagify.git
-cd Tagify
+git clone https://github.com/mNandhu/moire.git
+cd moire
 
 # Copy environment configuration
 cp .env.example .env
@@ -79,7 +79,7 @@ docker compose up --build
 
 ### Native Development (Recommended for Development)
 
-Tagify has no external services (embedded SQLite, filesystem thumbnails), so for
+Moiré has no external services (embedded SQLite, filesystem thumbnails), so for
 fast iteration just run both apps locally with hot reload:
 
 ```bash
@@ -100,8 +100,8 @@ pnpm dev
 1. **Clone and install dependencies:**
 
    ```bash
-   git clone https://github.com/mNandhu/Tagify.git
-   cd Tagify
+   git clone https://github.com/mNandhu/moire.git
+   cd moire
    pnpm install
    ```
 
@@ -111,7 +111,7 @@ pnpm dev
    uv --directory packages/backend sync
    ```
 
-3. **Configure (optional):** defaults work out of the box — the database lands in `data/tagify.db`, thumbnails in `data/thumbs/`, logs in `data/logs/`. To override, copy `packages/backend/.env.example` to `packages/backend/.env` and edit.
+3. **Configure (optional):** defaults work out of the box — the database lands in `data/moire.db`, thumbnails in `data/thumbs/`, logs in `data/logs/`. To override, copy `packages/backend/.env.example` to `packages/backend/.env` and edit.
 
 4. **Start the application:**
    ```bash
@@ -131,13 +131,13 @@ pnpm dev
 - **Backend**: FastAPI app with embedded SQLite for metadata; thumbnails and originals both live on the local filesystem
 - **Frontend**: Vite + React + TypeScript with TailwindCSS
 - **Storage**:
-  - SQLite (`SQLITE_PATH`, default `data/tagify.db`): image metadata, tags, library information
+  - SQLite (`SQLITE_PATH`, default `data/moire.db`): image metadata, tags, library information
   - Original images: served directly from the host filesystem (the library paths you mount)
   - Thumbnails: generated WebP files under `THUMB_ROOT`, served through the API (`/api/v1/images/{id}/thumb`)
 
 ## 🤖 AI Autotagger
 
-Tagify ships with a **built-in** autotagger — a WD ONNX model that runs locally via `onnxruntime`. No external service is required. The default model is `SmilingWolf/wd-vit-tagger-v3`, downloaded from HuggingFace on first use and cached locally.
+Moiré ships with a **built-in** autotagger — a WD ONNX model that runs locally via `onnxruntime`. No external service is required. The default model is `SmilingWolf/wd-vit-tagger-v3`, downloaded from HuggingFace on first use and cached locally.
 
 **How it works:**
 
@@ -156,7 +156,7 @@ Tuning knobs (model repo, general/character thresholds, idle-unload timeout, pro
 
 ## 🧬 Generation Metadata & Extraction Rules
 
-Tagify reads the generation data embedded in AI-art images (ComfyUI `prompt` node graphs, Automatic1111 `parameters` text) during scanning and stores it **verbatim**. From that stored raw it derives structured `gen.*` fields — positive/negative prompt, seed, model, sampler, steps, CFG — plus searchable prompt tags. Because derivation works off the stored raw, fields can be re-derived any time without touching disk again.
+Moiré reads the generation data embedded in AI-art images (ComfyUI `prompt` node graphs, Automatic1111 `parameters` text) during scanning and stores it **verbatim**. From that stored raw it derives structured `gen.*` fields — positive/negative prompt, seed, model, sampler, steps, CFG — plus searchable prompt tags. Because derivation works off the stored raw, fields can be re-derived any time without touching disk again.
 
 **Workflow signatures.** Each ComfyUI image is fingerprinted by a `workflow_sig` — a hash of its node *kinds* (sorted `class_type` multiset), ignoring node ids and widget values. Images from the same workflow share a signature, so they can be grouped and mapped together.
 
@@ -172,7 +172,7 @@ Key environment variables (see `.env.example`):
 
 ### Storage
 
-- `SQLITE_PATH`: SQLite database file (default: `./data/tagify.db`; `/data/tagify.db` volume in Docker)
+- `SQLITE_PATH`: SQLite database file (default: `./data/moire.db`; `/data/moire.db` volume in Docker)
 - `THUMB_ROOT`: Filesystem directory for generated WebP thumbnails (default: `./data/thumbs`; `/data/thumbs` volume in Docker). Originals are read from the host library paths, so there is no separate originals store.
 
 Both thumbnails and originals are served straight through the API, so a single exposed port (8000) is enough for remote access — front it with a reverse proxy (e.g. nginx) for TLS and static offload.
@@ -186,12 +186,12 @@ Both thumbnails and originals are served straight through the API, so a single e
 
 ### Logging
 
-- `LOG_LEVEL` (default `INFO`), `LOG_TO_FILE` (default `true`), `LOG_DIR` (default `./data/logs`): console logging plus a rotating `tagify.log`
+- `LOG_LEVEL` (default `INFO`), `LOG_TO_FILE` (default `true`), `LOG_DIR` (default `./data/logs`): console logging plus a rotating `moire.log`
 
 ## 📁 Project Structure
 
 ```
-Tagify/
+moire/
 ├── packages/
 │   ├── backend/          # FastAPI application
 │   │   ├── src/
@@ -257,7 +257,7 @@ See [.github/prompts/tech_guide.md](.github/prompts/tech_guide.md) for detailed 
 
 ## 🐳 Data Persistence
 
-In Docker, everything the backend writes lives in the `tagify_data` volume at `/data`: the SQLite database (`tagify.db`), thumbnails (`thumbs/`) and downloaded tagger models (`models/`). Natively, the same files live under `<repo>/data/` (models under `<repo>/.cache/tagify/models`).
+In Docker, everything the backend writes lives in the `moire_data` volume at `/data`: the SQLite database (`moire.db`), thumbnails (`thumbs/`) and downloaded tagger models (`models/`). Natively, the same files live under `<repo>/data/` (models under `<repo>/.cache/moire/models`).
 
 To back up your data:
 
@@ -347,8 +347,8 @@ We welcome contributions! Here's how to get started:
 1. **Fork and clone:**
 
    ```bash
-   git clone https://github.com/your-username/Tagify.git
-   cd Tagify
+   git clone https://github.com/your-username/moire.git
+   cd moire
    ```
 
 2. **Set up development environment:**

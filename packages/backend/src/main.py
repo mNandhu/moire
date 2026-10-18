@@ -19,7 +19,7 @@ import time
 import anyio  # type: ignore[import-not-found]
 import sqlalchemy as sa
 
-logger = logging.getLogger("tagify")
+logger = logging.getLogger("moire")
 
 
 @asynccontextmanager
@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
     library_watch.stop_all()
 
 
-app = FastAPI(title="Tagify API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Moiré API", version="0.1.0", lifespan=lifespan)
 
 # GZip compression for JSON responses
 app.add_middleware(GZipMiddleware, minimum_size=1000)

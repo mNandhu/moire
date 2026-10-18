@@ -1,6 +1,6 @@
-# Tagify – AI agent working guide
+# Moiré – AI agent working guide
 
-Brief: Tagify is a pnpm monorepo with a FastAPI backend (Python, MongoDB, MinIO) and a Vite + React + TypeScript frontend. Frontend talks to backend via REST (dev proxy at /api). Favor small, composable changes.
+Brief: Moiré is a pnpm monorepo with a FastAPI backend (Python, MongoDB, MinIO) and a Vite + React + TypeScript frontend. Frontend talks to backend via REST (dev proxy at /api). Favor small, composable changes.
 
 ## Big picture
 

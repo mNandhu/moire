@@ -1,6 +1,6 @@
 # Roadmap
 
-A forward-looking plan for Tagify milestones. Dates are tentative and based on weekend/evening availability.
+A forward-looking plan for Moiré milestones. Dates are tentative and based on weekend/evening availability.
 
 ## Vision
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Tagify is a pnpm monorepo for organizing AI-generated images. FastAPI backend (Python 3.11+, embedded SQLite for metadata via SQLAlchemy Core, local filesystem for thumbnail + original storage, WD ONNX model for AI tagging) + Vite/React/TypeScript frontend. Frontend talks to backend via REST; every backend route lives under `/api/v1` (`API_PREFIX` in `main.py`; root `/health` kept for probes) and the Vite dev server proxies `/api/*` → `http://127.0.0.1:8000` unchanged. **No external running dependencies** — no database server, no object store.
+Moiré is a pnpm monorepo for organizing AI-generated images. FastAPI backend (Python 3.11+, embedded SQLite for metadata via SQLAlchemy Core, local filesystem for thumbnail + original storage, WD ONNX model for AI tagging) + Vite/React/TypeScript frontend. Frontend talks to backend via REST; every backend route lives under `/api/v1` (`API_PREFIX` in `main.py`; root `/health` kept for probes) and the Vite dev server proxies `/api/*` → `http://127.0.0.1:8000` unchanged. **No external running dependencies** — no database server, no object store.
 
 ## Commands
 
@@ -28,7 +28,7 @@ pnpm -C packages/frontend test src/lib/fuzzy.test.ts   # single test file
 pnpm -C packages/frontend build   # tsc -b && vite build
 ```
 
-Backend env is optional: `SQLITE_PATH` (defaults to `<repo>/data/tagify.db`) and `THUMB_ROOT` (defaults to `<repo>/data/thumbs`). Settings load from repo-root `.env` then `packages/backend/.env` (`src/core/config.py`). The SQLite schema is created on startup (`ensure_schema` in `main.py` lifespan) — no migration step. Backend tests now include router-level **integration tests** (`tests/test_*_integration.py`) that run against a temp-file SQLite DB via the `client`/`seed` fixtures in `tests/conftest.py`.
+Backend env is optional: `SQLITE_PATH` (defaults to `<repo>/data/moire.db`) and `THUMB_ROOT` (defaults to `<repo>/data/thumbs`). Settings load from repo-root `.env` then `packages/backend/.env` (`src/core/config.py`). The SQLite schema is created on startup (`ensure_schema` in `main.py` lifespan) — no migration step. Backend tests now include router-level **integration tests** (`tests/test_*_integration.py`) that run against a temp-file SQLite DB via the `client`/`seed` fixtures in `tests/conftest.py`.
 
 ## Domain model
 

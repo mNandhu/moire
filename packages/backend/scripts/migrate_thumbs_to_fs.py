@@ -44,7 +44,7 @@ def main() -> int:
     access = _env("MINIO_ACCESS_KEY", "MINIO_ROOT_USER", default="admin")
     secret = _env("MINIO_SECRET_KEY", "MINIO_ROOT_PASSWORD", default="password123")
     secure = _env("MINIO_SECURE", default="false").lower() == "true"
-    bucket = _env("MINIO_BUCKET_THUMBS", default="tagify-thumbs")
+    bucket = _env("MINIO_BUCKET_THUMBS", default="moire-thumbs")
 
     client = Minio(endpoint, access_key=access, secret_key=secret, secure=secure)
     if not client.bucket_exists(bucket):

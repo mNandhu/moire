@@ -1,6 +1,6 @@
-# Tagify: FastAPI backend (embedded SQLite + filesystem thumbnails) and the
+# Moiré: FastAPI backend (embedded SQLite + filesystem thumbnails) and the
 # nginx-served frontend. No database or object-store containers — all state
-# lives in the `tagify_data` volume mounted at /data in the backend.
+# lives in the `moire_data` volume mounted at /data in the backend.
 #
 # Libraries are folders on the host: mount them into the backend (read-only is
 # fine) in docker-compose.override.yml, then add them in the UI by their
@@ -10,12 +10,12 @@ services:
     build:
       context: ./packages/backend
       dockerfile: Dockerfile
-    container_name: tagify-backend
+    container_name: moire-backend
     restart: unless-stopped
     volumes:
-      - tagify_data:/data
+      - moire_data:/data
     environment:
-      SQLITE_PATH: /data/tagify.db
+      SQLITE_PATH: /data/moire.db
       THUMB_ROOT: /data/thumbs
       MODEL_CACHE_DIR: /data/models
       # Containers log to stdout (`docker compose logs`); no rotating file.
@@ -29,7 +29,7 @@ services:
       WATCH_ENABLED_DEFAULT: ${WATCH_ENABLED_DEFAULT:-true}
       WATCH_RECONCILE_INTERVAL_S: ${WATCH_RECONCILE_INTERVAL_S:-900}
     ports:
-      - "${TAGIFY_BACKEND_PORT:-8000}:8000"
+      - "${MOIRE_BACKEND_PORT:-8000}:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -41,13 +41,13 @@ services:
     build:
       context: .
       dockerfile: packages/frontend/Dockerfile
-    container_name: tagify-frontend
+    container_name: moire-frontend
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
     ports:
-      - "${TAGIFY_FRONTEND_PORT:-5173}:80"
+      - "${MOIRE_FRONTEND_PORT:-5173}:80"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/"]
       interval: 10s
@@ -56,4 +56,4 @@ services:
       start_period: 15s
 
 volumes:
-  tagify_data:
+  moire_data:

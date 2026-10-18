@@ -19,7 +19,7 @@ from ..services import tag_index
 from ..services import library_watch
 
 router = APIRouter()
-logger = logging.getLogger("tagify.libraries")
+logger = logging.getLogger("moire.libraries")
 
 # Columns the list/summary views expose (kept minimal).
 _LIB_LIST_COLS = (

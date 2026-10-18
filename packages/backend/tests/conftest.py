@@ -1,6 +1,6 @@
 """Integration-test harness.
 
-SQLite removes the barrier that kept Tagify's tests pure-logic only: a temp-file
+SQLite removes the barrier that kept Moiré's tests pure-logic only: a temp-file
 DB spins up with zero infrastructure, so router-level tests can run against a real
 database. Each test gets its own DB file (full isolation) and an httpx client
 wired to the ASGI app.

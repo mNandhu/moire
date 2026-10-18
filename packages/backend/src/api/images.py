@@ -88,7 +88,7 @@ async def list_images(
         raise HTTPException(status_code=422, detail=str(exc))
 
     if not cursor and offset:
-        response.headers["X-Tagify-Warn"] = (
+        response.headers["X-Moire-Warn"] = (
             "offset pagination is deprecated; prefer cursor-based pagination"
         )
 

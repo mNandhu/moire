@@ -20,9 +20,9 @@ class Settings(BaseSettings):
     ai_tagging_url: str = ""
 
     # SQLite database file. Relative values resolve against the repo root (NOT the
-    # process cwd), mirroring `thumb_root`, so the DB lands at `<repo>/data/tagify.db`
+    # process cwd), mirroring `thumb_root`, so the DB lands at `<repo>/data/moire.db`
     # regardless of where uvicorn is started.
-    sqlite_path: str = "./data/tagify.db"
+    sqlite_path: str = "./data/moire.db"
     # How long a blocked writer waits for SQLite's file lock before erroring
     # (SQLITE_BUSY). WAL + short scanner transactions keep contention rare.
     sqlite_busy_timeout_ms: int = 5000
@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     # label CSV). Relative values resolve against the repo root, the same as
     # `thumb_root` and `sqlite_path`, so the location doesn't depend on the
     # process working directory.
-    model_cache_dir: str = ".cache/tagify/models"
+    model_cache_dir: str = ".cache/moire/models"
 
     thumb_max_size: int = 1080
     thumb_format: str = "webp"
@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     log_slow_requests_ms: int = 1000
 
     # Logging (see core/logging_setup.py). Records go to the console and, when
-    # `log_to_file` is on, to a rotating `tagify.log` under `log_dir`. A relative
+    # `log_to_file` is on, to a rotating `moire.log` under `log_dir`. A relative
     # `log_dir` resolves against the repo root, like `thumb_root`.
     log_level: str = "INFO"
     log_to_file: bool = True

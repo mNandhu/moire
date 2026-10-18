@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Tagify Docker smoke test: builds the CI stack, indexes ./test_images, and
+# Moiré Docker smoke test: builds the CI stack, indexes ./test_images, and
 # checks the API + media endpoints. Mirrors .github/workflows/ci.yml.
 
 set -euo pipefail
 
 # Override the host port to run alongside a dev backend on :8000.
-export TAGIFY_BACKEND_PORT="${TAGIFY_BACKEND_PORT:-8000}"
-BASE="http://localhost:${TAGIFY_BACKEND_PORT}"
+export MOIRE_BACKEND_PORT="${MOIRE_BACKEND_PORT:-8000}"
+BASE="http://localhost:${MOIRE_BACKEND_PORT}"
 COMPOSE="docker compose -f docker-compose.ci.yml"
 API="$BASE/api/v1"
 

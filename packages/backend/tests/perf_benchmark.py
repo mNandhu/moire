@@ -17,14 +17,14 @@ BACKEND_ROOT = str((Path(__file__).resolve().parents[1]).resolve())
 if BACKEND_ROOT not in sys.path:
     sys.path.insert(0, BACKEND_ROOT)
 
-BASE_URL = os.environ.get("TAGIFY_BASE_URL", "http://127.0.0.1:8000")
+BASE_URL = os.environ.get("MOIRE_BASE_URL", "http://127.0.0.1:8000")
 API_URL = f"{BASE_URL}/api/v1"
-LIBRARY_PATH = os.environ.get("TAGIFY_TEST_LIBRARY", "G:/images")
-CONCURRENCY = int(os.environ.get("TAGIFY_CONCURRENCY", "8"))
-ITERATIONS = int(os.environ.get("TAGIFY_ITERATIONS", "200"))
-TIMEOUT = float(os.environ.get("TAGIFY_TIMEOUT", "10"))
-AUTOSTART = os.environ.get("TAGIFY_AUTOSTART", "0").lower() in ("1", "true", "yes")
-MEASURE_SCAN = os.environ.get("TAGIFY_MEASURE_SCAN", "0").lower() in (
+LIBRARY_PATH = os.environ.get("MOIRE_TEST_LIBRARY", "G:/images")
+CONCURRENCY = int(os.environ.get("MOIRE_CONCURRENCY", "8"))
+ITERATIONS = int(os.environ.get("MOIRE_ITERATIONS", "200"))
+TIMEOUT = float(os.environ.get("MOIRE_TIMEOUT", "10"))
+AUTOSTART = os.environ.get("MOIRE_AUTOSTART", "0").lower() in ("1", "true", "yes")
+MEASURE_SCAN = os.environ.get("MOIRE_MEASURE_SCAN", "0").lower() in (
     "1",
     "true",
     "yes",
@@ -187,7 +187,7 @@ async def run_benchmark():
         if not ok and AUTOSTART:
             try:
                 print(
-                    "Backend not reachable; attempting to start uvicorn in-process (TAGIFY_AUTOSTART=1)..."
+                    "Backend not reachable; attempting to start uvicorn in-process (MOIRE_AUTOSTART=1)..."
                 )
                 import uvicorn  # type: ignore
                 import importlib
@@ -215,7 +215,7 @@ async def run_benchmark():
 
         if not ok:
             print(
-                "ERROR: Could not reach backend /health. Ensure the server is running (pnpm dev:backend) or set TAGIFY_AUTOSTART=1."
+                "ERROR: Could not reach backend /health. Ensure the server is running (pnpm dev:backend) or set MOIRE_AUTOSTART=1."
             )
             return 2
         # proceed with rest

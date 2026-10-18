@@ -1,10 +1,10 @@
-# Tagify: AI Image Manager - User Requirements Document
+# Moiré: AI Image Manager - User Requirements Document
 
 **Version:** 1.1
 
 ## 1. Introduction & Vision
 
-Tagify is a personal, image-centric application designed for enthusiasts and creators of AI-generated art, particularly those using workflows like **ComfyUI**. The primary vision is to provide a sophisticated and visually pleasing platform for users to **browse, manage, and showcase their collections**. The application moves beyond simple folder-based organization, offering a powerful, tag-based system to categorize and find images based on their content, style, and generation parameters. For the collector, easy and intuitive organization is paramount to maintaining a curated gallery.
+Moiré is a personal, image-centric application designed for enthusiasts and creators of AI-generated art, particularly those using workflows like **ComfyUI**. The primary vision is to provide a sophisticated and visually pleasing platform for users to **browse, manage, and showcase their collections**. The application moves beyond simple folder-based organization, offering a powerful, tag-based system to categorize and find images based on their content, style, and generation parameters. For the collector, easy and intuitive organization is paramount to maintaining a curated gallery.
 
 ## 2. Target Users
 

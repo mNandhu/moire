@@ -1,6 +1,6 @@
-# Example nginx reverse proxy for a self-hosted Tagify deployment.
+# Example nginx reverse proxy for a self-hosted Moiré deployment.
 #
-# Tagify serves BOTH thumbnails and originals through the FastAPI backend, so a
+# Moiré serves BOTH thumbnails and originals through the FastAPI backend, so a
 # single upstream (the API) is all nginx needs to proxy. Copy/adapt this into
 # your sites-available, point the cert paths at your certs, and reload nginx.
 #
@@ -13,7 +13,7 @@
 
 server {
     listen 80;
-    server_name tagify.example.com;
+    server_name moire.example.com;
     # Redirect everything to HTTPS.
     return 301 https://$host$request_uri;
 }
@@ -21,13 +21,13 @@ server {
 server {
     listen 443 ssl;
     http2 on;
-    server_name tagify.example.com;
+    server_name moire.example.com;
 
-    ssl_certificate     /etc/letsencrypt/live/tagify.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/tagify.example.com/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/moire.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/moire.example.com/privkey.pem;
 
     # Built SPA (output of `pnpm -C packages/frontend build`).
-    root /srv/tagify/frontend/dist;
+    root /srv/moire/frontend/dist;
     index index.html;
 
     # SPA routing: serve files if present, else fall back to index.html.
@@ -65,6 +65,6 @@ server {
     # emit `X-Accel-Redirect: /_thumbs/{key}` instead of FileResponse, then:
     # location /_thumbs/ {
     #     internal;
-    #     alias /srv/tagify/data/thumbs/;   # == THUMB_ROOT
+    #     alias /srv/moire/data/thumbs/;   # == THUMB_ROOT
     # }
 }

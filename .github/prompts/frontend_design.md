@@ -1,4 +1,4 @@
-### Tagify Frontend: A Visual & Interactive Design Guide
+### Moiré Frontend: A Visual & Interactive Design Guide
 
 **Core Philosophy: "The Digital Collector's Gallery"**
 

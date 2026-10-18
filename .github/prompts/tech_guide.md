@@ -1,4 +1,4 @@
-## Tagify: Architectural & Framework Guidelines
+## Moiré: Architectural & Framework Guidelines
 
 ### 1. High-Level Architecture
 
@@ -29,7 +29,7 @@ These two applications will communicate exclusively via a RESTful API. This sepa
 This structure keeps your frontend and backend code organized and independent while being managed under a single root project.
 
 ```
-tagify/
+moire/
 ├── .git/
 ├── .gitignore             # Root gitignore for both Node.js and Python projects
 ├── packages/              # The directory containing all workspaces (your apps)
@@ -62,7 +62,7 @@ tagify/
 │       ├── .env             # Backend environment variables (DB URI, API keys)
 │       └── pyproject.toml   # Modern Python dependency management (e.g., with Poetry or PDM)
 │
-├── (MinIO)                # Thumbnails and originals stored in buckets: tagify-thumbs, tagify-originals
+├── (MinIO)                # Thumbnails and originals stored in buckets: moire-thumbs, moire-originals
 ├── package.json           # Root package.json to manage workspaces & root scripts
 └── pnpm-workspace.yaml    # Defines the root of the pnpm workspace
 ```
@@ -91,4 +91,4 @@ tagify/
 4.  **Static Assets (Thumbnails):**
     - Thumbnails and originals are stored in MinIO buckets. Backend streams content from MinIO via `/images/:id/file` and `/images/:id/thumb`. Optionally, pre-signed URLs can be used in future to offload traffic from API.
 
-This structure provides a robust and scalable foundation for building Tagify, aligning with modern development practices and leveraging your specific skillset and project vision.
+This structure provides a robust and scalable foundation for building Moiré, aligning with modern development practices and leveraging your specific skillset and project vision.

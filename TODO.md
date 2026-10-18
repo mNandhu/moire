@@ -1,6 +1,6 @@
 # TODO
 
-A living checklist of work items for Tagify. Priorities: P0 (now), P1 (next), P2 (later).
+A living checklist of work items for Moiré. Priorities: P0 (now), P1 (next), P2 (later).
 
 ## Status snapshot
 

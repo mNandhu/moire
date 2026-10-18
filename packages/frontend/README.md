@@ -1,4 +1,4 @@
-# Tagify Frontend (Vite + React + TS)
+# Moiré Frontend (Vite + React + TS)
 
 Install pnpm first: https://pnpm.io/installation
 

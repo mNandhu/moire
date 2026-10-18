@@ -1,6 +1,6 @@
 # Docker Guide
 
-Tagify runs as two containers: the FastAPI **backend** (embedded SQLite, thumbnails
+Moiré runs as two containers: the FastAPI **backend** (embedded SQLite, thumbnails
 on the local filesystem, optional WD ONNX tagger) and the **frontend** (static
 build served by nginx, which proxies `/api/*` to the backend). There is no
 database or object-store container.
@@ -9,7 +9,7 @@ database or object-store container.
 
 | File | Purpose |
 | --- | --- |
-| `docker-compose.yml` | Full stack: backend + frontend, persistent `tagify_data` volume. |
+| `docker-compose.yml` | Full stack: backend + frontend, persistent `moire_data` volume. |
 | `docker-compose.override.yml` | Your local additions — mount image folders here (picked up automatically). |
 | `docker-compose.ci.yml` | Backend only, with `./test_images` mounted read-only; used by CI and `scripts/test-docker.sh`. |
 
@@ -25,7 +25,7 @@ docker compose up --build -d  # or: scripts/docker-setup.sh
 ## Mounting your image folders
 
 The backend can only index folders it can see. Bind-mount them in
-`docker-compose.override.yml` (read-only is fine — Tagify never writes to
+`docker-compose.override.yml` (read-only is fine — Moiré never writes to
 library folders, except the explicit "purge" action):
 
 ```yaml
@@ -46,22 +46,22 @@ one library per subfolder.
 
 ## Data and persistence
 
-Everything the backend writes lives in the `tagify_data` volume at `/data`:
+Everything the backend writes lives in the `moire_data` volume at `/data`:
 
 | Path | Contents | Setting |
 | --- | --- | --- |
-| `/data/tagify.db` | SQLite metadata (WAL mode) | `SQLITE_PATH` |
+| `/data/moire.db` | SQLite metadata (WAL mode) | `SQLITE_PATH` |
 | `/data/thumbs/` | Generated WebP thumbnails | `THUMB_ROOT` |
 | `/data/models/` | Downloaded tagger models | `MODEL_CACHE_DIR` |
 
 Back up by stopping the backend and copying the volume. Removing it
-(`docker compose down -v`) resets Tagify; your images are untouched.
+(`docker compose down -v`) resets Moiré; your images are untouched.
 
 ## Logs
 
 The backend logs to stdout in the container (`LOG_TO_FILE=false`), so use
 `docker compose logs -f backend`. Outside Docker it also writes a rotating
-`data/logs/tagify.log`.
+`data/logs/moire.log`.
 
 ## Configuration
 
@@ -77,7 +77,7 @@ Set in `.env` (see `.env.example`):
 
 ## Reverse proxy / TLS
 
-To serve Tagify behind your own nginx (TLS, static offload), see
+To serve Moiré behind your own nginx (TLS, static offload), see
 `deploy/nginx.conf.example`. All API routes are under `/api/v1`, so no path
 rewriting is needed.
 

@@ -1,6 +1,6 @@
 """Process-wide logging: one format on the console, plus a rotating log file.
 
-Before this, the `tagify.*` loggers had no handler at all, so records fell
+Before this, the `moire.*` loggers had no handler at all, so records fell
 through to Python's last-resort handler — WARNING and above only, unformatted,
 stderr only. Errors were visible while a terminal was attached and gone after.
 
@@ -31,7 +31,7 @@ def _log_thread_exception(args: threading.ExceptHookArgs) -> None:
     if args.exc_type is SystemExit:
         return
     name = args.thread.name if args.thread else "?"
-    logging.getLogger("tagify.thread").error(
+    logging.getLogger("moire.thread").error(
         "Unhandled exception in thread %s",
         name,
         exc_info=(args.exc_type, args.exc_value, args.exc_traceback),  # type: ignore[arg-type]
@@ -62,7 +62,7 @@ def setup_logging() -> None:
         try:
             log_dir.mkdir(parents=True, exist_ok=True)
             file_handler = RotatingFileHandler(
-                log_dir / "tagify.log",
+                log_dir / "moire.log",
                 maxBytes=settings.log_file_max_bytes,
                 backupCount=settings.log_file_backups,
                 encoding="utf-8",
@@ -70,7 +70,7 @@ def setup_logging() -> None:
         except OSError as e:
             # A read-only or unmounted log dir (e.g. a container) must not
             # stop the API from starting; the console still gets everything.
-            logging.getLogger("tagify").warning(
+            logging.getLogger("moire").warning(
                 "File logging disabled: cannot write to %s (%s)", log_dir, e
             )
     if file_handler is not None:

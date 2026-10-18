@@ -719,7 +719,7 @@ export default function ImageView() {
 
             {/* Scrollable body */}
             <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
-              {/* Curation (Tagify-specific) */}
+              {/* Curation (Moiré-specific) */}
               <Section title="Curation">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm text-neutral-300">Rating</span>

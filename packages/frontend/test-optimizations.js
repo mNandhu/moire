@@ -125,7 +125,7 @@ function testBackendFiles() {
 
 // Run all tests
 async function runTests() {
-  console.log('🚀 Testing Tagify Gallery Performance Optimizations\n');
+  console.log('🚀 Testing Moiré Gallery Performance Optimizations\n');
   
   testComponentFiles();
   console.log('');

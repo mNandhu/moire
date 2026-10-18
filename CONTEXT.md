@@ -1,4 +1,4 @@
-# Tagify — Domain Context
+# Moiré — Domain Context
 
 Glossary of the core domain concepts and the modules that own them. Keep names
 here in sync with the code; when a module is named after a concept, the concept

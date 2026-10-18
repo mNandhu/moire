@@ -1,4 +1,4 @@
-# Tagify Backend Performance Plan
+# Moiré Backend Performance Plan
 
 Audience: engineering + ops
 Goal: push the backend to production-grade throughput and latency with pragmatic changes and a safe rollout path.
@@ -6,7 +6,7 @@ Goal: push the backend to production-grade throughput and latency with pragmatic
 ## Snapshot (current state)
 
 - App: FastAPI on Uvicorn.
-- Storage: MinIO (tagify-thumbs, tagify-originals) with server-side ETag.
+- Storage: MinIO (moire-thumbs, moire-originals) with server-side ETag.
 - Scanner: multithreaded, generates in-memory JPEG thumb, uploads original + thumb to MinIO, upserts Mongo image docs.
 - API:
   - Streams originals/thumbs from MinIO via the API (proxy).

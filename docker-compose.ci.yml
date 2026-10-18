@@ -1,17 +1,17 @@
 # CI stack: backend only, with the repo's ./test_images mounted read-only as a
-# library. Separate volume so CI never touches a local `tagify_data`.
+# library. Separate volume so CI never touches a local `moire_data`.
 services:
   backend:
     build:
       context: ./packages/backend
       dockerfile: Dockerfile
-    container_name: tagify-backend-ci
+    container_name: moire-backend-ci
     restart: "no"
     volumes:
       - ./test_images:/data/test_images:ro
-      - tagify_data_ci:/data
+      - moire_data_ci:/data
     environment:
-      SQLITE_PATH: /data/tagify.db
+      SQLITE_PATH: /data/moire.db
       THUMB_ROOT: /data/thumbs
       MODEL_CACHE_DIR: /data/models
       LOG_TO_FILE: "false"
@@ -20,7 +20,7 @@ services:
       # CI adds a library and waits for one scan; no watcher needed.
       WATCH_ENABLED_DEFAULT: "false"
     ports:
-      - "${TAGIFY_BACKEND_PORT:-8000}:8000"
+      - "${MOIRE_BACKEND_PORT:-8000}:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 5s
@@ -29,4 +29,4 @@ services:
       start_period: 15s
 
 volumes:
-  tagify_data_ci:
+  moire_data_ci:

@@ -28,7 +28,7 @@ from watchfiles import Change, watch
 from ..core.config import settings
 from . import scanner
 
-logger = logging.getLogger("tagify.watch")
+logger = logging.getLogger("moire.watch")
 
 # Editors/downloaders/generators commonly stage output under these suffixes
 # before the final rename; never ingest them directly.

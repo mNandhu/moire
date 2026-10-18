@@ -1,5 +1,5 @@
 {
-    "name": "tagify-root",
+    "name": "moire-root",
     "private": true,
     "version": "0.1.0",
     "workspaces": [

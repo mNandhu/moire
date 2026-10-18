@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef } from "react";
 // query cache persists fetched pages across gallery -> ImageView -> gallery, so
 // the rows are already mounted on return and we only need to restore scrollTop.
 
-const PREFIX = "tagify_scroll_";
+const PREFIX = "moire_scroll_";
 const MAX_AGE_MS = 10 * 60 * 1000;
 const SAVE_DEBOUNCE_MS = 200;
 

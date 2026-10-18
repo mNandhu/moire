@@ -18,12 +18,12 @@ from typing import Any
 
 import httpx
 
-logger = logging.getLogger("tagify.ai_download")
+logger = logging.getLogger("moire.ai_download")
 
 # The default model cache location. Lives here (the dependency-free module) so
 # both ai_settings and the API can share one source of truth without importing
 # ai_tagger (which would create a cycle).
-DEFAULT_CACHE_DIR = ".cache/tagify/models"
+DEFAULT_CACHE_DIR = ".cache/moire/models"
 
 
 def model_target(settings: dict[str, Any]) -> tuple[str, str]:
