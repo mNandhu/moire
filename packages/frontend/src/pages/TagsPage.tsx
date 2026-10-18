@@ -9,7 +9,7 @@ import { Button, ButtonLink } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { cn } from "../lib/cn";
 import { api } from "../lib/api";
-import { useAiCoverage, useTagAggregate, type TagAgg } from "../lib/queries";
+import { useAiCoverage, useBoilerplate, useTagAggregate, type TagAgg } from "../lib/queries";
 import { formatTag, isManual, isPrompt } from "../lib/tags";
 
 type Sample = { _id: string; thumb_url: string };
@@ -23,6 +23,10 @@ export default function TagsPage() {
   // Prompt-extracted tags are large and long-tail, so they stay off by default;
   // this opts the whole browser into showing them alongside AI + manual tags.
   const [includePrompt, setIncludePrompt] = useState(false);
+  // Boilerplate (Settings) is hidden unless asked for: it would otherwise fill
+  // the top of the grid, being on nearly every image.
+  const [showBoilerplate, setShowBoilerplate] = useState(false);
+  const isBoilerplate = useBoilerplate();
   const requested = useRef<Set<string>>(new Set());
 
   const tagsQuery = useTagAggregate({ includePrompt });
@@ -37,12 +41,18 @@ export default function TagsPage() {
   // Reset paging when the search term changes.
   useEffect(() => setVisible(PAGE), [q]);
 
+  const boilerplateCount = useMemo(
+    () => (tags ? tags.filter((t) => isBoilerplate(t._id)).length : 0),
+    [tags, isBoilerplate],
+  );
+
   const filtered = useMemo(() => {
     if (!tags) return [];
+    const pool = showBoilerplate ? tags : tags.filter((t) => !isBoilerplate(t._id));
     const needle = q.trim().toLowerCase();
-    if (!needle) return tags;
-    return tags.filter((t) => formatTag(t._id).toLowerCase().includes(needle));
-  }, [tags, q]);
+    if (!needle) return pool;
+    return pool.filter((t) => formatTag(t._id).toLowerCase().includes(needle));
+  }, [tags, q, showBoilerplate, isBoilerplate]);
 
   const shown = useMemo(() => filtered.slice(0, visible), [filtered, visible]);
 
@@ -88,6 +98,17 @@ export default function TagsPage() {
           >
             {includePrompt ? "Hide prompt tags" : "Show prompt tags"}
           </Button>
+          {boilerplateCount > 0 && (
+            <Button
+              active={showBoilerplate}
+              onClick={() => setShowBoilerplate((v) => !v)}
+              title="Boilerplate tags are set in Settings"
+            >
+              {showBoilerplate
+                ? "Hide boilerplate"
+                : `Show boilerplate (${boilerplateCount.toLocaleString()})`}
+            </Button>
+          )}
         </div>
 
       {/* Shortcuts to what still needs work */}
@@ -118,7 +139,13 @@ export default function TagsPage() {
             compact
             icon={Search}
             title={`No tags match “${q.trim()}”`}
-            description={includePrompt ? undefined : "Prompt tags are hidden. Try showing them."}
+            description={
+              !includePrompt
+                ? "Prompt tags are hidden. Try showing them."
+                : !showBoilerplate && boilerplateCount
+                  ? "Boilerplate tags are hidden. Try showing them."
+                  : undefined
+            }
           />
         ) : (
           <EmptyState

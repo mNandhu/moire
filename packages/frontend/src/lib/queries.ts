@@ -9,7 +9,13 @@
  */
 
 import { viewerTimeZone } from "./activity";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  NO_BOILERPLATE,
+  compileBoilerplate,
+  type BoilerplateMatcher,
+} from "./boilerplate";
 import { api } from "./api";
 import { fetchAiCoverage } from "./ai";
 
@@ -97,4 +103,38 @@ export function useImageStats() {
         { signal },
       ),
   });
+}
+
+export type TagSettings = {
+  boilerplate: string[];
+  default_boilerplate: string[];
+};
+
+export const TAG_SETTINGS_KEY = ["tag-settings"] as const;
+
+export function useTagSettings() {
+  return useQuery({
+    queryKey: TAG_SETTINGS_KEY,
+    queryFn: ({ signal }) => api<TagSettings>("/api/v1/tags/settings", { signal }),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function saveTagSettings(boilerplate: string[]): Promise<TagSettings> {
+  return api<TagSettings>("/api/v1/tags/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ boilerplate }),
+  });
+}
+
+/** The boilerplate matcher from Settings; matches nothing until loaded (or
+ * when the backend answers with something else, e.g. one without the route). */
+export function useBoilerplate(): BoilerplateMatcher {
+  const { data } = useTagSettings();
+  return useMemo(
+    () =>
+      Array.isArray(data?.boilerplate) ? compileBoilerplate(data.boilerplate) : NO_BOILERPLATE,
+    [data],
+  );
 }

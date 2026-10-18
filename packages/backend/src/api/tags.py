@@ -9,7 +9,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from ..database.db import async_tx
 from ..database import schema as t
 from ._utils import thumb_url, validate_tags
-from ..services import image_tags, tag_index
+from ..services import image_tags, tag_index, tag_settings
 
 router = APIRouter()
 
@@ -29,6 +29,24 @@ async def list_tags(
         include_prompt=include_prompt,
         merge_sources=merge_sources,
     )
+
+
+class TagSettingsPatch(BaseModel):
+    boilerplate: list[str]
+
+
+@router.get("/settings")
+async def get_tag_settings():
+    """The boilerplate list (and the built-in defaults, for a reset)."""
+    return await tag_settings.get_tag_settings()
+
+
+@router.post("/settings")
+async def set_tag_settings(patch: TagSettingsPatch):
+    try:
+        return await tag_settings.set_boilerplate(patch.boilerplate)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @router.get("/samples")

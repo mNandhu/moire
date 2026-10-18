@@ -43,6 +43,8 @@ import {
 import { accentFromBlurhash } from "../lib/blurhash";
 import { pickRating, ratingBadgeClass } from "../lib/rating";
 import { formatTag, partitionTags, tagFlow, type FlowTag, type TagKind } from "../lib/tags";
+import { splitBoilerplate } from "../lib/boilerplate";
+import { useBoilerplate } from "../lib/queries";
 import { isFormField } from "../lib/dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { Button } from "../components/ui/Button";
@@ -1013,15 +1015,25 @@ function TagFlow({
   tags: FlowTag[];
   onThumb: (raw: string) => void;
 }) {
-  const kinds = (Object.keys(KIND_LABEL) as TagKind[]).filter((k) =>
-    tags.some((t) => t.kind === k),
+  // Boilerplate (Settings) folds into one quiet toggle at the end, so the
+  // tags that describe this image lead instead of "masterpiece, best quality".
+  const isBoilerplate = useBoilerplate();
+  const { kept, boilerplate } = useMemo(
+    () => splitBoilerplate(tags, (t) => t.raw, isBoilerplate),
+    [tags, isBoilerplate],
   );
+  const [showBoilerplate, setShowBoilerplate] = useState(false);
+  const shown = showBoilerplate ? [...kept, ...boilerplate] : kept;
+  const kinds = (Object.keys(KIND_LABEL) as TagKind[]).filter((k) =>
+    shown.some((t) => t.kind === k),
+  );
+  const firstBoilerplate = kept.length;
   return (
     <div className="space-y-2">
       <p className="text-[13px] leading-7">
-        {tags.map((t, i) => (
+        {shown.map((t, i) => (
           <React.Fragment key={t.raw}>
-            <span className="group relative">
+            <span className={`group relative ${i >= firstBoilerplate ? "opacity-50" : ""}`}>
               <Link
                 to={tagHref(t.raw)}
                 className={`rounded px-0.5 -mx-0.5 hover:bg-raised hover:underline ${KIND_TEXT[t.kind]}`}
@@ -1048,9 +1060,27 @@ function TagFlow({
                 <ImageIcon size={11} />
               </button>
             </span>
-            {i < tags.length - 1 && <span className="text-line-strong">, </span>}
+            {i < shown.length - 1 && <span className="text-line-strong">, </span>}
           </React.Fragment>
         ))}
+        {boilerplate.length > 0 && (
+          <>
+            {shown.length > 0 && <span className="text-line-strong"> </span>}
+            <button
+              type="button"
+              onClick={() => setShowBoilerplate((v) => !v)}
+              aria-expanded={showBoilerplate}
+              title={
+                showBoilerplate
+                  ? "Fold boilerplate tags away"
+                  : `Show ${boilerplate.length} boilerplate ${boilerplate.length === 1 ? "tag" : "tags"} (set in Settings)`
+              }
+              className="inline-flex items-center h-5 px-1.5 rounded-full border border-line text-2xs text-faint hover:text-neutral-100 hover:border-line-strong align-middle"
+            >
+              {showBoilerplate ? "fold boilerplate" : `+${boilerplate.length} boilerplate`}
+            </button>
+          </>
+        )}
       </p>
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-2xs text-faint">
         {kinds.map((k) => (
@@ -1059,7 +1089,7 @@ function TagFlow({
             {KIND_LABEL[k]}
           </span>
         ))}
-        {tags.some((t) => t.confidence != null) && <span>fainter = less confident</span>}
+        {shown.some((t) => t.confidence != null) && <span>fainter = less confident</span>}
       </div>
     </div>
   );

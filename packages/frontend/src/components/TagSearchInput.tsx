@@ -8,6 +8,8 @@ import {
 } from "react";
 import { X, Search } from "lucide-react";
 import { fuzzyRank } from "../lib/fuzzy";
+import { splitBoilerplate } from "../lib/boilerplate";
+import { useBoilerplate } from "../lib/queries";
 import { Badge } from "./ui/Badge";
 import { cn } from "../lib/cn";
 import { formatSearchTag, isManual, isPrompt } from "../lib/tags";
@@ -44,14 +46,19 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
     useImperativeHandle(ref, () => inputRef.current as HTMLInputElement);
 
     const selected = useMemo(() => new Set(value), [value]);
+    const isBoilerplate = useBoilerplate();
 
     // Fuzzy matches for the current text, excluding already-selected tags.
     const matches = useMemo(() => {
       const q = text.trim();
       if (!q) return [];
       const pool = suggestions.filter((s) => !selected.has(s._id));
-      return fuzzyRank(q, pool, (s) => formatSearchTag(s._id), MAX_SUGGESTIONS);
-    }, [text, suggestions, selected]);
+      // Boilerplate still matches (it stays searchable) but ranks after every
+      // other match, so "best" offers "best friend" before "best quality".
+      const ranked = fuzzyRank(q, pool, (s) => formatSearchTag(s._id), pool.length);
+      const { kept, boilerplate } = splitBoilerplate(ranked, (s) => s._id, isBoilerplate);
+      return [...kept, ...boilerplate].slice(0, MAX_SUGGESTIONS);
+    }, [text, suggestions, selected, isBoilerplate]);
 
     // Keep the active row in range whenever the match list changes.
     useEffect(() => setActive(0), [text]);

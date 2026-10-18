@@ -1,7 +1,8 @@
 import type { LucideIcon } from "lucide-react";
-import { Tags, FileText } from "lucide-react";
+import { Tags, FileText, EyeOff } from "lucide-react";
 import { TaggingSection } from "./sections/TaggingSection";
 import { PromptTagsSection } from "./sections/PromptTagsSection";
+import { BoilerplateSection } from "./sections/BoilerplateSection";
 
 /**
  * One settings page section: a left-nav entry + the panel it renders.
@@ -44,6 +45,12 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         icon: FileText,
         description: "Tags taken from the generation prompt embedded in each image (A1111 / ComfyUI).",
         Component: PromptTagsSection,
+      },
+      {
+        id: "boilerplate",
+        label: "Boilerplate",
+        icon: EyeOff,
+        Component: BoilerplateSection,
       },
     ],
   },

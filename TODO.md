@@ -37,6 +37,9 @@ Last rewritten 2026-10-19. Done work lives in git history, not here.
   - Day headers in the grid, then generation sessions (runs of images with no
     long gap)
   - Score filter, so "Unrated" and "4+ stars" become real views
+  - Content-rating ceiling: show only images up to a chosen rating
+    (general < sensitive < questionable < explicit), e.g. a "safe for
+    screen-sharing" mode that hides everything above general
   - Saved views: name any filter + sort and pin it to the sidebar
 - Triage
   - Compare view for a batch: variations side by side, keep some, quarantine
