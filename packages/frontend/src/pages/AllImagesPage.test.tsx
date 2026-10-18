@@ -34,12 +34,12 @@ const IMAGES = Array.from({ length: 6 }, (_, i) => ({
   thumb_url: `/api/v1/images/L1%3Aimg-${i}.png/thumb`,
 }));
 
-function stubFetch(images: unknown[]) {
+function stubFetch(images: unknown[], libraries: unknown[] = []) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => {
       const body = url.includes("/api/v1/libraries")
-        ? []
+        ? libraries
         : url.includes("/api/v1/tags") || url.includes("/api/v1/images/models")
           ? []
           : images;
@@ -48,14 +48,14 @@ function stubFetch(images: unknown[]) {
   );
 }
 
-function renderPage() {
+function renderPage(url = "/") {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={qc}>
       <ToastProvider>
-        <MemoryRouter>
+        <MemoryRouter initialEntries={[url]}>
           <AllImagesPage />
         </MemoryRouter>
       </ToastProvider>
@@ -121,6 +121,31 @@ describe("AllImagesPage", () => {
     stubFetch([]);
     renderPage();
     expect(await screen.findByText("No images found")).toBeInTheDocument();
+  });
+
+  it("shows library scope as tabs, not as a chip", async () => {
+    const libs = [
+      { _id: "L1", name: "Alpha", path: "/a", indexed_count: 3 },
+      { _id: "L2", name: "Beta", path: "/b", indexed_count: 3 },
+    ];
+    stubFetch(IMAGES, libs);
+    renderPage("/?library_id=L2");
+    expect(await screen.findByRole("button", { name: /^Beta/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.queryByText(/^Library:/)).not.toBeInTheDocument();
+  });
+
+  it("keeps a stale library link visible and clearable as a chip", async () => {
+    // No tab can show a library that no longer exists; without the chip the
+    // feed would be empty with nothing on screen explaining why.
+    stubFetch([], [
+      { _id: "L1", name: "Alpha", path: "/a" },
+      { _id: "L2", name: "Beta", path: "/b" },
+    ]);
+    renderPage("/?library_id=gone");
+    expect(await screen.findByText("Library: not found")).toBeInTheDocument();
   });
 
   it("opens and closes the shortcut overlay with ?", async () => {

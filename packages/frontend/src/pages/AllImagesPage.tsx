@@ -119,16 +119,22 @@ export default function AllImagesPage() {
   const workflowFamilies = useMemo(() => groupWorkflows(signatures ?? []), [signatures]);
 
   // The library is shown by the scope tabs, so it isn't repeated as a chip
-  // (or counted on the filter button) unless the tabs are hidden.
+  // (or counted on the filter button), unless no tab can show it: the tabs
+  // are hidden, or the URL names a library that no longer exists (a stale
+  // link), which would otherwise leave an empty feed with nothing to clear.
+  const scopeInTabs =
+    libs.length >= 2 && libs.some((l) => l._id === filters.libraryId);
   const filterChips = useMemo(
     () =>
-      activeFilterChips(filters, (id) => {
-        const lib = libs.find((l) => l._id === id);
-        return lib?.name || lib?.path;
-      }, (key) => workflowFilterName(workflowFamilies, key)).filter(
-        (chip) => chip.key !== "library" || libs.length < 2,
-      ),
-    [filters, libs, workflowFamilies],
+      activeFilterChips(
+        filters,
+        (id) => {
+          const lib = libs.find((l) => l._id === id);
+          return lib ? lib.name || lib.path : libs.length ? "not found" : undefined;
+        },
+        (key) => workflowFilterName(workflowFamilies, key),
+      ).filter((chip) => chip.key !== "library" || !scopeInTabs),
+    [filters, libs, workflowFamilies, scopeInTabs],
   );
 
   // Known tags (with image counts) powering the search autocomplete.
