@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from ..core.config import settings
-from .schema import metadata
+from .schema import RETIRED_INDEXES, metadata
 
 _async_engine: AsyncEngine | None = None
 _sync_engine: Engine | None = None
@@ -119,6 +119,8 @@ def _create_all(conn) -> None:
     for table in metadata.sorted_tables:
         for index in table.indexes:
             conn.execute(CreateIndex(index, if_not_exists=True))
+    for name in RETIRED_INDEXES:
+        conn.execute(sa.text(f'DROP INDEX IF EXISTS "{name}"'))
 
 
 async def ensure_schema() -> None:

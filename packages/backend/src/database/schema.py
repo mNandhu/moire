@@ -173,32 +173,46 @@ app_settings = sa.Table(
 )
 
 
-# --- Indexes (mirror the previous Mongo index set) ---------------------------
-sa.Index("ix_images_lib_id", images.c.library_id, images.c._id.desc())
-# The feed's newest-first order (image_feed.SORT_KEY): across libraries, and
-# scoped to one. The expression must match SORT_KEY exactly to be used.
+# --- Indexes ------------------------------------------------------------------
+# Feed orders (services/image_feed.SORTS). Each expression must match the
+# feed's SORT_KEY / SCORE_KEY exactly for SQLite to use it, and every index a
+# feed filter can lead with ends in the same keys, so a filtered or scoped page
+# walks one index in order instead of sorting all matches. "Oldest" walks the
+# newest-first indexes backwards.
 _recent = sa.func.coalesce(images.c.mtime, sa.literal_column("0"))
-sa.Index("ix_images_recent", _recent.desc(), images.c._id.desc())
-sa.Index(
-    "ix_images_lib_recent", images.c.library_id, _recent.desc(), images.c._id.desc()
-)
-# "Top rated" (image_feed.SCORE_KEY, then newest).
 _score = sa.func.coalesce(images.c.score, sa.literal_column("0"))
-sa.Index("ix_images_top", _score.desc(), _recent.desc(), images.c._id.desc())
+_newest = (_recent.desc(), images.c._id.desc())
+_top = (_score.desc(), *_newest)
+
+sa.Index("ix_images_recent", *_newest)
+sa.Index("ix_images_top", *_top)
+sa.Index("ix_images_lib_recent", images.c.library_id, *_newest)
+sa.Index("ix_images_lib_top", images.c.library_id, *_top)
+sa.Index("ix_images_has_tags_recent", images.c.has_tags, *_newest)
+sa.Index("ix_images_has_ai_tags_recent", images.c.has_ai_tags, *_newest)
 sa.Index(
-    "ix_images_lib_has_tags",
-    images.c.library_id,
-    images.c.has_tags,
-    images.c._id.desc(),
+    "ix_images_lib_has_tags_recent", images.c.library_id, images.c.has_tags, *_newest
 )
 sa.Index(
-    "ix_images_lib_has_ai_tags",
+    "ix_images_lib_has_ai_tags_recent",
     images.c.library_id,
     images.c.has_ai_tags,
-    images.c._id.desc(),
+    *_newest,
 )
-sa.Index("ix_images_gen_model", images.c.gen_model, images.c._id.desc())
-sa.Index("ix_images_gen_workflow_sig", images.c.gen_workflow_sig)
+sa.Index("ix_images_model_recent", images.c.gen_model, *_newest)
+# Also serves the Rules page's per-signature GROUP BY.
+sa.Index("ix_images_sig_recent", images.c.gen_workflow_sig, *_newest)
+
+# Superseded by the indexes above (they ended in `_id`, the old feed order).
+# ensure_schema drops them from existing databases.
+RETIRED_INDEXES = (
+    "ix_images_lib_id",
+    "ix_images_lib_has_tags",
+    "ix_images_lib_has_ai_tags",
+    "ix_images_gen_model",
+    "ix_images_gen_workflow_sig",
+)
+
 sa.Index("ix_images_gen_group_id", images.c.gen_group_id)
 sa.Index("ix_image_tags_tag", image_tags.c.tag)
 sa.Index("ix_image_tags_base", image_tags.c.base)
