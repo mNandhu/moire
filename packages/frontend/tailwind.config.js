@@ -34,6 +34,8 @@ module.exports = {
           950: "#221a42",
         },
         // Surface roles, darkest to lightest.
+        // Below canvas: the sidebar rail sits behind the content plane.
+        sunken: "#0a0a0e",
         canvas: "#0d0c12",
         surface: "#15141c",
         raised: "#1e1c26",
@@ -42,6 +44,21 @@ module.exports = {
         // surface and raised — neutral-500/600 did not.
         muted: "#a6a3b3",
         faint: "#8a8797",
+      },
+      // Depth: layers separate by light and shadow rather than colour.
+      boxShadow: {
+        // Raised card: lit top edge + soft drop.
+        panel:
+          "inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 28px -14px rgb(0 0 0 / 0.7)",
+        // Sidebar rail casting onto the content plane.
+        rail: "1px 0 0 rgb(255 255 255 / 0.03), 8px 0 24px -12px rgb(0 0 0 / 0.8)",
+        // Sticky toolbar lifting off the grid as it scrolls.
+        bar: "0 10px 20px -12px rgb(0 0 0 / 0.8)",
+        tile: "0 1px 2px rgb(0 0 0 / 0.6), 0 10px 24px -14px rgb(0 0 0 / 0.9)",
+      },
+      backgroundImage: {
+        // Faint top-down light on raised surfaces; pairs with shadow-panel.
+        sheen: "linear-gradient(180deg, rgb(255 255 255 / 0.03), transparent 60%)",
       },
       keyframes: {
         shimmer: {

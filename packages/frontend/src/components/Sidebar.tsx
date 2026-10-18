@@ -83,7 +83,7 @@ export function Sidebar({
   };
 
   return (
-    <aside className="h-dvh w-full border-r border-line bg-surface flex flex-col overflow-hidden">
+    <aside className="h-dvh w-full bg-sunken shadow-rail flex flex-col overflow-hidden">
       {/* Brand */}
       <div
         className={cn(

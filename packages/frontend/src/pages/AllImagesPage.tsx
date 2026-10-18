@@ -26,6 +26,8 @@ import {
   type Filters,
 } from "../lib/imageFilter";
 import { PageHeader } from "../components/ui/PageHeader";
+import { ambientPalette } from "../lib/blurhash";
+import { applyAmbient } from "../lib/ambient";
 import { Button } from "../components/ui/Button";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { Input, Select } from "../components/ui/Input";
@@ -89,6 +91,11 @@ export default function AllImagesPage() {
   const groups = useImageGroups(filters, groupMode);
   const activeFeed = groupMode ? groups : feed;
   const items = activeFeed.items;
+
+  // Tint the app with the strongest hues among the first images in the feed.
+  useEffect(() => {
+    applyAmbient(ambientPalette(items.slice(0, 24).map((it) => it.blurhash)));
+  }, [items]);
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [libs, setLibs] = useState<Library[]>([]);
@@ -625,7 +632,7 @@ export default function AllImagesPage() {
       />
       <div
         ref={headerRef}
-        className="sticky top-0 z-10 -mx-6 px-6 py-3 bg-canvas/85 backdrop-blur border-b border-line"
+        className="sticky top-0 z-10 -mx-6 px-6 py-3 bg-canvas/85 backdrop-blur border-b border-line shadow-bar"
       >
         <div className="flex items-center gap-2">
           <Button

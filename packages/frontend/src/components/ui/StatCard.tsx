@@ -33,7 +33,7 @@ export function StatCard({
     <Comp
       onClick={onClick}
       className={cn(
-        "rounded-xl border border-neutral-800 bg-neutral-900/60 p-4 text-left flex items-center gap-4 card-hover",
+        "rounded-xl border border-white/5 bg-surface bg-sheen shadow-panel p-4 text-left flex items-center gap-4 card-hover",
         onClick && "cursor-pointer w-full",
       )}
     >

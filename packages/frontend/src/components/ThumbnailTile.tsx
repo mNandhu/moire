@@ -147,7 +147,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
   return (
     <div
       className={cn(
-        "relative group h-full rounded-xl transition-shadow duration-150",
+        "relative group h-full rounded-xl shadow-tile transition-shadow duration-150",
         focused && "ring-2 ring-brand-400 ring-offset-2 ring-offset-canvas",
         selected && "ring-2 ring-brand-500",
       )}

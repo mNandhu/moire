@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { useOverlayOpen } from "./lib/backgroundLocation";
+import { restoreAmbient } from "./lib/ambient";
 
 export default function App() {
   const overlayOpen = useOverlayOpen();
@@ -18,6 +19,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("sidebar:collapsed", collapsed ? "1" : "0");
   }, [collapsed]);
+
+  useEffect(() => {
+    restoreAmbient();
+  }, []);
 
   useEffect(() => {
     fetch("/api/v1/health")
@@ -111,6 +116,7 @@ export default function App() {
     // gradients on <body>, and an opaque root covered every one of them — the
     // designed background was in the stylesheet but had never been visible.
     <div className="h-dvh text-white">
+      <div className="ambient-wash" aria-hidden="true" />
       {/* Fixed sidebar */}
       <div
         className={

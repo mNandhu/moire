@@ -42,6 +42,28 @@ body {
   background-size: 16px;
 }
 
+/* Ambient wash: a faint light of the library's own hues across the top of
+ * the app. --amb1..3 come from lib/ambient.ts; the brand fallbacks show
+ * until the gallery has seen any images. z-index -1 puts it behind in-flow
+ * content without a stacking context that would trap dialogs under the
+ * sidebar. */
+:root {
+  --amb1: theme("colors.brand.500");
+  --amb2: theme("colors.brand.700");
+  --amb3: theme("colors.brand.400");
+}
+.ambient-wash {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 620px;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 90% at 22% -10%, color-mix(in srgb, var(--amb1) 20%, transparent), transparent 70%),
+    radial-gradient(45% 80% at 62% -15%, color-mix(in srgb, var(--amb2) 16%, transparent), transparent 70%),
+    radial-gradient(40% 70% at 95% -5%, color-mix(in srgb, var(--amb3) 14%, transparent), transparent 70%);
+}
+
 /* Hover affordance for clickable cards: a border step, no lift or glow. */
 .card-hover {
   transition: border-color 150ms ease, background-color 150ms ease;
