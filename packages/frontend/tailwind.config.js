@@ -12,6 +12,8 @@ module.exports = {
           '"Segoe UI"',
           "sans-serif",
         ],
+        // Grease-pencil digits for scores (ScoreMark) — nowhere else.
+        marker: ['"Caveat Brush"', "cursive"],
       },
       fontSize: {
         // Smallest step of the scale — replaces ad-hoc text-[10px]/[11px].

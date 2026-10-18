@@ -20,7 +20,6 @@ import {
   ChevronRight,
   ChevronDown,
   Sparkles,
-  Star,
   Copy,
   Ban,
   Download,
@@ -47,6 +46,7 @@ import { formatTag, partitionTags, tagFlow, type FlowTag, type TagKind } from ".
 import { isFormField } from "../lib/dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { Button } from "../components/ui/Button";
+import { MARKER_DIGIT } from "../components/ui/ScoreMark";
 import { Input } from "../components/ui/Input";
 
 /** The gallery filtered to one tag. */
@@ -730,7 +730,7 @@ export default function ImageView() {
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm text-neutral-300">Score</span>
-                  <ScoreStars value={score} onSet={applyScore} />
+                  <ScorePicker value={score} onSet={applyScore} />
                 </div>
                 <Button
                   onClick={() => void toggleQuarantine()}
@@ -882,7 +882,12 @@ function TagEditor({ id, onChange }: { id: string; onChange: () => void }) {
   );
 }
 
-function ScoreStars({
+/**
+ * The score editor: the same grease-pencil digits the gallery tiles show, so
+ * marking a score looks like the mark it leaves. The chosen digit is drawn in
+ * amber; clicking it again clears the score.
+ */
+function ScorePicker({
   value,
   onSet,
 }: {
@@ -890,24 +895,28 @@ function ScoreStars({
   onSet: (n: number) => void;
 }) {
   return (
-    <div
-      className="inline-flex items-center gap-0.5"
-      title="Quality score (1-5, 0 to clear)"
-    >
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          aria-label={`Set score ${n}`}
-          onClick={() => onSet(n === value ? 0 : n)}
-          className="p-0.5 text-amber-300 hover:scale-110 transition-transform"
-        >
-          <Star
-            size={16}
-            className={n <= value ? "fill-amber-300" : "fill-none opacity-40"}
-          />
-        </button>
-      ))}
+    <div className="inline-flex items-center gap-0.5" role="radiogroup" aria-label="Score">
+      {[1, 2, 3, 4, 5].map((n) => {
+        const on = n === value;
+        return (
+          <button
+            key={n}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            aria-label={`Set score ${n}`}
+            title={on ? "Clear score" : `Score ${n}`}
+            onClick={() => onSet(on ? 0 : n)}
+            className={
+              on
+                ? `${MARKER_DIGIT} text-[24px] w-7 h-8`
+                : "font-marker text-[22px] leading-none w-7 h-8 text-white/30 hover:text-amber-200/80 transition-colors"
+            }
+          >
+            {n}
+          </button>
+        );
+      })}
     </div>
   );
 }

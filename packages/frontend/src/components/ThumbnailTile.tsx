@@ -3,6 +3,7 @@ import { Check, Layers, ShieldOff, Sparkles } from "lucide-react";
 import { ImageThumbnail } from "./ImageThumbnail";
 import { cn } from "../lib/cn";
 import { ratingDotClass } from "../lib/rating";
+import { ScoreMark } from "./ui/ScoreMark";
 import { useBatchScrub } from "../hooks/useBatchScrub";
 import type { ImageDoc } from "../lib/imageFilter";
 
@@ -252,7 +253,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
       >
         {/* No score, no bar: blank pips aren't state. The empty span keeps
             the markers on the right. */}
-        {hasScore ? <ScorePips score={score} /> : <span />}
+        {hasScore ? <ScoreMark score={score} /> : <span />}
         <div className="flex items-center gap-1.5">
           {untagged && (
             <span
@@ -279,29 +280,3 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
     </div>
   );
 });
-
-/**
- * The 0-5 quality score as five pips. Chosen over a number because it is
- * readable at a glance across a wall of tiles — you can see "mostly 4s and 5s"
- * in a column without reading anything.
- */
-function ScorePips({ score }: { score: number }) {
-  const n = Math.max(0, Math.min(5, Math.round(score)));
-  return (
-    <span
-      className="flex items-center gap-[3px]"
-      title={n > 0 ? `Score ${n}/5` : "Unscored"}
-      aria-label={n > 0 ? `Score ${n} of 5` : "Unscored"}
-    >
-      {[1, 2, 3, 4, 5].map((i) => (
-        <span
-          key={i}
-          className={cn(
-            "h-1 w-3 rounded-full",
-            i <= n ? "bg-amber-300" : "bg-white/25",
-          )}
-        />
-      ))}
-    </span>
-  );
-}
