@@ -175,7 +175,10 @@ export default function App() {
             collapsed ? "md:ml-16" : "md:ml-60",
           )}
         >
-          <div ref={scrollRef} className="flex-1 overflow-auto">
+          {/* No overscroll bounce: the sticky page header lives inside this
+              scroller, so rubber-banding past the top dragged the header down
+              with the content. */}
+          <div ref={scrollRef} className="flex-1 overflow-auto overscroll-none">
             <Outlet />
           </div>
         </div>

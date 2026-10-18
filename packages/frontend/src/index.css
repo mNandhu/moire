@@ -11,6 +11,9 @@
 
 html, body, #root {
   height: 100%;
+  /* The app scrolls inside its own containers; the page itself never should,
+     nor rubber-band (it dragged the whole frame, header included). */
+  overscroll-behavior: none;
 }
 /* Flat canvas: the images supply the colour, the chrome stays quiet. */
 body {
