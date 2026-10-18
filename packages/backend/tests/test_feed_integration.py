@@ -85,13 +85,12 @@ async def test_pterms_all_vs_in(client, seed):
     seed("L1:a", gen={"prompt_terms": ["masterpiece", "1girl"]})
     seed("L1:b", gen={"prompt_terms": ["masterpiece"]})
     # $all (and): must carry every term.
-    assert await _ids(
-        client, pterms=["masterpiece", "1girl"], plogic="and"
-    ) == ["L1:a"]
+    assert await _ids(client, pterms=["masterpiece", "1girl"], plogic="and") == ["L1:a"]
     # $in (or): any term.
-    assert set(
-        await _ids(client, pterms=["masterpiece", "1girl"], plogic="or")
-    ) == {"L1:a", "L1:b"}
+    assert set(await _ids(client, pterms=["masterpiece", "1girl"], plogic="or")) == {
+        "L1:a",
+        "L1:b",
+    }
 
 
 async def test_library_filter(client, seed):

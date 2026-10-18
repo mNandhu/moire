@@ -39,9 +39,13 @@ async def test_set_rating_404_on_unknown_image(client):
 
 async def test_set_score_persists_and_validates_range(client, seed):
     seed("L1:a")
-    assert (await client.post("/images/L1:a/score", json={"score": 4})).status_code == 200
+    assert (
+        await client.post("/images/L1:a/score", json={"score": 4})
+    ).status_code == 200
     assert (await _row("L1:a")).score == 4
-    assert (await client.post("/images/L1:a/score", json={"score": 9})).status_code == 422
+    assert (
+        await client.post("/images/L1:a/score", json={"score": 9})
+    ).status_code == 422
 
 
 async def test_set_quarantine_toggles_and_hides_from_feed(client, seed):
@@ -57,7 +61,9 @@ async def test_set_quarantine_toggles_and_hides_from_feed(client, seed):
 async def test_mutation_resolves_slash_variant(client, seed):
     # Stored with a backslash; request comes in with a forward slash.
     seed("L1:sub\\img.png")
-    resp = await client.post("/images/L1:sub/img.png/rating", json={"rating": "general"})
+    resp = await client.post(
+        "/images/L1:sub/img.png/rating", json={"rating": "general"}
+    )
     assert resp.status_code == 200, resp.text
     assert resp.json()["_id"] == "L1:sub\\img.png"
     assert (await _row("L1:sub\\img.png")).rating == "general"

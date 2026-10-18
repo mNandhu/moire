@@ -8,7 +8,7 @@ type Variant =
   | "danger"
   | "dangerSoft"
   | "ghost";
-type Size = "sm" | "md" | "icon";
+type Size = "sm" | "md" | "icon" | "iconSm";
 
 const VARIANTS: Record<Variant, string> = {
   primary: "bg-brand-600 hover:bg-brand-500 text-white border border-transparent",
@@ -26,6 +26,7 @@ const SIZES: Record<Size, string> = {
   sm: "h-8 px-3 text-xs gap-1.5",
   md: "h-9 px-3.5 text-sm gap-2",
   icon: "h-9 w-9",
+  iconSm: "h-8 w-8",
 };
 
 type Look = {

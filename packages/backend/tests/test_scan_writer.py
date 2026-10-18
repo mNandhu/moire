@@ -11,7 +11,9 @@ def _img(i):
 
 def test_flushes_automatically_at_batch_size():
     commits = []
-    w = ScanWriter(lambda imgs, raws: commits.append((len(imgs), len(raws))), batch_size=200)
+    w = ScanWriter(
+        lambda imgs, raws: commits.append((len(imgs), len(raws))), batch_size=200
+    )
     for i in range(200):
         w.add(_img(i))
     assert commits == [(200, 0)]  # one auto-flush

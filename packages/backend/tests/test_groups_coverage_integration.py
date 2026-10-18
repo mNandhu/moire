@@ -96,3 +96,24 @@ async def test_models_list_counts_and_sorted(client, seed):
     assert rows[0] == {"model": "sdxl", "count": 2}  # most frequent first
     assert {"model": "pony", "count": 1} in rows
     assert all(r["model"] is not None for r in rows)
+
+
+async def test_tag_untagged_skips_quarantined_like_coverage(client, seed, monkeypatch):
+    from src.services.ai_jobs import get_ai_job_manager
+
+    seed("L1:a", tags=("1girl",))  # ai-tagged: skipped
+    seed("L1:b")  # untagged: queued
+    seed("L1:q", quarantined=True)  # untagged but quarantined: skipped
+
+    queued: list[list[str]] = []
+
+    async def fake_enqueue(self, *, ids, force=False):
+        queued.append(ids)
+        return None
+
+    monkeypatch.setattr(type(get_ai_job_manager()), "enqueue", fake_enqueue)
+    await get_ai_job_manager().enqueue_untagged(limit=10)
+
+    assert queued == [["L1:b"]]
+    cov = (await client.get("/ai/coverage")).json()
+    assert cov["untagged"] == len(queued[0])

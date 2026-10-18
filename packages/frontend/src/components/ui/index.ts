@@ -8,6 +8,7 @@ export { Skeleton, Spinner } from "./Skeleton";
 export { PageHeader, PageBody, MobileNavContext } from "./PageHeader";
 export type { PageWidth } from "./PageHeader";
 export { EmptyState } from "./EmptyState";
+export { ProgressBar } from "./ProgressBar";
 export { StatCard } from "./StatCard";
 export { DropdownMenu } from "./DropdownMenu";
 export type { DropdownItem } from "./DropdownMenu";

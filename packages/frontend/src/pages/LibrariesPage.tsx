@@ -13,6 +13,7 @@ import {
 import { useToast } from "../components/Toasts";
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
+import { ProgressBar } from "../components/ui/ProgressBar";
 import { Card } from "../components/ui/Card";
 import { Dialog } from "../components/ui/Dialog";
 import { AddLibraryDialog } from "../components/AddLibraryDialog";
@@ -349,8 +350,7 @@ export default function LibrariesPage() {
 
                 {progress[l._id]?.scanning && (
                   <div className="mt-3">
-                    <progress
-                      className="w-full h-1.5 [&::-webkit-progress-bar]:bg-raised [&::-webkit-progress-value]:bg-brand-500 [&::-moz-progress-bar]:bg-brand-500 rounded"
+                    <ProgressBar
                       value={Math.max(0, progress[l._id]?.scan_done || 0)}
                       max={Math.max(1, progress[l._id]?.scan_total || 1)}
                       aria-label="Scanning progress"

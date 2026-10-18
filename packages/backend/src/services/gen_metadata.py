@@ -344,14 +344,14 @@ def workflow_sig(prompt_json: dict[str, Any] | None) -> str | None:
 
 
 def workflow_node_types(prompt_json: dict[str, Any] | None) -> list[str]:
-    """The node ``class_type``s of a ComfyUI prompt graph (the multiset that
-    ``workflow_sig`` hashes), unsorted."""
+    """The node ``class_type``s of a ComfyUI prompt graph, unsorted: exactly
+    the multiset ``workflow_sig`` hashes (a node without one counts as "")."""
     if not isinstance(prompt_json, dict):
         return []
     return [
-        str(n.get("class_type"))
+        str(n.get("class_type", ""))
         for n in prompt_json.values()
-        if isinstance(n, dict) and n.get("class_type")
+        if isinstance(n, dict)
     ]
 
 
@@ -371,21 +371,24 @@ def describe_signatures(
     A signature *is* its multiset of node types, so what tells two apart is the
     nodes one has beyond what every signature shares. For each sig returns
     ``node_count`` and ``distinct``: up to ``limit`` ``{"type", "count"}`` of
-    its node types over the common baseline (min count across all sigs), most
-    numerous first. With a single signature there is no baseline to subtract,
-    so ``distinct`` is its most frequent types.
+    its node types over the common baseline (min count across the sigs whose
+    graph could be read; an unreadable sample contributes no types and must
+    not zero the baseline for everyone). With a single readable signature
+    there is no baseline to subtract.
 
-    Ranking puts the rarest types first (present in the fewest signatures),
-    so a node every other workflow lacks names this one ahead of a utility
-    node most of them carry. Display-only nodes are never listed.
+    ``distinct`` is ordered rarest first (present in the fewest signatures),
+    then by count descending, then by name, so a node every other workflow
+    lacks names this one ahead of a utility node most of them carry.
+    Display-only and unnamed ("") nodes are never listed.
     """
     from collections import Counter
 
     counters = {sig: Counter(types) for sig, types in types_by_sig.items()}
-    if len(counters) > 1:
-        all_types = set().union(*counters.values())
+    readable = [c for c in counters.values() if c]
+    if len(readable) > 1:
+        all_types = set().union(*readable)
         baseline = Counter(
-            {ty: min(c.get(ty, 0) for c in counters.values()) for ty in all_types}
+            {ty: min(c.get(ty, 0) for c in readable) for ty in all_types}
         )
     else:
         baseline = Counter()
@@ -394,7 +397,7 @@ def describe_signatures(
     for sig, c in counters.items():
         extra = c - baseline
         ranked = sorted(
-            ((ty, n) for ty, n in extra.items() if ty not in _UI_ONLY_NODES),
+            ((ty, n) for ty, n in extra.items() if ty and ty not in _UI_ONLY_NODES),
             key=lambda kv: (spread[kv[0]], -kv[1], kv[0]),
         )[:limit]
         out[sig] = {

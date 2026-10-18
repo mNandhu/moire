@@ -22,6 +22,25 @@ export default function App() {
     setMobileNavOpen(false);
   }, [loc.pathname]);
 
+  // So do Escape and growing past `md` (the drawer only exists below it; left
+  // open, a desktop-collapsed rail would render the expanded nav clipped).
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileNavOpen(false);
+    };
+    const mq = window.matchMedia?.("(min-width: 768px)");
+    const onWide = (e: MediaQueryListEvent) => {
+      if (e.matches) setMobileNavOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    mq?.addEventListener?.("change", onWide);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      mq?.removeEventListener?.("change", onWide);
+    };
+  }, [mobileNavOpen]);
+
   useEffect(() => {
     localStorage.setItem("sidebar:collapsed", collapsed ? "1" : "0");
   }, [collapsed]);

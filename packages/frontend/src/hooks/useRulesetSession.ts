@@ -230,10 +230,10 @@ export function useRulesetSession({
         commit({});
         setFields({});
       }
-      notify("Ruleset deleted", "info");
+      notify("Reset to built-in extraction · reprojecting this workflow", "info");
       onSaved?.();
     } catch (e) {
-      notify(`Delete failed: ${String(e)}`, "error");
+      notify(`Reset failed: ${String(e)}`, "error");
     } finally {
       setBusy(false);
     }

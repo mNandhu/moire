@@ -270,6 +270,13 @@ export default function RulesPage() {
     }
   }, [selected, fields, push]);
 
+  // `selected` is the row as it was when picked; the list is refetched after
+  // a save or reset, so it's the fresh source for whether pins exist.
+  const hasRuleset =
+    sigs.find((s) => s.workflow_sig === selectedSig)?.has_ruleset ??
+    selected?.has_ruleset ??
+    false;
+
   const previewGen = preview?.gen;
   const firedByField = useMemo(() => preview?.paths ?? {}, [preview]);
 
@@ -392,7 +399,14 @@ export default function RulesPage() {
                       <span className="ml-1 w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
                     )}
                   </Button>
-                  <Button variant="ghost" onClick={() => void remove()} disabled={busy}>
+                  {/* Nothing to reset without saved pins, and the DELETE would
+                      still reproject every image of the signature. */}
+                  <Button
+                    variant="ghost"
+                    onClick={() => void remove()}
+                    disabled={busy || !hasRuleset}
+                    title={hasRuleset ? undefined : "Already using the built-in extraction"}
+                  >
                     <Trash2 size={14} /> Reset to built-in
                   </Button>
                   {isDirty && (

@@ -3,26 +3,16 @@ import { PageHeader, PageBody } from "../components/ui/PageHeader";
 import { Section } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
-import { isActiveJob, isStatusBusy } from "../lib/ai";
+import { ProgressBar } from "../components/ui/ProgressBar";
+import { coveragePct, isActiveJob, isStatusBusy } from "../lib/ai";
 import { useAiCoverage, useLibraries } from "../lib/queries";
 import { SettingsProvider, useSettings } from "./settings/SettingsContext";
 import { ModelStatusLine } from "./settings/sections/ModelSection";
 import { ActiveJob, RecentJobs, ResetAiTags } from "./settings/sections/JobsSection";
 
-function pct(part: number, whole: number) {
-  if (!whole) return 0;
-  return Math.min(100, Math.round((part / whole) * 100));
-}
-
 /** A thin AI-coverage bar shared by the global stat and per-library rows. */
 function CoverageBar({ tagged, total }: { tagged: number; total: number }) {
-  return (
-    <progress
-      className="w-full h-1.5 rounded [&::-webkit-progress-bar]:bg-raised [&::-webkit-progress-value]:bg-brand-500 [&::-moz-progress-bar]:bg-brand-500"
-      value={pct(tagged, total)}
-      max={100}
-    />
-  );
+  return <ProgressBar value={coveragePct(tagged, total)} />;
 }
 
 /**
@@ -57,7 +47,7 @@ function TaggingPanel() {
                 </span>
               </div>
               <div className="text-sm text-muted tabular-nums">
-                {pct(cov.ai_tagged, cov.total)}% AI-tagged
+                {coveragePct(cov.ai_tagged, cov.total)}% AI-tagged
               </div>
             </div>
             <CoverageBar tagged={cov.ai_tagged} total={cov.total} />

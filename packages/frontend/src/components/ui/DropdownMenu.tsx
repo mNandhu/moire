@@ -49,8 +49,7 @@ export function DropdownMenu({
     <div ref={ref} className="relative">
       <Button
         variant={icon ? "ghost" : "secondary"}
-        size={icon ? undefined : size}
-        className={icon ? (size === "sm" ? "h-8 w-8 px-0" : "h-9 w-9 px-0") : undefined}
+        size={icon ? (size === "sm" ? "iconSm" : "icon") : size}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}

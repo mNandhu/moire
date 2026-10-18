@@ -14,7 +14,8 @@ import { ButtonLink } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { useAiStatus } from "../hooks/useAiStatus";
-import { isActiveJob } from "../lib/ai";
+import { coveragePct, isActiveJob } from "../lib/ai";
+import { ProgressBar } from "../components/ui/ProgressBar";
 import { useAiCoverage, useLibraries, useTagAggregate } from "../lib/queries";
 import { isManual } from "../lib/tags";
 
@@ -45,7 +46,7 @@ export default function OverviewPage() {
   // Progress, not plumbing: whether the model happens to be resident is an
   // implementation detail (it loads on demand); how much is tagged is not.
   const { data: cov } = useAiCoverage();
-  const aiPct = cov && cov.total ? Math.round((cov.ai_tagged / cov.total) * 100) : 0;
+  const aiPct = cov ? coveragePct(cov.ai_tagged, cov.total) : 0;
 
   return (
     <>
@@ -120,10 +121,10 @@ export default function OverviewPage() {
                   {latestJob.status}
                 </Badge>
               </div>
-              <progress
-                className="w-full h-1.5 [&::-webkit-progress-bar]:bg-raised [&::-webkit-progress-value]:bg-brand-500 [&::-moz-progress-bar]:bg-brand-500 rounded"
+              <ProgressBar
                 value={latestJob.done + latestJob.failed}
                 max={Math.max(1, latestJob.total)}
+                aria-label="Latest job progress"
               />
               <div className="text-xs text-neutral-400 tabular-nums">
                 {latestJob.done + latestJob.failed} / {latestJob.total} processed

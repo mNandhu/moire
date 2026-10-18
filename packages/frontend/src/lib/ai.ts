@@ -116,6 +116,17 @@ export function fetchAiJob(id: string, signal?: AbortSignal): Promise<AiJob> {
 }
 
 /**
+ * Whole-number percent of `part` in `whole` for coverage readouts. Rounds
+ * down, and only a complete set reads 100%: plain rounding showed
+ * "100% · 4 to go" at 9,996 of 10,000. Any progress at all reads at least 1%.
+ */
+export function coveragePct(part: number, whole: number): number {
+  if (!whole || part <= 0) return 0;
+  if (part >= whole) return 100;
+  return Math.min(99, Math.max(1, Math.floor((part / whole) * 100)));
+}
+
+/**
  * "just now" / "5 min ago" / "3 h ago" / "2 days ago" for a job's
  * `created_at` (epoch seconds). `now` is injectable for tests.
  */

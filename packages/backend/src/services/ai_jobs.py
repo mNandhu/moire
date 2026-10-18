@@ -143,7 +143,12 @@ class AIJobManager:
     async def enqueue_untagged(
         self, *, limit: int = 200, library_id: str | None = None
     ) -> AIJob | None:
-        stmt = sa.select(t.images.c._id).where(t.images.c.has_ai_tags.is_(False))
+        # Quarantined images are excluded, matching /ai/coverage and the
+        # default gallery: a run must tag the set the UI counted for it.
+        stmt = sa.select(t.images.c._id).where(
+            t.images.c.has_ai_tags.is_(False),
+            sa.func.coalesce(t.images.c.quarantined, False).is_(False),
+        )
         if library_id:
             stmt = stmt.where(t.images.c.library_id == library_id)
         stmt = stmt.order_by(t.images.c._id.desc()).limit(int(limit))

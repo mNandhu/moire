@@ -7,6 +7,7 @@ See CONTEXT.md › Generation metadata, and plan-aiArtEnhancements-v2.md.
 
 from __future__ import annotations
 
+import json
 import time
 
 from fastapi import APIRouter, HTTPException
@@ -72,31 +73,43 @@ async def list_signatures():
         }
         # One sample per signature: its graph names the nodes (to describe the
         # workflow in words) and its model is the friendliest label we have.
+        # json_extract pulls just the API-format `prompt` graph; the UI
+        # `workflow` graph beside it in `raw` can be far larger and is never
+        # needed here.
         samples = [r.sample_image_id for r in rows]
-        raw_by_id: dict[str, object] = {}
+        prompt_by_id: dict[str, str | None] = {}
         model_by_id: dict[str, str | None] = {}
         if samples:
-            for r in (
-                await conn.execute(
-                    sa.select(t.image_gen_raw.c._id, t.image_gen_raw.c.raw).where(
-                        t.image_gen_raw.c._id.in_(samples)
+            stmt = (
+                sa.select(
+                    t.images.c._id,
+                    t.images.c.gen_model,
+                    sa.func.json_extract(t.image_gen_raw.c.raw, "$.prompt").label(
+                        "prompt"
+                    ),
+                )
+                .select_from(
+                    t.images.outerjoin(
+                        t.image_gen_raw, t.image_gen_raw.c._id == t.images.c._id
                     )
                 )
-            ).fetchall():
-                raw_by_id[r._id] = r.raw
-            for r in (
-                await conn.execute(
-                    sa.select(t.images.c._id, t.images.c.gen_model).where(
-                        t.images.c._id.in_(samples)
-                    )
-                )
-            ).fetchall():
+                .where(t.images.c._id.in_(samples))
+            )
+            for r in (await conn.execute(stmt)).fetchall():
+                prompt_by_id[r._id] = r.prompt
                 model_by_id[r._id] = r.gen_model
+
+    def _prompt_graph(image_id: str) -> dict | None:
+        text = prompt_by_id.get(image_id)
+        try:
+            graph = json.loads(text) if isinstance(text, str) else None
+        except ValueError:
+            return None
+        return graph if isinstance(graph, dict) else None
+
     types_by_sig = {
         r.workflow_sig: gen_metadata.workflow_node_types(
-            (raw_by_id.get(r.sample_image_id) or {}).get("prompt")
-            if isinstance(raw_by_id.get(r.sample_image_id), dict)
-            else None
+            _prompt_graph(r.sample_image_id)
         )
         for r in rows
     }

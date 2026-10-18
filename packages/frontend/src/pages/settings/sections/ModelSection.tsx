@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
+import { ProgressBar } from "../../../components/ui/ProgressBar";
 import { formatBytes, useSettings } from "../SettingsContext";
 
 /**
@@ -15,11 +16,22 @@ function shortRepo(repo?: string | null) {
   return repo ? repo.split("/").pop() : "the tagger model";
 }
 
+/**
+ * Whether the last download still matters. A running one always does; a
+ * failed or cancelled one only until the model is loaded (e.g. from cache
+ * later), or a stale "Download cancelled" would mask the model being ready.
+ */
+function downloadRelevant(dlStatus: string | undefined, loaded: boolean): boolean {
+  if (dlStatus === "downloading") return true;
+  return !loaded && (dlStatus === "error" || dlStatus === "cancelled");
+}
+
 /** Per-file download progress, shown only while a download is relevant. */
 function DownloadProgress() {
-  const { status, running, loadModel, cancelModelDownload } = useSettings();
+  const { status, running, isModelLoaded, loadModel, cancelModelDownload } =
+    useSettings();
   const dl = status?.model_download;
-  if (!dl || !["downloading", "error", "cancelled"].includes(dl.status)) return null;
+  if (!dl || !downloadRelevant(dl.status, isModelLoaded)) return null;
   const files = dl.files || [];
   const done = files.reduce((n, f) => n + (f.downloaded || 0), 0);
   const total = files.reduce((n, f) => n + (f.total || 0), 0);
@@ -57,12 +69,7 @@ function DownloadProgress() {
         )}
       </div>
       {dl.status === "downloading" && (
-        <progress
-          className="w-full h-1.5 [&::-webkit-progress-bar]:bg-raised [&::-webkit-progress-value]:bg-brand-500 [&::-moz-progress-bar]:bg-brand-500 rounded"
-          value={pct}
-          max={100}
-          aria-label="Model download progress"
-        />
+        <ProgressBar value={pct} aria-label="Model download progress" />
       )}
     </div>
   );
@@ -75,8 +82,9 @@ function DownloadProgress() {
 export function ModelStatusLine() {
   const { status, settings, isModelLoaded, isModelLoading, loadModel, running } =
     useSettings();
-  const dl = status?.model_download?.status;
-  if (dl && ["downloading", "error", "cancelled"].includes(dl)) return <DownloadProgress />;
+  if (downloadRelevant(status?.model_download?.status, isModelLoaded)) {
+    return <DownloadProgress />;
+  }
 
   // The status repo is only set once loaded; the configured one names it before.
   const name = shortRepo(status?.model?.repo || settings?.model_repo);

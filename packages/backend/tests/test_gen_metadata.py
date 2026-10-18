@@ -387,7 +387,8 @@ def test_workflow_node_types_reads_class_types():
         "3": {"inputs": {}},
         "x": "not a node",
     }
-    assert sorted(gm.workflow_node_types(graph)) == ["KSampler", "LoraLoader"]
+    # Same multiset workflow_sig hashes: a node without class_type is "".
+    assert sorted(gm.workflow_node_types(graph)) == ["", "KSampler", "LoraLoader"]
     assert gm.workflow_node_types(None) == []
 
 
@@ -427,3 +428,15 @@ def test_describe_single_signature_lists_its_most_common_nodes():
         {"type": "B", "count": 2},
         {"type": "A", "count": 1},
     ]
+
+
+def test_describe_signatures_ignores_unreadable_samples_for_baseline():
+    base = ["KSampler", "CLIPTextEncode"]
+    out = gm.describe_signatures(
+        {"a": base, "b": base + ["FaceDetailer"], "broken": []}
+    )
+    # Without the guard, "broken" would zero the baseline and name every
+    # workflow after the shared KSampler/CLIPTextEncode nodes.
+    assert out["a"]["distinct"] == []
+    assert [d["type"] for d in out["b"]["distinct"]] == ["FaceDetailer"]
+    assert out["broken"] == {"node_count": 0, "distinct": []}

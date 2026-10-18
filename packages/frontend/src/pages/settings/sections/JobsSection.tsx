@@ -1,6 +1,7 @@
 import { Section } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
+import { ProgressBar } from "../../../components/ui/ProgressBar";
 import {
   isActiveJob,
   jobAgo,
@@ -58,12 +59,7 @@ export function ActiveJob({ job }: { job: AiJob }) {
           Cancel
         </Button>
       </div>
-      <progress
-        className="w-full h-1.5 [&::-webkit-progress-bar]:bg-raised [&::-webkit-progress-value]:bg-brand-500 [&::-moz-progress-bar]:bg-brand-500 rounded"
-        value={progressPct}
-        max={100}
-        aria-label="Tagging progress"
-      />
+      <ProgressBar value={progressPct} aria-label="Tagging progress" />
       {job.current && (
         <div className="text-xs text-faint truncate" title={job.current}>
           {job.current}

@@ -71,9 +71,7 @@ async def test_purge_cascades_tag_rows(client, seed):
     # Sanity: join rows exist.
     async with db.async_conn() as conn:
         before = (
-            await conn.execute(
-                sa.select(sa.func.count()).select_from(t.image_tags)
-            )
+            await conn.execute(sa.select(sa.func.count()).select_from(t.image_tags))
         ).scalar()
     assert before == 2
 
@@ -82,9 +80,7 @@ async def test_purge_cascades_tag_rows(client, seed):
 
     async with db.async_conn() as conn:
         after = (
-            await conn.execute(
-                sa.select(sa.func.count()).select_from(t.image_tags)
-            )
+            await conn.execute(sa.select(sa.func.count()).select_from(t.image_tags))
         ).scalar()
         img = (
             await conn.execute(

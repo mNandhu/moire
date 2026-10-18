@@ -4,6 +4,7 @@ import {
   isTerminalJob,
   isActiveJob,
   isStatusBusy,
+  coveragePct,
   jobAgo,
   jobStatusLabel,
   postAiJobCancel,
@@ -199,5 +200,18 @@ describe("jobStatusLabel", () => {
     expect(jobStatusLabel("error")).toBe("Finished with errors");
     expect(jobStatusLabel("done")).toBe("Done");
     expect(jobStatusLabel("weird")).toBe("weird");
+  });
+});
+
+describe("coveragePct", () => {
+  it.each([
+    [0, 0, 0],
+    [0, 10, 0],
+    [1, 1000, 1],
+    [1, 3, 33],
+    [9_996, 10_000, 99],
+    [10, 10, 100],
+  ])("%s of %s → %s", (part, whole, want) => {
+    expect(coveragePct(part, whole)).toBe(want);
   });
 });
