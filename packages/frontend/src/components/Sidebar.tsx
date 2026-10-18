@@ -10,6 +10,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
+import { NavLink } from "react-router-dom";
 import { cn } from "../lib/cn";
 import { MoireMark } from "./ui/Logo";
 
@@ -36,14 +37,10 @@ const STATUS_META: Record<string, { dot: string; label: string }> = {
 };
 
 export function Sidebar({
-  current,
-  onNavigate,
   status = "loading",
   collapsed = false,
   onToggle,
 }: {
-  current: string;
-  onNavigate: (path: string) => void;
   status?: Status;
   collapsed?: boolean;
   onToggle?: () => void;
@@ -59,26 +56,33 @@ export function Sidebar({
     path: string;
     icon: LucideIcon;
   }) => {
-    const active = current === path;
+    // A real link: opens in a new tab on middle/ctrl-click and shows its
+    // URL on hover. `end` so "/" (All Images) isn't active on every route.
     return (
-      <button
-        onClick={() => onNavigate(path)}
-        aria-current={active ? "page" : undefined}
+      <NavLink
+        to={path}
+        end
         title={collapsed ? label : undefined}
-        className={cn(
-          "relative w-full flex items-center gap-3 rounded-lg text-sm transition-colors",
-          collapsed ? "justify-center px-0 py-2.5" : "px-3 py-2",
-          active
-            ? "bg-raised text-neutral-50 font-medium"
-            : "text-muted hover:bg-raised/60 hover:text-neutral-100",
-        )}
+        className={({ isActive }) =>
+          cn(
+            "relative w-full flex items-center gap-3 rounded-lg text-sm transition-colors",
+            collapsed ? "justify-center px-0 py-2.5" : "px-3 py-2",
+            isActive
+              ? "bg-raised text-neutral-50 font-medium"
+              : "text-muted hover:bg-raised/60 hover:text-neutral-100",
+          )
+        }
       >
-        {active && (
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-brand-400" />
+        {({ isActive }) => (
+          <>
+            {isActive && (
+              <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-brand-400" />
+            )}
+            <Icon size={18} />
+            {!collapsed && <span className="truncate">{label}</span>}
+          </>
         )}
-        <Icon size={18} />
-        {!collapsed && <span className="truncate">{label}</span>}
-      </button>
+      </NavLink>
     );
   };
 

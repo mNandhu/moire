@@ -28,7 +28,8 @@ import {
 import { PageHeader } from "../components/ui/PageHeader";
 import { ambientPalette } from "../lib/blurhash";
 import { applyAmbient } from "../lib/ambient";
-import { Button } from "../components/ui/Button";
+import { LIBRARIES_KEY, TAGS_KEY, type Library } from "../lib/queries";
+import { Button, ButtonLink } from "../components/ui/Button";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { Input, Select } from "../components/ui/Input";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -44,7 +45,7 @@ import {
   useImageGroups,
 } from "../hooks/useImageFeed";
 import { useScrollRestoration } from "../hooks/useScrollRestoration";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ImageDoc } from "../lib/imageFilter";
 import { nextFocusIndex, isGridNavKey } from "../lib/gridNav";
 import { gridColumns } from "../lib/masonryLayout";
@@ -63,13 +64,10 @@ import {
   removeImagesFromFeeds,
 } from "../lib/feedCache";
 
-type Library = {
-  _id: string;
-  name?: string;
-  path: string;
-  scanning?: boolean;
-  last_event_at?: string | null;
-};
+// Stable empties so the query defaults don't hand children a new array on
+// every render.
+const NO_TAGS: TagSuggestion[] = [];
+const NO_MODELS: { model: string; count: number }[] = [];
 
 export default function AllImagesPage() {
   const { push } = useToast();
@@ -98,13 +96,33 @@ export default function AllImagesPage() {
   }, [items]);
 
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [libs, setLibs] = useState<Library[]>([]);
+  const queryClient = useQueryClient();
+  // Seeded from the shared cache so a return visit has names immediately;
+  // the poll below keeps both this and the cache current.
+  const [libs, setLibs] = useState<Library[]>(
+    () => queryClient.getQueryData<Library[]>(LIBRARIES_KEY) ?? [],
+  );
   // Known tags (with image counts) powering the search autocomplete.
-  const [tagOptions, setTagOptions] = useState<TagSuggestion[]>([]);
+  // merge_sources collapses the three sources of each tag (AI / manual /
+  // prompt) into one cross-source `any:<base>` suggestion so the dropdown
+  // shows a single "tag1" row instead of three near-duplicates; the count is
+  // distinct images (a tag applied from two sources isn't double-counted).
+  // Selecting it matches images tagged from any source (the backend expands
+  // `any:`).
+  const { data: tagOptions = NO_TAGS } = useQuery({
+    queryKey: [...TAGS_KEY, { merged: true }],
+    queryFn: ({ signal }) =>
+      api<TagSuggestion[]>(
+        `/api/v1/tags?include_manual=1&include_prompt=1&merge_sources=1`,
+        { signal },
+      ),
+  });
   // Distinct checkpoints (with counts) for the model filter dropdown.
-  const [modelOptions, setModelOptions] = useState<
-    { model: string; count: number }[]
-  >([]);
+  const { data: modelOptions = NO_MODELS } = useQuery({
+    queryKey: ["image-models"],
+    queryFn: ({ signal }) =>
+      api<{ model: string; count: number }[]>(`/api/v1/images/models`, { signal }),
+  });
   const {
     selection,
     selectionMode,
@@ -119,8 +137,6 @@ export default function AllImagesPage() {
   // Keyboard triage: index of the focused tile (-1 = none). Disabled in
   // selection mode and in the grouped view (tiles there are batch reps).
   const [focusedIndex, setFocusedIndex] = useState(-1);
-  const queryClient = useQueryClient();
-
   const containerRef = useRef<HTMLDivElement | null>(null);
   // The grid's own box, not the padded page wrapper. Arrow-key row jumps have
   // to step by the number of columns the grid actually packed, which means
@@ -177,6 +193,7 @@ export default function AllImagesPage() {
         const data = await api<Library[]>(`/api/v1/libraries`);
         if (cancelled) return;
         setLibs(data);
+        queryClient.setQueryData(LIBRARIES_KEY, data);
         anyScanning = data.some((l) => l.scanning);
         const seen = lastEventSeenRef.current;
         let watcherActivity = false;
@@ -212,7 +229,7 @@ export default function AllImagesPage() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, []);
+  }, [queryClient]);
 
   // Close filters on outside click / ESC.
   useEffect(() => {
@@ -236,27 +253,6 @@ export default function AllImagesPage() {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [filtersOpen]);
-
-  // Load the tag list once for autocomplete. merge_sources collapses the three
-  // sources of each tag (AI / manual / prompt) into one cross-source `any:<base>`
-  // suggestion so the dropdown shows a single "tag1" row instead of three
-  // near-duplicates; the count is distinct images (a tag applied from two
-  // sources isn't double-counted). Selecting it matches images tagged from any
-  // source (the backend expands `any:`).
-  useEffect(() => {
-    api<TagSuggestion[]>(
-      `/api/v1/tags?include_manual=1&include_prompt=1&merge_sources=1`,
-    )
-      .then(setTagOptions)
-      .catch(() => setTagOptions([]));
-  }, []);
-
-  // Distinct extracted checkpoints for the model dropdown.
-  useEffect(() => {
-    api<{ model: string; count: number }[]>(`/api/v1/images/models`)
-      .then(setModelOptions)
-      .catch(() => setModelOptions([]));
-  }, []);
 
   // Global shortcuts: S selection mode, F/"/" focus search, N no-tags,
   // A no-AI-tags, Q quarantined, +/- zoom, ? help.
@@ -976,9 +972,7 @@ export default function AllImagesPage() {
                   Clear filters
                 </Button>
               )}
-              <Button onClick={() => navigate("/libraries")}>
-                Go to Libraries
-              </Button>
+              <ButtonLink to="/libraries">Go to Libraries</ButtonLink>
             </>
           }
         />

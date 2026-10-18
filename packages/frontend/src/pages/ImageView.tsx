@@ -45,8 +45,12 @@ import { accentFromBlurhash } from "../lib/blurhash";
 import { pickRating, ratingBadgeClass } from "../lib/rating";
 import { formatTag, partitionTags } from "../lib/tags";
 import { isFormField } from "../lib/dom";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
+
+/** The gallery filtered to one tag. */
+const tagHref = (tagRaw: string) => `/?tags=${encodeURIComponent(tagRaw)}`;
 
 // Round controls floating over the image stage (back, details, prev/next).
 const OVERLAY_BTN =
@@ -493,13 +497,6 @@ export default function ImageView() {
     // Optional: could add visual feedback here for swipe in progress
   }, []);
 
-  const openTag = useCallback(
-    (tagRaw: string) => {
-      navigate(`/?tags=${encodeURIComponent(tagRaw)}`);
-    },
-    [navigate],
-  );
-
   const setTagThumbnail = useCallback(
     async (tagRaw: string) => {
       if (!data?._id) return;
@@ -527,6 +524,8 @@ export default function ImageView() {
       push(`Copy failed: ${String(e)}`, "error");
     }
   }, [data?.tags, push]);
+
+  useDocumentTitle(data?.path ? data.path.split(/[\\/]/).pop() : null);
 
   if (!id) return null;
 
@@ -780,7 +779,7 @@ export default function ImageView() {
                         key={t}
                         label={t}
                         kind="ai"
-                        onFilter={() => openTag(t)}
+                        filterHref={tagHref(t)}
                         onThumb={() => void setTagThumbnail(t)}
                       />
                     ))}
@@ -789,7 +788,7 @@ export default function ImageView() {
                         key={t}
                         label={formatTag(t)}
                         kind="manual"
-                        onFilter={() => openTag(t)}
+                        filterHref={tagHref(t)}
                         onThumb={() => void setTagThumbnail(t)}
                       />
                     ))}
@@ -798,7 +797,7 @@ export default function ImageView() {
                         key={t}
                         label={formatTag(t)}
                         kind="prompt"
-                        onFilter={() => openTag(t)}
+                        filterHref={tagHref(t)}
                         onThumb={() => void setTagThumbnail(t)}
                       />
                     ))}
@@ -978,12 +977,12 @@ const TAG_CHIP_STYLES: Record<
 function TagChip({
   label,
   kind,
-  onFilter,
+  filterHref,
   onThumb,
 }: {
   label: string;
   kind: "ai" | "manual" | "prompt";
-  onFilter: () => void;
+  filterHref: string;
   onThumb: () => void;
 }) {
   const { cls, title } = TAG_CHIP_STYLES[kind];
@@ -992,14 +991,9 @@ function TagChip({
       className={`group relative px-2.5 py-1 rounded-full text-xs border inline-flex items-center ${cls}`}
       title={title}
     >
-      <button
-        type="button"
-        className="hover:underline"
-        title={`Filter by ${label}`}
-        onClick={onFilter}
-      >
+      <Link className="hover:underline" title={`Filter by ${label}`} to={filterHref}>
         {label}
-      </button>
+      </Link>
       <button
         type="button"
         // Floats over the chip's corner so it reserves no width at rest —

@@ -1,5 +1,6 @@
 import React from "react";
 import { cn } from "../../lib/cn";
+import { useDocumentTitle } from "../../hooks/useDocumentTitle";
 
 /**
  * Per-page title bar: title + optional count and right-aligned actions.
@@ -26,6 +27,9 @@ export function PageHeader({
   /** Optional row rendered below the title (search, filters, tabs…). */
   children?: React.ReactNode;
 }) {
+  // Plain-string titles also name the browser tab; every routed page has one.
+  useDocumentTitle(typeof title === "string" ? title : null);
+
   return (
     <div className={cn("mb-5", className)}>
       <div className="flex items-center justify-between gap-3">

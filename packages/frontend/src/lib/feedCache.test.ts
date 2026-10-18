@@ -73,7 +73,7 @@ describe("patchImageInFeeds", () => {
 });
 
 describe("invalidateFeeds", () => {
-  it("invalidates the feed and the grouped view", () => {
+  it("invalidates the feed, the grouped view and the tag aggregates", () => {
     const qc = new QueryClient();
     const seen: unknown[] = [];
     qc.invalidateQueries = ((args: { queryKey: unknown }) => {
@@ -83,7 +83,7 @@ describe("invalidateFeeds", () => {
 
     invalidateFeeds(qc);
 
-    expect(seen).toEqual([["images"], ["image-groups"]]);
+    expect(seen).toEqual([["images"], ["image-groups"], ["tags"]]);
   });
 });
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { useOverlayOpen } from "./lib/backgroundLocation";
 import { restoreAmbient } from "./lib/ambient";
@@ -13,7 +13,6 @@ export default function App() {
   const loc = useLocation();
   // `loc` is the background location while ImageView is open over the gallery.
   const isGallery = loc.pathname === "/";
-  const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -125,8 +124,6 @@ export default function App() {
         }
       >
         <Sidebar
-          current={loc.pathname}
-          onNavigate={navigate}
           status={status}
           collapsed={collapsed}
           onToggle={() => setCollapsed((v) => !v)}

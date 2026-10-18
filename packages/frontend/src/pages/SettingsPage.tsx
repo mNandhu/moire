@@ -1,5 +1,5 @@
 import { useSearchParams } from "react-router-dom";
-import { Settings as SettingsIcon } from "lucide-react";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { cn } from "../lib/cn";
 import { SettingsProvider } from "./settings/SettingsContext";
 import {
@@ -54,6 +54,8 @@ export default function SettingsPage() {
   const ActivePanel = active.Component;
   const ActiveIcon = active.icon;
 
+  useDocumentTitle(`${active.label} · Settings`);
+
   return (
     <SettingsProvider>
       <div className="p-6">
@@ -61,20 +63,13 @@ export default function SettingsPage() {
           {/* Submenu */}
           <aside className="lg:w-56 lg:shrink-0">
             <div className="px-3 pb-4">
-              <div className="flex items-center gap-2.5">
-                <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-neutral-800/80 text-brand-300 shrink-0">
-                  <SettingsIcon size={18} />
-                </span>
-                <h2 className="text-xl font-bold tracking-tight text-neutral-100">
-                  Settings
-                </h2>
-              </div>
+              <h2 className="text-2xl font-semibold text-neutral-50">Settings</h2>
             </div>
             <nav className="space-y-5">
               {SETTINGS_GROUPS.map((group, gi) => (
                 <div key={group.title ?? gi} className="space-y-1">
                   {group.title && (
-                    <div className="px-3 mb-1 text-2xs font-semibold uppercase tracking-wider text-faint">
+                    <div className="px-3 mb-1 text-xs font-medium text-faint">
                       {group.title}
                     </div>
                   )}

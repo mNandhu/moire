@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { Skeleton } from "./Skeleton";
@@ -11,7 +12,7 @@ export function StatCard({
   hint,
   tone = "brand",
   loading,
-  onClick,
+  to,
 }: {
   icon: LucideIcon;
   label: React.ReactNode;
@@ -19,7 +20,8 @@ export function StatCard({
   hint?: React.ReactNode;
   tone?: "brand" | "emerald" | "blue" | "neutral";
   loading?: boolean;
-  onClick?: () => void;
+  /** Where the card leads; renders it as a link. */
+  to?: string;
 }) {
   const tones = {
     brand: "text-brand-300 bg-brand-500/10",
@@ -28,15 +30,12 @@ export function StatCard({
     neutral: "text-neutral-300 bg-neutral-700/30",
   }[tone];
 
-  const Comp = onClick ? "button" : "div";
-  return (
-    <Comp
-      onClick={onClick}
-      className={cn(
-        "rounded-xl border border-white/5 bg-surface bg-sheen shadow-panel p-4 text-left flex items-center gap-4 card-hover",
-        onClick && "cursor-pointer w-full",
-      )}
-    >
+  const className = cn(
+    "rounded-xl border border-white/5 bg-surface bg-sheen shadow-panel p-4 text-left flex items-center gap-4",
+    to && "card-hover",
+  );
+  const content = (
+    <>
       <span
         className={cn(
           "inline-flex items-center justify-center w-11 h-11 rounded-lg shrink-0",
@@ -56,6 +55,13 @@ export function StatCard({
         <div className="text-xs text-neutral-400 mt-1.5 truncate">{label}</div>
         {hint && <div className="text-2xs text-faint truncate">{hint}</div>}
       </div>
-    </Comp>
+    </>
+  );
+  return to ? (
+    <Link to={to} className={className}>
+      {content}
+    </Link>
+  ) : (
+    <div className={className}>{content}</div>
   );
 }

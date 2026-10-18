@@ -5,9 +5,8 @@ import { fetchAiCoverage, isStatusBusy } from "../lib/ai";
 import { SettingsProvider, useSettings } from "./settings/SettingsContext";
 import { ModelSection } from "./settings/sections/ModelSection";
 import { JobsSection } from "./settings/sections/JobsSection";
-import { api } from "../lib/api";
+import { useLibraries } from "../lib/queries";
 
-type Library = { _id: string; name?: string; path?: string };
 
 function pct(part: number, whole: number) {
   if (!whole) return 0;
@@ -40,11 +39,7 @@ function CoveragePanel() {
     queryFn: ({ signal }) => fetchAiCoverage(signal),
     refetchInterval: busy ? 3000 : 15000,
   });
-  const { data: libs } = useQuery({
-    queryKey: ["libraries"],
-    queryFn: () => api<Library[]>("/api/v1/libraries"),
-    staleTime: 60_000,
-  });
+  const { data: libs } = useLibraries();
 
   const nameOf = (id: string) =>
     libs?.find((l) => l._id === id)?.name || id;

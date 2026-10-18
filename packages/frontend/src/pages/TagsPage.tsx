@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Tag as TagIcon, Slash, Search } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Badge } from "../components/ui/Badge";
@@ -8,16 +8,14 @@ import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { cn } from "../lib/cn";
 import { api } from "../lib/api";
+import { useTagAggregate, type TagAgg } from "../lib/queries";
 import { formatTag, isManual, isPrompt } from "../lib/tags";
 
-type TagAgg = { _id: string; count: number };
 type Sample = { _id: string; thumb_url: string };
 
 const PAGE = 60;
 
 export default function TagsPage() {
-  const navigate = useNavigate();
-  const [tags, setTags] = useState<TagAgg[] | null>(null);
   const [q, setQ] = useState("");
   const [visible, setVisible] = useState(PAGE);
   const [samples, setSamples] = useState<Record<string, Sample[]>>({});
@@ -26,13 +24,12 @@ export default function TagsPage() {
   const [includePrompt, setIncludePrompt] = useState(false);
   const requested = useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    setTags(null);
-    const params = includePrompt ? "?include_manual=1&include_prompt=1" : "?include_manual=1";
-    api<TagAgg[]>(`/api/v1/tags${params}`)
-      .then(setTags)
-      .catch(() => setTags([]));
-  }, [includePrompt]);
+  const tagsQuery = useTagAggregate({ includePrompt });
+  // null = still loading; a failed load reads as empty, as before.
+  const tags: TagAgg[] | null = useMemo(
+    () => tagsQuery.data ?? (tagsQuery.isError ? [] : null),
+    [tagsQuery.data, tagsQuery.isError],
+  );
 
   // Reset paging when the search term changes.
   useEffect(() => setVisible(PAGE), [q]);
@@ -100,13 +97,13 @@ export default function TagsPage() {
           color="text-brand-300"
           title="Untagged"
           subtitle="No tags at all"
-          onClick={() => navigate(`/?no_tags=1`)}
+          to="/?no_tags=1"
         />
         <SpecialTile
           color="text-emerald-300"
           title="AI Untagged"
           subtitle="Missing AI tags"
-          onClick={() => navigate(`/?no_ai_tags=1`)}
+          to="/?no_ai_tags=1"
         />
       </div>
 
@@ -123,7 +120,7 @@ export default function TagsPage() {
           ? Array.from({ length: 12 }).map((_, i) => (
               <div
                 key={i}
-                className="rounded-xl overflow-hidden border border-neutral-800 bg-neutral-900/60"
+                className="rounded-xl overflow-hidden border border-white/5 bg-surface shadow-panel"
               >
                 <Skeleton className="w-full aspect-square rounded-none" />
                 <div className="p-3 space-y-2">
@@ -137,9 +134,7 @@ export default function TagsPage() {
                 key={t._id}
                 tag={t}
                 samples={samples[t._id]}
-                onClick={() =>
-                  navigate(`/?tags=${encodeURIComponent(t._id)}`)
-                }
+                to={`/?tags=${encodeURIComponent(t._id)}`}
               />
             ))}
       </div>
@@ -159,18 +154,18 @@ function SpecialTile({
   color,
   title,
   subtitle,
-  onClick,
+  to,
 }: {
   color: string;
   title: string;
   subtitle: string;
-  onClick: () => void;
+  to: string;
 }) {
   return (
-    <button
-      onClick={onClick}
+    <Link
+      to={to}
       title={title}
-      className="rounded-xl border border-neutral-800 bg-neutral-900/60 px-4 py-3 text-left card-hover min-w-[180px]"
+      className="rounded-xl border border-white/5 bg-surface bg-sheen shadow-panel px-4 py-3 text-left card-hover min-w-[180px]"
     >
       <div className="flex items-center gap-2 font-semibold">
         <span className="relative inline-flex items-center justify-center w-5 h-5">
@@ -179,24 +174,24 @@ function SpecialTile({
         </span>
         {title}
       </div>
-      <div className="text-xs text-neutral-400 mt-0.5">{subtitle}</div>
-    </button>
+      <div className="text-xs text-muted mt-0.5">{subtitle}</div>
+    </Link>
   );
 }
 
 function TagCard({
   tag,
   samples,
-  onClick,
+  to,
 }: {
   tag: TagAgg;
   samples: Sample[] | undefined;
-  onClick: () => void;
+  to: string;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className="group rounded-xl overflow-hidden border border-neutral-800 bg-neutral-900/60 text-left card-hover"
+    <Link
+      to={to}
+      className="group block rounded-xl overflow-hidden border border-white/5 bg-surface bg-sheen shadow-panel text-left card-hover"
     >
       <Mosaic samples={samples} />
       <div className="p-3">
@@ -217,7 +212,7 @@ function TagCard({
           {tag.count.toLocaleString()} images
         </div>
       </div>
-    </button>
+    </Link>
   );
 }
 

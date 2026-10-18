@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FolderOpen, Plus, RotateCw, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
 import { useToast } from "../components/Toasts";
@@ -13,16 +13,7 @@ import { Badge } from "../components/ui/Badge";
 import { Skeleton, Spinner } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
 import { api } from "../lib/api";
-
-type Library = {
-  _id: string;
-  name?: string;
-  path: string;
-  indexed_count?: number;
-  last_scanned?: string;
-  watch_enabled?: boolean;
-  last_event_at?: string | null;
-};
+import { LIBRARIES_KEY, useLibraries, type Library } from "../lib/queries";
 
 export default function LibrariesPage() {
   const { push } = useToast();
@@ -38,10 +29,18 @@ export default function LibrariesPage() {
     queryClient.invalidateQueries({ queryKey: ["images"] });
     queryClient.invalidateQueries({ queryKey: ["image-groups"] });
   };
-  const [libs, setLibs] = useState<Library[]>([]);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const libsQuery = useLibraries();
+  const libs = useMemo(() => libsQuery.data ?? [], [libsQuery.data]);
+  const initialLoading = libsQuery.isPending;
+  const refreshing = libsQuery.isFetching && !libsQuery.isPending;
+  const error = libsQuery.error
+    ? libsQuery.error.message || "Failed to load libraries"
+    : null;
+  // Refetch the shared list; every page reading libraries updates with it.
+  const refresh = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: LIBRARIES_KEY }),
+    [queryClient],
+  );
   const [addOpen, setAddOpen] = useState(false);
   const [rescanning, setRescanning] = useState<Set<string>>(new Set());
   const [editId, setEditId] = useState<string | null>(null);
@@ -56,7 +55,7 @@ export default function LibrariesPage() {
 
   // Compute which libraries need polling (those currently scanning)
   const scanningIds = useMemo(
-    () => libs.filter((l: any) => l && (l as any).scanning).map((l) => l._id),
+    () => libs.filter((l) => l.scanning).map((l) => l._id),
     [libs]
   );
 
@@ -109,26 +108,7 @@ export default function LibrariesPage() {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [scanningIds]);
-
-  const refresh = async (opts?: { initial?: boolean }) => {
-    if (opts?.initial) setInitialLoading(true);
-    else setRefreshing(true);
-    setError(null);
-    try {
-      const data = await api<Library[]>(`/api/v1/libraries`);
-      setLibs(data);
-    } catch (e: any) {
-      const msg = e?.message || "Failed to load libraries";
-      setError(msg);
-    } finally {
-      if (opts?.initial) setInitialLoading(false);
-      else setRefreshing(false);
-    }
-  };
-  useEffect(() => {
-    refresh({ initial: true });
-  }, []);
+  }, [scanningIds, refresh]);
 
   const updateLibrary = async (id: string, data: Partial<Library>) => {
     await api(`/api/v1/libraries/${id}`, {

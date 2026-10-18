@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import {
   Images,
   Tags as TagsIcon,
@@ -11,44 +11,27 @@ import {
 } from "lucide-react";
 import { StatCard } from "../components/ui/StatCard";
 import { PageHeader } from "../components/ui/PageHeader";
-import { Button } from "../components/ui/Button";
+import { ButtonLink } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { useAiStatus } from "../hooks/useAiStatus";
 import { isActiveJob } from "../lib/ai";
-import { api } from "../lib/api";
+import { useLibraries, useTagAggregate } from "../lib/queries";
 import { isManual } from "../lib/tags";
 
-type Library = {
-  _id: string;
-  name?: string;
-  path: string;
-  indexed_count?: number;
-  scanning?: boolean;
-};
-type TagAgg = { _id: string };
-
 export default function OverviewPage() {
-  const navigate = useNavigate();
-  const [libs, setLibs] = useState<Library[] | null>(null);
-  const [tags, setTags] = useState<TagAgg[] | null>(null);
+  const libsQuery = useLibraries();
+  const tagsQuery = useTagAggregate();
+  // null = still loading; a failed load reads as empty, as before.
+  const libs = useMemo(
+    () => libsQuery.data ?? (libsQuery.isError ? [] : null),
+    [libsQuery.data, libsQuery.isError],
+  );
+  const tags = useMemo(
+    () => tagsQuery.data ?? (tagsQuery.isError ? [] : null),
+    [tagsQuery.data, tagsQuery.isError],
+  );
   const { data: ai } = useAiStatus();
-
-  useEffect(() => {
-    let alive = true;
-    const load = () => {
-      api<Library[]>("/api/v1/libraries")
-        .then((d) => alive && setLibs(d))
-        .catch(() => alive && setLibs([]));
-      api<TagAgg[]>("/api/v1/tags?include_manual=1")
-        .then((d) => alive && setTags(d))
-        .catch(() => alive && setTags([]));
-    };
-    load();
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   const totalImages = useMemo(
     () => (libs ? libs.reduce((n, l) => n + (l.indexed_count || 0), 0) : undefined),
@@ -75,9 +58,9 @@ export default function OverviewPage() {
         title="Overview"
         description="Your local image library at a glance."
         actions={
-          <Button variant="primary" onClick={() => navigate("/libraries")}>
+          <ButtonLink variant="primary" to="/libraries">
             <Plus size={16} /> Add library
-          </Button>
+          </ButtonLink>
         }
       />
 
@@ -89,7 +72,7 @@ export default function OverviewPage() {
           tone="brand"
           loading={totalImages === undefined}
           value={totalImages?.toLocaleString()}
-          onClick={() => navigate("/")}
+          to="/"
         />
         <StatCard
           icon={TagsIcon}
@@ -98,7 +81,7 @@ export default function OverviewPage() {
           loading={tags === null}
           value={tags?.length.toLocaleString()}
           hint={manualCount ? `${manualCount} manual` : undefined}
-          onClick={() => navigate("/tags")}
+          to="/tags"
         />
         <StatCard
           icon={FolderOpen}
@@ -107,7 +90,7 @@ export default function OverviewPage() {
           loading={libs === null}
           value={libs?.length.toLocaleString()}
           hint={scanning.length ? `${scanning.length} scanning` : undefined}
-          onClick={() => navigate("/libraries")}
+          to="/libraries"
         />
         <StatCard
           icon={Cpu}
@@ -115,7 +98,7 @@ export default function OverviewPage() {
           tone="neutral"
           value={modelState}
           hint={ai?.model?.repo ?? undefined}
-          onClick={() => navigate("/ai-tagging")}
+          to="/ai-tagging"
         />
       </div>
 
@@ -154,12 +137,9 @@ export default function OverviewPage() {
           ) : (
             <p className="text-sm text-faint">
               No AI jobs yet. Head to{" "}
-              <button
-                className="text-brand-300 hover:underline"
-                onClick={() => navigate("/ai-tagging")}
-              >
+              <Link className="text-brand-300 hover:underline" to="/ai-tagging">
                 AI Tagging
-              </button>{" "}
+              </Link>{" "}
               to tag your images.
             </p>
           )}
@@ -175,12 +155,9 @@ export default function OverviewPage() {
           ) : libs.length === 0 ? (
             <p className="text-sm text-faint">
               No libraries yet.{" "}
-              <button
-                className="text-brand-300 hover:underline"
-                onClick={() => navigate("/libraries")}
-              >
+              <Link className="text-brand-300 hover:underline" to="/libraries">
                 Add one
-              </button>{" "}
+              </Link>{" "}
               to start indexing.
             </p>
           ) : (
