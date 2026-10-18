@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   DEFAULT_FILTERS,
+  activeFilterChips,
   parseFilters,
   serializeFilters,
   buildImagesQuery,
@@ -131,3 +132,51 @@ describe("hasActiveFilter", () => {
     expect(hasActiveFilter({ ...DEFAULT_FILTERS, group: true })).toBe(false);
   });
 });
+
+describe("activeFilterChips", () => {
+  const f = (patch: Partial<typeof DEFAULT_FILTERS>) => ({ ...DEFAULT_FILTERS, ...patch });
+
+  it("is empty for the default feed, and ignores search tags", () => {
+    expect(activeFilterChips(DEFAULT_FILTERS)).toEqual([]);
+    expect(activeFilterChips(f({ tags: ["cat", "dog"] }))).toEqual([]);
+  });
+
+  it("labels each active filter and removes only that one", () => {
+    const filters = f({ noTags: true, quarantined: true, model: "sdxl" });
+    const chips = activeFilterChips(filters);
+    expect(chips.map((c) => c.label)).toEqual(["Untagged", "Quarantined", "Model: sdxl"]);
+    const untagged = chips[0].without;
+    expect(untagged.noTags).toBe(false);
+    expect(untagged.quarantined).toBe(true);
+    expect(untagged.model).toBe("sdxl");
+  });
+
+  it("resolves the library name, falling back to the id", () => {
+    expect(activeFilterChips(f({ libraryId: "L1" }), () => "scary")[0].label).toBe("Library: scary");
+    expect(activeFilterChips(f({ libraryId: "L1" }))[0].label).toBe("Library: L1");
+  });
+
+  it("only shows OR mode when it changes the result", () => {
+    expect(activeFilterChips(f({ logic: "or", tags: ["a"] }))).toEqual([]);
+    const [chip] = activeFilterChips(f({ logic: "or", tags: ["a", "b"] }));
+    expect(chip.label).toBe("Any tag");
+    expect(chip.without.logic).toBe("and");
+    expect(chip.without.tags).toEqual(["a", "b"]);
+  });
+
+  it("gives each prompt term its own chip", () => {
+    const chips = activeFilterChips(f({ promptTerms: ["neon", "rain"] }));
+    expect(chips.map((c) => c.label)).toEqual(["Prompt: neon", "Prompt: rain"]);
+    expect(chips[0].without.promptTerms).toEqual(["rain"]);
+  });
+
+  it("collapses a size range into one chip that clears both bounds", () => {
+    expect(activeFilterChips(f({ minW: 512 }))[0].label).toBe("Width ≥ 512");
+    expect(activeFilterChips(f({ maxH: 900 }))[0].label).toBe("Height ≤ 900");
+    const [w] = activeFilterChips(f({ minW: 512, maxW: 1024 }));
+    expect(w.label).toBe("Width 512–1024");
+    expect(w.without.minW).toBeUndefined();
+    expect(w.without.maxW).toBeUndefined();
+  });
+});
+

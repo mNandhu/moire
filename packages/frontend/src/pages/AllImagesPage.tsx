@@ -17,6 +17,7 @@ import {
   ArrowLeft,
   ShieldOff,
   ShieldCheck,
+  X,
 } from "lucide-react";
 import {
   DEFAULT_FILTERS,
@@ -24,6 +25,7 @@ import {
   serializeFiltersForPeek,
   hasActiveFilter,
   type Filters,
+  activeFilterChips,
 } from "../lib/imageFilter";
 import { PageHeader } from "../components/ui/PageHeader";
 import { ambientPalette } from "../lib/blurhash";
@@ -102,6 +104,15 @@ export default function AllImagesPage() {
   const [libs, setLibs] = useState<Library[]>(
     () => queryClient.getQueryData<Library[]>(LIBRARIES_KEY) ?? [],
   );
+  const filterChips = useMemo(
+    () =>
+      activeFilterChips(filters, (id) => {
+        const lib = libs.find((l) => l._id === id);
+        return lib?.name || lib?.path;
+      }),
+    [filters, libs],
+  );
+
   // Known tags (with image counts) powering the search autocomplete.
   // merge_sources collapses the three sources of each tag (AI / manual /
   // prompt) into one cross-source `any:<base>` suggestion so the dropdown
@@ -635,12 +646,18 @@ export default function AllImagesPage() {
             ref={filterButtonRef}
             size="icon"
             variant="secondary"
-            active={filtersOpen}
+            active={filtersOpen || filterChips.length > 0}
             onClick={() => setFiltersOpen((v) => !v)}
             aria-label={filtersOpen ? "Hide filters" : "Show filters"}
             title={filtersOpen ? "Hide filters" : "Show filters"}
+            className="relative"
           >
             <Filter size={18} />
+            {filterChips.length > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-brand-500 text-white text-2xs font-semibold leading-[18px] tabular-nums">
+                {filterChips.length}
+              </span>
+            )}
           </Button>
           <div className="flex-1">
             <TagSearchInput
@@ -708,6 +725,47 @@ export default function AllImagesPage() {
             />
           )}
         </div>
+
+        {/* With the panel closed, active filters would otherwise be invisible
+            (the title changing to "Filtered Images" was the only hint). */}
+        {!filtersOpen && filterChips.length > 0 && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5" aria-label="Active filters">
+            {filterChips.map((chip) => (
+              <span
+                key={chip.key}
+                className="inline-flex items-center gap-1 h-7 pl-2.5 pr-1 rounded-full bg-brand-600/15 border border-brand-500/40 text-xs text-brand-100"
+              >
+                {chip.label}
+                <button
+                  type="button"
+                  onClick={() => setFilters(chip.without)}
+                  aria-label={`Remove filter: ${chip.label}`}
+                  title="Remove filter"
+                  className="inline-flex items-center justify-center h-5 w-5 rounded-full text-brand-200 hover:text-white hover:bg-brand-500/30"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+            {filterChips.length > 1 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  setFilters({
+                    ...DEFAULT_FILTERS,
+                    tags: filters.tags,
+                    logic: filters.logic,
+                    group: filters.group,
+                    groupId: filters.groupId,
+                  })
+                }
+              >
+                Clear all
+              </Button>
+            )}
+          </div>
+        )}
 
         {filtersOpen && (
           <div

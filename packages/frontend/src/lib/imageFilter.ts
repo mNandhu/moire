@@ -239,3 +239,58 @@ export function hasActiveFilter(f: Filters): boolean {
     !!f.groupId
   );
 }
+
+export type FilterChip = {
+  /** Stable React key. */
+  key: string;
+  label: string;
+  /** The filters with just this one removed. */
+  without: Filters;
+};
+
+function rangeLabel(name: string, min?: number, max?: number): string {
+  if (min != null && max != null) return `${name} ${min}–${max}`;
+  if (min != null) return `${name} ≥ ${min}`;
+  return `${name} ≤ ${max}`;
+}
+
+/**
+ * The active filters as removable chips, for showing state while the filter
+ * panel is closed. Search tags are left out (the search input already shows
+ * them as chips), as are batch grouping and drill-in, which have their own
+ * toggle and "Back to batches" control. `libraryName` resolves an id to a
+ * display name.
+ */
+export function activeFilterChips(
+  f: Filters,
+  libraryName: (id: string) => string | undefined = () => undefined,
+): FilterChip[] {
+  const chips: FilterChip[] = [];
+  const add = (key: string, label: string, patch: Partial<Filters>) =>
+    chips.push({ key, label, without: { ...f, ...patch } });
+
+  if (f.libraryId) {
+    add("library", `Library: ${libraryName(f.libraryId) ?? f.libraryId}`, { libraryId: undefined });
+  }
+  if (f.logic === "or" && f.tags.length > 1) add("logic", "Any tag", { logic: "and" });
+  if (f.noTags) add("noTags", "Untagged", { noTags: false });
+  if (f.noAiTags) add("noAiTags", "No AI tags", { noAiTags: false });
+  if (f.quarantined) add("quarantined", "Quarantined", { quarantined: false });
+  for (const term of f.promptTerms) {
+    add(`prompt:${term}`, `Prompt: ${term}`, {
+      promptTerms: f.promptTerms.filter((t) => t !== term),
+    });
+  }
+  if (f.promptLogic === "or" && f.promptTerms.length > 1) {
+    add("promptLogic", "Any prompt term", { promptLogic: "and" });
+  }
+  if (f.model) add("model", `Model: ${f.model}`, { model: undefined });
+  if (f.minW != null || f.maxW != null) {
+    add("width", rangeLabel("Width", f.minW, f.maxW), { minW: undefined, maxW: undefined });
+  }
+  if (f.minH != null || f.maxH != null) {
+    add("height", rangeLabel("Height", f.minH, f.maxH), { minH: undefined, maxH: undefined });
+  }
+  return chips;
+}
+
