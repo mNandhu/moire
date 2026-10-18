@@ -15,13 +15,13 @@ router because it knows the media route shape; everything else lives here.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import sqlalchemy as sa
 
 from ..database.db import async_conn
 from ..database import schema as t
-from . import image_tags
+from . import image_tags, workflow_family
 
 
 class FeedFilterError(ValueError):
@@ -135,6 +135,9 @@ class FeedFilter:
     workflow_id: str | None = None
     workflow_sig: str | None = None
     sort: str = "newest"
+    # The family's signatures, resolved from `workflow_id` by `_resolved`
+    # before the query is built (not a user input).
+    family_sigs: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if self.sort not in SORTS:
@@ -161,27 +164,6 @@ def _tag_group_exists(ids: list[str]):
         sa.select(1).where(
             t.image_tags.c.image_id == t.images.c._id,
             t.image_tags.c.tag.in_(ids),
-        )
-    )
-
-
-def _family_sigs(workflow_id: str):
-    """Signatures in a workflow family: those whose sample image (the newest
-    by id, as on the Rules page) embeds an editor graph with this ``id``. So a
-    family filter matches exactly the versions Rules groups under it, and new
-    versions join it as they are scanned. Uncorrelated, so SQLite runs it once
-    per query; json_extract only touches one row per signature."""
-    sample = (
-        sa.select(sa.func.max(t.images.c._id))
-        .where(t.images.c.gen_workflow_sig.isnot(None))
-        .group_by(t.images.c.gen_workflow_sig)
-    )
-    return (
-        sa.select(t.images.c.gen_workflow_sig)
-        .join(t.image_gen_raw, t.image_gen_raw.c._id == t.images.c._id)
-        .where(
-            t.images.c._id.in_(sample),
-            sa.func.json_extract(t.image_gen_raw.c.raw, "$.workflow.id") == workflow_id,
         )
     )
 
@@ -248,7 +230,9 @@ def feed_where(f: FeedFilter):
     if f.max_h is not None:
         conds.append(t.images.c.height <= f.max_h)
     if f.workflow_id:
-        conds.append(t.images.c.gen_workflow_sig.in_(_family_sigs(f.workflow_id)))
+        if f.family_sigs is None:
+            raise RuntimeError("workflow filter used before _resolved()")
+        conds.append(t.images.c.gen_workflow_sig.in_(f.family_sigs))
     if f.workflow_sig:
         conds.append(t.images.c.gen_workflow_sig == f.workflow_sig)
     # Drill into one batch's members (used by the grouped view's expand).
@@ -257,12 +241,23 @@ def feed_where(f: FeedFilter):
     return sa.and_(*conds) if conds else sa.true()
 
 
+async def _resolved(conn, f: FeedFilter) -> FeedFilter:
+    """``f`` with its workflow family expanded to signatures: one small lookup
+    up front, so the page query filters on a plain indexed ``IN`` list."""
+    if f.workflow_id and f.family_sigs is None:
+        sigs = await workflow_family.family_sigs(conn, f.workflow_id)
+        return replace(f, family_sigs=sigs)
+    return f
+
+
 async def list_feed(
     f: FeedFilter, *, cursor: str | None, limit: int, offset: int
 ) -> tuple[list[dict], str | None]:
     """The cursor-paged feed in ``f.sort`` order (see :data:`SORTS`): rows
     after ``cursor``, plus the cursor for the page after these (None when the
     page is empty)."""
+    async with async_conn() as conn:
+        f = await _resolved(conn, f)
     keys, desc = SORTS[f.sort]
     stmt = sa.select(
         *FEED_COLUMNS, *(k.label(f"sort_{i}") for i, k in enumerate(keys))
@@ -289,6 +284,8 @@ async def list_groups(f: FeedFilter, *, offset: int, limit: int) -> list[dict]:
     # Ungrouped images key on their own _id so each stands alone (never a single
     # giant "null" bucket). Window functions count + pick the representative in
     # one pass, spanning page boundaries.
+    async with async_conn() as conn:
+        f = await _resolved(conn, f)
     gkey = sa.func.coalesce(t.images.c.gen_group_id, t.images.c._id)
     sub = (
         sa.select(

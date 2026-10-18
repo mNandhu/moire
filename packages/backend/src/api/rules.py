@@ -19,7 +19,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from ..services import gen_metadata
+from ..services import gen_metadata, workflow_family
 from ..services.image_tags import id_candidates
 from ._utils import thumb_url
 
@@ -60,7 +60,8 @@ async def list_signatures():
             t.images.c.gen_workflow_sig.label("workflow_sig"),
             sa.func.count().label("count"),
             sa.func.sum(needs).label("needs_mapping"),
-            sa.func.max(t.images.c._id).label("sample_image_id"),
+            # The same sample the gallery's workflow filter keys on.
+            workflow_family.SAMPLE_ID.label("sample_image_id"),
             # When the version was in use (file mtimes, i.e. generation time):
             # the human way to tell apart versions that differ only by small
             # helper edits.
@@ -90,7 +91,7 @@ async def list_signatures():
                     t.images.c._id,
                     t.images.c.gen_model,
                     sa.func.json_extract(raw, "$.prompt").label("prompt"),
-                    sa.func.json_extract(raw, "$.workflow.id").label("workflow_id"),
+                    workflow_family.WORKFLOW_ID.label("workflow_id"),
                     sa.func.json_extract(raw, "$.workflow.nodes").label("ui_nodes"),
                 )
                 .select_from(
