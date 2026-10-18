@@ -5,14 +5,7 @@ Last rewritten 2026-10-19. Done work lives in git history, not here.
 
 ## P0: Now
 
-- Fix the review findings on the gallery/Overview commit (`1f4cc11`)
-  - Server-built feed cursors, so cache patches (scoring under Top) and
-    rescans can't skip or repeat images
-  - One shared workflow-family helper for the gallery filter and Rules,
-    resolved once per request
-  - Indexes for every feed order and filter combination
-  - Overview stats: indexed query, day boundaries correct across DST
-  - Stale `library_id` in the URL stays visible; reject `nan`/`inf` cursors
+- Nothing open. Next up is the top of P1.
 
 ## P1: Next
 
