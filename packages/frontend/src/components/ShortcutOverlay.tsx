@@ -4,7 +4,7 @@ import { useEffect } from "react";
  * Keyboard reference for the gallery, opened with `?`.
  *
  * The triage shortcuts (0-5 to score, X to quarantine, arrows to move) are the
- * fastest way to use this app and were entirely undiscoverable — nothing on
+ * fastest way to use this app and were entirely undiscoverable. Nothing on
  * screen mentioned them, so the feature effectively didn't exist for anyone who
  * hadn't read the source.
  */

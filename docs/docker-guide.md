@@ -10,7 +10,7 @@ database or object-store container.
 | File | Purpose |
 | --- | --- |
 | `docker-compose.yml` | Full stack: backend + frontend, persistent `moire_data` volume. |
-| `docker-compose.override.yml` | Your local additions — mount image folders here (picked up automatically). |
+| `docker-compose.override.yml` | Your local additions: mount image folders here (picked up automatically). |
 | `docker-compose.ci.yml` | Backend only, with `./test_images` mounted read-only; used by CI and `scripts/test-docker.sh`. |
 
 ```bash
@@ -25,7 +25,7 @@ docker compose up --build -d  # or: scripts/docker-setup.sh
 ## Mounting your image folders
 
 The backend can only index folders it can see. Bind-mount them in
-`docker-compose.override.yml` (read-only is fine — Moiré never writes to
+`docker-compose.override.yml` (read-only is fine; Moiré never writes to
 library folders, except the explicit "purge" action):
 
 ```yaml
@@ -67,10 +67,10 @@ The backend logs to stdout in the container (`LOG_TO_FILE=false`), so use
 
 Set in `.env` (see `.env.example`):
 
-- `THUMB_MAX_SIZE` — longest edge of thumbnails (px)
-- `SCANNER_MAX_WORKERS` — threads per scan (0 = auto)
-- `SCANNER_MAX_CONCURRENT_SCANS` — libraries scanning at once (others queue)
-- `WATCH_ENABLED_DEFAULT`, `WATCH_RECONCILE_INTERVAL_S` — live watching of new
+- `THUMB_MAX_SIZE`: longest edge of thumbnails (px)
+- `SCANNER_MAX_WORKERS`: threads per scan (0 = auto)
+- `SCANNER_MAX_CONCURRENT_SCANS`: libraries scanning at once (others queue)
+- `WATCH_ENABLED_DEFAULT`, `WATCH_RECONCILE_INTERVAL_S`: live watching of new
   files. Bind mounts from a Windows/macOS host don't deliver change events to
   Linux, so there the periodic reconcile rescan is what picks up new images.
 - `LOG_LEVEL`
@@ -83,8 +83,8 @@ rewriting is needed.
 
 ## Troubleshooting
 
-- **Library shows 0 images** — the path isn't mounted, or you used the host path
+- **Library shows 0 images**: the path isn't mounted, or you used the host path
   instead of the in-container one. `docker compose exec backend ls /mnt/...`.
-- **Backend unhealthy** — `docker compose logs backend`.
-- **Permission denied on /data** — the backend runs as uid 999; a bind mount for
+- **Backend unhealthy**: `docker compose logs backend`.
+- **Permission denied on /data**: the backend runs as uid 999; a bind mount for
   `/data` (instead of the named volume) must be writable by that uid.

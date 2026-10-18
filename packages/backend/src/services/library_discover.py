@@ -1,7 +1,7 @@
 """Dry run for adding libraries: which folders would become libraries, and how big.
 
 The Add Library dialog accepts several folders at once and can split each into
-one library per immediate subfolder. Nothing is written here — this only walks
+one library per immediate subfolder. Nothing is written here. This only walks
 the filesystem and compares against the already-registered library paths so the
 UI can show (and let the user prune) the plan before committing it.
 
@@ -60,7 +60,7 @@ class SourceReport:
     error: str | None = None
     #: Subfolders found (split mode only).
     subdir_count: int = 0
-    #: Images directly inside the folder — not covered by per-subfolder libraries.
+    #: Images directly inside the folder, not covered by per-subfolder libraries.
     loose_image_count: int = 0
     #: In split mode with no subfolders, the folder itself is offered instead.
     fell_back_to_root: bool = False
@@ -108,14 +108,14 @@ def _classify(c: Candidate, existing: list[str]) -> None:
         if _is_within(c.path, lib):
             c.status, c.note, c.conflict_path = (
                 "overlap",
-                "Inside an existing library — its images are already indexed",
+                "Inside an existing library. Its images are already indexed",
                 lib,
             )
             return
         if _is_within(lib, c.path):
             c.status, c.note, c.conflict_path = (
                 "overlap",
-                "Contains an existing library — those images would be indexed twice",
+                "Contains an existing library. Those images would be indexed twice",
                 lib,
             )
             return
@@ -135,7 +135,7 @@ def _classify_within_plan(cands: list[Candidate]) -> None:
             if _is_within(c.path, o.path) or _is_within(o.path, c.path):
                 c.status, c.note, c.conflict_path = (
                     "overlap",
-                    "Overlaps another folder in this list — images would be indexed twice",
+                    "Overlaps another folder in this list. Images would be indexed twice",
                     o.path,
                 )
                 break

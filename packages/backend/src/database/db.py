@@ -5,7 +5,7 @@ both engines; WAL mode lets readers proceed during a write.
 
 **Writer discipline (invariant).** SQLite is single-writer. The *actual* serializer
 across the async app and the sync scanner threads is SQLite's own file lock +
-``busy_timeout`` — not the Python locks here. The :func:`write_lock` /
+``busy_timeout``, not the Python locks here. The :func:`write_lock` /
 :func:`sync_write_lock` helpers only prevent self-contention *within* each side; the
 real rule is **keep scanner write-transactions small and commit often** so no
 transaction holds the file lock long enough to exhaust ``busy_timeout`` and surface
@@ -35,7 +35,7 @@ _async_engine: AsyncEngine | None = None
 _sync_engine: Engine | None = None
 
 # Per-side locks: avoid one side racing itself. They do NOT serialize the async
-# app against the scanner — SQLite's file lock + busy_timeout does that.
+# app against the scanner. SQLite's file lock + busy_timeout does that.
 _async_write_lock = asyncio.Lock()
 _sync_write_lock = threading.Lock()
 

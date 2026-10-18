@@ -12,11 +12,11 @@ module.exports = {
           '"Segoe UI"',
           "sans-serif",
         ],
-        // Grease-pencil digits for scores (ScoreMark) — nowhere else.
+        // Grease-pencil digits for scores (ScoreMark), nowhere else.
         marker: ['"Caveat Brush"', "cursive"],
       },
       fontSize: {
-        // Smallest step of the scale — replaces ad-hoc text-[10px]/[11px].
+        // Smallest step of the scale; replaces ad-hoc text-[10px]/[11px].
         "2xs": ["11px", "14px"],
       },
       colors: {
@@ -43,7 +43,7 @@ module.exports = {
         raised: "#1e1c26",
         line: { DEFAULT: "#2a2833", strong: "#3b3946" },
         // Secondary text roles. Both clear WCAG AA (4.5:1) on canvas,
-        // surface and raised — neutral-500/600 did not.
+        // surface and raised; neutral-500/600 did not.
         muted: "#a6a3b3",
         faint: "#8a8797",
       },

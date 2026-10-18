@@ -14,7 +14,7 @@ type ImageDocWithDims = ImageDoc & { width?: number; height?: number };
  * needs to see without opening the image.
  *
  * The gallery is where scoring, quarantining and tagging actually happen, so a
- * tile that renders only the picture makes the work invisible — you score an
+ * tile that renders only the picture makes the work invisible. You score an
  * image, nothing changes on screen, and you can't tell what you've already
  * been through when you come back. The overlays here are that feedback:
  * score pips, an untagged marker, a rating dot, quarantine state.
@@ -24,7 +24,7 @@ type ImageDocWithDims = ImageDoc & { width?: number; height?: number };
  * unscored one shows nothing until you point at it. That keeps a wall of
  * already-triaged images readable while leaving the untouched ones clean.
  *
- * The selection checkbox is not one of those overlays — it exists only in
+ * The selection checkbox is not one of those overlays. It exists only in
  * selection mode. A picking affordance sitting on every tile is visual noise
  * on a screen whose entire job is looking at pictures, so entering the mode is
  * the deliberate opt-in that puts it there.
@@ -50,7 +50,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
   item: ImageDocWithDims;
   index: number;
   selected: boolean;
-  /** Selection mode is on — the checkbox is shown and clicks pick rather than open. */
+  /** Selection mode is on: the checkbox is shown and clicks pick rather than open. */
   selectionMode: boolean;
   onToggle: (id: string) => void;
   onOpen: (id: string) => void;
@@ -60,7 +60,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
   /** Hold a quarantined tile back visually. Off in the quarantined view, where
    * every tile is quarantined and the badge alone carries the meaning. */
   dimQuarantined?: boolean;
-  /** Active gallery filters, serialized for the batch-peek fetch — see
+  /** Active gallery filters, serialized for the batch-peek fetch; see
    * serializeFiltersForPeek. Scopes the peek to the same members the grouped
    * feed considered when it picked this tile as the representative. */
   peekQuery?: string;
@@ -78,7 +78,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
   // affordance shouldn't also be scrubbing), which means the onMouseLeave
   // that would normally clear `scrubbing` never fires if selection mode
   // engages mid-hover. Without this, the flag stays stuck true and the tile
-  // starts peeking on its own — pointer nowhere near it — the moment
+  // starts peeking on its own, with the pointer nowhere near it, the moment
   // selection mode turns back off.
   useEffect(() => {
     if (selectionMode) setScrubbing(false);
@@ -90,12 +90,12 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
   );
 
   // Two stacked layers that swap which one is "front" on every frame change, so
-  // each step — including the wrap from the last member back to the first — is
+  // each step (including the wrap from the last member back to the first) is
   // a dissolve between the previous frame and the next rather than a hard cut.
   // A single <img> whose src is swapped in place can't do this: only a fresh
   // element (or a genuinely new opacity target) retriggers a CSS transition.
   const [scrubLayers, setScrubLayers] = useState<[string | null, string | null]>([null, null]);
-  // `null` means neither layer is front — both fade to opacity-0. Used only
+  // `null` means neither layer is front; both fade to opacity-0. Used only
   // on hover-exit, so the layers stay mounted long enough to actually play
   // the fade instead of vanishing with it.
   const [scrubFront, setScrubFront] = useState<0 | 1 | null>(0);
@@ -106,7 +106,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
       if (lastScrubSrc.current === null) return;
       lastScrubSrc.current = null;
       // Fade the visible layer out to opacity-0 rather than unmounting both
-      // <img> layers in the same commit — removing the nodes immediately
+      // <img> layers in the same commit; removing the nodes immediately
       // skipped the opacity transition and hard-cut straight back to the
       // resting thumbnail on mouse-leave.
       setScrubFront(null);
@@ -125,7 +125,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
       return next;
     });
     // Paint the new frame into the hidden layer first, then flip which layer
-    // is front on the next tick — flipping in the same update risks the
+    // is front on the next tick; flipping in the same update risks the
     // browser coalescing both style changes and skipping the transition.
     const raf = requestAnimationFrame(() => setScrubFront(back));
     return () => cancelAnimationFrame(raf);
@@ -177,7 +177,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
           swapped into ImageThumbnail's src so the tile's own load state, and
           the BlurHash it already resolved, are left alone. Two layers alternate
           front/back so every step dissolves, including the wrap back to the
-          first frame — see the scrubLayers effect above. */}
+          first frame; see the scrubLayers effect above. */}
       {scrubLayers.map((layerSrc, i) =>
         layerSrc ? (
           <img
@@ -194,7 +194,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
         ) : null,
       )}
 
-      {/* Selection checkbox — only in selection mode. */}
+      {/* Selection checkbox: only in selection mode. */}
       {selectionMode && (
         <button
           onClick={(e) => {
@@ -227,7 +227,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
           title={`${groupCount} variations in this batch`}
         >
           <Layers size={11} />{" "}
-          {/* Denominator is the batch size, not scrub.total — the peek only
+          {/* Denominator is the batch size, not scrub.total; the peek only
               fetches the first MAX_MEMBERS, so showing its length turned a
               40-image batch into "3/12" the moment you hovered it. */}
           {scrub.total > 1 && scrubbing

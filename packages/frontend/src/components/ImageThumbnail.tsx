@@ -28,7 +28,7 @@ const BlurhashCanvas = React.memo(function BlurhashCanvas({
       imageData.data.set(pixels);
       ctx.putImageData(imageData, 0, 0);
     } catch {
-      // Invalid hash — leave the canvas transparent; the bg shows through.
+      // Invalid hash: leave the canvas transparent; the bg shows through.
     }
   }, [hash]);
   return (
@@ -61,7 +61,7 @@ export function ImageThumbnail({
 }: {
   src: string;
   selected?: boolean;
-  /** Held back visually (quarantined) — still readable, clearly set aside. */
+  /** Held back visually (quarantined), still readable, clearly set aside. */
   dimmed?: boolean;
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   alt?: string;
@@ -71,7 +71,7 @@ export function ImageThumbnail({
   preResolved?: boolean; // src is already a usable URL; skip resolveMediaUrl
   blurhash?: string; // BlurHash placeholder shown until the image loads
   // Scroll container to use as the IntersectionObserver root. Must be the actual
-  // scrolling element — rootMargin only expands the root, while intermediate
+  // scrolling element: rootMargin only expands the root, while intermediate
   // scroll containers clip at zero margin, killing the preload window.
   getRoot?: () => HTMLElement | null;
   // Skip the per-tile IntersectionObserver and load as soon as mounted. The
@@ -157,7 +157,7 @@ export function ImageThumbnail({
         loading="lazy"
       />
       {/* Hover treatment lifts rather than dims. The old overlay was a
-          `bg-black/10` veil, which darkened whichever image you pointed at —
+          `bg-black/10` veil, which darkened whichever image you pointed at:
           exactly backwards for a gallery, where hover should mean "this one". */}
       <div
         className={cn(

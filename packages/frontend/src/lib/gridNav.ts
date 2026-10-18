@@ -1,6 +1,6 @@
 // Keyboard focus navigation for the gallery grid. Pure so the index math is
 // unit-testable without a DOM. Left/Right step by one; Up/Down step by a row
-// (cols). Movement clamps at the ends — it never wraps — and from "no focus"
+// (cols). Movement clamps at the ends (it never wraps) and from "no focus"
 // (-1) any arrow lands on the first tile.
 
 export type GridNavKey =

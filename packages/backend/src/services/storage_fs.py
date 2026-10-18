@@ -23,7 +23,7 @@ def _safe_path(key: str) -> Path:
     hostile ``thumb_key`` from escaping ``thumb_root``.
     """
     if not key or not key.strip("/"):
-        # Empty/`/`-only key would resolve to the root itself — refuse, so a
+        # Empty/`/`-only key would resolve to the root itself; refuse, so a
         # future caller can't trigger `rmtree(root)` and wipe the whole store.
         raise ValueError(f"empty thumb key: {key!r}")
     root = _root().resolve()

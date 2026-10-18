@@ -190,7 +190,7 @@ async def ai_coverage():
             sa.func.coalesce(
                 sa.func.sum(sa.cast(t.images.c.has_ai_tags, sa.Integer)), 0
             ).label("ai_tagged"),
-            # No tags of any kind (`has_tags` false) — the gallery's no_tags
+            # No tags of any kind (`has_tags` false). The gallery's no_tags
             # filter, counted so the Tags page shortcut can show its size.
             sa.func.coalesce(
                 sa.func.sum(

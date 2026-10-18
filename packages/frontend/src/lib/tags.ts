@@ -1,7 +1,7 @@
 /**
  * The three tag kinds as the frontend sees them. One `tags` array holds all
  * three: AI tags unprefixed (`1girl`), manual tags `manual:`-prefixed, prompt
- * tags `prompt:`-prefixed. Mirror of the backend's image_tags prefix helpers —
+ * tags `prompt:`-prefixed. Mirror of the backend's image_tags prefix helpers:
  * see CONTEXT.md › Tag.
  *
  * The prefixes were hardcoded in five places (this module, TagSearchInput,
@@ -22,7 +22,7 @@ export function isPrompt(raw: string): boolean {
   return raw.startsWith(PROMPT_PREFIX);
 }
 
-/** AI tags are the unprefixed kind — neither manual nor prompt. */
+/** AI tags are the unprefixed kind: neither manual nor prompt. */
 export function isAiTag(raw: string): boolean {
   return !isManual(raw) && !isPrompt(raw);
 }
@@ -46,7 +46,7 @@ export function formatSearchTag(raw: string): string {
 export type PartitionedTags = {
   /** Unprefixed AI tags. */
   ai: string[];
-  /** Raw `manual:`-prefixed tags (still prefixed — format for display). */
+  /** Raw `manual:`-prefixed tags (still prefixed; format for display). */
   manual: string[];
   /** Raw `prompt:`-prefixed tags. */
   prompt: string[];
@@ -54,7 +54,7 @@ export type PartitionedTags = {
 
 /**
  * Split one `tags` array into its three kinds, preserving order within each.
- * AI and prompt tags may overlap (`1girl` and `prompt:1girl` coexist) — they
+ * AI and prompt tags may overlap (`1girl` and `prompt:1girl` coexist); they
  * are distinct kinds and are never deduped against each other.
  */
 export function partitionTags(tags: readonly string[] = []): PartitionedTags {

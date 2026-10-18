@@ -48,7 +48,7 @@ describe("per-image mutations", () => {
   });
 
   it("encodes ids containing slashes and colons", async () => {
-    // Image ids are `{library}:{relative/path}` — both characters are live.
+    // Image ids are `{library}:{relative/path}`; both characters are live.
     const spy = mockFetch();
     await setScore("L1:sub/dir/a.jpg", 1);
     expect(spy.mock.calls[0][0]).toBe("/api/v1/images/L1%3Asub%2Fdir%2Fa.jpg/score");

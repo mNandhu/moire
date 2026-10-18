@@ -282,7 +282,7 @@ describe("useRulesetSession", () => {
   });
 
   it("switching resets the editor immediately, before the new ruleset loads", async () => {
-    // "Values from the previous workflow stay" — A's pins must not show under B.
+    // "Values from the previous workflow stay": A's pins must not show under B.
     const v = setup();
     await load(v);
     const pending = deferred<{ fields: Record<string, string[]> }>();

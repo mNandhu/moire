@@ -178,7 +178,7 @@ class ModelDownloadManager:
     def cancel_sync(self, *, model_repo: str, cache_dir: str) -> bool:
         """Best-effort cancel callable from sync code (e.g. ``start_load``).
 
-        Skips the async lock — used to supersede a stale download when the load
+        Skips the async lock, used to supersede a stale download when the load
         target changes, where we can't await. Same task runs on this event loop,
         so ``task.cancel()`` is honoured on the next tick."""
         key = (model_repo, cache_dir)

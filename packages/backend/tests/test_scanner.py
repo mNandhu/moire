@@ -3,7 +3,7 @@ the upsert op's insert-only tag seeding, and stale reconciliation (which deletes
 images that vanished from disk).
 
 Raw generation-metadata capture used to live here; it moved to
-``gen_metadata.read_gen_raw`` — see ``test_gen_raw_capture.py``."""
+``gen_metadata.read_gen_raw``, see ``test_gen_raw_capture.py``."""
 
 from pathlib import Path
 
@@ -22,7 +22,7 @@ def test_image_upsert_values_merges_initial_tag_state():
     assert vals["_id"] == "L1:x.jpg"
     assert vals["path"] == "/data/lib/x.jpg"
     # Initial tag-state is seeded into the insert payload (the ON CONFLICT clause
-    # leaves these columns untouched on update — verified by an integration test).
+    # leaves these columns untouched on update, verified by an integration test).
     assert vals["tags"] == []
     assert vals["has_tags"] is False
     assert vals["has_ai_tags"] is False

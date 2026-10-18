@@ -29,7 +29,7 @@ def normalize_path(path: str) -> str:
 def validate_library_path(value: str) -> str:
     value = _sanitize_path(value)
     # A quoted-empty or whitespace-only path sanitizes to "", and Path("") is
-    # the process's own cwd to pathlib — not "no path". Rejecting non-absolute
+    # the process's own cwd to pathlib, not "no path". Rejecting non-absolute
     # paths here also catches that (cwd is relative) along with bare relative
     # names and Windows drive-relative references ("C:", as opposed to
     # "C:\\"), whose meaning would otherwise depend on the backend's cwd

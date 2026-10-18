@@ -66,7 +66,7 @@ function renderPage() {
 /**
  * Give jsdom a viewport.
  *
- * jsdom performs no layout, so every element reports clientWidth 0 — and the
+ * jsdom performs no layout, so every element reports clientWidth 0, and the
  * grid, correctly, packs nothing at zero width. Without this the page renders
  * with no tiles at all and any assertion about tile-level UI passes or fails
  * for the wrong reason. Fixing the width makes the real packing run: at 1280px
@@ -89,7 +89,7 @@ beforeEach(() => {
 /**
  * Wait for the feed to actually land. The "loaded" qualifier renders straight
  * away next to a count of zero, so waiting on it alone lets a test fire
- * shortcuts against an empty grid — where, correctly, they do nothing.
+ * shortcuts against an empty grid, where, correctly, they do nothing.
  */
 const awaitFeed = (n = IMAGES.length) =>
   screen.findByText(String(n), { selector: "span" });
@@ -223,7 +223,7 @@ describe("AllImagesPage", () => {
     fireEvent.keyDown(window, { key: "?" });
     await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
 
-    // Reading "Q — quarantined" in the overlay and pressing Q used to switch
+    // Reading "Q: quarantined" in the overlay and pressing Q used to switch
     // the feed underneath it, invisibly.
     fireEvent.keyDown(window, { key: "q" });
     fireEvent.keyDown(window, { key: "s" });

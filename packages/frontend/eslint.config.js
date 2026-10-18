@@ -11,7 +11,7 @@ export default tseslint.config(
     rules: {
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
-      // Disable React Compiler rules — project does not use React Compiler
+      // Disable React Compiler rules. The project does not use React Compiler
       "react-hooks/react-compiler": "off",
       "react-hooks/set-state-in-effect": "off",
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],

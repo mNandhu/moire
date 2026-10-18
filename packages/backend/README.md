@@ -13,7 +13,7 @@ uv run uvicorn src.main:app --reload --host 127.0.0.1 --port 8000
 
 ## Build
 
-The backend is an installable package (uv build backend, flat layout — the
+The backend is an installable package (uv build backend, flat layout; the
 importable package is `src`):
 
 ```

@@ -32,7 +32,7 @@ def test_work_exception_surfaces_as_exc_not_swallowed():
 
 
 def test_cancel_returns_false_and_skips_remaining():
-    # is_cancelled is False for the first prime-submit, True thereafter — so a
+    # is_cancelled is False for the first prime-submit, True thereafter, so a
     # future gets submitted, then the loop notices the cancel and stops.
     calls = {"n": 0}
 

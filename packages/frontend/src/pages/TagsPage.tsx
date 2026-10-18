@@ -118,7 +118,7 @@ export default function TagsPage() {
             compact
             icon={Search}
             title={`No tags match “${q.trim()}”`}
-            description={includePrompt ? undefined : "Prompt tags are hidden — try showing them."}
+            description={includePrompt ? undefined : "Prompt tags are hidden. Try showing them."}
           />
         ) : (
           <EmptyState

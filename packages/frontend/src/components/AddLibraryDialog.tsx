@@ -26,7 +26,7 @@ function errorText(e: unknown): string {
     if (typeof d === "string") return d;
     if (Array.isArray(d)) return d.map((x) => x?.msg ?? String(x)).join("; ");
   } catch {
-    /* not JSON — use as-is */
+    /* not JSON; use as-is */
   }
   return raw;
 }
@@ -208,7 +208,7 @@ export function AddLibraryDialog({
         <Field
           label="Folders"
           htmlFor="add_lib_paths"
-          hint="Absolute paths, one per line — e.g. D:/images or /mnt/g/images."
+          hint="Absolute paths, one per line, e.g. D:/images or /mnt/g/images."
         >
           <textarea
             id="add_lib_paths"
@@ -251,7 +251,7 @@ export function AddLibraryDialog({
             <div className="flex items-center justify-between text-xs text-neutral-400">
               <span className="font-medium uppercase tracking-wide">Preview</span>
               {stale && (
-                <span className="text-amber-300">Folders changed — preview again</span>
+                <span className="text-amber-300">Folders changed. Preview again</span>
               )}
             </div>
             <div className="max-h-[45vh] overflow-auto space-y-3 pr-1">
@@ -322,7 +322,7 @@ function SourceBlock({
       )}
       {s.fell_back_to_root && (
         <div className="px-3 pt-2 text-xs text-muted">
-          No subfolders here — the folder itself will be added as one library.
+          No subfolders here. The folder itself will be added as one library.
         </div>
       )}
       {split && !s.fell_back_to_root && s.loose_image_count > 0 && (

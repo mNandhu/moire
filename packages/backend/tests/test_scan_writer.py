@@ -1,4 +1,4 @@
-"""Unit tests for the scan's batched writer — the accounting where scan bugs hide
+"""Unit tests for the scan's batched writer: the accounting where scan bugs hide
 (last partial batch never flushed, buffers cleared before commit, indexed drift).
 A counting sink stands in for the real transaction; no DB, no threads."""
 
@@ -23,7 +23,7 @@ def test_flushes_automatically_at_batch_size():
 
 def test_final_partial_batch_must_be_flushed_explicitly():
     # The regression the seam exists for: a sub-batch is NOT committed until
-    # flush() is called — and once it is, it lands exactly once.
+    # flush() is called; and once it is, it lands exactly once.
     commits = []
     w = ScanWriter(lambda imgs, raws: commits.append(len(imgs)), batch_size=200)
     for i in range(5):

@@ -33,7 +33,7 @@ export default function LibrariesPage() {
   // Library changes alter which images the gallery should show. Both the flat
   // feed (`["images", ...]`) and the batch-collapsed grouped view
   // (`["image-groups", ...]`) are cached with a staleTime, so without this the
-  // gallery shows stale results — including images from a removed library —
+  // gallery shows stale results, including images from a removed library,
   // until a manual reload. Drop both so they refetch next time they mount.
   const invalidateImageFeed = () => {
     queryClient.invalidateQueries({ queryKey: ["images"] });
@@ -91,7 +91,7 @@ export default function LibrariesPage() {
                 scan_total: j.scan_total || 0,
                 scan_done: j.scan_done || 0,
               };
-            } catch { /* network errors silenced — polling will retry */ }
+            } catch { /* network errors silenced; polling will retry */ }
           })
         );
         // Detect scanning -> done transitions to refresh once
@@ -205,7 +205,7 @@ export default function LibrariesPage() {
           await refresh();
           invalidateImageFeed();
           push(
-            `Added ${added} librar${added === 1 ? "y" : "ies"}${failed.length ? ` · ${failed.length} failed` : ""} — scanning in the background`,
+            `Added ${added} librar${added === 1 ? "y" : "ies"}${failed.length ? ` · ${failed.length} failed` : ""}, scanning in the background`,
             failed.length ? "error" : "success",
           );
         }}
@@ -248,7 +248,7 @@ export default function LibrariesPage() {
           <EmptyState
             icon={FolderOpen}
             title="No libraries yet"
-            description="Add a folder of images — or a parent folder whose subfolders each become a library."
+            description="Add a folder of images, or a parent folder whose subfolders each become a library."
             actions={
               <Button variant="primary" onClick={() => setAddOpen(true)}>
                 <Plus size={16} />
@@ -413,7 +413,7 @@ export default function LibrariesPage() {
           </Field>
           {editPath !== libs.find((l) => l._id === editId)?.path && (
             <p className="text-xs text-amber-400">
-              Path changed — rescan will start automatically.
+              Path changed. Rescan will start automatically.
             </p>
           )}
         </div>

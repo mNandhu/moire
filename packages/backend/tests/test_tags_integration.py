@@ -1,4 +1,4 @@
-"""Integration tests for the tag cloud, cross-source merge, and tag mutations —
+"""Integration tests for the tag cloud, cross-source merge, and tag mutations:
 including the tag-state invariant (array + flags + derived join rows stay in sync).
 """
 

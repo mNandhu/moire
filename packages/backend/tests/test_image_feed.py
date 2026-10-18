@@ -1,4 +1,4 @@
-"""Unit tests for the image-feed query module — the seam the router used to bury.
+"""Unit tests for the image-feed query module: the seam the router used to bury.
 
 ``FeedFilter`` validation and ``feed_where`` are now testable without FastAPI;
 end-to-end behaviour stays covered by test_feed_integration.py.

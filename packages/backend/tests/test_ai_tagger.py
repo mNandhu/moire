@@ -148,7 +148,7 @@ async def test_start_load_supersedes_stale_target_without_clobbering(monkeypatch
 
 def test_start_load_same_target_in_flight_is_noop(monkeypatch):
     # A second load for the SAME (repo, cache_dir) while one is in flight must
-    # not start a duplicate — it returns False and keeps the existing task.
+    # not start a duplicate. It returns False and keeps the existing task.
     mgr = TaggerManager()
 
     async def fake_ensure_loaded(*, model_repo: str, cache_dir: str) -> None:

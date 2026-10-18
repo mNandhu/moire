@@ -2,8 +2,8 @@
 EXIF UserComment charset prefixes decode.
 
 This is the branch coverage that was unreachable while the capture lived inside
-the scanner's thumbnail renderer. The A1111 JPEG/WebP path in particular — the
-container every A1111 export that isn't a PNG uses — had never executed in any
+the scanner's thumbnail renderer. The A1111 JPEG/WebP path in particular, the
+container every A1111 export that isn't a PNG uses, had never executed in any
 test, because exercising it meant synthesizing a real JPEG with EXIF and running
 a full disk scan. Taking the two embedded sources as plain values makes each
 branch a table test.
@@ -84,7 +84,7 @@ def test_blank_parameters_chunk_is_not_a1111():
 
 
 def test_a1111_from_exif_user_comment():
-    """The JPEG/WebP path — no PNG text chunk exists, the payload is EXIF."""
+    """The JPEG/WebP path: no PNG text chunk exists, the payload is EXIF."""
     uc = b"UNICODE\x00" + _A1111.encode("utf-16-be")
     assert gen_metadata.gen_raw_from_embedded({}, uc) == {
         "source": "a1111",

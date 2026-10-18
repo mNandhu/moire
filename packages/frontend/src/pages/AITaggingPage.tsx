@@ -17,8 +17,8 @@ function CoverageBar({ tagged, total }: { tagged: number; total: number }) {
 
 /**
  * Coverage and the action that changes it, in one place: how much is
- * AI-tagged, the button to tag the rest, the running job, and — only when it
- * matters — the model. Counts come from `/api/v1/ai/coverage` (the
+ * AI-tagged, the button to tag the rest, the running job, and only when it
+ * matters, the model. Counts come from `/api/v1/ai/coverage` (the
  * `has_ai_tags` flag) and poll faster while a job runs.
  */
 function TaggingPanel() {

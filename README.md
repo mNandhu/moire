@@ -17,7 +17,7 @@ Moiré is purpose-built for organizing and exploring large collections of AI-gen
 ## ✨ Features
 
 - **🎨 AI Art Focused**: Optimized for AI-generated image workflows; extracts generation metadata (prompts, model, workflow) from ComfyUI/A1111 PNGs
-- **🤖 Built-in Autotagger**: Local WD ONNX tagger (`SmilingWolf/wd-vit-tagger-v3` by default) with a queued, cancellable batch job system — no external service required
+- **🤖 Built-in Autotagger**: Local WD ONNX tagger (`SmilingWolf/wd-vit-tagger-v3` by default) with a queued, cancellable batch job system; no external service required
 - **🏷️ Smart Tagging**: Manual tags, AI tags, and prompt tags (derived from generation prompts)
 - **⭐ Rate & Curate**: 0–5 star quality scores, danbooru-style content ratings, and quarantine to hide images from the feed without deleting them
 - **📁 Library Management**: Organize images into libraries with automatic background scanning and progress tracking
@@ -111,7 +111,7 @@ pnpm dev
    uv --directory packages/backend sync
    ```
 
-3. **Configure (optional):** defaults work out of the box — the database lands in `data/moire.db`, thumbnails in `data/thumbs/`, logs in `data/logs/`. To override, copy `packages/backend/.env.example` to `packages/backend/.env` and edit.
+3. **Configure (optional):** defaults work out of the box. The database lands in `data/moire.db`, thumbnails in `data/thumbs/`, logs in `data/logs/`. To override, copy `packages/backend/.env.example` to `packages/backend/.env` and edit.
 
 4. **Start the application:**
    ```bash
@@ -121,7 +121,7 @@ pnpm dev
 ### Adding Your First Library
 
 1. Navigate to http://localhost:5173/libraries and click **Add libraries**
-2. Enter one or more folder paths (e.g., `/path/to/your/images`), one per line — optionally tick "each subfolder becomes its own library"
+2. Enter one or more folder paths (e.g., `/path/to/your/images`), one per line. Optionally tick "each subfolder becomes its own library"
 3. Click **Preview** to see exactly which libraries will be created, with image counts; untick any you don't want
 4. Click **Add**; scanning runs in the background
 5. Browse your images at http://localhost:5173
@@ -137,34 +137,34 @@ pnpm dev
 
 ## 🤖 AI Autotagger
 
-Moiré ships with a **built-in** autotagger — a WD ONNX model that runs locally via `onnxruntime`. No external service is required. The default model is `SmilingWolf/wd-vit-tagger-v3`, downloaded from HuggingFace on first use and cached locally.
+Moiré ships with a **built-in** autotagger, a WD ONNX model that runs locally via `onnxruntime`. No external service is required. The default model is `SmilingWolf/wd-vit-tagger-v3`, downloaded from HuggingFace on first use and cached locally.
 
 **How it works:**
 
 1. Configure the model and thresholds on the Settings page (or via `POST /api/v1/ai/settings`).
-2. Load the model (`POST /api/v1/ai/model/load`) — download and load are tracked, cancellable, and the model idle-unloads to free memory.
+2. Load the model (`POST /api/v1/ai/model/load`). Download and load are tracked, cancellable, and the model idle-unloads to free memory.
 3. Tag a single image, or queue a batch (e.g. all untagged images) via the AI job system (`POST /api/v1/ai/tag`, `POST /api/v1/ai/tag-untagged`). Jobs are listed, polled, and cancellable (`GET /api/v1/ai/jobs`, `POST /api/v1/ai/jobs/{id}/cancel`).
 4. AI tags are stored alongside manual and prompt tags and become searchable.
 
 **Tag kinds** (all share one `tags` array, see [CONTEXT.md](CONTEXT.md)):
 
-- **AI tags** — produced by the tagger, stored unprefixed (`1girl`).
-- **Manual tags** — user-applied, `manual:` prefix.
-- **Prompt tags** — extracted from generation prompts by reprojection, `prompt:` prefix.
+- **AI tags**: produced by the tagger, stored unprefixed (`1girl`).
+- **Manual tags**: user-applied, `manual:` prefix.
+- **Prompt tags**: extracted from generation prompts by reprojection, `prompt:` prefix.
 
 Tuning knobs (model repo, general/character thresholds, idle-unload timeout, prompt-tag reprojection) live in AI Settings. The legacy `AI_TAGGING_URL` env var refers to an older external-service path and is not the primary tagging route.
 
 ## 🧬 Generation Metadata & Extraction Rules
 
-Moiré reads the generation data embedded in AI-art images (ComfyUI `prompt` node graphs, Automatic1111 `parameters` text) during scanning and stores it **verbatim**. From that stored raw it derives structured `gen.*` fields — positive/negative prompt, seed, model, sampler, steps, CFG — plus searchable prompt tags. Because derivation works off the stored raw, fields can be re-derived any time without touching disk again.
+Moiré reads the generation data embedded in AI-art images (ComfyUI `prompt` node graphs, Automatic1111 `parameters` text) during scanning and stores it **verbatim**. From that stored raw it derives structured `gen.*` fields (positive/negative prompt, seed, model, sampler, steps, CFG) plus searchable prompt tags. Because derivation works off the stored raw, fields can be re-derived any time without touching disk again.
 
-**Workflow signatures.** Each ComfyUI image is fingerprinted by a `workflow_sig` — a hash of its node *kinds* (sorted `class_type` multiset), ignoring node ids and widget values. Images from the same workflow share a signature, so they can be grouped and mapped together.
+**Workflow signatures.** Each ComfyUI image is fingerprinted by a `workflow_sig`, a hash of its node *kinds* (sorted `class_type` multiset), ignoring node ids and widget values. Images from the same workflow share a signature, so they can be grouped and mapped together.
 
-**Why rules exist.** Standard graphs are parsed structurally (walk the sampler's `positive`/`negative` links back to text nodes, the `model` link to the checkpoint loader). Custom and non-standard workflows — exotic samplers, custom text nodes, pass-through wrappers — break those heuristics, leaving prompt/model/seed empty even though the data is present in the raw.
+**Why rules exist.** Standard graphs are parsed structurally (walk the sampler's `positive`/`negative` links back to text nodes, the `model` link to the checkpoint loader). Custom and non-standard workflows (exotic samplers, custom text nodes, pass-through wrappers) break those heuristics, leaving prompt/model/seed empty even though the data is present in the raw.
 
 **Extraction rules (rulesets)** fix that. Per `workflow_sig`, you pin **dot-paths** into the raw doc for specific fields (e.g. `prompt.32.inputs.text0` → `prompt`). A resolving pin overrides the structural baseline; the fallback chain is *pinned → structural → class*, so a pin only ever fills or corrects, never erases a working parse.
 
-Author rules on the **Rules page**: pick a signature (the picker surfaces which still need mapping and a sample image), pin paths, and preview resolution live against that sample before saving (`POST /rules/preview`). Rulesets are **sig-global** — saving one **reprojects every image of that signature across all libraries** from their stored raw (`PUT /rules/{sig}` → background reproject), so one mapping retroactively fixes the whole batch. You can also reproject a single library on demand (`POST /libraries/{id}/reproject`).
+Author rules on the **Rules page**: pick a signature (the picker surfaces which still need mapping and a sample image), pin paths, and preview resolution live against that sample before saving (`POST /rules/preview`). Rulesets are **sig-global**: saving one **reprojects every image of that signature across all libraries** from their stored raw (`PUT /rules/{sig}` → background reproject), so one mapping retroactively fixes the whole batch. You can also reproject a single library on demand (`POST /libraries/{id}/reproject`).
 
 ## ⚙️ Environment Configuration
 
@@ -175,7 +175,7 @@ Key environment variables (see `.env.example`):
 - `SQLITE_PATH`: SQLite database file (default: `./data/moire.db`; `/data/moire.db` volume in Docker)
 - `THUMB_ROOT`: Filesystem directory for generated WebP thumbnails (default: `./data/thumbs`; `/data/thumbs` volume in Docker). Originals are read from the host library paths, so there is no separate originals store.
 
-Both thumbnails and originals are served straight through the API, so a single exposed port (8000) is enough for remote access — front it with a reverse proxy (e.g. nginx) for TLS and static offload.
+Both thumbnails and originals are served straight through the API, so a single exposed port (8000) is enough for remote access; front it with a reverse proxy (e.g. nginx) for TLS and static offload.
 
 ### Performance
 
@@ -268,7 +268,7 @@ docker compose cp backend:/data ./backup
 docker compose start backend
 ```
 
-> Original images live in the host directories you mounted as libraries — back those up with your normal file-backup tooling. Thumbnails can always be regenerated by rescanning, so only the database and your source images are essential.
+> Original images live in the host directories you mounted as libraries. Back those up with your normal file-backup tooling. Thumbnails can always be regenerated by rescanning, so only the database and your source images are essential.
 
 ## 🔧 Development
 

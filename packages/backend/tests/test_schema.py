@@ -1,5 +1,5 @@
 """Schema definition tests: assert the SQLite tables, key columns, and the index
-set exist as the query layer expects. Pure metadata introspection — no DB needed.
+set exist as the query layer expects. Pure metadata introspection, no DB needed.
 """
 
 from src.database import schema

@@ -1,4 +1,4 @@
-"""BlurHash — a compact (~30 char) string encoding a blurred preview of an
+"""BlurHash: a compact (~30 char) string encoding a blurred preview of an
 image. The frontend decodes it to a placeholder so the gallery shows a blurry
 image instantly instead of a grey skeleton.
 
@@ -99,7 +99,7 @@ def encode(rgb: np.ndarray, components_x: int = 6, components_y: int = 4) -> str
 
 
 def blurhash_for_image(pil_img, max_dim: int = 64) -> str | None:
-    """Encode a BlurHash from a PIL image. Downsamples first — BlurHash is
+    """Encode a BlurHash from a PIL image. Downsamples first. BlurHash is
     low-frequency, so a small image gives the same result far cheaper.
     Returns None on any failure (best-effort, never blocks indexing).
     """

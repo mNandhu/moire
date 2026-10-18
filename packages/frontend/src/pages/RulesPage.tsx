@@ -60,7 +60,7 @@ export function matchesQuery(
 
 // Flatten every leaf whose key or value contains the term into pinnable rows,
 // so matches can be surfaced at the top of the panel (no scrolling to find the
-// buried node). Each row carries its rooted dot-path — the same path clicking the
+// buried node). Each row carries its rooted dot-path, the same path clicking the
 // tree leaf would pin. Exported for unit testing.
 export type GraphMatch = { path: string; value: unknown };
 
@@ -90,7 +90,7 @@ const HIT = "bg-yellow-500/25 text-yellow-100 rounded px-0.5";
 // A clickable JSON tree: leaves pin their dot-path into the active field.
 // `query` highlights matching keys/values and force-opens the branches that
 // contain a match (the tree is collapsed at depth >= 2), so a search reveals the
-// whole matching node — its id *and* its class_type stay in view, never pruned.
+// whole matching node: its id *and* its class_type stay in view, never pruned.
 // Exported for unit testing the path construction (the load-bearing, silent-on-
 // failure interaction: click leaf -> correct dot-path).
 export function JsonTree({
@@ -187,7 +187,7 @@ export default function RulesPage() {
   const [activeField, setActiveField] = useState<RuleField>("prompt");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
-  // Search *within* the selected sample graph — find a node by id, class_type, or
+  // Search *within* the selected sample graph: find a node by id, class_type, or
   // a prompt word and see where it lives so its dot-path can be pinned.
   const [graphQuery, setGraphQuery] = useState("");
 
@@ -232,7 +232,7 @@ export default function RulesPage() {
   const selectedSigRef = useRef(selectedSig);
   selectedSigRef.current = selectedSig;
 
-  // Deep link from a specific image (Full View "Edit rule" button) —
+  // Deep link from a specific image (Full View "Edit rule" button):
   // ?sig=<workflow_sig> auto-selects that signature once its row has loaded.
   // Guarded by a ref (not just presence of the param) so it fires once per
   // distinct sig and never fights a later manual selection.
@@ -288,7 +288,7 @@ export default function RulesPage() {
   );
 
   // Scroll the matched leaf into view so its surrounding node (class_type,
-  // sibling inputs) is readable — the user picks the right hit before pinning.
+  // sibling inputs) is readable; the user picks the right hit before pinning.
   const graphScrollRef = useRef<HTMLDivElement>(null);
   const revealPath = useCallback((path: string) => {
     const el = graphScrollRef.current?.querySelector<HTMLElement>(
@@ -377,7 +377,7 @@ export default function RulesPage() {
                 compact
                 icon={MousePointerClick}
                 title="Pick a workflow"
-                description="Choose one on the left to see its graph. Click any value in it to say which field it is — say, the node that holds your positive prompt."
+                description="Choose one on the left to see its graph. Click any value in it to say which field it is (say, the node that holds your positive prompt)."
               />
             </div>
           ) : (
@@ -392,7 +392,7 @@ export default function RulesPage() {
                     variant="primary"
                     onClick={() => void save()}
                     disabled={busy || loading || loadFailed}
-                    title={loadFailed ? "Ruleset didn't load — click the signature to retry" : undefined}
+                    title={loadFailed ? "Ruleset didn't load. Click the signature to retry" : undefined}
                   >
                     <Save size={14} /> Save
                     {isDirty && (
@@ -443,7 +443,7 @@ export default function RulesPage() {
                       </button>
                       {previewGen != null && (
                         <span className="text-2xs text-neutral-400 truncate max-w-[55%]">
-                          → {String((previewGen as Record<string, unknown>)[field] ?? "—")}
+                          → {String((previewGen as Record<string, unknown>)[field] ?? "none")}
                         </span>
                       )}
                     </div>
@@ -480,7 +480,7 @@ export default function RulesPage() {
                       })}
                       {(fields[field] || []).length === 0 && (
                         <span className="text-2xs text-faint">
-                          Built-in — click a value in the graph to override
+                          Built-in. Click a value in the graph to override
                         </span>
                       )}
                     </div>
@@ -497,7 +497,7 @@ export default function RulesPage() {
                     box and the surfaced matches are always reachable. */}
                 <div className="sticky -top-3 -mx-3 -mt-3 px-3 pt-3 pb-2 bg-canvas z-10 border-b border-line">
                   <div className="text-xs text-neutral-400 mb-2">
-                    Sample graph — click a value to pin it to{" "}
+                    Sample graph. Click a value to pin it to{" "}
                     <span className="text-brand-300">{FIELD_LABEL[activeField]}</span>
                   </div>
                   <div className="relative">
@@ -509,7 +509,7 @@ export default function RulesPage() {
                       type="search"
                       value={graphQuery}
                       onChange={(e) => setGraphQuery(e.target.value)}
-                      placeholder="Find a node — id, class_type, or prompt word (e.g. masterpiece)"
+                      placeholder="Find a node by id, class_type, or prompt word (e.g. masterpiece)"
                       className="w-full pl-8 pr-2 py-1.5 rounded-lg bg-surface border border-line text-xs placeholder:text-faint focus:border-brand-500/70 focus:outline-none"
                     />
                   </div>
@@ -518,7 +518,7 @@ export default function RulesPage() {
                       <div className="text-2xs text-neutral-400 mb-1">
                         {matches.length === 0
                           ? "No matches in this graph"
-                          : `${matches.length} match${matches.length > 1 ? "es" : ""} — click to jump to it; + pins to ${FIELD_LABEL[activeField]}`}
+                          : `${matches.length} match${matches.length > 1 ? "es" : ""}. Click to jump to it; + pins to ${FIELD_LABEL[activeField]}`}
                       </div>
                       <div className="max-h-40 overflow-auto space-y-0.5">
                         {matches.slice(0, 100).map((m) => (

@@ -9,7 +9,7 @@ A living checklist of work items for Moiré. Priorities: P0 (now), P1 (next), P2
 - Frontend: Vite + React + TS + Tailwind scaffolded, basic health check view [Done]
 - Dev UX: pnpm configured, concurrently one-command dev [Done]
 
-## P0 — Short-term deliverables
+## P0: Short-term deliverables
 
 - Libraries UI
   - Add library form (path, name) and list existing libraries [Done]
@@ -34,7 +34,7 @@ A living checklist of work items for Moiré. Priorities: P0 (now), P1 (next), P2
 - Basic auth/config
   - Configuration page for AI_TAGGING_URL and MONGO settings (read-only if env-based) [Pending]
 
-## P1 — Next improvements
+## P1: Next improvements
 
 - Async/background scanning
   - Move scanning to background jobs; add progress endpoints [Done]
@@ -53,7 +53,7 @@ A living checklist of work items for Moiré. Priorities: P0 (now), P1 (next), P2
   - Global toasts, retry flows, nicer error pages [Frontend]
   - Structured error responses [Backend]
 
-## P2 — Later / nice-to-have
+## P2: Later / nice-to-have
 
 - Workflow data parsing (ComfyUI metadata extraction) [Backend]
 - Drag & drop image import / link external folders [Frontend]

@@ -130,7 +130,7 @@ async def get_image_file(
 
 @router.head("/{image_id:path}/file")
 async def head_image_file(image_id: str):
-    """HEAD for the original image file — stat from the local filesystem."""
+    """HEAD for the original image file: stat from the local filesystem."""
     img = await _find_image_doc(image_id, {"path": 1})
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")

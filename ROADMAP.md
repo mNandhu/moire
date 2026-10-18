@@ -8,7 +8,7 @@ An image-centric personal gallery for AI art creators to browse, organize, and s
 
 ## Milestones
 
-### 0.2.0 — Usable alpha (Core flows)
+### 0.2.0: Usable alpha (Core flows)
 
 - Libraries UI: add/list/remove libraries; trigger rescan; show index counts
 - Gallery: All Images and per-library grid with thumbnails
@@ -22,7 +22,7 @@ Success criteria
 - Index and browse a real library (1k–5k images) without crashes
 - Tagging and search are usable end-to-end
 
-### 0.3.0 — Productivity (Batch & AI)
+### 0.3.0: Productivity (Batch & AI)
 
 - Batch selection: add/remove tags to multiple images
 - AI tagging preview & confirmation (single + batch)
@@ -34,7 +34,7 @@ Success criteria
 - Batch tag workflows save time on a 1k-image set
 - AI tagging integrated and reviewable pre-commit
 
-### 0.4.0 — Performance & polish
+### 0.4.0: Performance & polish
 
 - Virtualized grids; fast scroll
 - Thumbnail presets and regeneration; blurhash placeholders
@@ -46,19 +46,19 @@ Success criteria
 - Gallery scrolls smoothly with 20k+ thumbnails
 - Typical interactions feel instant (<100ms UI; <300ms API)
 
-### 0.5.0 — Metadata & search depth
+### 0.5.0: Metadata & search depth
 
 - (Optional) Parse ComfyUI/EXIF metadata and index
 - Advanced filters (dimensions, date ranges, file size)
 - Saved searches / smart collections
 
-### 0.6.0 — Collaboration & backups
+### 0.6.0: Collaboration & backups
 
 - Export/import DB snapshot
 - Optional user accounts (local auth)
 - Docker Compose for one-command setup
 
-### 1.0.0 — Stable release
+### 1.0.0: Stable release
 
 - Full docs and onboarding
 - Tests coverage for critical paths

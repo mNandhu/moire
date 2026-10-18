@@ -1,8 +1,8 @@
 """Unit tests for the Image tag-state invariant.
 
-These exercise the pure helpers/transforms in ``services.image_tags`` — the single
+These exercise the pure helpers/transforms in ``services.image_tags``, the single
 owner of the manual-prefix convention and the has_tags/has_ai_tags/has_prompt_tags
-recompute — so the invariant has a test surface that needs no database. The
+recompute, so the invariant has a test surface that needs no database. The
 transactional repo writes are covered separately by the DB integration tests.
 """
 

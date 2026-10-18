@@ -96,7 +96,7 @@ async def test_reproject_model_filter_works_after_real_reprojection(client, seed
         )
     reproject.reproject_library("L1")
 
-    # The model filter (reads gen_model) now returns the image — end to end.
+    # The model filter (reads gen_model) now returns the image. End to end.
     resp = await client.get("/images", params={"model": "pony"})
     assert [it["_id"] for it in resp.json()] == [image_id]
 
@@ -135,7 +135,7 @@ async def test_full_scan_indexes_images_and_rescan_preserves_tag_state(
         parameters="masterpiece\nSteps: 20, Model: sdxl",
     )
 
-    # Add the library through the API — this kicks off the real background scan.
+    # Add the library through the API. This kicks off the real background scan.
     resp = await client.post("/libraries", json={"path": str(lib_dir)})
     assert resp.status_code == 200, resp.text
     lib_id = resp.json()["_id"]

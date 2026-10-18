@@ -2,7 +2,7 @@ import { cn } from "../../lib/cn";
 
 /**
  * The Moiré mark: two offset sets of concentric rings. Where they cross, the
- * strokes beat against each other — the interference pattern the app is
+ * strokes beat against each other, the interference pattern the app is
  * named for. Kept in sync with `public/favicon.svg`.
  */
 export function MoireMark({

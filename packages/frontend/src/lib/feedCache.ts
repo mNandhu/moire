@@ -5,7 +5,7 @@
  * "Drop this image from the feed" was written twice with different mechanics:
  * ImageView patched broadly via setQueriesData while AllImagesPage patched one
  * exact key via setQueryData, so the same intent behaved differently depending
- * on which screen you were on. Broad is the correct reading — an image's score
+ * on which screen you were on. Broad is the correct reading. An image's score
  * or quarantine state should update wherever it is cached, not only under the
  * filter you happen to be looking at.
  *
@@ -51,7 +51,7 @@ export function removeImageFromFeeds(qc: QueryClient, id: string): void {
 }
 
 /**
- * Drop several images from every cached feed in one pass — the batch-selection
+ * Drop several images from every cached feed in one pass: the batch-selection
  * counterpart to removeImageFromFeeds.
  */
 export function removeImagesFromFeeds(

@@ -37,7 +37,7 @@ type Props = Omit<Parameters<typeof useImageLoadSlot>[0], "rootMargin"> & {
 
 /**
  * The hook gates on a mounted <img>, so the ref has to be attached during
- * render — a bare renderHook never populates it.
+ * render; a bare renderHook never populates it.
  */
 function setup(props: Partial<Props> = {}, maxConcurrent = 12) {
   const queue = props.queue ?? new ImageLoadQueue(maxConcurrent);
@@ -93,7 +93,7 @@ describe("ImageLoadQueue", () => {
 
   it("a stray release cannot drive the slot count negative", () => {
     // Without the guard this permanently raises the effective concurrency
-    // limit — the silent, global failure mode this module exists to prevent.
+    // limit: the silent, global failure mode this module exists to prevent.
     const q = new ImageLoadQueue(1);
     q.dequeue();
     q.dequeue();

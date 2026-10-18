@@ -1,7 +1,7 @@
 """Process-wide logging: one format on the console, plus a rotating log file.
 
 Before this, the `moire.*` loggers had no handler at all, so records fell
-through to Python's last-resort handler — WARNING and above only, unformatted,
+through to Python's last-resort handler: WARNING and above only, unformatted,
 stderr only. Errors were visible while a terminal was attached and gone after.
 
 `setup_logging()` is called from the app lifespan (so importing `src.main` in

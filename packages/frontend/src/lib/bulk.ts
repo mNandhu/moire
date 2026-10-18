@@ -6,7 +6,7 @@
  * backend, no progress to show the user, and one failure rejecting the whole
  * batch with no record of which writes had already landed. This runs a fixed
  * number at a time, reports progress as each settles, and always resolves with
- * a per-id account of what happened — so the caller can tell the user "912 of
+ * a per-id account of what happened, so the caller can tell the user "912 of
  * 1000, 88 failed" instead of just "failed".
  */
 

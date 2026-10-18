@@ -8,7 +8,7 @@
 #   - Thumbnails: many small WebP files under one root (THUMB_ROOT). Buffering ON
 #     (the default) is fine and efficient for these.
 #   - Originals: arbitrary absolute paths (library roots can be anywhere on disk).
-#     Served via FileResponse with Range support — give them an unbuffered block
+#     Served via FileResponse with Range support. Give them an unbuffered block
 #     so 206/seek pass straight through.
 
 server {
@@ -60,7 +60,7 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # OPTIONAL scale win — offload thumbnails from Python via X-Accel-Redirect.
+    # OPTIONAL scale win: offload thumbnails from Python via X-Accel-Redirect.
     # Only thumbnails qualify cleanly (single known root). Enable the backend to
     # emit `X-Accel-Redirect: /_thumbs/{key}` instead of FileResponse, then:
     # location /_thumbs/ {

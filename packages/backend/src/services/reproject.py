@@ -1,7 +1,7 @@
 """Reprojection: (re)derive structured ``gen.*`` on image rows from the raw
 generation data captured at scan time.
 
-Decoupled from disk scanning — it reads ``image_gen_raw`` (the cold table) and
+Decoupled from disk scanning. It reads ``image_gen_raw`` (the cold table) and
 writes the small structured subdoc (plus the promoted ``gen_*`` filter columns and
 the derived ``image_gen_terms`` rows) onto ``images``. Because raw is retained, this
 can re-run any time (e.g. after extraction rules change) without re-reading a file.
@@ -79,7 +79,7 @@ def _flush_batch(batch: list[tuple[str, dict]]) -> None:
             prompt_tags = [to_prompt(term) for term in (g.get("prompt_terms") or [])]
             image_tags.replace_prompt_sync(conn, image_id, prompt_tags)
     # This batch owns its transaction, so it owns the post-commit invalidation of
-    # the derived tag aggregation — once per batch, not once per image.
+    # the derived tag aggregation, once per batch, not once per image.
     tag_index.invalidate()
 
 

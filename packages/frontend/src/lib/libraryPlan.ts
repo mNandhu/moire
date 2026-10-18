@@ -60,7 +60,7 @@ export function isSelectable(c: LibraryCandidate): boolean {
 
 /**
  * Ticked by default: new folders with images that aren't hidden. Empty, hidden
- * and overlapping folders stay selectable but opt-in — overlaps index the same
+ * and overlapping folders stay selectable but opt-in; overlaps index the same
  * images twice, which is rarely what anyone wants.
  */
 export function defaultSelected(c: LibraryCandidate): boolean {

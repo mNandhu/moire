@@ -50,8 +50,8 @@ describe("gridColumns", () => {
 
 describe("column count as keyboard navigation sees it", () => {
   // The gallery's arrow keys step a row by asking gridColumns for the column
-  // count. It has to be the same question the grid packs with — same width,
-  // same density — or Up/Down jumps by the wrong number of tiles. This broke
+  // count. It has to be the same question the grid packs with: same width,
+  // same density, or Up/Down jumps by the wrong number of tiles. This broke
   // once already, when the grid derived columns from density and the keyboard
   // handler was still calling gridColumns with the default.
   it("agrees with the packing at every density", () => {
@@ -128,7 +128,7 @@ describe("estimateItemHeight", () => {
 // component, where "does a 3-column pack put item 4 under item 1" needed jsdom,
 // a ResizeObserver stub and a fake scroll container.
 
-// 100x200 at colWidth 100 gives a 200px tile — comfortably above
+// 100x200 at colWidth 100 gives a 200px tile, comfortably above
 // estimateItemHeight's 150px floor, so packed geometry is exact.
 const tall = (n: number) =>
   Array.from({ length: n }, () => ({ width: 100, height: 200 }));

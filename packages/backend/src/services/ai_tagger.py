@@ -124,7 +124,7 @@ def select_tags(
 
     Pure post-processing (threshold, optional MCUT, sort, cap) split out of the
     ONNX session so the tagging logic can be unit-tested with a fake ``preds``
-    array and a small :class:`LabelIndex` — no onnxruntime required.
+    array and a small :class:`LabelIndex`, no onnxruntime required.
     """
     scored = list(zip(labels.names, preds.astype(float)))
 
@@ -310,8 +310,8 @@ class TaggerManager:
 
         if self._load_task is not None and not self._load_task.done():
             # A load is already in flight. If it targets exactly this
-            # (repo, cache_dir), let it run. Otherwise the target changed — e.g.
-            # the user corrected a wrong cache dir — so supersede the stale load
+            # (repo, cache_dir), let it run. Otherwise the target changed, e.g.
+            # the user corrected a wrong cache dir, so supersede the stale load
             # and cancel its (possibly large) download instead of refusing to
             # start. The new load's existence check (see ensure_loaded ->
             # download_wd_tagger -> ModelDownloadManager.start) then loads from

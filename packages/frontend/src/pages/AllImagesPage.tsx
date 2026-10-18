@@ -78,7 +78,7 @@ export default function AllImagesPage() {
   const location = useLocation();
   // ImageView opens as an overlay on top of this page rather than routing in
   // place of it (see RootRoutes), so this page never unmounts while it's
-  // open — its global key listeners below must bail instead, or they'd keep
+  // open, its global key listeners below must bail instead, or they'd keep
   // acting on the backgrounded grid while ImageView is also handling keys.
   const overlayOpen = useOverlayOpen();
 
@@ -151,7 +151,7 @@ export default function AllImagesPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   // The grid's own box, not the padded page wrapper. Arrow-key row jumps have
   // to step by the number of columns the grid actually packed, which means
-  // measuring the same element at the same density the grid measures — a
+  // measuring the same element at the same density the grid measures, a
   // padded parent's clientWidth is ~48px wider and rounds to a different
   // column count at some widths.
   const gridWrapRef = useRef<HTMLDivElement | null>(null);
@@ -183,11 +183,11 @@ export default function AllImagesPage() {
   // Indexing runs as an async background scan/watcher, so images land after
   // a library is added/rescanned/changed on disk. The scan-progress poll that
   // triggers a feed refresh lives on the Libraries page, which is unmounted
-  // once the user is here — so the gallery must watch scan/watch state itself
+  // once the user is here, so the gallery must watch scan/watch state itself
   // and refetch the feed as images arrive, instead of needing a full reload.
   const refetchFeedRef = useRef(feed.refetch);
   refetchFeedRef.current = feed.refetch;
-  // Seed true so the first poll tick always does one fresh pull on mount —
+  // Seed true so the first poll tick always does one fresh pull on mount;
   // covers a scan that finishes in the race window between the feed's
   // mount-refetch and tick 1, and sidesteps the 30s stale-cache window.
   const wasScanningRef = useRef(true);
@@ -284,7 +284,7 @@ export default function AllImagesPage() {
       }
       // Everything past here mutates state the help overlay is covering. The
       // triage handler already bailed on `showShortcuts`; this one did not, so
-      // reading "Q — quarantined" in the overlay and pressing Q switched the
+      // reading "Q: quarantined" in the overlay and pressing Q switched the
       // feed underneath it, invisibly.
       if (showShortcuts) return;
 
@@ -415,7 +415,7 @@ export default function AllImagesPage() {
   const triageEnabled = !selectionMode && !groupMode && !showShortcuts;
 
   // Optimistically patch the feed cache so a score/quarantine shows instantly.
-  // Patches every cached feed, not just the current filter — the same image can
+  // Patches every cached feed, not just the current filter; the same image can
   // be cached under several.
   const patchFeed = useCallback(
     (mut: (pages: ImageDoc[][]) => ImageDoc[][]) => patchFeeds(queryClient, mut),
@@ -488,7 +488,7 @@ export default function AllImagesPage() {
       } else if (e.key === "Enter") {
         // The tile that receives focus is ThumbnailTile's wrapper <div
         // tabIndex={-1}>, not the inner <button>, so there is no default
-        // activation to fall back on — arrowing to a tile and pressing Enter
+        // activation to fall back on, arrowing to a tile and pressing Enter
         // did nothing at all.
         if (focusedIndex >= 0) {
           const it = items[focusedIndex];

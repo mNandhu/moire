@@ -8,18 +8,18 @@ is pure (no I/O), so it is unit-testable without a database or image files. The
 scanner stores that raw verbatim and :func:`extract` (re)derives structured
 fields from it, which is why reprojection never needs to touch disk again.
 
-The format knowledge — which chunk wins, PNG text vs EXIF, charset decoding —
+The format knowledge (which chunk wins, PNG text vs EXIF, charset decoding)
 lives behind :func:`gen_raw_from_embedded`, which takes the two embedded sources
 as plain values so every branch is reachable from a table test.
 
 Two source formats, two strategies:
 
-- **a1111** — the ``parameters`` text blob: positive prompt, an optional
+- **a1111**: the ``parameters`` text blob: positive prompt, an optional
   ``Negative prompt:`` block, then a trailing ``key: value, ...`` settings line.
-- **comfyui** — the ``prompt`` (API-format) JSON: a ``{node_id: {class_type,
+- **comfyui**: the ``prompt`` (API-format) JSON: a ``{node_id: {class_type,
   inputs}}`` graph. There is no flat "prompt" field, so we walk from the sampler
   node's ``positive``/``negative`` input links back to their source text nodes
-  (the structural fallback). IDs are never trusted — they renumber on edit.
+  (the structural fallback). IDs are never trusted; they renumber on edit.
 """
 
 from __future__ import annotations
@@ -39,9 +39,9 @@ from typing import Any
 # whole signature + extraction for every image of that workflow:
 #
 #   - literal control characters inside string values (a real newline pasted
-#     into a text-encode widget) — ``strict=False`` accepts them;
+#     into a text-encode widget): ``strict=False`` accepts them;
 #   - trailing bytes after the JSON document (NUL padding, a second
-#     concatenated blob) — ``raw_decode`` stops at the document's close.
+#     concatenated blob): ``raw_decode`` stops at the document's close.
 #
 # Truncated JSON (a clipped chunk) stays unrecoverable and returns ``None``.
 
@@ -53,7 +53,7 @@ def loads_lenient(text: Any) -> Any | None:
 
     Tries strict parsing first (the common case), then a lenient
     control-char-tolerant decode that ignores anything after the first complete
-    value. Returns ``None`` when no leading JSON value can be salvaged — callers
+    value. Returns ``None`` when no leading JSON value can be salvaged; callers
     treat that the same as an absent chunk.
     """
     if not isinstance(text, str) or not text.strip():
@@ -76,7 +76,7 @@ def sanitize_json(obj: Any) -> Any:
     ``json.loads`` parses into ``float('nan')``. That value is fine in BSON but
     poisons strict JSON serialization (Starlette renders with ``allow_nan=False``
     and raises), so any endpoint returning a raw graph must sanitize on the way
-    out. Pure and total — leaves all finite/non-float values untouched.
+    out. Pure and total: leaves all finite/non-float values untouched.
     """
     if isinstance(obj, float):
         return obj if math.isfinite(obj) else None
@@ -88,7 +88,7 @@ def sanitize_json(obj: Any) -> Any:
 
 
 # Canonical empty structured result. Callers fill what they can; nulls mean the
-# heuristic couldn't find it (which is fine — raw is always retained).
+# heuristic couldn't find it (which is fine; raw is always retained).
 _EMPTY: dict[str, Any] = {
     "source": None,
     "workflow_sig": None,
@@ -120,7 +120,7 @@ def decode_user_comment(uc: Any) -> str:
 
     The value is an 8-byte charset prefix followed by the payload. Anything that
     is neither a declared UNICODE/ASCII payload nor already ``str`` is decoded
-    leniently as utf-8 — A1111 forks in the wild write the bare string.
+    leniently as utf-8. A1111 forks in the wild write the bare string.
     """
     if isinstance(uc, str):
         return uc
@@ -140,7 +140,7 @@ def gen_raw_from_embedded(info: Any, user_comment: Any = None) -> dict | None:
     is the raw EXIF ``UserComment`` value if the container carries one. Returns
     ``None`` when nothing recognisable is embedded.
 
-    Pure — the branch that reads A1111 data out of JPEG/WebP EXIF is only
+    Pure: the branch that reads A1111 data out of JPEG/WebP EXIF is only
     reachable from a test because it takes these as values.
     """
     info = info or {}
@@ -176,7 +176,7 @@ def read_gen_raw(img: Any) -> dict | None:
     """Capture the ``image_gen_raw`` doc from an open PIL image.
 
     The only PIL-touching step in this module. Call it while the file handle is
-    open — the scanner captures at open time, inside the same ``with`` block that
+    open; the scanner captures at open time, inside the same ``with`` block that
     later renders the thumbnail, so the ordering cannot be got wrong.
     """
     try:
@@ -210,7 +210,7 @@ def _to_float(v: Any) -> float | None:
             return None
         f = float(str(v).strip())
         # NaN/Infinity (e.g. a ComfyUI `cfg` widget that round-tripped a non-
-        # finite value) must never enter gen.* — strict JSON serialization of the
+        # finite value) must never enter gen.*; strict JSON serialization of the
         # feed (Starlette uses allow_nan=False) would 500 on it.
         return f if math.isfinite(f) else None
     except (ValueError, TypeError):
@@ -232,7 +232,7 @@ _OPEN_FOR = dict(zip(_CLOSE, _OPEN))
 
 def _strip_emphasis_brackets(s: str) -> str:
     """Remove A1111/ComfyUI emphasis brackets while preserving balanced in-token
-    parens — e.g. danbooru qualifiers like ``hatsune_miku_(vocaloid)``.
+    parens, e.g. danbooru qualifiers like ``hatsune_miku_(vocaloid)``.
 
     Two moves, repeated until stable:
       * peel a fully-wrapping balanced pair: ``(masterpiece)`` -> ``masterpiece``;
@@ -292,8 +292,8 @@ def _sanitize_term(part: str) -> str:
 def tokenize_prompt(*texts: str | None) -> list[str]:
     """Split prompt text into lowercased search terms.
 
-    Splits on **commas only** — the tag separator in danbooru/wd-tagger and A1111
-    prompts — so multi-word tags survive intact (``hu tao (genshin impact)`` is one
+    Splits on **commas only**, the tag separator in danbooru/wd-tagger and A1111
+    prompts, so multi-word tags survive intact (``hu tao (genshin impact)`` is one
     term, not ``hu`` + ``tao``). Each tag is sanitized of prompt-weight syntax
     (emphasis brackets, escaped parens, trailing ``:weight``) via
     :func:`_sanitize_term`. Returns a sorted, de-duplicated list for stable storage
@@ -558,7 +558,7 @@ def parse_a1111(text: str | None) -> dict[str, Any]:
 # A ruleset (one per workflow_sig) pins dot-paths into the raw doc for specific
 # fields. Pins are tried first; a resolving pin overrides the structural/class
 # baseline. The fallback chain is therefore pinned -> structural -> class, and
-# structural is never removed — only overridden when a pin actually resolves.
+# structural is never removed; only overridden when a pin actually resolves.
 
 # Fields a user may pin, and their coercion. Derived fields (workflow_sig,
 # prompt_terms, group_id, source) are computed, never pinned.
@@ -574,7 +574,7 @@ def resolve_path(raw: Any, path: str) -> Any:
 
     Segments index dict keys or, when the current value is a list, integer
     positions. Returns ``None`` on any miss (missing key, bad index, walking
-    through a scalar) — never raises.
+    through a scalar). Never raises.
     """
     if not path or not isinstance(raw, (dict, list)):
         return None

@@ -48,7 +48,7 @@ export function ratingBadgeClass(rating: string): string {
  * `ratingBadgeClass` so the two readings of the same field agree.
  *
  * Returns null for ratings that aren't worth marking ("general" is the
- * unremarkable default, "-" means unrated) — the tile draws nothing.
+ * unremarkable default, "-" means unrated). The tile draws nothing.
  */
 export function ratingDotClass(rating: string | null | undefined): string | null {
   switch ((rating || "").trim()) {

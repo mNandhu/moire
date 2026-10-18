@@ -320,7 +320,7 @@ def test_loads_lenient_valid_passes_through():
 
 
 def test_loads_lenient_recovers_unescaped_control_char():
-    # A real newline pasted into a text-encode widget — strict json.loads rejects.
+    # A real newline pasted into a text-encode widget; strict json.loads rejects.
     s = '{"6":{"class_type":"CLIPTextEncode","inputs":{"text":"line1\nmasterpiece"}}}'
     out = gm.loads_lenient(s)
     assert out["6"]["inputs"]["text"] == "line1\nmasterpiece"

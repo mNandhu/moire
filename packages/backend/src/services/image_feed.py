@@ -32,8 +32,8 @@ class FeedFilterError(ValueError):
 # The triage flags (rating / quarantined / has_ai_tags) are here because the
 # grid draws them on every tile: the gallery is where images get scored,
 # quarantined and tagged, so "what have I already done to this one" has to be
-# visible without opening it. They are indexed scalars on `images` — a bool and
-# a short string per row — so the payload cost is far below a second request.
+# visible without opening it. They are indexed scalars on `images`, a bool and
+# a short string per row, so the payload cost is far below a second request.
 FEED_COLUMNS = (
     t.images.c._id,
     t.images.c.path,
@@ -50,7 +50,7 @@ FEED_COLUMNS = (
 # Names of the projected columns, so callers that build result dicts by hand
 # stay in step with FEED_COLUMNS. `list_groups` used to enumerate its nine keys
 # literally, which meant a column added here reached the flat feed and silently
-# skipped the grouped view — the grid then drew tiles with no rating, no
+# skipped the grouped view; the grid then drew tiles with no rating, no
 # quarantine badge and no untagged marker in one of the two gallery views.
 FEED_KEYS = tuple(c.name for c in FEED_COLUMNS)
 
@@ -109,7 +109,7 @@ def feed_where(f: FeedFilter):
     conds: list = []
     if f.tags:
         # `any:<base>` entries fan out to all sources; exact tags stay precise.
-        # AND across groups, OR within each group — one EXISTS per group.
+        # AND across groups, OR within each group: one EXISTS per group.
         for group in image_tags.tag_match_groups(f.tags, f.logic):
             conds.append(_tag_group_exists(group))
         if f.no_ai_tags == 1:

@@ -69,7 +69,7 @@ describe("ThumbnailTile triage state", () => {
   });
 });
 
-/** The thumbnail itself — the first button in the tile, before the checkbox. */
+/** The thumbnail itself: the first button in the tile, before the checkbox. */
 const pictureButton = () => screen.getAllByRole("button")[0];
 
 describe("ThumbnailTile selection", () => {
@@ -207,8 +207,8 @@ describe("ThumbnailTile batch peek", () => {
 
     fireEvent.mouseLeave(tile);
 
-    // Immediately after leaving, the layer must still be mounted — fading
-    // out — not yanked away in the same commit as the old "clear both layers
+    // Immediately after leaving, the layer must still be mounted, fading
+    // out, not yanked away in the same commit as the old "clear both layers
     // at once" code did.
     expect(container.querySelector('img[aria-hidden="true"]')).not.toBeNull();
 

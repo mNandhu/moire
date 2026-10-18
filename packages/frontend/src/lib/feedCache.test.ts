@@ -10,7 +10,7 @@ import {
 
 const doc = (id: string, score = 0) => ({ _id: id, score }) as ImageDoc;
 
-/** Two feeds cached under different filters — the case exact-key patching missed. */
+/** Two feeds cached under different filters: the case exact-key patching missed. */
 function seededClient() {
   const qc = new QueryClient();
   qc.setQueryData(["images", 60, { tags: [] }], {

@@ -24,7 +24,7 @@ def test_accepts_absolute_path(tmp_path):
 @pytest.mark.parametrize("raw", ["", "   ", '""', "''", '"  "'])
 def test_rejects_empty_or_whitespace_only(raw):
     # A quoted-empty path sanitizes to "", and Path("") resolves to the
-    # process's own cwd to pathlib rather than meaning "no path" — this is
+    # process's own cwd to pathlib rather than meaning "no path"; this is
     # what let a POST with `path: '""'` scan the backend's own cwd.
     with pytest.raises(ValidationError):
         LibraryIn(path=raw)
@@ -41,7 +41,7 @@ def test_rejects_bare_relative_path():
     sys.platform != "win32", reason="drive-relative paths are a Windows concept"
 )
 def test_rejects_windows_drive_relative_path():
-    # "C:" (no trailing separator) is drive-relative, not absolute — it names
+    # "C:" (no trailing separator) is drive-relative, not absolute; it names
     # "the current directory on drive C", which also depends on process cwd.
     with pytest.raises(ValidationError):
         LibraryIn(path="C:")

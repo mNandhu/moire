@@ -3,12 +3,12 @@ import { useBlocker } from "react-router-dom";
 
 /**
  * Guards the two exits a page cannot intercept itself: closing the tab and
- * in-app navigation. The third exit — swapping what is being edited — belongs
+ * in-app navigation. The third exit (swapping what is being edited) belongs
  * to whoever owns the edit session, since only it knows what "switch" means.
  *
  * One `dirty` flag drives both, so the browser prompt and the router prompt can
  * never disagree about whether there is work to lose. Tab close stays on the
- * browser's native `beforeunload` prompt — it's the only one a page may show
+ * browser's native `beforeunload` prompt; it's the only one a page may show
  * there. In-app navigation asks through `confirmLeave` (the app's dialog).
  */
 export function useUnsavedChangesGuard(

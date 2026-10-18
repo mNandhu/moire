@@ -24,7 +24,7 @@ function JobErrors({ errors }: { errors: AiJobError[] }) {
         {errors.map((e, i) => (
           <div key={`${e.image_id}:${i}`} className="text-neutral-300">
             <span className="font-mono text-muted">{e.image_id}</span>
-            <span className="text-faint"> — </span>
+            <span className="text-faint">: </span>
             <span className="text-red-300">{e.error}</span>
           </div>
         ))}
@@ -77,7 +77,7 @@ export function RecentJobs() {
     <Section title="Recent jobs">
       {jobs.length === 0 ? (
         <p className="text-sm text-faint">
-          Nothing yet — jobs you run show up here.
+          Nothing yet. Jobs you run show up here.
         </p>
       ) : (
         <ul className="divide-y divide-line -my-2">

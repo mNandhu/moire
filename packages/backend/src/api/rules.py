@@ -138,7 +138,7 @@ async def get_ruleset(sig: str):
             )
         ).scalar()
     if not doc:
-        # A signature with no ruleset yet — return an empty editable shell.
+        # A signature with no ruleset yet: return an empty editable shell.
         return {"_id": sig, "fields": {}}
     return _ruleset_doc(sig, doc)
 

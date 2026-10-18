@@ -32,7 +32,7 @@ const SIZES: Record<Size, string> = {
 type Look = {
   variant?: Variant;
   size?: Size;
-  /** Toggle/pressed state — applies the brand accent regardless of variant. */
+  /** Toggle/pressed state: applies the brand accent regardless of variant. */
   active?: boolean;
 };
 
@@ -68,7 +68,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
 /**
  * A Button that navigates. A real link, so it can be opened in a new tab,
- * copied, and shows its URL on hover — none of which a button calling
+ * copied, and shows its URL on hover; none of which a button calling
  * navigate() can do.
  */
 export function ButtonLink({ variant, size, active, className, ...rest }: LinkProps & Look) {

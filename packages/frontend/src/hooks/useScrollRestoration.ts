@@ -35,7 +35,7 @@ function readSaved(storageKey: string): PendingRestore | null {
  * page, so the scroll container is a brand-new node at scrollTop 0 and the
  * grid it contains has no height until it has measured itself. This hook used
  * to scroll on a 100ms `setTimeout`, which meant the browser reliably painted
- * the top of the gallery first and jumped a beat later — the "snap" was the
+ * the top of the gallery first and jumped a beat later; the "snap" was the
  * restoration itself, not a layout settling. So the offset is returned and the
  * grid applies it in a layout effect, in the same pre-paint commit where it
  * first has a real height to scroll within.

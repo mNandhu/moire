@@ -14,7 +14,7 @@ implement → manual review → verify → commit.
 
 ---
 
-## 1. Image-feed query module (genuine deepening) — ✅ DONE
+## 1. Image-feed query module (genuine deepening): ✅ DONE
 
 **Files:** `api/images.py:47-147` (`_build_feed_where`), `:150-165` (`_FEED_COLS`,
 `_attach_thumb_url`), `:168-226` (feed), `:336-421` (groups).
@@ -33,7 +33,7 @@ object → calls it. Projection / `thumb_url` decoration move with it.
 **Benefits:** Small interface (filter → rows) over lots of SQL = depth + leverage.
 Filter→WHERE becomes unit-testable. Feed/groups/export can't drift.
 
-## 2. Canonical image-id resolution seam — ✅ DONE
+## 2. Canonical image-id resolution seam: ✅ DONE
 
 **Files:** `api/images.py:471-480` (`_resolve_id`), `:433-443` (inline in
 workflow); `services/image_tags.py:258-268` (`_resolve`), `:271-286`
@@ -51,15 +51,15 @@ it.
 
 **Benefits:** Locality (slash fix touches one place); leverage.
 
-## 3. Single-image mutation ownership (restores a stated invariant) — ✅ DONE
+## 3. Single-image mutation ownership (restores a stated invariant): ✅ DONE
 
-**Files:** `api/images.py:483-528` (rating/score/quarantine — 3 near-identical
+**Files:** `api/images.py:483-528` (rating/score/quarantine; 3 near-identical
 resolve+update+return); `services/image_tags.py:310-370` (repo read-modify-write
 repeated 3×).
 
 **Problem:** CONTEXT.md: `image_tags` is the only place that mutates tag-state,
 `rating` included. But `set_image_rating` writes `rating` via raw `sa.update` in
-the router — and there's no rating setter in `image_tags` to call.
+the router, and there's no rating setter in `image_tags` to call.
 Score/quarantine likewise raw in the router. Separately,
 `apply_manual`/`remove_tags`/`replace_ai` each repeat
 resolve→fetch-tags→transform→persist.
@@ -71,12 +71,12 @@ owner; router just validates.
 **Benefits:** Restores the documented single-owner seam; collapses 3 shallow
 endpoints + 3 repeated orchestrations.
 
-## 4. Scanner orchestration (extracted pure fn, untested orchestration) — ✅ DONE
+## 4. Scanner orchestration (extracted pure fn, untested orchestration): ✅ DONE
 
 **Files:** `services/scanner.py:354-588` (`_run` closure), pure
 `reconcile_stale:225-241`.
 
-**Problem:** The pure deletion-decision was extracted for testability — but the
+**Problem:** The pure deletion-decision was extracted for testability, but the
 real bugs live in the untested 230-line orchestration: threadpool queue,
 batch-flush threshold, scattered cancel checks, stale+thumb cleanup, progress
 writes. No test seam on the risky part.
@@ -87,7 +87,7 @@ a real FS+DB.
 
 **Benefits:** Test surface moves to where the bugs are.
 
-## 5. AI tagger subsystem (two sub-seams) — ✅ DONE
+## 5. AI tagger subsystem (two sub-seams): ✅ DONE
 
 **Files:** `services/ai_tagger.py` (766 lines), `api/ai.py:55-74` (status).
 
@@ -95,7 +95,7 @@ a real FS+DB.
 ONNX inference (`WDTagger`/`select_tags`), and lifecycle (`TaggerManager`).
 Testing pure `select_tags` drags in onnxruntime+httpx. The download manager is
 cleanly separable. (b) `/ai/status` reaches into all three managers' internal
-shapes — mirrors internals, not a contract.
+shapes; mirrors internals, not a contract.
 
 **Solution:** Split the download manager into its own module; status route
 consumes a single assembled view object.
@@ -103,7 +103,7 @@ consumes a single assembled view object.
 **Benefits:** Pure inference testable in isolation; status route stops breaking
 on internal shape changes.
 
-## 6. Frontend: shared API + consistent seams (locality/DRY, not depth) — ✅ DONE
+## 6. Frontend: shared API + consistent seams (locality/DRY, not depth): ✅ DONE
 
 **Files:** 5 pages each define their own `api<T>()` (`AllImagesPage`,
 `LibrariesPage`, `AITaggingPage`, `OverviewPage`, `TagsPage`); `lib/gen.ts` has
@@ -116,13 +116,13 @@ private `getJson`/`postJson` not exported; query keys hand-written as
 
 **Benefits:** One adapter per concern instead of N; kills drift.
 
-## 7. Frontend: strand pure logic + state out of the monster pages — ◑ PARTIAL
+## 7. Frontend: strand pure logic + state out of the monster pages: ◑ PARTIAL
 
-Done: pure logic extracted to `lib/` with colocated tests —
+Done: pure logic extracted to `lib/` with colocated tests:
 `lib/rating.ts` (`pickRating`, `ratingBadgeClass`), `lib/tags.ts` (`formatTag`),
 `lib/blurhash.ts` (`accentFromBlurhash`), `lib/imageFilter.hasActiveFilter`, and
 `lib/dom.ts` (`isFormField`, the 3× copy-paste, now one). Plus `useSelectionMode`
-(`hooks/useSelectionMode.ts`) — the selection-Set + mode + toggle/clear +
+(`hooks/useSelectionMode.ts`), the selection-Set + mode + toggle/clear +
 auto-clear-on-exit, with a `renderHook` test.
 
 Deferred (deliberately): `useGridFocus`. It wraps focusedIndex + scroll-into-view

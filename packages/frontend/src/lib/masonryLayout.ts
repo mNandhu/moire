@@ -1,6 +1,6 @@
 // Masonry layout math for the virtualized gallery: how many columns to show at
 // a given density, how tall each tile packs, and which tiles a viewport needs
-// mounted. Pure functions — the arithmetic that decides whether the grid shows
+// mounted. Pure functions: the arithmetic that decides whether the grid shows
 // a blank band while scrolling belongs somewhere a test can reach.
 
 export type Dims = { width?: number; height?: number };
@@ -33,7 +33,7 @@ export function targetTileWidth(density: number): number {
  * Column count for a container width at a given density.
  *
  * This is the single source of truth for "how many columns is the gallery
- * showing" — the grid packs with it and the keyboard navigation steps rows by
+ * showing". The grid packs with it and the keyboard navigation steps rows by
  * it. They used to disagree: the CSS grid used viewport-based Tailwind
  * breakpoints (which could yield 1 column) while this returned 2/3/4 from the
  * container width, so arrow-key row jumps were wrong at narrow widths.
@@ -100,7 +100,7 @@ export const LOAD_AHEAD_PX = 1200;
 /**
  * How far ahead of the viewport the virtualized grid mounts tiles.
  *
- * Must exceed LOAD_AHEAD_PX so a tile is mounted before it wants to load —
+ * Must exceed LOAD_AHEAD_PX so a tile is mounted before it wants to load;
  * otherwise the load-ahead window is clipped by the mount window and thumbs
  * only start fetching once they are nearly on screen. These were two unrelated
  * literals in two files whose ordering was described in a pair of comments and
@@ -123,7 +123,7 @@ export type Packing<T> = {
   tiles: PackedTile<T>[];
   /** Tiles grouped by column, each sorted by ascending y. */
   columns: PackedTile<T>[][];
-  /** Height of the tallest column — the scrollable height of the grid. */
+  /** Height of the tallest column: the scrollable height of the grid. */
   totalHeight: number;
 };
 
@@ -132,7 +132,7 @@ export type Packing<T> = {
  * (ties go left), so short items pack up and tiles below rise to fill gaps
  * rather than leaving space under the short items in a tall row.
  *
- * `totalHeight` is the tallest column, not the sum — getting that wrong
+ * `totalHeight` is the tallest column, not the sum, getting that wrong
  * over-scrolls the grid by a factor of `cols`.
  */
 export function packColumns<T extends Dims>(
@@ -176,7 +176,7 @@ export function packColumns<T extends Dims>(
  * sorted by ascending y and tiles don't overlap, so the predicate is monotonic
  * and a binary search is valid.
  *
- * A tile straddling y must be included — it is partly on screen. That is the
+ * A tile straddling y must be included: it is partly on screen. That is the
  * `<` rather than `<=` on the bottom edge.
  */
 export function lowerBoundByBottom<T>(
@@ -198,7 +198,7 @@ export function lowerBoundByBottom<T>(
  * sides. Walks each column from the first tile reaching into the window and
  * stops once a tile starts past it (everything below starts lower still).
  *
- * An off-by-one here shows up as an intermittent blank band while scrolling —
+ * An off-by-one here shows up as an intermittent blank band while scrolling:
  * the worst feedback loop available, which is why it belongs somewhere a test
  * can reach.
  */

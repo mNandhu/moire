@@ -8,7 +8,7 @@ import { PromptTagsSection } from "./sections/PromptTagsSection";
  *
  * To add a new settings section: write a `*Section` component, then append one
  * entry to a group's `items` below. The nav, routing (`?section=<id>`), and
- * active highlight all derive from this registry — no other file needs editing.
+ * active highlight all derive from this registry. No other file needs editing.
  */
 export type SettingsSection = {
   /** URL slug (`?section=<id>`) and stable key. */

@@ -68,7 +68,7 @@ const MAX_HOLD_MS = 2000;
 
 export default function ImageView() {
   // `routeId` is where the URL points; `id` is the image actually on screen.
-  // They diverge only while a not-yet-decoded image is being waited on — see
+  // They diverge only while a not-yet-decoded image is being waited on; see
   // the commit-on-decode effect below.
   const { id: routeId } = useParams<{ id: string }>();
   const [displayId, setDisplayId] = useState<string | undefined>(routeId);
@@ -76,7 +76,7 @@ export default function ImageView() {
   const [pending, setPending] = useState(false);
   // Start of the current divergence between route and display, so the hold
   // ceiling is measured from the first keypress rather than restarted by each
-  // one — otherwise a held arrow key defers it forever.
+  // one; otherwise a held arrow key defers it forever.
   const holdStartRef = useRef<number | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -94,7 +94,7 @@ export default function ImageView() {
   const [loadedId, setLoadedId] = useState<string | null>(null);
   // Resolved media URLs keyed by image id (only non-passthrough modes populate
   // this). Kept as a map so an id change never renders the *previous* image's
-  // URL for a frame — the endpoint below is always derivable synchronously.
+  // URL for a frame; the endpoint below is always derivable synchronously.
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   // Holds decoded neighbour bitmaps alive so the browser keeps them in its
@@ -102,7 +102,7 @@ export default function ImageView() {
   // preload buys nothing but the HTTP hit.
   const preloadedRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
-  // Image filter carried in the URL — drives the shared Image feed so the
+  // Image filter carried in the URL, drives the shared Image feed so the
   // pages the gallery already fetched are reused here (no separate paging code).
   const filters = useMemo(() => parseFilters(searchParams), [searchParams]);
   const filterQuery = useMemo(
@@ -128,7 +128,7 @@ export default function ImageView() {
     [navigate, toImage, location.state],
   );
   // Closing the view: if it was opened over the gallery, go back to that exact
-  // history entry (cheap — the gallery never unmounted) instead of pushing a
+  // history entry (cheap, the gallery never unmounted) instead of pushing a
   // fresh navigation to it.
   const goBack = useCallback(() => {
     if (backgroundLocation) {
@@ -217,9 +217,9 @@ export default function ImageView() {
 
   // Blur-up placeholder shown under the original while it loads. Reuses the
   // exact thumb URL the gallery tile rendered (when the feed item is known)
-  // so the browser serves it from cache instead of refetching — the thumb is
+  // so the browser serves it from cache instead of refetching; the thumb is
   // almost always already decoded from scrolling past it in the grid. Looked
-  // up by `id` (the image on screen), not `index` (which tracks `routeId`) —
+  // up by `id` (the image on screen), not `index` (which tracks `routeId`);
   // those diverge while a navigation is held pending, and keying off the
   // route target would show the *next* image's thumb under the current one.
   const thumbUrl = useMemo(() => {
@@ -249,7 +249,7 @@ export default function ImageView() {
   }, [id, resolvedUrls]);
 
   // Commit-on-decode. Navigating only *requests* an image; the view keeps
-  // showing the current one — image and details panel together — until the
+  // showing the current one, image and details panel together, until the
   // requested image has decoded and can be painted in the same frame. Warm
   // (preloaded) images resolve immediately, so stepping stays instant; cold
   // ones hold the last good frame instead of tearing the stage away from the
@@ -355,7 +355,7 @@ export default function ImageView() {
         .catch(() => {});
     }
 
-    // Keep the retained set small — holding every visited bitmap alive would
+    // Keep the retained set small: holding every visited bitmap alive would
     // grow unbounded over a long browsing session.
     wanted.add(list[index]._id);
     for (const [key, img] of preloadedRef.current) {
@@ -428,7 +428,7 @@ export default function ImageView() {
       }
       // Curation acts on the image on screen. While the view is held mid-swap
       // that is not the one the URL has moved to, so ignore these until the
-      // stage and the route agree — better than scoring an image you have
+      // stage and the route agree; better than scoring an image you have
       // already stepped past.
       if (pending) return;
       // Curation: 1-5 set score, 0 clears, X quarantines/restores.
@@ -582,7 +582,7 @@ export default function ImageView() {
             browser hold the previous frame on screen until the next one has
             decoded, instead of flashing an empty stage. */}
         <div className="relative flex items-center justify-center">
-          {/* Ambient glow — a blurred accent panel matching the image box.
+          {/* Ambient glow: a blurred accent panel matching the image box.
                 The blur spreads the primary colour outward from every edge, so
                 the whole image acts as the light source (not a centre point).
                 Blooms in only once the image has loaded. */}
@@ -596,10 +596,10 @@ export default function ImageView() {
             />
           )}
           {/* Blur-up placeholder: the (already-cached) thumbnail, blurred and
-              slightly scaled up to hide its soft edge. Sits in normal flow —
+              slightly scaled up to hide its soft edge. Sits in normal flow;
               it is what defines the box while the original is absolutely
               positioned on top of it. Sized off the *original*'s dimensions
-              (from the fetched doc), not the thumbnail's own — the thumbnail
+              (from the fetched doc), not the thumbnail's own; the thumbnail
               is downscaled, so sizing off its intrinsic pixels would render
               the whole stage at thumbnail resolution on a large viewport,
               and a missing/failed thumbnail file (no intrinsic size at all)
@@ -626,11 +626,11 @@ export default function ImageView() {
             // Absolutely positioned over the blurred thumb, which owns the
             // box's size. Hidden (not just dimmed) until it has actually
             // painted, so the browser's line-by-line JPEG decode is never
-            // visible — only the blurred thumb is, until the swap.
+            // visible; only the blurred thumb is, until the swap.
             // Gated on `pending` only once loaded: when stepping, the src
             // only changes once the image has already decoded, so fading it
             // in would hide a frame that is ready to paint. The dim marks a
-            // frame that is *stale* — held while the next one loads.
+            // frame that is *stale*, held while the next one loads.
             className={`absolute inset-0 z-10 w-full h-full object-contain transition-opacity duration-200 ${
               !imgLoaded ? "opacity-0" : pending ? "opacity-40" : "opacity-100"
             }`}
@@ -668,7 +668,7 @@ export default function ImageView() {
           </button>
         </div>
       </div>
-      {/* Details sidebar — docked on desktop, slide-over drawer on mobile */}
+      {/* Details sidebar: docked on desktop, slide-over drawer on mobile */}
       <aside
         role="region"
         aria-label="Image details"
@@ -755,7 +755,7 @@ export default function ImageView() {
                 onCopyAll={() => void copyWorkflow()}
               />
 
-              {/* Tags — kept last; can be long, so it never pushes Curation
+              {/* Tags: kept last; can be long, so it never pushes Curation
                   and Generation data below the fold. */}
               <Section
                 title="Tags"
@@ -923,7 +923,7 @@ function ScorePicker({
   );
 }
 
-// Card shell used by the details sidebar — a titled, bordered panel with an
+// Card shell used by the details sidebar: a titled, bordered panel with an
 // optional right-aligned control (e.g. the rating editor).
 function Section({
   title,

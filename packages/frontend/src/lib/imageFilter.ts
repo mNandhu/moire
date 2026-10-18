@@ -1,4 +1,4 @@
-// Image filter — the criteria selecting which Images the gallery shows, plus
+// Image filter: the criteria selecting which Images the gallery shows, plus
 // its pure URL round-trip. parseFilters / serializeFilters are the single
 // source of truth so the URL and the Image feed query never drift.
 //
@@ -60,7 +60,7 @@ export type Filters = {
   maxH?: number;
   // Batch grouping: `group` collapses the feed into batches (grouped view);
   // `groupId` drills into one batch's members (ungrouped). Mutually exclusive
-  // in practice — drilling in turns collapse off.
+  // in practice: drilling in turns collapse off.
   group: boolean;
   groupId?: string;
 };
@@ -91,7 +91,7 @@ export const PAGE_LIMIT = 100;
  *
  * Back-compat: accepts the legacy singular `tag` param as well as `tags`.
  * serializeFilters always emits `tags`, so simply re-pushing a parsed filter
- * migrates a legacy URL — no separate migration step needed.
+ * migrates a legacy URL; no separate migration step needed.
  */
 export function parseFilters(sp: URLSearchParams): Filters {
   const tags = sp.getAll("tags");
@@ -123,7 +123,7 @@ function numOrUndef(v: string | null): number | undefined {
 }
 
 /**
- * Serialize an Image filter to URL search params (filter params only — no
+ * Serialize an Image filter to URL search params (filter params only, no
  * pagination cursor/limit). Used both for pushing the gallery URL and for
  * carrying the filter when navigating to ImageView.
  */
@@ -153,7 +153,7 @@ export function serializeFilters(filters: Filters): URLSearchParams {
  * filter except `group`/`group_id`, which the peek sets itself to scope to
  * one batch's members. Without this, the peek fetched a batch's members
  * unfiltered while the grouped feed picks each batch's *representative*
- * honoring the active filter — under a tag or quarantine filter those can
+ * honoring the active filter: under a tag or quarantine filter those can
  * disagree, so hovering could swap the tile to a different image than the
  * one it was showing at rest.
  */
@@ -178,7 +178,7 @@ export function buildImagesQuery(
   return sp.toString();
 }
 
-/** Cursor for the page after `page` — the last item's id, or null when empty. */
+/** Cursor for the page after `page`: the last item's id, or null when empty. */
 export function nextCursorOf(page: ImageDoc[]): string | null {
   return page.length ? page[page.length - 1]._id : null;
 }

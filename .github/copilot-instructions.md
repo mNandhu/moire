@@ -34,7 +34,7 @@ Brief: Moiré is a pnpm monorepo with a FastAPI backend (Python, MongoDB, MinIO)
 
 ## Frontend patterns
 
-- Fetch with "/api/..." — vite.config.ts proxies to backend.
+- Fetch with "/api/..."; vite.config.ts proxies to backend.
 - Media URL resolution (src/lib/media.ts): HEAD to detect JSON; if JSON, GET to extract { url }; else use endpoint (browser follows 307 redirects).
 - Infinite scroll & filters (pages/AllImagesPage.tsx): cursor-based by \_id; filters synced to URL; shortcuts: S toggle selection, F focus search, N toggle no-tags.
 - Stable grid (components/GalleryGrid.tsx): compute row spans from width/height to prevent reflow.
@@ -50,7 +50,7 @@ Brief: Moiré is a pnpm monorepo with a FastAPI backend (Python, MongoDB, MinIO)
 
 - Regenerate thumbnail endpoint:
   - Backend: in images router, read original (get_original), render JPEG, upload via put_thumb, update images.thumb_key; return 200 (optionally include fresh URL when mode=url).
-  - Frontend: call POST /api/images/{id}/regenerate-thumb; then reload image src — media.ts handles redirect/url.
+  - Frontend: call POST /api/images/{id}/regenerate-thumb; then reload image src; media.ts handles redirect/url.
 - Batch tag apply:
   - Backend: POST /tags/apply-batch with { ids:[], tags:[] } using $addToSet/$each; clear TTL cache; return counts.
   - Frontend: use selection in AllImagesPage; show toast on completion.

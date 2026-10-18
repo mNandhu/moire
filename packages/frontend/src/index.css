@@ -23,7 +23,7 @@ body {
 /* Focus rings aligned to brand accent.
  *
  * `border-radius` is deliberately NOT set here. It used to be, which forced a
- * 6px radius onto every focused element regardless of its own shape — the round
+ * 6px radius onto every focused element regardless of its own shape; the round
  * lightbox nav buttons squared off the moment you tabbed to them. `inherit`
  * would be a no-op at best; letting the element keep its own radius is the
  * whole point, and box-shadow follows it automatically. */
@@ -78,7 +78,7 @@ body {
  *
  * Note what `motion-safe:` does and doesn't do here. It compiles to
  * `prefers-reduced-motion: no-preference`, so a `motion-safe:` utility applies
- * only when reduce is OFF — it is a way to *scope motion to users who want it*,
+ * only when reduce is OFF; it is a way to *scope motion to users who want it*,
  * never a way to exempt an animation from this rule. Exempting one means
  * writing a more specific selector that beats these !important declarations,
  * and should be reserved for motion that carries information no static state

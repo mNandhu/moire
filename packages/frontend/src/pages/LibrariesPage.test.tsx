@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ToastProvider } from "../components/Toasts";
 import LibrariesPage from "./LibrariesPage";
 
-// Regression guard: removing a library must invalidate BOTH gallery caches —
+// Regression guard: removing a library must invalidate BOTH gallery caches:
 // the flat feed (`["images"]`) and the batch-collapsed grouped view
 // (`["image-groups"]`). The grouped view was added later; an invalidation that
 // only dropped `["images"]` left the grouped gallery serving images from a

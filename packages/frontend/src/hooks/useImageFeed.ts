@@ -11,7 +11,7 @@ import {
 
 /**
  * Query key for the Image feed. Keyed by the Image filter so the gallery and
- * ImageView share one cache when they hold the same filter — paging in one is
+ * ImageView share one cache when they hold the same filter; paging in one is
  * visible to the other. See CONTEXT.md › Frontend › Image feed.
  */
 export function imageFeedKey(filters: Filters, limit: number) {

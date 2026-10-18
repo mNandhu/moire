@@ -9,7 +9,7 @@ cancels the not-yet-started futures and stops, returning ``False``.
 
 This is the part of scanning that is fiddly to get right (prime / wait / refill /
 cancel) but trivial to test: hand it a list, a fake ``work``, and a cancel flag.
-The domain decisions — what a result means, when to flush — stay with the caller
+The domain decisions (what a result means, when to flush) stay with the caller
 via ``on_complete``.
 """
 
@@ -65,7 +65,7 @@ def run_pool(
                 try:
                     res: R | None = fut.result()
                     exc: BaseException | None = None
-                except Exception as e:  # noqa: BLE001 — reported, not swallowed
+                except Exception as e:  # noqa: BLE001 (reported, not swallowed)
                     res, exc = None, e
                 on_complete(res, exc)
             _refill()

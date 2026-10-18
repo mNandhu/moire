@@ -42,7 +42,7 @@ export function PageHeader({
    * total isn't known. Without it a growing number reads as a wrong total. */
   countLabel?: string;
   /** One quiet line beside the title. Only where it explains something the
-   * title doesn't — not a slogan. */
+   * title doesn't. Not a slogan. */
   description?: React.ReactNode;
   actions?: React.ReactNode;
   width?: PageWidth;

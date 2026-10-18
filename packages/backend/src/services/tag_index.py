@@ -2,15 +2,15 @@
 
 The Tags browser reads two derived views over the ``image_tags`` join table:
 
-- the **tag list** — grouped counts, either per stored tag or collapsed across
+- the **tag list**: grouped counts, either per stored tag or collapsed across
   sources into one ``any:<base>`` entry counting distinct images;
-- the **mosaic samples** — up to N images per tag, a pinned ``tag_meta``
+- the **mosaic samples**: up to N images per tag, a pinned ``tag_meta``
   thumbnail first, then random fill.
 
 Both are expensive (a full ``GROUP BY``; an ``ORDER BY RANDOM()`` scan), so both
 are memoized with a short TTL. **Invalidation belongs to this module, not to its
 callers.** Tag-state writers dirty the index through :func:`invalidate` once
-their transaction has committed — see :mod:`services.image_tags` (which owns
+their transaction has committed; see :mod:`services.image_tags` (which owns
 every async tag write) and :func:`services.reproject._flush_batch` (which owns
 its own sync transaction and so invalidates per batch). Routers never reach for
 the cache.
@@ -122,7 +122,7 @@ async def list_tags(
 
     # Merge mode (gallery search): collapse the three sources of each tag into
     # one cross-source `any:<base>` entry counting *distinct images*, so a tag
-    # the user both prompt- and manual-tagged isn't double-counted. No thumbs —
+    # the user both prompt- and manual-tagged isn't double-counted. No thumbs:
     # the autocomplete only needs id + count.
     if merge_sources:
         stmt = (
@@ -188,7 +188,7 @@ async def list_tags(
 async def samples_for_tag(tag: str, per: int) -> list[dict]:
     """Up to ``per`` distinct images for one tag's mosaic card. A pinned
     ``tag_meta`` thumbnail leads when present; the rest are random fill. Rows
-    carry ``_id``/``width``/``height``/``blurhash`` — the route decorates them
+    carry ``_id``/``width``/``height``/``blurhash``; the route decorates them
     with the thumb URL."""
     cache_key = (tag, per)
     cached = _read(_samples_cache, cache_key, _SAMPLES_TTL_SECONDS)
@@ -232,7 +232,7 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
                 seen.add(row._id)
                 out.append(dict(row._mapping))
 
-        # ORDER BY RANDOM() gives varied, non-duplicated images across tags — fixes
+        # ORDER BY RANDOM() gives varied, non-duplicated images across tags, fixes
         # common tags all showing the same most-recent image. Full scan + sort of
         # the matching rows, but the result is cached (TTL) and per-tag match sets
         # are small. Over-fetch to backfill any collision with the pinned image.

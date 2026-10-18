@@ -44,11 +44,11 @@ def _make_thumb_bytes(
     """
     try:
         with PILImage.open(path) as img:
-            # Original dimensions come from the header (no full decode) — read
+            # Original dimensions come from the header (no full decode), read
             # them before draft()/thumbnail() shrink the in-memory image.
             width, height = img.size
 
-            # Capture embedded generation metadata from the same open — the
+            # Capture embedded generation metadata from the same open. The
             # format knowledge lives in gen_metadata, which owns both halves.
             gen_raw = gen_metadata.read_gen_raw(img)
 
@@ -119,7 +119,7 @@ def image_id_for(library_id: str, root_path: Path, p: Path) -> str:
 
 # File-metadata columns the scanner refreshes on every pass. Tag-state columns
 # (tags/has_*/quarantined/score) are seeded only on insert and left untouched on
-# conflict — the SQLite equivalent of the old `$setOnInsert`.
+# conflict: the SQLite equivalent of the old `$setOnInsert`.
 _SCANNER_IMG_COLS = (
     "library_id",
     "path",
@@ -199,7 +199,7 @@ def ingest_single_file(library_id: str, root_path: Path, path: Path) -> bool:
     """Index one file the watcher observed as added/modified.
 
     Mirrors one iteration of the full scan (`_process_image` + the same
-    upsert statements) without touching any other row — the incremental
+    upsert statements) without touching any other row, the incremental
     counterpart to `scan_library_async`'s batch walk. Returns ``True`` on
     success (including "not an image, skipped").
     """
@@ -220,7 +220,7 @@ def ingest_single_file(library_id: str, root_path: Path, path: Path) -> bool:
         conn.execute(_image_upsert_stmt(), image_upsert_values(res.doc))
         _touch_library(conn, library_id, indexed_delta=0 if existed else 1)
     # A brand-new row carries no gen data to reproject over, but a modified
-    # file may have replaced its embedded metadata — always safe to re-derive.
+    # file may have replaced its embedded metadata, so re-deriving is always safe.
     if res.gen_raw_doc is not None:
         try:
             from .reproject import reproject_image
@@ -277,7 +277,7 @@ def reconcile_stale(
     discovered_ids: set[str], existing_docs: list[dict]
 ) -> tuple[list[str], list[str]]:
     """Given the ids seen this scan and the docs already in the DB, return
-    ``(stale_image_ids, stale_thumb_keys)`` — images that no longer exist on disk.
+    ``(stale_image_ids, stale_thumb_keys)``: images that no longer exist on disk.
 
     Pure set math, extracted from the scan loop because it *deletes* images and so
     is the highest-risk part to get wrong.
@@ -314,7 +314,7 @@ def is_scanning(library_id: str) -> bool:
     The watcher checks this before touching a library: a running scan's
     ``discovered_image_ids`` set is fixed at walk time, so an incremental
     ingest/delete racing it could be undone by the scan's stale-reconciliation
-    (or duplicate work the scan is already doing). Skipping here is safe — the
+    (or duplicate work the scan is already doing). Skipping here is safe; the
     scan itself reflects disk state as of its walk, and the periodic
     reconciliation rescan is the backstop for anything that changed mid-scan.
     """
@@ -377,7 +377,7 @@ def _process_image(library_id: str, root_path: Path, p: Path) -> _ScanResult:
             "blurhash": blurhash,
         }
         # Store embedded generation data verbatim in the cold collection (keyed
-        # by image id). Structured `gen.*` is derived later by reprojection — the
+        # by image id). Structured `gen.*` is derived later by reprojection; the
         # scan never parses, only captures + computes the workflow signature.
         gen_raw_doc = None
         if gen_raw is not None:
@@ -643,7 +643,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
                 _cancel_scans.discard(library_id)
                 _scan_threads.pop(library_id, None)
 
-    # Start background thread. NB: named `th` (not `t`) — `t` is the schema-table
+    # Start background thread. NB: named `th` (not `t`): `t` is the schema-table
     # module alias used inside `_run`, and a local `t` here would shadow it.
     th = threading.Thread(target=_run, name=f"scan-{library_id}", daemon=True)
     with _scan_lock:

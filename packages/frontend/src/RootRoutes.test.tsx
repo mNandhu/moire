@@ -79,14 +79,14 @@ describe("RootRoutes", () => {
     const scrollContainer = container.querySelector(".flex-1.overflow-auto");
     expect(scrollContainer).not.toBeNull();
 
-    // Open the focused tile — real navigation, not a mocked `navigate`.
+    // Open the focused tile: real navigation, not a mocked `navigate`.
     fireEvent.keyDown(window, { key: "ArrowRight" });
     fireEvent.keyDown(window, { key: "Enter" });
 
     const backButton = await screen.findByRole("button", { name: "Back" });
     expect(backButton).toBeInTheDocument();
 
-    // The gallery's scroll container must still be the exact same node —
+    // The gallery's scroll container must still be the exact same node:
     // proof `App`/`AllImagesPage` never unmounted underneath the overlay.
     expect(container.querySelector(".flex-1.overflow-auto")).toBe(
       scrollContainer,

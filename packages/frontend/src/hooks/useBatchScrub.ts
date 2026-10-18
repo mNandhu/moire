@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import type { ImageDoc } from "../lib/imageFilter";
 
-/** Wait this long before fetching — hovering past a tile shouldn't hit the API. */
+/** Wait this long before fetching; hovering past a tile shouldn't hit the API. */
 const HOVER_INTENT_MS = 350;
 /** How long each member is shown, including the crossfade into it. Long enough
- * that a frame gets a settled dwell after the ~300ms fade in ThumbnailTile —
+ * that a frame gets a settled dwell after the ~300ms fade in ThumbnailTile:
  * important for a 2-member batch, where a short interval just reads as an A/B
  * strobe rather than a cycle. */
 const FRAME_MS = 1500;
@@ -18,7 +18,7 @@ const MAX_MEMBERS = 12;
  * In the grouped view a batch of twenty variations collapses to one tile, and
  * the only way to see what else is in it is to drill in and come back. Since
  * batches are usually near-identical seeds of one prompt, a peek is enough to
- * decide whether the batch is worth opening — which is what this gives, without
+ * decide whether the batch is worth opening, which is what this gives, without
  * a navigation.
  *
  * Deliberately hover-intent gated and fetched at most once per tile: the
@@ -27,7 +27,7 @@ const MAX_MEMBERS = 12;
  *
  * `peekQuery` carries the gallery's active filters (tags, quarantined, etc.)
  * so the peek is scoped the same way the grouped feed picked this tile's
- * representative — see serializeFiltersForPeek. Fetched once per tile
+ * representative; see serializeFiltersForPeek. Fetched once per tile
  * (`fetchedRef`), so a filter change after a peek has already been cached
  * won't be reflected until the tile remounts; that's an acceptable gap for a
  * hover nicety.
@@ -43,8 +43,8 @@ export function useBatchScrub(
   // second hover reuses them instead of refetching.
   //
   // It is deliberately not set before the request: doing that meant a hover
-  // that ended while the fetch was in flight — i.e. any hover just past the
-  // 350ms intent delay — left the flag set with no frames stored, and the guard
+  // that ended while the fetch was in flight, i.e. any hover just past the
+  // 350ms intent delay, left the flag set with no frames stored, and the guard
   // below then blocked every later hover. Batch peek stayed dead for that tile
   // for the rest of its mounted life.
   const fetchedRef = useRef(false);
@@ -63,7 +63,7 @@ export function useBatchScrub(
           .map((d) => d.thumb_url ?? `/api/v1/images/${encodeURIComponent(d._id)}/thumb`)
           .filter(Boolean);
         // Decode every frame up front so the crossfade in ThumbnailTile never
-        // reveals an empty layer — a keyed/layered <img> paints nothing until
+        // reveals an empty layer: a keyed/layered <img> paints nothing until
         // its src has loaded, unlike the old single-element swap which kept
         // showing the previous frame while the next one fetched.
         urls.forEach((u) => {
@@ -73,7 +73,7 @@ export function useBatchScrub(
         fetchedRef.current = true;
         setFrames(urls.length > 1 ? urls : null);
       } catch {
-        // Peeking is a nicety — a failed fetch just leaves the still tile, and
+        // Peeking is a nicety; a failed fetch just leaves the still tile, and
         // leaves the flag clear so the next hover may try again.
         if (!cancelled) setFrames(null);
       }

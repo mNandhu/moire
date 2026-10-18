@@ -1,7 +1,7 @@
 """Per-library filesystem watcher: near-real-time incremental indexing.
 
 Hybrid model (see docs/phase-functional-features.md #4): this module gives the
-"near real-time" half — a `watchfiles` thread per watched library that feeds
+"near real-time" half: a `watchfiles` thread per watched library that feeds
 single-file adds/modifies/deletes to `scanner.ingest_single_file` /
 `scanner.remove_single_image`. The "periodic reconciliation" half is just the
 existing full `scan_library_async`, re-run on a timer here as a backstop for
@@ -61,7 +61,7 @@ def _wait_stable(path: Path, stop_event: threading.Event) -> bool:
     """Block (briefly) until `path`'s size stops changing, or give up.
 
     Returns False if the file vanished, never stabilized, or a stop was
-    requested mid-wait (library deleted / watching disabled) — callers treat
+    requested mid-wait (library deleted / watching disabled), callers treat
     all three as "skip, the periodic reconciliation will catch it eventually"
     (a live stop propagates immediately rather than blocking shutdown for the
     full stability window).
@@ -125,7 +125,7 @@ def _run_watch(w: _Watch) -> None:
     except Exception:
         # The root vanished (drive unplugged, share dropped) or watchfiles hit
         # a platform error. Best-effort: log and let the reconciliation timer
-        # (and a future add/rescan) be the recovery path — don't crash a
+        # (and a future add/rescan) be the recovery path; don't crash a
         # background thread the app doesn't otherwise supervise.
         logger.exception("watch loop exited unexpectedly library=%s", w.library_id)
 
@@ -157,7 +157,7 @@ def start_watch(library_id: str, path: str) -> None:
     """Start (or restart) watching `path` for `library_id`. Idempotent.
 
     The stop-old-then-install-new sequence holds `_lock` for its full
-    duration (including the old watcher's `join`), not just the dict swap —
+    duration (including the old watcher's `join`), not just the dict swap:
     two calls for the same `library_id` racing (startup vs. a concurrent PATCH)
     would otherwise both read no existing watcher, then both write, leaking
     the loser's thread with a `stop_event` nothing will ever set again.

@@ -3,19 +3,19 @@
 Conventions enforced here (and nowhere else):
 
 - ``tags`` is one ordered JSON array holding three kinds of tag:
-    * AI tags     — primary, stored unprefixed (e.g. ``"1girl"``)
-    * Manual tags — stored with a ``manual:`` prefix (e.g. ``"manual:favourite"``)
-    * Prompt tags — extracted from generation prompts, stored with a ``prompt:``
+    * AI tags     : primary, stored unprefixed (e.g. ``"1girl"``)
+    * Manual tags: stored with a ``manual:`` prefix (e.g. ``"manual:favourite"``)
+    * Prompt tags: extracted from generation prompts, stored with a ``prompt:``
       prefix (e.g. ``"prompt:masterpiece"``). Owned by reprojection, not the user.
-- ``has_tags``        — True iff ``tags`` has a *curatable* tag (a non-``prompt:``
+- ``has_tags``        : True iff ``tags`` has a *curatable* tag (a non-``prompt:``
   tag, i.e. AI or manual). Prompt-only images stay "untagged" for curation.
-- ``has_ai_tags``     — True iff ``tags`` has a tag that is neither manual nor prompt.
-- ``has_prompt_tags`` — True iff ``tags`` contains at least one ``prompt:`` tag.
-- ``rating``          — one of RATINGS; reset to ``"-"`` when AI tags are cleared.
+- ``has_ai_tags``     : True iff ``tags`` has a tag that is neither manual nor prompt.
+- ``has_prompt_tags``: True iff ``tags`` contains at least one ``prompt:`` tag.
+- ``rating``          : one of RATINGS; reset to ``"-"`` when AI tags are cleared.
 
 Every write recomputes the three flags from the resulting array
 (:func:`recompute_flags`) and rebuilds this image's rows in the derived
-``image_tags`` join table — all inside one transaction, so the booleans and the
+``image_tags`` join table, all inside one transaction, so the booleans and the
 index table can never drift from the array they summarise. Callers hand the repo a
 high-level intent (apply manual / remove / replace AI / clear AI / replace prompt);
 they never assemble SQL.
@@ -171,7 +171,7 @@ def id_variants(image_id: str) -> list[str]:
 
 def id_candidates(image_id: str) -> list[str]:
     """The ordered ``_id`` spellings to try for a lookup: the primary id first,
-    then its slash/backslash variants. The single source of this ordering — every
+    then its slash/backslash variants. The single source of this ordering. Every
     id lookup iterates this, so the resolution order can never drift."""
     return [image_id, *id_variants(image_id)]
 
@@ -282,7 +282,7 @@ async def resolve_image_id(conn: AsyncConnection, image_id: str) -> str | None:
 async def find_image(image_id: str, projection: dict | None = None) -> dict | None:
     """Look up an image by id, tolerating slash/backslash id variants.
 
-    ``projection`` is accepted for call-site compatibility but ignored — a single
+    ``projection`` is accepted for call-site compatibility but ignored; a single
     row fetch is cheap, and callers only read a handful of fields.
     """
     async with async_conn() as conn:
@@ -352,7 +352,7 @@ async def _mutate_tags(
     *,
     extra: dict[str, Any] | None = None,
 ) -> None:
-    """Resolve, read the current tag array, apply ``transform``, and persist —
+    """Resolve, read the current tag array, apply ``transform``, and persist:
     the one read-modify-write path behind every high-level tag intent. No-op if
     the image is unknown."""
     async with async_tx() as conn:

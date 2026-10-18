@@ -3,13 +3,13 @@
 A ``ScanWriter`` accumulates indexed image rows (and their optional raw-gen rows)
 and commits them in batches of ``batch_size`` through a caller-supplied ``commit``
 sink, then flushes the remainder at the end. Pulling this out of the scan closure
-gives the batch accounting a direct test surface — the exact place scan bugs hide:
+gives the batch accounting a direct test surface, the exact place scan bugs hide:
 the last partial batch never flushed, buffers cleared before a failed commit, the
 ``indexed`` count drifting from what was actually written.
 
 The ``commit`` sink owns the I/O (transaction + retry); ``ScanWriter`` owns only
 the accumulate / flush-every-N / flush-remainder accounting, so it can be tested
-with a list of fake rows and a counting sink — no DB, no threads.
+with a list of fake rows and a counting sink; no DB, no threads.
 """
 
 from __future__ import annotations

@@ -1,5 +1,5 @@
 # Moiré: FastAPI backend (embedded SQLite + filesystem thumbnails) and the
-# nginx-served frontend. No database or object-store containers — all state
+# nginx-served frontend. No database or object-store containers; all state
 # lives in the `moire_data` volume mounted at /data in the backend.
 #
 # Libraries are folders on the host: mount them into the backend (read-only is

@@ -5,7 +5,7 @@
  * are curation, not generation metadata), while rating, apply-tags and
  * set-tag-thumbnail were hand-rolled `fetch` + JSON.stringify inside ImageView,
  * bypassing the shared client entirely. "How does the UI mutate an Image" had
- * no single answer — you grepped.
+ * no single answer. You grepped.
  *
  * The backend counterpart is services/image_tags.py, the single owner of
  * per-image writes; this is its mirror on the client.

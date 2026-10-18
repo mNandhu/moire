@@ -20,7 +20,7 @@ type Toast = {
 export type ToastOptions = {
   type?: ToastType;
   /**
-   * An inline button on the toast — the undo affordance for reversible bulk
+   * An inline button on the toast: the undo affordance for reversible bulk
    * actions. Clicking it dismisses the toast.
    */
   action?: { label: string; onClick: () => void };
@@ -35,7 +35,7 @@ type ToastCtx = {
 const Ctx = createContext<ToastCtx | null>(null);
 
 const PLAIN_MS = 2500;
-/** Actionable toasts stay longer — an undo you can't reach isn't an undo. */
+/** Actionable toasts stay longer: an undo you can't reach isn't an undo. */
 const ACTION_MS = 7000;
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {

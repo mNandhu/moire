@@ -20,7 +20,7 @@ export function DropdownMenu({
   label?: React.ReactNode;
   items: DropdownItem[];
   "aria-label"?: string;
-  /** Icon-only trigger (e.g. a row's "more actions" ⋯) — no label, no chevron. */
+  /** Icon-only trigger (e.g. a row's "more actions" ⋯). No label, no chevron. */
   icon?: React.ReactNode;
   size?: "sm" | "md";
 }) {

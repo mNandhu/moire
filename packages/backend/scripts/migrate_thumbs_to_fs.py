@@ -2,7 +2,7 @@
 
 The FS key scheme is identical to the old MinIO object keys
 (`{library_id}/{image_id}.webp`), so existing `thumb_key` values in Mongo stay
-valid — this migration writes files only, it does NOT touch the database.
+valid. This migration writes files only, it does NOT touch the database.
 
 `minio` was removed from the backend deps, so run this with it temporarily:
 
@@ -14,7 +14,7 @@ Reads the OLD MinIO connection from env (or sensible dev defaults):
     MINIO_SECRET_KEY/MINIO_ROOT_PASSWORD, MINIO_SECURE, MINIO_BUCKET_THUMBS
 Writes to THUMB_ROOT (via the backend config / storage_fs key resolution).
 
-Alternative: skip this entirely and just rescan each library — thumbnails are
+Alternative: skip this entirely and just rescan each library; thumbnails are
 derived and will be regenerated onto the FS. Prefer that for small/fresh data.
 """
 
@@ -48,7 +48,7 @@ def main() -> int:
 
     client = Minio(endpoint, access_key=access, secret_key=secret, secure=secure)
     if not client.bucket_exists(bucket):
-        print(f"bucket {bucket!r} not found at {endpoint} — nothing to migrate")
+        print(f"bucket {bucket!r} not found at {endpoint}; nothing to migrate")
         return 0
 
     ensure_thumb_root()

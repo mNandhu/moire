@@ -18,7 +18,7 @@ export function Card({
   );
 }
 
-/** A titled content section — used for settings groups and framed panels. */
+/** A titled content section: used for settings groups and framed panels. */
 export function Section({
   title,
   description,

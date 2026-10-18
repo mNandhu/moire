@@ -22,15 +22,15 @@ interface VirtualizedGridProps {
   className?: string;
   getScrollContainer?: () => HTMLElement | null;
   focusedIndex?: number;
-  /** Index into DENSITY_STEPS — how many columns to pack in. */
+  /** Index into DENSITY_STEPS: how many columns to pack in. */
   density?: number;
   /** Hold quarantined tiles back visually. Off in the quarantined view, where
    * every tile is quarantined and dimming them all helps nobody. */
   dimQuarantined?: boolean;
-  /** Scroll offset to jump to once the grid has packed — see the layout effect
+  /** Scroll offset to jump to once the grid has packed; see the layout effect
    * below for why the grid owns this rather than the page. */
   restoreScrollTop?: PendingRestore | null;
-  /** Active gallery filters, serialized for tiles' batch-peek fetch — see
+  /** Active gallery filters, serialized for tiles' batch-peek fetch; see
    * serializeFiltersForPeek. */
   peekQuery?: string;
 }
@@ -47,7 +47,7 @@ const ENTRANCE_WINDOW_MS = 900;
  *
  * Always virtualized. There used to be a second, CSS-grid implementation that
  * took over below 150 items, which meant the grid swapped implementations
- * mid-scroll on the first page boundary — a full remount from row-spans to
+ * mid-scroll on the first page boundary: a full remount from row-spans to
  * absolute positioning. The two also disagreed about column count (viewport
  * breakpoints vs container width), so keyboard row-jumps were wrong in one of
  * them. One implementation, one `gridColumns`, no swap.
@@ -103,7 +103,7 @@ export function VirtualizedGrid({
   // Track scrollTop from the *outer* scroll container.
   //
   // A layout effect, not a passive one. `wrapperWidth` starts at 0, which makes
-  // `colWidth` 0, which makes `packColumns` bail — so the first render of the
+  // `colWidth` 0, which makes `packColumns` bail, so the first render of the
   // grid has no tiles at all. Measuring after paint meant the browser reliably
   // painted that empty frame, then a second frame with the tiles at the top of
   // the list, before anything landed where it belonged. Measuring before paint
@@ -181,7 +181,7 @@ export function VirtualizedGrid({
   //
   // Keyed on "index >= the count before this page arrived" rather than on
   // mount, because virtualization unmounts and remounts tiles constantly while
-  // scrolling — animating on mount would make the grid flicker every time you
+  // scrolling: animating on mount would make the grid flicker every time you
   // scrolled back up. The window closes on a timer so a tile that scrolls away
   // and returns comes back without re-animating.
   const knownCountRef = useRef(0);
@@ -191,7 +191,7 @@ export function VirtualizedGrid({
       setEntranceFrom(knownCountRef.current);
     } else if (items.length < knownCountRef.current) {
       // Images were removed (a bulk quarantine drops them from the cache).
-      // Nothing here is new, so nothing should animate — setting 0 would fade
+      // Nothing here is new, so nothing should animate; setting 0 would fade
       // the entire visible grid back in every time a batch completes.
       setEntranceFrom(Infinity);
     }
@@ -247,7 +247,7 @@ export function VirtualizedGrid({
               style={{
                 // No `will-change: transform` here. It used to sit on every
                 // visible tile permanently, promoting each one to its own
-                // compositor layer — a real memory cost on a dense grid, for an
+                // compositor layer, a real memory cost on a dense grid, for an
                 // element whose transform is set once and never animated.
                 transform: `translate(${tile.x}px, ${tile.y}px)`,
                 width: `${tile.w}px`,
@@ -257,7 +257,7 @@ export function VirtualizedGrid({
               {/* The entrance animation lives on an inner element, and the
                   position on the outer one. They cannot share: `fade-in`
                   animates `transform`, and an animated property outranks an
-                  inline style for as long as it runs — with `fill-mode: both`,
+                  inline style for as long as it runs; with `fill-mode: both`,
                   that includes the whole stagger delay. Putting both on one
                   div meant every entering tile rendered at the origin until
                   its animation ended, so the grid opened as a pile of

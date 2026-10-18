@@ -11,7 +11,7 @@ import {
  *
  * The gallery used to render nothing at all in this window: the grid was gated
  * on `items.length > 0` and the empty state on `!isLoading`, so between them
- * sat a blank screen that read as "broken" rather than "loading" — worst on a
+ * sat a blank screen that read as "broken" rather than "loading"; worst on a
  * cold backend, which is exactly when it showed longest.
  *
  * Shapes vary in height on a fixed cycle rather than randomly, so the skeleton
@@ -24,14 +24,14 @@ export function GallerySkeleton({
   rows = 3,
 }: {
   density?: number;
-  /** Roughly how many rows to fill — enough to reach the fold. */
+  /** Roughly how many rows to fill, enough to reach the fold. */
   rows?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
   // Layout effect so the skeleton is sized in the first painted frame rather
-  // than flashing empty for one — the same measure-after-paint gap the grid had.
+  // than flashing empty for one; the same measure-after-paint gap the grid had.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -68,7 +68,7 @@ export function GallerySkeleton({
                     className="relative overflow-hidden rounded-xl bg-neutral-800/50"
                     style={{ height: `${Math.round(h)}px` }}
                   >
-                    {/* Sweeping highlight — the same `shimmer` keyframe the
+                    {/* Sweeping highlight: the same `shimmer` keyframe the
                         design system already defines, finally used. */}
                     <div className="absolute inset-0 -translate-x-full motion-safe:animate-shimmer bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
                   </div>

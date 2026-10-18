@@ -1,6 +1,6 @@
 """Tag index: cache staleness rules + that every tag writer dirties it.
 
-Before the index owned its own invalidation this bug class was unreachable —
+Before the index owned its own invalidation this bug class was unreachable:
 "writer X forgot to clear the cache" could only be observed through HTTP with a
 real 30-second clock, which is why it was never tested and why three writers
 silently skipped it.
@@ -82,7 +82,7 @@ async def test_removing_a_tag_dirties_a_warm_index(client, seed):
 
 @pytest.mark.asyncio
 async def test_clear_ai_all_dirties_a_warm_index(client, seed):
-    """`clear_ai_all` lives outside the router entirely — it could never have
+    """`clear_ai_all` lives outside the router entirely; it could never have
     reached the old module-private cache."""
     seed("L1:a.jpg", tags=("cat", "manual:keep"))
     assert await _counts(client) == {"cat": 1, "manual:keep": 1}
@@ -95,7 +95,7 @@ async def test_clear_ai_all_dirties_a_warm_index(client, seed):
 
 @pytest.mark.asyncio
 async def test_replace_ai_dirties_a_warm_index(temp_db, client, seed):
-    """The AI job worker's write path, exercised directly — it runs on the job
+    """The AI job worker's write path, exercised directly; it runs on the job
     queue, not through any tags route."""
     seed("L1:a.jpg", tags=("cat",))
     assert await _counts(client) == {"cat": 1}
@@ -200,7 +200,7 @@ async def test_removing_a_library_dirties_a_warm_index(client, seed):
 @pytest.mark.asyncio
 async def test_scan_reconcile_dirties_the_index(client, tmp_path):
     """A real scan: reconciling away a file that vanished from disk deletes the
-    image, whose `image_tags` rows cascade — so the counts move even though the
+    image, whose `image_tags` rows cascade, so the counts move even though the
     scan never wrote a tag itself. The reconcile owns its own sync transaction."""
     from PIL import Image
 

@@ -12,8 +12,8 @@ import {
 /**
  * One editing session over a signature's extraction Ruleset.
  *
- * There are four ways to leave or lose an edit — browser unload, in-app
- * navigation, switching signature, deleting the ruleset — and they used to
+ * There are four ways to leave or lose an edit: browser unload, in-app
+ * navigation, switching signature, deleting the ruleset, and they used to
  * re-implement the dirty check three different ways with no shared definition
  * of dirty. Worse, the baseline ref was reassigned in three separate places;
  * missing one leaves the page permanently dirty, so every subsequent navigation
@@ -34,7 +34,7 @@ export type RulesetSession = {
   busy: boolean;
   /**
    * The ruleset failed to load. The editor is empty, not the server's state,
-   * so saving would overwrite the real ruleset — save is refused until a
+   * so saving would overwrite the real ruleset; save is refused until a
    * reload (clicking the signature again) succeeds.
    */
   loadFailed: boolean;
@@ -61,7 +61,7 @@ const nativeConfirm: ConfirmDiscard = async ({ title, message }) =>
 /**
  * Comparable form of a field map: empty pin lists dropped, keys sorted. Pinning
  * then unpinning a path leaves `{model: []}`, and the server may return keys
- * in another order — neither is an edit.
+ * in another order; neither is an edit.
  */
 function canonical(fields: RuleFields): string {
   const out: Record<string, string[]> = {};
@@ -130,7 +130,7 @@ export function useRulesetSession({
       const sig = row.workflow_sig;
       currentSig.current = sig;
       // Reset synchronously: the previous signature's pins must never show
-      // (or be savable) under this one, even while — or if — the load fails.
+      // (or be savable) under this one, even while, or if, the load fails.
       setSelected(row);
       setLoadFailed(false);
       setLoading(true);
@@ -188,11 +188,11 @@ export function useRulesetSession({
 
   const save = useCallback(async () => {
     if (!selected) return;
-    // Until the load lands the editor shows {} — not the server's ruleset —
+    // Until the load lands the editor shows {}, not the server's ruleset,
     // so saving now would wipe it.
     if (loading) return;
     if (loadFailed) {
-      notify("Ruleset didn't load — click the signature to retry before saving", "error");
+      notify("Ruleset didn't load. Click the signature to retry before saving", "error");
       return;
     }
     const sig = selected.workflow_sig;

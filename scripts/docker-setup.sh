@@ -25,7 +25,7 @@ else
 fi
 
 if [ ! -f docker-compose.override.yml ]; then
-    echo "⚠️  No docker-compose.override.yml — mount your image folders into the"
+    echo "⚠️  No docker-compose.override.yml. Mount your image folders into the"
     echo "   backend there (see docs/docker-guide.md) or it can't see any libraries."
 fi
 

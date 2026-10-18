@@ -1,5 +1,5 @@
 """Integration tests for the single-image scalar mutations (rating / score /
-quarantine) — the writes that now pass through image_tags' scalar setters so the
+quarantine), the writes that now pass through image_tags' scalar setters so the
 documented single-owner rule holds. Exercised through the real ASGI app."""
 
 import pytest

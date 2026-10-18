@@ -72,7 +72,7 @@ Quick wins already in place:
 ### 6) Scanner throughput
 
 - Issues:
-  - One Mongo `update_one` per image; one MinIO `put_object` per asset — many round trips.
+  - One Mongo `update_one` per image; one MinIO `put_object` per asset: many round trips.
   - Thread count based on CPU may overrun MinIO/Mongo under load.
 - Fixes:
   - Batch Mongo writes with `bulk_write` (e.g., 200–500 ops per batch).
@@ -105,7 +105,7 @@ Quick wins already in place:
 ### 10) Observability and protection
 
 - Add minimal request timing middleware and per-endpoint metrics (Prometheus or StatsD).
-- Log slow queries (>100ms) and slow MinIO calls — add timers around critical sections.
+- Log slow queries (>100ms) and slow MinIO calls. Add timers around critical sections.
 - Add basic rate limiting for non-media endpoints if needed to protect DB.
 
 ## Phased rollout plan

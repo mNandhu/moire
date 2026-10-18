@@ -7,12 +7,12 @@ import { resolveMediaUrl } from "../lib/media";
  * with markup inside ImageThumbnail.
  *
  * The invariants are the ones a resource pool always has, and their failure mode
- * is silent and global — leak enough slots and every subsequent thumbnail in the
+ * is silent and global; leak enough slots and every subsequent thumbnail in the
  * app stops loading, with no error and no log. They are stated here as code:
  *
  *  - a tile enqueues at most once per src (a re-render during the async
  *    URL-resolve gap must not take a second slot);
- *  - every acquired slot is released exactly once — on load, on error, on
+ *  - every acquired slot is released exactly once, on load, on error, on
  *    unmount, or when src changes mid-flight;
  *  - a slot granted after the tile unmounted, or after its src moved on, is
  *    handed straight back.
@@ -137,7 +137,7 @@ export function useImageLoadSlot({
   }, [src]);
 
   // Gate: priority/eager tiles load on mount, everything else waits for the
-  // IntersectionObserver. The observer root must be the real scrolling element —
+  // IntersectionObserver. The observer root must be the real scrolling element:
   // rootMargin only expands the root, while intermediate scroll containers clip
   // at zero margin, killing the preload window.
   useEffect(() => {
@@ -165,7 +165,7 @@ export function useImageLoadSlot({
     return () => observer.disconnect();
   }, [priority, eager, getRoot, rootMargin]);
 
-  // Acquire a slot, and only then assign the real <img src> — assigning earlier
+  // Acquire a slot, and only then assign the real <img src>, assigning earlier
   // would double-fetch (a preload Image() plus the <img>).
   useEffect(() => {
     if (!shouldLoad || loaded || error) return;
@@ -190,7 +190,7 @@ export function useImageLoadSlot({
       const token = Symbol("loadToken");
       currentSlotTokenRef.current = token;
 
-      // src already usable (embedded in the list payload) — assign directly.
+      // src already usable (embedded in the list payload): assign directly.
       if (preResolved) {
         setAssignedSrc(srcAtEnqueue);
         return;

@@ -26,7 +26,7 @@ logger = logging.getLogger("moire")
 async def lifespan(app: FastAPI):
     setup_logging()
     # Startup: create the SQLite schema (tables + indexes) if absent. Declarative
-    # DDL means no flag backfill is needed — columns carry their defaults.
+    # DDL means no flag backfill is needed; columns carry their defaults.
     await ensure_schema()
     # Ensure the thumbnail root dir exists (run off the event loop)
     await anyio.to_thread.run_sync(ensure_thumb_root)  # type: ignore[attr-defined]

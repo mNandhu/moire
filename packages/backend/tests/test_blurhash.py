@@ -1,6 +1,6 @@
 """BlurHash encoder invariants. We can't decode in-tree, so we assert the
 wire format (length, charset, header) and that the DC term round-trips to the
-image's average colour — that's what the frontend decoder reads first."""
+image's average colour: that's what the frontend decoder reads first."""
 
 import numpy as np
 

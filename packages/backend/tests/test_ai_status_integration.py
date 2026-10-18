@@ -1,4 +1,4 @@
-"""Integration test for the assembled AI status view — confirms the route stitches
+"""Integration test for the assembled AI status view: confirms the route stitches
 the tagger + download managers into one object with the settings' target."""
 
 import pytest

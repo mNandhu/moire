@@ -85,7 +85,7 @@ export function Sidebar({
 
   return (
     <aside className="h-dvh w-full bg-sunken shadow-rail flex flex-col overflow-hidden">
-      {/* Brand — same 64px height and border as every page header, so the
+      {/* Brand: same 64px height and border as every page header, so the
           two read as one line across the app. Collapsed, the mark itself
           is the expand control. */}
       <div
@@ -144,7 +144,7 @@ export function Sidebar({
         ))}
       </nav>
 
-      {/* Footer. The backend only earns a line when something is wrong —
+      {/* Footer. The backend only earns a line when something is wrong:
           a permanent "Connected" is noise. */}
       <div className="px-3 py-3 border-t border-line space-y-1">
         {status === "offline" && (

@@ -29,7 +29,7 @@ def fs(tmp_path, monkeypatch):
 
 
 def test_put_then_read_thumb_with_colon_in_image_id(fs):
-    # image_id carries the `{library_id}:{relpath}` colon — and on Windows the
+    # image_id carries the `{library_id}:{relpath}` colon, and on Windows the
     # relpath separator is a backslash.
     library_id = "lib123"
     image_id = "lib123:sub\\ComfyUI_00002_.png"

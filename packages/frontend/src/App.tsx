@@ -138,7 +138,7 @@ export default function App() {
 
   return (
     // Transparent, not `bg-neutral-900`: index.css paints the app's radial
-    // gradients on <body>, and an opaque root covered every one of them — the
+    // gradients on <body>, and an opaque root covered every one of them, the
     // designed background was in the stylesheet but had never been visible.
     <MobileNavContext.Provider value={openMobileNav}>
       <div className="h-dvh text-white">
