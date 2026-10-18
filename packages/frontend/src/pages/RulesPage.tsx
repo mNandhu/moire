@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useRulesetSession } from "../hooks/useRulesetSession";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
 import {
@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   MousePointerClick,
   Pencil,
+  Images,
   Upload,
   ChevronRight,
   FileJson,
@@ -570,6 +571,16 @@ export default function RulesPage() {
                         >
                           <Pencil size={12} />
                         </button>
+                      )}
+                      {fam.id && (
+                        <Link
+                          to={`/?workflow=${encodeURIComponent(fam.id)}`}
+                          className="shrink-0 p-1 rounded text-faint hover:text-neutral-100 hover:bg-raised"
+                          aria-label={`View images from ${fam.name}`}
+                          title="View images"
+                        >
+                          <Images size={12} />
+                        </Link>
                       )}
                       <span className="ml-auto text-2xs text-faint tabular-nums shrink-0">
                         {fam.versions.length} {fam.versions.length === 1 ? "version" : "versions"}

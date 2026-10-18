@@ -27,6 +27,18 @@ async def test_groups_collapse_to_newest_representative(client, seed):
     assert len(rows) == 2
 
 
+async def test_groups_order_by_newest_member_time(client, seed):
+    # The batch's newest member is by time, not id; batches sort by it too.
+    seed("L1:z_old", mtime=100, gen={"group_id": "G", "workflow_sig": "s"})
+    seed("L1:a_new", mtime=300, gen={"group_id": "G", "workflow_sig": "s"})
+    seed("L2:solo", library_id="L2", mtime=200, gen={"workflow_sig": "s"})
+    rows = (await client.get("/images/groups")).json()
+    assert [(r["_id"], r["group_count"]) for r in rows] == [
+        ("L1:a_new", 2),
+        ("L2:solo", 1),
+    ]
+
+
 async def test_groups_project_the_same_columns_as_the_flat_feed(client, seed):
     """The grid draws the same triage state in both gallery views.
 
@@ -117,3 +129,28 @@ async def test_tag_untagged_skips_quarantined_like_coverage(client, seed, monkey
     assert queued == [["L1:b"]]
     cov = (await client.get("/ai/coverage")).json()
     assert cov["untagged"] == len(queued[0])
+
+
+async def test_stats_counts_images_per_local_day_and_quarantine(client, seed):
+    import time
+
+    now = time.time()
+    # Two on one day, one a day later, one far outside the window.
+    day0 = (now // 86400 - 3) * 86400 + 3600  # 01:00 UTC, three days ago
+    seed("L1:a", mtime=day0)
+    seed("L1:b", mtime=day0 + 60, quarantined=True)
+    seed("L2:c", library_id="L2", mtime=day0 + 86400)
+    seed("L1:old", mtime=now - 400 * 86400)
+    seed("L1:none")
+
+    body = (await client.get("/images/stats", params={"days": 30})).json()
+    assert [r["count"] for r in body["activity"]] == [2, 1]
+    assert body["quarantined"] == 1
+
+    # Two hours west of UTC, 01:00 UTC is still the previous local day.
+    west = (
+        await client.get("/images/stats", params={"days": 30, "tz_offset": -120})
+    ).json()
+    utc_days = [r["day"] for r in body["activity"]]
+    assert [r["day"] for r in west["activity"]] != utc_days
+    assert [r["count"] for r in west["activity"]] == [2, 1]

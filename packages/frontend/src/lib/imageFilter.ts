@@ -28,6 +28,9 @@ export type ImageDoc = {
   group_count?: number;
   // DB-only curation flag; quarantined images leave the default feed.
   quarantined?: boolean;
+  // File modification time (epoch seconds): the feed's newest-first sort key
+  // and half of its cursor. Null for rows scanned without one.
+  mtime?: number | null;
   // Summary flag maintained by services/image_tags.py. The grid draws an
   // "untagged" marker from it so an un-AI-tagged image is visible at a glance.
   has_ai_tags?: boolean;
@@ -39,6 +42,10 @@ export type ImageDoc = {
 };
 
 export type TagLogic = "and" | "or";
+
+/** Feed order; see services/image_feed.py `SORTS`. */
+export type FeedSort = "newest" | "oldest" | "top";
+const SORTS: readonly FeedSort[] = ["newest", "oldest", "top"];
 
 export type Filters = {
   tags: string[];
@@ -63,6 +70,13 @@ export type Filters = {
   // in practice: drilling in turns collapse off.
   group: boolean;
   groupId?: string;
+  // Workflow: a whole family (its editor-graph id, every version Rules groups
+  // under it) or one version (its signature). One or the other.
+  workflow?: string;
+  workflowSig?: string;
+  // How the feed is ordered. An order, not a filter: never a chip, never
+  // makes the feed "filtered".
+  sort: FeedSort;
 };
 
 export const DEFAULT_FILTERS: Filters = {
@@ -81,6 +95,9 @@ export const DEFAULT_FILTERS: Filters = {
   maxH: undefined,
   group: false,
   groupId: undefined,
+  workflow: undefined,
+  workflowSig: undefined,
+  sort: "newest",
 };
 
 /** Default page size for the Image feed. */
@@ -113,6 +130,9 @@ export function parseFilters(sp: URLSearchParams): Filters {
     maxH: numOrUndef(sp.get("max_h")),
     group: sp.get("group") === "1",
     groupId: sp.get("group_id") || undefined,
+    workflow: sp.get("workflow") || undefined,
+    workflowSig: sp.get("workflow_sig") || undefined,
+    sort: SORTS.find((x) => x === sp.get("sort")) ?? "newest",
   };
 }
 
@@ -145,6 +165,9 @@ export function serializeFilters(filters: Filters): URLSearchParams {
   if (filters.maxH != null) sp.set("max_h", String(filters.maxH));
   if (filters.group) sp.set("group", "1");
   if (filters.groupId) sp.set("group_id", filters.groupId);
+  if (filters.workflow) sp.set("workflow", filters.workflow);
+  if (filters.workflowSig) sp.set("workflow_sig", filters.workflowSig);
+  if (filters.sort && filters.sort !== "newest") sp.set("sort", filters.sort);
   return sp;
 }
 
@@ -178,9 +201,16 @@ export function buildImagesQuery(
   return sp.toString();
 }
 
-/** Cursor for the page after `page`: the last item's id, or null when empty. */
-export function nextCursorOf(page: ImageDoc[]): string | null {
-  return page.length ? page[page.length - 1]._id : null;
+/**
+ * Cursor for the page after `page`, or null when empty: the last item's sort
+ * keys and id, `"<mtime>|<_id>"`, or `"<score>|<mtime>|<_id>"` when sorted by
+ * top rated (see services/image_feed.py `parse_cursor`).
+ */
+export function nextCursorOf(page: ImageDoc[], sort: FeedSort = "newest"): string | null {
+  const last = page[page.length - 1];
+  if (!last) return null;
+  const keys = sort === "top" ? [last.score ?? 0, last.mtime ?? 0] : [last.mtime ?? 0];
+  return [...keys, last._id].join("|");
 }
 
 /** Fetch one page of the Image feed. Throws on non-OK response. */
@@ -236,7 +266,9 @@ export function hasActiveFilter(f: Filters): boolean {
     f.maxW != null ||
     f.minH != null ||
     f.maxH != null ||
-    !!f.groupId
+    !!f.groupId ||
+    !!f.workflow ||
+    !!f.workflowSig
   );
 }
 
@@ -259,11 +291,14 @@ function rangeLabel(name: string, min?: number, max?: number): string {
  * panel is closed. Search tags are left out (the search input already shows
  * them as chips), as are batch grouping and drill-in, which have their own
  * toggle and "Back to batches" control. `libraryName` resolves an id to a
- * display name.
+ * display name; `workflowName` does the same for a workflow family id or a
+ * version signature.
  */
 export function activeFilterChips(
   f: Filters,
   libraryName: (id: string) => string | undefined = () => undefined,
+  workflowName: (key: { workflow?: string; workflowSig?: string }) => string | undefined = () =>
+    undefined,
 ): FilterChip[] {
   const chips: FilterChip[] = [];
   const add = (key: string, label: string, patch: Partial<Filters>) =>
@@ -283,6 +318,13 @@ export function activeFilterChips(
   }
   if (f.promptLogic === "or" && f.promptTerms.length > 1) {
     add("promptLogic", "Any prompt term", { promptLogic: "and" });
+  }
+  if (f.workflow || f.workflowSig) {
+    const name = workflowName({ workflow: f.workflow, workflowSig: f.workflowSig });
+    add("workflow", `Workflow: ${name ?? "selected"}`, {
+      workflow: undefined,
+      workflowSig: undefined,
+    });
   }
   if (f.model) add("model", `Model: ${f.model}`, { model: undefined });
   if (f.minW != null || f.maxW != null) {

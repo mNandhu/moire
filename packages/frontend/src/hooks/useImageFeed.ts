@@ -31,7 +31,7 @@ export function useImageFeed(filters: Filters, limit: number = PAGE_LIMIT) {
     initialPageParam: null as string | null,
     // A short page means the end; otherwise page on the last item's id.
     getNextPageParam: (lastPage: ImageDoc[]) =>
-      lastPage.length >= limit ? nextCursorOf(lastPage) : undefined,
+      lastPage.length >= limit ? nextCursorOf(lastPage, filters.sort) : undefined,
   });
 
   const items = useMemo<ImageDoc[]>(

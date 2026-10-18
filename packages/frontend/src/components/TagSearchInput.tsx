@@ -140,7 +140,7 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
             onFocus={() => setOpen(true)}
             onKeyDown={onKeyDown}
             placeholder={value.length ? "" : (placeholder ?? "Search tags…")}
-            className="flex-1 min-w-[8rem] bg-transparent px-1 py-0.5 text-neutral-100 placeholder:text-faint outline-none focus-visible:shadow-none"
+            className="flex-1 min-w-[4rem] bg-transparent px-1 py-0.5 text-neutral-100 placeholder:text-faint outline-none focus-visible:shadow-none"
             role="combobox"
             aria-expanded={showDropdown}
             aria-autocomplete="list"

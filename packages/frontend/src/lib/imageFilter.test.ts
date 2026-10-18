@@ -36,6 +36,8 @@ describe("Image filter URL round-trip", () => {
       maxH: undefined,
       group: true,
       groupId: "abc123",
+      workflow: "wf1",
+      sort: "oldest",
     };
     expect(roundTrip(f)).toEqual(f);
   });
@@ -103,11 +105,54 @@ describe("buildImagesQuery", () => {
   });
 });
 
+describe("sort", () => {
+  it("round-trips, leaves the default out of the URL, and isn't a filter", () => {
+    const top = { ...DEFAULT_FILTERS, sort: "top" as const };
+    expect(roundTrip(top)).toEqual(top);
+    expect(serializeFilters(DEFAULT_FILTERS).has("sort")).toBe(false);
+    expect(parseFilters(new URLSearchParams("sort=bogus")).sort).toBe("newest");
+    expect(hasActiveFilter(top)).toBe(false);
+    expect(activeFilterChips(top)).toEqual([]);
+  });
+});
+
+describe("workflow filter", () => {
+  it("round-trips a family or a version through the URL", () => {
+    const fam = { ...DEFAULT_FILTERS, workflow: "49a0c942" };
+    expect(roundTrip(fam)).toEqual(fam);
+    const ver = { ...DEFAULT_FILTERS, workflowSig: "abc123" };
+    expect(roundTrip(ver)).toEqual(ver);
+    expect(serializeFilters(fam).get("workflow")).toBe("49a0c942");
+    expect(hasActiveFilter(ver)).toBe(true);
+  });
+
+  it("names the chip and clears both keys", () => {
+    const [chip] = activeFilterChips(
+      { ...DEFAULT_FILTERS, workflowSig: "abc" },
+      undefined,
+      (k) => (k.workflowSig === "abc" ? "RemoteQ · Oct 3" : undefined),
+    );
+    expect(chip.label).toBe("Workflow: RemoteQ · Oct 3");
+    expect(chip.without.workflowSig).toBeUndefined();
+  });
+});
+
 describe("nextCursorOf", () => {
   const doc = (id: string): ImageDoc => ({ _id: id, path: `${id}.png` });
 
-  it("returns the last id of a page", () => {
-    expect(nextCursorOf([doc("a"), doc("b"), doc("c")])).toBe("c");
+  it("pairs the last item's mtime with its id", () => {
+    expect(nextCursorOf([doc("a"), { ...doc("L:b"), mtime: 1747306454.5 }])).toBe(
+      "1747306454.5|L:b",
+    );
+  });
+
+  it("leads with the score when sorted by top rated", () => {
+    expect(nextCursorOf([{ ...doc("a"), score: 4, mtime: 10 }], "top")).toBe("4|10|a");
+    expect(nextCursorOf([doc("a")], "top")).toBe("0|0|a");
+  });
+
+  it("uses 0 for an item without an mtime (the server sorts those last)", () => {
+    expect(nextCursorOf([doc("a"), doc("c")])).toBe("0|c");
   });
 
   it("returns null for an empty page", () => {

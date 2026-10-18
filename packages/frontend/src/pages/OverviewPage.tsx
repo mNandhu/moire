@@ -16,7 +16,10 @@ import { Badge } from "../components/ui/Badge";
 import { useAiStatus } from "../hooks/useAiStatus";
 import { coveragePct, isActiveJob } from "../lib/ai";
 import { ProgressBar } from "../components/ui/ProgressBar";
-import { useAiCoverage, useLibraries, useTagAggregate } from "../lib/queries";
+import { useAiCoverage, useImageStats, useLibraries, useTagAggregate } from "../lib/queries";
+import { ActivityChart } from "../components/overview/ActivityChart";
+import { RecentImages } from "../components/overview/RecentImages";
+import { ToReview } from "../components/overview/ToReview";
 import { isManual } from "../lib/tags";
 
 export default function OverviewPage() {
@@ -47,18 +50,20 @@ export default function OverviewPage() {
   // implementation detail (it loads on demand); how much is tagged is not.
   const { data: cov } = useAiCoverage();
   const aiPct = cov ? coveragePct(cov.ai_tagged, cov.total) : 0;
+  const { data: stats } = useImageStats();
 
   return (
     <>
       <PageHeader
         title="Overview"
+        width="wide"
         actions={
           <ButtonLink variant="primary" to="/libraries">
             <Plus size={16} /> Add library
           </ButtonLink>
         }
       />
-      <PageBody>
+      <PageBody width="wide">
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
@@ -98,7 +103,14 @@ export default function OverviewPage() {
         />
       </div>
 
-      {/* Activity */}
+      {/* What's new first (the daily question), then how much and what's
+          waiting, then the plumbing. */}
+      <div className="space-y-4">
+      <RecentImages />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <ActivityChart days={stats?.activity} className="lg:col-span-2" />
+        <ToReview />
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-3">
@@ -180,6 +192,7 @@ export default function OverviewPage() {
             </ul>
           )}
         </Card>
+      </div>
       </div>
       </PageBody>
     </>

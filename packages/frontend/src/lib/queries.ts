@@ -8,6 +8,7 @@
  * a write invalidates the key once and every reader refreshes.
  */
 
+import { tzOffsetMinutes } from "./activity";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 import { fetchAiCoverage } from "./ai";
@@ -70,5 +71,25 @@ export function useAiCoverage({ busy = false } = {}) {
     queryKey: AI_COVERAGE_KEY,
     queryFn: ({ signal }) => fetchAiCoverage(signal),
     refetchInterval: busy ? 3000 : 15000,
+  });
+}
+
+export type ImageStats = {
+  activity: import("./activity").DayCount[];
+  quarantined: number;
+};
+
+export const IMAGE_STATS_KEY = ["image-stats"] as const;
+
+/** Overview numbers: images per local day for the past year, and the
+ * quarantine backlog. */
+export function useImageStats() {
+  return useQuery({
+    queryKey: IMAGE_STATS_KEY,
+    queryFn: ({ signal }) =>
+      api<ImageStats>(
+        `/api/v1/images/stats?days=371&tz_offset=${tzOffsetMinutes()}`,
+        { signal },
+      ),
   });
 }

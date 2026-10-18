@@ -86,6 +86,7 @@ def seed():
         score: float = 0,
         rating: str | None = None,
         thumb_key: str | None = None,
+        mtime: float | None = None,
     ) -> None:
         tag_list = list(tags)
         flags = image_tags.recompute_flags(tag_list)
@@ -101,6 +102,7 @@ def seed():
                     score=score,
                     rating=rating,
                     thumb_key=thumb_key,
+                    mtime=mtime,
                     **flags,
                     **_gen_cols(gen),
                 )

@@ -61,6 +61,9 @@ async def list_images(
     min_h: int | None = Query(default=None, ge=0),
     max_h: int | None = Query(default=None, ge=0),
     group_id: str | None = Query(default=None),
+    workflow: str | None = Query(default=None, max_length=256),
+    workflow_sig: str | None = Query(default=None, max_length=256),
+    sort: str = Query(default="newest"),
     cursor: str | None = Query(default=None),
 ):
     if cursor and len(cursor) > 1024:
@@ -83,6 +86,9 @@ async def list_images(
             min_h=min_h,
             max_h=max_h,
             group_id=group_id,
+            workflow_id=workflow,
+            workflow_sig=workflow_sig,
+            sort=sort,
         )
     except FeedFilterError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
@@ -92,7 +98,10 @@ async def list_images(
             "offset pagination is deprecated; prefer cursor-based pagination"
         )
 
-    items = await image_feed.list_feed(f, cursor=cursor, limit=limit, offset=offset)
+    try:
+        items = await image_feed.list_feed(f, cursor=cursor, limit=limit, offset=offset)
+    except FeedFilterError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     for it in items:
         _attach_thumb_url(it)
     return items
@@ -205,6 +214,34 @@ async def list_models(library_id: str | None = Query(default=None)):
     return [{"model": r.gen_model, "count": r.count} for r in rows]
 
 
+@router.get("/stats")
+async def image_stats(
+    days: int = Query(default=371, ge=1, le=3660),
+    tz_offset: int = Query(default=0, ge=-14 * 60, le=14 * 60),
+):
+    """Overview numbers: images per local calendar day over the last ``days``
+    (by file mtime, the generation-time proxy the feed sorts on), and the
+    quarantine backlog. ``tz_offset`` is minutes east of UTC, so days break at
+    the viewer's midnight, not UTC's. Days with no images are omitted."""
+    off = tz_offset * 60
+    day = sa.func.date(t.images.c.mtime + off, "unixepoch")
+    since = sa.func.strftime("%s", "now") - days * 86400
+    activity = (
+        sa.select(day.label("day"), sa.func.count().label("count"))
+        .where(t.images.c.mtime.isnot(None), t.images.c.mtime >= since)
+        .group_by(day)
+        .order_by(day)
+    )
+    quarantined = sa.select(sa.func.count()).where(t.images.c.quarantined.is_(True))
+    async with async_conn() as conn:
+        rows = (await conn.execute(activity)).fetchall()
+        q = (await conn.execute(quarantined)).scalar_one()
+    return {
+        "activity": [{"day": r.day, "count": r.count} for r in rows],
+        "quarantined": q,
+    }
+
+
 @router.get("/groups")
 async def list_groups(
     tags: list[str] | None = Query(default=None),
@@ -223,6 +260,9 @@ async def list_groups(
     max_w: int | None = Query(default=None, ge=0),
     min_h: int | None = Query(default=None, ge=0),
     max_h: int | None = Query(default=None, ge=0),
+    workflow: str | None = Query(default=None, max_length=256),
+    workflow_sig: str | None = Query(default=None, max_length=256),
+    sort: str = Query(default="newest"),
 ):
     """Batch-collapsed view of the same feed: images sharing a gen_group_id fold
     into one entry (the newest member is the representative, plus a count).
@@ -244,6 +284,9 @@ async def list_groups(
             max_w=max_w,
             min_h=min_h,
             max_h=max_h,
+            workflow_id=workflow,
+            workflow_sig=workflow_sig,
+            sort=sort,
         )
     except FeedFilterError as exc:
         raise HTTPException(status_code=422, detail=str(exc))

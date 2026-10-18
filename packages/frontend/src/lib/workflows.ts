@@ -215,6 +215,24 @@ export function groupWorkflows(
   );
 }
 
+/**
+ * Display name for a gallery workflow filter: the family's name, or
+ * "Family · version title" for a single version. Undefined while the
+ * families haven't loaded or when nothing matches.
+ */
+export function workflowFilterName(
+  families: WorkflowFamily[],
+  key: { workflow?: string; workflowSig?: string },
+): string | undefined {
+  if (key.workflow) return families.find((f) => f.id === key.workflow)?.name;
+  if (!key.workflowSig) return undefined;
+  for (const fam of families) {
+    const v = fam.versions.find((v) => v.row.workflow_sig === key.workflowSig);
+    if (v) return fam.versions.length > 1 ? `${fam.name} · ${v.title}` : fam.name;
+  }
+  return undefined;
+}
+
 export async function putWorkflowName(id: string, name: string): Promise<void> {
   const r = await fetch(`/api/v1/rules/workflows/${encodeURIComponent(id)}/name`, {
     method: "PUT",

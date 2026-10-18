@@ -16,8 +16,22 @@ async def test_default_feed_returns_all_non_quarantined_desc(client, seed):
     seed("L1:a")
     seed("L1:b")
     seed("L1:c", quarantined=True)
-    # _id desc, quarantined hidden by default.
+    # _id desc among equal (missing) mtimes, quarantined hidden by default.
     assert await _ids(client) == ["L1:b", "L1:a"]
+
+
+async def test_feed_is_newest_first_across_libraries(client, seed):
+    seed("L1:old", library_id="L1", mtime=100)
+    seed("L2:new", library_id="L2", mtime=300)
+    seed("L1:mid", library_id="L1", mtime=200)
+    seed("L2:none", library_id="L2")  # no mtime: sorts last
+    assert await _ids(client) == ["L2:new", "L1:mid", "L1:old", "L2:none"]
+    assert await _ids(client, library_id="L1") == ["L1:mid", "L1:old"]
+
+
+async def test_malformed_cursor_is_rejected(client, seed):
+    resp = await client.get("/images", params={"cursor": "L1:a"})
+    assert resp.status_code == 422
 
 
 async def test_quarantined_filter_shows_only_quarantined(client, seed):
@@ -101,9 +115,11 @@ async def test_library_filter(client, seed):
 
 async def test_cursor_pagination_walks_every_row_once_in_order(client, seed):
     ids = [f"L1:{i:03d}" for i in range(25)]
+    # Ties on mtime (pairs share one) must still page by _id without gaps.
+    mtimes = {i: 1000.5 + n // 2 for n, i in enumerate(ids)}
     for i in ids:
-        seed(i)
-    expected = sorted(ids, reverse=True)  # _id desc
+        seed(i, mtime=mtimes[i])
+    expected = sorted(ids, key=lambda i: (mtimes[i], i), reverse=True)
 
     seen = []
     cursor = None
@@ -111,12 +127,87 @@ async def test_cursor_pagination_walks_every_row_once_in_order(client, seed):
         params = {"limit": 10}
         if cursor:
             params["cursor"] = cursor
-        page = await _ids(client, **params)
+        resp = await client.get("/images", params=params)
+        page = resp.json()
         if not page:
             break
-        seen.extend(page)
-        cursor = page[-1]
+        seen.extend(it["_id"] for it in page)
+        # Built the way the frontend's nextCursorOf builds it.
+        last = page[-1]
+        cursor = f"{last['mtime'] or 0}|{last['_id']}"
         if len(page) < 10:
             break
 
     assert seen == expected  # each row once, stable desc order across pages
+
+
+async def test_workflow_filters_by_family_and_version(client, seed):
+    import sqlalchemy as sa
+
+    from src.database import db
+    from src.database import schema as t
+
+    # Family W has two versions (s1, s2); s3 belongs to another family.
+    seed("L1:a", gen={"workflow_sig": "s1"})
+    seed("L1:b", gen={"workflow_sig": "s1"})
+    seed("L1:c", gen={"workflow_sig": "s2"})
+    seed("L1:d", gen={"workflow_sig": "s3"})
+    seed("L1:e")
+    with db.sync_tx() as conn:
+        for image_id, sig, wid in [
+            ("L1:b", "s1", "W"),  # s1's sample (newest id)
+            ("L1:c", "s2", "W"),
+            ("L1:d", "s3", "X"),
+        ]:
+            conn.execute(
+                sa.insert(t.image_gen_raw).values(
+                    _id=image_id,
+                    library_id="L1",
+                    workflow_sig=sig,
+                    raw={"workflow": {"id": wid, "nodes": []}},
+                )
+            )
+
+    assert await _ids(client, workflow="W") == ["L1:c", "L1:b", "L1:a"]
+    assert await _ids(client, workflow="X") == ["L1:d"]
+    assert await _ids(client, workflow="nope") == []
+    assert await _ids(client, workflow_sig="s1") == ["L1:b", "L1:a"]
+    groups = (await client.get("/images/groups", params={"workflow": "W"})).json()
+    assert {g["_id"] for g in groups} == {"L1:a", "L1:b", "L1:c"}
+
+
+@pytest.mark.parametrize(
+    "sort,expected",
+    [
+        ("newest", ["L1:c", "L1:b", "L1:a", "L1:d"]),
+        ("oldest", ["L1:d", "L1:a", "L1:b", "L1:c"]),
+        # Best score first; equal scores newest first; unscored last.
+        ("top", ["L1:a", "L1:c", "L1:b", "L1:d"]),
+    ],
+)
+async def test_sorts_page_without_gaps(client, seed, sort, expected):
+    seed("L1:a", mtime=100, score=5)
+    seed("L1:b", mtime=200, score=3)
+    seed("L1:c", mtime=300, score=3)
+    seed("L1:d")  # no mtime, no score
+
+    seen, cursor = [], None
+    while True:
+        params = {"limit": 1, "sort": sort}
+        if cursor:
+            params["cursor"] = cursor
+        page = (await client.get("/images", params=params)).json()
+        if not page:
+            break
+        seen.extend(it["_id"] for it in page)
+        last = page[-1]
+        keys = [last["score"] or 0] if sort == "top" else []
+        cursor = "|".join(str(k) for k in [*keys, last["mtime"] or 0, last["_id"]])
+    assert seen == expected
+
+    groups = (await client.get("/images/groups", params={"sort": sort})).json()
+    assert [g["_id"] for g in groups] == expected
+
+
+async def test_unknown_sort_is_rejected(client):
+    assert (await client.get("/images", params={"sort": "random"})).status_code == 422

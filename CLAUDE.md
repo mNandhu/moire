@@ -39,7 +39,7 @@ Backend env is optional: `SQLITE_PATH` (defaults to `<repo>/data/moire.db`) and 
 - **`services/image_tags.py` is the ONLY place that mutates `tags` and recomputes the summary flags** (`has_tags`, `has_ai_tags`, `has_prompt_tags`, `rating`). It writes the ordered `tags` JSON array, the flags, and the derived `image_tags(image_id, tag, base)` join rows **in one transaction** so they never drift. `normalize_rating` is the single rating normalizer.
 - **`tags` is a JSON-array column on `images` (ordered, authoritative); `image_tags` + `image_gen_terms` are derived join tables** rebuilt transactionally from it/`gen.prompt_terms` to serve `GROUP BY`/`$in`/`$all` queries. `gen.*` scalars filtered in the feed are promoted to indexed `gen_*` columns; the full `gen` subdoc stays JSON.
 - **The SQLite schema (tables + indexes) is defined once in `database/schema.py`** as a SQLAlchemy `MetaData`. `database/db.py` owns the async (app) and sync (scanner) engines, sets `WAL`/`busy_timeout` PRAGMAs, and creates the schema via `ensure_schema` on startup. **Writer discipline:** SQLite is single-writer. Keep scanner write-transactions small (they batch + commit often); the file lock + `busy_timeout` is the real cross-process serializer, not the per-side Python locks.
-- **`_id` columns are `COLLATE BINARY`** (cursor paging compares `_id < cursor` and must match the old byte-order sort).
+- **`_id` columns are `COLLATE BINARY`** (`_id` is the feed's final tie-break: cursor paging compares `(sort keys…, _id)` row values and must match the old byte-order sort).
 
 ## Backend layout
 
@@ -50,7 +50,7 @@ Backend env is optional: `SQLITE_PATH` (defaults to `<repo>/data/moire.db`) and 
 ## Frontend layout
 
 - **`lib/imageFilter.ts`** (`parseFilters`/`serializeFilters`) is the single source of truth for the gallery filter ⇄ URL round-trip; keep URL and query key in sync through it.
-- **`hooks/useImageFeed.ts`**: one shared TanStack `useInfiniteQuery` keyed by the filter; `AllImagesPage` and `ImageView` read the same cache (cursor-paged by `_id` desc), so paging in one is visible in the other.
+- **`hooks/useImageFeed.ts`**: one shared TanStack `useInfiniteQuery` keyed by the filter; `AllImagesPage` and `ImageView` read the same cache, so paging in one is visible in the other. The feed is newest first by file `mtime` (or oldest / top rated via `sort`), keyset-paged on `(sort keys…, _id)`; `services/image_feed.py` `SORTS` and `lib/imageFilter.ts` `nextCursorOf` must agree on the cursor shape, and each order has a matching expression index in `schema.py`.
 - **`lib/media.ts`** lazily resolves a media URL; with FS-backed thumbnails it is effectively a passthrough (the HEAD probe detects a plain image response and returns the endpoint as-is). Kept for future modes that need a per-tile resolve.
 - Pure logic lives in `lib/` with colocated `*.test.ts` (fuzzy, gen, gridNav, masonryLayout, imageFilter, ai). Prefer adding pure functions there with tests over logic inside components.
 - `components/VirtualizedGrid.tsx` + `masonryLayout.ts` compute row spans from width/height for a stable, reflow-free grid.

@@ -103,7 +103,9 @@ belongs in this file.
 - **Image feed**: the cursor-paged stream of Images matching an Image filter.
   One shared query (`hooks/useImageFeed.ts`, TanStack `useInfiniteQuery` keyed
   by the filter); the gallery (`AllImagesPage`) and `ImageView` read the same
-  cache, so paging done in one is visible to the other.
+  cache, so paging done in one is visible to the other. Ordered newest first
+  by file mtime (the generation-time proxy; a copy or move can reset it), or
+  oldest first / top rated by the filter's `sort`; `_id` breaks ties.
 
 ## Persistence
 

@@ -28,6 +28,10 @@ import {
   activeFilterChips,
 } from "../lib/imageFilter";
 import { PageHeader } from "../components/ui/PageHeader";
+import { LibraryScopeTabs } from "../components/LibraryScopeTabs";
+import { SortControl } from "../components/SortControl";
+import { fetchSignatures } from "../lib/gen";
+import { groupWorkflows, workflowFilterName } from "../lib/workflows";
 import { ambientPalette } from "../lib/blurhash";
 import { applyAmbient } from "../lib/ambient";
 import { LIBRARIES_KEY, TAGS_KEY, type Library } from "../lib/queries";
@@ -104,13 +108,27 @@ export default function AllImagesPage() {
   const [libs, setLibs] = useState<Library[]>(
     () => queryClient.getQueryData<Library[]>(LIBRARIES_KEY) ?? [],
   );
+  // Workflows for the filter picker and the chip's name, grouped as the Rules
+  // page groups them. Fetched once the panel opens or a workflow is filtered.
+  const { data: signatures } = useQuery({
+    queryKey: ["rules-signatures"],
+    queryFn: fetchSignatures,
+    enabled: filtersOpen || !!filters.workflow || !!filters.workflowSig,
+    staleTime: 60_000,
+  });
+  const workflowFamilies = useMemo(() => groupWorkflows(signatures ?? []), [signatures]);
+
+  // The library is shown by the scope tabs, so it isn't repeated as a chip
+  // (or counted on the filter button) unless the tabs are hidden.
   const filterChips = useMemo(
     () =>
       activeFilterChips(filters, (id) => {
         const lib = libs.find((l) => l._id === id);
         return lib?.name || lib?.path;
-      }),
-    [filters, libs],
+      }, (key) => workflowFilterName(workflowFamilies, key)).filter(
+        (chip) => chip.key !== "library" || libs.length < 2,
+      ),
+    [filters, libs, workflowFamilies],
   );
 
   // Known tags (with image counts) powering the search autocomplete.
@@ -660,7 +678,7 @@ export default function AllImagesPage() {
               </span>
             )}
           </Button>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <TagSearchInput
               ref={searchInputRef}
               value={filters.tags}
@@ -669,6 +687,10 @@ export default function AllImagesPage() {
               placeholder="Search tags…"
             />
           </div>
+          <SortControl
+            value={filters.sort}
+            onChange={(sort) => setFilters({ ...filters, sort })}
+          />
           <Button
             size="icon"
             variant="secondary"
@@ -732,6 +754,11 @@ export default function AllImagesPage() {
         </div>
 
       </PageHeader>
+      <LibraryScopeTabs
+        libraries={libs}
+        value={filters.libraryId}
+        onChange={(libraryId) => setFilters({ ...filters, libraryId, groupId: undefined })}
+      />
       <div className="px-4 md:px-6 empty:hidden">
         {/* With the panel closed, active filters would otherwise be invisible
             (the title changing to "Filtered Images" was the only hint). */}
@@ -763,6 +790,8 @@ export default function AllImagesPage() {
                     ...DEFAULT_FILTERS,
                     tags: filters.tags,
                     logic: filters.logic,
+                    libraryId: filters.libraryId,
+                    sort: filters.sort,
                     group: filters.group,
                     groupId: filters.groupId,
                   })
@@ -800,29 +829,7 @@ export default function AllImagesPage() {
                   <option value="or">Match any tag (OR)</option>
                 </Select>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-muted mb-1.5">
-                  Library
-                </label>
-                <Select
-                  aria-label="Library filter"
-                  value={filters.libraryId || ""}
-                  onChange={(e) =>
-                    setFilters({
-                      ...filters,
-                      libraryId: e.target.value || undefined,
-                    })
-                  }
-                >
-                  <option value="">All libraries</option>
-                  {libs.map((l) => (
-                    <option key={l._id} value={l._id}>
-                      {l.name || l.path}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div>
+              <div className="md:col-span-2">
                 <div className="text-xs font-medium text-muted mb-1.5">
                   Show only
                 </div>
@@ -886,6 +893,74 @@ export default function AllImagesPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-muted mb-1.5">
+                    Workflow
+                  </label>
+                  {/* A family (every version, new ones included) or one
+                      version; named as on the Rules page. */}
+                  <Select
+                    aria-label="Workflow filter"
+                    value={
+                      filters.workflow
+                        ? `w:${filters.workflow}`
+                        : filters.workflowSig
+                          ? `s:${filters.workflowSig}`
+                          : ""
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setFilters({
+                        ...filters,
+                        workflow: v.startsWith("w:") ? v.slice(2) : undefined,
+                        workflowSig: v.startsWith("s:") ? v.slice(2) : undefined,
+                      });
+                    }}
+                  >
+                    <option value="">Any workflow</option>
+                    {workflowFamilies.map((fam) => (
+                      <optgroup key={fam.id ?? "other"} label={fam.name}>
+                        {fam.id && (
+                          <option value={`w:${fam.id}`}>
+                            {fam.versions.length > 1
+                              ? `${fam.name}, all ${fam.versions.length} versions · ${fam.images}`
+                              : `${fam.name} · ${fam.images}`}
+                          </option>
+                        )}
+                        {(fam.versions.length > 1 || !fam.id) &&
+                          fam.versions.map((v) => (
+                            <option key={v.row.workflow_sig} value={`s:${v.row.workflow_sig}`}>
+                              {"\u00a0\u00a0"}
+                              {v.title}
+                              {v.note ? ` · ${v.note}` : ""} · {v.row.count}
+                            </option>
+                          ))}
+                      </optgroup>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1.5">
+                    Model
+                  </label>
+                  <Select
+                    aria-label="Model filter"
+                    value={filters.model || ""}
+                    onChange={(e) =>
+                      setFilters({
+                        ...filters,
+                        model: e.target.value || undefined,
+                      })
+                    }
+                  >
+                    <option value="">Any model</option>
+                    {modelOptions.map((m) => (
+                      <option key={m.model} value={m.model}>
+                        {m.model} ({m.count})
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-muted mb-1.5">
                     Prompt contains
                   </label>
                   <TagSearchInput
@@ -913,28 +988,6 @@ export default function AllImagesPage() {
                   >
                     <option value="and">Match all terms (AND)</option>
                     <option value="or">Match any term (OR)</option>
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted mb-1.5">
-                    Model
-                  </label>
-                  <Select
-                    aria-label="Model filter"
-                    value={filters.model || ""}
-                    onChange={(e) =>
-                      setFilters({
-                        ...filters,
-                        model: e.target.value || undefined,
-                      })
-                    }
-                  >
-                    <option value="">Any model</option>
-                    {modelOptions.map((m) => (
-                      <option key={m.model} value={m.model}>
-                        {m.model} ({m.count})
-                      </option>
-                    ))}
                   </Select>
                 </div>
                 <div>
@@ -1006,7 +1059,18 @@ export default function AllImagesPage() {
               <Button size="sm" variant="ghost" onClick={clearSelection}>
                 Clear selection
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setFilters(DEFAULT_FILTERS)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                // Scope (library tab) and order aren't filters; keep them.
+                onClick={() =>
+                  setFilters({
+                    ...DEFAULT_FILTERS,
+                    libraryId: filters.libraryId,
+                    sort: filters.sort,
+                  })
+                }
+              >
                 Clear filters
               </Button>
             </div>
@@ -1034,7 +1098,9 @@ export default function AllImagesPage() {
               {hasActiveFilter(filters) && (
                 <Button
                   variant="primary"
-                  onClick={() => setFilters(DEFAULT_FILTERS)}
+                  // Out of an empty result entirely (library too), but keep
+                  // the order the viewer chose.
+                  onClick={() => setFilters({ ...DEFAULT_FILTERS, sort: filters.sort })}
                 >
                   Clear filters
                 </Button>

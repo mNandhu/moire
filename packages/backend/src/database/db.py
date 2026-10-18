@@ -20,6 +20,7 @@ from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 
 import sqlalchemy as sa
+from sqlalchemy.schema import CreateIndex
 from sqlalchemy import Connection, create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import (
@@ -109,16 +110,27 @@ def sync_write_lock() -> threading.Lock:
     return _sync_write_lock
 
 
+def _create_all(conn) -> None:
+    metadata.create_all(conn)
+    # create_all skips tables that already exist, and their indexes with them,
+    # so an index added to an existing table would never reach an old DB.
+    # Create each one on its own. IF NOT EXISTS, not checkfirst: reflection
+    # can't see expression indexes, so checkfirst would re-create them.
+    for table in metadata.sorted_tables:
+        for index in table.indexes:
+            conn.execute(CreateIndex(index, if_not_exists=True))
+
+
 async def ensure_schema() -> None:
     """Create tables + indexes if absent. Idempotent; safe on startup."""
     async with get_async_engine().begin() as conn:
-        await conn.run_sync(metadata.create_all)
+        await conn.run_sync(_create_all)
 
 
 def ensure_schema_sync() -> None:
     """Sync schema creation (tests / scripts without an event loop)."""
     with get_sync_engine().begin() as conn:
-        metadata.create_all(conn)
+        _create_all(conn)
 
 
 async def reset_engines() -> None:

@@ -29,7 +29,7 @@ def test_images_has_tag_state_and_promoted_gen_columns():
 
 
 def test_id_columns_collate_binary_for_cursor_pagination():
-    # Cursor paging compares `_id < cursor`; it must match Mongo's byte-order sort.
+    # `_id` is the feed cursor's tie-break; it must keep Mongo's byte-order sort.
     assert schema.images.c._id.type.collation == "BINARY"
 
 

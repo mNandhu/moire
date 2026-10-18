@@ -6,6 +6,7 @@ import {
   groupWorkflows,
   parseWorkflowFile,
   versionLabel,
+  workflowFilterName,
 } from "./workflows";
 
 const row = (over: Partial<SignatureRow>): SignatureRow => ({
@@ -174,5 +175,20 @@ describe("groupWorkflows dates", () => {
       ["Feb 13 to Mar 1 (2)", null],
       ["Aug 9 to 11", null],
     ]);
+  });
+});
+
+describe("workflowFilterName", () => {
+  it("names a family, or a version within it", () => {
+    const fams = groupWorkflows([
+      row({ workflow_sig: "a", workflow_name: "RemoteQ", node_types: { EmptyLatentImage: 1 } }),
+      row({ workflow_sig: "b", node_types: { EmptyLatentImage: 1, FaceDetailer: 1 } }),
+      row({ workflow_sig: "solo", workflow_id: "V", workflow_name: "Upscaler" }),
+    ]);
+    expect(workflowFilterName(fams, { workflow: "W" })).toBe("RemoteQ");
+    expect(workflowFilterName(fams, { workflowSig: "b" })).toBe("RemoteQ · Face fix");
+    // A one-version family needs no version title.
+    expect(workflowFilterName(fams, { workflowSig: "solo" })).toBe("Upscaler");
+    expect(workflowFilterName(fams, { workflow: "gone" })).toBeUndefined();
   });
 });
