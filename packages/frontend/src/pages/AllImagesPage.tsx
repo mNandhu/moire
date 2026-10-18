@@ -67,6 +67,7 @@ import { postAiTag } from "../lib/ai";
 import {
   invalidateFeeds,
   patchFeeds,
+  patchImageEverywhere,
   removeImagesFromFeeds,
 } from "../lib/feedCache";
 
@@ -450,19 +451,17 @@ export default function AllImagesPage() {
     async (n: number) => {
       const it = items[focusedIndex];
       if (!it) return;
-      patchFeed((pages) =>
-        pages.map((pg) =>
-          pg.map((x) => (x._id === it._id ? { ...x, score: n } : x)),
-        ),
-      );
+      // Every cached copy, the open-image document included, so ImageView
+      // shows the new score too; undone if the write fails.
+      const undo = patchImageEverywhere(queryClient, it._id, { score: n });
       try {
         await apiSetScore(it._id, n);
       } catch (e) {
+        undo();
         push(`Failed to set score: ${String(e)}`, "error");
-        feed.refetch();
       }
     },
-    [items, focusedIndex, patchFeed, push, feed],
+    [items, focusedIndex, queryClient, push],
   );
 
   const triageQuarantine = useCallback(async () => {

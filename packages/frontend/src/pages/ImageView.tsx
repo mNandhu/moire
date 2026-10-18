@@ -55,7 +55,13 @@ const tagHref = (tagRaw: string) => `/?tags=${encodeURIComponent(tagRaw)}`;
 // Round controls floating over the image stage (back, details, prev/next).
 const OVERLAY_BTN =
   "p-2 rounded-full bg-black/45 border border-white/10 text-white/80 hover:text-white hover:bg-black/65 disabled:opacity-30 disabled:pointer-events-none transition-colors duration-150";
-import { invalidateFeeds, removeImageFromFeeds } from "../lib/feedCache";
+import {
+  imageDocKey,
+  invalidateFeeds,
+  patchImageEverywhere,
+  removeImageFromFeeds,
+  syncFeedsFromDoc,
+} from "../lib/feedCache";
 
 // How long a fetched image doc stays fresh. Shared by the current-image query
 // and the neighbour prefetch so stepping through the feed reuses prefetched
@@ -140,7 +146,7 @@ export default function ImageView() {
 
   // Current image document (full doc with tags/rating); refetched after edits.
   const { data, refetch } = useQuery({
-    queryKey: ["image", id],
+    queryKey: imageDocKey(id!),
     queryFn: ({ signal }) => fetchImage(id!, { signal }),
     enabled: !!id,
     // Matches the neighbour prefetch below, so arriving on a prefetched image
@@ -150,6 +156,18 @@ export default function ImageView() {
   const refreshImage = useCallback(() => {
     void refetch();
   }, [refetch]);
+  // This document is the source of truth for the open image; every time it
+  // changes (after any edit made here, or a server-side effect like AI
+  // tagging), the gallery tiles behind the overlay take the same values.
+  useEffect(() => {
+    if (data) syncFeedsFromDoc(queryClient, data);
+  }, [data, queryClient]);
+  // Tag edits can move the image in or out of a filtered feed and change tag
+  // counts, which a field copy can't express; refetch those.
+  const onTagsChanged = useCallback(() => {
+    refreshImage();
+    invalidateFeeds(queryClient);
+  }, [refreshImage, queryClient]);
 
   const score = data?.score ?? 0;
   const quarantined = !!data?.quarantined;
@@ -157,14 +175,17 @@ export default function ImageView() {
   const applyScore = useCallback(
     async (n: number) => {
       if (!id) return;
+      // Shown at once, here and on the gallery tile; undone if the write fails.
+      const undo = patchImageEverywhere(queryClient, id, { score: n });
       try {
         await apiSetScore(id, n);
         refreshImage();
       } catch (e) {
+        undo();
         push(`Failed to set score: ${String(e)}`, "error");
       }
     },
-    [id, push, refreshImage],
+    [id, push, refreshImage, queryClient],
   );
 
   const toggleQuarantine = useCallback(async () => {
@@ -782,7 +803,7 @@ export default function ImageView() {
                 ) : (
                   <div className="text-xs text-faint">No tags yet.</div>
                 )}
-                <TagEditor id={data._id} onChange={refreshImage} />
+                <TagEditor id={data._id} onChange={onTagsChanged} />
               </Section>
             </div>
           </>
@@ -1206,17 +1227,21 @@ function RatingEditor({
   onDone: () => void;
 }) {
   const { push } = useToast();
+  const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const v = (value || "-").trim() || "-";
 
   const setRating = async (next: string) => {
     if (next === v) return;
     setSaving(true);
+    // Shown at once, here and on the gallery tile; undone if the write fails.
+    const undo = patchImageEverywhere(queryClient, id, { rating: next });
     try {
       await apiSetRating(id, next);
       push("Rating updated", "success");
       onDone();
     } catch (e) {
+      undo();
       push(`Failed to update rating: ${String(e)}`, "error");
     } finally {
       setSaving(false);

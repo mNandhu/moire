@@ -46,15 +46,74 @@ export function patchFeeds(
   );
 }
 
-/** Replace one image wherever it appears in a cached feed. */
+/** Query key of one Image's full document (ImageView's source of truth). */
+export const imageDocKey = (id: string) => ["image", id] as const;
+
+/**
+ * Replace one image wherever it appears in a cached feed or grouped view.
+ * Pages without it keep their identity, so unrelated views don't re-render.
+ */
 export function patchImageInFeeds(
   qc: QueryClient,
   id: string,
   patch: (doc: ImageDoc) => ImageDoc,
 ): void {
-  patchFeeds(qc, (pages) =>
-    pages.map((page) => page.map((doc) => (doc._id === id ? patch(doc) : doc))),
+  const inPage = (page: ImageDoc[]) =>
+    page.some((d) => d._id === id)
+      ? page.map((d) => (d._id === id ? patch(d) : d))
+      : page;
+  patchFeeds(qc, (pages) => pages.map(inPage));
+  // The grouped view's pages are plain arrays of batch representatives.
+  qc.setQueriesData<InfiniteData<ImageDoc[]>>(
+    { queryKey: IMAGE_GROUPS_PREFIX },
+    (old) => (old ? { ...old, pages: old.pages.map(inPage) } : old),
   );
+}
+
+// What a gallery tile draws from an image (see image_feed.FEED_COLUMNS); a
+// change to any of these in ImageView must reach the tiles.
+const TILE_FIELDS = ["score", "rating", "quarantined", "has_ai_tags"] as const;
+
+/**
+ * Copy the tile-visible fields of a fresh image document into every cached
+ * feed. ImageView calls it whenever its document changes, so any edit made
+ * there (score, rating, tags, AI tagging, and whatever the server derives
+ * from them) is already on the tile when you go back, no reload needed.
+ */
+export function syncFeedsFromDoc(qc: QueryClient, doc: ImageDoc): void {
+  patchImageInFeeds(qc, doc._id, (tile) =>
+    TILE_FIELDS.every((k) => tile[k] === doc[k])
+      ? tile
+      : { ...tile, ...Object.fromEntries(TILE_FIELDS.map((k) => [k, doc[k]])) },
+  );
+}
+
+/**
+ * Optimistically set fields on one image everywhere it is cached: every feed,
+ * the grouped view and its own document. Returns an undo for a failed write.
+ */
+export function patchImageEverywhere(
+  qc: QueryClient,
+  id: string,
+  fields: Partial<ImageDoc>,
+): () => void {
+  const prevDoc = qc.getQueryData<ImageDoc>(imageDocKey(id));
+  const prevTile: Partial<ImageDoc> = {};
+  let captured = false;
+  patchImageInFeeds(qc, id, (d) => {
+    if (!captured) {
+      for (const k of Object.keys(fields) as (keyof ImageDoc)[]) {
+        (prevTile as Record<string, unknown>)[k] = d[k];
+      }
+      captured = true;
+    }
+    return { ...d, ...fields };
+  });
+  if (prevDoc) qc.setQueryData<ImageDoc>(imageDocKey(id), { ...prevDoc, ...fields });
+  return () => {
+    if (captured) patchImageInFeeds(qc, id, (d) => ({ ...d, ...prevTile }));
+    if (prevDoc) qc.setQueryData(imageDocKey(id), prevDoc);
+  };
 }
 
 /** Drop one image from every cached feed (quarantine, purge). */

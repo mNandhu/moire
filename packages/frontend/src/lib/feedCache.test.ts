@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import type { FeedPage, ImageDoc } from "./imageFilter";
 import {
+  imageDocKey,
   invalidateFeeds,
+  patchImageEverywhere,
+  syncFeedsFromDoc,
   patchImageInFeeds,
   removeImageFromFeeds,
   removeImagesFromFeeds,
@@ -121,5 +124,45 @@ describe("removeImagesFromFeeds", () => {
     const qc = seededClient();
     removeImagesFromFeeds(qc, []);
     expect(pagesOf(qc, ["images", 60, { tags: [] }])[0]).toHaveLength(2);
+  });
+});
+
+describe("syncFeedsFromDoc", () => {
+  it("copies tile fields from the open image's doc into every feed and the grouped view", () => {
+    const qc = seededClient();
+    qc.setQueryData(["image-groups", 60, {}], { pages: [[doc("a")]], pageParams: [0] });
+    syncFeedsFromDoc(qc, {
+      ...doc("a", 4),
+      rating: "explicit",
+      has_ai_tags: true,
+      tags: ["ignored"],
+    } as ImageDoc);
+    for (const key of [["images", 60, { tags: [] }], ["images", 60, { tags: ["cat"] }]]) {
+      expect(pagesOf(qc, key)[0][0]).toMatchObject({ score: 4, rating: "explicit", has_ai_tags: true });
+      // Only tile fields travel; the full doc's tags stay out of the feed.
+      expect(pagesOf(qc, key)[0][0].tags).toBeUndefined();
+    }
+    const groups = qc.getQueryData(["image-groups", 60, {}]) as { pages: ImageDoc[][] };
+    expect(groups.pages[0][0].score).toBe(4);
+  });
+
+  it("leaves pages untouched when nothing changed", () => {
+    const qc = seededClient();
+    const before = pagesOf(qc, ["images", 60, { tags: [] }])[0];
+    syncFeedsFromDoc(qc, before[0]);
+    expect(pagesOf(qc, ["images", 60, { tags: [] }])[0][0]).toBe(before[0]);
+  });
+});
+
+describe("patchImageEverywhere", () => {
+  it("patches feeds and the doc, and undo restores both", () => {
+    const qc = seededClient();
+    qc.setQueryData(imageDocKey("a"), { ...doc("a", 1), tags: ["x"] });
+    const undo = patchImageEverywhere(qc, "a", { score: 5 });
+    expect(pagesOf(qc, ["images", 60, { tags: [] }])[0][0].score).toBe(5);
+    expect((qc.getQueryData(imageDocKey("a")) as ImageDoc).score).toBe(5);
+    undo();
+    expect(pagesOf(qc, ["images", 60, { tags: [] }])[0][0].score).toBe(0);
+    expect((qc.getQueryData(imageDocKey("a")) as ImageDoc).score).toBe(1);
   });
 });
