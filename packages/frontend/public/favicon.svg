@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Moiré mark on a dark tile so it reads on light and dark tab strips.
+       Mirrors src/components/ui/Logo.tsx, with heavier strokes for 16px. -->
+  <rect width="32" height="32" rx="7" fill="#15141c"/>
+  <g fill="none" stroke-width="2">
+    <g stroke="#ecebf2"><circle cx="13.5" cy="16" r="2.5"/><circle cx="13.5" cy="16" r="6.5"/><circle cx="13.5" cy="16" r="10.5"/></g>
+    <g stroke="#9d88f0"><circle cx="18.5" cy="16" r="2.5"/><circle cx="18.5" cy="16" r="6.5"/><circle cx="18.5" cy="16" r="10.5"/></g>
+  </g>
+</svg>

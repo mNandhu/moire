@@ -7,11 +7,11 @@ import {
   Workflow,
   Settings,
   Sparkles,
-  Tag,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "../lib/cn";
+import { MoireMark } from "./ui/Logo";
 
 type Status = string;
 
@@ -91,13 +91,9 @@ export function Sidebar({
           collapsed ? "justify-center px-0" : "px-4 gap-2.5",
         )}
       >
-        <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-600 text-white shrink-0">
-          <Tag size={17} strokeWidth={2.25} />
-        </span>
+        <MoireMark size={28} />
         {!collapsed && (
-          <span className="text-base font-semibold tracking-tight text-neutral-50">
-            Tagify
-          </span>
+          <span className="text-lg font-semibold text-neutral-50">Moiré</span>
         )}
       </div>
 

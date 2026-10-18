@@ -145,7 +145,7 @@ export default function LibrariesPage() {
     const ok = await confirm({
       title: `Delete ${lib?.name || lib?.path || "this library"}?`,
       message:
-        "Its indexed images, tags and thumbnails are removed from Tagify. Files on disk are not touched.",
+        "Its indexed images, tags and thumbnails are removed from Moiré. Files on disk are not touched.",
       confirmLabel: "Delete library",
       tone: "danger",
     });
@@ -165,7 +165,7 @@ export default function LibrariesPage() {
       <PageHeader
         title="Libraries"
         count={initialLoading ? undefined : libs.length}
-        description="Folders Tagify watches and indexes."
+        description="Folders Moiré watches and indexes."
         actions={
           <div className="flex items-center gap-3">
             {refreshing && !initialLoading && (
