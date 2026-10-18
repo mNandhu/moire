@@ -136,7 +136,7 @@ describe("syncFeedsFromDoc", () => {
       rating: "explicit",
       has_ai_tags: true,
       tags: ["ignored"],
-    } as ImageDoc);
+    } as ImageDoc, Date.now() + 1000);
     for (const key of [["images", 60, { tags: [] }], ["images", 60, { tags: ["cat"] }]]) {
       expect(pagesOf(qc, key)[0][0]).toMatchObject({ score: 4, rating: "explicit", has_ai_tags: true });
       // Only tile fields travel; the full doc's tags stay out of the feed.
@@ -149,7 +149,7 @@ describe("syncFeedsFromDoc", () => {
   it("leaves pages untouched when nothing changed", () => {
     const qc = seededClient();
     const before = pagesOf(qc, ["images", 60, { tags: [] }])[0];
-    syncFeedsFromDoc(qc, before[0]);
+    syncFeedsFromDoc(qc, before[0], Date.now() + 1000);
     expect(pagesOf(qc, ["images", 60, { tags: [] }])[0][0]).toBe(before[0]);
   });
 });
@@ -164,5 +164,43 @@ describe("patchImageEverywhere", () => {
     undo();
     expect(pagesOf(qc, ["images", 60, { tags: [] }])[0][0].score).toBe(0);
     expect((qc.getQueryData(imageDocKey("a")) as ImageDoc).score).toBe(1);
+  });
+});
+
+describe("patches never fake freshness", () => {
+  it("keeps a pending invalidation and the fetch time when patching", () => {
+    const qc = seededClient();
+    const key = ["images", 60, { tags: [] }];
+    void qc.invalidateQueries({ queryKey: key, refetchType: "none" });
+    const before = qc.getQueryState(key)!.dataUpdatedAt;
+    patchImageEverywhere(qc, "a", { score: 3 });
+    expect(qc.getQueryState(key)!.isInvalidated).toBe(true);
+    expect(qc.getQueryState(key)!.dataUpdatedAt).toBe(before);
+    expect(pagesOf(qc, key)[0][0].score).toBe(3);
+  });
+
+  it("does not touch feeds that don't hold the image", () => {
+    const qc = seededClient();
+    const key = ["images", 60, { tags: ["cat"] }];
+    const data = qc.getQueryData(key);
+    patchImageEverywhere(qc, "b", { score: 3 });
+    expect(qc.getQueryData(key)).toBe(data);
+  });
+
+  it("a doc older than the feed doesn't overwrite the tile", () => {
+    const qc = seededClient();
+    const key = ["images", 60, { tags: [] }];
+    const feedAt = qc.getQueryState(key)!.dataUpdatedAt;
+    syncFeedsFromDoc(qc, doc("a", 4), feedAt - 1);
+    expect(pagesOf(qc, key)[0][0].score).toBe(0);
+  });
+
+  it("undo leaves a value that changed after the patch alone", () => {
+    const qc = seededClient();
+    const key = ["images", 60, { tags: [] }];
+    const undoThree = patchImageEverywhere(qc, "a", { score: 3 });
+    patchImageEverywhere(qc, "a", { score: 5 }); // a later edit that succeeded
+    undoThree(); // the first write failed late
+    expect(pagesOf(qc, key)[0][0].score).toBe(5);
   });
 });

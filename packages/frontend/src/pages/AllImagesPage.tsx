@@ -456,6 +456,9 @@ export default function AllImagesPage() {
       const undo = patchImageEverywhere(queryClient, it._id, { score: n });
       try {
         await apiSetScore(it._id, n);
+        // Again on success: a feed refetch that was already in flight (after
+        // a bulk action, say) may have brought the old score back meanwhile.
+        patchImageEverywhere(queryClient, it._id, { score: n });
       } catch (e) {
         undo();
         push(`Failed to set score: ${String(e)}`, "error");

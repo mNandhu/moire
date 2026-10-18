@@ -145,7 +145,7 @@ export default function ImageView() {
   }, [backgroundLocation, navigate, filterQuery]);
 
   // Current image document (full doc with tags/rating); refetched after edits.
-  const { data, refetch } = useQuery({
+  const { data, refetch, dataUpdatedAt } = useQuery({
     queryKey: imageDocKey(id!),
     queryFn: ({ signal }) => fetchImage(id!, { signal }),
     enabled: !!id,
@@ -158,16 +158,28 @@ export default function ImageView() {
   }, [refetch]);
   // This document is the source of truth for the open image; every time it
   // changes (after any edit made here, or a server-side effect like AI
-  // tagging), the gallery tiles behind the overlay take the same values.
+  // tagging), the gallery tiles behind the overlay take the same values, but
+  // only where this copy is newer than the tile's (a doc served from cache
+  // must not roll a fresher tile back).
   useEffect(() => {
-    if (data) syncFeedsFromDoc(queryClient, data);
-  }, [data, queryClient]);
+    if (data) syncFeedsFromDoc(queryClient, data, dataUpdatedAt);
+  }, [data, dataUpdatedAt, queryClient]);
   // Tag edits can move the image in or out of a filtered feed and change tag
-  // counts, which a field copy can't express; refetch those.
+  // counts, which a field copy can't express. Refetching the feed right away
+  // would drop the open image from the list ImageView steps through (in the
+  // untagged view, tagging it is the whole point), so the feeds refetch once,
+  // when ImageView closes.
+  const feedsDirty = useRef(false);
   const onTagsChanged = useCallback(() => {
     refreshImage();
-    invalidateFeeds(queryClient);
-  }, [refreshImage, queryClient]);
+    feedsDirty.current = true;
+  }, [refreshImage]);
+  useEffect(
+    () => () => {
+      if (feedsDirty.current) invalidateFeeds(queryClient);
+    },
+    [queryClient],
+  );
 
   const score = data?.score ?? 0;
   const quarantined = !!data?.quarantined;
@@ -175,17 +187,23 @@ export default function ImageView() {
   const applyScore = useCallback(
     async (n: number) => {
       if (!id) return;
+      const canonical = data?._id ?? id;
+      // A doc fetch already in flight would land after the patch and undo it.
+      await queryClient.cancelQueries({ queryKey: imageDocKey(id), exact: true });
       // Shown at once, here and on the gallery tile; undone if the write fails.
-      const undo = patchImageEverywhere(queryClient, id, { score: n });
+      const undo = patchImageEverywhere(queryClient, canonical, { score: n }, id);
       try {
         await apiSetScore(id, n);
+        // Again on success: a feed fetch that started before the write may
+        // have brought the old value back in the meantime.
+        patchImageEverywhere(queryClient, canonical, { score: n }, id);
         refreshImage();
       } catch (e) {
         undo();
         push(`Failed to set score: ${String(e)}`, "error");
       }
     },
-    [id, push, refreshImage, queryClient],
+    [id, data?._id, push, refreshImage, queryClient],
   );
 
   const toggleQuarantine = useCallback(async () => {
@@ -352,7 +370,7 @@ export default function ImageView() {
       // The full doc: prefetching it is what removes the `data === undefined`
       // phase on arrival, so the sidebar never blanks either.
       void queryClient.prefetchQuery({
-        queryKey: ["image", it._id],
+        queryKey: imageDocKey(it._id),
         queryFn: ({ signal }) => fetchImage(it._id, { signal }),
         // Without this the prefetch is stale on arrival and every step would
         // refetch the neighbours it already fetched one step ago.
@@ -747,6 +765,7 @@ export default function ImageView() {
                   <span className="text-sm text-neutral-300">Rating</span>
                   <RatingEditor
                     id={data._id}
+                    docId={id!}
                     value={rating}
                     onDone={refreshImage}
                   />
@@ -1219,10 +1238,13 @@ function GenPanel({
 
 function RatingEditor({
   id,
+  docId,
   value,
   onDone,
 }: {
   id: string;
+  /** The id as spelled in the route: the key ImageView's doc is cached under. */
+  docId: string;
   value: string;
   onDone: () => void;
 }) {
@@ -1234,10 +1256,13 @@ function RatingEditor({
   const setRating = async (next: string) => {
     if (next === v) return;
     setSaving(true);
+    await queryClient.cancelQueries({ queryKey: imageDocKey(docId), exact: true });
     // Shown at once, here and on the gallery tile; undone if the write fails.
-    const undo = patchImageEverywhere(queryClient, id, { rating: next });
+    const undo = patchImageEverywhere(queryClient, id, { rating: next }, docId);
     try {
       await apiSetRating(id, next);
+      // Again on success, over any fetch that raced the write.
+      patchImageEverywhere(queryClient, id, { rating: next }, docId);
       push("Rating updated", "success");
       onDone();
     } catch (e) {

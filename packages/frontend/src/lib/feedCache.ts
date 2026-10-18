@@ -12,7 +12,7 @@
  * See CONTEXT.md › Image feed.
  */
 
-import type { InfiniteData, QueryClient } from "@tanstack/react-query";
+import type { InfiniteData, Query, QueryClient } from "@tanstack/react-query";
 import { IMAGE_STATS_KEY, TAGS_KEY } from "./queries";
 import type { FeedPage, ImageDoc } from "./imageFilter";
 
@@ -22,6 +22,28 @@ import type { FeedPage, ImageDoc } from "./imageFilter";
  */
 export const IMAGE_FEED_PREFIX = ["images"] as const;
 const IMAGE_GROUPS_PREFIX = ["image-groups"] as const;
+
+/** Query key of one Image's full document (ImageView's source of truth). */
+export const imageDocKey = (id: string) => ["image", id] as const;
+
+/**
+ * Replace a query's data *without* touching its freshness. `setQueryData`
+ * records a successful fetch: it clears `isInvalidated` and stamps
+ * `dataUpdatedAt` with now, so a local patch would silently cancel a pending
+ * invalidation and make an old snapshot look new. A patch is not a fetch;
+ * writing `data` alone keeps both, and still notifies observers.
+ */
+function patchData<T>(query: Query, next: T): void {
+  if (next !== query.state.data) query.setState({ data: next });
+}
+
+type FeedData = InfiniteData<FeedPage>;
+type GroupsData = InfiniteData<ImageDoc[]>;
+
+const feedQueries = (qc: QueryClient) =>
+  qc.getQueryCache().findAll({ queryKey: IMAGE_FEED_PREFIX });
+const groupQueries = (qc: QueryClient) =>
+  qc.getQueryCache().findAll({ queryKey: IMAGE_GROUPS_PREFIX });
 
 /**
  * Apply `mut` to the pages of every cached Image feed. `mut` sees each page's
@@ -33,41 +55,52 @@ export function patchFeeds(
   qc: QueryClient,
   mut: (pages: ImageDoc[][]) => ImageDoc[][],
 ): void {
-  qc.setQueriesData<InfiniteData<FeedPage>>(
-    { queryKey: IMAGE_FEED_PREFIX },
-    (old) => {
-      if (!old) return old;
-      const patched = mut(old.pages.map((p) => p.items));
-      return {
-        ...old,
-        pages: old.pages.map((p, i) => ({ ...p, items: patched[i] ?? [] })),
-      };
-    },
-  );
+  for (const q of feedQueries(qc)) {
+    const old = q.state.data as FeedData | undefined;
+    if (!old) continue;
+    const items = old.pages.map((p) => p.items);
+    const patched = mut(items);
+    if (patched.every((page, i) => page === items[i])) continue;
+    patchData(q, {
+      ...old,
+      pages: old.pages.map((p, i) =>
+        patched[i] === p.items ? p : { ...p, items: patched[i] ?? [] },
+      ),
+    });
+  }
 }
 
-/** Query key of one Image's full document (ImageView's source of truth). */
-export const imageDocKey = (id: string) => ["image", id] as const;
+const hasImage = (page: ImageDoc[], id: string) => page.some((d) => d._id === id);
 
 /**
  * Replace one image wherever it appears in a cached feed or grouped view.
- * Pages without it keep their identity, so unrelated views don't re-render.
+ * Only queries that hold it are touched, and `when` can veto a query (see
+ * syncFeedsFromDoc), so stepping through images costs nothing for the rest.
  */
 export function patchImageInFeeds(
   qc: QueryClient,
   id: string,
   patch: (doc: ImageDoc) => ImageDoc,
+  when: (q: Query) => boolean = () => true,
 ): void {
   const inPage = (page: ImageDoc[]) =>
-    page.some((d) => d._id === id)
-      ? page.map((d) => (d._id === id ? patch(d) : d))
-      : page;
-  patchFeeds(qc, (pages) => pages.map(inPage));
+    hasImage(page, id) ? page.map((d) => (d._id === id ? patch(d) : d)) : page;
+  for (const q of feedQueries(qc)) {
+    const old = q.state.data as FeedData | undefined;
+    if (!old || !old.pages.some((p) => hasImage(p.items, id)) || !when(q)) continue;
+    const pages = old.pages.map((p) => {
+      const items = inPage(p.items);
+      return items === p.items ? p : { ...p, items };
+    });
+    if (pages.some((p, i) => p !== old.pages[i])) patchData(q, { ...old, pages });
+  }
   // The grouped view's pages are plain arrays of batch representatives.
-  qc.setQueriesData<InfiniteData<ImageDoc[]>>(
-    { queryKey: IMAGE_GROUPS_PREFIX },
-    (old) => (old ? { ...old, pages: old.pages.map(inPage) } : old),
-  );
+  for (const q of groupQueries(qc)) {
+    const old = q.state.data as GroupsData | undefined;
+    if (!old || !old.pages.some((p) => hasImage(p, id)) || !when(q)) continue;
+    const pages = old.pages.map(inPage);
+    if (pages.some((p, i) => p !== old.pages[i])) patchData(q, { ...old, pages });
+  }
 }
 
 // What a gallery tile draws from an image (see image_feed.FEED_COLUMNS); a
@@ -75,44 +108,68 @@ export function patchImageInFeeds(
 const TILE_FIELDS = ["score", "rating", "quarantined", "has_ai_tags"] as const;
 
 /**
- * Copy the tile-visible fields of a fresh image document into every cached
- * feed. ImageView calls it whenever its document changes, so any edit made
- * there (score, rating, tags, AI tagging, and whatever the server derives
- * from them) is already on the tile when you go back, no reload needed.
+ * Copy the tile-visible fields of an image document into every cached feed
+ * that holds the image, but only where the document is newer than the feed
+ * (`docUpdatedAt`, the doc query's `dataUpdatedAt`). ImageView calls it when
+ * its document changes, so edits made there (score, rating, tags, AI tagging
+ * and whatever the server derives from them) are on the tile when you go
+ * back; a doc served from cache that predates the feed never overwrites it.
  */
-export function syncFeedsFromDoc(qc: QueryClient, doc: ImageDoc): void {
-  patchImageInFeeds(qc, doc._id, (tile) =>
-    TILE_FIELDS.every((k) => tile[k] === doc[k])
-      ? tile
-      : { ...tile, ...Object.fromEntries(TILE_FIELDS.map((k) => [k, doc[k]])) },
+export function syncFeedsFromDoc(
+  qc: QueryClient,
+  doc: ImageDoc,
+  docUpdatedAt: number,
+): void {
+  patchImageInFeeds(
+    qc,
+    doc._id,
+    (tile) =>
+      TILE_FIELDS.every((k) => tile[k] === doc[k])
+        ? tile
+        : { ...tile, ...Object.fromEntries(TILE_FIELDS.map((k) => [k, doc[k]])) },
+    (q) => docUpdatedAt > q.state.dataUpdatedAt,
   );
 }
 
 /**
- * Optimistically set fields on one image everywhere it is cached: every feed,
- * the grouped view and its own document. Returns an undo for a failed write.
+ * Optimistically set fields on one image everywhere it is cached: every feed
+ * that holds it, the grouped view, and its document (under `docId`, the id as
+ * spelled in the route, which may differ from the canonical `_id` in slash
+ * direction). Freshness is left alone, so a stale document still refetches.
+ *
+ * Returns an undo for a failed write. It reverts only fields that still hold
+ * this patch's value, so a later edit or refetch that landed meanwhile (a
+ * second score that succeeded) is never rolled back.
  */
 export function patchImageEverywhere(
   qc: QueryClient,
   id: string,
   fields: Partial<ImageDoc>,
+  docId: string = id,
 ): () => void {
-  const prevDoc = qc.getQueryData<ImageDoc>(imageDocKey(id));
-  const prevTile: Partial<ImageDoc> = {};
-  let captured = false;
+  const keys = Object.keys(fields) as (keyof ImageDoc)[];
+  const docQuery = qc.getQueryCache().find({ queryKey: imageDocKey(docId), exact: true });
+  const prevDoc = docQuery?.state.data as ImageDoc | undefined;
+  let prevTile: ImageDoc | undefined;
   patchImageInFeeds(qc, id, (d) => {
-    if (!captured) {
-      for (const k of Object.keys(fields) as (keyof ImageDoc)[]) {
-        (prevTile as Record<string, unknown>)[k] = d[k];
-      }
-      captured = true;
-    }
+    prevTile ??= d;
     return { ...d, ...fields };
   });
-  if (prevDoc) qc.setQueryData<ImageDoc>(imageDocKey(id), { ...prevDoc, ...fields });
+  if (docQuery && prevDoc) patchData(docQuery, { ...prevDoc, ...fields });
+
+  const revert = (cur: ImageDoc, prev: ImageDoc) => {
+    const back = keys.filter((k) => cur[k] === fields[k]);
+    return back.length
+      ? { ...cur, ...Object.fromEntries(back.map((k) => [k, prev[k]])) }
+      : cur;
+  };
   return () => {
-    if (captured) patchImageInFeeds(qc, id, (d) => ({ ...d, ...prevTile }));
-    if (prevDoc) qc.setQueryData(imageDocKey(id), prevDoc);
+    if (prevTile) {
+      const prev = prevTile;
+      patchImageInFeeds(qc, id, (d) => revert(d, prev));
+    }
+    const cur = docQuery?.state.data as ImageDoc | undefined;
+    if (docQuery && cur && prevDoc) patchData(docQuery, revert(cur, prevDoc));
   };
 }
 
