@@ -34,9 +34,9 @@ describe("ThumbnailTile triage state", () => {
     expect(screen.getByLabelText("Score 4 of 5")).toBeInTheDocument();
   });
 
-  it("reports an unscored image as unscored rather than as a zero", () => {
+  it("draws no score bar for an unscored image", () => {
     renderTile(doc({ score: 0 }));
-    expect(screen.getByLabelText("Unscored")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Score|Unscored/)).not.toBeInTheDocument();
   });
 
   it("marks an image with no AI tags", () => {

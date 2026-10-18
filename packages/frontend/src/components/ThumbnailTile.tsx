@@ -243,22 +243,20 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
           "flex items-end justify-between gap-2",
           "bg-gradient-to-t from-black/75 via-black/35 to-transparent",
           "transition-opacity duration-150",
-          // `untagged` belongs here with the rest: finding what still needs
-          // tagging by scanning a wall of tiles is the entire job the marker
-          // exists for, and it can't do that from behind a hover.
-          chipVisibility(hasScore || quarantined || untagged || !!ratingDot),
+          // `untagged` is deliberately not here: in a mostly untagged library
+          // the marker sat on every tile and read as noise, so it shows on
+          // hover only. Finding untagged images is the "Show only: Untagged"
+          // filter's job.
+          chipVisibility(hasScore || quarantined || !!ratingDot),
         )}
       >
-        {/* Empty pips aren't state, so they follow the hover rule even when
-            the strip is up for another marker (an untagged-only tile would
-            otherwise wear a row of blank pips at rest). */}
-        <span className={chipVisibility(hasScore)}>
-          <ScorePips score={score} />
-        </span>
+        {/* No score, no bar: blank pips aren't state. The empty span keeps
+            the markers on the right. */}
+        {hasScore ? <ScorePips score={score} /> : <span />}
         <div className="flex items-center gap-1.5">
           {untagged && (
             <span
-              className="text-white/70"
+              className={cn("text-white/70", chipVisibility(false))}
               title="No AI tags yet"
               aria-label="Untagged"
             >

@@ -43,7 +43,7 @@ import {
 } from "../lib/imageMutations";
 import { accentFromBlurhash } from "../lib/blurhash";
 import { pickRating, ratingBadgeClass } from "../lib/rating";
-import { formatTag, partitionTags } from "../lib/tags";
+import { formatTag, partitionTags, tagFlow, type FlowTag, type TagKind } from "../lib/tags";
 import { isFormField } from "../lib/dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { Button } from "../components/ui/Button";
@@ -773,35 +773,10 @@ export default function ImageView() {
                 {aiTags.length ||
                 manualTagsRaw.length ||
                 promptTagsRaw.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {aiTags.map((t) => (
-                      <TagChip
-                        key={t}
-                        label={t}
-                        kind="ai"
-                        filterHref={tagHref(t)}
-                        onThumb={() => void setTagThumbnail(t)}
-                      />
-                    ))}
-                    {manualTagsRaw.map((t) => (
-                      <TagChip
-                        key={t}
-                        label={formatTag(t)}
-                        kind="manual"
-                        filterHref={tagHref(t)}
-                        onThumb={() => void setTagThumbnail(t)}
-                      />
-                    ))}
-                    {promptTagsRaw.map((t) => (
-                      <TagChip
-                        key={t}
-                        label={formatTag(t)}
-                        kind="prompt"
-                        filterHref={tagHref(t)}
-                        onThumb={() => void setTagThumbnail(t)}
-                      />
-                    ))}
-                  </div>
+                  <TagFlow
+                    tags={tagFlow(data.tags, data.ai)}
+                    onThumb={(t) => void setTagThumbnail(t)}
+                  />
                 ) : (
                   <div className="text-xs text-faint">No tags yet.</div>
                 )}
@@ -959,53 +934,81 @@ function Section({
   );
 }
 
-const TAG_CHIP_STYLES: Record<
-  "ai" | "manual" | "prompt",
-  { cls: string; title: string }
-> = {
-  ai: { cls: "bg-raised border-line-strong text-neutral-200", title: "AI tag" },
-  manual: {
-    cls: "bg-emerald-900/30 border-emerald-800 text-emerald-100",
-    title: "Manual tag",
-  },
-  prompt: {
-    cls: "bg-sky-900/30 border-sky-800 text-sky-100",
-    title: "Prompt-extracted tag",
-  },
+const KIND_TEXT: Record<TagKind, string> = {
+  character: "text-brand-300 font-semibold",
+  ai: "text-neutral-100",
+  manual: "text-emerald-300",
+  prompt: "text-sky-300",
+};
+const KIND_LABEL: Record<TagKind, string> = {
+  character: "character",
+  ai: "AI",
+  manual: "yours",
+  prompt: "prompt",
 };
 
-function TagChip({
-  label,
-  kind,
-  filterHref,
+/**
+ * An image's tags as one comma-separated run, like a prompt: dense, easy to
+ * read top to bottom and to copy. Kind shows as text colour (legend below);
+ * a less confident AI tag is fainter. Each tag links to the gallery filtered
+ * by it; hovering shows a small "set as tag thumbnail" action.
+ */
+function TagFlow({
+  tags,
   onThumb,
 }: {
-  label: string;
-  kind: "ai" | "manual" | "prompt";
-  filterHref: string;
-  onThumb: () => void;
+  tags: FlowTag[];
+  onThumb: (raw: string) => void;
 }) {
-  const { cls, title } = TAG_CHIP_STYLES[kind];
+  const kinds = (Object.keys(KIND_LABEL) as TagKind[]).filter((k) =>
+    tags.some((t) => t.kind === k),
+  );
   return (
-    <span
-      className={`group relative px-2.5 py-1 rounded-full text-xs border inline-flex items-center ${cls}`}
-      title={title}
-    >
-      <Link className="hover:underline" title={`Filter by ${label}`} to={filterHref}>
-        {label}
-      </Link>
-      <button
-        type="button"
-        // Floats over the chip's corner so it reserves no width at rest —
-        // an invisible in-flow button left every chip lopsided.
-        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full inline-flex items-center justify-center bg-raised border border-line-strong text-muted hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-        title="Set as tag thumbnail"
-        aria-label={`Set thumbnail for ${label}`}
-        onClick={onThumb}
-      >
-        <ImageIcon size={11} />
-      </button>
-    </span>
+    <div className="space-y-2">
+      <p className="text-[13px] leading-7">
+        {tags.map((t, i) => (
+          <React.Fragment key={t.raw}>
+            <span className="group relative">
+              <Link
+                to={tagHref(t.raw)}
+                className={`rounded px-0.5 -mx-0.5 hover:bg-raised hover:underline ${KIND_TEXT[t.kind]}`}
+                style={
+                  t.confidence != null
+                    ? { opacity: 0.45 + 0.55 * t.confidence }
+                    : undefined
+                }
+                title={
+                  t.confidence != null
+                    ? `Filter by ${t.label} · ${Math.round(t.confidence * 100)}% confidence`
+                    : `Filter by ${t.label} (${KIND_LABEL[t.kind]})`
+                }
+              >
+                {t.label}
+              </Link>
+              <button
+                type="button"
+                onClick={() => onThumb(t.raw)}
+                aria-label={`Set thumbnail for ${t.label}`}
+                title="Set as tag thumbnail"
+                className="absolute -top-4 left-1/2 -translate-x-1/2 h-5 w-5 rounded-full inline-flex items-center justify-center bg-raised border border-line-strong text-muted hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+              >
+                <ImageIcon size={11} />
+              </button>
+            </span>
+            {i < tags.length - 1 && <span className="text-line-strong">, </span>}
+          </React.Fragment>
+        ))}
+      </p>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-2xs text-faint">
+        {kinds.map((k) => (
+          <span key={k} className={`inline-flex items-center gap-1 ${KIND_TEXT[k]}`}>
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            {KIND_LABEL[k]}
+          </span>
+        ))}
+        {tags.some((t) => t.confidence != null) && <span>fainter = less confident</span>}
+      </div>
+    </div>
   );
 }
 

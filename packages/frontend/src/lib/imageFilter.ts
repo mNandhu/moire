@@ -33,7 +33,7 @@ export type ImageDoc = {
   has_ai_tags?: boolean;
   // Structured generation metadata (extracted from embedded AI-art data).
   gen?: import("./gen").GenMeta;
-  ai?: {
+  ai?: import("./tags").AiTagMeta & {
     rating?: Record<string, number>;
   };
 };

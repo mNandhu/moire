@@ -6,6 +6,7 @@ import {
   isManual,
   isPrompt,
   partitionTags,
+  tagFlow,
 } from "./tags";
 
 describe("formatTag", () => {
@@ -61,5 +62,39 @@ describe("formatSearchTag", () => {
     expect(formatSearchTag("any:cat")).toBe("cat");
     expect(formatSearchTag("manual:cat")).toBe("cat");
     expect(formatSearchTag("cat")).toBe("cat");
+  });
+});
+
+describe("tagFlow", () => {
+  const ai = {
+    general_tags: [["solo", 0.95], ["1boy", 0.97], ["tassel", 0.48]] as [string, number][],
+    character_tags: [["zhongli", 0.93]] as [string, number][],
+  };
+
+  it("orders characters, AI by confidence, yours, then prompt", () => {
+    const flow = tagFlow(["solo", "prompt:neon", "manual:fav", "tassel", "zhongli", "1boy"], ai);
+    expect(flow.map((t) => [t.label, t.kind])).toEqual([
+      ["zhongli", "character"],
+      ["1boy", "ai"],
+      ["solo", "ai"],
+      ["tassel", "ai"],
+      ["fav", "manual"],
+      ["neon", "prompt"],
+    ]);
+    expect(flow[0].confidence).toBe(0.93);
+  });
+
+  it("keeps an AI tag and the same prompt tag as separate entries", () => {
+    const flow = tagFlow(["solo", "prompt:solo"], ai);
+    expect(flow.map((t) => t.raw)).toEqual(["solo", "prompt:solo"]);
+  });
+
+  it("works without tagger metadata, keeping stored order", () => {
+    const flow = tagFlow(["b", "a", "prompt:c"], null);
+    expect(flow.map((t) => [t.label, t.kind, t.confidence])).toEqual([
+      ["b", "ai", undefined],
+      ["a", "ai", undefined],
+      ["c", "prompt", undefined],
+    ]);
   });
 });

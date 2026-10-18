@@ -66,3 +66,57 @@ export function partitionTags(tags: readonly string[] = []): PartitionedTags {
   }
   return out;
 }
+
+/** What the tagger stored alongside an image's AI tags: [tag, confidence]. */
+export type AiTagMeta = {
+  general_tags?: [string, number][];
+  character_tags?: [string, number][];
+};
+
+export type TagKind = "character" | "ai" | "manual" | "prompt";
+
+export type FlowTag = {
+  /** The stored tag, as used for filtering. */
+  raw: string;
+  label: string;
+  kind: TagKind;
+  /** Tagger confidence (0-1), for AI and character tags when known. */
+  confidence?: number;
+};
+
+/**
+ * One image's tags in reading order for the image view: characters, then AI
+ * tags most confident first, then the user's own, then prompt tags. AI and
+ * prompt tags that share a name both appear: they are different kinds and
+ * filter differently (see partitionTags).
+ */
+export function tagFlow(tags: readonly string[] = [], ai?: AiTagMeta | null): FlowTag[] {
+  const conf = new Map<string, number>();
+  for (const [t, p] of ai?.general_tags ?? []) conf.set(t, p);
+  const characters = new Set<string>();
+  for (const [t, p] of ai?.character_tags ?? []) {
+    conf.set(t, p);
+    characters.add(t);
+  }
+  const { ai: aiTags, manual, prompt } = partitionTags(tags);
+  const aiFlow = aiTags.map(
+    (raw): FlowTag => ({
+      raw,
+      label: raw,
+      kind: characters.has(raw) ? "character" : "ai",
+      confidence: conf.get(raw),
+    }),
+  );
+  // Stable sort: characters first, then by confidence; unknown confidence
+  // keeps its stored position after the known ones.
+  const rank = (t: FlowTag) => (t.kind === "character" ? 0 : 1);
+  aiFlow.sort(
+    (a, b) => rank(a) - rank(b) || (b.confidence ?? -1) - (a.confidence ?? -1),
+  );
+  return [
+    ...aiFlow,
+    ...manual.map((raw): FlowTag => ({ raw, label: formatTag(raw), kind: "manual" })),
+    ...prompt.map((raw): FlowTag => ({ raw, label: formatTag(raw), kind: "prompt" })),
+  ];
+}
+
