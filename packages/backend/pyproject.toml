@@ -16,6 +16,7 @@ dependencies = [
   "onnxruntime>=1.23.0,<2.0",
   "pydantic-settings>=2.14.1",
   "watchfiles>=1.0",
+  "tzdata>=2026.5",
 ]
 
 [build-system]

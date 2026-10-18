@@ -91,7 +91,9 @@ export function useImageStats() {
     staleTime: 60_000,
     queryFn: ({ signal }) =>
       api<ImageStats>(
-        `/api/v1/images/stats?days=371&tz=${encodeURIComponent(viewerTimeZone())}`,
+        // The offset is a fallback for a zone the server doesn't know.
+        `/api/v1/images/stats?days=371&tz=${encodeURIComponent(viewerTimeZone())}` +
+          `&tz_offset=${-new Date().getTimezoneOffset()}`,
         { signal },
       ),
   });

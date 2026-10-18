@@ -183,3 +183,21 @@ async def test_stats_days_follow_dst_and_half_hour_zones(client, seed):
 async def test_stats_rejects_unknown_zone(client):
     resp = await client.get("/images/stats", params={"tz": "Mars/Olympus"})
     assert resp.status_code == 422
+
+
+async def test_stats_zone_aliases_and_offset_fallback(client, seed):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    # Chrome reports India as the legacy alias; tzdata knows it.
+    seed("L1:i", mtime=datetime(2026, 3, 1, 18, 40, tzinfo=ZoneInfo("UTC")).timestamp())
+    alias = await client.get(
+        "/images/stats", params={"days": 3660, "tz": "Asia/Calcutta"}
+    )
+    assert alias.status_code == 200
+    assert [r["day"] for r in alias.json()["activity"]] == ["2026-03-02"]
+    # An unknown zone with the viewer's offset degrades instead of failing.
+    fallback = await client.get(
+        "/images/stats", params={"days": 3660, "tz": "Mars/Olympus", "tz_offset": 330}
+    )
+    assert [r["day"] for r in fallback.json()["activity"]] == ["2026-03-02"]

@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import mimetypes
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import anyio  # type: ignore[import-not-found]
 import os
@@ -234,16 +234,21 @@ _SLOT = 900
 async def image_stats(
     days: int = Query(default=371, ge=1, le=3660),
     tz: str = Query(default="UTC", max_length=64),
+    tz_offset: int | None = Query(default=None, ge=-14 * 60, le=14 * 60),
 ):
     """Overview numbers: images per local calendar day over the last ``days``
     (by file mtime, the generation-time proxy the feed sorts on), and the
     quarantine backlog. ``tz`` is the viewer's IANA zone ("Asia/Kolkata"), so
-    days break at their midnight on each date. Days with no images are
-    omitted."""
+    days break at their midnight on each date. A zone this server doesn't know
+    falls back to ``tz_offset`` (minutes east of UTC, the viewer's current
+    offset): right except across DST, better than no chart. Days with no
+    images are omitted."""
     try:
         zone = ZoneInfo(tz)
     except (ZoneInfoNotFoundError, ValueError):
-        raise HTTPException(status_code=422, detail="unknown time zone")
+        if tz_offset is None:
+            raise HTTPException(status_code=422, detail="unknown time zone")
+        zone = timezone(timedelta(minutes=tz_offset))
     # The feed's own sort expression, so the range walks ix_images_recent.
     when = image_feed.SORT_KEY
     slot = sa.cast(when / _SLOT, sa.Integer)
