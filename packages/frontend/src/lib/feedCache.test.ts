@@ -85,7 +85,7 @@ describe("patching keeps server cursors", () => {
 });
 
 describe("invalidateFeeds", () => {
-  it("invalidates the feed, the grouped view and the tag aggregates", () => {
+  it("invalidates the feed, the grouped view, the tag aggregates and the stats", () => {
     const qc = new QueryClient();
     const seen: unknown[] = [];
     qc.invalidateQueries = ((args: { queryKey: unknown }) => {
@@ -95,7 +95,7 @@ describe("invalidateFeeds", () => {
 
     invalidateFeeds(qc);
 
-    expect(seen).toEqual([["images"], ["image-groups"], ["tags"]]);
+    expect(seen).toEqual([["images"], ["image-groups"], ["tags"], ["image-stats"]]);
   });
 });
 

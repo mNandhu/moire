@@ -8,7 +8,7 @@
  * a write invalidates the key once and every reader refreshes.
  */
 
-import { tzOffsetMinutes } from "./activity";
+import { viewerTimeZone } from "./activity";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 import { fetchAiCoverage } from "./ai";
@@ -86,9 +86,12 @@ export const IMAGE_STATS_KEY = ["image-stats"] as const;
 export function useImageStats() {
   return useQuery({
     queryKey: IMAGE_STATS_KEY,
+    // A year of activity barely moves between visits; mutations that change
+    // the quarantine count invalidate it (feedCache.invalidateFeeds).
+    staleTime: 60_000,
     queryFn: ({ signal }) =>
       api<ImageStats>(
-        `/api/v1/images/stats?days=371&tz_offset=${tzOffsetMinutes()}`,
+        `/api/v1/images/stats?days=371&tz=${encodeURIComponent(viewerTimeZone())}`,
         { signal },
       ),
   });

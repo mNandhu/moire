@@ -2,6 +2,9 @@ from fastapi import APIRouter, HTTPException, Query, Request, Header, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import mimetypes
+import time
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import anyio  # type: ignore[import-not-found]
 import os
 
@@ -220,30 +223,46 @@ async def list_models(library_id: str | None = Query(default=None)):
     return [{"model": r.gen_model, "count": r.count} for r in rows]
 
 
+# Activity is counted per 15-minute slot, then each slot is placed on a local
+# day in Python. Every UTC offset in use is a multiple of 15 minutes, so this
+# is exact for any zone, DST changes included, which one fixed offset for the
+# whole year was not.
+_SLOT = 900
+
+
 @router.get("/stats")
 async def image_stats(
     days: int = Query(default=371, ge=1, le=3660),
-    tz_offset: int = Query(default=0, ge=-14 * 60, le=14 * 60),
+    tz: str = Query(default="UTC", max_length=64),
 ):
     """Overview numbers: images per local calendar day over the last ``days``
     (by file mtime, the generation-time proxy the feed sorts on), and the
-    quarantine backlog. ``tz_offset`` is minutes east of UTC, so days break at
-    the viewer's midnight, not UTC's. Days with no images are omitted."""
-    off = tz_offset * 60
-    day = sa.func.date(t.images.c.mtime + off, "unixepoch")
-    since = sa.func.strftime("%s", "now") - days * 86400
+    quarantine backlog. ``tz`` is the viewer's IANA zone ("Asia/Kolkata"), so
+    days break at their midnight on each date. Days with no images are
+    omitted."""
+    try:
+        zone = ZoneInfo(tz)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise HTTPException(status_code=422, detail="unknown time zone")
+    # The feed's own sort expression, so the range walks ix_images_recent.
+    when = image_feed.SORT_KEY
+    slot = sa.cast(when / _SLOT, sa.Integer)
+    since = time.time() - days * 86400
     activity = (
-        sa.select(day.label("day"), sa.func.count().label("count"))
-        .where(t.images.c.mtime.isnot(None), t.images.c.mtime >= since)
-        .group_by(day)
-        .order_by(day)
+        sa.select(slot.label("slot"), sa.func.count().label("count"))
+        .where(when >= since)
+        .group_by(slot)
     )
     quarantined = sa.select(sa.func.count()).where(t.images.c.quarantined.is_(True))
     async with async_conn() as conn:
         rows = (await conn.execute(activity)).fetchall()
         q = (await conn.execute(quarantined)).scalar_one()
+    per_day: dict[str, int] = {}
+    for r in rows:
+        day = datetime.fromtimestamp(r.slot * _SLOT, zone).date().isoformat()
+        per_day[day] = per_day.get(day, 0) + r.count
     return {
-        "activity": [{"day": r.day, "count": r.count} for r in rows],
+        "activity": [{"day": d, "count": n} for d, n in sorted(per_day.items())],
         "quarantined": q,
     }
 

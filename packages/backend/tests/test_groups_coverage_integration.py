@@ -149,8 +149,37 @@ async def test_stats_counts_images_per_local_day_and_quarantine(client, seed):
 
     # Two hours west of UTC, 01:00 UTC is still the previous local day.
     west = (
-        await client.get("/images/stats", params={"days": 30, "tz_offset": -120})
+        await client.get("/images/stats", params={"days": 30, "tz": "Etc/GMT+2"})
     ).json()
     utc_days = [r["day"] for r in body["activity"]]
     assert [r["day"] for r in west["activity"]] != utc_days
     assert [r["count"] for r in west["activity"]] == [2, 1]
+
+
+async def test_stats_days_follow_dst_and_half_hour_zones(client, seed):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    berlin = ZoneInfo("Europe/Berlin")
+    # 23:30 local in winter (UTC+1) and in summer (UTC+2): both stay on their
+    # own local date, whatever offset applies when the page is viewed.
+    winter = datetime(2026, 1, 15, 23, 30, tzinfo=berlin).timestamp()
+    summer = datetime(2026, 7, 15, 23, 30, tzinfo=berlin).timestamp()
+    seed("L1:w", mtime=winter)
+    seed("L1:s", mtime=summer)
+    body = (
+        await client.get("/images/stats", params={"days": 3660, "tz": "Europe/Berlin"})
+    ).json()
+    assert [r["day"] for r in body["activity"]] == ["2026-01-15", "2026-07-15"]
+
+    # India is UTC+5:30: 18:40 UTC is already 00:10 the next day there.
+    seed("L1:i", mtime=datetime(2026, 3, 1, 18, 40, tzinfo=ZoneInfo("UTC")).timestamp())
+    body = (
+        await client.get("/images/stats", params={"days": 3660, "tz": "Asia/Kolkata"})
+    ).json()
+    assert "2026-03-02" in [r["day"] for r in body["activity"]]
+
+
+async def test_stats_rejects_unknown_zone(client):
+    resp = await client.get("/images/stats", params={"tz": "Mars/Olympus"})
+    assert resp.status_code == 422

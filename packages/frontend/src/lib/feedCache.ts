@@ -13,7 +13,7 @@
  */
 
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
-import { TAGS_KEY } from "./queries";
+import { IMAGE_STATS_KEY, TAGS_KEY } from "./queries";
 import type { FeedPage, ImageDoc } from "./imageFilter";
 
 /**
@@ -76,11 +76,13 @@ export function removeImagesFromFeeds(
 }
 
 /**
- * Refetch the feed, the grouped view and the tag aggregates after a mutation
- * (tag counts move with tag writes, quarantine and purges alike).
+ * Refetch the feed, the grouped view, the tag aggregates and the Overview
+ * stats after a mutation (tag counts move with tag writes, quarantine and
+ * purges alike; the quarantine count with the latter two).
  */
 export function invalidateFeeds(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: IMAGE_FEED_PREFIX });
   qc.invalidateQueries({ queryKey: IMAGE_GROUPS_PREFIX });
   qc.invalidateQueries({ queryKey: TAGS_KEY });
+  qc.invalidateQueries({ queryKey: IMAGE_STATS_KEY });
 }

@@ -2,7 +2,7 @@
  * Generation activity for the Overview chart. The server counts images per
  * local calendar day (`/images/stats`); this folds those into weeks and
  * labels them. Dates are local throughout: "YYYY-MM-DD" from the server
- * already broke at the viewer's midnight (`tzOffsetMinutes`).
+ * already broke at the viewer's midnight in their zone (`viewerTimeZone`).
  */
 
 export type DayCount = { day: string; count: number };
@@ -16,9 +16,14 @@ export type WeekBucket = {
   tick: string | null;
 };
 
-/** Minutes east of UTC, the server's `tz_offset`. */
-export function tzOffsetMinutes(now: Date = new Date()): number {
-  return -now.getTimezoneOffset();
+/** The viewer's IANA zone ("Asia/Kolkata"), the server's `tz`. A zone, not
+ * today's offset, so dates on the far side of a DST change land right. */
+export function viewerTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
 }
 
 function parseDay(day: string): Date {

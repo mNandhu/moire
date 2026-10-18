@@ -200,6 +200,8 @@ sa.Index(
     *_newest,
 )
 sa.Index("ix_images_model_recent", images.c.gen_model, *_newest)
+# The quarantine count on Overview (and the quarantined view's lookup).
+sa.Index("ix_images_quarantined", images.c.quarantined)
 # Also serves the Rules page's per-signature GROUP BY.
 sa.Index("ix_images_sig_recent", images.c.gen_workflow_sig, *_newest)
 
