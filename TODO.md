@@ -11,15 +11,10 @@ Last rewritten 2026-10-19. Done work lives in git history, not here.
 
 - UI fixes
   - "Set as tag thumbnail" sits in an odd place in ImageView; move it
-  - Overscroll bounce (rubber-banding) at the top of a page drags the sticky
-    header down with the content; the header should stay put
-    (`overscroll-behavior` on the main scroll container, or bounce only the
-    content below the header)
 - Tags page rework
   - Rethink the page as a whole (browsing, counts, thumbnails, sources)
-  - Boilerplate tags: a configurable list in Settings (`masterpiece`,
-    `best quality`, `absurdres`...) that is hidden or sorted last in tag
-    lists, suggestions and the Tags page
+  - Boilerplate tags are done (Settings > Boilerplate); the rework should
+    keep the "Show boilerplate" toggle
 
 - Direct ComfyUI integration
   - Select an image and re-run it on ComfyUI with the same workflow (must be
