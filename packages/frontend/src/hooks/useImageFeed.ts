@@ -3,8 +3,8 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   fetchImagesPage,
   fetchGroupsPage,
-  nextCursorOf,
   PAGE_LIMIT,
+  type FeedPage,
   type Filters,
   type ImageDoc,
 } from "../lib/imageFilter";
@@ -29,13 +29,13 @@ export function useImageFeed(filters: Filters, limit: number = PAGE_LIMIT) {
     queryFn: ({ pageParam, signal }) =>
       fetchImagesPage(filters, { cursor: pageParam, limit, signal }),
     initialPageParam: null as string | null,
-    // A short page means the end; otherwise page on the last item's id.
-    getNextPageParam: (lastPage: ImageDoc[]) =>
-      lastPage.length >= limit ? nextCursorOf(lastPage, filters.sort) : undefined,
+    // A short page means the end; otherwise page on the server's cursor.
+    getNextPageParam: (lastPage: FeedPage) =>
+      lastPage.items.length >= limit ? (lastPage.next ?? undefined) : undefined,
   });
 
   const items = useMemo<ImageDoc[]>(
-    () => query.data?.pages.flat() ?? [],
+    () => query.data?.pages.flatMap((p) => p.items) ?? [],
     [query.data],
   );
 

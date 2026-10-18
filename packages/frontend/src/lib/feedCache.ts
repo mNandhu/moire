@@ -14,7 +14,7 @@
 
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import { TAGS_KEY } from "./queries";
-import type { ImageDoc } from "./imageFilter";
+import type { FeedPage, ImageDoc } from "./imageFilter";
 
 /**
  * Every feed query key starts with this; TanStack matches by prefix, so it
@@ -23,14 +23,26 @@ import type { ImageDoc } from "./imageFilter";
 export const IMAGE_FEED_PREFIX = ["images"] as const;
 const IMAGE_GROUPS_PREFIX = ["image-groups"] as const;
 
-/** Apply `mut` to the pages of every cached Image feed. */
+/**
+ * Apply `mut` to the pages of every cached Image feed. `mut` sees each page's
+ * items; the server cursors stay as they were, so an edit (even one that
+ * changes a sort key) never moves where the next page starts. `mut` must
+ * keep the page count.
+ */
 export function patchFeeds(
   qc: QueryClient,
   mut: (pages: ImageDoc[][]) => ImageDoc[][],
 ): void {
-  qc.setQueriesData<InfiniteData<ImageDoc[]>>(
+  qc.setQueriesData<InfiniteData<FeedPage>>(
     { queryKey: IMAGE_FEED_PREFIX },
-    (old) => (old ? { ...old, pages: mut(old.pages) } : old),
+    (old) => {
+      if (!old) return old;
+      const patched = mut(old.pages.map((p) => p.items));
+      return {
+        ...old,
+        pages: old.pages.map((p, i) => ({ ...p, items: patched[i] ?? [] })),
+      };
+    },
   );
 }
 

@@ -392,7 +392,7 @@ export default function ImageView() {
     // At the end of the loaded pages: fetch the next one, then advance.
     if (feed.hasNextPage && !feed.isFetchingNextPage) {
       const res = await feed.fetchNextPage();
-      const all = res.data?.pages.flat() ?? [];
+      const all = res.data?.pages.flatMap((p) => p.items) ?? [];
       const nextItem = all[index + 1];
       if (nextItem) navigateToImage(nextItem._id);
     }

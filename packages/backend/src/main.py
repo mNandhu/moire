@@ -82,6 +82,7 @@ app.add_middleware(
         "http://frontend:80",
     ],
     allow_credentials=True,
+    expose_headers=["X-Next-Cursor"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

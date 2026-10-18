@@ -14,6 +14,7 @@ router because it knows the media route shape; everything else lives here.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import sqlalchemy as sa
@@ -75,23 +76,37 @@ SORTS: dict[str, tuple[tuple, bool]] = {
 }
 
 
-def _order(sort: str, id_col=None):
-    keys, desc = SORTS[sort]
-    cols = (*keys, id_col if id_col is not None else t.images.c._id)
+def _directed(cols, sort: str) -> list:
+    """``cols`` (the sort keys then ``_id``) in ``sort``'s direction."""
+    desc = SORTS[sort][1]
     return [c.desc() if desc else c.asc() for c in cols]
 
 
+def encode_cursor(row, sort: str = "newest") -> str:
+    """The cursor after ``row``: its sort-key values and id joined by ``|``,
+    ``"<mtime>|<_id>"`` or ``"<score>|<mtime>|<_id>"`` for "top". Built by the
+    server from the values it sorted on (``sort_0``, ``sort_1`` columns), never
+    by the client from cached items, which local edits (a new score) can
+    change. ``repr`` round-trips floats exactly."""
+    n = len(SORTS[sort][0])
+    values = [float(row[f"sort_{i}"]) for i in range(n)]
+    return "|".join([*(repr(v) for v in values), row["_id"]])
+
+
 def parse_cursor(cursor: str, sort: str = "newest") -> tuple[list[float], str]:
-    """Split a cursor, the one the frontend builds from the last item it has
-    (``nextCursorOf``), into its sort-key values and id: ``"<mtime>|<_id>"``,
-    or ``"<score>|<mtime>|<_id>"`` for "top". The id comes last and may itself
-    contain ``|``. FeedFilterError when malformed."""
+    """Split a cursor from :func:`encode_cursor` into its sort-key values and
+    id. The id comes last and may itself contain ``|``. FeedFilterError when
+    malformed, including non-finite values (``nan`` binds as NULL and would
+    silently end the feed)."""
     n = len(SORTS[sort][0])
     parts = cursor.split("|", n)
     try:
         if len(parts) != n + 1 or not parts[-1]:
             raise ValueError
-        return [float(p) for p in parts[:n]], parts[-1]
+        values = [float(p) for p in parts[:n]]
+        if not all(math.isfinite(v) for v in values):
+            raise ValueError
+        return values, parts[-1]
     except ValueError:
         raise FeedFilterError("malformed cursor") from None
 
@@ -244,28 +259,26 @@ def feed_where(f: FeedFilter):
 
 async def list_feed(
     f: FeedFilter, *, cursor: str | None, limit: int, offset: int
-) -> list[dict]:
+) -> tuple[list[dict], str | None]:
     """The cursor-paged feed in ``f.sort`` order (see :data:`SORTS`): rows
-    after ``cursor`` (see :func:`parse_cursor`)."""
-    stmt = sa.select(*FEED_COLUMNS).where(feed_where(f))
+    after ``cursor``, plus the cursor for the page after these (None when the
+    page is empty)."""
+    keys, desc = SORTS[f.sort]
+    stmt = sa.select(
+        *FEED_COLUMNS, *(k.label(f"sort_{i}") for i, k in enumerate(keys))
+    ).where(feed_where(f))
     if cursor:
         values, image_id = parse_cursor(cursor, f.sort)
-        keys, desc = SORTS[f.sort]
         row = sa.tuple_(*keys, t.images.c._id)
         after = sa.tuple_(*(sa.literal(v) for v in values), sa.literal(image_id))
         stmt = stmt.where(row < after if desc else row > after)
-    stmt = stmt.order_by(*_order(f.sort)).limit(limit)
+    stmt = stmt.order_by(*_directed([*keys, t.images.c._id], f.sort)).limit(limit)
     if not cursor and offset:
         stmt = stmt.offset(offset)
     async with async_conn() as conn:
-        rows = (await conn.execute(stmt)).fetchall()
-    return [dict(r._mapping) for r in rows]
-
-
-def _order_sub(sub, sort: str):
-    keys, desc = SORTS[sort]
-    cols = [sub.c[f"sort_{i}"] for i in range(len(keys))] + [sub.c._id]
-    return [c.desc() if desc else c.asc() for c in cols]
+        rows = [dict(r._mapping) for r in (await conn.execute(stmt)).fetchall()]
+    next_cursor = encode_cursor(rows[-1], f.sort) if rows else None
+    return [{k: r[k] for k in FEED_KEYS} for r in rows], next_cursor
 
 
 async def list_groups(f: FeedFilter, *, offset: int, limit: int) -> list[dict]:
@@ -282,7 +295,10 @@ async def list_groups(f: FeedFilter, *, offset: int, limit: int) -> list[dict]:
             *FEED_COLUMNS,
             t.images.c.gen_group_id.label("group_id"),
             sa.func.row_number()
-            .over(partition_by=gkey, order_by=_order(f.sort))
+            .over(
+                partition_by=gkey,
+                order_by=_directed([*SORTS[f.sort][0], t.images.c._id], f.sort),
+            )
             .label("rn"),
             sa.func.count().over(partition_by=gkey).label("group_count"),
             *(k.label(f"sort_{i}") for i, k in enumerate(SORTS[f.sort][0])),
@@ -294,7 +310,13 @@ async def list_groups(f: FeedFilter, *, offset: int, limit: int) -> list[dict]:
         sa.select(sub)
         .where(sub.c.rn == 1)
         .order_by(
-            *_order_sub(sub, f.sort),
+            *_directed(
+                [
+                    *(sub.c[f"sort_{i}"] for i in range(len(SORTS[f.sort][0]))),
+                    sub.c._id,
+                ],
+                f.sort,
+            )
         )
         .offset(offset)
         .limit(limit)

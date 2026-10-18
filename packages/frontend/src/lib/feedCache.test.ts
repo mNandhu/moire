@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import type { ImageDoc } from "./imageFilter";
+import type { FeedPage, ImageDoc } from "./imageFilter";
 import {
   invalidateFeeds,
   patchImageInFeeds,
@@ -14,18 +14,18 @@ const doc = (id: string, score = 0) => ({ _id: id, score }) as ImageDoc;
 function seededClient() {
   const qc = new QueryClient();
   qc.setQueryData(["images", 60, { tags: [] }], {
-    pages: [[doc("a"), doc("b")]],
+    pages: [{ items: [doc("a"), doc("b")], next: "0|b" }],
     pageParams: [null],
   });
   qc.setQueryData(["images", 60, { tags: ["cat"] }], {
-    pages: [[doc("a")]],
+    pages: [{ items: [doc("a")], next: "0|a" }],
     pageParams: [null],
   });
   return qc;
 }
 
 const pagesOf = (qc: QueryClient, key: unknown[]) =>
-  (qc.getQueryData(key) as { pages: ImageDoc[][] }).pages;
+  (qc.getQueryData(key) as { pages: FeedPage[] }).pages.map((p) => p.items);
 
 describe("removeImageFromFeeds", () => {
   it("drops the image from every cached feed, not just one", () => {
@@ -69,6 +69,18 @@ describe("patchImageInFeeds", () => {
     patchImageInFeeds(qc, "a", (d) => ({ ...d, score: 5 }));
     const b = pagesOf(qc, ["images", 60, { tags: [] }])[0][1];
     expect(b.score).toBe(0);
+  });
+});
+
+describe("patching keeps server cursors", () => {
+  it("rescoring the last item leaves the next-page cursor untouched", () => {
+    // Under "top" a score is a sort key; the cursor must stay the one the
+    // server sent, or the next page starts in the wrong place.
+    const qc = seededClient();
+    patchImageInFeeds(qc, "b", (d) => ({ ...d, score: 5 }));
+    const data = qc.getQueryData(["images", 60, { tags: [] }]) as { pages: FeedPage[] };
+    expect(data.pages[0].next).toBe("0|b");
+    expect(data.pages[0].items[1].score).toBe(5);
   });
 });
 

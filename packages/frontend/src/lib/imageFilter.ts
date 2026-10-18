@@ -202,26 +202,25 @@ export function buildImagesQuery(
 }
 
 /**
- * Cursor for the page after `page`, or null when empty: the last item's sort
- * keys and id, `"<mtime>|<_id>"`, or `"<score>|<mtime>|<_id>"` when sorted by
- * top rated (see services/image_feed.py `parse_cursor`).
+ * One page of the Image feed and the cursor for the page after it. The server
+ * builds the cursor (`X-Next-Cursor`) from the values it sorted on; building
+ * it here from cached items went wrong as soon as a local edit (a new score
+ * under "top") changed the last item's sort key.
  */
-export function nextCursorOf(page: ImageDoc[], sort: FeedSort = "newest"): string | null {
-  const last = page[page.length - 1];
-  if (!last) return null;
-  const keys = sort === "top" ? [last.score ?? 0, last.mtime ?? 0] : [last.mtime ?? 0];
-  return [...keys, last._id].join("|");
-}
+export type FeedPage = { items: ImageDoc[]; next: string | null };
 
 /** Fetch one page of the Image feed. Throws on non-OK response. */
 export async function fetchImagesPage(
   filters: Filters,
   opts: { cursor?: string | null; limit?: number; signal?: AbortSignal } = {},
-): Promise<ImageDoc[]> {
+): Promise<FeedPage> {
   const qs = buildImagesQuery(filters, opts);
   const r = await fetch(`/api/v1/images?${qs}`, { signal: opts.signal });
   if (!r.ok) throw new Error(await r.text());
-  return (await r.json()) as ImageDoc[];
+  return {
+    items: (await r.json()) as ImageDoc[],
+    next: r.headers.get("X-Next-Cursor"),
+  };
 }
 
 /** Fetch one page of the grouped (batch-collapsed) view. Offset-paged because

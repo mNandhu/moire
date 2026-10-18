@@ -99,9 +99,15 @@ async def list_images(
         )
 
     try:
-        items = await image_feed.list_feed(f, cursor=cursor, limit=limit, offset=offset)
+        items, next_cursor = await image_feed.list_feed(
+            f, cursor=cursor, limit=limit, offset=offset
+        )
     except FeedFilterError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+    # The next page's cursor, from the values the server sorted on; the body
+    # stays a plain list so other callers are unaffected.
+    if next_cursor:
+        response.headers["X-Next-Cursor"] = next_cursor
     for it in items:
         _attach_thumb_url(it)
     return items

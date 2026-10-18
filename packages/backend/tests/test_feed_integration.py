@@ -29,9 +29,28 @@ async def test_feed_is_newest_first_across_libraries(client, seed):
     assert await _ids(client, library_id="L1") == ["L1:mid", "L1:old"]
 
 
-async def test_malformed_cursor_is_rejected(client, seed):
-    resp = await client.get("/images", params={"cursor": "L1:a"})
+@pytest.mark.parametrize("cursor", ["L1:a", "nan|L1:a", "inf|L1:a", "1.0|"])
+async def test_malformed_cursor_is_rejected(client, seed, cursor):
+    resp = await client.get("/images", params={"cursor": cursor})
     assert resp.status_code == 422
+
+
+async def test_cursor_comes_from_server_values_not_client_edits(client, seed):
+    # Under "top", a client that rescored its last tile locally must not move
+    # the page boundary: the server's cursor carries the score it sorted on.
+    seed("L1:a", mtime=100, score=0)
+    seed("L1:b", mtime=200, score=0)
+    resp = await client.get("/images", params={"limit": 1, "sort": "top"})
+    assert [it["_id"] for it in resp.json()] == ["L1:b"]
+    assert resp.headers["X-Next-Cursor"] == "0.0|200.0|L1:b"
+    nxt = await _ids(client, limit=1, sort="top", cursor=resp.headers["X-Next-Cursor"])
+    assert nxt == ["L1:a"]
+
+
+async def test_feed_items_do_not_carry_sort_columns(client, seed):
+    seed("L1:a", mtime=1)
+    (item,) = (await client.get("/images")).json()
+    assert not any(k.startswith("sort_") for k in item)
 
 
 async def test_quarantined_filter_shows_only_quarantined(client, seed):
@@ -132,9 +151,7 @@ async def test_cursor_pagination_walks_every_row_once_in_order(client, seed):
         if not page:
             break
         seen.extend(it["_id"] for it in page)
-        # Built the way the frontend's nextCursorOf builds it.
-        last = page[-1]
-        cursor = f"{last['mtime'] or 0}|{last['_id']}"
+        cursor = resp.headers["X-Next-Cursor"]
         if len(page) < 10:
             break
 
@@ -196,13 +213,13 @@ async def test_sorts_page_without_gaps(client, seed, sort, expected):
         params = {"limit": 1, "sort": sort}
         if cursor:
             params["cursor"] = cursor
-        page = (await client.get("/images", params=params)).json()
+        resp = await client.get("/images", params=params)
+        page = resp.json()
         if not page:
+            assert "X-Next-Cursor" not in resp.headers
             break
         seen.extend(it["_id"] for it in page)
-        last = page[-1]
-        keys = [last["score"] or 0] if sort == "top" else []
-        cursor = "|".join(str(k) for k in [*keys, last["mtime"] or 0, last["_id"]])
+        cursor = resp.headers["X-Next-Cursor"]
     assert seen == expected
 
     groups = (await client.get("/images/groups", params={"sort": sort})).json()

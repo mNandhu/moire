@@ -5,10 +5,8 @@ import {
   parseFilters,
   serializeFilters,
   buildImagesQuery,
-  nextCursorOf,
   hasActiveFilter,
   type Filters,
-  type ImageDoc,
 } from "./imageFilter";
 
 const roundTrip = (f: Filters): Filters =>
@@ -134,29 +132,6 @@ describe("workflow filter", () => {
     );
     expect(chip.label).toBe("Workflow: RemoteQ · Oct 3");
     expect(chip.without.workflowSig).toBeUndefined();
-  });
-});
-
-describe("nextCursorOf", () => {
-  const doc = (id: string): ImageDoc => ({ _id: id, path: `${id}.png` });
-
-  it("pairs the last item's mtime with its id", () => {
-    expect(nextCursorOf([doc("a"), { ...doc("L:b"), mtime: 1747306454.5 }])).toBe(
-      "1747306454.5|L:b",
-    );
-  });
-
-  it("leads with the score when sorted by top rated", () => {
-    expect(nextCursorOf([{ ...doc("a"), score: 4, mtime: 10 }], "top")).toBe("4|10|a");
-    expect(nextCursorOf([doc("a")], "top")).toBe("0|0|a");
-  });
-
-  it("uses 0 for an item without an mtime (the server sorts those last)", () => {
-    expect(nextCursorOf([doc("a"), doc("c")])).toBe("0|c");
-  });
-
-  it("returns null for an empty page", () => {
-    expect(nextCursorOf([])).toBeNull();
   });
 });
 
