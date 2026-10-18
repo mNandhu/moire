@@ -163,7 +163,6 @@ export default function LibrariesPage() {
   return (
     <div className="p-6 space-y-5">
       <PageHeader
-        icon={FolderOpen}
         title="Libraries"
         count={initialLoading ? undefined : libs.length}
         description="Folders Tagify watches and indexes."
@@ -174,7 +173,7 @@ export default function LibrariesPage() {
                 <Spinner className="h-3 w-3" /> Refreshing…
               </span>
             )}
-            <Button variant="success" onClick={() => setAddOpen(true)}>
+            <Button variant="primary" onClick={() => setAddOpen(true)}>
               <Plus size={16} />
               Add libraries
             </Button>
@@ -234,7 +233,7 @@ export default function LibrariesPage() {
             title="No libraries yet"
             description="Add a folder of images — or a parent folder whose subfolders each become a library."
             actions={
-              <Button variant="success" onClick={() => setAddOpen(true)}>
+              <Button variant="primary" onClick={() => setAddOpen(true)}>
                 <Plus size={16} />
                 Add libraries
               </Button>
@@ -277,7 +276,7 @@ export default function LibrariesPage() {
               {progress[l._id]?.scanning && (
                 <div className="mt-3">
                   <progress
-                    className="w-full h-2 [&::-webkit-progress-bar]:bg-neutral-800 [&::-webkit-progress-value]:bg-purple-600 [&::-moz-progress-bar]:bg-purple-600 rounded"
+                    className="w-full h-2 [&::-webkit-progress-bar]:bg-neutral-800 [&::-webkit-progress-value]:bg-brand-600 [&::-moz-progress-bar]:bg-brand-600 rounded"
                     value={Math.max(0, progress[l._id]?.scan_done || 0)}
                     max={Math.max(1, progress[l._id]?.scan_total || 1)}
                     aria-label="Scanning progress"
@@ -363,7 +362,7 @@ export default function LibrariesPage() {
           <>
             <Button onClick={() => setEditId(null)}>Cancel</Button>
             <Button
-              variant="success"
+              variant="primary"
               onClick={async () => {
                 if (!editId) return;
                 const payload: Partial<Library> = {};

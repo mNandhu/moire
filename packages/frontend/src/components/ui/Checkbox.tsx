@@ -47,9 +47,9 @@ export function Checkbox({
         <span
           className={cn(
             "inline-flex items-center justify-center w-4 h-4 rounded border transition-colors",
-            "peer-focus-visible:ring-2 peer-focus-visible:ring-purple-500/60",
+            "peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500/60",
             checked
-              ? "bg-purple-600 border-purple-600 text-white"
+              ? "bg-brand-600 border-brand-600 text-white"
               : "bg-neutral-950 border-neutral-600",
           )}
         >
@@ -60,7 +60,7 @@ export function Checkbox({
         <span className="text-sm leading-5 text-neutral-200">{label}</span>
       )}
       {hint && (
-        <span className="col-start-2 text-xs text-neutral-500 mt-0.5">
+        <span className="col-start-2 text-xs text-faint mt-0.5">
           {hint}
         </span>
       )}

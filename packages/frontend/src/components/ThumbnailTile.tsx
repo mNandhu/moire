@@ -148,8 +148,8 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
     <div
       className={cn(
         "relative group h-full rounded-xl transition-shadow duration-150",
-        focused && "ring-2 ring-purple-400 ring-offset-2 ring-offset-neutral-900",
-        selected && "ring-2 ring-purple-500",
+        focused && "ring-2 ring-brand-400 ring-offset-2 ring-offset-canvas",
+        selected && "ring-2 ring-brand-500",
       )}
       data-tile-index={index}
       tabIndex={-1}
@@ -206,7 +206,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
             "absolute top-2 right-2 w-6 h-6 rounded-md flex items-center justify-center",
             "border transition-[background-color,border-color] duration-150",
             selected
-              ? "bg-purple-500 border-purple-300 text-white"
+              ? "bg-brand-500 border-brand-300 text-white"
               : "bg-black/50 border-white/50 text-transparent hover:bg-black/70 backdrop-blur-sm",
           )}
         >
@@ -218,10 +218,10 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
       {isBatch && !selectionMode && (
         <span
           className={cn(
-            "absolute top-2 left-2 px-1.5 py-0.5 rounded-md text-[11px] font-medium",
+            "absolute top-2 left-2 px-1.5 py-0.5 rounded-md text-2xs font-medium",
             "bg-black/70 border border-white/15 text-white pointer-events-none",
             "inline-flex items-center gap-1 backdrop-blur-sm",
-            scrubbing && "bg-purple-600/80 border-purple-300/40",
+            scrubbing && "bg-brand-600/80 border-brand-300/40",
           )}
           title={`${groupCount} variations in this batch`}
         >
@@ -249,11 +249,16 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
           chipVisibility(hasScore || quarantined || untagged || !!ratingDot),
         )}
       >
-        <ScorePips score={score} />
+        {/* Empty pips aren't state, so they follow the hover rule even when
+            the strip is up for another marker (an untagged-only tile would
+            otherwise wear a row of blank pips at rest). */}
+        <span className={chipVisibility(hasScore)}>
+          <ScorePips score={score} />
+        </span>
         <div className="flex items-center gap-1.5">
           {untagged && (
             <span
-              className="text-neutral-400/90"
+              className="text-white/70"
               title="No AI tags yet"
               aria-label="Untagged"
             >

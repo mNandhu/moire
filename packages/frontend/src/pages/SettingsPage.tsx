@@ -30,7 +30,7 @@ function SubNavButton({
       )}
     >
       {active && (
-        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-purple-500" />
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-brand-500" />
       )}
       <Icon size={18} className="shrink-0" />
       <span className="truncate">{section.label}</span>
@@ -62,7 +62,7 @@ export default function SettingsPage() {
           <aside className="lg:w-56 lg:shrink-0">
             <div className="px-3 pb-4">
               <div className="flex items-center gap-2.5">
-                <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-neutral-800/80 text-purple-300 shrink-0">
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-neutral-800/80 text-brand-300 shrink-0">
                   <SettingsIcon size={18} />
                 </span>
                 <h2 className="text-xl font-bold tracking-tight text-neutral-100">
@@ -74,7 +74,7 @@ export default function SettingsPage() {
               {SETTINGS_GROUPS.map((group, gi) => (
                 <div key={group.title ?? gi} className="space-y-1">
                   {group.title && (
-                    <div className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-600">
+                    <div className="px-3 mb-1 text-2xs font-semibold uppercase tracking-wider text-faint">
                       {group.title}
                     </div>
                   )}
@@ -94,7 +94,7 @@ export default function SettingsPage() {
           {/* Content panel */}
           <div className="min-w-0 flex-1 space-y-5">
             <div className="flex items-center gap-2.5">
-              <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-neutral-800/80 text-purple-300 shrink-0">
+              <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-neutral-800/80 text-brand-300 shrink-0">
                 <ActiveIcon size={20} />
               </span>
               <div className="min-w-0">

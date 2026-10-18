@@ -17,7 +17,7 @@ function JobErrors({ errors }: { errors: AiJobError[] }) {
         {errors.map((e, i) => (
           <div key={`${e.image_id}:${i}`} className="text-neutral-300">
             <span className="font-mono text-neutral-400">{e.image_id}</span>
-            <span className="text-neutral-500"> — </span>
+            <span className="text-faint"> — </span>
             <span className="text-red-300">{e.error}</span>
           </div>
         ))}
@@ -69,7 +69,7 @@ export function JobsSection() {
           >
             Clear ALL AI tags (all libraries)
           </Button>
-          <div className="text-xs text-neutral-500">
+          <div className="text-xs text-faint">
             Use this if you want to re-run AI tagging from scratch.
           </div>
         </div>
@@ -87,19 +87,19 @@ export function JobsSection() {
               · {latestJob.status} · {latestJob.done + latestJob.failed}/
               {latestJob.total}
               {typeof latestJob.skipped === "number" && latestJob.skipped > 0 ? (
-                <span className="text-neutral-500">
+                <span className="text-faint">
                   {" "}
                   · {latestJob.skipped} skipped
                 </span>
               ) : null}
             </div>
             <progress
-              className="w-full h-2 [&::-webkit-progress-bar]:bg-neutral-800 [&::-webkit-progress-value]:bg-purple-600 [&::-moz-progress-bar]:bg-purple-600"
+              className="w-full h-2 [&::-webkit-progress-bar]:bg-neutral-800 [&::-webkit-progress-value]:bg-brand-600 [&::-moz-progress-bar]:bg-brand-600"
               value={progressPct}
               max={100}
             />
             {latestJob.current && (
-              <div className="text-xs text-neutral-500 truncate">
+              <div className="text-xs text-faint truncate">
                 Current: {latestJob.current}
               </div>
             )}
@@ -139,13 +139,13 @@ export function JobsSection() {
                   >
                     {j.id.slice(0, 8)}
                   </span>
-                  <span className="text-neutral-500"> · {j.status}</span>
+                  <span className="text-faint"> · {j.status}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="text-xs text-neutral-400">
                     {j.done + j.failed}/{j.total}
                     {typeof j.skipped === "number" && j.skipped > 0 ? (
-                      <span className="text-neutral-500">
+                      <span className="text-faint">
                         {" "}
                         · {j.skipped} skipped
                       </span>
@@ -173,7 +173,7 @@ export function JobsSection() {
             </div>
           ))}
           {!status?.jobs?.recent?.length && (
-            <div className="text-sm text-neutral-500">No jobs yet.</div>
+            <div className="text-sm text-faint">No jobs yet.</div>
           )}
         </div>
       </Card>

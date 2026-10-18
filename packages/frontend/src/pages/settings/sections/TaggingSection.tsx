@@ -13,7 +13,7 @@ export function TaggingSection() {
         <div className="space-y-6">
           {/* Tagging output controls */}
           <div className="space-y-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+            <div className="text-2xs font-semibold uppercase tracking-wider text-faint">
               Tagging
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -96,7 +96,7 @@ export function TaggingSection() {
 
           {/* Model & storage */}
           <div className="space-y-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+            <div className="text-2xs font-semibold uppercase tracking-wider text-faint">
               Model &amp; storage
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -159,7 +159,7 @@ export function TaggingSection() {
           </div>
         </div>
       ) : (
-        <div className="text-sm text-neutral-500">Loading settings…</div>
+        <div className="text-sm text-faint">Loading settings…</div>
       )}
 
       <div className="flex items-center gap-2 pt-1">

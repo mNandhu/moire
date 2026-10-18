@@ -9,7 +9,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-xl border border-neutral-800 bg-neutral-900/60 backdrop-blur-sm",
+        "rounded-xl border border-line bg-surface",
         hover && "card-hover",
         className,
       )}
@@ -41,7 +41,7 @@ export function Section({
               <h3 className="font-semibold text-neutral-100">{title}</h3>
             )}
             {description && (
-              <p className="text-xs text-neutral-400 mt-0.5">{description}</p>
+              <p className="text-xs text-muted mt-0.5">{description}</p>
             )}
           </div>
           {actions && <div className="flex items-center gap-2">{actions}</div>}

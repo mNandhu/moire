@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Tag as TagIcon, Slash, Tags as TagsIcon, Search } from "lucide-react";
+import { Tag as TagIcon, Slash, Search } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Badge } from "../components/ui/Badge";
 import { Skeleton } from "../components/ui/Skeleton";
@@ -67,7 +67,6 @@ export default function TagsPage() {
   return (
     <div className="p-6">
       <PageHeader
-        icon={TagsIcon}
         title="Browse by Tag"
         count={tags?.length}
         description="Jump into any tag, or surface what still needs tagging."
@@ -76,7 +75,7 @@ export default function TagsPage() {
           <div className="relative max-w-md flex-1">
             <Search
               size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-faint"
             />
             <Input
               className="pl-9"
@@ -98,7 +97,7 @@ export default function TagsPage() {
       {/* Special tiles */}
       <div className="flex flex-wrap gap-3 mb-5">
         <SpecialTile
-          color="text-purple-300"
+          color="text-brand-300"
           title="Untagged"
           subtitle="No tags at all"
           onClick={() => navigate(`/?no_tags=1`)}
@@ -112,7 +111,7 @@ export default function TagsPage() {
       </div>
 
       {tags !== null && filtered.length === 0 && (
-        <p className="text-sm text-neutral-500 py-10 text-center">
+        <p className="text-sm text-faint py-10 text-center">
           {q.trim()
             ? `No tags match “${q.trim()}”.`
             : "No tags yet — run AI tagging or add tags to your images."}
@@ -204,12 +203,12 @@ function TagCard({
         <div className="text-sm font-semibold flex items-center gap-2">
           <span className="truncate">{formatTag(tag._id)}</span>
           {isManual(tag._id) && (
-            <Badge tone="success" className="text-[10px] shrink-0">
+            <Badge tone="success" className="text-2xs shrink-0">
               manual
             </Badge>
           )}
           {isPrompt(tag._id) && (
-            <Badge tone="info" className="text-[10px] shrink-0">
+            <Badge tone="info" className="text-2xs shrink-0">
               prompt
             </Badge>
           )}
@@ -230,7 +229,7 @@ function Mosaic({ samples }: { samples: Sample[] | undefined }) {
   }
   if (samples.length === 0) {
     return (
-      <div className="w-full aspect-square bg-neutral-800 flex items-center justify-center text-neutral-600">
+      <div className="w-full aspect-square bg-neutral-800 flex items-center justify-center text-faint">
         <TagIcon size={28} />
       </div>
     );

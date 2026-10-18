@@ -11,10 +11,7 @@ import {
   Keyboard,
   CheckSquare,
   Square,
-  Tag as TagIcon,
-  Slash,
   ImageOff,
-  Images,
   Sparkles,
   Layers,
   ArrowLeft,
@@ -583,7 +580,6 @@ export default function AllImagesPage() {
   return (
     <div ref={containerRef} className="p-6 space-y-3">
       <PageHeader
-        icon={Images}
         title={
           filters.quarantined
             ? "Quarantined Images"
@@ -629,7 +625,7 @@ export default function AllImagesPage() {
       />
       <div
         ref={headerRef}
-        className="sticky top-0 z-10 -mx-6 px-6 py-3 bg-neutral-900/85 backdrop-blur border-b border-neutral-800"
+        className="sticky top-0 z-10 -mx-6 px-6 py-3 bg-canvas/85 backdrop-blur border-b border-line"
       >
         <div className="flex items-center gap-2">
           <Button
@@ -713,13 +709,13 @@ export default function AllImagesPage() {
         {filtersOpen && (
           <div
             ref={filtersPanelRef}
-            className="pb-3"
+            className="pt-4 pb-1"
             role="dialog"
             aria-label="Filters"
           >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-neutral-400 mb-1.5">
+                <label className="block text-xs font-medium text-muted mb-1.5">
                   Tag logic
                 </label>
                 <Select
@@ -737,7 +733,7 @@ export default function AllImagesPage() {
                 </Select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-neutral-400 mb-1.5">
+                <label className="block text-xs font-medium text-muted mb-1.5">
                   Library
                 </label>
                 <Select
@@ -758,28 +754,22 @@ export default function AllImagesPage() {
                   ))}
                 </Select>
               </div>
-              <div className="flex items-end">
-                <div className="flex items-center gap-2">
+              <div>
+                <div className="text-xs font-medium text-muted mb-1.5">
+                  Show only
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
-                    size="icon"
                     variant="secondary"
                     active={filters.noTags}
                     onClick={() =>
                       setFilters({ ...filters, noTags: !filters.noTags })
                     }
                     aria-label={filters.noTags ? "No tags on" : "No tags off"}
-                    title="No tags"
+                    title="Images with no tags at all"
                   >
-                    <span className="relative inline-flex items-center justify-center w-5 h-5">
-                      <TagIcon size={16} />
-                      {filters.noTags && (
-                        <Slash
-                          size={16}
-                          className="absolute inset-0 text-purple-200 opacity-90"
-                        />
-                      )}
-                    </span>
+                    Untagged
                   </Button>
 
                   <Button
@@ -818,22 +808,16 @@ export default function AllImagesPage() {
                   </Button>
                 </div>
               </div>
-              <div className="flex items-end gap-2">
-                <Button onClick={() => setFilters(DEFAULT_FILTERS)}>
-                  Clear filters
-                </Button>
-                <Button onClick={clearSelection}>Clear selection</Button>
-              </div>
             </div>
 
             {/* Generation-metadata search */}
-            <div className="mt-3 pt-3 border-t border-neutral-800 space-y-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+            <div className="mt-4 pt-4 border-t border-line space-y-3">
+              <h3 className="text-sm font-medium text-neutral-200">
                 Generation
-              </div>
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-neutral-400 mb-1.5">
+                  <label className="block text-xs font-medium text-muted mb-1.5">
                     Prompt contains
                   </label>
                   <TagSearchInput
@@ -846,7 +830,7 @@ export default function AllImagesPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-neutral-400 mb-1.5">
+                  <label className="block text-xs font-medium text-muted mb-1.5">
                     Prompt logic
                   </label>
                   <Select
@@ -864,7 +848,7 @@ export default function AllImagesPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-neutral-400 mb-1.5">
+                  <label className="block text-xs font-medium text-muted mb-1.5">
                     Model
                   </label>
                   <Select
@@ -886,7 +870,7 @@ export default function AllImagesPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-neutral-400 mb-1.5">
+                  <label className="block text-xs font-medium text-muted mb-1.5">
                     Width (min / max)
                   </label>
                   <div className="flex gap-2">
@@ -917,7 +901,7 @@ export default function AllImagesPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-neutral-400 mb-1.5">
+                  <label className="block text-xs font-medium text-muted mb-1.5">
                     Height (min / max)
                   </label>
                   <div className="flex gap-2">
@@ -948,6 +932,15 @@ export default function AllImagesPage() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={clearSelection}>
+                Clear selection
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setFilters(DEFAULT_FILTERS)}>
+                Clear filters
+              </Button>
             </div>
           </div>
         )}
@@ -985,14 +978,14 @@ export default function AllImagesPage() {
       )}
 
       {filters.groupId && (
-        <button
+        <Button
+          size="sm"
           onClick={() =>
             setFilters({ ...filters, groupId: undefined, group: true })
           }
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm bg-neutral-800 border border-neutral-700 hover:border-neutral-600"
         >
           <ArrowLeft size={14} /> Back to batches
-        </button>
+        </Button>
       )}
 
       {items.length > 0 && (

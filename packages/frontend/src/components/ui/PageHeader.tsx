@@ -1,13 +1,12 @@
 import React from "react";
-import type { LucideIcon } from "lucide-react";
 import { cn } from "../../lib/cn";
 
 /**
- * Per-page title bar: icon + title + optional count and right-aligned actions.
+ * Per-page title bar: title + optional count and right-aligned actions.
  * Gives every route a consistent anchor so users always know where they are.
+ * No icon tile: the sidebar already carries each route's icon.
  */
 export function PageHeader({
-  icon: Icon,
   title,
   count,
   countLabel,
@@ -16,7 +15,6 @@ export function PageHeader({
   className,
   children,
 }: {
-  icon?: LucideIcon;
   title: React.ReactNode;
   count?: number;
   /** Qualifier rendered after the count, e.g. "loaded" for a paged feed whose
@@ -31,17 +29,11 @@ export function PageHeader({
   return (
     <div className={cn("mb-5", className)}>
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          {Icon && (
-            <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-neutral-800/80 text-purple-300 shrink-0">
-              <Icon size={18} />
-            </span>
-          )}
-          <div className="min-w-0">
-            <h2 className="text-xl font-bold tracking-tight text-neutral-100 flex items-center gap-2 truncate">
+        <div className="min-w-0">
+            <h2 className="text-2xl font-semibold text-neutral-50 flex items-baseline gap-2.5 truncate">
               {title}
               {typeof count === "number" && (
-                <span className="text-sm font-medium text-neutral-500 tabular-nums">
+                <span className="text-sm font-normal text-faint tabular-nums">
                   {count.toLocaleString()}
                   {countLabel && (
                     <span className="ml-1 font-normal">{countLabel}</span>
@@ -50,9 +42,8 @@ export function PageHeader({
               )}
             </h2>
             {description && (
-              <p className="text-sm text-neutral-400 truncate">{description}</p>
+              <p className="mt-0.5 text-sm text-muted truncate">{description}</p>
             )}
-          </div>
         </div>
         {actions && (
           <div className="flex items-center gap-2 shrink-0">{actions}</div>

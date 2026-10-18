@@ -105,13 +105,13 @@ export function JsonTree({
       <button
         onClick={() => onPin(path)}
         data-graph-path={path}
-        className="group inline-flex items-baseline gap-2 text-left hover:bg-purple-500/10 rounded px-1 -mx-1 w-full"
+        className="group inline-flex items-baseline gap-2 text-left hover:bg-brand-500/10 rounded px-1 -mx-1 w-full"
         title={`Pin ${path}`}
       >
         <span className={valHit ? `break-all ${HIT}` : "text-emerald-300 break-all"}>
           {JSON.stringify(value)}
         </span>
-        <span className="text-[10px] text-neutral-600 group-hover:text-purple-300 ml-auto shrink-0">
+        <span className="text-2xs text-faint group-hover:text-brand-300 ml-auto shrink-0">
           {path}
         </span>
       </button>
@@ -279,14 +279,13 @@ export default function RulesPage() {
     if (!el) return;
     el.scrollIntoView({ block: "center", behavior: "smooth" });
     // Brief flash so the eye lands on the right row after the scroll.
-    el.classList.add("ring-1", "ring-purple-400", "rounded");
-    setTimeout(() => el.classList.remove("ring-1", "ring-purple-400", "rounded"), 1200);
+    el.classList.add("ring-1", "ring-brand-400", "rounded");
+    setTimeout(() => el.classList.remove("ring-1", "ring-brand-400", "rounded"), 1200);
   }, []);
 
   return (
     <div className="p-6 space-y-4">
       <PageHeader
-        icon={Workflow}
         title="Extraction Rules"
         count={sigs.length}
         description="Pin where each generation field lives in your custom workflows."
@@ -313,7 +312,7 @@ export default function RulesPage() {
                 }`}
               >
                 <div className="font-mono text-xs truncate">{s.workflow_sig}</div>
-                <div className="flex items-center gap-2 mt-1 text-[11px]">
+                <div className="flex items-center gap-2 mt-1 text-2xs">
                   <span className="text-neutral-400">{s.count} imgs</span>
                   {s.needs_mapping > 0 && (
                     <span className="px-1.5 rounded-full bg-amber-900/40 border border-amber-800 text-amber-200">
@@ -331,7 +330,7 @@ export default function RulesPage() {
           </div>
 
           {!selected ? (
-            <div className="col-span-12 lg:col-span-9 text-neutral-500 text-sm">
+            <div className="col-span-12 lg:col-span-9 text-faint text-sm">
               Select a signature to map its fields.
             </div>
           ) : (
@@ -357,7 +356,7 @@ export default function RulesPage() {
                     <Trash2 size={14} /> Delete
                   </Button>
                   {isDirty && (
-                    <span className="flex items-center gap-1 text-[11px] text-amber-400">
+                    <span className="flex items-center gap-1 text-2xs text-amber-400">
                       <AlertTriangle size={12} /> Unsaved changes
                     </span>
                   )}
@@ -368,7 +367,7 @@ export default function RulesPage() {
                     key={field}
                     className={`rounded-lg border p-2.5 ${
                       activeField === field
-                        ? "border-purple-600 bg-purple-500/5"
+                        ? "border-brand-600 bg-brand-500/5"
                         : "border-neutral-800 bg-neutral-900"
                     }`}
                   >
@@ -382,14 +381,14 @@ export default function RulesPage() {
                           size={13}
                           className={
                             activeField === field
-                              ? "text-purple-300"
-                              : "text-neutral-600"
+                              ? "text-brand-300"
+                              : "text-faint"
                           }
                         />
                         {FIELD_LABEL[field]}
                       </button>
                       {previewGen != null && (
-                        <span className="text-[11px] text-neutral-400 truncate max-w-[55%]">
+                        <span className="text-2xs text-neutral-400 truncate max-w-[55%]">
                           → {String((previewGen as Record<string, unknown>)[field] ?? "—")}
                         </span>
                       )}
@@ -403,7 +402,7 @@ export default function RulesPage() {
                         return (
                           <span
                             key={p}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono border ${
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono border ${
                               preview
                                 ? ok
                                   ? "bg-emerald-900/30 border-emerald-800 text-emerald-100"
@@ -426,7 +425,7 @@ export default function RulesPage() {
                         );
                       })}
                       {(fields[field] || []).length === 0 && (
-                        <span className="text-[11px] text-neutral-600">
+                        <span className="text-2xs text-faint">
                           built-in extraction (click a tree leaf to override)
                         </span>
                       )}
@@ -445,24 +444,24 @@ export default function RulesPage() {
                 <div className="sticky -top-3 -mx-3 -mt-3 px-3 pt-3 pb-2 bg-neutral-950 z-10 border-b border-neutral-800">
                   <div className="text-xs text-neutral-400 mb-2">
                     Sample graph — click a value to pin it to{" "}
-                    <span className="text-purple-300">{FIELD_LABEL[activeField]}</span>
+                    <span className="text-brand-300">{FIELD_LABEL[activeField]}</span>
                   </div>
                   <div className="relative">
                     <Search
                       size={14}
-                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none"
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none"
                     />
                     <input
                       type="search"
                       value={graphQuery}
                       onChange={(e) => setGraphQuery(e.target.value)}
                       placeholder="Find a node — id, class_type, or prompt word (e.g. masterpiece)"
-                      className="w-full pl-8 pr-2 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-xs placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none"
+                      className="w-full pl-8 pr-2 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-xs placeholder:text-faint focus:border-neutral-600 focus:outline-none"
                     />
                   </div>
                   {graphQuery.trim() && (
                     <div className="mt-2">
-                      <div className="text-[11px] text-neutral-400 mb-1">
+                      <div className="text-2xs text-neutral-400 mb-1">
                         {matches.length === 0
                           ? "No matches in this graph"
                           : `${matches.length} match${matches.length > 1 ? "es" : ""} — click to jump to it; + pins to ${FIELD_LABEL[activeField]}`}
@@ -471,14 +470,14 @@ export default function RulesPage() {
                         {matches.slice(0, 100).map((m) => (
                           <div
                             key={m.path}
-                            className="flex items-baseline gap-1 rounded hover:bg-purple-500/10"
+                            className="flex items-baseline gap-1 rounded hover:bg-brand-500/10"
                           >
                             <button
                               onClick={() => revealPath(m.path)}
                               title={`Jump to ${m.path}`}
-                              className="flex-1 min-w-0 text-left flex items-baseline gap-2 px-1.5 py-1 font-mono text-[11px]"
+                              className="flex-1 min-w-0 text-left flex items-baseline gap-2 px-1.5 py-1 font-mono text-2xs"
                             >
-                              <span className="text-purple-300 shrink-0">{m.path}</span>
+                              <span className="text-brand-300 shrink-0">{m.path}</span>
                               <span className="text-neutral-400 truncate">
                                 {String(m.value)}
                               </span>
@@ -487,7 +486,7 @@ export default function RulesPage() {
                               onClick={() => pinPath(m.path)}
                               title={`Pin ${m.path} → ${FIELD_LABEL[activeField]}`}
                               aria-label={`Pin ${m.path}`}
-                              className="shrink-0 px-1.5 py-1 text-neutral-500 hover:text-purple-300"
+                              className="shrink-0 px-1.5 py-1 text-faint hover:text-brand-300"
                             >
                               <Plus size={13} />
                             </button>
@@ -507,7 +506,7 @@ export default function RulesPage() {
                     />
                   </div>
                 ) : (
-                  <div className="text-neutral-500 text-sm">Loading graph…</div>
+                  <div className="text-faint text-sm">Loading graph…</div>
                 )}
               </div>
             </div>

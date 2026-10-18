@@ -19,7 +19,7 @@ export function PromptTagsSection() {
           hint="Derive prompt: tags from the positive prompt only, so negative-prompt words don't pollute search. Applies on next reprojection."
         />
       ) : (
-        <div className="text-sm text-neutral-500">Loading settings…</div>
+        <div className="text-sm text-faint">Loading settings…</div>
       )}
 
       <div className="flex items-center gap-2 pt-1">

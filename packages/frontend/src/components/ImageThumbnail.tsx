@@ -99,7 +99,7 @@ export function ImageThumbnail({
         "group relative block w-full overflow-hidden rounded-xl bg-neutral-900",
         "transition-shadow duration-150 ease-out",
         "hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.9)]",
-        selected && "ring-2 ring-purple-500"
+        selected && "ring-2 ring-brand-500"
       )}
       onClick={onClick}
     >
@@ -120,7 +120,7 @@ export function ImageThumbnail({
 
       {/* Error state */}
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-neutral-800 text-neutral-500">
+        <div className="absolute inset-0 flex items-center justify-center bg-neutral-800 text-faint">
           <span className="text-sm">Failed to load</span>
         </div>
       )}

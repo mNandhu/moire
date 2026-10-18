@@ -86,7 +86,7 @@ export function ModelSection() {
                   <>
                     Downloading model files…
                     {status.model_download.cancel_requested ? (
-                      <span className="text-neutral-500"> (cancelling)</span>
+                      <span className="text-faint"> (cancelling)</span>
                     ) : null}
                   </>
                 ) : status.model_download.status === "error" ? (
@@ -136,7 +136,7 @@ export function ModelSection() {
                         <span className="text-red-300"> · {f.error}</span>
                       ) : null}
                     </div>
-                    <div className="text-neutral-500">
+                    <div className="text-faint">
                       {formatBytes(f.downloaded)}
                       {f.total ? ` / ${formatBytes(f.total)}` : ""}
                     </div>

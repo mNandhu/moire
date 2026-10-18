@@ -22,7 +22,7 @@ export function StatCard({
   onClick?: () => void;
 }) {
   const tones = {
-    brand: "text-purple-300 bg-purple-500/10",
+    brand: "text-brand-300 bg-brand-500/10",
     emerald: "text-emerald-300 bg-emerald-500/10",
     blue: "text-blue-300 bg-blue-500/10",
     neutral: "text-neutral-300 bg-neutral-700/30",
@@ -54,7 +54,7 @@ export function StatCard({
           </div>
         )}
         <div className="text-xs text-neutral-400 mt-1.5 truncate">{label}</div>
-        {hint && <div className="text-[11px] text-neutral-500 truncate">{hint}</div>}
+        {hint && <div className="text-2xs text-faint truncate">{hint}</div>}
       </div>
     </Comp>
   );

@@ -45,6 +45,12 @@ import { accentFromBlurhash } from "../lib/blurhash";
 import { pickRating, ratingBadgeClass } from "../lib/rating";
 import { formatTag, partitionTags } from "../lib/tags";
 import { isFormField } from "../lib/dom";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
+
+// Round controls floating over the image stage (back, details, prev/next).
+const OVERLAY_BTN =
+  "p-2 rounded-full bg-black/45 border border-white/10 text-white/80 hover:text-white hover:bg-black/65 disabled:opacity-30 disabled:pointer-events-none transition-colors duration-150";
 import { invalidateFeeds, removeImageFromFeeds } from "../lib/feedCache";
 
 // How long a fetched image doc stays fresh. Shared by the current-image query
@@ -545,7 +551,7 @@ export default function ImageView() {
       // (see main.tsx's RootRoutes) rather than replacing it, so it needs to
       // cover the sidebar and grid itself instead of relying on being the only
       // thing on the page.
-      className="fixed inset-0 z-[100] overflow-hidden bg-neutral-950 text-white flex"
+      className="fixed inset-0 z-[100] overflow-hidden bg-canvas text-white flex"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchMove}
@@ -555,7 +561,7 @@ export default function ImageView() {
         {/* Back icon (overlay) */}
         <button
           onClick={goBack}
-          className="absolute top-4 left-4 z-50 p-2 rounded-full bg-black/40 border border-white/10 hover:bg-black/60 transition-transform transition-opacity duration-200 opacity-90 hover:opacity-100 hover:scale-[1.02]"
+          className={`absolute top-4 left-4 z-50 ${OVERLAY_BTN}`}
           aria-label="Back"
           title="Back"
         >
@@ -565,7 +571,7 @@ export default function ImageView() {
         {!infoOpen && (
           <button
             onClick={() => setInfoOpen(true)}
-            className="absolute top-4 right-4 z-50 p-2 rounded-full bg-black/40 border border-white/10 hover:bg-black/60 transition-opacity duration-200 opacity-80 hover:opacity-100"
+            className={`absolute top-4 right-4 z-50 ${OVERLAY_BTN}`}
             title="Show details"
             aria-label="Show details"
           >
@@ -646,7 +652,7 @@ export default function ImageView() {
           <button
             disabled={index <= 0}
             onClick={goPrev}
-            className="pointer-events-auto p-2 rounded-full bg-black/40 border border-white/10 hover:bg-black/60 disabled:opacity-40 disabled:hover:bg-black/40 transition-opacity duration-200 opacity-80 hover:opacity-100"
+            className={`pointer-events-auto ${OVERLAY_BTN}`}
             aria-label="Previous"
             title="Previous"
           >
@@ -655,7 +661,7 @@ export default function ImageView() {
           <button
             disabled={index < 0 || (index >= list.length - 1 && !hasMore)}
             onClick={goNext}
-            className="pointer-events-auto p-2 rounded-full bg-black/40 border border-white/10 hover:bg-black/60 disabled:opacity-40 disabled:hover:bg-black/40 transition-opacity duration-200 opacity-80 hover:opacity-100"
+            className={`pointer-events-auto ${OVERLAY_BTN}`}
             aria-label="Next"
             title="Next"
           >
@@ -667,14 +673,14 @@ export default function ImageView() {
       <aside
         role="region"
         aria-label="Image details"
-        className={`fixed lg:static inset-y-0 right-0 z-40 h-dvh lg:h-full w-full sm:w-[380px] lg:w-[400px] lg:shrink-0 flex flex-col border-l border-neutral-800 bg-neutral-900 lg:bg-neutral-900/95 backdrop-blur-sm shadow-xl shadow-black/30 transition-transform duration-300 ease-out lg:transition-none ${
+        className={`fixed lg:static inset-y-0 right-0 z-40 h-dvh lg:h-full w-full sm:w-[380px] lg:w-[400px] lg:shrink-0 flex flex-col border-l border-line bg-surface shadow-xl shadow-black/30 lg:shadow-none transition-transform duration-300 ease-out lg:transition-none ${
           infoOpen ? "translate-x-0 lg:flex" : "translate-x-full lg:hidden"
         }`}
       >
         {data && (
           <>
             {/* Header: filename + quick actions */}
-            <div className="flex items-start justify-between gap-2 p-3 border-b border-neutral-800 shrink-0">
+            <div className="flex items-start justify-between gap-2 p-3 border-b border-line shrink-0">
               <div className="min-w-0">
                 <div
                   className="text-sm font-semibold truncate"
@@ -682,7 +688,7 @@ export default function ImageView() {
                 >
                   {fileName}
                 </div>
-                <div className="text-xs text-neutral-400 mt-0.5">
+                <div className="text-xs text-muted mt-0.5">
                   {data.width}×{data.height} ·{" "}
                   {Math.round((data.size || 0) / 1024)} KB
                 </div>
@@ -694,7 +700,7 @@ export default function ImageView() {
                     `/api/v1/images/${encodeURIComponent(data._id)}/file`
                   }
                   download={fileName || ""}
-                  className="p-2 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors"
+                  className="p-2 rounded-lg text-muted hover:text-white hover:bg-raised transition-colors"
                   title="Download original"
                   aria-label="Download original"
                 >
@@ -702,7 +708,7 @@ export default function ImageView() {
                 </a>
                 <button
                   onClick={() => setInfoOpen(false)}
-                  className="p-2 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors"
+                  className="p-2 rounded-lg text-muted hover:text-white hover:bg-raised transition-colors"
                   title="Collapse panel"
                   aria-label="Collapse panel"
                 >
@@ -727,17 +733,17 @@ export default function ImageView() {
                   <span className="text-sm text-neutral-300">Score</span>
                   <ScoreStars value={score} onSet={applyScore} />
                 </div>
-                <button
+                <Button
                   onClick={() => void toggleQuarantine()}
-                  className={`w-full px-3 py-2 rounded-lg border inline-flex items-center justify-center gap-2 text-sm transition-colors ${
+                  className={
                     quarantined
-                      ? "bg-amber-900/40 border-amber-800 text-amber-100 hover:bg-amber-900/60"
-                      : "bg-neutral-800 border-neutral-700 hover:bg-neutral-700"
-                  }`}
+                      ? "w-full bg-amber-900/40 border-amber-800 text-amber-100 hover:bg-amber-900/60 hover:border-amber-700"
+                      : "w-full"
+                  }
                   title={quarantined ? "Restore (X)" : "Quarantine (X)"}
                 >
                   <Ban size={14} /> {quarantined ? "Restore" : "Quarantine"}
-                </button>
+                </Button>
               </Section>
 
               {/* Generation data */}
@@ -757,7 +763,7 @@ export default function ImageView() {
                     <button
                       type="button"
                       onClick={() => void copyAllTags()}
-                      className="inline-flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300"
+                      className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
                       title="Copy all tags as comma-separated text"
                     >
                       <Copy size={12} /> Copy all
@@ -798,7 +804,7 @@ export default function ImageView() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-xs text-neutral-500">No tags yet.</div>
+                  <div className="text-xs text-faint">No tags yet.</div>
                 )}
                 <TagEditor id={data._id} onChange={refreshImage} />
               </Section>
@@ -834,7 +840,7 @@ function TagEditor({ id, onChange }: { id: string; onChange: () => void }) {
   return (
     <div className="mt-2 space-y-2">
       <div className="flex gap-2">
-        <input
+        <Input
           value={val}
           onChange={(e) => setVal(e.target.value)}
           onKeyDown={(e) => {
@@ -844,19 +850,15 @@ function TagEditor({ id, onChange }: { id: string; onChange: () => void }) {
             }
           }}
           placeholder="Add manual tags (comma separated)"
-          className="px-2 py-2 rounded bg-neutral-900 border border-neutral-800 flex-1"
+          className="flex-1"
         />
-        <button
-          className="px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-500 card-hover"
-          onClick={add}
-          disabled={adding}
-        >
+        <Button onClick={add} disabled={adding}>
           Add
-        </button>
+        </Button>
       </div>
       <div className="flex gap-2">
-        <button
-          className="px-3 py-2 rounded bg-purple-600 hover:bg-purple-500 card-hover inline-flex items-center gap-2 disabled:opacity-50"
+        <Button
+          variant="primary"
           onClick={ai}
           disabled={submitting || Boolean(jobId)}
           title={
@@ -866,22 +868,22 @@ function TagEditor({ id, onChange }: { id: string; onChange: () => void }) {
           }
         >
           <Sparkles size={16} />
-          {submitting ? "Starting…" : jobId ? "AI Tagging…" : "AI Tagging"}
-        </button>
+          {submitting ? "Starting…" : jobId ? "AI tagging…" : "Run AI tagging"}
+        </Button>
         {canCancel && (
-          <button
-            className="px-3 py-2 rounded bg-red-600/80 hover:bg-red-500 card-hover inline-flex items-center gap-2 disabled:opacity-50"
+          <Button
+            variant="dangerSoft"
             onClick={() => void cancel()}
             disabled={cancelling}
             title="Cancel the in-progress AI tagging job"
           >
             {cancelling ? "Cancelling…" : "Cancel"}
-          </button>
+          </Button>
         )}
       </div>
 
       {job && (
-        <div className="text-xs text-neutral-400">
+        <div className="text-xs text-muted">
           AI status: <span className="text-neutral-200">{job.status}</span>
           {job.total ? (
             <span>
@@ -897,10 +899,10 @@ function TagEditor({ id, onChange }: { id: string; onChange: () => void }) {
 
       <Link
         to="/ai-tagging"
-        className="text-xs text-neutral-500 hover:text-neutral-300"
+        className="inline-block text-xs text-faint hover:text-neutral-200"
         title="See AI tagging coverage, jobs, and their progress"
       >
-        View AI tagging →
+        View AI tagging jobs
       </Link>
     </div>
   );
@@ -948,7 +950,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3 space-y-3">
+    <section className="rounded-xl border border-line bg-canvas/50 p-3 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">{title}</h2>
         {right}
@@ -962,7 +964,7 @@ const TAG_CHIP_STYLES: Record<
   "ai" | "manual" | "prompt",
   { cls: string; title: string }
 > = {
-  ai: { cls: "bg-neutral-800 border-neutral-700", title: "AI tag" },
+  ai: { cls: "bg-raised border-line-strong text-neutral-200", title: "AI tag" },
   manual: {
     cls: "bg-emerald-900/30 border-emerald-800 text-emerald-100",
     title: "Manual tag",
@@ -987,7 +989,7 @@ function TagChip({
   const { cls, title } = TAG_CHIP_STYLES[kind];
   return (
     <span
-      className={`group px-2 py-1 rounded-full text-xs border inline-flex items-center gap-1 ${cls}`}
+      className={`group relative px-2.5 py-1 rounded-full text-xs border inline-flex items-center ${cls}`}
       title={title}
     >
       <button
@@ -1000,23 +1002,25 @@ function TagChip({
       </button>
       <button
         type="button"
-        className="opacity-0 group-hover:opacity-100 transition-opacity hover:brightness-125"
+        // Floats over the chip's corner so it reserves no width at rest —
+        // an invisible in-flow button left every chip lopsided.
+        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full inline-flex items-center justify-center bg-raised border border-line-strong text-muted hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
         title="Set as tag thumbnail"
         aria-label={`Set thumbnail for ${label}`}
         onClick={onThumb}
       >
-        <ImageIcon size={12} />
+        <ImageIcon size={11} />
       </button>
     </span>
   );
 }
 
-// A small uppercase key/value pill for the "Other metadata" row.
+// A small key/value pill for the "Other metadata" row.
 function MetaChip({ label, value }: { label: string; value: React.ReactNode }) {
   if (value == null || value === "") return null;
   return (
-    <span className="px-2 py-1 rounded bg-neutral-800/80 border border-neutral-700 text-[11px] inline-flex items-center gap-1">
-      <span className="uppercase tracking-wide text-neutral-500">{label}</span>
+    <span className="px-2 py-1 rounded-md bg-raised border border-line text-xs inline-flex items-center gap-1.5 tabular-nums">
+      <span className="text-faint">{label}</span>
       <span className="text-neutral-100">{value}</span>
     </span>
   );
@@ -1034,12 +1038,12 @@ function ResourceRow({
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="min-w-0">
-        <div className="text-sm text-sky-300 truncate" title={name}>
+        <div className="text-sm text-neutral-100 truncate" title={name}>
           {name}
         </div>
-        {sub && <div className="text-xs text-neutral-500">{sub}</div>}
+        {sub && <div className="text-xs text-faint">{sub}</div>}
       </div>
-      <span className="shrink-0 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-neutral-300">
+      <span className="shrink-0 text-2xs px-1.5 py-0.5 rounded-md bg-raised border border-line text-muted">
         {badge}
       </span>
     </div>
@@ -1060,7 +1064,7 @@ function CopyButton({ text, label }: { text?: string | null; label: string }) {
           push(`Copy failed: ${String(e)}`, "error");
         }
       }}
-      className="p-1.5 rounded text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+      className="p-1.5 rounded-md text-muted hover:text-white hover:bg-raised transition-colors"
       title={`Copy ${label.toLowerCase()}`}
       aria-label={`Copy ${label.toLowerCase()}`}
     >
@@ -1085,7 +1089,7 @@ function PromptBlock({ text }: { text: string }) {
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-1 text-xs text-sky-400 hover:text-sky-300"
+          className="mt-1 text-xs text-brand-300 hover:text-brand-200"
         >
           {expanded ? "Show less" : "Show more"}
         </button>
@@ -1107,14 +1111,14 @@ function GenPanel({
 }) {
   if (!gen || !gen.source) return null;
   return (
-    <section className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3 space-y-4">
+    <section className="rounded-xl border border-line bg-canvas/50 p-3 space-y-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Generation data</h2>
         <div className="flex items-center gap-3">
           {gen.workflow_sig && (
             <Link
               to={`/rules?sig=${encodeURIComponent(gen.workflow_sig)}`}
-              className="inline-flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300"
+              className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
               title="Edit this workflow's extraction rule"
             >
               <Workflow size={12} /> Edit rule
@@ -1123,7 +1127,7 @@ function GenPanel({
           <button
             type="button"
             onClick={onCopyAll}
-            className="inline-flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300"
+            className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
             title="Copy all generation data"
           >
             <Copy size={12} /> Copy all
@@ -1133,7 +1137,7 @@ function GenPanel({
 
       {gen.model && (
         <div className="space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
+          <div className="text-xs font-medium text-muted">
             Resources used
           </div>
           <ResourceRow name={gen.model} badge="Checkpoint" />
@@ -1145,7 +1149,7 @@ function GenPanel({
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <div className="text-sm font-semibold">Prompt</div>
-              <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-neutral-400">
+              <span className="text-2xs uppercase px-1.5 py-0.5 rounded-md bg-raised border border-line text-muted">
                 {gen.source}
               </span>
             </div>
@@ -1166,7 +1170,7 @@ function GenPanel({
       )}
 
       <div className="space-y-2">
-        <div className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
+        <div className="text-xs font-medium text-muted">
           Other metadata
         </div>
         <div className="flex flex-wrap gap-1.5">

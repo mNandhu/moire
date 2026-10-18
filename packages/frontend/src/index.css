@@ -9,15 +9,15 @@
   color-scheme: dark;
 }
 
-/* App-wide background and subtle texture */
 html, body, #root {
   height: 100%;
 }
+/* Flat canvas: the images supply the colour, the chrome stays quiet. */
 body {
-  background: radial-gradient(1200px 800px at 10% -10%, rgba(139, 92, 246, 0.05), transparent 60%),
-              radial-gradient(1000px 700px at 110% 10%, rgba(59, 130, 246, 0.04), transparent 60%),
-              linear-gradient(180deg, #0b0b0f 0%, #0a0a0d 100%);
-  background-attachment: fixed;
+  @apply bg-canvas font-sans text-neutral-100 antialiased;
+  /* Instrument Sans ships a narrow space; at UI sizes "All Images" read as
+   * one word. A small nudge restores the gaps without loosening letters. */
+  word-spacing: 0.08em;
 }
 
 /* Focus rings aligned to brand accent.
@@ -29,16 +29,25 @@ body {
  * whole point, and box-shadow follows it automatically. */
 *:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.6);
+  box-shadow: 0 0 0 2px theme("colors.brand.400 / 70%");
 }
 
-/* Card hover glow helper */
+/* Chevron for <Select>. Plain CSS rather than a bg-[url()] utility so
+ * tailwind-merge never mistakes it for the field's background colour. */
+.select-chevron {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8797' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 16px;
+}
+
+/* Hover affordance for clickable cards: a border step, no lift or glow. */
 .card-hover {
-  transition: box-shadow 200ms ease, transform 200ms ease, border-color 200ms ease;
+  transition: border-color 150ms ease, background-color 150ms ease;
 }
 .card-hover:hover {
-  box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.25), 0 8px 30px -10px rgba(139,92,246,0.25);
-  transform: translateY(-1px);
+  @apply border-line-strong bg-raised;
 }
 
 /* Respect the OS "reduce motion" setting globally: transitions and animations

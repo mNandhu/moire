@@ -69,12 +69,12 @@ export function Sidebar({
           "relative w-full flex items-center gap-3 rounded-lg text-sm transition-colors",
           collapsed ? "justify-center px-0 py-2.5" : "px-3 py-2",
           active
-            ? "bg-neutral-800 text-white font-medium"
-            : "text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200",
+            ? "bg-raised text-neutral-50 font-medium"
+            : "text-muted hover:bg-raised/60 hover:text-neutral-100",
         )}
       >
         {active && (
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-purple-500" />
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-brand-400" />
         )}
         <Icon size={18} />
         {!collapsed && <span className="truncate">{label}</span>}
@@ -83,19 +83,19 @@ export function Sidebar({
   };
 
   return (
-    <aside className="h-dvh w-full border-r border-neutral-800 bg-neutral-950/80 backdrop-blur flex flex-col overflow-hidden">
+    <aside className="h-dvh w-full border-r border-line bg-surface flex flex-col overflow-hidden">
       {/* Brand */}
       <div
         className={cn(
-          "h-16 flex items-center border-b border-neutral-800/70 select-none",
+          "h-16 flex items-center border-b border-line select-none",
           collapsed ? "justify-center px-0" : "px-4 gap-2.5",
         )}
       >
-        <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-purple-500 via-fuchsia-500 to-blue-500 text-white shadow-glow shrink-0">
-          <Tag size={20} />
+        <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-600 text-white shrink-0">
+          <Tag size={17} strokeWidth={2.25} />
         </span>
         {!collapsed && (
-          <span className="text-lg font-bold tracking-tight bg-gradient-to-br from-purple-300 via-fuchsia-200 to-blue-300 bg-clip-text text-transparent">
+          <span className="text-base font-semibold tracking-tight text-neutral-50">
             Tagify
           </span>
         )}
@@ -106,12 +106,12 @@ export function Sidebar({
         {NAV.map((group, gi) => (
           <div key={gi} className="space-y-1">
             {group.section && !collapsed && (
-              <div className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-600">
+              <div className="px-3 mb-1 text-xs font-medium text-faint">
                 {group.section}
               </div>
             )}
             {group.section && collapsed && gi > 0 && (
-              <div className="mx-2 mb-2 border-t border-neutral-800/70" />
+              <div className="mx-2 mb-2 border-t border-line" />
             )}
             {group.items.map((it) => (
               <NavButton key={it.path} {...it} />
@@ -121,7 +121,7 @@ export function Sidebar({
       </nav>
 
       {/* Footer */}
-      <div className="px-3 py-3 border-t border-neutral-800/70 space-y-1">
+      <div className="px-3 py-3 border-t border-line space-y-1">
         <NavButton label="Settings" path="/settings" icon={Settings} />
 
         {onToggle && (
@@ -130,7 +130,7 @@ export function Sidebar({
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className={cn(
-              "w-full flex items-center gap-3 rounded-lg text-sm text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200 transition-colors",
+              "w-full flex items-center gap-3 rounded-lg text-sm text-muted hover:bg-raised/60 hover:text-neutral-100 transition-colors",
               collapsed ? "justify-center px-0 py-2.5" : "px-3 py-2",
             )}
           >
@@ -145,12 +145,12 @@ export function Sidebar({
 
         {!collapsed ? (
           <div
-            className="flex items-center gap-2 px-3 py-1.5 text-xs text-neutral-500"
+            className="flex items-center gap-2 px-3 py-1.5 text-xs text-faint"
             title={`Backend: ${status}`}
           >
             <span className={cn("h-2 w-2 rounded-full", meta.dot)} />
             <span>Backend</span>
-            <span className="ml-auto text-neutral-600">{meta.label}</span>
+            <span className="ml-auto text-faint">{meta.label}</span>
           </div>
         ) : (
           <div

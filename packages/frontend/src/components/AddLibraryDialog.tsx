@@ -174,7 +174,7 @@ export function AddLibraryDialog({
       onClose={close}
       title={
         <span className="flex items-center gap-2">
-          <FolderOpen size={18} className="text-purple-300" /> Add libraries
+          <FolderOpen size={18} className="text-brand-300" /> Add libraries
         </span>
       }
       description="List one or more folders. Preview shows exactly what will be added before anything is indexed."
@@ -189,7 +189,7 @@ export function AddLibraryDialog({
             Cancel
           </Button>
           {sources && !stale ? (
-            <Button variant="success" onClick={() => void add()} disabled={!canAdd}>
+            <Button variant="primary" onClick={() => void add()} disabled={!canAdd}>
               {adding ? <Spinner className="h-3.5 w-3.5" /> : <Plus size={16} />}
               {adding
                 ? "Adding…"
@@ -225,7 +225,7 @@ export function AddLibraryDialog({
                 else void preview();
               }
             }}
-            className="w-full resize-y rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 font-mono text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-purple-600/60 transition-colors"
+            className="w-full resize-y rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 font-mono text-sm text-neutral-100 placeholder:text-faint focus:border-brand-600/60 transition-colors"
           />
         </Field>
 
@@ -307,7 +307,7 @@ function SourceBlock({
           <button
             type="button"
             disabled={disabled}
-            className="text-xs text-purple-300 hover:text-purple-200 disabled:opacity-50"
+            className="text-xs text-brand-300 hover:text-brand-200 disabled:opacity-50"
             onClick={() => selectable.forEach((c) => onToggle(c.path, !allOn))}
           >
             {allOn ? "Select none" : "Select all"}
@@ -357,7 +357,7 @@ function SourceBlock({
                   className="h-7 py-1 text-sm"
                 />
                 <div
-                  className="mt-0.5 truncate font-mono text-[11px] text-neutral-500"
+                  className="mt-0.5 truncate font-mono text-2xs text-faint"
                   title={c.note ? `${c.note}${c.conflict_path ? `: ${c.conflict_path}` : ""}` : c.path}
                 >
                   {c.path}

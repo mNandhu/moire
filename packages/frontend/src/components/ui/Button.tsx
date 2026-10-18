@@ -11,20 +11,21 @@ type Variant =
 type Size = "sm" | "md" | "icon";
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-purple-600 hover:bg-purple-500 text-white border border-transparent",
+  primary: "bg-brand-600 hover:bg-brand-500 text-white border border-transparent",
   secondary:
-    "bg-neutral-800 hover:bg-neutral-700 text-neutral-100 border border-neutral-700",
+    "bg-raised hover:bg-line text-neutral-100 border border-line hover:border-line-strong",
   success: "bg-emerald-600 hover:bg-emerald-500 text-white border border-transparent",
   danger: "bg-red-600 hover:bg-red-500 text-white border border-transparent",
   dangerSoft:
     "bg-red-600/20 hover:bg-red-600/30 text-red-200 border border-red-700",
-  ghost: "bg-transparent hover:bg-neutral-800 text-neutral-300 border border-transparent",
+  ghost: "bg-transparent hover:bg-raised text-muted hover:text-neutral-100 border border-transparent",
 };
 
 const SIZES: Record<Size, string> = {
-  sm: "px-2.5 py-1.5 text-xs gap-1.5",
-  md: "px-3.5 py-2 text-sm gap-2",
-  icon: "p-2",
+  // Fixed heights so buttons, inputs and selects line up in a toolbar row.
+  sm: "h-7 px-2.5 text-xs gap-1.5",
+  md: "h-9 px-3.5 text-sm gap-2",
+  icon: "h-9 w-9",
 };
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -46,7 +47,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           "inline-flex items-center justify-center rounded-lg font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none",
           SIZES[size],
           active
-            ? "bg-purple-700 hover:bg-purple-600 text-white border border-purple-600"
+            ? "bg-brand-600/20 hover:bg-brand-600/30 text-brand-100 border border-brand-500/60"
             : VARIANTS[variant],
           className,
         )}

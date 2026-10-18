@@ -107,14 +107,14 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
     return (
       <div ref={wrapRef} className="relative">
         <div
-          className="flex flex-wrap items-center gap-1.5 w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-2 py-1.5 text-sm focus-within:border-purple-600/60 transition-colors cursor-text"
+          className="flex flex-wrap items-center gap-1.5 w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-2 py-1.5 text-sm focus-within:border-brand-600/60 transition-colors cursor-text"
           onClick={() => inputRef.current?.focus()}
         >
-          <Search size={16} className="text-neutral-500 ml-1 shrink-0" />
+          <Search size={16} className="text-faint ml-1 shrink-0" />
           {value.map((tag) => (
             <span
               key={tag}
-              className="inline-flex items-center gap-1 rounded-md bg-purple-900/30 border border-purple-700/60 pl-2 pr-1 py-0.5 text-purple-100"
+              className="inline-flex items-center gap-1 rounded-md bg-brand-900/30 border border-brand-700/60 pl-2 pr-1 py-0.5 text-brand-100"
             >
               <span className="truncate max-w-[12rem]">{formatSearchTag(tag)}</span>
               <button
@@ -123,7 +123,7 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
                   e.stopPropagation();
                   removeTag(tag);
                 }}
-                className="rounded hover:bg-purple-700/40 p-0.5 text-purple-300 hover:text-purple-100"
+                className="rounded hover:bg-brand-700/40 p-0.5 text-brand-300 hover:text-brand-100"
                 aria-label={`Remove ${formatSearchTag(tag)}`}
               >
                 <X size={13} />
@@ -140,7 +140,7 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
             onFocus={() => setOpen(true)}
             onKeyDown={onKeyDown}
             placeholder={value.length ? "" : (placeholder ?? "Search tags…")}
-            className="flex-1 min-w-[8rem] bg-transparent px-1 py-0.5 text-neutral-100 placeholder:text-neutral-500 outline-none focus-visible:shadow-none"
+            className="flex-1 min-w-[8rem] bg-transparent px-1 py-0.5 text-neutral-100 placeholder:text-faint outline-none focus-visible:shadow-none"
             role="combobox"
             aria-expanded={showDropdown}
             aria-autocomplete="list"
@@ -164,7 +164,7 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
                   }}
                   className={cn(
                     "flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-sm",
-                    i === active ? "bg-purple-900/30" : "hover:bg-neutral-800/60",
+                    i === active ? "bg-brand-900/30" : "hover:bg-neutral-800/60",
                   )}
                 >
                   <span className="flex items-center gap-2 min-w-0">
@@ -172,17 +172,17 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
                       {formatSearchTag(s._id)}
                     </span>
                     {isManual(s._id) && (
-                      <Badge tone="success" className="text-[10px] shrink-0">
+                      <Badge tone="success" className="text-2xs shrink-0">
                         manual
                       </Badge>
                     )}
                     {isPrompt(s._id) && (
-                      <Badge tone="info" className="text-[10px] shrink-0">
+                      <Badge tone="info" className="text-2xs shrink-0">
                         prompt
                       </Badge>
                     )}
                   </span>
-                  <span className="tabular-nums text-xs text-neutral-500 shrink-0">
+                  <span className="tabular-nums text-xs text-faint shrink-0">
                     {s.count.toLocaleString()}
                   </span>
                 </button>

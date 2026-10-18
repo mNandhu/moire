@@ -67,19 +67,19 @@ export function ShortcutOverlay({ onClose }: { onClose: () => void }) {
       >
         <div className="flex items-baseline justify-between mb-5">
           <h2 className="text-lg font-bold tracking-tight">Keyboard shortcuts</h2>
-          <span className="text-xs text-neutral-500">Esc to close</span>
+          <span className="text-xs text-faint">Esc to close</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
           {GROUPS.map((g) => (
             <div key={g.title}>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-2">
+              <div className="text-2xs font-semibold uppercase tracking-wider text-faint mb-2">
                 {g.title}
               </div>
               <dl className="space-y-1.5">
                 {g.keys.map(([key, desc]) => (
                   <div key={key} className="flex items-baseline justify-between gap-3">
                     <dt className="shrink-0">
-                      <kbd className="px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-[11px] font-mono text-neutral-200">
+                      <kbd className="px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-2xs font-mono text-neutral-200">
                         {key}
                       </kbd>
                     </dt>

@@ -70,7 +70,7 @@ export default function OverviewPage() {
       : "Unloaded";
 
   return (
-    <div className="p-6 animate-fade-in">
+    <div className="p-6">
       <PageHeader
         title="Overview"
         description="Your local image library at a glance."
@@ -123,7 +123,7 @@ export default function OverviewPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-3">
-            <Sparkles size={16} className="text-purple-300" />
+            <Sparkles size={16} className="text-brand-300" />
             <h3 className="font-semibold text-neutral-100">AI tagging</h3>
           </div>
           {latestJob ? (
@@ -143,7 +143,7 @@ export default function OverviewPage() {
                 </Badge>
               </div>
               <progress
-                className="w-full h-2 [&::-webkit-progress-bar]:bg-neutral-800 [&::-webkit-progress-value]:bg-purple-600 [&::-moz-progress-bar]:bg-purple-600 rounded"
+                className="w-full h-2 [&::-webkit-progress-bar]:bg-neutral-800 [&::-webkit-progress-value]:bg-brand-600 [&::-moz-progress-bar]:bg-brand-600 rounded"
                 value={latestJob.done + latestJob.failed}
                 max={Math.max(1, latestJob.total)}
               />
@@ -152,10 +152,10 @@ export default function OverviewPage() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-faint">
               No AI jobs yet. Head to{" "}
               <button
-                className="text-purple-300 hover:underline"
+                className="text-brand-300 hover:underline"
                 onClick={() => navigate("/ai-tagging")}
               >
                 AI Tagging
@@ -171,12 +171,12 @@ export default function OverviewPage() {
             <h3 className="font-semibold text-neutral-100">Libraries</h3>
           </div>
           {libs === null ? (
-            <p className="text-sm text-neutral-500">Loading…</p>
+            <p className="text-sm text-faint">Loading…</p>
           ) : libs.length === 0 ? (
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-faint">
               No libraries yet.{" "}
               <button
-                className="text-purple-300 hover:underline"
+                className="text-brand-300 hover:underline"
                 onClick={() => navigate("/libraries")}
               >
                 Add one
@@ -194,11 +194,11 @@ export default function OverviewPage() {
                     {l.name || l.path}
                   </span>
                   {l.scanning ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-purple-300 shrink-0">
+                    <span className="inline-flex items-center gap-1 text-xs text-brand-300 shrink-0">
                       <Loader2 size={12} className="animate-spin" /> scanning
                     </span>
                   ) : (
-                    <span className="text-xs text-neutral-500 tabular-nums shrink-0">
+                    <span className="text-xs text-faint tabular-nums shrink-0">
                       {(l.indexed_count || 0).toLocaleString()} images
                     </span>
                   )}
