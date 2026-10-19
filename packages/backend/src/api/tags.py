@@ -110,14 +110,7 @@ async def character_page(tag: str):
     got = await characters.page(base)
     if got is None:
         raise HTTPException(status_code=404, detail="No image has this tag")
-    cover = got["thumb_image_id"] or next(
-        (
-            r["thumb_image_id"]
-            for r in await tag_index.browse("all")
-            if r["tag"] == got["tag"]
-        ),
-        None,
-    )
+    cover = got["cover"]
     return {
         **got,
         "thumb_url": thumb_url(cover) if cover else None,
@@ -157,8 +150,10 @@ async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
     sources found the tag; the image must carry it from one of them."""
     tag = tag_index.pin_key(validate_tags([tag])[0])
     image_id = body.image_id
-    # A character's avatar may come from an image under any of its names.
-    names, is_character = await characters.names_of(tag)
+    # A character's avatar may come from an image under any of its names,
+    # and is kept under the name its page uses.
+    key, names, is_character = await characters.names_of(tag)
+    tag = key
 
     async with async_tx() as conn:
         exists = (
@@ -198,7 +193,7 @@ async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
 
 @router.delete("/thumbnail/{tag:path}")
 async def clear_tag_thumbnail(tag: str):
-    tag = tag_index.pin_key(validate_tags([tag])[0])
+    tag, *_ = await characters.names_of(tag_index.pin_key(validate_tags([tag])[0]))
     async with async_tx() as conn:
         await conn.execute(sa.delete(t.tag_meta).where(t.tag_meta.c.tag == tag))
     tag_index.invalidate()

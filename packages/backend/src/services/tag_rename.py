@@ -70,6 +70,20 @@ async def _move_thumbnail(conn, old: str, new: str) -> None:
     await conn.execute(sa.delete(t.tag_meta).where(t.tag_meta.c.tag == old))
 
 
+async def _move_character(conn, old: str, new: str) -> None:
+    """Carry a character's settings (name, colour, avatar centre, whether it
+    is one) over to the target if it has none, keyed like pins."""
+    old, new = tag_index.pin_key(old), tag_index.pin_key(new)
+    if old == new:
+        return
+    c = t.characters
+    target_has = (await conn.execute(sa.select(c.c.tag).where(c.c.tag == new))).scalar()
+    if target_has is None:
+        await conn.execute(sa.update(c).where(c.c.tag == old).values(tag=new))
+    else:
+        await conn.execute(sa.delete(c).where(c.c.tag == old))
+
+
 async def _images_with(tag: str) -> list[str]:
     async with async_conn() as conn:
         return list(
@@ -92,6 +106,7 @@ async def rename_tag(tag: str, to: str) -> dict:
         changed = await image_tags.rename_manual(tag, new)
         async with async_tx() as conn:
             await _move_thumbnail(conn, tag, new)
+            await _move_character(conn, tag, new)
         tag_index.invalidate()
         return {"kind": "manual", "from": tag, "to": new, "images": changed}
 
@@ -136,6 +151,7 @@ async def rename_tag(tag: str, to: str) -> dict:
             )
         )
         await _move_thumbnail(conn, tag, image_tags.to_prompt(new_name))
+        await _move_character(conn, tag, image_tags.to_prompt(new_name))
 
     affected = await _images_with(tag)
     await anyio.to_thread.run_sync(reproject.reproject_ids, affected)

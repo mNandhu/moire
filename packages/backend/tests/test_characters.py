@@ -204,3 +204,59 @@ async def test_an_avatar_pinned_under_an_alias_shows_everywhere(
     listed = (await client.get("/tags/characters")).json()[0]
     assert page["thumb_url"] == listed["thumb_url"]
     assert listed["thumb_url"].endswith("/images/L1%3Ab/thumb")
+
+
+async def test_any_name_edits_the_one_character(client, seed, monkeypatch):
+    monkeypatch.setattr(
+        tag_categories,
+        "load",
+        _chars("furina_(genshin_impact)", furina="genshin_impact"),
+    )
+    seed("L1:a", tags=("furina_(genshin_impact)", "prompt:furina"))
+    seed("L1:b", tags=("prompt:furina", "prompt:genshin_impact"))
+    stored = await client.patch(
+        "/tags/character", params={"tag": "furina"}, json={"name": "Furina"}
+    )
+    assert stored.json()["tag"] == "furina_(genshin_impact)"
+    # a pin through the bare name lands on the character too
+    await client.post("/tags/thumbnail/furina", json={"image_id": "L1:b"})
+    page = (await client.get("/tags/character", params={"tag": "furina"})).json()
+    listed = (await client.get("/tags/characters")).json()[0]
+    assert page["name"] == listed["name"] == "Furina"
+    assert page["thumb_url"] == listed["thumb_url"]
+    assert listed["thumb_url"].endswith("/images/L1%3Ab/thumb")
+    await client.delete("/tags/thumbnail/furina")
+    page = (await client.get("/tags/character", params={"tag": "furina"})).json()
+    assert page["thumb_image_id"] is None
+
+
+async def test_a_quarantined_avatar_falls_back_on_both_views(client, seed, monkeypatch):
+    monkeypatch.setattr(tag_categories, "load", _chars("frieren"))
+    seed("L1:a", tags=("frieren",))
+    seed("L1:b", tags=("frieren",))
+    await client.post("/tags/thumbnail/frieren", json={"image_id": "L1:b"})
+    await client.post("/images/L1:b/quarantine", json={"quarantined": True})
+    page = (await client.get("/tags/character", params={"tag": "frieren"})).json()
+    listed = (await client.get("/tags/characters")).json()[0]
+    assert page["thumb_url"] == listed["thumb_url"]
+    assert page["thumb_url"].endswith("/images/L1%3Aa/thumb")
+
+
+async def test_renaming_carries_the_character_settings(client, seed, monkeypatch):
+    monkeypatch.setattr(tag_categories, "load", _chars())
+    seed("L1:a", tags=("manual:mira",))
+    await client.patch(
+        "/tags/character",
+        params={"tag": "mira"},
+        json={"kind": "character", "color": "#112233"},
+    )
+    got = await client.post(
+        "/tags/rename", json={"tag": "manual:mira", "to": "mira_oc"}
+    )
+    assert got.status_code == 200
+    page = (await client.get("/tags/character", params={"tag": "mira_oc"})).json()
+    assert (page["kind"], page["color"], page["category"]) == (
+        "character",
+        "#112233",
+        "character",
+    )

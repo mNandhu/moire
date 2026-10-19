@@ -154,11 +154,11 @@ async def _named(base: str) -> tuple[str, list[str], dict[str, str], list[dict]]
     return key, found.get(key, [base]), key_of, rows
 
 
-async def names_of(base: str) -> tuple[list[str], bool]:
-    """All of ``base``'s names (itself alone if not a character) and whether
-    it is a character."""
+async def names_of(base: str) -> tuple[str, list[str], bool]:
+    """``base``'s page key, all its names (itself alone if not a
+    character), and whether it is a character."""
     key, names, key_of, _ = await _named(base)
-    return names, base in key_of
+    return key, names, base in key_of
 
 
 async def listing() -> list[dict]:
@@ -169,16 +169,20 @@ async def listing() -> list[dict]:
     by = {r["tag"]: r for r in rows}
     found = groups([r["tag"] for r in rows if r["category"] == "character"], vocab)
     merged = {key: names for key, names in found.items() if len(names) > 1}
+    key_of = {name: key for key, names in merged.items() for name in names}
     counts: dict[str, int] = {}
     async with async_conn() as conn:
-        for key, names in merged.items():
-            counts[key] = (
-                await conn.execute(
-                    sa.select(sa.func.count()).where(
-                        t.images.c._id.in_(tag_index.image_ids(names))
-                    )
+        if key_of:
+            it = t.image_tags
+            images: dict[str, set[str]] = {}
+            for image_id, base in await conn.execute(
+                sa.select(it.c.image_id, it.c.base).where(
+                    it.c.image_id.in_(tag_index.image_ids(list(key_of))),
+                    it.c.base.in_(list(key_of)),
                 )
-            ).scalar_one()
+            ):
+                images.setdefault(key_of[base], set()).add(image_id)
+            counts = {key: len(ids) for key, ids in images.items()}
         meta = await _meta(conn, list(found))
         covers = await _covers(conn, found, by)
     avatars = await _avatars(list(covers.values()))
@@ -290,8 +294,13 @@ async def page(base: str) -> dict | None:
     im, it = t.images, t.image_tags
     library = {r["tag"]: r["count"] for r in rows}
     vocab = await tag_categories.load()
-    cover = detail["thumb_image_id"] or _first(rows, key)
+    by = {r["tag"]: r for r in rows}
     async with async_conn() as conn:
+        cover = (
+            await _covers(
+                conn, {key: names}, {key: by.get(key, {"thumb_image_id": None})}
+            )
+        )[key]
         total = (
             await conn.execute(
                 sa.select(sa.func.count()).where(image_tags.not_quarantined())
@@ -386,6 +395,7 @@ async def page(base: str) -> dict | None:
     return {
         **detail,
         "tag": key,
+        "cover": cover,
         "aliases": names[1:],
         "name": meta.get("name"),
         "series": meta.get("series"),
@@ -413,10 +423,6 @@ async def page(base: str) -> dict | None:
         },
         "ratings": {r: c for r, c in ratings},
     }
-
-
-def _first(rows: list[dict], key: str) -> str | None:
-    return next((r["thumb_image_id"] for r in rows if r["tag"] == key), None)
 
 
 FIELDS = ("name", "series", "kind", "color", "focus_x", "focus_y")
@@ -457,9 +463,10 @@ def clean(patch: dict) -> dict:
 
 
 async def update(tag: str, patch: dict) -> dict:
-    """Store what the user set for a character; returns the stored row."""
-    key = tag_index.pin_key(tag)
+    """Store what the user set for a character, under the name its page uses
+    whichever name it was given; returns the stored row."""
     values = clean(patch)
+    key, *_ = await names_of(tag_index.pin_key(tag))
     async with async_tx() as conn:
         if values:
             stmt = sqlite_insert(t.characters).values(
