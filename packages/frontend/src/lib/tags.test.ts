@@ -3,6 +3,7 @@ import {
   bulkTagNames,
   formatSearchTag,
   formatTag,
+  planRename,
   tagQueryText,
   toPromptText,
   isAiTag,
@@ -133,5 +134,31 @@ describe("bulkTagNames", () => {
 
   it("dedupes a picked and a typed spelling of the same tag", () => {
     expect(bulkTagNames(["manual:fav", "fav", ""])).toEqual(["fav"]);
+  });
+});
+
+describe("planRename", () => {
+  const known = [
+    { _id: "manual:keeper", count: 3 },
+    { _id: "prompt:blonde_hair", count: 9 },
+  ];
+  it("refuses AI tags", () => {
+    expect(planRename("blonde", "x", known).ok).toBe(false);
+  });
+  it("keeps the kind and canonicalizes the typed name", () => {
+    expect(planRename("manual:keepr", "  my pick ", known)).toEqual({
+      ok: true,
+      target: "manual:my_pick",
+    });
+  });
+  it("is a merge when the target exists, prompt names lowercased", () => {
+    expect(planRename("prompt:blonde", "Blonde Hair", known)).toEqual({
+      ok: true,
+      target: "prompt:blonde_hair",
+      existing: { _id: "prompt:blonde_hair", count: 9 },
+    });
+  });
+  it("treats the other spelling of the same name as no change", () => {
+    expect(planRename("manual:my_pick", "my pick", known).ok).toBe(false);
   });
 });

@@ -54,3 +54,12 @@ def canonical_name(name: str) -> str:
     if s.startswith("<"):
         return s
     return _WS.sub("_", s)
+
+
+def apply_aliases(terms: list[str], aliases: dict[str, str]) -> list[str]:
+    """Map prompt terms through the user's merge rules (``from -> to``), then
+    sort and dedupe, the stored shape of ``gen.prompt_terms``. One hop: rules
+    are kept resolved (no ``a -> b -> c`` chains) by their writer."""
+    if not aliases:
+        return terms
+    return sorted({aliases.get(term, term) for term in terms})

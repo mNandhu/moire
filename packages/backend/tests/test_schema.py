@@ -13,6 +13,7 @@ def test_expected_tables_exist():
         "libraries",
         "image_gen_raw",
         "tag_meta",
+        "tag_aliases",
         "gen_rulesets",
         "workflow_names",
         "workflow_files",

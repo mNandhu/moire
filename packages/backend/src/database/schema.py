@@ -133,6 +133,17 @@ tag_meta = sa.Table(
     sa.Column("updated_at", sa.Float),
 )
 
+# Prompt-tag merge rules (Tags page): `from_name` -> `to_name`, canonical bare
+# names. Applied to `gen.prompt_terms` on every reprojection, so a merge survives
+# re-extraction. Kept resolved (no chains) by services/tag_rename.py.
+tag_aliases = sa.Table(
+    "tag_aliases",
+    metadata,
+    sa.Column("from_name", sa.Text, primary_key=True),
+    sa.Column("to_name", sa.Text, nullable=False),
+    sa.Column("created_at", sa.Float),
+)
+
 # User prompt-extraction rulesets, keyed by workflow signature.
 gen_rulesets = sa.Table(
     "gen_rulesets",

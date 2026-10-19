@@ -9,7 +9,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from ..database.db import async_tx
 from ..database import schema as t
 from ._utils import thumb_url, validate_tags
-from ..services import image_tags, tag_index, tag_settings
+from ..services import image_tags, tag_index, tag_rename, tag_settings
 
 router = APIRouter()
 
@@ -162,6 +162,36 @@ async def bulk_manual_tags(body: BulkManualTags):
         body.image_ids, add=add, remove=remove
     )
     return {"matched": matched, "modified": modified}
+
+
+class TagRename(BaseModel):
+    tag: str
+    to: str
+
+
+@router.post("/rename")
+async def rename_tag(body: TagRename):
+    """Rename a manual tag, or merge a prompt tag via a stored rule. Merging is
+    renaming onto an existing name. AI tags are refused (see tag_rename)."""
+    tag, to = validate_tags([body.tag, body.to], max_count=2)
+    try:
+        return await tag_rename.rename_tag(tag, to)
+    except tag_rename.RenameError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.get("/aliases")
+async def list_aliases():
+    """The prompt-tag merge rules, newest first."""
+    return await tag_rename.list_aliases()
+
+
+@router.delete("/aliases/{from_name:path}")
+async def delete_alias(from_name: str):
+    res = await tag_rename.delete_alias(from_name)
+    if res is None:
+        raise HTTPException(status_code=404, detail="No such merge rule")
+    return res
 
 
 @router.post("/ai/{image_id}")

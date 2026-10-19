@@ -177,3 +177,42 @@ export function bulkTagNames(chips: readonly string[]): string[] {
   }
   return out;
 }
+
+/** Mirror of the backend's canonical_name: trimmed, whitespace runs as one
+ * underscore. Lora tokens (`<lora:...>`) pass through. */
+export function canonicalName(name: string): string {
+  const s = name.trim();
+  return s.startsWith("<") ? s : s.replace(/\s+/g, "_");
+}
+
+export type RenamePlan =
+  | { ok: false; reason: string }
+  | {
+      ok: true;
+      /** The stored tag the source becomes. */
+      target: string;
+      /** The target when it already exists: this is a merge. */
+      existing?: { _id: string; count: number };
+    };
+
+/**
+ * What renaming stored tag `raw` to the typed `to` would do, for the dialog
+ * preview. Mirrors services/tag_rename.py: the kind is kept, AI tags are
+ * refused, prompt names are lowercase, and the same name in another spelling
+ * is no rename at all.
+ */
+export function planRename(
+  raw: string,
+  to: string,
+  known: readonly { _id: string; count: number }[],
+): RenamePlan {
+  if (isAiTag(raw)) return { ok: false, reason: "AI tags can't be renamed" };
+  const prompt = isPrompt(raw);
+  const typed = tagName(to.trim());
+  const name = canonicalName(prompt ? typed.toLowerCase() : typed);
+  if (!name) return { ok: false, reason: "Type a new name" };
+  const target = (prompt ? PROMPT_PREFIX : MANUAL_PREFIX) + name;
+  if (target === raw) return { ok: false, reason: "That's the current name" };
+  const existing = known.find((t) => t._id === target);
+  return existing ? { ok: true, target, existing } : { ok: true, target };
+}

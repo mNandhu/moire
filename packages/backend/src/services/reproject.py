@@ -23,6 +23,7 @@ from . import gen_metadata
 from . import image_tags
 from . import tag_index
 from .image_tags import to_prompt
+from .tag_names import apply_aliases
 
 _BATCH = 200
 
@@ -34,6 +35,15 @@ def _load_rulesets() -> dict[str, dict]:
             conn.execute(sa.select(t.gen_rulesets.c.sig, t.gen_rulesets.c.doc))
         ).fetchall()
     return {r.sig: (r.doc or {}) for r in rows}
+
+
+def _load_aliases() -> dict[str, str]:
+    """The prompt-tag merge rules (``from -> to``), see services/tag_rename.py."""
+    with sync_conn() as conn:
+        rows = conn.execute(
+            sa.select(t.tag_aliases.c.from_name, t.tag_aliases.c.to_name)
+        ).fetchall()
+    return {r.from_name: r.to_name for r in rows}
 
 
 def _prompt_positive_only() -> bool:
@@ -87,6 +97,7 @@ def _reproject_where(where) -> int:
     """Recompute ``gen.*`` for every raw row matching ``where``. Returns updated."""
     rulesets = _load_rulesets()
     positive_only = _prompt_positive_only()
+    aliases = _load_aliases()
 
     with sync_conn() as conn:
         raws = (
@@ -113,6 +124,9 @@ def _reproject_where(where) -> int:
         g = gen_metadata.extract(raw_doc, ruleset, prompt_positive_only=positive_only)
         if g is None:
             continue
+        # Merge rules rewrite the extracted terms before they become search
+        # terms and prompt: tags, so a merged tag never comes back on re-run.
+        g["prompt_terms"] = apply_aliases(g.get("prompt_terms") or [], aliases)
         batch.append((row._id, g))
         if len(batch) >= _BATCH:
             _flush_batch(batch)
@@ -136,6 +150,15 @@ def reproject_library(library_id: str, *, workflow_sig: str | None = None) -> in
 def reproject_image(image_id: str) -> int:
     """Recompute ``gen.*`` for a single image (watcher single-file ingest)."""
     return _reproject_where(t.image_gen_raw.c._id == image_id)
+
+
+def reproject_ids(image_ids: list[str]) -> int:
+    """Recompute ``gen.*`` for specific images (after a merge-rule change)."""
+    updated = 0
+    for i in range(0, len(image_ids), 500):
+        chunk = image_ids[i : i + 500]
+        updated += _reproject_where(t.image_gen_raw.c._id.in_(chunk))
+    return updated
 
 
 def reproject_all() -> int:

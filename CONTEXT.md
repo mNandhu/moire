@@ -23,6 +23,13 @@ belongs in this file.
     `services/tag_names.py` (`canonical_name`); `image_tags.canonical_tag`
     applies it to a prefixed tag. The UI shows underscores as spaces
     (`lib/tags.ts` `formatTag`), and kaomoji (`^_^`) keep theirs.
+- **Tag rename / merge**: renaming a tag onto a new name, or onto an existing
+  one (a merge). The kind is kept. AI tags are never renamed (fixed,
+  deterministic vocabulary). Manual tags are rewritten once
+  (`image_tags.rename_manual`). Prompt tags are rebuilt by reprojection, so a
+  merge is stored as a **Merge rule** (`tag_aliases`, `from -> to`, kept one
+  hop) that reprojection applies to the extracted terms. Owned by
+  `services/tag_rename.py`.
 - **Tag-state**: the invariant binding `tags` to its summary flags:
   `has_tags` (any *curatable* tag, meaning a non-`prompt:` tag, so prompt-only images
   stay "Untagged"), `has_ai_tags` (any tag that is *neither* `manual:` nor

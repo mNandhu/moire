@@ -17,3 +17,15 @@ def test_canonical_name_is_idempotent_and_keeps_case():
 
 def test_canonical_name_leaves_lora_tokens_alone():
     assert tn.canonical_name("<lora:my style:0.8>") == "<lora:my style:0.8>"
+
+
+def test_apply_aliases_maps_dedupes_and_sorts():
+    out = tn.apply_aliases(
+        ["blonde", "blonde_hair", "smile"], {"blonde": "blonde_hair"}
+    )
+    assert out == ["blonde_hair", "smile"]
+
+
+def test_apply_aliases_without_rules_is_identity():
+    terms = ["b", "a"]
+    assert tn.apply_aliases(terms, {}) is terms

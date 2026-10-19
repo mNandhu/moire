@@ -43,7 +43,6 @@ ComfyUI's workflow mapping so it only gets built once.
   - Overview empty states double as the checklist ("2 of 4 done")
 - Tags page rework
   - Rethink the page as a whole (browsing, counts, thumbnails, sources)
-  - Tag rename / merge (e.g. `blue_eyes` vs `manual:blue eyes`)
   - Set a tag's thumbnail here, picking from that tag's images. Remove the
     hover button in ImageView `TagFlow` only once this works
   - Keep the "Show boilerplate" toggle (Settings > Boilerplate)

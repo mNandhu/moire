@@ -265,3 +265,14 @@ def test_with_manual_edit_canonicalizes_names():
     assert it.with_manual_edit(
         ["manual:blue_eyes"], add=["red eyes"], remove=["blue eyes"]
     ) == ["manual:red_eyes"]
+
+
+def test_with_renamed_keeps_position_and_merges_duplicates():
+    assert it.with_renamed(["a", "manual:x", "b"], "manual:x", "manual:y") == [
+        "a",
+        "manual:y",
+        "b",
+    ]
+    assert it.with_renamed(["manual:y", "manual:x"], "manual:x", "manual:y") == [
+        "manual:y"
+    ]

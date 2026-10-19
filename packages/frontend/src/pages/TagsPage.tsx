@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Tag as TagIcon, Slash, Search } from "lucide-react";
+import { Tag as TagIcon, Slash, Search, Pencil, GitMerge, Undo2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Badge } from "../components/ui/Badge";
@@ -9,8 +10,20 @@ import { Button, ButtonLink } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { cn } from "../lib/cn";
 import { api } from "../lib/api";
-import { useAiCoverage, useBoilerplate, useTagAggregate, type TagAgg } from "../lib/queries";
-import { formatTag, isManual, isPrompt, tagQueryText } from "../lib/tags";
+import {
+  TAG_ALIASES_KEY,
+  deleteTagAlias,
+  renameTag,
+  useAiCoverage,
+  useBoilerplate,
+  useTagAggregate,
+  useTagAliases,
+  type TagAgg,
+} from "../lib/queries";
+import { formatTag, isAiTag, isManual, isPrompt, tagQueryText } from "../lib/tags";
+import { invalidateFeeds } from "../lib/feedCache";
+import { useToast } from "../components/Toasts";
+import { RenameTagDialog } from "../components/RenameTagDialog";
 
 type Sample = { _id: string; thumb_url: string };
 
@@ -37,6 +50,46 @@ export default function TagsPage() {
   );
 
   const { data: cov } = useAiCoverage();
+
+  // --- Rename / merge ---------------------------------------------------------
+  const queryClient = useQueryClient();
+  const { push } = useToast();
+  const [renaming, setRenaming] = useState<TagAgg | null>(null);
+  const [showRules, setShowRules] = useState(false);
+  const { data: aliases } = useTagAliases();
+
+  // A rename moves images between tags, so every mosaic may be stale.
+  const afterTagWrite = () => {
+    invalidateFeeds(queryClient);
+    queryClient.invalidateQueries({ queryKey: TAG_ALIASES_KEY });
+    requested.current.clear();
+    setSamples({});
+  };
+
+  const onRename = async (tag: string, to: string) => {
+    try {
+      const res = await renameTag(tag, to);
+      afterTagWrite();
+      push(
+        `${res.kind === "prompt" ? "Merged" : "Renamed"} “${formatTag(res.from)}” into “${formatTag(res.to)}” on ${res.images.toLocaleString()} images`,
+        "success",
+      );
+      return true;
+    } catch (e) {
+      push(`Rename failed: ${String(e)}`, "error");
+      return false;
+    }
+  };
+
+  const onUndoRule = async (from: string) => {
+    try {
+      const res = await deleteTagAlias(from);
+      afterTagWrite();
+      push(`Removed rule “${formatTag(res.from)}” → “${formatTag(res.to)}”`, "success");
+    } catch (e) {
+      push(`Couldn't remove the rule: ${String(e)}`, "error");
+    }
+  };
 
   // Reset paging when the search term changes.
   useEffect(() => setVisible(PAGE), [q]);
@@ -109,7 +162,37 @@ export default function TagsPage() {
                 : `Show boilerplate (${boilerplateCount.toLocaleString()})`}
             </Button>
           )}
+          {!!aliases?.length && (
+            <Button
+              active={showRules}
+              onClick={() => setShowRules((v) => !v)}
+              title="Prompt tags you merged into another name"
+            >
+              <GitMerge size={15} /> Merge rules ({aliases.length.toLocaleString()})
+            </Button>
+          )}
         </div>
+
+        {showRules && !!aliases?.length && (
+          <div className="mb-6 rounded-xl border border-white/5 bg-surface shadow-panel divide-y divide-white/5">
+            {aliases.map((a) => (
+              <div key={a.from} className="flex items-center gap-3 px-4 py-2 text-sm">
+                <span className="truncate text-muted">{formatTag(a.from)}</span>
+                <span className="text-faint">→</span>
+                <span className="truncate font-medium">{formatTag(a.to)}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="ml-auto shrink-0"
+                  onClick={() => void onUndoRule(a.from)}
+                  title={`Stop merging “${formatTag(a.from)}”; images get their own prompt's name back`}
+                >
+                  <Undo2 size={14} /> Undo
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
 
       {/* Shortcuts to what still needs work */}
       <div className="flex flex-wrap gap-3 mb-6">
@@ -182,6 +265,7 @@ export default function TagsPage() {
                 tag={t}
                 samples={samples[t._id]}
                 to={`/?tags=${encodeURIComponent(t._id)}`}
+                onRename={isAiTag(t._id) ? undefined : () => setRenaming(t)}
               />
             ))}
       </div>
@@ -194,6 +278,12 @@ export default function TagsPage() {
         </div>
       )}
       </PageBody>
+      <RenameTagDialog
+        tag={renaming}
+        known={tags ?? []}
+        onClose={() => setRenaming(null)}
+        onRename={onRename}
+      />
     </>
   );
 }
@@ -229,36 +319,54 @@ function TagCard({
   tag,
   samples,
   to,
+  onRename,
 }: {
   tag: TagAgg;
   samples: Sample[] | undefined;
   to: string;
+  /** Absent for AI tags, which come from the tagger's fixed vocabulary. */
+  onRename?: () => void;
 }) {
   return (
-    <Link
-      to={to}
-      className="group block rounded-xl overflow-hidden border border-white/5 bg-surface bg-sheen shadow-panel text-left card-hover"
-    >
-      <Mosaic samples={samples} />
-      <div className="p-3">
-        <div className="text-sm font-semibold flex items-center gap-2">
-          <span className="truncate">{formatTag(tag._id)}</span>
-          {isManual(tag._id) && (
-            <Badge className="text-2xs shrink-0">
-              manual
-            </Badge>
-          )}
-          {isPrompt(tag._id) && (
-            <Badge className="text-2xs shrink-0">
-              prompt
-            </Badge>
-          )}
+    <div className="group relative">
+      <Link
+        to={to}
+        className="block rounded-xl overflow-hidden border border-white/5 bg-surface bg-sheen shadow-panel text-left card-hover"
+      >
+        <Mosaic samples={samples} />
+        <div className="p-3">
+          <div className="text-sm font-semibold flex items-center gap-2">
+            <span className="truncate">{formatTag(tag._id)}</span>
+            {isManual(tag._id) && (
+              <Badge className="text-2xs shrink-0">
+                manual
+              </Badge>
+            )}
+            {isPrompt(tag._id) && (
+              <Badge className="text-2xs shrink-0">
+                prompt
+              </Badge>
+            )}
+          </div>
+          <div className="text-xs text-neutral-400 tabular-nums">
+            {tag.count.toLocaleString()} images
+          </div>
         </div>
-        <div className="text-xs text-neutral-400 tabular-nums">
-          {tag.count.toLocaleString()} images
-        </div>
-      </div>
-    </Link>
+      </Link>
+      {onRename && (
+        // A sibling of the card link, not inside it: a button nested in an <a>
+        // is invalid and its click would also follow the link.
+        <button
+          type="button"
+          onClick={onRename}
+          aria-label={`Rename or merge ${formatTag(tag._id)}`}
+          title="Rename or merge"
+          className="absolute top-2 right-2 h-8 w-8 rounded-full inline-flex items-center justify-center bg-black/60 text-white/80 hover:text-white backdrop-blur-sm md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+        >
+          <Pencil size={14} />
+        </button>
+      )}
+    </div>
   );
 }
 

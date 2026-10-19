@@ -138,3 +138,32 @@ export function useBoilerplate(): BoilerplateMatcher {
     [data],
   );
 }
+
+// --- Tag rename / merge -------------------------------------------------------
+
+export type TagAlias = { from: string; to: string; created_at: number | null };
+export type TagRenameResult = { kind: "manual" | "prompt"; from: string; to: string; images: number };
+
+export const TAG_ALIASES_KEY = ["tag-aliases"] as const;
+
+/** Prompt-tag merge rules (services/tag_rename.py), newest first. */
+export function useTagAliases() {
+  return useQuery({
+    queryKey: TAG_ALIASES_KEY,
+    queryFn: ({ signal }) => api<TagAlias[]>("/api/v1/tags/aliases", { signal }),
+  });
+}
+
+/** Rename a manual tag, or merge a prompt tag (stored as a rule). `tag` is the
+ * stored form, prefix included; `to` a bare name. */
+export function renameTag(tag: string, to: string): Promise<TagRenameResult> {
+  return api<TagRenameResult>("/api/v1/tags/rename", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tag, to }),
+  });
+}
+
+export function deleteTagAlias(from: string): Promise<{ from: string; to: string; images: number }> {
+  return api(`/api/v1/tags/aliases/${encodeURIComponent(from)}`, { method: "DELETE" });
+}

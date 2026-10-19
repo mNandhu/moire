@@ -241,6 +241,13 @@ def with_cleared_ai(existing: list[str]) -> list[str]:
     return [tag for tag in existing if is_manual(tag) or is_prompt(tag)]
 
 
+def with_renamed(existing: list[str], old: str, new: str) -> list[str]:
+    """Replace stored tag ``old`` with ``new`` in place; if ``new`` is already
+    there (a merge), the first occurrence wins and the duplicate drops."""
+    swapped = [new if tag == old else tag for tag in existing]
+    return list(dict.fromkeys(swapped))
+
+
 def _tag_rows(image_id: str, tags: list[str]) -> list[dict[str, str]]:
     """Derived ``image_tags`` rows for an image (deduped, with ``base``)."""
     seen: set[str] = set()
@@ -437,6 +444,30 @@ async def bulk_manual(
     if modified:
         _dirty_tag_index()
     return matched, modified
+
+
+async def rename_manual(old: str, new: str) -> int:
+    """Rename (or, when ``new`` exists, merge) a manual tag on every image that
+    carries it, in one transaction. Both are stored ``manual:`` tags. Returns
+    the number of images changed."""
+    async with async_tx() as conn:
+        rows = (
+            await conn.execute(
+                sa.select(t.images.c._id, t.images.c.tags).where(
+                    sa.exists(
+                        sa.select(1).where(
+                            t.image_tags.c.image_id == t.images.c._id,
+                            t.image_tags.c.tag == old,
+                        )
+                    )
+                )
+            )
+        ).fetchall()
+        for row in rows:
+            await _persist(conn, row._id, with_renamed(row.tags or [], old, new))
+    if rows:
+        _dirty_tag_index()
+    return len(rows)
 
 
 async def replace_ai(
