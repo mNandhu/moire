@@ -628,6 +628,10 @@ export default function RulesPage() {
                             <span className="ml-auto shrink-0 text-amber-300" title="Images whose prompt couldn't be found">
                               {s.needs_mapping} unmapped
                             </span>
+                          ) : s.guessed ? (
+                            <span className="ml-auto shrink-0 text-amber-300/80" title="Prompts picked by keyword match; pin the prompt to be certain">
+                              {s.guessed} guessed
+                            </span>
                           ) : s.has_ruleset ? (
                             <span className="ml-auto shrink-0 text-brand-300">Rules set</span>
                           ) : null}

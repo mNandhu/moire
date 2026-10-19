@@ -19,7 +19,7 @@ import sqlalchemy as sa
 
 from ..database.db import sync_conn, sync_tx
 from ..database import schema as t
-from . import gen_metadata
+from . import extraction_settings, gen_metadata
 from . import image_tags
 from . import tag_index
 from .image_tags import to_prompt
@@ -115,6 +115,7 @@ def _reproject_where(where) -> int:
     rulesets = _load_rulesets()
     positive_only = _prompt_positive_only()
     aliases = _load_aliases()
+    keywords = extraction_settings.load_keywords()
 
     with sync_conn() as conn:
         raws = (
@@ -138,7 +139,12 @@ def _reproject_where(where) -> int:
             **(row.raw or {}),
         }
         ruleset = rulesets.get(row.workflow_sig)
-        g = gen_metadata.extract(raw_doc, ruleset, prompt_positive_only=positive_only)
+        g = gen_metadata.extract(
+            raw_doc,
+            ruleset,
+            prompt_positive_only=positive_only,
+            guess_keywords=keywords,
+        )
         if g is None:
             continue
         # Merge rules rewrite the extracted terms before they become search
@@ -201,6 +207,12 @@ def reproject_library_async(
         daemon=True,
     )
     th.start()
+
+
+def reproject_all_async() -> None:
+    """Fire-and-forget full reprojection (triggered on an extraction-settings
+    save)."""
+    threading.Thread(target=reproject_all, name="reproject-all", daemon=True).start()
 
 
 def reproject_by_sig_async(workflow_sig: str) -> None:

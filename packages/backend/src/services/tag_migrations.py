@@ -156,6 +156,7 @@ _MIGRATIONS = (
     ("prompt_parser_v4", None, True),
     ("gen_loras", None, True),
     ("gen_runtime_prompts", None, True),
+    ("gen_prompt_guess", None, True),
 )
 
 

@@ -16,6 +16,9 @@ export type GenMeta = {
   /** Loras the image was generated with (services/gen_metadata.py). */
   loras?: { name: string; strength: number | null }[];
   group_id?: string | null;
+  /** Fields the graph didn't give up, guessed by keywords instead
+   * (services/prompt_guess.py). */
+  guessed?: ("prompt" | "negative")[];
 };
 
 export type WorkflowPayload =
@@ -43,6 +46,8 @@ export type SignatureRow = {
   workflow_sig: string;
   count: number;
   needs_mapping: number;
+  /** Images whose prompt was only guessed by keywords. */
+  guessed?: number;
   sample_image_id: string;
   has_ruleset: boolean;
   /** Human summary (added server-side; absent from older backends). */

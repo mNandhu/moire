@@ -19,7 +19,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from ..services import gen_metadata, workflow_family
+from ..services import extraction_settings, gen_metadata, reproject, workflow_family
 from ..services.image_tags import id_candidates
 from ._utils import thumb_url
 
@@ -28,6 +28,11 @@ router = APIRouter()
 
 class RulesetBody(BaseModel):
     fields: dict[str, list[str]] = {}
+
+
+class GuessKeywordsBody(BaseModel):
+    guess_positive: list[str]
+    guess_negative: list[str]
 
 
 class PreviewBody(BaseModel):
@@ -55,11 +60,16 @@ async def list_signatures():
     need mapping, a sample image to author against, and whether a ruleset exists.
     Drives the authoring UI's signature picker."""
     needs = sa.case((t.images.c.gen_prompt.is_(None), 1), else_=0)
+    guessed = sa.case(
+        (sa.func.json_extract(t.images.c.gen, "$.guessed[0]") == "prompt", 1),
+        else_=0,
+    )
     stmt = (
         sa.select(
             t.images.c.gen_workflow_sig.label("workflow_sig"),
             sa.func.count().label("count"),
             sa.func.sum(needs).label("needs_mapping"),
+            sa.func.sum(guessed).label("guessed"),
             # The same sample the gallery's workflow filter keys on.
             workflow_family.SAMPLE_ID.label("sample_image_id"),
             # When the version was in use (file mtimes, i.e. generation time):
@@ -70,7 +80,11 @@ async def list_signatures():
         )
         .where(t.images.c.gen_workflow_sig.isnot(None))
         .group_by(t.images.c.gen_workflow_sig)
-        .order_by(sa.text("needs_mapping DESC"), sa.text("count DESC"))
+        .order_by(
+            sa.text("needs_mapping DESC"),
+            sa.text("guessed DESC"),
+            sa.text("count DESC"),
+        )
     )
     async with async_conn() as conn:
         rows = (await conn.execute(stmt)).fetchall()
@@ -175,6 +189,8 @@ async def list_signatures():
             "workflow_sig": r.workflow_sig,
             "count": r.count,
             "needs_mapping": int(r.needs_mapping or 0),
+            # Prompt found only by keyword guessing (services/prompt_guess.py).
+            "guessed": int(r.guessed or 0),
             "sample_image_id": r.sample_image_id,
             "has_ruleset": r.workflow_sig in mapped,
             "first_used": r.first_used,
@@ -271,6 +287,23 @@ async def import_workflow_files(files: list[WorkflowFileBody]):
     seen = {s["workflow_id"] for s in sigs if s["workflow_id"]}
     known_ids = sorted({r["workflow_id"] for r in rows} & seen)
     return {"imported": len(rows), "known": len(known_ids), "known_ids": known_ids}
+
+
+@router.get("/guess-keywords")
+async def get_guess_keywords():
+    return await extraction_settings.get_settings()
+
+
+@router.put("/guess-keywords")
+async def put_guess_keywords(body: GuessKeywordsBody):
+    """Save the prompt-guessing keywords and re-derive every image's ``gen.*``
+    in the background (any prompt-less graph may now guess differently)."""
+    try:
+        await extraction_settings.set_keywords(body.guess_positive, body.guess_negative)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    reproject.reproject_all_async()
+    return await extraction_settings.get_settings()
 
 
 @router.get("/{sig}")

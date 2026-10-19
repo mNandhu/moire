@@ -1200,6 +1200,19 @@ function PromptBlock({ text }: { text: string }) {
   );
 }
 
+// A prompt found by keywords (services/prompt_guess.py), not by following the
+// workflow to its sampler.
+function GuessedBadge() {
+  return (
+    <span
+      className="text-2xs px-1.5 py-0.5 rounded-md border border-amber-400/30 text-amber-300"
+      title="Picked by keyword match: the workflow doesn't show where its prompt goes. Pin it with Edit rule to be certain."
+    >
+      Guessed
+    </span>
+  );
+}
+
 function GenPanel({
   gen,
   width,
@@ -1269,6 +1282,7 @@ function GenPanel({
               <span className="text-2xs uppercase px-1.5 py-0.5 rounded-md bg-raised border border-line text-muted">
                 {gen.source}
               </span>
+              {gen.guessed?.includes("prompt") && <GuessedBadge />}
             </div>
             <CopyButton text={gen.prompt} label="Prompt" />
           </div>
@@ -1279,7 +1293,10 @@ function GenPanel({
       {gen.negative && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-sm font-semibold">Negative prompt</div>
+            <div className="flex items-center gap-2">
+              <div className="text-sm font-semibold">Negative prompt</div>
+              {gen.guessed?.includes("negative") && <GuessedBadge />}
+            </div>
             <CopyButton text={gen.negative} label="Negative prompt" />
           </div>
           <PromptBlock text={gen.negative} />

@@ -128,6 +128,33 @@ export function saveTagSettings(boilerplate: string[]): Promise<TagSettings> {
   });
 }
 
+export type GuessKeywords = {
+  guess_positive: string[];
+  guess_negative: string[];
+  default_positive: string[];
+  default_negative: string[];
+  /** Images whose prompt or negative is currently a guess. */
+  guessed_images: number;
+};
+
+export const GUESS_KEYWORDS_KEY = ["guess-keywords"] as const;
+
+export function useGuessKeywords() {
+  return useQuery({
+    queryKey: GUESS_KEYWORDS_KEY,
+    queryFn: ({ signal }) => api<GuessKeywords>("/api/v1/rules/guess-keywords", { signal }),
+  });
+}
+
+/** Saving re-reads every image's prompt in the background. */
+export function saveGuessKeywords(positive: string[], negative: string[]): Promise<GuessKeywords> {
+  return api<GuessKeywords>("/api/v1/rules/guess-keywords", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ guess_positive: positive, guess_negative: negative }),
+  });
+}
+
 /** The boilerplate matcher from Settings; matches nothing until loaded (or
  * when the backend answers with something else, e.g. one without the route). */
 export function useBoilerplate(): BoilerplateMatcher {

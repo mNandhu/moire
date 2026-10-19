@@ -70,6 +70,14 @@ belongs in this file.
   for that node (`display_cache`, from the graph's `text_0` or the editor
   workflow's widget value), then links, SDXL `text_g`/`text_l`, string
   widgets, and concat nodes joining whatever parts resolve.
+- **Guessed prompt**: a ComfyUI prompt or negative that neither the sampler
+  walk nor the user's pins found (remote queues, custom-node pipelines), picked
+  from the graph's texts by keyword match (`services/prompt_guess.py`). Each
+  text is scored by the positive/negative keyword lists (Settings › Prompt
+  Guessing, `app_settings` row "extraction"); a side needs more hits than the
+  other, and shown text beats static widgets, then more hits, then longer.
+  `gen.guessed` names the guessed fields; the UI labels them "Guessed". A
+  guess only ever fills an empty field.
 - **LoRA**: an add-on network an image was generated with, recorded as
   structured data (`gen.loras = [{name, strength}]`), never as a tag. From
   ComfyUI lora-loader nodes (LoraLoader, rgthree Power Lora Loader, stackers;

@@ -30,6 +30,7 @@ import math
 import re
 from typing import Any
 
+from . import prompt_guess
 from .prompt_parse import parse_prompt
 from .tag_names import canonical_name
 
@@ -105,6 +106,7 @@ _EMPTY: dict[str, Any] = {
     "prompt_terms": [],
     "loras": [],
     "group_id": None,
+    "guessed": [],
 }
 
 
@@ -682,6 +684,20 @@ def parse_comfyui(
     return g
 
 
+def text_candidates(
+    prompt_json: dict[str, Any], workflow_json: Any = None
+) -> list[tuple[str, bool]]:
+    """Every text in the graph as ``(text, shown)``: string inputs, plus what
+    display nodes showed. ``shown`` marks text that actually ran."""
+    out = [(text, True) for text in display_cache(prompt_json, workflow_json).values()]
+    for node in prompt_json.values():
+        if not isinstance(node, dict) or not isinstance(node.get("inputs"), dict):
+            continue
+        shown = _is_display(node.get("class_type"))
+        out.extend((v, shown) for v in node["inputs"].values() if isinstance(v, str))
+    return out
+
+
 # --- Automatic1111 ------------------------------------------------------------
 
 _NEG_MARKER = "Negative prompt:"
@@ -851,6 +867,7 @@ def extract(
     ruleset: dict[str, Any] | None = None,
     *,
     prompt_positive_only: bool = True,
+    guess_keywords: prompt_guess.Keywords = prompt_guess.DEFAULT_KEYWORDS,
 ) -> dict[str, Any] | None:
     """Derive structured ``gen.*`` from a stored raw doc.
 
@@ -866,6 +883,10 @@ def extract(
     ``prompt_positive_only`` (default ``True``) restricts ``prompt_terms`` to the
     positive prompt, so negative-prompt words (``blurry``, ``lowres``) don't leak
     into searchable ``prompt:`` tags. Set ``False`` to index both.
+
+    A ComfyUI prompt or negative still empty after both is guessed from
+    ``guess_keywords`` (:mod:`services.prompt_guess`) and named in
+    ``gen.guessed``.
     """
     if not isinstance(raw, dict):
         return None
@@ -882,6 +903,19 @@ def extract(
 
     if ruleset:
         _apply_ruleset(g, raw, ruleset)
+
+    g["guessed"] = []
+    if source == "comfyui" and not (g.get("prompt") and g.get("negative")):
+        prompt, negative = prompt_guess.pick(
+            text_candidates(prompt_json, raw.get("workflow")),
+            guess_keywords,
+            prompt=g.get("prompt"),
+            negative=g.get("negative"),
+        )
+        for field, value in (("prompt", prompt), ("negative", negative)):
+            if value:
+                g[field] = value
+                g["guessed"].append(field)
 
     if prompt_positive_only:
         g["prompt_terms"] = tokenize_prompt(g.get("prompt"))
