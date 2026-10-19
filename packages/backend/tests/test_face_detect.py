@@ -152,3 +152,78 @@ async def test_switching_off_stops_the_crops_already_found(
     assert (await client.get("/tags/characters")).json()[0]["face"]
     await client.post("/ai/settings", json={"face_detect": False})
     assert (await client.get("/tags/characters")).json()[0]["face"] is None
+
+
+async def test_a_changed_file_is_looked_at_again(client, seed, monkeypatch, tmp_path):
+    import sqlalchemy as sa
+
+    from src.database import db
+    from src.database import schema as t
+
+    monkeypatch.setattr(tag_categories, "load", _chars("frieren"))
+    seed("L1:a", tags=("frieren",), thumb_key="k/a", mtime=100)
+    found = iter([(0.5, 0.3, 0.2, 0.2, 0.9), (0.2, 0.6, 0.1, 0.1, 0.9)])
+    monkeypatch.setattr(face_detect, "downloaded", lambda cache_dir: True)
+    monkeypatch.setattr(face_detect, "detect", lambda *a: next(found))
+    monkeypatch.setattr(
+        face_detect.storage_fs, "thumb_path", lambda key: Path(tmp_path / key)
+    )
+    await face_detect.queue(["L1:a"])
+    await face_detect.idle()
+    assert (await face_detect.faces_for(["L1:a"]))["L1:a"][0] == 0.5
+    # re-rendered in place: the scanner rewrites the row, no cascade
+    async with db.async_tx() as conn:
+        await conn.execute(
+            sa.update(t.images).where(t.images.c._id == "L1:a").values(mtime=200)
+        )
+    assert await face_detect.faces_for(["L1:a"]) == {}
+    await face_detect.queue(["L1:a"])
+    await face_detect.idle()
+    assert (await face_detect.faces_for(["L1:a"]))["L1:a"][0] == 0.2
+
+
+async def test_a_failing_image_is_tried_once(client, seed, monkeypatch, tmp_path):
+    monkeypatch.setattr(tag_categories, "load", _chars("frieren"))
+    seed("L1:a", tags=("frieren",), thumb_key="k/a")
+    calls = []
+
+    def broken(*a):
+        calls.append(1)
+        raise OSError("truncated")
+
+    monkeypatch.setattr(face_detect, "downloaded", lambda cache_dir: True)
+    monkeypatch.setattr(face_detect, "detect", broken)
+    monkeypatch.setattr(
+        face_detect.storage_fs, "thumb_path", lambda key: Path(tmp_path / key)
+    )
+    # a pin answers even when detection fails
+    got = await client.post("/tags/thumbnail/frieren", json={"image_id": "L1:a"})
+    assert got.status_code == 200
+    await face_detect.queue(["L1:a"])
+    await face_detect.idle()
+    assert calls == [1] and not face_detect._pending
+
+
+async def test_the_mtime_migration_replaces_the_cache(client, seed):
+    import sqlalchemy as sa
+
+    from src.database import db
+    from src.database import schema as t
+    from src.services import tag_migrations
+
+    seed("L1:a")
+    async with db.async_tx() as conn:
+        await conn.execute(
+            sa.insert(t.image_faces).values(image_id="L1:a", model="old", conf=None)
+        )
+    tag_migrations.migrate_image_faces_mtime()
+    async with db.async_conn() as conn:
+        assert (
+            await conn.execute(sa.select(sa.func.count()).select_from(t.image_faces))
+        ).scalar() == 0
+        assert "mtime" in [
+            c["name"]
+            for c in await conn.run_sync(
+                lambda c: sa.inspect(c).get_columns("image_faces")
+            )
+        ]

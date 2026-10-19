@@ -194,6 +194,22 @@ _pending: set[str] = set()
 _worker: asyncio.Task | None = None
 
 
+def _current():
+    """Face rows still true of their image: this model, this file."""
+    f, im = t.image_faces, t.images
+    return f.join(
+        im,
+        sa.and_(
+            im.c._id == f.c.image_id,
+            f.c.model == MODEL,
+            sa.or_(
+                im.c.mtime == f.c.mtime,
+                sa.and_(im.c.mtime.is_(None), f.c.mtime.is_(None)),
+            ),
+        ),
+    )
+
+
 async def faces_for(
     image_ids: list[str],
 ) -> dict[str, tuple[float, float, float, float]]:
@@ -205,9 +221,9 @@ async def faces_for(
     async with async_conn() as conn:
         rows = (
             await conn.execute(
-                sa.select(f.c.image_id, f.c.cx, f.c.cy, f.c.w, f.c.h).where(
-                    f.c.image_id.in_(ids), f.c.conf.isnot(None), f.c.model == MODEL
-                )
+                sa.select(f.c.image_id, f.c.cx, f.c.cy, f.c.w, f.c.h)
+                .select_from(_current())
+                .where(f.c.image_id.in_(ids), f.c.conf.isnot(None))
             )
         ).fetchall()
     return {r.image_id: (r.cx, r.cy, r.w, r.h) for r in rows}
@@ -219,9 +235,9 @@ async def _unchecked(image_ids: list[str]) -> list[str]:
         done = set(
             (
                 await conn.execute(
-                    sa.select(f.c.image_id).where(
-                        f.c.image_id.in_(image_ids), f.c.model == MODEL
-                    )
+                    sa.select(f.c.image_id)
+                    .select_from(_current())
+                    .where(f.c.image_id.in_(image_ids))
                 )
             ).scalars()
         )
@@ -241,7 +257,8 @@ async def queue(image_ids: list[str]) -> None:
 
 
 async def detect_now(image_id: str) -> None:
-    """Look at one image before answering (a newly pinned avatar)."""
+    """Look at one image before answering (a newly pinned avatar). Never
+    fails the caller: a failure is logged and stored as no face."""
     if await ready() and await _unchecked([image_id]):
         await _detect_and_store(image_id, await _cache_dir())
 
@@ -252,8 +269,6 @@ async def _drain() -> None:
         image_id = next(iter(_pending))
         try:
             await _detect_and_store(image_id, cache_dir)
-        except Exception:
-            logger.exception("Face detection failed for %s", image_id)
         finally:
             _pending.discard(image_id)  # counted as pending until stored
 
@@ -267,32 +282,43 @@ async def _queue_avatars() -> None:
     global _avatars_queued
     if _avatars_queued:
         return
-    _avatars_queued = True
     from . import characters  # imports this module
 
     await characters.listing()  # queues each avatar not looked at yet
+    _avatars_queued = True
 
 
 async def _detect_and_store(image_id: str, cache_dir: str) -> None:
+    """Look at one image and remember the answer. An image that can't be
+    read, or makes the model fail, is remembered as having no face, so it
+    isn't tried again until its file changes."""
     async with async_conn() as conn:
-        key = (
+        row = (
             await conn.execute(
-                sa.select(t.images.c.thumb_key).where(t.images.c._id == image_id)
+                sa.select(t.images.c.thumb_key, t.images.c.mtime).where(
+                    t.images.c._id == image_id
+                )
             )
-        ).scalar()
-    path = storage_fs.thumb_path(key) if key else None
-    if path is None:
+        ).first()
+    if row is None:
         return
-    face = await asyncio.to_thread(detect, str(path), cache_dir)
-    values = dict(zip(("cx", "cy", "w", "h", "conf"), face or (None,) * 5))
+    path = storage_fs.thumb_path(row.thumb_key) if row.thumb_key else None
+    face = None
+    if path is not None:
+        try:
+            face = await asyncio.to_thread(detect, str(path), cache_dir)
+        except Exception:
+            logger.exception("Face detection failed for %s", image_id)
+    values = {
+        **dict(zip(("cx", "cy", "w", "h", "conf"), face or (None,) * 5)),
+        "model": MODEL,
+        "mtime": row.mtime,
+    }
     async with async_tx() as conn:
-        stmt = sqlite_insert(t.image_faces).values(
-            image_id=image_id, model=MODEL, **values
-        )
+        stmt = sqlite_insert(t.image_faces).values(image_id=image_id, **values)
         await conn.execute(
             stmt.on_conflict_do_update(
-                index_elements=[t.image_faces.c.image_id],
-                set_={**values, "model": MODEL},
+                index_elements=[t.image_faces.c.image_id], set_=values
             )
         )
 

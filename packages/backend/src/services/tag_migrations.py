@@ -158,6 +158,14 @@ def migrate_tag_meta_base() -> None:
     _rekey_tag_meta(lambda tag: image_tags.base_of(image_tags.canonical_tag(tag)))
 
 
+def migrate_image_faces_mtime() -> None:
+    """``image_faces`` gained its ``mtime`` stamp. It is a cache the face
+    worker refills, so the old table is replaced, not altered."""
+    with sync_tx() as conn:
+        t.image_faces.drop(conn, checkfirst=True)
+        t.image_faces.create(conn)
+
+
 _MIGRATIONS = (
     ("tag_underscores", migrate_tag_underscores, True),
     ("prompt_parser_v2", None, True),
@@ -171,6 +179,7 @@ _MIGRATIONS = (
     ("gen_display_eval", None, True),
     # (v2: the dev library already ran a first cut that lowercased names)
     ("gen_embeddings_v2", None, True),
+    ("image_faces_mtime", migrate_image_faces_mtime, False),
 )
 
 

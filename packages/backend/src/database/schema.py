@@ -154,7 +154,9 @@ characters = sa.Table(
 # The face found in an image's thumbnail by the face detector, as fractions
 # of the image (centre x / y, width / height), for centring character
 # avatars. A row with a NULL conf means the model ran and found no face; no
-# row means it hasn't run. `model` names the detector that wrote it.
+# row means it hasn't run. `model` names the detector that wrote it; `mtime`
+# is the image's file time it looked at, so a re-rendered file is looked at
+# again (the scanner rewrites rows in place, so no cascade fires).
 image_faces = sa.Table(
     "image_faces",
     metadata,
@@ -170,6 +172,7 @@ image_faces = sa.Table(
     sa.Column("h", sa.Float),
     sa.Column("conf", sa.Float),
     sa.Column("model", sa.Text, nullable=False),
+    sa.Column("mtime", sa.Float),
 )
 
 # Derived from images.gen.loras: one row per lora an image used, for the LoRA
