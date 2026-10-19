@@ -90,8 +90,7 @@ ComfyUI's workflow mapping so it only gets built once.
 
 ## Known issues
 
-- Intermittent test flakes: one backend test (didn't reproduce in ~24 runs)
-  and the LibrariesPage test under heavy load
+- Intermittent test flake: the LibrariesPage test under heavy load
 - 11 longstanding ESLint warnings (mostly `no-explicit-any`)
 - Not yet clicked through in the app: gallery Edit tags dialog, Tags page
   rename / merge dialog and the Merge rules panel (tests pass)

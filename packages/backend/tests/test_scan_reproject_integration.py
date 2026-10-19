@@ -187,7 +187,13 @@ async def test_full_scan_captures_a1111_exif_from_a_real_jpeg(client, tmp_path):
     assert raw is not None, "EXIF-carried generation data was not captured"
     assert raw.raw["source"] == "a1111"
 
+    # Post-scan reprojection runs on its own thread (scanner frees the scan
+    # slot first), so the scan finishing doesn't mean gen.* is written yet.
     row = await _img(image_id)
+    deadline = time.time() + 20
+    while row.gen_model is None and time.time() < deadline:
+        time.sleep(0.05)
+        row = await _img(image_id)
     assert row.gen_model == "sdxl"
     assert "1girl" in (row.gen_prompt or "")
 
