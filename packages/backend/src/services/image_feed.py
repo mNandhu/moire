@@ -278,6 +278,20 @@ async def _resolved(conn, f: FeedFilter) -> FeedFilter:
     return f
 
 
+async def list_ids(f: FeedFilter, *, limit: int) -> list[str]:
+    """Every image ``f`` matches (up to ``limit``), in feed order."""
+    async with async_conn() as conn:
+        f = await _resolved(conn, f)
+        keys, _ = SORTS[f.sort]
+        stmt = (
+            sa.select(t.images.c._id)
+            .where(feed_where(f))
+            .order_by(*_directed([*keys, t.images.c._id], f.sort))
+            .limit(limit)
+        )
+        return list((await conn.execute(stmt)).scalars())
+
+
 async def list_feed(
     f: FeedFilter, *, cursor: str | None, limit: int, offset: int
 ) -> tuple[list[dict], str | None]:

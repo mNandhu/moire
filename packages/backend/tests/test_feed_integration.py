@@ -191,6 +191,31 @@ async def test_workflow_filters_by_family_and_version(client, seed):
     assert await _ids(client, workflow_sig="s1") == ["L1:b", "L1:a"]
     groups = (await client.get("/images/groups", params={"workflow": "W"})).json()
     assert {g["_id"] for g in groups} == {"L1:a", "L1:b", "L1:c"}
+    # "Select all" answers with the same images, the family expanded too
+    got = (await client.get("/images/ids", params={"workflow": "W"})).json()
+    assert got == {"ids": ["L1:c", "L1:b", "L1:a"], "truncated": False}
+
+
+async def test_select_all_follows_the_feed_filter(client, seed, monkeypatch):
+    from src.api import images
+
+    seed("L1:a", tags=("cat",), gen={"group_id": "g1"})
+    seed("L1:b", tags=("cat",), gen={"group_id": "g1"})
+    seed("L1:c", tags=("cat",), quarantined=True)
+    seed("L1:d", tags=("dog",))
+
+    async def ids(**params):
+        return (await client.get("/images/ids", params=params)).json()
+
+    # batches don't matter: images, not batch representatives
+    assert sorted((await ids(tags="cat"))["ids"]) == ["L1:a", "L1:b"]
+    assert (await ids(tags="cat", quarantined=1))["ids"] == ["L1:c"]
+    assert (
+        await client.get("/images/ids", params={"logic": "bogus"})
+    ).status_code == 422
+    monkeypatch.setattr(images, "SELECT_ALL_CAP", 1)
+    capped = await ids(tags="cat")
+    assert len(capped["ids"]) == 1 and capped["truncated"] is True
 
 
 @pytest.mark.parametrize(

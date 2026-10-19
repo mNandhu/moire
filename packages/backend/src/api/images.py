@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, Request, Header, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Header, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import mimetypes
@@ -44,14 +44,10 @@ def _attach_thumb_url(it: dict) -> None:
     it["thumb_url"] = thumb_url(it["_id"])
 
 
-@router.get("")
-async def list_images(
-    response: Response,
+def feed_filter(
     tags: list[str] | None = Query(default=None),
     logic: str = Query(default="and"),
     library_id: str | None = Query(default=None),
-    offset: int = Query(default=0, ge=0),
-    limit: int = Query(default=200, ge=1, le=1000),
     no_tags: int | None = Query(default=None, alias="no_tags"),
     no_ai_tags: int | None = Query(default=None, alias="no_ai_tags"),
     quarantined: int | None = Query(default=None),
@@ -69,13 +65,11 @@ async def list_images(
     workflow: str | None = Query(default=None, max_length=256),
     workflow_sig: str | None = Query(default=None, max_length=256),
     sort: str = Query(default="newest"),
-    cursor: str | None = Query(default=None),
-):
-    if cursor and len(cursor) > 1024:
-        raise HTTPException(status_code=422, detail="cursor too long")
-
+) -> FeedFilter:
+    """The gallery filter from the query string: one parameter set for every
+    route that answers "which images match", so they can't drift."""
     try:
-        f = FeedFilter(
+        return FeedFilter(
             tags=tags,
             logic=logic,
             library_id=library_id,
@@ -100,6 +94,18 @@ async def list_images(
     except FeedFilterError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
+
+@router.get("")
+async def list_images(
+    response: Response,
+    f: FeedFilter = Depends(feed_filter),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=200, ge=1, le=1000),
+    cursor: str | None = Query(default=None),
+):
+    if cursor and len(cursor) > 1024:
+        raise HTTPException(status_code=422, detail="cursor too long")
+
     if not cursor and offset:
         response.headers["X-Moire-Warn"] = (
             "offset pagination is deprecated; prefer cursor-based pagination"
@@ -118,6 +124,18 @@ async def list_images(
     for it in items:
         _attach_thumb_url(it)
     return items
+
+
+# The most "Select all" picks at once; more is a sign of a mistake.
+SELECT_ALL_CAP = 20_000
+
+
+@router.get("/ids")
+async def list_image_ids(f: FeedFilter = Depends(feed_filter)):
+    """Every image matching the gallery filter, as ids ("Select all"). Same
+    filter as the feed, batch grouping aside: these are images, not batches."""
+    ids = await image_feed.list_ids(f, limit=SELECT_ALL_CAP + 1)
+    return {"ids": ids[:SELECT_ALL_CAP], "truncated": len(ids) > SELECT_ALL_CAP}
 
 
 @router.get("/{image_id:path}/file")
