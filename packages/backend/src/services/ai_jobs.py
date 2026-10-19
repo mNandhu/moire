@@ -9,12 +9,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import sqlalchemy as sa
+from PIL import Image
 
 from ..database.db import async_conn
 from ..database import schema as t
 from . import image_tags
 from .ai_settings import DEFAULT_AI_SETTINGS, get_ai_settings, update_ai_settings
-from .ai_tagger import get_tagger_manager
+from .ai_tagger import decode_image, get_tagger_manager
 
 logger = logging.getLogger("moire.ai_jobs")
 
@@ -25,6 +26,12 @@ __all__ = [
     "AIJobManager",
     "get_ai_job_manager",
 ]
+
+
+def _discard(task: asyncio.Task) -> None:
+    """Drop a prefetch nobody will await, without an unretrieved-exception log."""
+    task.cancel()
+    task.add_done_callback(lambda t: t.cancelled() or t.exception())
 
 
 @dataclass
@@ -198,18 +205,36 @@ class AIJobManager:
                     int(settings.get("idle_unload_s", 0) or 0)
                 )
 
-                for image_id in ids:
-                    if job.cancel_requested:
-                        job.status = "cancelled"
-                        break
-                    job.current = image_id
-                    try:
-                        await self._tag_one(image_id=image_id, settings=settings)
-                        job.done += 1
-                    except Exception as e:
-                        logger.warning("AI tagging failed for %s: %s", image_id, e)
-                        job.failed += 1
-                        job.errors.append({"image_id": image_id, "error": str(e)})
+                # Read + decode of the next image overlaps inference on the
+                # current one; `pending` is the load for ids[i].
+                pending: asyncio.Task | None = None
+                try:
+                    for i, image_id in enumerate(ids):
+                        if job.cancel_requested:
+                            job.status = "cancelled"
+                            break
+                        job.current = image_id
+                        load = pending or asyncio.create_task(
+                            self._load_image(image_id)
+                        )
+                        pending = (
+                            asyncio.create_task(self._load_image(ids[i + 1]))
+                            if i + 1 < len(ids)
+                            else None
+                        )
+                        try:
+                            img = await load
+                            await self._tag_one(
+                                image_id=image_id, image=img, settings=settings
+                            )
+                            job.done += 1
+                        except Exception as e:
+                            logger.warning("AI tagging failed for %s: %s", image_id, e)
+                            job.failed += 1
+                            job.errors.append({"image_id": image_id, "error": str(e)})
+                finally:
+                    if pending is not None:
+                        _discard(pending)
 
                 if job.status != "cancelled":
                     job.status = "done" if job.failed == 0 else "error"
@@ -219,14 +244,8 @@ class AIJobManager:
                 for image_id in ids:
                     self._in_flight.discard(image_id)
 
-    async def _read_image_bytes(self, file_path: str) -> bytes:
-        def _read() -> bytes:
-            with open(file_path, "rb") as f:
-                return f.read()
-
-        return await asyncio.to_thread(_read)
-
-    async def _tag_one(self, *, image_id: str, settings: dict[str, Any]) -> None:
+    async def _load_image(self, image_id: str) -> Image.Image:
+        """Read and decode an image's original, off the event loop."""
         doc = await image_tags.find_image(image_id, {"path": 1})
         if not doc:
             raise RuntimeError("image not found")
@@ -234,15 +253,22 @@ class AIJobManager:
         if not path:
             raise RuntimeError("image has no file path")
 
-        img_bytes = await self._read_image_bytes(str(path))
+        def _read() -> Image.Image:
+            with open(str(path), "rb") as f:
+                return decode_image(f.read())
 
+        return await asyncio.to_thread(_read)
+
+    async def _tag_one(
+        self, *, image_id: str, image: Image.Image, settings: dict[str, Any]
+    ) -> None:
         model_repo = str(
             settings.get("model_repo") or DEFAULT_AI_SETTINGS["model_repo"]
         )
         cache_dir = str(settings.get("cache_dir") or DEFAULT_AI_SETTINGS["cache_dir"])
 
-        result = await get_tagger_manager().predict_bytes(
-            image_bytes=img_bytes,
+        result = await get_tagger_manager().predict_image(
+            image=image,
             model_repo=model_repo,
             cache_dir=cache_dir,
             general_thresh=float(settings.get("general_thresh", 0.35)),

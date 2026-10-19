@@ -135,6 +135,11 @@ def select_tags(
     }
 
 
+def decode_image(image_bytes: bytes) -> Image.Image:
+    """Decode to RGBA (forces the full load). Blocking: call from a thread."""
+    return Image.open(BytesIO(image_bytes)).convert("RGBA")
+
+
 class WDTagger:
     def __init__(self) -> None:
         self._session: Any | None = None
@@ -394,10 +399,10 @@ class TaggerManager:
         async with self._lock:
             self._tagger.unload()
 
-    async def predict_bytes(
+    async def predict_image(
         self,
         *,
-        image_bytes: bytes,
+        image: Image.Image,
         model_repo: str,
         cache_dir: str,
         general_thresh: float,
@@ -409,12 +414,13 @@ class TaggerManager:
     ) -> dict[str, Any]:
         await self.ensure_loaded(model_repo=model_repo, cache_dir=cache_dir)
         async with self._lock:
-            # Lock ensures session use is serialized (safe baseline).
-            # We can relax later with per-session locks or multiple sessions.
+            # Lock ensures session use is serialized (safe baseline) and keeps
+            # unload() from dropping the session mid-run. Inference runs in a
+            # thread (ORT releases the GIL) so a ~1s run doesn't stall the API.
             self._last_used = time.time()
-            img = Image.open(BytesIO(image_bytes)).convert("RGBA")
-            return self._tagger.predict(
-                image=img,
+            return await asyncio.to_thread(
+                self._tagger.predict,
+                image=image,
                 general_thresh=general_thresh,
                 character_thresh=character_thresh,
                 general_mcut=general_mcut,
