@@ -13,14 +13,16 @@ Three passes, all pure:
 1. **Scan** (:func:`_scan`): walk the text, cutting raw pieces at separators
    (comma, newline, ``|``, ``BREAK`` / ``AND``) *and* at the edges of emphasis
    groups. Emphasis brackets and ``:weight`` suffixes describe a piece; they
-   are never part of it. A ``(...)`` straight after text, unweighted and short,
-   is a Danbooru qualifier instead (``hu tao (genshin impact)``) and stays in
-   the piece. ``\\(`` escapes are literal. ``<lora:...>`` tokens pass whole.
-2. **Clean** each piece: whitespace collapsed, stray edge punctuation and a
-   trailing ``:weight`` dropped, lowercased.
+   are never part of it. A short unweighted ``(...)`` glued onto a name with
+   no space (``hu_tao_(genshin_impact)``) or escaped (``hu tao \\(genshin
+   impact\\)``) is a Danbooru qualifier and stays in the piece; after a space
+   it is emphasis, as ComfyUI reads it. Lora / embedding tokens and emoticon
+   tags (``:d``, ``>_<``) pass whole.
+2. **Clean** each piece: whitespace collapsed, stray edge punctuation and,
+   inside a group, a trailing ``:weight`` dropped, lowercased.
 3. **Classify** (:func:`classify`): ``tag``, ``prose`` (a sentence fragment:
    kept in the prompt text, never a tag) or ``noise`` (leaked settings, lone
-   joiners, bare numbers).
+   joiners, stray weights).
 
 The original prompt is always kept verbatim elsewhere; this only decides what
 becomes a prompt tag, so it can be improved and simply re-run (reprojection).
@@ -39,9 +41,7 @@ _CLOSE = {")", "]", "}"}
 
 # A ``:weight`` suffix (``tag:1.2``) or a weight-only fragment (``:1.2``).
 _WEIGHT_TAIL = re.compile(r"\s*:\s*-?\d*\.?\d+\s*$")
-# A1111 keywords: ``BREAK`` starts a new chunk, ``AND`` composes prompts.
-# Uppercase only; lowercase "and" is just a word.
-_KEYWORD = re.compile(r"\b(?:BREAK|AND)\b")
+_DECIMAL_WEIGHT_TAIL = re.compile(r"\s*:\s*-?\d*\.\d+\s*$")
 _EDGE_PUNCT = " \t.;:!?\"'`"
 
 # Pieces that are generation settings pasted into the prompt, not content.
@@ -75,6 +75,12 @@ _EMOTICONS = KAOMOJIS | {
     ">o<", "^^^", "+++", "\\m/", "\\o/", "\\n/", "\\||/", "...", "...?",
     "?", "!", "!?", "!!", "??",
 }  # fmt: skip
+_EMOTICON_MAX = max(len(e) for e in _EMOTICONS)
+# A lora / LyCORIS / hypernetwork / embedding token, closed before the next
+# separator. Anything else starting with "<" is plain text.
+_NETWORK_TOKEN = re.compile(
+    r"<(?:lora|lyco|lycoris|hypernet|embedding|wlr):[^<>,\n]*>", re.IGNORECASE
+)
 # Leading joiners left on a piece by run-on prose ("and black thigh-highs").
 _LEAD_JOINER = re.compile(r"^(?:and|or)\s+")
 _QUALIFIER = re.compile(r"\([^()]*\)")
@@ -91,7 +97,7 @@ class Piece:
 def _qualifier_end(text: str, i: int) -> int | None:
     """If the ``(`` at ``i`` opens a Danbooru qualifier, the index just past
     its ``)``; else ``None``. A qualifier is unweighted, flat (no nested
-    brackets or separators) and short: ``(genshin impact)``, ``(cosplay)``."""
+    brackets or separators) and short: ``(genshin_impact)``, ``(cosplay)``."""
     j = i + 1
     while j < len(text):
         ch = text[j]
@@ -106,52 +112,106 @@ def _qualifier_end(text: str, i: int) -> int | None:
     return None
 
 
-def _scan(text: str) -> list[str]:
-    """Raw pieces of ``text``, cut at separators and emphasis-group edges."""
-    text = _KEYWORD.sub(",", text)
-    pieces: list[str] = []
+def _keyword_at(text: str, i: int) -> int:
+    """Length of a ``BREAK`` / ``AND`` keyword standing alone at ``i``, else 0."""
+    for kw in ("BREAK", "AND"):
+        j = i + len(kw)
+        if (
+            text.startswith(kw, i)
+            and (i == 0 or not text[i - 1].isalnum())
+            and (j == len(text) or not text[j].isalnum())
+        ):
+            return len(kw)
+    return 0
+
+
+def _emoticon_at(text: str, i: int) -> int:
+    """Length of the longest emoticon tag at ``i`` that ends at a boundary
+    (separator, space, group close, a ``:weight``, or the end), else 0."""
+    n = len(text)
+    for length in range(min(_EMOTICON_MAX, n - i), 0, -1):
+        if text[i : i + length].lower() not in _EMOTICONS:
+            continue
+        j = i + length
+        if (
+            j == n
+            or text[j] in _SEPARATORS
+            or text[j] in _CLOSE
+            or text[j].isspace()
+            or (text[j] == ":" and _WEIGHT_AHEAD.match(text[j + 1 :].lstrip()))
+        ):
+            return length
+    return 0
+
+
+def _scan(text: str) -> list[tuple[str, bool]]:
+    """Raw pieces of ``text``, cut at separators and emphasis-group edges,
+    each with whether it sat inside a group (only there is ``:n`` a weight)."""
+    pieces: list[tuple[str, bool]] = []
     buf: list[str] = []
+    # Whether `buf` holds any non-space text (kept as a flag, not re-derived,
+    # so the scan stays linear in the prompt length).
+    has_text = False
     # Open bracket kinds, innermost last.
     stack: list[str] = []
 
     def flush() -> None:
+        nonlocal has_text
         if buf:
-            pieces.append("".join(buf))
+            pieces.append(("".join(buf), bool(stack)))
             buf.clear()
+        has_text = False
+
+    def emit(raw: str) -> None:
+        flush()
+        pieces.append((raw, bool(stack)))
 
     i = 0
     n = len(text)
     while i < n:
         ch = text[i]
-        if not "".join(buf).strip():
-            # At a piece start: an emoticon tag is taken whole.
-            end = min(
-                (k for k in (text.find(",", i), text.find("\n", i)) if k >= 0),
-                default=n,
-            )
-            if text[i:end].strip().lower() in _EMOTICONS:
-                flush()
-                pieces.append(text[i:end])
-                i = end
+        if not has_text:
+            if ch.isspace():
+                i += 1
                 continue
+            # At a piece start: an emoticon tag is taken whole, before its
+            # punctuation can be read as brackets, colons or separators.
+            length = _emoticon_at(text, i)
+            if length:
+                emit(text[i : i + length])
+                i += length
+                continue
+        length = _keyword_at(text, i)
+        if length:
+            flush()
+            i += length
+            continue
         if ch == "\\" and i + 1 < n:
-            # Escaped bracket (or anything): literal text.
-            buf.append(text[i + 1])
+            # An escape is literal text (``\(``), except an escaped comma,
+            # which still separates: a tag never holds a comma.
+            if text[i + 1] == ",":
+                flush()
+            else:
+                buf.append(text[i + 1])
+                has_text = True
             i += 2
             continue
         if ch == "<":
-            # <lora:name:0.8> / <embedding:x>: one opaque piece.
-            end = text.find(">", i)
-            end = n if end < 0 else end + 1
-            flush()
-            pieces.append(text[i:end])
-            i = end
-            continue
+            # <lora:name:0.8> / <embedding:x>: one opaque piece, but only when
+            # it really is one. Any other "<" (``<3``, a kaomoji) is text.
+            m = _NETWORK_TOKEN.match(text, i)
+            if m:
+                emit(m.group(0))
+                i = m.end()
+                continue
         if ch in _SEPARATORS:
             flush()
             i += 1
             continue
-        if ch == "(" and "".join(buf).strip():
+        if ch == "(" and has_text and not buf[-1].isspace():
+            # Glued straight onto a name (``hu_tao_(genshin_impact)``) is a
+            # Danbooru qualifier. After a space it is emphasis, like ComfyUI
+            # reads it: ``hu tao (genshin impact)`` is two tags.
             end = _qualifier_end(text, i)
             if end is not None:
                 buf.append(text[i:end])
@@ -169,23 +229,24 @@ def _scan(text: str) -> list[str]:
                 stack.pop()
             i += 1
             continue
-        if ch == ":" and stack and stack[-1] == "[" and "".join(buf).strip():
+        if ch == ":" and stack and stack[-1] == "[" and has_text:
             # Inside ``[...]``, a non-weight colon is A1111 prompt editing
             # (``[from:to:0.5]``): the two sides are separate pieces. A
             # weight colon is left for _clean to strip. Inside ``(...)`` a
             # colon is text (``(artist:name)``) or a weight.
-            rest = text[i + 1 :].lstrip()
-            if not _WEIGHT_AHEAD.match(rest):
+            if not _WEIGHT_AHEAD.match(text[i + 1 :].lstrip()):
                 flush()
                 i += 1
                 continue
         buf.append(ch)
+        if not ch.isspace():
+            has_text = True
         i += 1
     flush()
     return pieces
 
 
-def _clean(raw: str) -> str:
+def _clean(raw: str, in_group: bool) -> str:
     s = re.sub(r"\s+", " ", raw).strip().lower()
     if s.startswith("<") or s in _EMOTICONS:
         return s
@@ -196,7 +257,10 @@ def _clean(raw: str) -> str:
     if _SETTINGS_KEY.match(s):
         # "steps: 20" is a setting, not a tag weighted 20; classify drops it.
         return s
-    s = _WEIGHT_TAIL.sub("", s)
+    # Inside a group ``:n`` is a weight. Outside, only a decimal one is
+    # (``smile:1.05``, written without brackets); ``16:9`` and ``12:00`` are
+    # text.
+    s = (_WEIGHT_TAIL if in_group else _DECIMAL_WEIGHT_TAIL).sub("", s)
     return s.strip(_EDGE_PUNCT)
 
 
@@ -236,8 +300,8 @@ def parse_prompt(text: str | None) -> list[Piece]:
     if not text:
         return []
     out: list[Piece] = []
-    for raw in _scan(text):
-        s = _clean(raw)
+    for raw, in_group in _scan(text):
+        s = _clean(raw, in_group)
         if s or raw.strip():
             out.append(Piece(s, classify(s, raw)))
     return out

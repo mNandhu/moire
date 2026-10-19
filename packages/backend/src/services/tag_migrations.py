@@ -11,8 +11,9 @@ their spaces). The canonical spelling is now underscores
 - the per-tag names inside the ``ai`` subdoc (``general_tags`` /
   ``character_tags``), which the UI joins to ``tags`` for confidence shading;
 - pinned tag thumbnails (``tag_meta``), keeping the newer pin on a collision;
-- then a full reprojection, which rebuilds ``gen.prompt_terms``, the
-  ``image_gen_terms`` rows and the ``prompt:`` tags from the raw prompts.
+- then a full reprojection (shared with any other pending step), which
+  rebuilds ``gen.prompt_terms``, the ``image_gen_terms`` rows and the
+  ``prompt:`` tags from the raw prompts.
 
 Idempotent (canonical spelling is), so an interrupted run is simply redone:
 the marker is written only after everything else.
@@ -135,41 +136,45 @@ def migrate_tag_underscores() -> None:
     started = time.monotonic()
     changed = _rewrite_images()
     _rekey_tag_meta()
-    reprojected = reproject.reproject_all()
-    tag_index.invalidate()
     logger.info(
-        "tag_underscores: rewrote %d images, reprojected %d, in %.1fs",
+        "tag_underscores: rewrote %d images in %.1fs",
         changed,
-        reprojected,
         time.monotonic() - started,
     )
 
 
-def reproject_for_parser() -> None:
-    """Re-derive prompt tags with the current prompt parser
-    (services/prompt_parse.py). Raw prompts are untouched; this only rebuilds
-    what is derived from them. Bump the migration name when the parser
-    changes what it extracts, so existing images pick the change up."""
-    started = time.monotonic()
-    reprojected = reproject.reproject_all()
-    logger.info(
-        "prompt_parser_v2: reprojected %d images in %.1fs",
-        reprojected,
-        time.monotonic() - started,
-    )
-
-
-# In order. Each runs once; its name is recorded when it finishes.
+# In order: (name, data step or None, needs a full reprojection after). Each
+# runs once; names are recorded only after the run's reprojection, so an
+# interrupted run is redone. A prompt-parser change that alters what is
+# extracted is a new reprojection-only entry (raw prompts are untouched; only
+# what is derived from them is rebuilt), and however many are pending, one
+# reprojection covers them all.
 _MIGRATIONS = (
-    ("tag_underscores", migrate_tag_underscores),
-    ("prompt_parser_v2", reproject_for_parser),
+    ("tag_underscores", migrate_tag_underscores, True),
+    ("prompt_parser_v2", None, True),
+    ("prompt_parser_v3", None, True),
+    ("prompt_parser_v4", None, True),
 )
 
 
 def run_pending() -> None:
     """Run every migration not yet recorded. Sync: call off the event loop."""
     done = _done()
-    for name, fn in _MIGRATIONS:
-        if name not in done:
-            fn()
-            _mark(name)
+    pending = [m for m in _MIGRATIONS if m[0] not in done]
+    if not pending:
+        return
+    for _name, step, _reproject in pending:
+        if step is not None:
+            step()
+    if any(needs for _n, _s, needs in pending):
+        started = time.monotonic()
+        reprojected = reproject.reproject_all()
+        logger.info(
+            "migrations %s: reprojected %d images in %.1fs",
+            ", ".join(n for n, _s, _r in pending),
+            reprojected,
+            time.monotonic() - started,
+        )
+    tag_index.invalidate()
+    for name, _step, _reproject in pending:
+        _mark(name)

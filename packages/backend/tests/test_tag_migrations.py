@@ -57,3 +57,14 @@ async def test_migration_runs_once(temp_db, seed):
     seed("L1:a", tags=("blue eyes",))  # written after: left alone
     tag_migrations.run_pending()
     assert (await _row("L1:a")).tags == ["blue eyes"]
+
+
+async def test_fresh_install_reprojects_once(temp_db, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        tag_migrations.reproject, "reproject_all", lambda: calls.append(1) or 0
+    )
+    tag_migrations.run_pending()
+    assert calls == [1]
+    tag_migrations.run_pending()
+    assert calls == [1]

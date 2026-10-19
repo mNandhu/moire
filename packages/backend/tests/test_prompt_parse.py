@@ -32,9 +32,11 @@ def tags(text):
         ("cat), (dog, bird", ["cat", "dog", "bird"]),
         # Danbooru qualifier stays in the tag, escaped or not
         (r"hu tao \(genshin impact\), smile", ["hu tao (genshin impact)", "smile"]),
-        ("hu tao (genshin impact), smile", ["hu tao (genshin impact)", "smile"]),
+        ("hu_tao_(genshin_impact), smile", ["hu_tao_(genshin_impact)", "smile"]),
+        # after a space, an unescaped group is emphasis: two tags
+        ("hu tao (genshin impact), smile", ["hu tao", "genshin impact", "smile"]),
         # qualifier inside a weighted group
-        ("(hu tao (genshin impact):1.2)", ["hu tao (genshin impact)"]),
+        ("(hu_tao_(genshin_impact):1.2)", ["hu_tao_(genshin_impact)"]),
         # lora tokens pass whole
         ("<lora:my style:0.8>, cat", ["<lora:my style:0.8>", "cat"]),
         # newlines, BREAK and AND separate
@@ -101,8 +103,8 @@ def test_never_raises_on_garbage():
         ("(artist:somename:1.1), (artist:other)", ["artist:somename", "artist:other"]),
         # long qualifiers, odd spacing inside them
         (
-            "chara name (some long series title here ), x",
-            ["chara name (some long series title here)", "x"],
+            "chara_name_( some long series title here ), x",
+            ["chara_name_(some long series title here)", "x"],
         ),
         # run-on joiner at the start of a piece
         ("and black thigh-highs.", ["black thigh-highs"]),
@@ -118,3 +120,38 @@ def test_closing_period_marks_a_sentence():
     assert [p.kind for p in parse_prompt("paired with tight low-rise shorts.")] == [
         "prose"
     ]
+
+
+@pytest.mark.parametrize(
+    "prompt, expected",
+    [
+        # an unclosed or non-network "<" is text, it doesn't swallow the rest
+        ("cat, <lora:foo:0.8, dog, bird", ["cat", "<lora:foo:0.8", "dog", "bird"]),
+        ("a <3 b, cat", ["a <3 b", "cat"]),
+        ("(>_<:1.2), smile, <lora:x:1>", [">_<", "smile", "<lora:x:1>"]),
+        # emoticon inside a weighted group
+        ("(:d:1.2), (:3:1.1)", [":d", ":3"]),
+        # keywords inside a lora name don't split it
+        ("<lora:style AND light:0.8>, cat", ["<lora:style and light:0.8>", "cat"]),
+        # an escaped comma still separates
+        (r"cat\, dog", ["cat", "dog"]),
+        # outside a group ":n" is text, not a weight
+        ("16:9, 12:00, (tag:1.2), smile:1.05", ["16:9", "12:00", "tag", "smile"]),
+        # emphasis after a name, missing commas
+        (
+            "1girl, solo (smile), girl (blue eyes) (long hair)",
+            ["1girl", "solo", "smile", "girl", "blue eyes", "long hair"],
+        ),
+    ],
+)
+def test_review_cases(prompt, expected):
+    assert tags(prompt) == expected
+
+
+def test_scan_is_linear():
+    import time
+
+    long_piece = "word " * 3000
+    started = time.perf_counter()
+    parse_prompt(long_piece)
+    assert time.perf_counter() - started < 0.05
