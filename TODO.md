@@ -22,8 +22,8 @@ ComfyUI's workflow mapping so it only gets built once.
     single exposed port); outputs land back through the watched library
   - Tweak before sending: seed (re-roll), prompt edits, batch size; remember
     which image a generation came from
-  - Build prompt text with `toPromptText` (`lib/tags.ts`): stored underscore
-    names with `(` `)` escaped, as "Copy all" already does
+  - Send the image's original prompt verbatim (prose included); never rebuild
+    it from tags. `toPromptText` (`lib/tags.ts`) is only for tag-built text
   - Record the real generation time when Moiré queues a job (see Known
     issues: mtime). This is the only reliable source we get
 - Auto AI tagging
@@ -56,6 +56,8 @@ ComfyUI's workflow mapping so it only gets built once.
     Overview previews, compare view
   - Visible indicator in the header while it's on
 - Gallery
+  - "Prompt contains..." text search over the original prompt: prose pieces
+    aren't prompt tags (services/prompt_parse.py), so this is how to find them
   - Score filter, so "Unrated" and "4+ stars" become real views
   - Saved views: name any filter + sort and pin it to the sidebar (after the
     score filter; its first presets are "Unrated" and "4+ stars")
@@ -64,6 +66,13 @@ ComfyUI's workflow mapping so it only gets built once.
 - Triage
   - Compare view for a batch: variations side by side, keep some, quarantine
     the rest in one go (mark "keep" with the selection's Edit tags)
+
+- README showcase
+  - Generate a set of good-looking, aesthetic images to fill the gallery for
+    README screenshots (and a short demo GIF): Moiré is shown to the community
+    through these, so the grid has to look great at first glance
+  - Keep the set SFW and varied (styles, palettes, aspect ratios) so masonry,
+    blurhash placeholders, tags and workflow grouping all read well
 
 ## P2: Later
 
@@ -84,9 +93,6 @@ ComfyUI's workflow mapping so it only gets built once.
 - Intermittent test flakes: one backend test (didn't reproduce in ~24 runs)
   and the LibrariesPage test under heavy load
 - 11 longstanding ESLint warnings (mostly `no-explicit-any`)
-- Natural-language prompt pieces become underscored prompt tags too
-  ("a fox in snow" -> `a_fox_in_snow`), and "Copy all" outputs them that way.
-  Fine for tag-style prompts; revisit if Flux-style prose prompts matter
 - Not yet clicked through in the app: gallery Edit tags dialog, Tags page
   rename / merge dialog and the Merge rules panel (tests pass)
 - Feed order uses file mtime as generation time; copying (scp, browser
