@@ -107,6 +107,7 @@ _EMPTY: dict[str, Any] = {
     "loras": [],
     "group_id": None,
     "guessed": [],
+    "guess_paths": {},
 }
 
 
@@ -686,15 +687,30 @@ def parse_comfyui(
 
 def text_candidates(
     prompt_json: dict[str, Any], workflow_json: Any = None
-) -> list[tuple[str, bool]]:
-    """Every text in the graph as ``(text, shown)``: string inputs, plus what
-    display nodes showed. ``shown`` marks text that actually ran."""
-    out = [(text, True) for text in display_cache(prompt_json, workflow_json).values()]
-    for node in prompt_json.values():
+) -> list[prompt_guess.Candidate]:
+    """Every text in the graph, with its raw-doc path: string inputs of the
+    prompt graph, then display widgets of the editor graph (what a display
+    node showed when the run didn't cache it in the prompt graph). Display
+    nodes' text is marked ``shown``: it actually ran."""
+    out: list[prompt_guess.Candidate] = []
+    for node_id, node in prompt_json.items():
         if not isinstance(node, dict) or not isinstance(node.get("inputs"), dict):
             continue
         shown = _is_display(node.get("class_type"))
-        out.extend((v, shown) for v in node["inputs"].values() if isinstance(v, str))
+        out.extend(
+            prompt_guess.Candidate(v, shown, f"prompt.{node_id}.inputs.{k}")
+            for k, v in node["inputs"].items()
+            if isinstance(v, str)
+        )
+    nodes = workflow_json.get("nodes") if isinstance(workflow_json, dict) else None
+    for i, wn in enumerate(nodes if isinstance(nodes, list) else []):
+        if not isinstance(wn, dict) or not _is_display(wn.get("type")):
+            continue
+        path, wv = f"workflow.nodes.{i}.widgets_values", wn.get("widgets_values")
+        while isinstance(wv, list) and wv:
+            path, wv = f"{path}.0", wv[0]
+        if isinstance(wv, str):
+            out.append(prompt_guess.Candidate(wv, True, path))
     return out
 
 
@@ -885,8 +901,8 @@ def extract(
     into searchable ``prompt:`` tags. Set ``False`` to index both.
 
     A ComfyUI prompt or negative still empty after both is guessed from
-    ``guess_keywords`` (:mod:`services.prompt_guess`) and named in
-    ``gen.guessed``.
+    ``guess_keywords`` (:mod:`services.prompt_guess`), named in ``gen.guessed``
+    and located in ``gen.guess_paths`` (a pinnable path per field).
     """
     if not isinstance(raw, dict):
         return None
@@ -904,18 +920,19 @@ def extract(
     if ruleset:
         _apply_ruleset(g, raw, ruleset)
 
-    g["guessed"] = []
+    g["guessed"], g["guess_paths"] = [], {}
     if source == "comfyui" and not (g.get("prompt") and g.get("negative")):
-        prompt, negative = prompt_guess.pick(
+        picked = prompt_guess.pick(
             text_candidates(prompt_json, raw.get("workflow")),
             guess_keywords,
             prompt=g.get("prompt"),
             negative=g.get("negative"),
         )
-        for field, value in (("prompt", prompt), ("negative", negative)):
-            if value:
-                g[field] = value
+        for field in ("prompt", "negative"):
+            if field in picked:
+                g[field] = picked[field].text
                 g["guessed"].append(field)
+                g["guess_paths"][field] = picked[field].path
 
     if prompt_positive_only:
         g["prompt_terms"] = tokenize_prompt(g.get("prompt"))

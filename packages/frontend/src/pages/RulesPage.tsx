@@ -29,9 +29,11 @@ import {
   type RuleField,
   type SignatureRow,
   type PreviewResult,
+  type GenMeta,
   fetchSignatures,
   previewRuleset,
 } from "../lib/gen";
+import { fetchImage } from "../lib/imageFilter";
 import {
   groupWorkflows,
   importWorkflowFiles,
@@ -110,6 +112,8 @@ const HIT = "bg-yellow-500/25 text-yellow-100 rounded px-0.5";
 // `query` highlights matching keys/values and force-opens the branches that
 // contain a match (the tree is collapsed at depth >= 2), so a search reveals the
 // whole matching node: its id *and* its class_type stay in view, never pruned.
+// `marks` labels leaves by path (where the prompt was guessed from) and keeps
+// the branches down to them open, so they're visible without searching.
 // Exported for unit testing the path construction (the load-bearing, silent-on-
 // failure interaction: click leaf -> correct dot-path).
 export function JsonTree({
@@ -118,12 +122,14 @@ export function JsonTree({
   onPin,
   depth = 0,
   query = "",
+  marks,
 }: {
   value: unknown;
   path: string;
   onPin: (path: string) => void;
   depth?: number;
   query?: string;
+  marks?: ReadonlyMap<string, string>;
 }) {
   const [open, setOpen] = useState(depth < 2);
   const isObj = value && typeof value === "object";
@@ -131,16 +137,24 @@ export function JsonTree({
 
   if (!isObj) {
     const valHit = hasQuery && matchesQuery(value, query);
+    const mark = marks?.get(path);
     return (
       <button
         onClick={() => onPin(path)}
         data-graph-path={path}
-        className="group inline-flex items-baseline gap-2 text-left hover:bg-brand-500/10 rounded px-1 -mx-1 w-full"
+        className={`group inline-flex items-baseline gap-2 text-left hover:bg-brand-500/10 rounded px-1 -mx-1 w-full ${
+          mark ? "ring-1 ring-amber-400/40" : ""
+        }`}
         title={`Pin ${path}`}
       >
         <span className={valHit ? `break-all ${HIT}` : "text-emerald-300 break-all"}>
           {JSON.stringify(value)}
         </span>
+        {mark && (
+          <span className="shrink-0 text-2xs font-sans px-1.5 rounded-md border border-amber-400/30 text-amber-300">
+            {mark}
+          </span>
+        )}
         <span className="text-2xs text-faint group-hover:text-brand-300 ml-auto shrink-0">
           {path}
         </span>
@@ -160,7 +174,10 @@ export function JsonTree({
         const keyHit = hasQuery && k.toLowerCase().includes(query.trim().toLowerCase());
         const keyCls = keyHit ? HIT : "text-sky-300";
         // Force a branch open when it (or a descendant) matches the search.
-        const childOpen = open || (hasQuery && matchesQuery(v, query, k));
+        const childOpen =
+          open ||
+          (hasQuery && matchesQuery(v, query, k)) ||
+          (!!marks && [...marks.keys()].some((p) => p.startsWith(`${childPath}.`)));
         return (
           <div key={k} className="py-0.5">
             {leaf ? (
@@ -172,6 +189,7 @@ export function JsonTree({
                   onPin={onPin}
                   depth={depth + 1}
                   query={query}
+                  marks={marks}
                 />
               </div>
             ) : (
@@ -189,6 +207,7 @@ export function JsonTree({
                     onPin={onPin}
                     depth={depth + 1}
                     query={query}
+                    marks={marks}
                   />
                 )}
               </div>
@@ -197,6 +216,46 @@ export function JsonTree({
         );
       })}
     </div>
+  );
+}
+
+// An unpinned field the sample only has by keyword guessing: where the text
+// came from, a jump to it in the graph, and a one-click pin to make it certain.
+function GuessedFrom({
+  path,
+  onReveal,
+  onPin,
+}: {
+  path: string | null;
+  onReveal: (path: string) => void;
+  onPin: (path: string) => void;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5 min-w-0 text-2xs text-amber-300">
+      <span className="shrink-0 px-1.5 rounded-md border border-amber-400/30">Guessed</span>
+      {path ? (
+        <>
+          <button
+            type="button"
+            onClick={() => onReveal(path)}
+            className="font-mono truncate hover:text-amber-200"
+            title="Show it in the graph"
+          >
+            {path}
+          </button>
+          <button
+            type="button"
+            onClick={() => onPin(path)}
+            className="shrink-0 inline-flex items-center gap-0.5 text-brand-300 hover:text-brand-200"
+            title="Pin this value so it's no longer a guess"
+          >
+            <Plus size={11} /> Pin
+          </button>
+        </>
+      ) : (
+        <span className="text-faint">by keyword match</span>
+      )}
+    </span>
   );
 }
 
@@ -393,6 +452,34 @@ export default function RulesPage() {
     false;
 
   const previewGen = preview?.gen;
+
+  // What the sample image's extraction currently says (the latest preview
+  // when there is one), for fields that are only guessed.
+  const sampleId = selected?.sample_image_id ?? null;
+  const [sampleGen, setSampleGen] = useState<GenMeta | null>(null);
+  useEffect(() => {
+    setSampleGen(null);
+    if (!sampleId) return;
+    const ctl = new AbortController();
+    fetchImage(sampleId, { signal: ctl.signal })
+      .then((doc) => setSampleGen(doc.gen ?? null))
+      .catch(() => {});
+    return () => ctl.abort();
+  }, [sampleId]);
+  const currentGen = previewGen ?? sampleGen;
+  const guessPath = (field: RuleField): string | null | undefined =>
+    currentGen?.guessed?.includes(field as "prompt" | "negative")
+      ? (currentGen.guess_paths?.[field as "prompt" | "negative"] ?? null)
+      : undefined;
+  const guessMarks = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const field of ["prompt", "negative"] as const) {
+      if ((fields[field] || []).length > 0) continue;
+      const p = currentGen?.guessed?.includes(field) ? currentGen.guess_paths?.[field] : null;
+      if (p) m.set(p, `Guessed ${FIELD_LABEL[field].toLowerCase()}`);
+    }
+    return m;
+  }, [currentGen, fields]);
   const firedByField = useMemo(() => preview?.paths ?? {}, [preview]);
 
   // Matches surfaced at the top of the graph panel so a hit deep in a large graph
@@ -754,11 +841,17 @@ export default function RulesPage() {
                           </span>
                         );
                       })}
-                      {(fields[field] || []).length === 0 && (
-                        <span className="text-2xs text-faint">
-                          Built-in. Click a value in the graph to override
-                        </span>
-                      )}
+                      {(fields[field] || []).length === 0 &&
+                        guessPath(field) !== undefined && (
+                          <GuessedFrom
+                            path={guessPath(field) ?? null}
+                            onReveal={revealPath}
+                            onPin={(p) => {
+                              session.pinPath(field, p);
+                              push(`Pinned ${p} → ${FIELD_LABEL[field]}`, "info");
+                            }}
+                          />
+                        )}
                     </div>
                   </div>
                 ))}
@@ -833,6 +926,7 @@ export default function RulesPage() {
                       path=""
                       onPin={pinPath}
                       query={graphQuery}
+                      marks={guessMarks}
                     />
                   </div>
                 ) : (

@@ -370,7 +370,11 @@ async def preview_ruleset(body: PreviewBody):
         raise HTTPException(status_code=404, detail="No generation data for image")
 
     fields = gen_metadata.clean_rule_fields(body.fields)
-    gen = gen_metadata.extract(raw, {"fields": fields})
+    gen = gen_metadata.extract(
+        raw,
+        {"fields": fields},
+        guess_keywords=await extraction_settings.get_keywords(),
+    )
     paths = gen_metadata.resolve_ruleset_paths(raw, fields)
     # A pin resolving to a non-finite float (NaN/Infinity) would 500 on render.
     return gen_metadata.sanitize_json({"gen": gen, "paths": paths})

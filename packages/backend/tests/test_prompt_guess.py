@@ -7,28 +7,40 @@ import sqlalchemy as sa
 from src.database import db
 from src.database import schema as t
 from src.services import gen_metadata, reproject
-from src.services.prompt_guess import DEFAULT_KEYWORDS, Keywords, clean_keywords, pick
+from src.services.prompt_guess import (
+    DEFAULT_KEYWORDS,
+    Candidate,
+    Keywords,
+    clean_keywords,
+    pick,
+)
 
 POS = "masterpiece, best quality, 1girl, smile"
 NEG = "worst quality, low quality, blurry, bad hands"
 
 
+def guess(cands, keywords=DEFAULT_KEYWORDS, **known):
+    """(prompt text, negative text) picked from ``(text, shown)`` pairs."""
+    got = pick([Candidate(*c) for c in cands], keywords, **known)
+    return tuple(got[f].text if f in got else None for f in ("prompt", "negative"))
+
+
 def test_picks_each_side_by_keywords():
-    assert pick([(POS, False), (NEG, False)], DEFAULT_KEYWORDS) == (POS, NEG)
+    assert guess([(POS, False), (NEG, False)]) == (POS, NEG)
 
 
 def test_shown_text_beats_a_longer_static_widget():
     preset = POS + ", " + ", ".join(f"character {i}" for i in range(20))
     ran = POS + ", red scarf"
-    assert pick([(preset, False), (ran, True)], DEFAULT_KEYWORDS)[0] == ran
+    assert guess([(preset, False), (ran, True)])[0] == ran
 
 
 def test_more_hits_then_longer_wins():
     fragment = "masterpiece, best quality, absurdres"
     full = "masterpiece, best quality, 1girl, smile, red scarf, outdoors"
-    assert pick([(full, False), (fragment, False)], DEFAULT_KEYWORDS)[0] == fragment
+    assert guess([(full, False), (fragment, False)])[0] == fragment
     longer = full + ", night"
-    assert pick([(full, False), (longer, False)], DEFAULT_KEYWORDS)[0] == longer
+    assert guess([(full, False), (longer, False)])[0] == longer
 
 
 def test_short_and_mixed_texts_are_not_candidates():
@@ -38,26 +50,26 @@ def test_short_and_mixed_texts_are_not_candidates():
         ("model.safetensors", False),
         ("masterpiece, worst quality, cat", False),
     ]
-    assert pick(cands, DEFAULT_KEYWORDS) == (None, None)
+    assert guess(cands) == (None, None)
 
 
 def test_known_sides_are_kept_and_not_reused():
-    assert pick([(POS, False), (NEG, False)], DEFAULT_KEYWORDS, prompt="mine") == (
+    assert guess([(POS, False), (NEG, False)], prompt="mine") == (
         None,
         NEG,
     )
     # the known prompt can't come back as the negative
-    assert pick([(NEG, False)], DEFAULT_KEYWORDS, prompt=NEG) == (None, None)
+    assert guess([(NEG, False)], prompt=NEG) == (None, None)
 
 
 def test_empty_keywords_guess_nothing():
     none = Keywords(frozenset(), frozenset())
-    assert pick([(POS, False), (NEG, False)], none) == (None, None)
+    assert guess([(POS, False), (NEG, False)], none) == (None, None)
 
 
 def test_keywords_match_any_spelling_and_emphasis():
     text = "(Masterpiece:1.2), ((best_quality)), cat, dog"
-    assert pick([(text, False)], DEFAULT_KEYWORDS)[0] == text
+    assert guess([(text, False)])[0] == text
 
 
 def test_clean_keywords():
@@ -88,6 +100,10 @@ def test_extract_guesses_only_what_the_graph_walk_missed():
     assert g["prompt"] == POS + ", red scarf"
     assert g["negative"] == NEG
     assert g["guessed"] == ["prompt", "negative"]
+    assert g["guess_paths"] == {
+        "prompt": "prompt.2.inputs.text_0",
+        "negative": "prompt.4.inputs.new_value_str",
+    }
     assert "red_scarf" in g["prompt_terms"]
 
     walked = {
@@ -101,6 +117,26 @@ def test_extract_guesses_only_what_the_graph_walk_missed():
     }
     g = gen_metadata.extract({"source": "comfyui", "prompt": walked})
     assert (g["prompt"], g["negative"], g["guessed"]) == ("cat, dog, bird", "ugly", [])
+
+
+def test_a_guess_path_pins_to_the_same_text():
+    raw = {"source": "comfyui", "prompt": REMOTE}
+    paths = gen_metadata.extract(raw)["guess_paths"]
+    pinned = gen_metadata.extract(
+        raw, {"fields": {f: [path] for f, path in paths.items()}}
+    )
+    assert pinned["guessed"] == []
+    assert pinned["prompt"] == POS + ", red scarf"
+    assert pinned["negative"] == NEG
+
+
+def test_display_widgets_in_the_editor_graph_are_candidates():
+    workflow = {
+        "nodes": [{"id": 7, "type": "ShowText|pysssss", "widgets_values": [[POS]]}]
+    }
+    g = gen_metadata.extract({"source": "comfyui", "prompt": {}, "workflow": workflow})
+    assert g["prompt"] == POS
+    assert g["guess_paths"]["prompt"] == "workflow.nodes.0.widgets_values.0.0"
 
 
 def test_a1111_is_never_guessed():

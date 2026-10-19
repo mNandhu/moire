@@ -19,6 +19,8 @@ export type GenMeta = {
   /** Fields the graph didn't give up, guessed by keywords instead
    * (services/prompt_guess.py). */
   guessed?: ("prompt" | "negative")[];
+  /** Where each guess came from, as a pinnable path (null when unknown). */
+  guess_paths?: Partial<Record<"prompt" | "negative", string | null>>;
 };
 
 export type WorkflowPayload =

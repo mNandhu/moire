@@ -30,14 +30,29 @@ def _lists(doc: dict | None) -> tuple[list[str], list[str]]:
     )
 
 
+def _keywords(doc: dict | None) -> prompt_guess.Keywords:
+    pos, neg = _lists(doc)
+    return prompt_guess.Keywords(frozenset(pos), frozenset(neg))
+
+
 def load_keywords() -> prompt_guess.Keywords:
     """The stored keywords, for the reprojection thread. Sync."""
     with sync_conn() as conn:
         doc = conn.execute(
             sa.select(t.app_settings.c.doc).where(t.app_settings.c._id == _ROW)
         ).scalar()
-    pos, neg = _lists(doc)
-    return prompt_guess.Keywords(frozenset(pos), frozenset(neg))
+    return _keywords(doc)
+
+
+async def get_keywords() -> prompt_guess.Keywords:
+    """The stored keywords, for the rules preview."""
+    async with async_conn() as conn:
+        doc = (
+            await conn.execute(
+                sa.select(t.app_settings.c.doc).where(t.app_settings.c._id == _ROW)
+            )
+        ).scalar()
+    return _keywords(doc)
 
 
 async def get_settings() -> dict[str, Any]:

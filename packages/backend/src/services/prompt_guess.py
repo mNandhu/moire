@@ -14,13 +14,13 @@ user's keywords it contains, and the best one per side wins:
 
 Only fields the graph walk and the user's pins left empty are filled, and
 ``gen.guessed`` names them so the UI can say so. Pure: callers supply the
-candidate texts.
+candidate texts, with where each sits so a guess can be pinned.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any, Iterable, NamedTuple
 
 from .prompt_parse import parse_prompt
 from .tag_names import canonical_name
@@ -90,38 +90,52 @@ def _hits(text: str, keywords: Keywords) -> tuple[int, int] | None:
     return len(names & keywords.positive), len(names & keywords.negative)
 
 
+class Candidate(NamedTuple):
+    """A text in the graph. ``shown``: a display node showed it (it ran).
+    ``path``: where it sits in the raw doc, as a ruleset pin would name it
+    (``prompt.32.inputs.text_0``), or ``None`` when unknown."""
+
+    text: str
+    shown: bool = False
+    path: str | None = None
+
+
 def pick(
-    candidates: Iterable[tuple[str, bool]],
+    candidates: Iterable[Candidate],
     keywords: Keywords,
     *,
     prompt: str | None = None,
     negative: str | None = None,
-) -> tuple[str | None, str | None]:
-    """The best positive and negative text among ``(text, shown)`` candidates.
-    ``prompt`` / ``negative`` are what is already known: a side that is known
-    isn't guessed, and the other side's guess can't be the same text."""
-    best: dict[str, tuple[tuple[bool, int, int], str]] = {}
-    seen: dict[str, bool] = {}
-    for text, shown in candidates:
-        # The same text often appears twice (a widget and the display of it);
-        # score it once, as shown if either copy was.
-        if text.strip():
-            seen[text] = seen.get(text, False) or shown
-    for text, shown in seen.items():
-        hits = _hits(text, keywords)
+) -> dict[str, Candidate]:
+    """The best ``"prompt"`` and ``"negative"`` candidates, either missing when
+    nothing qualifies. ``prompt`` / ``negative`` are what is already known: a
+    side that is known isn't guessed, and the other side's guess can't be the
+    same text."""
+    # The same text often appears twice (a widget and the display of it);
+    # score it once, as shown if either copy was, at the first known path.
+    seen: dict[str, Candidate] = {}
+    for c in candidates:
+        if not c.text.strip():
+            continue
+        prev = seen.get(c.text)
+        seen[c.text] = (
+            c
+            if prev is None
+            else Candidate(c.text, prev.shown or c.shown, prev.path or c.path)
+        )
+    best: dict[str, tuple[tuple[bool, int, int], Candidate]] = {}
+    for c in seen.values():
+        hits = _hits(c.text, keywords)
         if hits is None:
             continue
         pos, neg = hits
-        for side, hit, other, taken in (
-            ("prompt", pos, neg, negative),
-            ("negative", neg, pos, prompt),
+        for side, hit, other, known, taken in (
+            ("prompt", pos, neg, prompt, negative),
+            ("negative", neg, pos, negative, prompt),
         ):
-            if hit <= other or text == taken:
+            if known or hit <= other or c.text == taken:
                 continue
-            rank = (shown, hit, len(text))
+            rank = (c.shown, hit, len(c.text))
             if side not in best or rank > best[side][0]:
-                best[side] = (rank, text)
-    return (
-        None if prompt else best.get("prompt", (None, None))[1],
-        None if negative else best.get("negative", (None, None))[1],
-    )
+                best[side] = (rank, c)
+    return {side: c for side, (_rank, c) in best.items()}
