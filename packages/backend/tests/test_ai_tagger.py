@@ -16,6 +16,7 @@ from src.services.ai_tagger import (
 from src.services.ai_tagger_download import (
     DEFAULT_CACHE_DIR,
     ModelDownloadManager,
+    RemoteFile,
     _expected_paths,
     model_target,
 )
@@ -105,6 +106,32 @@ async def test_download_start_skips_when_model_present(tmp_path):
     st = await dm.start(model_repo=repo, cache_dir=cache)
     assert st.status == "done"
     assert (repo, cache) not in dm._tasks
+
+
+async def test_download_fetches_a_given_file_list(tmp_path, monkeypatch):
+    # Another model (the face detector) names its own files; the key is any
+    # string unique to it, never used to build a URL.
+    dm = ModelDownloadManager()
+    fetched: list[str] = []
+
+    async def fake_one(st, f):
+        fetched.append(f.url)
+        Path(f.dst_path).write_text("x")
+        f.status = "done"
+
+    monkeypatch.setattr(dm, "_download_one", fake_one)
+    files = [
+        RemoteFile("model.onnx", "https://hf/a/model.onnx", str(tmp_path / "m.onnx")),
+        RemoteFile("threshold.json", "https://hf/a/t.json", str(tmp_path / "t.json")),
+    ]
+    st = await dm.start(model_repo="org/repo:v1", cache_dir=str(tmp_path), files=files)
+    await dm.wait(model_repo="org/repo:v1", cache_dir=str(tmp_path))
+    assert st.status == "done"
+    assert fetched == ["https://hf/a/model.onnx", "https://hf/a/t.json"]
+    again = await dm.start(
+        model_repo="org/repo:v1", cache_dir=str(tmp_path), files=files
+    )
+    assert again.status == "done" and len(fetched) == 2
 
 
 async def test_start_load_supersedes_stale_target_without_clobbering(monkeypatch):

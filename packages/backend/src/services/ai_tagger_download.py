@@ -34,6 +34,21 @@ def model_target(settings: dict[str, Any]) -> tuple[str, str]:
     return repo, cache_dir
 
 
+@dataclass(frozen=True)
+class RemoteFile:
+    """One file of a model download: its display name, URL and local path."""
+
+    name: str
+    url: str
+    dst_path: str
+
+
+def hf_url(repo: str, path: str) -> str:
+    """The download URL of ``path`` in a HuggingFace repo (``HF_ENDPOINT``
+    honoured)."""
+    return f"{_get_hf_endpoint()}/{repo}/resolve/main/{path}"
+
+
 def _get_hf_endpoint() -> str:
     hf_endpoint = os.getenv("HF_ENDPOINT", "https://huggingface.co")
     if not hf_endpoint.startswith("https://"):
@@ -77,6 +92,8 @@ class ModelDownloadState:
     cancel_requested: bool = False
     error: str | None = None
     files: list[DownloadFileState] = field(default_factory=list)
+    # What to fetch; the tagger's own pair when not given.
+    spec: tuple[RemoteFile, ...] | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -114,16 +131,24 @@ class ModelDownloadManager:
             self._states[key] = st
         return st
 
-    async def start(self, *, model_repo: str, cache_dir: str) -> ModelDownloadState:
+    async def start(
+        self,
+        *,
+        model_repo: str,
+        cache_dir: str,
+        files: list[RemoteFile] | None = None,
+    ) -> ModelDownloadState:
+        """Fetch a model's files in the background. ``files`` names them for a
+        model other than the tagger, ``model_repo`` then being any key unique
+        to that model (repo plus variant)."""
         key = (model_repo, cache_dir)
         async with self._lock:
             st = self.get_state(model_repo=model_repo, cache_dir=cache_dir)
+            if files is not None:
+                st.spec = tuple(files)
 
             # If everything is already there, declare success.
-            csv_path, onnx_path = _expected_paths(
-                model_repo=model_repo, cache_dir=cache_dir
-            )
-            if os.path.exists(csv_path) and os.path.exists(onnx_path):
+            if all(os.path.exists(f.dst_path) for f in self._spec(st)):
                 st.status = "done"
                 st.updated_at = time.time()
                 return st
@@ -205,24 +230,26 @@ class ModelDownloadManager:
         if t is not None:
             await t
 
-    async def _download_all(self, st: ModelDownloadState) -> None:
-        hf = _get_hf_endpoint()
-        base_url = f"{hf}/{st.model_repo}/resolve/main"
+    @staticmethod
+    def _spec(st: ModelDownloadState) -> tuple[RemoteFile, ...]:
+        if st.spec is not None:
+            return st.spec
         csv_path, onnx_path = _expected_paths(
             model_repo=st.model_repo, cache_dir=st.cache_dir
         )
+        return (
+            RemoteFile("model.onnx", hf_url(st.model_repo, "model.onnx"), onnx_path),
+            RemoteFile(
+                "selected_tags.csv",
+                hf_url(st.model_repo, "selected_tags.csv"),
+                csv_path,
+            ),
+        )
 
-        files: list[DownloadFileState] = [
-            DownloadFileState(
-                name="model.onnx",
-                url=f"{base_url}/model.onnx",
-                dst_path=onnx_path,
-            ),
-            DownloadFileState(
-                name="selected_tags.csv",
-                url=f"{base_url}/selected_tags.csv",
-                dst_path=csv_path,
-            ),
+    async def _download_all(self, st: ModelDownloadState) -> None:
+        files = [
+            DownloadFileState(name=f.name, url=f.url, dst_path=f.dst_path)
+            for f in self._spec(st)
         ]
         st.files = files
 
