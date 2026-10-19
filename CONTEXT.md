@@ -56,8 +56,12 @@ belongs in this file.
   Tag-state single-owner rule, one level up.
 - **Tag category**: character or general, from the tagger's word list
   (`selected_tags.csv`, category 4 = character). A prompt tag spelled like a
-  listed character counts as one too. No downloaded model, no characters.
-  (`services/tag_categories.py`)
+  listed character counts as one too. A bare name without its series
+  (`furina` for `furina_(genshin_impact)`) counts only when the library backs
+  it: most of its visible images also carry the series tag or the full name,
+  so ordinary words that happen to be characters (`sunny`, `white_rabbit`)
+  don't. No downloaded model, no characters. (`services/tag_categories.py`;
+  the library check is `tag_index._characters`)
 - **Rating**: one of `-`, `general`, `sensitive`, `questionable`, `explicit`.
   Normalized in one place (`image_tags.normalize_rating`) and written only
   through `image_tags.set_rating` (with `set_score` / `set_quarantine` for the

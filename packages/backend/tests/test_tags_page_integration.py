@@ -8,12 +8,21 @@ from src.database import schema as t
 from src.services import tag_categories, tag_index, tag_migrations
 
 
-async def _chars(*names):
-    return frozenset(names)
+def _chars(*names, **candidates):
+    async def load():
+        return tag_categories.Vocab(
+            frozenset(names),
+            {
+                bare: tag_categories.Candidate(series, f"{bare}_({series})")
+                for bare, series in candidates.items()
+            },
+        )
+
+    return load
 
 
 async def test_browse_merges_sources_and_counts_images_once(client, seed, monkeypatch):
-    monkeypatch.setattr(tag_categories, "character_names", lambda: _chars("hu_tao"))
+    monkeypatch.setattr(tag_categories, "load", _chars("hu_tao"))
     seed("L1:a", tags=("cat", "prompt:cat", "prompt:hu_tao"), mtime=100)
     seed("L1:b", tags=("prompt:cat", "manual:cat"), mtime=300)
     seed("L1:c", tags=("dog",), mtime=200)
@@ -149,7 +158,7 @@ async def test_quarantined_images_leave_the_tags_page(client, seed):
 
 
 async def test_characters_lists_only_characters(client, seed, monkeypatch):
-    monkeypatch.setattr(tag_categories, "character_names", lambda: _chars("frieren"))
+    monkeypatch.setattr(tag_categories, "load", _chars("frieren"))
     seed("L1:a", tags=("prompt:frieren", "prompt:cat"))
     got = (await client.get("/tags/characters")).json()
     assert [(c["tag"], c["count"]) for c in got] == [("frieren", 1)]
@@ -180,3 +189,32 @@ async def test_the_list_cover_is_the_mosaics_first_image(client, seed):
         r["tag"]: r["thumb_image_id"] for r in (await client.get("/tags/browse")).json()
     }
     assert covers["cat"] == await lead("cat") != "L1:05"
+
+
+async def test_bare_names_need_the_library_behind_them(client, seed, monkeypatch):
+    monkeypatch.setattr(
+        tag_categories,
+        "load",
+        _chars(furina="genshin_impact", sunny="omori", white_rabbit="alice"),
+    )
+    seed("L1:a", tags=("prompt:furina", "prompt:genshin_impact"))
+    # the AI's full name backs it too
+    seed("L1:b", tags=("prompt:furina", "furina_(genshin_impact)"))
+    seed("L1:c", tags=("prompt:furina",))
+    seed("L1:d", tags=("prompt:sunny", "prompt:beach"))
+    seed("L1:e", tags=("prompt:white_rabbit",))
+    cats = {r["tag"]: r["category"] for r in (await client.get("/tags/browse")).json()}
+    assert cats["furina"] == "character"
+    assert cats["sunny"] == "general"
+    assert cats["white_rabbit"] == "general"
+    detail = (await client.get("/tags/detail", params={"tag": "furina"})).json()
+    assert detail["category"] == "character"
+
+
+async def test_quarantined_images_dont_back_a_bare_name(client, seed, monkeypatch):
+    monkeypatch.setattr(tag_categories, "load", _chars(furina="genshin_impact"))
+    seed("L1:a", tags=("prompt:furina",))
+    seed("L1:b", tags=("prompt:furina", "prompt:genshin_impact"), quarantined=True)
+    seed("L1:c", tags=("prompt:furina", "prompt:genshin_impact"), quarantined=True)
+    cats = {r["tag"]: r["category"] for r in (await client.get("/tags/browse")).json()}
+    assert cats["furina"] == "general"

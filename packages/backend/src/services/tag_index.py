@@ -397,10 +397,11 @@ async def browse(source: str = "all") -> list[dict]:
         .subquery()
     )
     covers_stmt = sa.select(ranked.c.base, ranked.c.image_id).where(ranked.c.rn == 1)
-    characters = await tag_categories.character_names()
+    vocab = await tag_categories.load()  # a file read: before taking a connection
     async with async_conn() as conn:
         rows = (await conn.execute(stmt)).fetchall()
         covers = dict((await conn.execute(covers_stmt)).fetchall())
+        characters = await _characters(conn, vocab, {r.base for r in rows})
 
     result = [
         {
@@ -414,6 +415,58 @@ async def browse(source: str = "all") -> list[dict]:
     ]
     _store(_tags_cache, cache_key, gen, result)
     return result
+
+
+async def _characters(
+    conn, vocab: tag_categories.Vocab, bases: set[str]
+) -> frozenset[str]:
+    """The character names (lowercased) for ``bases``: listed ones, plus the
+    bare-name candidates the library backs (``tag_categories.confirmed``),
+    counting visible images only, like everything else on the Tags page."""
+    names = set(vocab.names)
+    spellings: dict[str, set[str]] = {}
+    for base in bases:
+        if base.lower() in vocab.candidates:
+            spellings.setdefault(base.lower(), set()).add(base)
+    if not spellings:
+        return frozenset(names)
+    by_name = {key: vocab.candidates[key] for key in spellings}
+    evidence = {c.series for c in by_name.values()} | {c.full for c in by_name.values()}
+    it, other = t.image_tags, t.image_tags.alias("other")
+    wanted = [b for group in spellings.values() for b in group]
+    visible = sa.exists(
+        sa.select(1).where(
+            t.images.c._id == it.c.image_id, image_tags.not_quarantined()
+        )
+    )
+    # One pass: every (candidate, image, evidence-or-NULL) row.
+    rows = (
+        await conn.execute(
+            sa.select(it.c.base, it.c.image_id, other.c.base)
+            .select_from(
+                it.outerjoin(
+                    other,
+                    sa.and_(
+                        other.c.image_id == it.c.image_id,
+                        other.c.base.in_(evidence),
+                    ),
+                )
+            )
+            .where(it.c.base.in_(wanted), visible)
+        )
+    ).fetchall()
+    images: dict[str, set[str]] = {}
+    backed: dict[str, set[str]] = {}
+    for base, image_id, found in rows:
+        key = base.lower()
+        images.setdefault(key, set()).add(image_id)
+        cand = by_name[key]
+        if found in (cand.series, cand.full):
+            backed.setdefault(key, set()).add(image_id)
+    for key, ids in images.items():
+        if tag_categories.confirmed(len(ids), len(backed.get(key, ()))):
+            names.add(key)
+    return frozenset(names)
 
 
 _RELATED = 40
@@ -440,6 +493,7 @@ async def detail(base: str, source: str = "all") -> dict | None:
     )
     in_ids = t.images.c._id.in_(ids)
     month = sa.func.strftime("%Y-%m", t.images.c.mtime, "unixepoch", "localtime")
+    vocab = await tag_categories.load()  # a file read: before taking a connection
     async with async_conn() as conn:
         span = (
             await conn.execute(
@@ -510,6 +564,7 @@ async def detail(base: str, source: str = "all") -> dict | None:
             )
         ).fetchall()
         pin = (await _pins(conn, {base})).get(base)
+        characters = await _characters(conn, vocab, {base})
 
     sources = {"ai": 0, "prompt": 0, "manual": 0}
     for tag, n in kinds:
@@ -521,7 +576,6 @@ async def detail(base: str, source: str = "all") -> dict | None:
             else "ai"
         )
         sources[kind] += n
-    characters = await tag_categories.character_names()
     return {
         "tag": base,
         "count": span[0],
