@@ -26,6 +26,10 @@ ComfyUI's workflow mapping so it only gets built once.
     it from tags. `toPromptText` (`lib/tags.ts`) is only for tag-built text
   - Record the real generation time when Moiré queues a job (see Known
     issues: mtime). This is the only reliable source we get
+  - Remixer, on top of the integration: a built-in page to make images by
+    picking a character and setting a scene. A character page's "Remix with
+    this character" opens it pre-filled with the character's tag, signature
+    tags, and the LoRA + weight that scored best for them
 - Auto AI tagging
   - When the watcher indexes a new file, queue it for AI tagging
   - Toggle in Settings > Tags > AI Tagging, next to the other tagger knobs
