@@ -227,3 +227,24 @@ def test_id_variants_swaps_separators():
 
 def test_id_variants_excludes_primary_when_no_separator():
     assert it.id_variants("lib:flat") == []
+
+
+# --- bulk manual edit --------------------------------------------------------
+
+
+def test_with_manual_edit_prefixes_and_keeps_order():
+    out = it.with_manual_edit(
+        ["1girl", "manual:old", "prompt:x"], add=["keeper"], remove=["old"]
+    )
+    assert out == ["1girl", "prompt:x", "manual:keeper"]
+
+
+def test_with_manual_edit_name_in_both_lists_ends_present():
+    assert it.with_manual_edit(["manual:a"], add=["a"], remove=["a"]) == ["manual:a"]
+
+
+def test_with_manual_edit_leaves_ai_and_prompt_alone():
+    assert it.with_manual_edit(["cat", "prompt:cat"], add=[], remove=["cat"]) == [
+        "cat",
+        "prompt:cat",
+    ]

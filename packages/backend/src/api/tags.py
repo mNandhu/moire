@@ -135,6 +135,29 @@ async def remove_tags(image_id: str, tags: list[str]):
     return {"image_id": image_id, "removed": tags}
 
 
+class BulkManualTags(BaseModel):
+    image_ids: list[str]
+    add: list[str] = []
+    remove: list[str] = []
+
+
+@router.post("/bulk")
+async def bulk_manual_tags(body: BulkManualTags):
+    """Add/remove manual tags (bare names) on a selection, in one transaction."""
+    if not body.image_ids:
+        raise HTTPException(status_code=422, detail="image_ids must not be empty")
+    if len(body.image_ids) > 10000:
+        raise HTTPException(status_code=422, detail="too many images (max 10000)")
+    add = validate_tags(body.add) if body.add else []
+    remove = validate_tags(body.remove) if body.remove else []
+    if not add and not remove:
+        raise HTTPException(status_code=422, detail="nothing to add or remove")
+    matched, modified = await image_tags.bulk_manual(
+        body.image_ids, add=add, remove=remove
+    )
+    return {"matched": matched, "modified": modified}
+
+
 @router.post("/ai/{image_id}")
 async def ai_tag(image_id: str):
     # Deprecated route retained for convenience.

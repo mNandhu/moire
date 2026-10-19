@@ -100,3 +100,52 @@ async def test_tag_filter_reflects_mutation_end_to_end(client, seed):
     # The manual tag is now queryable via the any: fan-out.
     resp = await client.get("/images", params={"tags": "any:fav"})
     assert [it["_id"] for it in resp.json()] == ["L1:a"]
+
+
+async def test_bulk_manual_adds_and_removes_across_selection(client, seed):
+    seed("L1:a", tags=("1girl", "manual:old"))
+    seed("L1:b", tags=("manual:keeper",))
+    seed("L1:c", tags=("1girl",))  # not selected
+    resp = await client.post(
+        "/tags/bulk",
+        json={
+            "image_ids": ["L1:a", "L1:b", "L1:missing"],
+            "add": ["keeper"],
+            "remove": ["old"],
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    # b already had keeper and no old: matched but unchanged.
+    assert resp.json() == {"matched": 2, "modified": 1}
+
+    a = await _row("L1:a")
+    assert a.tags == ["1girl", "manual:keeper"]
+    assert a.has_ai_tags is True
+    assert await _tag_rows("L1:a") == {"1girl", "manual:keeper"}
+    assert (await _row("L1:c")).tags == ["1girl"]
+
+
+async def test_bulk_manual_never_touches_ai_or_prompt_tags(client, seed):
+    seed("L1:a", tags=("cat", "prompt:cat", "manual:cat"))
+    resp = await client.post(
+        "/tags/bulk", json={"image_ids": ["L1:a"], "remove": ["cat"]}
+    )
+    assert resp.status_code == 200, resp.text
+    assert (await _row("L1:a")).tags == ["cat", "prompt:cat"]
+
+
+async def test_bulk_manual_rejects_empty_edit(client, seed):
+    seed("L1:a", tags=())
+    resp = await client.post("/tags/bulk", json={"image_ids": ["L1:a"]})
+    assert resp.status_code == 422
+
+
+async def test_bulk_manual_invalidates_tag_counts(client, seed):
+    seed("L1:a", tags=())
+    seed("L1:b", tags=())
+    assert (await client.get("/tags", params={"include_manual": True})).json() == []
+    await client.post(
+        "/tags/bulk", json={"image_ids": ["L1:a", "L1:b"], "add": ["fav"]}
+    )
+    resp = await client.get("/tags", params={"include_manual": True})
+    assert {r["_id"]: r["count"] for r in resp.json()} == {"manual:fav": 2}

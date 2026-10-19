@@ -68,3 +68,15 @@ export function setTagThumbnail(tag: string, imageId: string): Promise<unknown> 
     image_id: imageId,
   });
 }
+
+/** Add/remove manual tags (bare names) on many images in one transaction. */
+export function bulkManualTags(
+  ids: string[],
+  edit: { add?: string[]; remove?: string[] },
+): Promise<{ matched: number; modified: number }> {
+  return post("/api/v1/tags/bulk", {
+    image_ids: ids,
+    add: edit.add ?? [],
+    remove: edit.remove ?? [],
+  });
+}

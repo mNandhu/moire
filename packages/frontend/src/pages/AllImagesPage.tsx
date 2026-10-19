@@ -6,6 +6,7 @@ import { DensityControl } from "../components/DensityControl";
 import { ShortcutOverlay } from "../components/ShortcutOverlay";
 import { useToast } from "../components/Toasts";
 import { useConfirm } from "../components/ConfirmDialog";
+import { BulkTagDialog } from "../components/BulkTagDialog";
 import {
   Filter,
   Keyboard,
@@ -17,6 +18,7 @@ import {
   ArrowLeft,
   ShieldOff,
   ShieldCheck,
+  Tags,
   X,
 } from "lucide-react";
 import {
@@ -59,12 +61,14 @@ import { runBulk } from "../lib/bulk";
 import {
   setScore as apiSetScore,
   setQuarantine as apiSetQuarantine,
+  bulkManualTags,
 } from "../lib/imageMutations";
 import { api } from "../lib/api";
 import { isFormField } from "../lib/dom";
 import { useOverlayOpen, withBackgroundLocation } from "../lib/backgroundLocation";
 import { postAiTag } from "../lib/ai";
 import {
+  imageDocKey,
   invalidateFeeds,
   patchFeeds,
   patchImageEverywhere,
@@ -598,6 +602,33 @@ export default function AllImagesPage() {
     [push, setSelectionMode, confirm],
   );
 
+  // One request, one transaction (see image_tags.bulk_manual), so unlike
+  // quarantine there is no partial failure to keep the selection for. It stays
+  // anyway: tagging the keepers is usually followed by acting on the rest.
+  const [bulkTagOpen, setBulkTagOpen] = useState(false);
+  const runBulkManualTags = useCallback(
+    async (edit: { add: string[]; remove: string[] }) => {
+      const ids = Array.from(selection);
+      try {
+        const res = await bulkManualTags(ids, edit);
+        invalidateFeeds(queryClient);
+        // ImageView reads the full doc from its own cache entry.
+        for (const id of ids) {
+          queryClient.invalidateQueries({ queryKey: imageDocKey(id), exact: true });
+        }
+        push(
+          `Updated tags on ${res.modified} of ${ids.length} image${ids.length === 1 ? "" : "s"}`,
+          "success",
+        );
+        return true;
+      } catch (e) {
+        push(`Failed to update tags: ${String(e)}`, "error");
+        return false;
+      }
+    },
+    [selection, queryClient, push],
+  );
+
   useEffect(() => {
     if (focusedIndex < 0) return;
     const sc = getScrollContainer();
@@ -736,7 +767,12 @@ export default function AllImagesPage() {
               label={<>{selection.size} selected</>}
               items={[
                 {
-                  label: "Tag",
+                  label: "Edit tags",
+                  icon: <Tags size={15} />,
+                  onClick: () => setBulkTagOpen(true),
+                },
+                {
+                  label: "AI tag",
                   icon: <Sparkles size={15} />,
                   onClick: () => void runBulkTag(Array.from(selection)),
                 },
@@ -762,6 +798,12 @@ export default function AllImagesPage() {
         </div>
 
       </PageHeader>
+      <BulkTagDialog
+        open={bulkTagOpen}
+        count={selection.size}
+        onClose={() => setBulkTagOpen(false)}
+        onApply={runBulkManualTags}
+      />
       <LibraryScopeTabs
         libraries={libs}
         value={filters.libraryId}

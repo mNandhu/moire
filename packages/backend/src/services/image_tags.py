@@ -378,6 +378,50 @@ async def remove_tags(image_id: str, tags: list[str]) -> None:
     await _mutate_tags(image_id, lambda current: without_tags(current, tags))
 
 
+def with_manual_edit(
+    existing: list[str], *, add: list[str], remove: list[str]
+) -> list[str]:
+    """Add and remove *manual* tags (bare names, prefixed here). Removal runs
+    first, so a name in both lists ends up present. AI and prompt tags are never
+    touched: a bulk edit is curation, not a rewrite of what the tagger or the
+    prompt produced."""
+    dropped = without_tags(existing, [to_manual(x) for x in remove])
+    return union_tags(dropped, [to_manual(x) for x in add])
+
+
+async def bulk_manual(
+    image_ids: list[str], *, add: list[str], remove: list[str]
+) -> tuple[int, int]:
+    """Apply one manual-tag edit to many images in a single transaction.
+
+    One transaction rather than one per image: a selection of a thousand is one
+    writer slot on single-writer SQLite instead of a thousand, and the edit
+    lands all or nothing. Unknown ids are skipped. Returns ``(matched,
+    modified)``.
+    """
+    matched = modified = 0
+    async with async_tx() as conn:
+        seen: set[str] = set()
+        for image_id in image_ids:
+            resolved = await resolve_image_id(conn, image_id)
+            if resolved is None or resolved in seen:
+                continue
+            seen.add(resolved)
+            matched += 1
+            current = (
+                await conn.execute(
+                    sa.select(t.images.c.tags).where(t.images.c._id == resolved)
+                )
+            ).scalar() or []
+            new = with_manual_edit(current, add=add, remove=remove)
+            if new != current:
+                modified += 1
+                await _persist(conn, resolved, new)
+    if modified:
+        _dirty_tag_index()
+    return matched, modified
+
+
 async def replace_ai(
     image_id: str, *, ai_tags: list[str], ai_meta: dict[str, Any], rating: str
 ) -> None:

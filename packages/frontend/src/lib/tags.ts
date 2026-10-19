@@ -120,3 +120,21 @@ export function tagFlow(tags: readonly string[] = [], ai?: AiTagMeta | null): Fl
   ];
 }
 
+
+/**
+ * Bare manual-tag names for a bulk edit, from TagSearchInput chips: a picked
+ * suggestion arrives as its stored `manual:` id, a typed one as plain text.
+ * The backend adds the prefix, so strip it; trim and dedupe.
+ */
+export function bulkTagNames(chips: readonly string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const chip of chips) {
+    const name = (isManual(chip) ? chip.slice(MANUAL_PREFIX.length) : chip).trim();
+    if (name && !seen.has(name)) {
+      seen.add(name);
+      out.push(name);
+    }
+  }
+  return out;
+}

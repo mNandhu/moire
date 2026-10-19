@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bulkTagNames,
   formatSearchTag,
   formatTag,
   isAiTag,
@@ -96,5 +97,15 @@ describe("tagFlow", () => {
       ["a", "ai", undefined],
       ["c", "prompt", undefined],
     ]);
+  });
+});
+
+describe("bulkTagNames", () => {
+  it("strips the manual prefix from picked suggestions and keeps typed text", () => {
+    expect(bulkTagNames(["manual:keeper", " new tag "])).toEqual(["keeper", "new tag"]);
+  });
+
+  it("dedupes a picked and a typed spelling of the same tag", () => {
+    expect(bulkTagNames(["manual:fav", "fav", ""])).toEqual(["fav"]);
   });
 });
