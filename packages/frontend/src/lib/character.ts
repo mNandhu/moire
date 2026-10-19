@@ -43,6 +43,9 @@ export type CharacterEntry = {
   count: number;
   thumb_url: string;
   name: string | null;
+  series: string | null;
+  /** Their colour: the user's, else the strongest hair or eye colour. */
+  color: string | null;
   focus: [number, number] | null;
   face: Face | null;
   aspect: number | null;
@@ -91,30 +94,68 @@ export function characterFilters(tag: string, aliases: readonly string[]): Filte
 /** How far around the face an avatar shows: the face's size times this. */
 export const FACE_ZOOM = 2.5;
 
+/** How far around the face a portrait card shows: its whole upper body. */
+export const CARD_ZOOM = 4.5;
+
 /**
- * How to show an avatar image in a round frame: as a square crop of the
- * image, given as the image's size and offset in percent of the frame. A
- * found face is zoomed to (its box grown {@link FACE_ZOOM} times); the
- * user's focus point moves the centre and keeps that zoom; with neither,
- * the whole width shows, centred a third of the way down (portraits put the
- * face high). Null without the image's shape: plain `object-cover` then.
+ * How to show a character's image in a frame of `frame` shape (width /
+ * height; 1 for a round avatar): as a crop of the image, given as the
+ * image's size and offset in percent of the frame. A found face is zoomed
+ * to (its box grown `zoom` times, the frame's short side); the user's focus
+ * point moves the centre and keeps that zoom; with neither, as much as fits,
+ * centred a third of the way down (portraits put the face high). Null
+ * without the image's shape: plain `object-cover` then.
  */
-export function avatarCrop(a: {
-  face: Face | null;
-  focus: readonly [number, number] | null;
-  aspect: number | null;
-}): { width: string; height: string; left: string; top: string } | null {
+export function avatarCrop(
+  a: {
+    face: Face | null;
+    focus: readonly [number, number] | null;
+    aspect: number | null;
+  },
+  frame = 1,
+  zoom = FACE_ZOOM,
+): { width: string; height: string; left: string; top: string } | null {
   const ratio = a.aspect;
   if (!ratio || !Number.isFinite(ratio) || ratio <= 0) return null;
-  // Image coordinates with the height as 1 and the width as `ratio`.
-  const fit = Math.min(ratio, 1);
-  const side = a.face ? Math.min(fit, Math.max(a.face[2] * ratio, a.face[3]) * FACE_ZOOM) : fit;
+  // Image coordinates with the height as 1 and the width as `ratio`; the
+  // crop is `w` x `h` in them, shaped like the frame.
+  const fit = Math.min(1, ratio / frame);
+  const faceSize = a.face ? Math.max(a.face[2] * ratio, a.face[3]) * zoom : Infinity;
+  const h = Math.min(fit, faceSize / Math.min(1, frame));
+  const w = h * frame;
   const cx = (a.focus?.[0] ?? a.face?.[0] ?? 0.5) * ratio;
   const cy = a.focus?.[1] ?? a.face?.[1] ?? 1 / 3;
-  const left = Math.min(ratio - side, Math.max(0, cx - side / 2));
-  const top = Math.min(1 - side, Math.max(0, cy - side / 2));
+  const left = Math.min(ratio - w, Math.max(0, cx - w / 2));
+  const top = Math.min(1 - h, Math.max(0, cy - h / 2));
   const pct = (v: number) => `${+(v * 100).toFixed(2)}%`;
-  return { width: pct(ratio / side), height: pct(1 / side), left: pct(-left / side), top: pct(-top / side) };
+  return { width: pct(ratio / w), height: pct(1 / h), left: pct(-left / w), top: pct(-top / h) };
+}
+
+/** A `#rrggbb` or `hsl(h s% l%)` colour as red, green, blue (0..1). */
+function rgb(colour: string): [number, number, number] | null {
+  const hex = /^#([0-9a-f]{6})$/i.exec(colour);
+  if (hex) {
+    const n = parseInt(hex[1], 16);
+    return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+  }
+  const hsl = /^hsl\((\d+) (\d+)% (\d+)%\)$/.exec(colour);
+  if (!hsl) return null;
+  const [h, s, l] = [+hsl[1], +hsl[2] / 100, +hsl[3] / 100];
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    return l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+  };
+  return [f(0), f(8), f(4)];
+}
+
+/** Text that reads on a background of `colour` (`#rrggbb` or `hsl(h s% l%)`). */
+export function inkOn(colour: string): "light" | "dark" {
+  const c = rgb(colour);
+  if (!c) return "light";
+  const lin = (v: number) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  const lum = 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
+  // Whichever of near-black and white contrasts more.
+  return (lum + 0.05) / 0.05 > 1.05 / (lum + 0.05) ? "dark" : "light";
 }
 
 /** CSS `object-position` for an avatar's focus point. */

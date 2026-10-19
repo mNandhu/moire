@@ -16,6 +16,15 @@ export function useCharacters() {
   });
 }
 
+/** Every character by each of its names (a bare alias included). */
+export function useCharacterLookup(): Map<string, CharacterEntry> {
+  const { data } = useCharacters();
+  return useMemo(
+    () => new Map((data ?? []).flatMap((c) => [c.tag, ...c.aliases].map((n) => [n, c] as const))),
+    [data],
+  );
+}
+
 /**
  * The characters in an image, the way a photo app shows the people in one:
  * each with their avatar and how many images they're in, linking to their

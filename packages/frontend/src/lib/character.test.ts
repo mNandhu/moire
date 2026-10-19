@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   avatarCrop,
+  inkOn,
   characterColours,
   characterFilters,
   characterHref,
@@ -95,5 +96,30 @@ describe("avatarCrop", () => {
       top: "-16.67%",
     });
     expect(avatarCrop({ face: null, focus: null, aspect: null })).toBeNull();
+  });
+});
+
+describe("avatarCrop in a portrait frame", () => {
+  it("shows more around the face, the frame's shape", () => {
+    // 3:4 card, face a fifth wide: short side 0.14 * 4.5 = 0.63 of the height
+    const crop = avatarCrop({ face: [0.5, 0.2, 0.2, 0.14], focus: null, aspect: 0.7 }, 0.75, 4.5);
+    // h = min(fit 0.933, 0.63 / 0.75 = 0.84) = 0.84, w = 0.63
+    expect(crop?.width).toBe("111.11%");
+    expect(crop?.height).toBe("119.05%");
+  });
+  it("fits the whole width when the face is large", () => {
+    const crop = avatarCrop({ face: [0.5, 0.3, 0.6, 0.5], focus: null, aspect: 0.7 }, 0.75, 4.5);
+    expect(crop?.width).toBe("100%");
+    expect(crop?.left).toBe("0%");
+  });
+});
+
+describe("inkOn", () => {
+  it("picks the text that reads", () => {
+    expect(inkOn("hsl(48 85% 55%)")).toBe("dark");
+    expect(inkOn("hsl(222 60% 35%)")).toBe("light");
+    expect(inkOn("#ffffff")).toBe("dark");
+    expect(inkOn("#112233")).toBe("light");
+    expect(inkOn("red")).toBe("light");
   });
 });

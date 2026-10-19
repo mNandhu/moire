@@ -1,29 +1,33 @@
 import { cn } from "../lib/cn";
-import { avatarCrop, focusPosition, type Face } from "../lib/character";
+import { avatarCrop, focusPosition, FACE_ZOOM, type Face } from "../lib/character";
 
-/**
- * A character's round avatar: their cover image cropped to the face when
- * one was found (see `avatarCrop`), else framed by the user's focus point.
- * Sized and ringed by the caller's `className`.
- */
-export function CharacterAvatar({
-  src,
-  face,
-  focus,
-  aspect,
-  className,
-  style,
-}: {
+type FaceCropProps = {
   src: string | null | undefined;
   face: Face | null;
   focus: readonly [number, number] | null;
   aspect: number | null;
   className?: string;
   style?: React.CSSProperties;
-}) {
-  const crop = avatarCrop({ face, focus, aspect });
+};
+
+/**
+ * A character's image cropped to their face (see `avatarCrop`) in a frame
+ * of shape `frame` (width / height), framed by the user's focus point when
+ * set. Sized by the caller's `className`, which must give it that shape.
+ */
+export function FaceCrop({
+  src,
+  face,
+  focus,
+  aspect,
+  frame = 1,
+  zoom = FACE_ZOOM,
+  className,
+  style,
+}: FaceCropProps & { frame?: number; zoom?: number }) {
+  const crop = avatarCrop({ face, focus, aspect }, frame, zoom);
   return (
-    <div className={cn("relative shrink-0 overflow-hidden rounded-full bg-raised", className)} style={style}>
+    <div className={cn("relative shrink-0 overflow-hidden bg-raised", className)} style={style}>
       {src && (
         <img
           src={src}
@@ -35,4 +39,9 @@ export function CharacterAvatar({
       )}
     </div>
   );
+}
+
+/** A character's round avatar, cropped to the face. */
+export function CharacterAvatar({ className, ...rest }: FaceCropProps) {
+  return <FaceCrop {...rest} className={cn("rounded-full", className)} />;
 }

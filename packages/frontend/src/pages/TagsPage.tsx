@@ -40,6 +40,12 @@ import { useToast } from "../components/Toasts";
 import { RenameTagDialog } from "../components/RenameTagDialog";
 import { TagPanel } from "../components/TagPanel";
 import { Mosaic, type Sample } from "../components/TagMosaic";
+import { FaceCrop } from "../components/CharacterAvatar";
+import { useCharacterLookup } from "../components/ImageCharacters";
+import { CARD_ZOOM, displayName, inkOn, type CharacterEntry } from "../lib/character";
+
+// A spine for a character with no colour of its own.
+const SPINE_NEUTRAL = "#8a8797";
 
 /** Entries per section before "Show more": grid cards load 3 or 4 images
  * each, list rows one, so the list can afford more. */
@@ -441,6 +447,7 @@ function TagGrid({
   epoch: unknown;
 }) {
   const [samples, setSamples] = useState<Record<string, Sample[]>>({});
+  const characters = useCharacterLookup();
   const requested = useRef<Set<string>>(new Set());
   // A changed list (a pinned cover, a rename) starts the mosaics over.
   useEffect(() => {
@@ -450,6 +457,7 @@ function TagGrid({
 
   useEffect(() => {
     const need = rows
+      .filter((t) => t.category !== "character")
       .map((t) => galleryTag(t.tag, source))
       .filter((id) => !requested.current.has(id));
     if (!need.length) return;
@@ -467,35 +475,118 @@ function TagGrid({
 
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3">
-      {rows.map((t) => (
-        <button
-          key={t.tag}
-          type="button"
-          onClick={() => onSelect(t.tag)}
-          aria-pressed={t.tag === selected}
-          className={cn(
-            "group block rounded-xl overflow-hidden border bg-surface bg-sheen shadow-panel text-left card-hover",
-            t.tag === selected ? "border-brand-400 ring-1 ring-brand-400" : "border-white/5",
-          )}
-        >
-          {/* A character reads best as one picture; a concept as a collage. */}
-          <Mosaic
-            samples={
-              t.category === "character"
-                ? samples[galleryTag(t.tag, source)]?.slice(0, 1)
-                : samples[galleryTag(t.tag, source)]
-            }
-            cover={t.thumb_url}
+      {rows.map((t) =>
+        t.category === "character" ? (
+          <SpineCard
+            key={t.tag}
+            tag={t}
+            character={characters.get(t.tag)}
+            selected={t.tag === selected}
+            onSelect={onSelect}
           />
-          <div className="p-3">
-            <div className="text-sm font-semibold truncate">{formatTag(t.tag)}</div>
-            <div className="text-xs text-neutral-400 tabular-nums">
-              {t.count.toLocaleString()} {t.count === 1 ? "image" : "images"}
-            </div>
-          </div>
-        </button>
-      ))}
+        ) : (
+          <NumeralCard
+            key={t.tag}
+            tag={t}
+            samples={samples[galleryTag(t.tag, source)]}
+            selected={t.tag === selected}
+            onSelect={onSelect}
+          />
+        ),
+      )}
     </div>
+  );
+}
+
+const CARD =
+  "group relative block overflow-hidden border bg-surface shadow-panel text-left card-hover focus-visible:outline-none";
+const cardState = (on: boolean) =>
+  on ? "border-brand-400 ring-1 ring-brand-400" : "border-white/5";
+
+/**
+ * A character as a manga volume on a shelf: their name runs up a spine in
+ * their own colour, beside a portrait cropped to their upper body.
+ */
+function SpineCard({
+  tag: t,
+  character: c,
+  selected,
+  onSelect,
+}: {
+  tag: BrowseTag;
+  character: CharacterEntry | undefined;
+  selected: boolean;
+  onSelect: (tag: string) => void;
+}) {
+  const colour = c?.color ?? SPINE_NEUTRAL;
+  const { name } = displayName(c ?? { tag: t.tag });
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(t.tag)}
+      aria-pressed={selected}
+      aria-label={`${formatTag(t.tag)}: ${t.count.toLocaleString()} images`}
+      className={cn(CARD, "flex", cardState(selected))}
+    >
+      <span
+        className={cn(
+          "w-8 shrink-0 flex items-center justify-between py-2.5 [writing-mode:vertical-rl] rotate-180",
+          "text-xs font-bold uppercase tracking-[0.08em]",
+          inkOn(colour) === "dark" ? "text-canvas" : "text-white",
+        )}
+        style={{ background: colour }}
+      >
+        <span className="truncate max-h-[75%]">{name}</span>
+        <span className="font-mono font-medium text-2xs tracking-normal opacity-75 tabular-nums">
+          {t.count.toLocaleString()}
+        </span>
+      </span>
+      <FaceCrop
+        src={c?.thumb_url ?? t.thumb_url}
+        face={c?.face ?? null}
+        focus={c?.focus ?? null}
+        aspect={c?.aspect ?? null}
+        frame={3 / 4}
+        zoom={CARD_ZOOM}
+        className="flex-1 aspect-[3/4]"
+      />
+    </button>
+  );
+}
+
+/** A tag as a collage of its images, its image count a large faint numeral. */
+function NumeralCard({
+  tag: t,
+  samples,
+  selected,
+  onSelect,
+}: {
+  tag: BrowseTag;
+  samples: Sample[] | undefined;
+  selected: boolean;
+  onSelect: (tag: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(t.tag)}
+      aria-pressed={selected}
+      className={cn(CARD, "bg-sheen", cardState(selected))}
+    >
+      <Mosaic samples={samples} cover={t.thumb_url} className="aspect-[3/4]" />
+      <div className="relative overflow-hidden px-3 pt-2.5 pb-3">
+        <span
+          aria-hidden="true"
+          className="absolute -right-1 -bottom-3.5 text-[3.25rem] font-extrabold leading-none tracking-tighter tabular-nums text-white/[0.07]"
+        >
+          {t.count.toLocaleString()}
+        </span>
+        <div className="relative text-[15px] font-bold truncate">{formatTag(t.tag)}</div>
+        <div className="relative mt-0.5 text-2xs uppercase tracking-[0.08em] text-faint">
+          {t.count.toLocaleString()} {t.count === 1 ? "image" : "images"}
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -550,8 +641,8 @@ function LoadingGrid({ view }: { view: TagView }) {
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3">
       {Array.from({ length: 12 }).map((_, i) => (
-        <div key={i} className="rounded-xl overflow-hidden border border-white/5 bg-surface shadow-panel">
-          <Skeleton className="w-full aspect-square rounded-none" />
+        <div key={i} className="overflow-hidden border border-white/5 bg-surface shadow-panel">
+          <Skeleton className="w-full aspect-[3/4] rounded-none" />
           <div className="p-3 space-y-2">
             <Skeleton className="h-4 w-24" />
             <Skeleton className="h-3 w-14" />

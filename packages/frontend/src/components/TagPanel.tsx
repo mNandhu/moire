@@ -13,6 +13,8 @@ import { fetchSignatures } from "../lib/gen";
 import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
 import { clearTagThumbnail, setTagThumbnail, updateCharacter } from "../lib/imageMutations";
 import { characterHref } from "../lib/character";
+import { CharacterAvatar } from "./CharacterAvatar";
+import { useCharacterLookup } from "./ImageCharacters";
 import { TAGS_KEY, useBoilerplate, useTagDetail } from "../lib/queries";
 import { formatTag } from "../lib/tags";
 import { groupWorkflows, formatUsedRange } from "../lib/workflows";
@@ -56,6 +58,8 @@ export function TagPanel({
   onRename: (stored: string, count: number) => void;
 }) {
   const { data: detail, isError } = useTagDetail(tag, source);
+  const characterOf = useCharacterLookup();
+  const character = detail?.category === "character" ? characterOf.get(tag) : undefined;
   const isBoilerplate = useBoilerplate();
   const { data: signatures } = useQuery({
     queryKey: ["rules-signatures"],
@@ -101,7 +105,19 @@ export function TagPanel({
       className="rounded-xl border border-white/5 bg-surface shadow-panel p-4 space-y-5"
     >
       <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
+        {character && (
+          <Link to={characterHref(character.tag)} aria-label="Character page" className="shrink-0">
+            <CharacterAvatar
+              src={character.thumb_url}
+              face={character.face}
+              focus={character.focus}
+              aspect={character.aspect}
+              className="h-16 w-16 ring-1 ring-line hover:ring-brand-300"
+              style={character.color ? { boxShadow: `0 0 0 2px ${character.color}` } : undefined}
+            />
+          </Link>
+        )}
+        <div className={cn("min-w-0 flex-1", character && "self-center")}>
           <h2 className="text-lg font-semibold leading-tight break-words flex items-center gap-2 flex-wrap">
             {formatTag(tag)}
             {detail?.category === "character" && <Badge className="text-2xs">Character</Badge>}
@@ -131,13 +147,12 @@ export function TagPanel({
         </button>
       </div>
 
-      <div className="rounded-lg overflow-hidden">
-        <Mosaic
-          samples={detail?.category === "character" ? samples?.slice(0, 1) : samples}
-          cover={detail?.thumb_url ?? null}
-          className="aspect-[16/10]"
-        />
-      </div>
+      {/* A character's avatar heads the panel; a tag shows a collage. */}
+      {detail?.category !== "character" && (
+        <div className="rounded-lg overflow-hidden">
+          <Mosaic samples={samples} cover={detail?.thumb_url ?? null} className="aspect-[16/10]" />
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <ButtonLink size="sm" variant="primary" to={galleryHref({ tags: [galleryTag(tag, source)] })}>
