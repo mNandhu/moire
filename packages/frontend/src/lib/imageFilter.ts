@@ -283,6 +283,28 @@ export function hasActiveFilter(f: Filters): boolean {
   );
 }
 
+/**
+ * `f` with its filters cleared: what "Clear filters" means everywhere. The
+ * search (tags), the library tab, the order and the grouping aren't filters
+ * the viewer set in the panel, so they stay.
+ */
+export function withoutFilters(f: Filters): Filters {
+  return {
+    ...DEFAULT_FILTERS,
+    tags: f.tags,
+    logic: f.logic,
+    libraryId: f.libraryId,
+    sort: f.sort,
+    group: f.group,
+    groupId: f.groupId,
+  };
+}
+
+/** Whether `f` has anything for "Clear filters" to clear. */
+export function hasClearableFilter(f: Filters): boolean {
+  return serializeFilters(withoutFilters(f)).toString() !== serializeFilters(f).toString();
+}
+
 export type FilterChip = {
   /** Stable React key. */
   key: string;

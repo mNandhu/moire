@@ -26,6 +26,8 @@ import {
   serializeFilters,
   serializeFiltersForPeek,
   hasActiveFilter,
+  hasClearableFilter,
+  withoutFilters,
   type Filters,
   activeFilterChips,
 } from "../lib/imageFilter";
@@ -848,17 +850,7 @@ export default function AllImagesPage() {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() =>
-                  setFilters({
-                    ...DEFAULT_FILTERS,
-                    tags: filters.tags,
-                    logic: filters.logic,
-                    libraryId: filters.libraryId,
-                    sort: filters.sort,
-                    group: filters.group,
-                    groupId: filters.groupId,
-                  })
-                }
+                onClick={() => setFilters(withoutFilters(filters))}
               >
                 Clear all
               </Button>
@@ -1169,14 +1161,7 @@ export default function AllImagesPage() {
               <Button
                 size="sm"
                 variant="ghost"
-                // Scope (library tab) and order aren't filters; keep them.
-                onClick={() =>
-                  setFilters({
-                    ...DEFAULT_FILTERS,
-                    libraryId: filters.libraryId,
-                    sort: filters.sort,
-                  })
-                }
+                onClick={() => setFilters(withoutFilters(filters))}
               >
                 Clear filters
               </Button>
@@ -1196,22 +1181,29 @@ export default function AllImagesPage() {
           icon={ImageOff}
           title="No images found"
           description={
-            hasActiveFilter(filters)
-              ? "No images match your current filters. Try adjusting your search criteria."
-              : "You don't have any images yet. Add a library to start importing your images."
+            !hasActiveFilter(filters)
+              ? "You don't have any images yet. Add a library to start importing your images."
+              : hasClearableFilter(filters)
+                ? filters.tags.length
+                  ? "No images match your search with these filters. Clear the filters to search everything."
+                  : "No images match your current filters."
+                : "No images match your search."
           }
           actions={
             <>
-              {hasActiveFilter(filters) && (
-                <Button
-                  variant="primary"
-                  // Out of an empty result entirely (library too), but keep
-                  // the order the viewer chose.
-                  onClick={() => setFilters({ ...DEFAULT_FILTERS, sort: filters.sort })}
-                >
+              {/* Filters first, keeping the search; then the search itself. */}
+              {hasClearableFilter(filters) ? (
+                <Button variant="primary" onClick={() => setFilters(withoutFilters(filters))}>
                   Clear filters
                 </Button>
-              )}
+              ) : filters.tags.length > 0 ? (
+                <Button
+                  variant="primary"
+                  onClick={() => setFilters({ ...filters, tags: [], logic: DEFAULT_FILTERS.logic })}
+                >
+                  Clear search
+                </Button>
+              ) : null}
               <ButtonLink to="/libraries">Go to Libraries</ButtonLink>
             </>
           }

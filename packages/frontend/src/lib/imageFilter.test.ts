@@ -7,6 +7,8 @@ import {
   buildImagesQuery,
   hasActiveFilter,
   type Filters,
+  hasClearableFilter,
+  withoutFilters,
 } from "./imageFilter";
 
 const roundTrip = (f: Filters): Filters =>
@@ -202,3 +204,29 @@ describe("activeFilterChips", () => {
   });
 });
 
+
+describe("withoutFilters", () => {
+  it("clears the panel's filters but keeps the search, tab, order and grouping", () => {
+    const f: Filters = {
+      ...DEFAULT_FILTERS,
+      tags: ["tokitou_muichirou"],
+      logic: "or",
+      libraryId: "lib1",
+      sort: "top",
+      group: true,
+      noAiTags: true,
+      model: "sdxl",
+      embedding: "lazypos",
+    };
+    expect(withoutFilters(f)).toEqual({
+      ...DEFAULT_FILTERS,
+      tags: ["tokitou_muichirou"],
+      logic: "or",
+      libraryId: "lib1",
+      sort: "top",
+      group: true,
+    });
+    expect(hasClearableFilter(f)).toBe(true);
+    expect(hasClearableFilter(withoutFilters(f))).toBe(false);
+  });
+});
