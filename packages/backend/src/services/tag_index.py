@@ -39,7 +39,7 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn
 from ..database import schema as t
-from . import image_tags
+from . import image_tags, tag_categories
 
 _TAGS_TTL_SECONDS = 30.0
 _SAMPLES_TTL_SECONDS = 60.0
@@ -106,6 +106,31 @@ def reset_for_tests() -> None:
         _samples_cache.clear()
 
 
+# --- Pinned thumbnails ---------------------------------------------------------
+
+
+def pin_key(tag: str) -> str:
+    """The ``tag_meta`` key of any spelling of a tag: its base name. A pin
+    belongs to the tag, whichever sources found it."""
+    tag = image_tags.canonical_tag(tag)
+    if image_tags.is_any(tag):
+        return tag[len(image_tags.ANY_PREFIX) :]
+    return image_tags.base_of(tag)
+
+
+async def _pins(conn, bases: set[str]) -> dict[str, str]:
+    if not bases:
+        return {}
+    rows = (
+        await conn.execute(
+            sa.select(t.tag_meta.c.tag, t.tag_meta.c.thumb_image_id).where(
+                t.tag_meta.c.tag.in_(bases)
+            )
+        )
+    ).fetchall()
+    return {r.tag: r.thumb_image_id for r in rows if r.thumb_image_id}
+
+
 # --- Aggregated views ---------------------------------------------------------
 
 
@@ -164,20 +189,14 @@ async def list_tags(
         tag_ids = [r.tag for r in rows]
         overrides: dict[str, str] = {}
         if tag_ids:
-            ov_rows = (
-                await conn.execute(
-                    sa.select(t.tag_meta.c.tag, t.tag_meta.c.thumb_image_id).where(
-                        t.tag_meta.c.tag.in_(tag_ids)
-                    )
-                )
-            ).fetchall()
-            overrides = {r.tag: r.thumb_image_id for r in ov_rows if r.thumb_image_id}
+            overrides = await _pins(conn, {image_tags.base_of(tag) for tag in tag_ids})
 
     result = [
         {
             "_id": r.tag,
             "count": r.count,
-            "thumb_image_id": overrides.get(r.tag) or r.sample_image_id,
+            "thumb_image_id": overrides.get(image_tags.base_of(r.tag))
+            or r.sample_image_id,
         }
         for r in rows
     ]
@@ -186,7 +205,8 @@ async def list_tags(
 
 
 async def samples_for_tag(tag: str, per: int) -> list[dict]:
-    """Up to ``per`` distinct images for one tag's mosaic card. A pinned
+    """Up to ``per`` distinct images for one tag's mosaic card (``tag`` a stored
+    id, or ``any:<base>`` for every source). A pinned
     ``tag_meta`` thumbnail leads when present; the rest are random fill. Rows
     carry ``_id``/``width``/``height``/``blurhash``; the route decorates them
     with the thumb URL."""
@@ -206,12 +226,20 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
     )
     out: list[dict] = []
     seen: set[str] = set()
+    # `any:<base>` is the tag from every source; any other id is that one kind.
+    match = (
+        t.image_tags.c.base == pin_key(tag)
+        if image_tags.is_any(tag)
+        else t.image_tags.c.tag == tag
+    )
 
     async with async_conn() as conn:
         # A pinned thumbnail (tag_meta) leads the mosaic when present.
         pinned = (
             await conn.execute(
-                sa.select(t.tag_meta.c.thumb_image_id).where(t.tag_meta.c.tag == tag)
+                sa.select(t.tag_meta.c.thumb_image_id).where(
+                    t.tag_meta.c.tag == pin_key(tag)
+                )
             )
         ).scalar()
         if pinned:
@@ -221,8 +249,7 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
                         t.images.c._id == pinned,
                         sa.exists(
                             sa.select(1).where(
-                                t.image_tags.c.image_id == t.images.c._id,
-                                t.image_tags.c.tag == tag,
+                                t.image_tags.c.image_id == t.images.c._id, match
                             )
                         ),
                     )
@@ -246,7 +273,7 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
                             t.image_tags, t.image_tags.c.image_id == t.images.c._id
                         )
                     )
-                    .where(t.image_tags.c.tag == tag)
+                    .where(match)
                     .order_by(sa.func.random())
                     .limit(remaining + (1 if pinned else 0))
                 )
@@ -270,3 +297,170 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
     ]
     _store(_samples_cache, cache_key, gen, samples)
     return samples
+
+
+# --- Tags page ----------------------------------------------------------------
+
+SOURCES = ("all", "ai", "prompt", "manual")
+
+
+def _source_clause(source: str):
+    """Restrict ``image_tags`` rows to one source (``all``: no restriction)."""
+    tag = t.image_tags.c.tag
+    manual = tag.like(f"{image_tags.MANUAL_PREFIX}%")
+    prompt = tag.like(f"{image_tags.PROMPT_PREFIX}%")
+    if source == "manual":
+        return manual
+    if source == "prompt":
+        return prompt
+    if source == "ai":
+        return sa.and_(~manual, ~prompt)
+    return sa.true()
+
+
+async def browse(source: str = "all") -> list[dict]:
+    """One entry per tag name for the Tags page, the sources it was found by
+    merged (``source`` keeps only one): distinct images, character or general,
+    when it was last used (newest file time) and a cover image (the pinned
+    one, else the newest id)."""
+    cache_key = f"browse:{source}"
+    cached = _read(_tags_cache, cache_key, _TAGS_TTL_SECONDS)
+    if cached is not None:
+        return cached
+
+    gen = current_generation()
+    stmt = (
+        sa.select(
+            t.image_tags.c.base,
+            sa.func.count(sa.distinct(t.image_tags.c.image_id)).label("count"),
+            sa.func.max(t.images.c.mtime).label("last_used"),
+            sa.func.max(t.image_tags.c.image_id).label("sample_image_id"),
+        )
+        .select_from(
+            t.image_tags.join(t.images, t.images.c._id == t.image_tags.c.image_id)
+        )
+        .where(_source_clause(source), t.image_tags.c.base != "")
+        .group_by(t.image_tags.c.base)
+        .order_by(sa.text("count DESC"), t.image_tags.c.base)
+    )
+    characters = await tag_categories.character_names()
+    async with async_conn() as conn:
+        rows = (await conn.execute(stmt)).fetchall()
+        pins = await _pins(conn, {r.base for r in rows})
+
+    result = [
+        {
+            "tag": r.base,
+            "count": r.count,
+            "category": tag_categories.category(r.base, characters),
+            "last_used": r.last_used,
+            "thumb_image_id": pins.get(r.base) or r.sample_image_id,
+        }
+        for r in rows
+    ]
+    _store(_tags_cache, cache_key, gen, result)
+    return result
+
+
+_RELATED = 40
+
+
+async def detail(base: str, source: str = "all") -> dict | None:
+    """What the Tags page panel shows for one tag (``None`` when no image has
+    it): counts by source, first and last use, images per month, and what the
+    images were made with (loras, workflow signatures) or tagged with besides.
+    Related tags come untrimmed (``_RELATED``) so the caller can drop its
+    boilerplate and still have some left."""
+    it = t.image_tags
+    ids = (
+        sa.select(it.c.image_id)
+        .where(it.c.base == base, _source_clause(source))
+        .distinct()
+        .scalar_subquery()
+    )
+    in_ids = t.images.c._id.in_(ids)
+    month = sa.func.strftime("%Y-%m", t.images.c.mtime, "unixepoch", "localtime")
+    async with async_conn() as conn:
+        span = (
+            await conn.execute(
+                sa.select(
+                    sa.func.count(),
+                    sa.func.min(t.images.c.mtime),
+                    sa.func.max(t.images.c.mtime),
+                ).where(in_ids)
+            )
+        ).one()
+        if not span[0]:
+            return None
+        kinds = (
+            await conn.execute(
+                sa.select(it.c.tag, sa.func.count())
+                .where(it.c.base == base)
+                .group_by(it.c.tag)
+            )
+        ).fetchall()
+        months = (
+            await conn.execute(
+                sa.select(month.label("month"), sa.func.count().label("count"))
+                .where(in_ids, t.images.c.mtime.isnot(None))
+                .group_by(month)
+                .order_by(month)
+            )
+        ).fetchall()
+        loras = (
+            await conn.execute(
+                sa.select(t.image_loras.c.name, sa.func.count().label("count"))
+                .where(t.image_loras.c.image_id.in_(ids))
+                .group_by(t.image_loras.c.name)
+                .order_by(sa.text("count DESC"), t.image_loras.c.name)
+                .limit(5)
+            )
+        ).fetchall()
+        sigs = (
+            await conn.execute(
+                sa.select(
+                    t.images.c.gen_workflow_sig.label("sig"),
+                    sa.func.count().label("count"),
+                )
+                .where(in_ids, t.images.c.gen_workflow_sig.isnot(None))
+                .group_by(t.images.c.gen_workflow_sig)
+                .order_by(sa.text("count DESC"))
+            )
+        ).fetchall()
+        related = (
+            await conn.execute(
+                sa.select(
+                    it.c.base, sa.func.count(sa.distinct(it.c.image_id)).label("count")
+                )
+                .where(it.c.image_id.in_(ids), it.c.base != base, it.c.base != "")
+                .group_by(it.c.base)
+                .order_by(sa.text("count DESC"), it.c.base)
+                .limit(_RELATED)
+            )
+        ).fetchall()
+        pin = (await _pins(conn, {base})).get(base)
+
+    sources = {"ai": 0, "prompt": 0, "manual": 0}
+    for tag, n in kinds:
+        kind = (
+            "manual"
+            if image_tags.is_manual(tag)
+            else "prompt"
+            if image_tags.is_prompt(tag)
+            else "ai"
+        )
+        sources[kind] += n
+    characters = await tag_categories.character_names()
+    return {
+        "tag": base,
+        "count": span[0],
+        "category": tag_categories.category(base, characters),
+        "first_used": span[1],
+        "last_used": span[2],
+        "sources": sources,
+        "months": [{"month": m, "count": n} for m, n in months],
+        "loras": [{"name": r.name, "count": r.count} for r in loras],
+        "workflows": [{"sig": r.sig, "count": r.count} for r in sigs],
+        "related": [{"tag": r.base, "count": r.count} for r in related],
+        "thumb_image_id": pin,
+    }

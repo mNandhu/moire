@@ -41,13 +41,21 @@ belongs in this file.
 - **Tag index**: the aggregated views *derived* from Tag-state: the grouped tag
   counts (per stored tag, or collapsed across sources into one `any:<base>`
   entry counting distinct images) and the per-tag **mosaic samples** (a pinned
-  `tag_meta` thumbnail first, then random fill). Both are memoized with a short
+  `tag_meta` thumbnail first, then random fill). The Tags page reads its own
+  view (`browse`: one entry per tag name, sources merged, optionally one
+  source) and a per-tag `detail` (counts by source, use over time, loras,
+  workflows, related tags). A **pinned cover** belongs to the tag name, not to
+  a source (`tag_index.pin_key`), so it shows whichever sources found the tag. Both are memoized with a short
   TTL. **Invalidation belongs to the index, not its callers**
   (`services/tag_index.py`): tag writers dirty it once their transaction has
   committed, so a new writer cannot forget to. A cached entry is valid only
   within its TTL *and* its generation, which also means a read that started
   before a write cannot store its stale result afterwards. The mirror of the
   Tag-state single-owner rule, one level up.
+- **Tag category**: character or general, from the tagger's word list
+  (`selected_tags.csv`, category 4 = character). A prompt tag spelled like a
+  listed character counts as one too. No downloaded model, no characters.
+  (`services/tag_categories.py`)
 - **Rating**: one of `-`, `general`, `sensitive`, `questionable`, `explicit`.
   Normalized in one place (`image_tags.normalize_rating`) and written only
   through `image_tags.set_rating` (with `set_score` / `set_quarantine` for the

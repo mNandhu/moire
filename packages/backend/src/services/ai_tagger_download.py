@@ -320,6 +320,11 @@ def _expected_paths(*, model_repo: str, cache_dir: str) -> tuple[str, str]:
     return csv_path, onnx_path
 
 
+def labels_csv_path(*, model_repo: str, cache_dir: str) -> str:
+    """Where the model's word list (``selected_tags.csv``) is kept."""
+    return _expected_paths(model_repo=model_repo, cache_dir=cache_dir)[0]
+
+
 async def download_wd_tagger(model_repo: str, *, cache_dir: str) -> tuple[str, str]:
     """Download (or reuse cached) wd-tagger model + labels.
 

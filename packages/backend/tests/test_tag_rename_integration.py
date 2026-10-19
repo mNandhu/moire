@@ -67,7 +67,7 @@ async def test_rename_moves_a_pinned_thumbnail(client, seed):
     await client.post("/tags/rename", json={"tag": "manual:old", "to": "new"})
     async with db.async_conn() as conn:
         pins = (await conn.execute(sa.select(t.tag_meta.c.tag))).scalars().all()
-    assert pins == ["manual:new"]
+    assert pins == ["new"]
 
 
 async def test_ai_tags_cannot_be_renamed(client, seed):

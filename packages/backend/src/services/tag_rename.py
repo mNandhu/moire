@@ -46,7 +46,11 @@ def _target_name(to: str, *, prompt: bool) -> str:
 
 
 async def _move_thumbnail(conn, old: str, new: str) -> None:
-    """Carry a pinned mosaic thumbnail over to the target if it has none."""
+    """Carry a pinned mosaic thumbnail over to the target if it has none.
+    Pins are keyed by name (``tag_index.pin_key``), not by source."""
+    old, new = tag_index.pin_key(old), tag_index.pin_key(new)
+    if old == new:
+        return
     pinned = (
         await conn.execute(
             sa.select(t.tag_meta.c.thumb_image_id).where(t.tag_meta.c.tag == old)

@@ -10,7 +10,8 @@ their spaces). The canonical spelling is now underscores
   derived ``image_tags`` rows, through ``image_tags.rewrite_tags_sync``;
 - the per-tag names inside the ``ai`` subdoc (``general_tags`` /
   ``character_tags``), which the UI joins to ``tags`` for confidence shading;
-- pinned tag thumbnails (``tag_meta``), keeping the newer pin on a collision;
+- pinned tag thumbnails (``tag_meta``), keeping the newer pin on a collision
+  (``tag_meta_base`` later keys them by base name, one pin per tag);
 - then a full reprojection (shared with any other pending step), which
   rebuilds ``gen.prompt_terms``, the ``image_gen_terms`` rows and the
   ``prompt:`` tags from the raw prompts.
@@ -23,7 +24,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import Any, Callable
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -106,16 +107,18 @@ def _rewrite_images() -> int:
             last_id = rows[-1]._id
 
 
-def _rekey_tag_meta() -> None:
+def _rekey_tag_meta(key_of: Callable[[str], str] = image_tags.canonical_tag) -> None:
+    """Re-key pinned tag thumbnails by ``key_of``, the newer pin winning when
+    two old keys land on one."""
     with sync_tx() as conn:
         rows = conn.execute(sa.select(t.tag_meta)).fetchall()
         best: dict[str, Any] = {}
         for row in rows:
-            key = image_tags.canonical_tag(row.tag)
+            key = key_of(row.tag)
             cur = best.get(key)
             if cur is None or (row.updated_at or 0) > (cur.updated_at or 0):
                 best[key] = row
-        if all(image_tags.canonical_tag(r.tag) == r.tag for r in rows):
+        if all(key_of(r.tag) == r.tag for r in rows):
             return
         conn.execute(sa.delete(t.tag_meta))
         if best:
@@ -149,6 +152,12 @@ def migrate_tag_underscores() -> None:
 # extracted is a new reprojection-only entry (raw prompts are untouched; only
 # what is derived from them is rebuilt), and however many are pending, one
 # reprojection covers them all.
+def migrate_tag_meta_base() -> None:
+    """A pinned thumbnail belongs to a tag, not to one of its sources: the Tags
+    page lists ``blue_eyes`` once whether the AI or a prompt found it."""
+    _rekey_tag_meta(lambda tag: image_tags.base_of(image_tags.canonical_tag(tag)))
+
+
 _MIGRATIONS = (
     ("tag_underscores", migrate_tag_underscores, True),
     ("prompt_parser_v2", None, True),
@@ -158,6 +167,7 @@ _MIGRATIONS = (
     ("gen_runtime_prompts", None, True),
     ("gen_prompt_guess", None, True),
     ("gen_guess_paths", None, True),
+    ("tag_meta_base", migrate_tag_meta_base, False),
 )
 
 

@@ -71,9 +71,41 @@ async def tag_samples(
     }
 
 
+def _source(source: str) -> str:
+    if source not in tag_index.SOURCES:
+        raise HTTPException(status_code=422, detail=f"unknown source {source!r}")
+    return source
+
+
+@router.get("/browse")
+async def browse_tags(source: str = "all"):
+    """The Tags page list: one entry per tag name, its sources merged."""
+    return [
+        {**row, "thumb_url": thumb_url(row["thumb_image_id"])}
+        for row in await tag_index.browse(_source(source))
+    ]
+
+
+@router.get("/detail")
+async def tag_detail(tag: str, source: str = "all"):
+    """The Tags page panel for one tag, by name (any spelling or prefix)."""
+    base = tag_index.pin_key(validate_tags([tag])[0])
+    got = await tag_index.detail(base, _source(source))
+    if got is None:
+        raise HTTPException(status_code=404, detail="No image has this tag")
+    return {
+        **got,
+        "thumb_url": thumb_url(got["thumb_image_id"])
+        if got["thumb_image_id"]
+        else None,
+    }
+
+
 @router.post("/thumbnail/{tag:path}")
 async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
-    tag = image_tags.canonical_tag(validate_tags([tag])[0])
+    """Pin a tag's cover. Keyed by the tag's name, so it shows whichever
+    sources found the tag; the image must carry it from one of them."""
+    tag = tag_index.pin_key(validate_tags([tag])[0])
     image_id = body.image_id
 
     async with async_tx() as conn:
@@ -84,7 +116,7 @@ async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
                     sa.exists(
                         sa.select(1).where(
                             t.image_tags.c.image_id == t.images.c._id,
-                            t.image_tags.c.tag == tag,
+                            t.image_tags.c.base == tag,
                         )
                     ),
                 )
@@ -112,7 +144,7 @@ async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
 
 @router.delete("/thumbnail/{tag:path}")
 async def clear_tag_thumbnail(tag: str):
-    tag = image_tags.canonical_tag(validate_tags([tag])[0])
+    tag = tag_index.pin_key(validate_tags([tag])[0])
     async with async_tx() as conn:
         await conn.execute(sa.delete(t.tag_meta).where(t.tag_meta.c.tag == tag))
     tag_index.invalidate()
