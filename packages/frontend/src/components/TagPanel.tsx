@@ -5,7 +5,9 @@ import { ExternalLink, Pencil, Pin, X } from "lucide-react";
 import { Badge } from "./ui/Badge";
 import { Button, ButtonLink } from "./ui/Button";
 import { Skeleton } from "./ui/Skeleton";
+import { Mosaic, type Sample } from "./TagMosaic";
 import { useToast } from "./Toasts";
+import { api } from "../lib/api";
 import { cn } from "../lib/cn";
 import { fetchSignatures } from "../lib/gen";
 import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
@@ -74,6 +76,17 @@ export function TagPanel({
     () => (detail?.related ?? []).filter((r) => !isBoilerplate(r.tag)).slice(0, RELATED),
     [detail, isBoilerplate],
   );
+  // The tag's mosaic, pinned cover first. Under TAGS_KEY, so pinning a new
+  // cover below refreshes it.
+  const sampleId = galleryTag(tag, source);
+  const { data: samples } = useQuery({
+    queryKey: [...TAGS_KEY, "samples", sampleId],
+    queryFn: ({ signal }) =>
+      api<Record<string, Sample[]>>(
+        `/api/v1/tags/samples?${new URLSearchParams({ tags: sampleId, per: "4" })}`,
+        { signal },
+      ).then((r) => r[sampleId] ?? []),
+  });
   const share = (n: number) => `${Math.round((n / (detail?.count || 1)) * 100)}%`;
 
   return (
@@ -110,6 +123,10 @@ export function TagPanel({
         >
           <X size={16} />
         </button>
+      </div>
+
+      <div className="rounded-lg overflow-hidden">
+        <Mosaic samples={samples} cover={detail?.thumb_url ?? null} className="aspect-[16/10]" />
       </div>
 
       <div className="flex flex-wrap gap-2">
