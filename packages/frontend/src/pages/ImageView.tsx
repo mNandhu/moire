@@ -1119,17 +1119,30 @@ function ResourceRow({
   name,
   badge,
   sub,
+  to,
 }: {
   name: string;
   badge: string;
   sub?: string;
+  /** Gallery link showing every image that used this resource. */
+  to?: string;
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="min-w-0">
-        <div className="text-sm text-neutral-100 truncate" title={name}>
-          {name}
-        </div>
+        {to ? (
+          <Link
+            to={to}
+            className="block text-sm text-neutral-100 truncate hover:underline"
+            title={`Show all images using ${name}`}
+          >
+            {name}
+          </Link>
+        ) : (
+          <div className="text-sm text-neutral-100 truncate" title={name}>
+            {name}
+          </div>
+        )}
         {sub && <div className="text-xs text-faint">{sub}</div>}
       </div>
       <span className="shrink-0 text-2xs px-1.5 py-0.5 rounded-md bg-raised border border-line text-muted">
@@ -1224,12 +1237,27 @@ function GenPanel({
         </div>
       </div>
 
-      {gen.model && (
+      {(gen.model || !!gen.loras?.length) && (
         <div className="space-y-2">
           <div className="text-xs font-medium text-muted">
             Resources used
           </div>
-          <ResourceRow name={gen.model} badge="Checkpoint" />
+          {gen.model && (
+            <ResourceRow
+              name={gen.model}
+              badge="Checkpoint"
+              to={`/?model=${encodeURIComponent(gen.model)}`}
+            />
+          )}
+          {gen.loras?.map((l) => (
+            <ResourceRow
+              key={l.name}
+              name={l.name}
+              badge="LoRA"
+              sub={l.strength != null ? `Strength ${l.strength}` : undefined}
+              to={`/?lora=${encodeURIComponent(l.name)}`}
+            />
+          ))}
         </div>
       )}
 

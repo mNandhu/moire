@@ -85,6 +85,23 @@ def _flush_batch(batch: list[tuple[str, dict]]) -> None:
                     sa.insert(t.image_gen_terms),
                     [{"image_id": image_id, "term": term} for term in terms],
                 )
+            # Rebuild the derived lora rows (LoRA filter + counts).
+            conn.execute(
+                sa.delete(t.image_loras).where(t.image_loras.c.image_id == image_id)
+            )
+            loras = g.get("loras") or []
+            if loras:
+                conn.execute(
+                    sa.insert(t.image_loras),
+                    [
+                        {
+                            "image_id": image_id,
+                            "name": lo["name"],
+                            "strength": lo.get("strength"),
+                        }
+                        for lo in loras
+                    ],
+                )
             # Mirror the extracted terms into prompt: tags (preserving AI + manual).
             prompt_tags = [to_prompt(term) for term in (g.get("prompt_terms") or [])]
             image_tags.replace_prompt_sync(conn, image_id, prompt_tags)

@@ -128,6 +128,7 @@ class FeedFilter:
     pterms: list[str] | None = None
     plogic: str = "and"
     model: list[str] | None = None
+    lora: list[str] | None = None
     min_w: int | None = None
     max_w: int | None = None
     min_h: int | None = None
@@ -225,6 +226,17 @@ def feed_where(f: FeedFilter):
         models = [m for m in f.model if m]
         if models:
             conds.append(t.images.c.gen_model.in_(models))
+    if f.lora:
+        # Every chosen lora must have been used (AND), like the tag filter.
+        for name in {n for n in f.lora if n}:
+            conds.append(
+                sa.exists(
+                    sa.select(1).where(
+                        t.image_loras.c.image_id == t.images.c._id,
+                        t.image_loras.c.name == name,
+                    )
+                )
+            )
     if f.min_w is not None:
         conds.append(t.images.c.width >= f.min_w)
     if f.max_w is not None:

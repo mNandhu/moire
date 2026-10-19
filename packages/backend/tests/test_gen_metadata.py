@@ -139,10 +139,9 @@ def test_tokenize_preserves_multiword_tag_with_escaped_parens():
     assert terms == ["1girl", "hu_tao_(genshin_impact)", "smile"]
 
 
-def test_tokenize_preserves_lora_and_danbooru_tokens():
-    terms = gm.tokenize_prompt("1girl, <lora:foo:0.8>")
-    assert "1girl" in terms
-    assert "<lora:foo:0.8>" in terms
+def test_tokenize_keeps_lora_tokens_out_of_terms():
+    # Loras are structured data (gen.loras), not prompt tags.
+    assert gm.tokenize_prompt("1girl, <lora:foo:0.8>") == ["1girl"]
 
 
 def test_tokenize_strips_emphasis_brackets_and_weights():
@@ -476,3 +475,58 @@ def test_match_workflow_file_ties_go_to_newest_name():
 
 def test_tokenize_space_and_underscore_spellings_are_one_term():
     assert gm.tokenize_prompt("blue eyes, blue_eyes,  blue   eyes") == ["blue_eyes"]
+
+
+# --- loras -------------------------------------------------------------------
+
+
+def test_comfy_loras_from_loader_chain_stackers_and_rgthree():
+    graph = {
+        "1": {
+            "class_type": "LoraLoader",
+            "inputs": {
+                "lora_name": "styles/Twilight Style.safetensors",
+                "strength_model": 0.5,
+            },
+        },
+        "2": {
+            "class_type": "LoraLoaderModelOnly",
+            "inputs": {"lora_name": "eyes.safetensors", "strength_model": 1.0},
+        },
+        "3": {
+            "class_type": "LoraLoader",
+            "inputs": {"lora_name": "off.safetensors", "strength_model": 0},
+        },
+        "4": {
+            "class_type": "Power Lora Loader (rgthree)",
+            "inputs": {
+                "lora_1": {"on": True, "lora": "detail.safetensors", "strength": 0.7},
+                "lora_2": {"on": False, "lora": "skipped.safetensors", "strength": 1},
+            },
+        },
+        "5": {
+            "class_type": "LoRA Stacker",
+            "inputs": {
+                "lora_name_1": "a.pt",
+                "model_str_1": 0.4,
+                "lora_name_2": "None",
+                "switch_1": "On",
+            },
+        },
+        "6": {"class_type": "KSampler", "inputs": {"seed": 1}},
+    }
+    assert gm.comfy_loras(graph) == [
+        {"name": "Twilight Style", "strength": 0.5},
+        {"name": "eyes", "strength": 1.0},
+        {"name": "detail", "strength": 0.7},
+        {"name": "a", "strength": 0.4},
+    ]
+
+
+def test_a1111_loras_come_from_prompt_tokens():
+    g = gm.parse_a1111("1girl, <lora:my_style:0.8>, <lora:other>\nSteps: 20")
+    assert g["loras"] == [
+        {"name": "my_style", "strength": 0.8},
+        {"name": "other", "strength": None},
+    ]
+    assert "<lora" not in " ".join(gm.tokenize_prompt(g["prompt"]))

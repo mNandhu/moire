@@ -133,6 +133,21 @@ tag_meta = sa.Table(
     sa.Column("updated_at", sa.Float),
 )
 
+# Derived from images.gen.loras: one row per lora an image used, for the LoRA
+# feed filter and its counts. Rebuilt with the gen subdoc on reprojection.
+image_loras = sa.Table(
+    "image_loras",
+    metadata,
+    sa.Column(
+        "image_id",
+        _BINARY,
+        sa.ForeignKey("images._id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("name", sa.Text, primary_key=True),
+    sa.Column("strength", sa.Float),
+)
+
 # Prompt-tag merge rules (Tags page): `from_name` -> `to_name`, canonical bare
 # names. Applied to `gen.prompt_terms` on every reprojection, so a merge survives
 # re-extraction. Kept resolved (no chains) by services/tag_rename.py.
@@ -230,6 +245,7 @@ sa.Index("ix_images_gen_group_id", images.c.gen_group_id)
 sa.Index("ix_image_tags_tag", image_tags.c.tag)
 sa.Index("ix_image_tags_base", image_tags.c.base)
 sa.Index("ix_image_gen_terms_term", image_gen_terms.c.term)
+sa.Index("ix_image_loras_name", image_loras.c.name)
 sa.Index("ix_gen_raw_lib", image_gen_raw.c.library_id)
 sa.Index("ix_gen_raw_lib_sig", image_gen_raw.c.library_id, image_gen_raw.c.workflow_sig)
 sa.Index("ix_gen_raw_sig", image_gen_raw.c.workflow_sig)

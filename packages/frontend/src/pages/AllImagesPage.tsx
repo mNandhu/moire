@@ -79,6 +79,7 @@ import {
 // every render.
 const NO_TAGS: TagSuggestion[] = [];
 const NO_MODELS: { model: string; count: number }[] = [];
+const NO_LORAS: { name: string; count: number }[] = [];
 
 export default function AllImagesPage() {
   const { push } = useToast();
@@ -162,6 +163,12 @@ export default function AllImagesPage() {
     queryKey: ["image-models"],
     queryFn: ({ signal }) =>
       api<{ model: string; count: number }[]>(`/api/v1/images/models`, { signal }),
+  });
+  // Distinct loras (with counts) for the LoRA filter dropdown.
+  const { data: loraOptions = NO_LORAS } = useQuery({
+    queryKey: ["image-loras"],
+    queryFn: ({ signal }) =>
+      api<{ name: string; count: number }[]>(`/api/v1/images/loras`, { signal }),
   });
   const {
     selection,
@@ -1005,6 +1012,28 @@ export default function AllImagesPage() {
                     {modelOptions.map((m) => (
                       <option key={m.model} value={m.model}>
                         {m.model} ({m.count})
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1.5">
+                    LoRA
+                  </label>
+                  <Select
+                    aria-label="LoRA filter"
+                    value={filters.lora || ""}
+                    onChange={(e) =>
+                      setFilters({
+                        ...filters,
+                        lora: e.target.value || undefined,
+                      })
+                    }
+                  >
+                    <option value="">Any LoRA</option>
+                    {loraOptions.map((l) => (
+                      <option key={l.name} value={l.name}>
+                        {l.name} ({l.count})
                       </option>
                     ))}
                   </Select>

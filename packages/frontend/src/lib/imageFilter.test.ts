@@ -28,6 +28,7 @@ describe("Image filter URL round-trip", () => {
       promptTerms: ["cyberpunk", "neon"],
       promptLogic: "or",
       model: "sdxl",
+      lora: "detail_xl",
       minW: 512,
       maxW: 2048,
       minH: 768,

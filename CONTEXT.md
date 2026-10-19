@@ -63,6 +63,13 @@ belongs in this file.
   with its charset prefixes, sits behind the pure `gen_raw_from_embedded`,
   which takes the embedded sources as plain values so every branch is reachable
   from a table test.
+- **LoRA**: an add-on network an image was generated with, recorded as
+  structured data (`gen.loras = [{name, strength}]`), never as a tag. From
+  ComfyUI lora-loader nodes (LoraLoader, rgthree Power Lora Loader, stackers;
+  zero-strength or switched-off entries skipped) and A1111 `<lora:name:w>`
+  prompt tokens. `name` is the file name without folders or extension. The
+  derived `image_loras` rows serve the LoRA feed filter and its counts.
+  (`gen_metadata.comfy_loras` / `prompt_loras`)
 - **Prompt parsing**: turning prompt text into prompt tags, best effort. Prompts
   are hand-written and often malformed, so `services/prompt_parse.py` never
   rejects input: it reads emphasis groups the way ComfyUI does, cuts pieces at

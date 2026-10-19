@@ -154,6 +154,7 @@ _MIGRATIONS = (
     ("prompt_parser_v2", None, True),
     ("prompt_parser_v3", None, True),
     ("prompt_parser_v4", None, True),
+    ("gen_loras", None, True),
 )
 
 

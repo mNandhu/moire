@@ -38,7 +38,7 @@ def tags(text):
         # qualifier inside a weighted group
         ("(hu_tao_(genshin_impact):1.2)", ["hu_tao_(genshin_impact)"]),
         # lora tokens pass whole
-        ("<lora:my style:0.8>, cat", ["<lora:my style:0.8>", "cat"]),
+        ("<lora:my style:0.8>, cat", ["cat"]),
         # newlines, BREAK and AND separate
         ("cat\ndog BREAK bird AND fish", ["cat", "dog", "bird", "fish"]),
         # prompt editing and alternation
@@ -126,13 +126,13 @@ def test_closing_period_marks_a_sentence():
     "prompt, expected",
     [
         # an unclosed or non-network "<" is text, it doesn't swallow the rest
-        ("cat, <lora:foo:0.8, dog, bird", ["cat", "<lora:foo:0.8", "dog", "bird"]),
+        ("cat, <lora:foo:0.8, dog, bird", ["cat", "dog", "bird"]),
         ("a <3 b, cat", ["a <3 b", "cat"]),
-        ("(>_<:1.2), smile, <lora:x:1>", [">_<", "smile", "<lora:x:1>"]),
+        ("(>_<:1.2), smile, <lora:x:1>", [">_<", "smile"]),
         # emoticon inside a weighted group
         ("(:d:1.2), (:3:1.1)", [":d", ":3"]),
         # keywords inside a lora name don't split it
-        ("<lora:style AND light:0.8>, cat", ["<lora:style and light:0.8>", "cat"]),
+        ("<lora:style AND light:0.8>, cat", ["cat"]),
         # an escaped comma still separates
         (r"cat\, dog", ["cat", "dog"]),
         # outside a group ":n" is text, not a weight
@@ -155,3 +155,8 @@ def test_scan_is_linear():
     started = time.perf_counter()
     parse_prompt(long_piece)
     assert time.perf_counter() - started < 0.05
+
+
+def test_lora_tokens_are_network_pieces_not_tags():
+    kinds = [(p.text, p.kind) for p in parse_prompt("<lora:a b:0.8>, <3, cat")]
+    assert kinds == [("<lora:a b:0.8>", "network"), ("<3", "tag"), ("cat", "tag")]

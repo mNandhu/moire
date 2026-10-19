@@ -59,6 +59,7 @@ async def list_images(
     pterms: list[str] | None = Query(default=None),
     plogic: str = Query(default="and"),
     model: list[str] | None = Query(default=None),
+    lora: list[str] | None = Query(default=None),
     min_w: int | None = Query(default=None, ge=0),
     max_w: int | None = Query(default=None, ge=0),
     min_h: int | None = Query(default=None, ge=0),
@@ -84,6 +85,7 @@ async def list_images(
             pterms=pterms,
             plogic=plogic,
             model=model,
+            lora=lora,
             min_w=min_w,
             max_w=max_w,
             min_h=min_h,
@@ -223,6 +225,24 @@ async def list_models(library_id: str | None = Query(default=None)):
     return [{"model": r.gen_model, "count": r.count} for r in rows]
 
 
+@router.get("/loras")
+async def list_loras(library_id: str | None = Query(default=None)):
+    """Distinct loras with image counts, for the LoRA filter dropdown. Sorted
+    by frequency."""
+    stmt = (
+        sa.select(t.image_loras.c.name, sa.func.count().label("count"))
+        .group_by(t.image_loras.c.name)
+        .order_by(sa.func.count().desc(), t.image_loras.c.name)
+    )
+    if library_id:
+        stmt = stmt.join(t.images, t.images.c._id == t.image_loras.c.image_id).where(
+            t.images.c.library_id == library_id
+        )
+    async with async_conn() as conn:
+        rows = (await conn.execute(stmt)).fetchall()
+    return [{"name": r.name, "count": r.count} for r in rows]
+
+
 # Activity is counted per 15-minute slot, then each slot is placed on a local
 # day in Python. Every UTC offset in use is a multiple of 15 minutes, so this
 # is exact for any zone, DST changes included, which one fixed offset for the
@@ -286,6 +306,7 @@ async def list_groups(
     pterms: list[str] | None = Query(default=None),
     plogic: str = Query(default="and"),
     model: list[str] | None = Query(default=None),
+    lora: list[str] | None = Query(default=None),
     min_w: int | None = Query(default=None, ge=0),
     max_w: int | None = Query(default=None, ge=0),
     min_h: int | None = Query(default=None, ge=0),
@@ -310,6 +331,7 @@ async def list_groups(
             pterms=pterms,
             plogic=plogic,
             model=model,
+            lora=lora,
             min_w=min_w,
             max_w=max_w,
             min_h=min_h,

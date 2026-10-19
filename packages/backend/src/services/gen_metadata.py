@@ -103,6 +103,7 @@ _EMPTY: dict[str, Any] = {
     "steps": None,
     "cfg": None,
     "prompt_terms": [],
+    "loras": [],
     "group_id": None,
 }
 
@@ -438,6 +439,105 @@ def _resolve_ckpt(
     return _resolve_ckpt(prompt_json, inputs.get("model"), seen)
 
 
+# --- LoRAs -------------------------------------------------------------------
+#
+# Recorded as structured data (``gen.loras = [{name, strength}]``), never as
+# tags. ComfyUI applies them through loader nodes; a graph only holds nodes that
+# executed, so every lora node in it was used. Loader shapes in the wild:
+#   - LoraLoader / LoraLoaderModelOnly: ``lora_name`` + ``strength_model``
+#   - rgthree Power Lora Loader: ``lora_1`` ... dicts ``{on, lora, strength}``
+#   - stackers (Efficiency, Comfyroll): ``lora_name_1`` + ``model_str_1`` /
+#     ``lora_wt_1`` / ``strength_1``, often with a ``switch_1`` on/off
+
+_LORA_EXT = re.compile(r"\.(?:safetensors|ckpt|pt|pth|bin)$", re.IGNORECASE)
+_LORA_TOKEN = re.compile(
+    r"^<(?:lora|lyco|lycoris):([^:>]+)(?::([-\d.]+))?", re.IGNORECASE
+)
+
+
+def lora_name(raw: str) -> str:
+    """Display / filter name of a lora file: no folders, no extension."""
+    base = re.split(r"[\\/]", raw.strip())[-1]
+    return _LORA_EXT.sub("", base).strip()
+
+
+def _add_lora(out: dict[str, float | None], raw: Any, strength: Any) -> None:
+    if not isinstance(raw, str) or not raw.strip() or raw.strip().lower() == "none":
+        return
+    st = _to_float(strength)
+    if st == 0:
+        return  # loaded at zero strength: not applied
+    name = lora_name(raw)
+    if name and name not in out:
+        out[name] = st
+
+
+def comfy_loras(prompt_json: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Every lora a ComfyUI graph applied, in graph order, once each."""
+    out: dict[str, float | None] = {}
+    if not isinstance(prompt_json, dict):
+        return []
+    for node in prompt_json.values():
+        if (
+            not isinstance(node, dict)
+            or "lora" not in str(node.get("class_type", "")).lower()
+        ):
+            continue
+        inp = node.get("inputs", {})
+        if not isinstance(inp, dict):
+            continue
+        if "lora_name" in inp:
+            _add_lora(
+                out,
+                inp["lora_name"],
+                next(
+                    (
+                        inp[k]
+                        for k in ("strength_model", "strength", "lora_strength")
+                        if k in inp
+                    ),
+                    None,
+                ),
+            )
+        for key, val in inp.items():
+            # rgthree-style dict entries.
+            if isinstance(val, dict) and "lora" in val:
+                if val.get("on", True) is not False:
+                    _add_lora(out, val.get("lora"), val.get("strength"))
+                continue
+            # Numbered stacker entries.
+            m = re.fullmatch(r"lora_name_(\d+)", key)
+            if m:
+                n = m.group(1)
+                if str(inp.get(f"switch_{n}", "On")).lower() in ("off", "false"):
+                    continue
+                strength = next(
+                    (
+                        inp[k]
+                        for k in (
+                            f"model_str_{n}",
+                            f"lora_wt_{n}",
+                            f"strength_{n}",
+                            f"model_weight_{n}",
+                        )
+                        if k in inp
+                    ),
+                    None,
+                )
+                _add_lora(out, val, strength)
+    return [{"name": k, "strength": v} for k, v in out.items()]
+
+
+def prompt_loras(text: str | None) -> list[dict[str, Any]]:
+    """``<lora:name:0.8>`` tokens in a prompt (A1111 syntax), once each."""
+    out: dict[str, float | None] = {}
+    for piece in parse_prompt(text):
+        m = _LORA_TOKEN.match(piece.text) if piece.kind == "network" else None
+        if m:
+            _add_lora(out, m.group(1), m.group(2))
+    return [{"name": k, "strength": v} for k, v in out.items()]
+
+
 def _find_sampler(prompt_json: dict[str, Any]) -> dict[str, Any] | None:
     for node in prompt_json.values():
         if not isinstance(node, dict):
@@ -469,6 +569,7 @@ def parse_comfyui(prompt_json: dict[str, Any] | None) -> dict[str, Any]:
         g["prompt"] = _resolve_text(prompt_json, inp.get("positive"))
         g["negative"] = _resolve_text(prompt_json, inp.get("negative"))
         g["model"] = _resolve_ckpt(prompt_json, inp.get("model"))
+    g["loras"] = comfy_loras(prompt_json)
 
     # Class fallback for the checkpoint when the sampler walk missed it.
     if not g["model"]:
@@ -526,6 +627,7 @@ def parse_a1111(text: str | None) -> dict[str, Any]:
             g["steps"] = _to_int(v)
         elif k == "cfg scale":
             g["cfg"] = _to_float(v)
+    g["loras"] = prompt_loras(g["prompt"])
     return g
 
 

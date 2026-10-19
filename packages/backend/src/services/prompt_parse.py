@@ -21,8 +21,9 @@ Three passes, all pure:
 2. **Clean** each piece: whitespace collapsed, stray edge punctuation and,
    inside a group, a trailing ``:weight`` dropped, lowercased.
 3. **Classify** (:func:`classify`): ``tag``, ``prose`` (a sentence fragment:
-   kept in the prompt text, never a tag) or ``noise`` (leaked settings, lone
-   joiners, stray weights).
+   kept in the prompt text, never a tag), ``noise`` (leaked settings, lone
+   joiners, stray weights) or ``network`` (a ``<lora:...>`` / embedding token,
+   recorded as ``gen.loras`` instead of a tag).
 
 The original prompt is always kept verbatim elsewhere; this only decides what
 becomes a prompt tag, so it can be improved and simply re-run (reprojection).
@@ -81,6 +82,9 @@ _EMOTICON_MAX = max(len(e) for e in _EMOTICONS)
 _NETWORK_TOKEN = re.compile(
     r"<(?:lora|lyco|lycoris|hypernet|embedding|wlr):[^<>,\n]*>", re.IGNORECASE
 )
+_NETWORK_PREFIX = re.compile(
+    r"<(?:lora|lyco|lycoris|hypernet|embedding|wlr):", re.IGNORECASE
+)
 # Leading joiners left on a piece by run-on prose ("and black thigh-highs").
 _LEAD_JOINER = re.compile(r"^(?:and|or)\s+")
 _QUALIFIER = re.compile(r"\([^()]*\)")
@@ -91,7 +95,7 @@ _WEIGHT_AHEAD = re.compile(r"-?\d*\.?\d+\s*(?:[)\]},]|$)")
 @dataclass(frozen=True)
 class Piece:
     text: str
-    kind: str  # "tag" | "prose" | "noise"
+    kind: str  # "tag" | "prose" | "noise" | "network"
 
 
 def _qualifier_end(text: str, i: int) -> int | None:
@@ -284,7 +288,10 @@ def is_prose(text: str) -> bool:
 def classify(text: str, raw: str | None = None) -> str:
     """Kind of a cleaned piece; ``raw`` (the piece before cleaning) lets the
     prose check see a sentence's closing period."""
-    if text.startswith("<") or text in _EMOTICONS:
+    if _NETWORK_PREFIX.match(text):
+        # A lora / embedding token: structured data (gen.loras), not a tag.
+        return "network"
+    if text in _EMOTICONS:
         return "tag"
     if not text or text in _JOINERS or not re.search(r"[^\W_]", text):
         return "noise"  # empty, a lone joiner, or only punctuation
