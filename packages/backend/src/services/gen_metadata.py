@@ -30,7 +30,7 @@ import math
 import re
 from typing import Any
 
-from . import prompt_guess
+from . import prompt_guess, text_eval
 from .prompt_parse import parse_prompt
 from .tag_names import canonical_name
 
@@ -399,7 +399,10 @@ def _node(prompt_json: dict[str, Any], ref: Any) -> dict[str, Any] | None:
 # text), so the text a sampler saw may not be in the graph at all. Display
 # nodes (pysssss ShowText and kin) record the text they showed: in the API
 # graph as ``text_0`` and in the editor workflow as the node's widget value,
-# written when it ran. That cache is the closest thing to what the sampler saw.
+# written when it ran. But it is written when the prompt is *queued*, so it
+# holds the previous run's text: when the text feeding the display can be
+# computed from the graph (`text_eval`), that is what ran and wins; the cache
+# is the fallback for chains that can't be (captioners, LLMs, wildcards).
 
 _CONCAT_INPUT = re.compile(r"^(?:text|string)_?(?:\d+|[a-z])$")
 
@@ -407,6 +410,27 @@ _CONCAT_INPUT = re.compile(r"^(?:text|string)_?(?:\d+|[a-z])$")
 def _is_display(class_type: Any) -> bool:
     ct = str(class_type or "").lower()
     return "show" in ct or "display" in ct or ("preview" in ct and "image" not in ct)
+
+
+def _display_source(node: Any) -> list | None:
+    """The link a display node shows (its first linked input)."""
+    inp = node.get("inputs") if isinstance(node, dict) else None
+    if not isinstance(inp, dict):
+        return None
+    return next((v for v in inp.values() if isinstance(v, list) and v), None)
+
+
+def displayed_text(prompt_json: Any, node_id: Any) -> str | None:
+    """The text display node ``node_id`` showed *this* run, computed from the
+    graph; ``None`` when that isn't possible (then only its stale cache is
+    known)."""
+    if not isinstance(prompt_json, dict):
+        return None
+    node = prompt_json.get(str(node_id))
+    if not isinstance(node, dict) or not _is_display(node.get("class_type")):
+        return None
+    src = _display_source(node)
+    return text_eval.evaluate(prompt_json, src) if src else None
 
 
 def display_cache(
@@ -430,15 +454,14 @@ def display_cache(
     for node_id, node in prompt_json.items():
         if not isinstance(node, dict) or not _is_display(node.get("class_type")):
             continue
-        inp = node.get("inputs", {})
-        src = next((v for v in inp.values() if isinstance(v, list) and v), None)
+        src = _display_source(node)
         if src is None:
             continue
-        cached = inp.get("text_0")
+        cached = node["inputs"].get("text_0")
         text = (
-            cached
-            if isinstance(cached, str) and cached.strip()
-            else widgets.get(str(node_id))
+            text_eval.evaluate(prompt_json, src)
+            or (cached if isinstance(cached, str) and cached.strip() else None)
+            or widgets.get(str(node_id))
         )
         if text:
             shown.setdefault(str(src[0]), text)
@@ -453,8 +476,9 @@ def _resolve_text(
 ) -> str | None:
     """Best-effort text a link carries, walking upstream from a text-encode.
 
-    In order: a literal ``text`` widget; text a display node showed for this
-    node (:func:`display_cache`); a ``text`` link; SDXL ``text_g`` / ``text_l``;
+    In order: a literal ``text`` widget; the text computed from the graph
+    (:mod:`services.text_eval`); text a display node showed for this node
+    (:func:`display_cache`); a ``text`` link; SDXL ``text_g`` / ``text_l``;
     a string widget (primitives); a concat node's resolvable inputs joined
     with its delimiter (a partial prompt beats none). Guards against cycles.
     """
@@ -474,6 +498,9 @@ def _resolve_text(
     text = inp.get("text")
     if isinstance(text, str):
         return text
+    computed = text_eval.evaluate(prompt_json, ref)
+    if computed is not None:
+        return computed
     if key in shown:
         return shown[key]
     if isinstance(text, list):  # text itself is a link
@@ -691,14 +718,20 @@ def text_candidates(
     """Every text in the graph, with its raw-doc path: string inputs of the
     prompt graph, then display widgets of the editor graph (what a display
     node showed when the run didn't cache it in the prompt graph). Display
-    nodes' text is marked ``shown``: it actually ran."""
+    nodes' text is marked ``shown``: it actually ran. Their cached text is
+    replaced by what this run computed, where the graph allows."""
     out: list[prompt_guess.Candidate] = []
     for node_id, node in prompt_json.items():
         if not isinstance(node, dict) or not isinstance(node.get("inputs"), dict):
             continue
         shown = _is_display(node.get("class_type"))
+        ran = displayed_text(prompt_json, node_id) if shown else None
         out.extend(
-            prompt_guess.Candidate(v, shown, f"prompt.{node_id}.inputs.{k}")
+            prompt_guess.Candidate(
+                ran if ran is not None and k == "text_0" else v,
+                shown,
+                f"prompt.{node_id}.inputs.{k}",
+            )
             for k, v in node["inputs"].items()
             if isinstance(v, str)
         )
@@ -710,7 +743,10 @@ def text_candidates(
         while isinstance(wv, list) and wv:
             path, wv = f"{path}.0", wv[0]
         if isinstance(wv, str):
-            out.append(prompt_guess.Candidate(wv, True, path))
+            ran = displayed_text(prompt_json, wn.get("id"))
+            out.append(
+                prompt_guess.Candidate(ran if ran is not None else wv, True, path)
+            )
     return out
 
 
@@ -802,6 +838,36 @@ def resolve_path(raw: Any, path: str) -> Any:
     return cur
 
 
+_DISPLAY_PROMPT_PATH = re.compile(r"^prompt\.([^.]+)\.inputs\.text_0$")
+_DISPLAY_WIDGET_PATH = re.compile(r"^workflow\.nodes\.(\d+)\.widgets_values(?:\.0)*$")
+
+
+def pin_value(raw: Any, path: str) -> Any:
+    """What a pinned path holds. A pin on a display node's cached text means
+    "what this node showed", so it gets the text computed for this run when
+    the graph allows (the cache is the previous run's); any other path is
+    read as is (:func:`resolve_path`)."""
+    if isinstance(raw, dict):
+        prompt_json = raw.get("prompt")
+        node_id: Any = None
+        if m := _DISPLAY_PROMPT_PATH.match(path or ""):
+            node_id = m.group(1)
+        elif m := _DISPLAY_WIDGET_PATH.match(path or ""):
+            nodes = resolve_path(raw, "workflow.nodes")
+            idx = int(m.group(1))
+            if (
+                isinstance(nodes, list)
+                and idx < len(nodes)
+                and isinstance(nodes[idx], dict)
+            ):
+                node_id = nodes[idx].get("id")
+        if node_id is not None:
+            ran = displayed_text(prompt_json, node_id)
+            if ran is not None:
+                return ran
+    return resolve_path(raw, path)
+
+
 def _coerce_field(field: str, value: Any) -> Any:
     """Coerce a pin's resolved value to the field's type, matching the structural
     parser's coercion. A non-scalar resolution (link/dict/list) is a miss."""
@@ -830,7 +896,7 @@ def resolve_ruleset_paths(
             continue
         rows: list[dict[str, Any]] = []
         for path in paths or []:
-            resolved = resolve_path(raw, path)
+            resolved = pin_value(raw, path)
             rows.append(
                 {
                     "path": path,
@@ -869,7 +935,7 @@ def _apply_ruleset(
         if field not in _RULE_FIELDS:
             continue
         for path in paths or []:
-            coerced = _coerce_field(field, resolve_path(raw, path))
+            coerced = _coerce_field(field, pin_value(raw, path))
             if coerced is not None:
                 g[field] = coerced
                 break

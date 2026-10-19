@@ -168,6 +168,7 @@ _MIGRATIONS = (
     ("gen_prompt_guess", None, True),
     ("gen_guess_paths", None, True),
     ("tag_meta_base", migrate_tag_meta_base, False),
+    ("gen_display_eval", None, True),
 )
 
 

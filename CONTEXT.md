@@ -76,10 +76,15 @@ belongs in this file.
 - **Runtime-built prompt**: a prompt assembled while the workflow runs (a
   captioner's output joined to fixed text), so the graph never holds it. The
   extractor walks upstream from the sampler (`gen_metadata._resolve_text`):
-  literal text, then text a display node (pysssss ShowText and kin) recorded
-  for that node (`display_cache`, from the graph's `text_0` or the editor
-  workflow's widget value), then links, SDXL `text_g`/`text_l`, string
-  widgets, and concat nodes joining whatever parts resolve.
+  literal text, then the text computed from the graph's string nodes
+  (`services/text_eval.py`: literals, find/replace, regex extraction, joins;
+  exact or nothing), then text a display node (pysssss ShowText and kin)
+  recorded for that node (`display_cache`, from the graph's `text_0` or the
+  editor workflow's widget value), then links, SDXL `text_g`/`text_l`, string
+  widgets, and concat nodes joining whatever parts resolve. A display node's
+  record is written when the prompt is *queued*, so it holds the previous
+  run's text; computed text beats it everywhere, pins on a display path
+  included (`gen_metadata.pin_value`).
 - **Guessed prompt**: a ComfyUI prompt or negative that neither the sampler
   walk nor the user's pins found (remote queues, custom-node pipelines), picked
   from the graph's texts by keyword match (`services/prompt_guess.py`). Each
