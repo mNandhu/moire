@@ -7,16 +7,10 @@ import {
   useState,
 } from "react";
 import { X, Search } from "lucide-react";
-import { fuzzyRank } from "../lib/fuzzy";
-import { splitBoilerplate } from "../lib/boilerplate";
-import { useBoilerplate } from "../lib/queries";
-import { Badge } from "./ui/Badge";
-import { cn } from "../lib/cn";
-import { formatSearchTag, isManual, isPrompt, tagQueryText } from "../lib/tags";
+import { formatSearchTag } from "../lib/tags";
+import { TagSuggestList, useTagMatches, type TagSuggestion } from "./TagSuggestList";
 
-export type TagSuggestion = { _id: string; count: number };
-
-const MAX_SUGGESTIONS = 8;
+export type { TagSuggestion };
 
 type Props = {
   /** Selected tag ids (the chips). */
@@ -46,21 +40,12 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
     useImperativeHandle(ref, () => inputRef.current as HTMLInputElement);
 
     const selected = useMemo(() => new Set(value), [value]);
-    const isBoilerplate = useBoilerplate();
-
     // Fuzzy matches for the current text, excluding already-selected tags.
-    const matches = useMemo(() => {
-      const q = text.trim();
-      if (!q) return [];
-      const pool = suggestions.filter((s) => !selected.has(s._id));
-      // Boilerplate still matches (it stays searchable) but ranks after every
-      // other match, so "best" offers "best friend" before "best quality".
-      // Ranked against the display form (spaces), so `blue_eyes` and
-      // `blue eyes` find the same tag.
-      const ranked = fuzzyRank(tagQueryText(q), pool, (s) => formatSearchTag(s._id), pool.length);
-      const { kept, boilerplate } = splitBoilerplate(ranked, (s) => s._id, isBoilerplate);
-      return [...kept, ...boilerplate].slice(0, MAX_SUGGESTIONS);
-    }, [text, suggestions, selected, isBoilerplate]);
+    const pool = useMemo(
+      () => suggestions.filter((s) => !selected.has(s._id)),
+      [suggestions, selected],
+    );
+    const matches = useTagMatches(text, pool);
 
     // Keep the active row in range whenever the match list changes.
     useEffect(() => setActive(0), [text]);
@@ -157,47 +142,12 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
         </div>
 
         {showDropdown && (
-          <ul
-            className="absolute z-20 mt-1 w-full max-h-72 overflow-auto rounded-lg border border-neutral-800 bg-neutral-900 shadow-xl shadow-black/40 py-1"
-            role="listbox"
-          >
-            {matches.map((s, i) => (
-              <li key={s._id} role="option" aria-selected={i === active}>
-                <button
-                  type="button"
-                  onMouseEnter={() => setActive(i)}
-                  onMouseDown={(e) => {
-                    // mousedown (not click) so it fires before input blur.
-                    e.preventDefault();
-                    addTag(s._id);
-                  }}
-                  className={cn(
-                    "flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-sm",
-                    i === active ? "bg-brand-900/30" : "hover:bg-neutral-800/60",
-                  )}
-                >
-                  <span className="flex items-center gap-2 min-w-0">
-                    <span className="truncate text-neutral-100">
-                      {formatSearchTag(s._id)}
-                    </span>
-                    {isManual(s._id) && (
-                      <Badge tone="success" className="text-2xs shrink-0">
-                        manual
-                      </Badge>
-                    )}
-                    {isPrompt(s._id) && (
-                      <Badge tone="info" className="text-2xs shrink-0">
-                        prompt
-                      </Badge>
-                    )}
-                  </span>
-                  <span className="tabular-nums text-xs text-faint shrink-0">
-                    {s.count.toLocaleString()}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <TagSuggestList
+            matches={matches}
+            active={active}
+            onActive={setActive}
+            onPick={(s) => addTag(s._id)}
+          />
         )}
       </div>
     );

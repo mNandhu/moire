@@ -1,8 +1,9 @@
-import { useId, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { GitMerge, Pencil } from "lucide-react";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
+import { TagSuggestList, useTagMatches } from "./TagSuggestList";
 import type { TagAgg } from "../lib/queries";
 import { formatTag, isPrompt, planRename } from "../lib/tags";
 
@@ -28,16 +29,26 @@ export function RenameTagDialog({
 }) {
   const [to, setTo] = useState("");
   const [busy, setBusy] = useState(false);
-  const listId = useId();
+  const [suggesting, setSuggesting] = useState(false);
+  const [active, setActive] = useState(0);
 
   const raw = tag?._id ?? "";
   const prompt = isPrompt(raw);
   const plan = useMemo(() => planRename(raw, to, known), [raw, to, known]);
-  // Same-kind names to pick from, most used first (the aggregate's order).
+  // Same-kind names to pick from; the dropdown shows the best few matches.
   const options = useMemo(
-    () => known.filter((t) => t._id !== raw && isPrompt(t._id) === prompt).slice(0, 200),
+    () => known.filter((t) => t._id !== raw && isPrompt(t._id) === prompt),
     [known, raw, prompt],
   );
+
+  const matches = useTagMatches(to, options);
+  // Nothing to offer once the text already is the highlighted name.
+  const showList =
+    suggesting && matches.length > 0 && !(matches.length === 1 && formatTag(matches[0]._id) === to);
+  const pick = (id: string) => {
+    setTo(formatTag(id));
+    setSuggesting(false);
+  };
 
   const close = () => {
     if (busy) return;
@@ -91,24 +102,44 @@ export function RenameTagDialog({
       }
     >
       <div className="space-y-2">
-        <Input
-          autoFocus
-          value={to}
-          list={listId}
-          onChange={(e) => setTo(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              void submit();
-            }
-          }}
-          placeholder="New name, or an existing tag to merge into"
-        />
-        <datalist id={listId}>
-          {options.map((t) => (
-            <option key={t._id} value={formatTag(t._id)} />
-          ))}
-        </datalist>
+        <div className="relative">
+          <Input
+            autoFocus
+            value={to}
+            onChange={(e) => {
+              setTo(e.target.value);
+              setSuggesting(true);
+              setActive(0);
+            }}
+            onBlur={() => setSuggesting(false)}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown" && showList) {
+                e.preventDefault();
+                setActive((a) => Math.min(a + 1, matches.length - 1));
+              } else if (e.key === "ArrowUp" && showList) {
+                e.preventDefault();
+                setActive((a) => Math.max(a - 1, 0));
+              } else if (e.key === "Enter") {
+                e.preventDefault();
+                // The first Enter takes the highlighted name; the next submits.
+                if (showList && matches[active]) pick(matches[active]._id);
+                else void submit();
+              }
+            }}
+            placeholder="New name, or an existing tag to merge into"
+            role="combobox"
+            aria-expanded={showList}
+            aria-autocomplete="list"
+          />
+          {showList && (
+            <TagSuggestList
+              matches={matches}
+              active={active}
+              onActive={setActive}
+              onPick={(s) => pick(s._id)}
+            />
+          )}
+        </div>
         <p className="text-xs text-muted min-h-4">
           {to.trim() === ""
             ? `On ${images}.`
