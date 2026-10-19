@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
@@ -37,21 +37,14 @@ export function CharacterEditDialog({
   const navigate = useNavigate();
   const { push } = useToast();
   const fromTag = characterName(c.tag);
-  const [name, setName] = useState("");
-  const [series, setSeries] = useState("");
-  const [color, setColor] = useState<string | null>(null);
-  const [focus, setFocus] = useState<[number, number] | null>(null);
-  const [notCharacter, setNotCharacter] = useState(false);
+  // Mounted only while open (see CharacterPage), so these start from the
+  // stored values each time and a refetch of `c` can't wipe a draft.
+  const [name, setName] = useState(c.name ?? "");
+  const [series, setSeries] = useState(c.series ?? "");
+  const [color, setColor] = useState<string | null>(c.color);
+  const [focus, setFocus] = useState<[number, number] | null>(c.focus);
+  const [notCharacter, setNotCharacter] = useState(c.kind === "general");
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    setName(c.name ?? "");
-    setSeries(c.series ?? "");
-    setColor(c.color);
-    setFocus(c.focus);
-    setNotCharacter(c.kind === "general");
-  }, [open, c]);
 
   const auto = characterColours({ ...c, color: null })[0];
 

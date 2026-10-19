@@ -112,7 +112,7 @@ export default function CharacterPage() {
               </div>
               <Sidebar c={c} accent={colours[0]} />
             </div>
-            <CharacterEditDialog open={editing} onClose={() => setEditing(false)} c={c} />
+            {editing && <CharacterEditDialog open onClose={() => setEditing(false)} c={c} />}
           </>
         )}
       </div>
@@ -168,7 +168,12 @@ function Profile({ c, accent }: { c: Character; accent?: string }) {
               <Link
                 key={s.tag}
                 to={galleryHref({ ...characterFilters(c.tag, []), tags: [`any:${c.tag}`, `any:${s.tag}`] })}
-                title={`${s.count.toLocaleString()} of ${c.count.toLocaleString()} images`}
+                title={
+                  c.aliases.length
+                    ? // The gallery can't AND a look onto "any of these names".
+                      `On ${s.count.toLocaleString()} of ${c.count.toLocaleString()} images. Opens those tagged ${formatTag(c.tag)}.`
+                    : `On ${s.count.toLocaleString()} of ${c.count.toLocaleString()} images`
+                }
                 className="inline-flex items-center h-6 px-2 rounded-full bg-raised/80 border border-line text-xs text-neutral-200 hover:border-line-strong"
               >
                 {formatTag(s.tag)}
