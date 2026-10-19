@@ -32,7 +32,8 @@ export type TagDetail = {
   sources: Record<Exclude<TagSource, "all">, number>;
   /** Images per calendar month ("2026-03"), months with none left out. */
   months: Array<{ month: string; count: number }>;
-  loras: Array<{ name: string; count: number }>;
+  /** Loras, most used first, with their average weight. */
+  loras: Array<{ name: string; count: number; strength: number | null }>;
   /** Embeddings in the positive prompt, most used first. */
   embeddings: Array<{ name: string; count: number }>;
   workflows: Array<{ sig: string; count: number }>;

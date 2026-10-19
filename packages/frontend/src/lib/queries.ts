@@ -19,6 +19,7 @@ import {
 import { api } from "./api";
 import { fetchAiCoverage } from "./ai";
 import type { BrowseTag, TagDetail, TagSource } from "./tagBrowse";
+import type { CharacterPage } from "./character";
 
 export type Library = {
   _id: string;
@@ -74,6 +75,17 @@ export function useTagBrowse(source: TagSource) {
     queryKey: [...TAGS_KEY, "browse", source],
     queryFn: ({ signal }) =>
       api<BrowseTag[]>(`/api/v1/tags/browse?source=${source}`, { signal }),
+  });
+}
+
+/** A character page, by any of the character's names. Under TAGS_KEY, so
+ * every tag write (a new cover, a setting) refreshes it. */
+export function useCharacterPage(tag: string) {
+  return useQuery({
+    queryKey: [...TAGS_KEY, "character", tag],
+    queryFn: ({ signal }) =>
+      api<CharacterPage>(`/api/v1/tags/character?${new URLSearchParams({ tag })}`, { signal }),
+    retry: false,
   });
 }
 

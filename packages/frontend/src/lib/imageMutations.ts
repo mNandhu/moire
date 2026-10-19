@@ -12,6 +12,7 @@
  */
 
 import { api } from "./api";
+import type { CharacterPatch } from "./character";
 
 function post<T>(url: string, body?: unknown): Promise<T> {
   return api<T>(url, {
@@ -73,6 +74,15 @@ export function setTagThumbnail(tag: string, imageId: string): Promise<unknown> 
 /** Unpin a tag's cover; its mosaic goes back to picking images itself. */
 export function clearTagThumbnail(tag: string): Promise<unknown> {
   return api(`/api/v1/tags/thumbnail/${encodeURIComponent(tag)}`, { method: "DELETE" });
+}
+
+/** Set what the user decides for a character (any of its names); "" clears. */
+export function updateCharacter(tag: string, patch: CharacterPatch): Promise<unknown> {
+  return api(`/api/v1/tags/character?${new URLSearchParams({ tag })}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
 }
 
 /** Add/remove manual tags (bare names) on many images in one transaction. */

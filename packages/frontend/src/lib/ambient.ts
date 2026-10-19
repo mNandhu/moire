@@ -43,3 +43,16 @@ export function restoreAmbient() {
     /* corrupt or unavailable storage: keep the CSS fallback */
   }
 }
+
+/**
+ * Light the wash with one page's own colours (a character page) while it is
+ * open: returns the undo, which puts the previous palette back. Nothing is
+ * stored, so leaving the page leaves the gallery's palette as it was.
+ */
+export function tintAmbient(colors: readonly string[]): () => void {
+  const style = document.documentElement.style;
+  const prev = VARS.map((v) => style.getPropertyValue(v));
+  if (colors.length) VARS.forEach((v, i) => style.setProperty(v, colors[i] ?? colors[0]));
+  return () =>
+    VARS.forEach((v, i) => (prev[i] ? style.setProperty(v, prev[i]) : style.removeProperty(v)));
+}

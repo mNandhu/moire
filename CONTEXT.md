@@ -60,8 +60,16 @@ belongs in this file.
   (`furina` for `furina_(genshin_impact)`) counts only when the library backs
   it: most of its visible images also carry the series tag or the full name,
   so ordinary words that happen to be characters (`sunny`, `white_rabbit`)
-  don't. No downloaded model, no characters. (`services/tag_categories.py`;
+  don't. No downloaded model, no characters. The user's say on a character
+  page (`characters.kind`) beats the list both ways. (`services/tag_categories.py`;
   the library check is `tag_index._characters`)
+- **Character page**: one character at `/characters/:tag`, any of its names
+  leading there. A bare name folds into its full name when both are in the
+  library (an *alias*, counted as one). Its colour comes from hair and eye
+  tags (solo images when there are enough), never pixels, unless the user
+  picks one; its signature tags are the tagger's general tags common on its
+  images and rare elsewhere. The avatar is the tag's cover pin; the
+  `characters` table holds only overrides. (`services/characters.py`)
 - **Rating**: one of `-`, `general`, `sensitive`, `questionable`, `explicit`.
   Normalized in one place (`image_tags.normalize_rating`) and written only
   through `image_tags.set_rating` (with `set_score` / `set_quarantine` for the

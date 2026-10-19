@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Pencil, Pin, X } from "lucide-react";
+import { ExternalLink, Pencil, Pin, UserRound, X } from "lucide-react";
 import { Badge } from "./ui/Badge";
 import { Button, ButtonLink } from "./ui/Button";
 import { Skeleton } from "./ui/Skeleton";
@@ -11,7 +11,8 @@ import { api } from "../lib/api";
 import { cn } from "../lib/cn";
 import { fetchSignatures } from "../lib/gen";
 import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
-import { clearTagThumbnail, setTagThumbnail } from "../lib/imageMutations";
+import { clearTagThumbnail, setTagThumbnail, updateCharacter } from "../lib/imageMutations";
+import { characterHref } from "../lib/character";
 import { TAGS_KEY, useBoilerplate, useTagDetail } from "../lib/queries";
 import { formatTag } from "../lib/tags";
 import { groupWorkflows, formatUsedRange } from "../lib/workflows";
@@ -24,6 +25,7 @@ import {
   recentMonths,
   renamableTags,
   tagWorkflows,
+  type TagDetail,
   type TagSource,
 } from "../lib/tagBrowse";
 
@@ -62,12 +64,6 @@ export function TagPanel({
   });
   const families = useMemo(() => groupWorkflows(signatures ?? []), [signatures]);
 
-  const months = useMemo(
-    () => recentMonths(detail?.months ?? [], chartMonths(detail?.first_used ?? null)),
-    [detail],
-  );
-  const peak = Math.max(1, ...months.map((m) => m.count));
-  const charted = months.reduce((n, m) => n + m.count, 0);
   const workflows = useMemo(
     () => (detail ? tagWorkflows(detail.workflows, families).slice(0, 5) : []),
     [detail, families],
@@ -88,6 +84,16 @@ export function TagPanel({
       ).then((r) => r[sampleId] ?? []),
   });
   const share = (n: number) => `${Math.round((n / (detail?.count || 1)) * 100)}%`;
+  const qc = useQueryClient();
+  const { push } = useToast();
+  const markCharacter = async () => {
+    try {
+      await updateCharacter(tag, { kind: "character" });
+      await qc.invalidateQueries({ queryKey: TAGS_KEY });
+    } catch (e) {
+      push(`Couldn't mark it as a character: ${String(e)}`, "error");
+    }
+  };
 
   return (
     <aside
@@ -137,6 +143,17 @@ export function TagPanel({
         <ButtonLink size="sm" variant="primary" to={galleryHref({ tags: [galleryTag(tag, source)] })}>
           <ExternalLink size={14} /> Open in gallery
         </ButtonLink>
+        {detail?.category === "character" ? (
+          <ButtonLink size="sm" to={characterHref(tag)}>
+            <UserRound size={14} /> Character page
+          </ButtonLink>
+        ) : (
+          detail && (
+            <Button size="sm" onClick={() => void markCharacter()} title="Give this tag a character page">
+              <UserRound size={14} /> Mark as character
+            </Button>
+          )
+        )}
         {detail &&
           renamableTags(detail).map((stored) => {
             const prompt = stored.startsWith("prompt:");
@@ -166,28 +183,7 @@ export function TagPanel({
         </div>
       ) : (
         <>
-          <section>
-            <h3 className="text-2xs uppercase tracking-wider text-faint mb-2">
-              {months.length} months · {charted.toLocaleString()} {charted === 1 ? "image" : "images"}
-            </h3>
-            <div className="flex items-end gap-1 h-14" role="img" aria-label={`Images per month over the last ${months.length} months`}>
-              {months.map((m, i) => (
-                <div
-                  key={m.month}
-                  title={`${monthLabel(m.month)}: ${m.count.toLocaleString()}`}
-                  className={cn(
-                    "flex-1 rounded-sm",
-                    m.count ? (i === months.length - 1 ? "bg-brand-300" : "bg-brand-600/70") : "bg-line",
-                  )}
-                  style={{ height: m.count ? `${Math.max(8, (m.count / peak) * 100)}%` : "2px" }}
-                />
-              ))}
-            </div>
-            <div className="flex justify-between text-2xs text-faint mt-1">
-              <span>{monthLabel(months[0].month)}</span>
-              <span>{monthLabel(months[months.length - 1].month)}</span>
-            </div>
-          </section>
+          <MonthChart first={detail.first_used} months={detail.months} />
 
           {(detail.loras.length > 0 || detail.embeddings.length > 0 || workflows.length > 0) && (
             <section className="space-y-2">
@@ -260,7 +256,53 @@ export function TagPanel({
   );
 }
 
-function ChipRow({ label, children }: { label: string; children: React.ReactNode }) {
+/** Images per month: up to two years, the latest month lit. */
+export function MonthChart({
+  first,
+  months: counted,
+  accent,
+}: {
+  first: number | null;
+  months: TagDetail["months"];
+  /** The bars' colour; the brand's by default. */
+  accent?: string;
+}) {
+  const months = useMemo(() => recentMonths(counted, chartMonths(first)), [counted, first]);
+  const peak = Math.max(1, ...months.map((m) => m.count));
+  const charted = months.reduce((n, m) => n + m.count, 0);
+  return (
+    <section>
+      <h3 className="text-2xs uppercase tracking-wider text-faint mb-2">
+        {months.length} months · {charted.toLocaleString()} {charted === 1 ? "image" : "images"}
+      </h3>
+      <div className="flex items-end gap-1 h-14" role="img" aria-label={`Images per month over the last ${months.length} months`}>
+        {months.map((m, i) => {
+          const last = i === months.length - 1;
+          return (
+            <div
+              key={m.month}
+              title={`${monthLabel(m.month)}: ${m.count.toLocaleString()}`}
+              className={cn(
+                "flex-1 rounded-sm",
+                !m.count ? "bg-line" : accent ? "" : last ? "bg-brand-300" : "bg-brand-600/70",
+              )}
+              style={{
+                height: m.count ? `${Math.max(8, (m.count / peak) * 100)}%` : "2px",
+                ...(m.count && accent ? { background: accent, opacity: last ? 1 : 0.7 } : {}),
+              }}
+            />
+          );
+        })}
+      </div>
+      <div className="flex justify-between text-2xs text-faint mt-1">
+        <span>{monthLabel(months[0].month)}</span>
+        <span>{monthLabel(months[months.length - 1].month)}</span>
+      </div>
+    </section>
+  );
+}
+
+export function ChipRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 items-start">
       <span className="text-xs text-faint leading-6">{label}</span>
@@ -269,7 +311,7 @@ function ChipRow({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-function Chip({ to, title, label, share }: { to: string; title: string; label: string; share: string }) {
+export function Chip({ to, title, label, share }: { to: string; title: string; label: string; share: string }) {
   return (
     <Link
       to={to}
