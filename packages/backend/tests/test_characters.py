@@ -166,3 +166,21 @@ async def test_the_user_decides_what_is_a_character(client, seed, monkeypatch):
         "/tags/character", params={"tag": "my_oc"}, json={"color": "red"}
     )
     assert bad.status_code == 422
+
+
+async def test_not_a_character_covers_every_name(client, seed, monkeypatch):
+    monkeypatch.setattr(
+        tag_categories,
+        "load",
+        _chars("nahida_(genshin_impact)", nahida="genshin_impact"),
+    )
+    seed("L1:a", tags=("nahida_(genshin_impact)", "prompt:nahida"))
+    seed("L1:b", tags=("prompt:nahida", "prompt:genshin_impact"))
+    await client.patch(
+        "/tags/character",
+        params={"tag": "nahida_(genshin_impact)"},
+        json={"kind": "general"},
+    )
+    cats = {r["tag"]: r["category"] for r in (await client.get("/tags/browse")).json()}
+    assert cats["nahida_(genshin_impact)"] == cats["nahida"] == "general"
+    assert (await client.get("/tags/characters")).json() == []

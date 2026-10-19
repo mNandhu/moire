@@ -50,9 +50,12 @@ export function restoreAmbient() {
  * stored, so leaving the page leaves the gallery's palette as it was.
  */
 export function tintAmbient(colors: readonly string[]): () => void {
+  // Nothing to light with (still loading): touch nothing, so the undo can't
+  // put back a palette read before the app restored the stored one.
+  if (!colors.length) return () => {};
   const style = document.documentElement.style;
   const prev = VARS.map((v) => style.getPropertyValue(v));
-  if (colors.length) VARS.forEach((v, i) => style.setProperty(v, colors[i] ?? colors[0]));
+  VARS.forEach((v, i) => style.setProperty(v, colors[i] ?? colors[0]));
   return () =>
     VARS.forEach((v, i) => (prev[i] ? style.setProperty(v, prev[i]) : style.removeProperty(v)));
 }

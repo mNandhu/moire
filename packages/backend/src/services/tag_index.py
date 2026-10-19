@@ -436,7 +436,11 @@ async def _characters(
         if kind == "character":
             names.add(tag.lower())
         else:
-            names.discard(tag.lower())
+            # Not a character under any name: its bare name goes with it.
+            gone = {tag.lower()} | {
+                bare for bare, c in vocab.candidates.items() if c.full == tag.lower()
+            }
+            names -= gone
     return frozenset(names)
 
 

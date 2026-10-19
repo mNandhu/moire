@@ -58,6 +58,13 @@ describe("tintAmbient", () => {
     expect(root().getPropertyValue("--amb1")).toBe(A);
   });
 
+  it("leaves the palette alone when it has no colours", () => {
+    const undo = tintAmbient([]);
+    applyAmbient([A]);
+    undo();
+    expect(root().getPropertyValue("--amb1")).toBe(A);
+  });
+
   it("removes what it set when nothing was set before", () => {
     tintAmbient(["#112233"])();
     expect(root().getPropertyValue("--amb1")).toBe("");

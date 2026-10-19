@@ -190,7 +190,7 @@ function Swatch({
         label ? "px-3" : "w-8",
         on && "ring-2 ring-white",
       )}
-      style={{ background: colour ?? "var(--amb1)" }}
+      style={{ background: colour ?? "#3b3946" }}
     >
       {label}
       {on && !label && <Check size={14} />}
