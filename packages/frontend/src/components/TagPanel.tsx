@@ -208,7 +208,7 @@ export function TagPanel({
                   {detail.loras.map((l) => (
                     <Chip
                       key={l.name}
-                      to={galleryHref({ lora: l.name })}
+                      to={galleryHref({ lora: [l.name] })}
                       title={`${l.count.toLocaleString()} images`}
                       label={l.name}
                       share={share(l.count)}
@@ -221,7 +221,7 @@ export function TagPanel({
                   {detail.embeddings.map((e) => (
                     <Chip
                       key={e.name}
-                      to={galleryHref({ embedding: e.name })}
+                      to={galleryHref({ embedding: [e.name] })}
                       title={`${e.count.toLocaleString()} images`}
                       label={e.name}
                       share={share(e.count)}

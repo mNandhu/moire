@@ -350,7 +350,7 @@ function Sidebar({ c, accent }: { c: Character; accent?: string }) {
               {c.loras.map((l) => (
                 <Chip
                   key={l.name}
-                  to={galleryHref({ ...characterFilters(c.tag, c.aliases), lora: l.name })}
+                  to={galleryHref({ ...characterFilters(c.tag, c.aliases), lora: [l.name] })}
                   title={[
                     `${l.count.toLocaleString()} images`,
                     l.strength !== null && `usually at ${l.strength}`,
@@ -369,7 +369,7 @@ function Sidebar({ c, accent }: { c: Character; accent?: string }) {
               {c.embeddings.map((e) => (
                 <Chip
                   key={e.name}
-                  to={galleryHref({ ...characterFilters(c.tag, c.aliases), embedding: e.name })}
+                  to={galleryHref({ ...characterFilters(c.tag, c.aliases), embedding: [e.name] })}
                   title={`${e.count.toLocaleString()} images`}
                   label={e.name}
                   share={share(e.count)}

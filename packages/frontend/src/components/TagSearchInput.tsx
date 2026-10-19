@@ -8,7 +8,7 @@ import {
 } from "react";
 import { X, Search } from "lucide-react";
 import { formatSearchTag } from "../lib/tags";
-import { TagSuggestList, useTagMatches, type TagSuggestion } from "./TagSuggestList";
+import { TagSuggestList, resourceLabel, useTagMatches, type TagSuggestion } from "./TagSuggestList";
 
 export type { TagSuggestion };
 
@@ -19,6 +19,8 @@ type Props = {
   onChange: (tags: string[]) => void;
   /** Source tags to autocomplete against, with image counts. */
   suggestions: TagSuggestion[];
+  /** Loras and embeddings to offer too (ids `lora:name`, `embedding:name`). */
+  resources?: TagSuggestion[];
   placeholder?: string;
 };
 
@@ -30,7 +32,7 @@ type Props = {
  * an empty input removes the last chip.
  */
 export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
-  function TagSearchInput({ value, onChange, suggestions, placeholder }, ref) {
+  function TagSearchInput({ value, onChange, suggestions, resources, placeholder }, ref) {
     const [text, setText] = useState("");
     const [open, setOpen] = useState(false);
     const [active, setActive] = useState(0);
@@ -45,7 +47,11 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
       () => suggestions.filter((s) => !selected.has(s._id)),
       [suggestions, selected],
     );
-    const matches = useTagMatches(text, pool);
+    const resourcePool = useMemo(
+      () => (resources ?? []).filter((s) => !selected.has(s._id)),
+      [resources, selected],
+    );
+    const matches = useTagMatches(text, pool, resourcePool);
 
     // Keep the active row in range whenever the match list changes.
     useEffect(() => setActive(0), [text]);
@@ -110,7 +116,10 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
               key={tag}
               className="inline-flex items-center gap-1 rounded-md bg-brand-900/30 border border-brand-700/60 pl-2 pr-1 py-0.5 text-brand-100"
             >
-              <span className="truncate max-w-[12rem]">{formatSearchTag(tag)}</span>
+              {resourceLabel(tag) && (
+                <span className="text-2xs uppercase tracking-wide text-brand-300">{resourceLabel(tag)!.kind}</span>
+              )}
+              <span className="truncate max-w-[12rem]">{resourceLabel(tag)?.name ?? formatSearchTag(tag)}</span>
               <button
                 type="button"
                 onClick={(e) => {

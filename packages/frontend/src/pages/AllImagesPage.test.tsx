@@ -295,7 +295,7 @@ describe("AllImagesPage", () => {
   it("ignores shortcuts typed into the search field", async () => {
     renderPage();
     await awaitFeed();
-    const search = screen.getByPlaceholderText("Search tags…");
+    const search = screen.getByPlaceholderText(/^Search tags/);
 
     fireEvent.keyDown(search, { key: "?" });
     expect(

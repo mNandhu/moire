@@ -55,6 +55,7 @@ Backend env is optional: `SQLITE_PATH` (defaults to `<repo>/data/moire.db`) and 
 - **`lib/media.ts`** lazily resolves a media URL; with FS-backed thumbnails it is effectively a passthrough (the HEAD probe detects a plain image response and returns the endpoint as-is). Kept for future modes that need a per-tile resolve.
 - Pure logic lives in `lib/` with colocated `*.test.ts` (fuzzy, gen, gridNav, masonryLayout, imageFilter, ai). Prefer adding pure functions there with tests over logic inside components.
 - `components/VirtualizedGrid.tsx` + `masonryLayout.ts` compute row spans from width/height for a stable, reflow-free grid.
+- **No native browser menus.** Never use `<select>`, `<datalist>` or other browser-drawn pickers and menus: use `components/ui/Picker.tsx` (fuzzy search on long lists, groups, custom trigger) or `DropdownMenu`, and `TagSuggestList` for autocomplete. Native controls only where nothing else can do the job (a file picker).
 
 ## Gotchas
 

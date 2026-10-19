@@ -12,6 +12,7 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
+import { Picker } from "../components/ui/Picker";
 import { getBackgroundLocation } from "../lib/backgroundLocation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -1337,32 +1338,32 @@ function RatingEditor({
   };
 
   return (
-    <div className="relative inline-block group">
-      <div
-        className={`px-3 py-1 rounded-full text-xs border flex items-center gap-1.5 transition-all duration-200 ${ratingBadgeClass(
-          v,
-        )} ${
-          saving
-            ? "opacity-50"
-            : "group-hover:scale-[1.02] group-hover:brightness-110"
-        }`}
-      >
-        <span className="font-medium">{v === "-" ? "Unrated" : v}</span>
-        <ChevronDown size={12} className="opacity-70" />
-      </div>
-      <select
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-default"
-        value={v}
-        disabled={saving}
-        onChange={(e) => void setRating(e.target.value)}
-        title="Change rating"
-      >
-        <option value="-">Unrated</option>
-        <option value="general">general</option>
-        <option value="sensitive">sensitive</option>
-        <option value="questionable">questionable</option>
-        <option value="explicit">explicit</option>
-      </select>
-    </div>
+    <Picker
+      aria-label="Change rating"
+      value={v}
+      disabled={saving}
+      onChange={(next) => void setRating(next)}
+      options={RATING_OPTIONS}
+      className="inline-block group"
+      trigger={() => (
+        <span
+          title="Change rating"
+          className={`px-3 py-1 rounded-full text-xs border flex items-center gap-1.5 transition-all duration-200 ${ratingBadgeClass(
+            v,
+          )} ${saving ? "opacity-50" : "group-hover:scale-[1.02] group-hover:brightness-110"}`}
+        >
+          <span className="font-medium">{v === "-" ? "Unrated" : v}</span>
+          <ChevronDown size={12} className="opacity-70" />
+        </span>
+      )}
+    />
   );
 }
+
+const RATING_OPTIONS = [
+  { value: "-", label: "Unrated" },
+  { value: "general", label: "general" },
+  { value: "sensitive", label: "sensitive" },
+  { value: "questionable", label: "questionable" },
+  { value: "explicit", label: "explicit" },
+];

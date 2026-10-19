@@ -30,6 +30,9 @@ import {
   withoutFilters,
   type Filters,
   activeFilterChips,
+  RESOURCE_PREFIXES,
+  searchTerms,
+  withSearchTerms,
 } from "../lib/imageFilter";
 import { PageHeader } from "../components/ui/PageHeader";
 import { LibraryScopeTabs } from "../components/LibraryScopeTabs";
@@ -41,7 +44,8 @@ import { applyAmbient } from "../lib/ambient";
 import { LIBRARIES_KEY, TAGS_KEY, type Library } from "../lib/queries";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
-import { Input, Select } from "../components/ui/Input";
+import { Input } from "../components/ui/Input";
+import { Picker } from "../components/ui/Picker";
 import { EmptyState } from "../components/ui/EmptyState";
 import {
   TagSearchInput,
@@ -82,6 +86,16 @@ import {
 const NO_TAGS: TagSuggestion[] = [];
 const NO_MODELS: { model: string; count: number }[] = [];
 const NO_LORAS: { name: string; count: number }[] = [];
+const LOGIC_OPTIONS = {
+  tags: [
+    { value: "and", label: "Match all tags (AND)" },
+    { value: "or", label: "Match any tag (OR)" },
+  ],
+  prompt: [
+    { value: "and", label: "Match all terms (AND)" },
+    { value: "or", label: "Match any term (OR)" },
+  ],
+};
 
 export default function AllImagesPage() {
   const { push } = useToast();
@@ -178,6 +192,48 @@ export default function AllImagesPage() {
     queryFn: ({ signal }) =>
       api<{ name: string; count: number }[]>(`/api/v1/images/loras`, { signal }),
   });
+  // Loras and embeddings as search terms: suggested in the search box, and
+  // typed names resolved to the library's spelling (matching is exact).
+  const resourceSuggestions = useMemo(
+    () => [
+      ...loraOptions.map((o) => ({ _id: RESOURCE_PREFIXES.lora + o.name, count: o.count })),
+      ...embeddingOptions.map((o) => ({ _id: RESOURCE_PREFIXES.embedding + o.name, count: o.count })),
+    ],
+    [loraOptions, embeddingOptions],
+  );
+  const knownResources = useMemo(
+    () => ({ lora: loraOptions.map((o) => o.name), embedding: embeddingOptions.map((o) => o.name) }),
+    [loraOptions, embeddingOptions],
+  );
+  const workflowPickerOptions = useMemo(
+    () => [
+      { value: "", label: "Any workflow" },
+      ...workflowFamilies.flatMap((fam) => [
+        ...(fam.id
+          ? [
+              {
+                value: `w:${fam.id}`,
+                label: fam.versions.length > 1 ? `${fam.name}, all ${fam.versions.length} versions` : fam.name,
+                hint: fam.images.toLocaleString(),
+                group: fam.name,
+              },
+            ]
+          : []),
+        ...(fam.versions.length > 1 || !fam.id
+          ? fam.versions.map((v) => ({
+              value: `s:${v.row.workflow_sig}`,
+              label: v.note ? `${v.title} · ${v.note}` : v.title,
+              hint: v.row.count.toLocaleString(),
+              group: fam.name,
+              indent: !!fam.id,
+              keywords: fam.name,
+            }))
+          : []),
+      ]),
+    ],
+    [workflowFamilies],
+  );
+
   const {
     selection,
     selectionMode,
@@ -735,10 +791,11 @@ export default function AllImagesPage() {
           <div className="flex-1 min-w-0">
             <TagSearchInput
               ref={searchInputRef}
-              value={filters.tags}
-              onChange={(tags) => setFilters({ ...filters, tags })}
+              value={searchTerms(filters)}
+              onChange={(terms) => setFilters(withSearchTerms(filters, terms, knownResources))}
               suggestions={tagOptions}
-              placeholder="Search tags…"
+              resources={resourceSuggestions}
+              placeholder="Search tags, lora:, embedding:…"
             />
           </div>
           <SortControl
@@ -870,19 +927,12 @@ export default function AllImagesPage() {
                 <label className="block text-xs font-medium text-muted mb-1.5">
                   Tag logic
                 </label>
-                <Select
+                <Picker
                   aria-label="Tag logic"
                   value={filters.logic}
-                  onChange={(e) =>
-                    setFilters({
-                      ...filters,
-                      logic: e.target.value as Filters["logic"],
-                    })
-                  }
-                >
-                  <option value="and">Match all tags (AND)</option>
-                  <option value="or">Match any tag (OR)</option>
-                </Select>
+                  onChange={(logic) => setFilters({ ...filters, logic: logic as Filters["logic"] })}
+                  options={LOGIC_OPTIONS.tags}
+                />
               </div>
               <div className="md:col-span-2">
                 <div className="text-xs font-medium text-muted mb-1.5">
@@ -952,7 +1002,7 @@ export default function AllImagesPage() {
                   </label>
                   {/* A family (every version, new ones included) or one
                       version; named as on the Rules page. */}
-                  <Select
+                  <Picker
                     aria-label="Workflow filter"
                     value={
                       filters.workflow
@@ -961,102 +1011,61 @@ export default function AllImagesPage() {
                           ? `s:${filters.workflowSig}`
                           : ""
                     }
-                    onChange={(e) => {
-                      const v = e.target.value;
+                    onChange={(v) =>
                       setFilters({
                         ...filters,
                         workflow: v.startsWith("w:") ? v.slice(2) : undefined,
                         workflowSig: v.startsWith("s:") ? v.slice(2) : undefined,
-                      });
-                    }}
-                  >
-                    <option value="">Any workflow</option>
-                    {workflowFamilies.map((fam) => (
-                      <optgroup key={fam.id ?? "other"} label={fam.name}>
-                        {fam.id && (
-                          <option value={`w:${fam.id}`}>
-                            {fam.versions.length > 1
-                              ? `${fam.name}, all ${fam.versions.length} versions · ${fam.images}`
-                              : `${fam.name} · ${fam.images}`}
-                          </option>
-                        )}
-                        {(fam.versions.length > 1 || !fam.id) &&
-                          fam.versions.map((v) => (
-                            <option key={v.row.workflow_sig} value={`s:${v.row.workflow_sig}`}>
-                              {"\u00a0\u00a0"}
-                              {v.title}
-                              {v.note ? ` · ${v.note}` : ""} · {v.row.count}
-                            </option>
-                          ))}
-                      </optgroup>
-                    ))}
-                  </Select>
+                      })
+                    }
+                    options={workflowPickerOptions}
+                    searchable
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted mb-1.5">
                     Model
                   </label>
-                  <Select
+                  <Picker
                     aria-label="Model filter"
                     value={filters.model || ""}
-                    onChange={(e) =>
-                      setFilters({
-                        ...filters,
-                        model: e.target.value || undefined,
-                      })
-                    }
-                  >
-                    <option value="">Any model</option>
-                    {modelOptions.map((m) => (
-                      <option key={m.model} value={m.model}>
-                        {m.model} ({m.count})
-                      </option>
-                    ))}
-                  </Select>
+                    onChange={(model) => setFilters({ ...filters, model: model || undefined })}
+                    options={[
+                      { value: "", label: "Any model" },
+                      ...modelOptions.map((m) => ({ value: m.model, label: m.model, hint: m.count.toLocaleString() })),
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted mb-1.5">
                     LoRA
                   </label>
-                  <Select
+                  {/* Adds a search term: several loras can be asked for. */}
+                  <Picker
                     aria-label="LoRA filter"
-                    value={filters.lora || ""}
-                    onChange={(e) =>
-                      setFilters({
-                        ...filters,
-                        lora: e.target.value || undefined,
-                      })
-                    }
-                  >
-                    <option value="">Any LoRA</option>
-                    {loraOptions.map((l) => (
-                      <option key={l.name} value={l.name}>
-                        {l.name} ({l.count})
-                      </option>
-                    ))}
-                  </Select>
+                    value=""
+                    placeholder={filters.lora.length ? "Add another LoRA…" : "Add a LoRA…"}
+                    onChange={(name) => setFilters({ ...filters, lora: [...filters.lora, name] })}
+                    options={loraOptions
+                      .filter((l) => !filters.lora.includes(l.name))
+                      .map((l) => ({ value: l.name, label: l.name, hint: l.count.toLocaleString() }))}
+                    searchable
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted mb-1.5">
                     Embedding
                   </label>
-                  <Select
+                  <Picker
                     aria-label="Embedding filter"
-                    value={filters.embedding || ""}
-                    onChange={(e) =>
-                      setFilters({
-                        ...filters,
-                        embedding: e.target.value || undefined,
-                      })
-                    }
-                  >
-                    <option value="">Any embedding</option>
-                    {embeddingOptions.map((o) => (
-                      <option key={o.name} value={o.name}>
-                        {o.name} ({o.count})
-                      </option>
-                    ))}
-                  </Select>
+                    value=""
+                    placeholder={filters.embedding.length ? "Add another embedding…" : "Add an embedding…"}
+                    onChange={(name) => setFilters({ ...filters, embedding: [...filters.embedding, name] })}
+                    options={embeddingOptions
+                      .filter((o) => !filters.embedding.includes(o.name))
+                      .map((o) => ({ value: o.name, label: o.name, hint: o.count.toLocaleString() }))}
+                    searchable
+                  />
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-muted mb-1.5">
@@ -1075,19 +1084,14 @@ export default function AllImagesPage() {
                   <label className="block text-xs font-medium text-muted mb-1.5">
                     Prompt logic
                   </label>
-                  <Select
+                  <Picker
                     aria-label="Prompt term logic"
                     value={filters.promptLogic}
-                    onChange={(e) =>
-                      setFilters({
-                        ...filters,
-                        promptLogic: e.target.value as Filters["promptLogic"],
-                      })
+                    onChange={(promptLogic) =>
+                      setFilters({ ...filters, promptLogic: promptLogic as Filters["promptLogic"] })
                     }
-                  >
-                    <option value="and">Match all terms (AND)</option>
-                    <option value="or">Match any term (OR)</option>
-                  </Select>
+                    options={LOGIC_OPTIONS.prompt}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted mb-1.5">
@@ -1199,7 +1203,9 @@ export default function AllImagesPage() {
               ) : filters.tags.length > 0 ? (
                 <Button
                   variant="primary"
-                  onClick={() => setFilters({ ...filters, tags: [], logic: DEFAULT_FILTERS.logic })}
+                  onClick={() =>
+                    setFilters({ ...filters, tags: [], lora: [], embedding: [], logic: DEFAULT_FILTERS.logic })
+                  }
                 >
                   Clear search
                 </Button>

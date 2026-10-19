@@ -9,6 +9,9 @@ import {
   type Filters,
   hasClearableFilter,
   withoutFilters,
+  searchTerms,
+  withSearchTerms,
+  resourceOf,
 } from "./imageFilter";
 
 const roundTrip = (f: Filters): Filters =>
@@ -30,8 +33,8 @@ describe("Image filter URL round-trip", () => {
       promptTerms: ["cyberpunk", "neon"],
       promptLogic: "or",
       model: "sdxl",
-      lora: "detail_xl",
-      embedding: "lazypos",
+      lora: ["detail_xl", "NahidaXL"],
+      embedding: ["lazypos"],
       minW: 512,
       maxW: 2048,
       minH: 768,
@@ -216,11 +219,13 @@ describe("withoutFilters", () => {
       group: true,
       noAiTags: true,
       model: "sdxl",
-      embedding: "lazypos",
+      embedding: ["lazypos"],
     };
     expect(withoutFilters(f)).toEqual({
       ...DEFAULT_FILTERS,
       tags: ["tokitou_muichirou"],
+      // embeddings are search terms too: they stay
+      embedding: ["lazypos"],
       logic: "or",
       libraryId: "lib1",
       sort: "top",
@@ -228,5 +233,35 @@ describe("withoutFilters", () => {
     });
     expect(hasClearableFilter(f)).toBe(true);
     expect(hasClearableFilter(withoutFilters(f))).toBe(false);
+  });
+});
+
+
+describe("search terms", () => {
+  it("shows loras and embeddings as prefixed chips after the tags", () => {
+    const f: Filters = { ...DEFAULT_FILTERS, tags: ["1girl"], lora: ["NahidaXL"], embedding: ["lazypos"] };
+    expect(searchTerms(f)).toEqual(["1girl", "lora:NahidaXL", "embedding:lazypos"]);
+  });
+
+  it("puts typed terms back where they belong, in the library's spelling", () => {
+    const f = withSearchTerms(DEFAULT_FILTERS, ["1girl", "lora:nahidaxl", "EMB: badhandv4", "lora:NahidaXL"], {
+      lora: ["NahidaXL"],
+      embedding: ["badhandv4"],
+    });
+    expect(f.tags).toEqual(["1girl"]);
+    expect(f.lora).toEqual(["NahidaXL"]);
+    expect(f.embedding).toEqual(["badhandv4"]);
+    expect(serializeFilters(f).getAll("tags")).toEqual(["1girl"]);
+  });
+
+  it("reads an old single-lora link", () => {
+    expect(parseFilters(new URLSearchParams("lora=detail_xl")).lora).toEqual(["detail_xl"]);
+  });
+
+  it("knows a resource term from a tag", () => {
+    expect(resourceOf("lora:x")).toEqual({ kind: "lora", name: "x" });
+    expect(resourceOf("embedding:lazypos")).toEqual({ kind: "embedding", name: "lazypos" });
+    expect(resourceOf("prompt:lora")).toBeNull();
+    expect(resourceOf("lora:")).toBeNull();
   });
 });

@@ -61,10 +61,12 @@ export type Filters = {
   promptTerms: string[];
   promptLogic: TagLogic;
   model?: string;
-  /** A lora the image used (gen.loras). */
-  lora?: string;
-  /** An embedding either of its prompts used (gen.embeddings). */
-  embedding?: string;
+  /** Loras the image used, every one (gen.loras). Search terms: they show
+   * as `lora:name` chips in the search box (see searchTerms). */
+  lora: string[];
+  /** Embeddings either of its prompts used, every one (gen.embeddings);
+   * `embedding:name` chips in the search box. */
+  embedding: string[];
   minW?: number;
   maxW?: number;
   minH?: number;
@@ -93,8 +95,8 @@ export const DEFAULT_FILTERS: Filters = {
   promptTerms: [],
   promptLogic: "and",
   model: undefined,
-  lora: undefined,
-  embedding: undefined,
+  lora: [],
+  embedding: [],
   minW: undefined,
   maxW: undefined,
   minH: undefined,
@@ -130,8 +132,8 @@ export function parseFilters(sp: URLSearchParams): Filters {
     promptTerms: sp.getAll("pterms"),
     promptLogic: sp.get("plogic") === "or" ? "or" : "and",
     model: sp.get("model") || undefined,
-    lora: sp.get("lora") || undefined,
-    embedding: sp.get("embedding") || undefined,
+    lora: sp.getAll("lora").filter(Boolean),
+    embedding: sp.getAll("embedding").filter(Boolean),
     minW: numOrUndef(sp.get("min_w")),
     maxW: numOrUndef(sp.get("max_w")),
     minH: numOrUndef(sp.get("min_h")),
@@ -167,8 +169,8 @@ export function serializeFilters(filters: Filters): URLSearchParams {
   if (filters.promptTerms.length && filters.promptLogic)
     sp.set("plogic", filters.promptLogic);
   if (filters.model) sp.set("model", filters.model);
-  if (filters.lora) sp.set("lora", filters.lora);
-  if (filters.embedding) sp.set("embedding", filters.embedding);
+  filters.lora.forEach((n) => sp.append("lora", n));
+  filters.embedding.forEach((n) => sp.append("embedding", n));
   if (filters.minW != null) sp.set("min_w", String(filters.minW));
   if (filters.maxW != null) sp.set("max_w", String(filters.maxW));
   if (filters.minH != null) sp.set("min_h", String(filters.minH));
@@ -271,8 +273,8 @@ export function hasActiveFilter(f: Filters): boolean {
     f.quarantined ||
     f.promptTerms.length > 0 ||
     !!f.model ||
-    !!f.lora ||
-    !!f.embedding ||
+    f.lora.length > 0 ||
+    f.embedding.length > 0 ||
     f.minW != null ||
     f.maxW != null ||
     f.minH != null ||
@@ -285,13 +287,15 @@ export function hasActiveFilter(f: Filters): boolean {
 
 /**
  * `f` with its filters cleared: what "Clear filters" means everywhere. The
- * search (tags), the library tab, the order and the grouping aren't filters
- * the viewer set in the panel, so they stay.
+ * search (tags, loras, embeddings), the library tab, the order and the
+ * grouping aren't filters the viewer set in the panel, so they stay.
  */
 export function withoutFilters(f: Filters): Filters {
   return {
     ...DEFAULT_FILTERS,
     tags: f.tags,
+    lora: f.lora,
+    embedding: f.embedding,
     logic: f.logic,
     libraryId: f.libraryId,
     sort: f.sort,
@@ -321,8 +325,8 @@ function rangeLabel(name: string, min?: number, max?: number): string {
 
 /**
  * The active filters as removable chips, for showing state while the filter
- * panel is closed. Search tags are left out (the search input already shows
- * them as chips), as are batch grouping and drill-in, which have their own
+ * panel is closed. Search terms (tags, loras, embeddings) are left out (the
+ * search input already shows them as chips), as are batch grouping and drill-in, which have their own
  * toggle and "Back to batches" control. `libraryName` resolves an id to a
  * display name; `workflowName` does the same for a workflow family id or a
  * version signature.
@@ -360,8 +364,6 @@ export function activeFilterChips(
     });
   }
   if (f.model) add("model", `Model: ${f.model}`, { model: undefined });
-  if (f.lora) add("lora", `LoRA: ${f.lora}`, { lora: undefined });
-  if (f.embedding) add("embedding", `Embedding: ${f.embedding}`, { embedding: undefined });
   if (f.minW != null || f.maxW != null) {
     add("width", rangeLabel("Width", f.minW, f.maxW), { minW: undefined, maxW: undefined });
   }
@@ -371,3 +373,53 @@ export function activeFilterChips(
   return chips;
 }
 
+
+/** How a lora or embedding reads as a search term: `lora:name`. ComfyUI's
+ * own spelling; `emb:` is accepted as short for `embedding:`. */
+export const RESOURCE_PREFIXES = { lora: "lora:", embedding: "embedding:" } as const;
+export type ResourceKind = keyof typeof RESOURCE_PREFIXES;
+const TYPED_PREFIX = /^(lora|embedding|emb):\s*(.+)$/i;
+
+/** A typed search term's lora or embedding, if it names one. Pure. */
+export function resourceOf(term: string): { kind: ResourceKind; name: string } | null {
+  const m = TYPED_PREFIX.exec(term.trim());
+  if (!m) return null;
+  return { kind: m[1].toLowerCase() === "lora" ? "lora" : "embedding", name: m[2].trim() };
+}
+
+/** Everything the search box shows as chips: tags, then loras, then
+ * embeddings, each as its search term. Pure. */
+export function searchTerms(f: Filters): string[] {
+  return [
+    ...f.tags,
+    ...f.lora.map((n) => RESOURCE_PREFIXES.lora + n),
+    ...f.embedding.map((n) => RESOURCE_PREFIXES.embedding + n),
+  ];
+}
+
+/**
+ * `f` with the search box's chips put back where they belong: `lora:` and
+ * `embedding:` terms into their lists (never into tags, whose names the
+ * backend respells), the rest as tags. `known` resolves a typed name to the
+ * one the library uses (`nahidaxl` is `NahidaXL`): matching is exact. Pure.
+ */
+export function withSearchTerms(
+  f: Filters,
+  terms: readonly string[],
+  known: Partial<Record<ResourceKind, readonly string[]>> = {},
+): Filters {
+  const next = { tags: [] as string[], lora: [] as string[], embedding: [] as string[] };
+  for (const term of terms) {
+    // A bare `lora:` with no name yet is nothing to search for.
+    if (/^(lora|embedding|emb):\s*$/i.test(term.trim())) continue;
+    const r = resourceOf(term);
+    if (!r) {
+      next.tags.push(term);
+      continue;
+    }
+    const lower = r.name.toLowerCase();
+    const name = known[r.kind]?.find((k) => k.toLowerCase() === lower) ?? r.name;
+    if (!next[r.kind].includes(name)) next[r.kind].push(name);
+  }
+  return { ...f, ...next };
+}

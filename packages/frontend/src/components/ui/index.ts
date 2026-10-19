@@ -1,7 +1,7 @@
 export { Button, ButtonLink } from "./Button";
 export type { ButtonProps } from "./Button";
 export { Card, Section } from "./Card";
-export { Input, Select, Field } from "./Input";
+export { Input, Field } from "./Input";
 export { Checkbox } from "./Checkbox";
 export { Badge } from "./Badge";
 export { Skeleton, Spinner } from "./Skeleton";
@@ -12,3 +12,4 @@ export { ProgressBar } from "./ProgressBar";
 export { StatCard } from "./StatCard";
 export { DropdownMenu } from "./DropdownMenu";
 export type { DropdownItem } from "./DropdownMenu";
+export { Picker, type PickerOption } from "./Picker";
