@@ -22,6 +22,8 @@ ComfyUI's workflow mapping so it only gets built once.
     single exposed port); outputs land back through the watched library
   - Tweak before sending: seed (re-roll), prompt edits, batch size; remember
     which image a generation came from
+  - Build prompt text with `toPromptText` (`lib/tags.ts`): stored underscore
+    names with `(` `)` escaped, as "Copy all" already does
   - Record the real generation time when Moiré queues a job (see Known
     issues: mtime). This is the only reliable source we get
 - Auto AI tagging
@@ -82,6 +84,11 @@ ComfyUI's workflow mapping so it only gets built once.
 - Intermittent test flakes: one backend test (didn't reproduce in ~24 runs)
   and the LibrariesPage test under heavy load
 - 11 longstanding ESLint warnings (mostly `no-explicit-any`)
+- Natural-language prompt pieces become underscored prompt tags too
+  ("a fox in snow" -> `a_fox_in_snow`), and "Copy all" outputs them that way.
+  Fine for tag-style prompts; revisit if Flux-style prose prompts matter
+- Not yet clicked through in the app: gallery Edit tags dialog, Tags page
+  rename / merge dialog and the Merge rules panel (tests pass)
 - Feed order uses file mtime as generation time; copying (scp, browser
   download from a VPS, `cp` without `-p`) resets it. Checked 2026-10-19:
   ComfyUI's stock SaveImage embeds no timestamp (only `prompt`/`workflow`
