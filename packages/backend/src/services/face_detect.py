@@ -91,6 +91,8 @@ async def status() -> dict[str, Any]:
     cache_dir = await _cache_dir()
     s = await ai_settings.get_ai_settings()
     dl = get_download_manager().get_state(model_repo=MODEL, cache_dir=cache_dir)
+    if await ready():
+        await _queue_avatars()
     return {
         "model": MODEL,
         "enabled": bool(s.get("face_detect")),
@@ -247,11 +249,28 @@ async def detect_now(image_id: str) -> None:
 async def _drain() -> None:
     cache_dir = await _cache_dir()
     while _pending:
-        image_id = _pending.pop()
+        image_id = next(iter(_pending))
         try:
             await _detect_and_store(image_id, cache_dir)
         except Exception:
             logger.exception("Face detection failed for %s", image_id)
+        finally:
+            _pending.discard(image_id)  # counted as pending until stored
+
+
+_avatars_queued = False
+
+
+async def _queue_avatars() -> None:
+    """Once per run, once the model is ready: every current avatar, so they
+    are cropped before anyone opens a character."""
+    global _avatars_queued
+    if _avatars_queued:
+        return
+    _avatars_queued = True
+    from . import characters  # imports this module
+
+    await characters.listing()  # queues each avatar not looked at yet
 
 
 async def _detect_and_store(image_id: str, cache_dir: str) -> None:

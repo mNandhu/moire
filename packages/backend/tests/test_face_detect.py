@@ -118,3 +118,20 @@ def _chars(*names, **candidates):
         )
 
     return load
+
+
+async def test_the_model_arriving_queues_every_avatar(
+    client, seed, monkeypatch, tmp_path
+):
+    monkeypatch.setattr(tag_categories, "load", _chars("frieren", "himmel"))
+    seed("L1:a", tags=("frieren",), thumb_key="k/a")
+    seed("L1:b", tags=("himmel",), thumb_key="k/b")
+    monkeypatch.setattr(face_detect, "_avatars_queued", False)
+    monkeypatch.setattr(face_detect, "downloaded", lambda cache_dir: True)
+    monkeypatch.setattr(face_detect, "detect", lambda *a: (0.5, 0.3, 0.2, 0.2, 0.9))
+    monkeypatch.setattr(
+        face_detect.storage_fs, "thumb_path", lambda key: Path(tmp_path / key)
+    )
+    await client.get("/ai/faces")  # the Settings page polling
+    await face_detect.idle()
+    assert set(await face_detect.faces_for(["L1:a", "L1:b"])) == {"L1:a", "L1:b"}
