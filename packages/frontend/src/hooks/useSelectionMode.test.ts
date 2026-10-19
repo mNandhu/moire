@@ -14,6 +14,14 @@ describe("useSelectionMode", () => {
     expect(result.current.selectionActive).toBe(false);
   });
 
+  it("selectOnly() replaces the selection (Select all)", () => {
+    const { result } = renderHook(() => useSelectionMode());
+    act(() => result.current.setSelectionMode(true));
+    act(() => result.current.toggle("x"));
+    act(() => result.current.selectOnly(["a", "b", "c"]));
+    expect([...result.current.selection]).toEqual(["a", "b", "c"]);
+  });
+
   it("clear() empties the selection", () => {
     const { result } = renderHook(() => useSelectionMode());
     act(() => result.current.setSelectionMode(true));

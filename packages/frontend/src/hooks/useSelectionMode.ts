@@ -21,6 +21,8 @@ export function useSelectionMode() {
   }, []);
 
   const clear = useCallback(() => setSelection(new Set()), []);
+  /** Replace the selection ("Select all"). */
+  const selectOnly = useCallback((ids: Iterable<string>) => setSelection(new Set(ids)), []);
   const selectionActive = selection.size > 0;
 
   // When leaving selection mode, drop the current selection.
@@ -35,5 +37,6 @@ export function useSelectionMode() {
     selectionActive,
     toggle,
     clear,
+    selectOnly,
   };
 }

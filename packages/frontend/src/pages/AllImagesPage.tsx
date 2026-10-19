@@ -241,7 +241,28 @@ export default function AllImagesPage() {
     selectionActive,
     toggle: toggleSelection,
     clear: clearSelection,
+    selectOnly,
   } = useSelectionMode();
+  // Every image the filter matches, not just the loaded pages. Hidden in the
+  // grouped view, where a tile stands for a batch and picking one picks only
+  // its representative.
+  const [selectingAll, setSelectingAll] = useState(false);
+  const selectAll = async () => {
+    setSelectingAll(true);
+    try {
+      const got = await api<{ ids: string[]; truncated: boolean }>(
+        `/api/v1/images/ids?${serializeFilters(filters)}`,
+      );
+      selectOnly(got.ids);
+      if (got.truncated) {
+        push(`Selected the first ${got.ids.length.toLocaleString()} images; narrow the filter for the rest`, "info");
+      }
+    } catch (e) {
+      push(`Couldn't select all: ${String(e)}`, "error");
+    } finally {
+      setSelectingAll(false);
+    }
+  };
   const density = useDensity();
   const [showShortcuts, setShowShortcuts] = useState(false);
 
@@ -834,6 +855,16 @@ export default function AllImagesPage() {
             {selectionMode ? <CheckSquare size={18} /> : <Square size={18} />}
             <span className="hidden xl:inline">{selectionMode ? "Done" : "Select"}</span>
           </Button>
+          {selectionMode && !(filters.group && !filters.groupId) && (
+            <Button
+              variant="secondary"
+              onClick={() => (selectionActive ? clearSelection() : void selectAll())}
+              disabled={selectingAll}
+              title={selectionActive ? "Clear the selection" : "Select every image this search and filter match"}
+            >
+              {selectingAll ? "Selecting…" : selectionActive ? "Select none" : "Select all"}
+            </Button>
+          )}
           {selectionMode && selectionActive && (
             <DropdownMenu
               label={<>{selection.size} selected</>}
