@@ -16,6 +16,8 @@ export type AISettings = {
   idle_unload_s: number;
   cache_dir: string;
   prompt_positive_only: boolean;
+  /** Crop character avatars to the face, once the face model is downloaded. */
+  face_detect: boolean;
 };
 
 /** A single failure recorded while an AI Job processed one image. */

@@ -7,6 +7,7 @@ import { Button } from "./ui/Button";
 import { Field, Input } from "./ui/Input";
 import { Checkbox } from "./ui/Checkbox";
 import { useToast } from "./Toasts";
+import { CharacterAvatar } from "./CharacterAvatar";
 import { cn } from "../lib/cn";
 import { updateCharacter } from "../lib/imageMutations";
 import { TAGS_KEY } from "../lib/queries";
@@ -14,7 +15,6 @@ import {
   SWATCHES,
   characterColours,
   characterName,
-  focusPosition,
   type CharacterPage,
   type CharacterPatch,
 } from "../lib/character";
@@ -60,9 +60,9 @@ export function CharacterEditDialog({
     if (name !== (c.name ?? "")) patch.name = name;
     if (series !== (c.series ?? "")) patch.series = series;
     if (color !== c.color) patch.color = color ?? "";
-    if (focus && (focus[0] !== c.focus?.[0] || focus[1] !== c.focus?.[1])) {
-      patch.focus_x = focus[0];
-      patch.focus_y = focus[1];
+    if (focus?.[0] !== c.focus?.[0] || focus?.[1] !== c.focus?.[1]) {
+      patch.focus_x = focus ? focus[0] : "";
+      patch.focus_y = focus ? focus[1] : "";
     }
     if (notCharacter !== (c.kind === "general")) patch.kind = notCharacter ? "general" : "";
     setSaving(true);
@@ -109,12 +109,20 @@ export function CharacterEditDialog({
         </div>
 
         {c.thumb_url && (
-          <Field label="Avatar" hint="Click the face to centre the avatar on it.">
+          <Field
+            label="Avatar"
+            hint={
+              c.face
+                ? "Cropped to the face Moiré found. Click elsewhere to centre it there instead."
+                : "Click the face to centre the avatar on it."
+            }
+          >
             <div className="flex items-center gap-4">
               <button
                 type="button"
                 aria-label="Set the avatar's centre"
-                className="relative w-40 aspect-square rounded-lg overflow-hidden bg-raised cursor-crosshair"
+                className="relative h-44 max-w-full rounded-lg overflow-hidden bg-raised cursor-crosshair"
+                style={{ aspectRatio: c.aspect ?? 1 }}
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect();
                   setFocus([
@@ -123,7 +131,18 @@ export function CharacterEditDialog({
                   ]);
                 }}
               >
-                <img src={c.thumb_url} alt="" className="w-full h-full object-contain" />
+                <img src={c.thumb_url} alt="" className="w-full h-full object-cover" />
+                {c.face && !focus && (
+                  <span
+                    className="absolute border border-dashed border-white/80 rounded"
+                    style={{
+                      left: `${(c.face[0] - c.face[2] / 2) * 100}%`,
+                      top: `${(c.face[1] - c.face[3] / 2) * 100}%`,
+                      width: `${c.face[2] * 100}%`,
+                      height: `${c.face[3] * 100}%`,
+                    }}
+                  />
+                )}
                 {focus && (
                   <span
                     className="absolute h-4 w-4 -ml-2 -mt-2 rounded-full border-2 border-white shadow"
@@ -131,12 +150,20 @@ export function CharacterEditDialog({
                   />
                 )}
               </button>
-              <img
-                src={c.thumb_url}
-                alt=""
-                style={{ objectPosition: focusPosition(focus) }}
-                className="h-20 w-20 rounded-full object-cover bg-raised ring-1 ring-line"
-              />
+              <div className="flex flex-col items-center gap-2">
+                <CharacterAvatar
+                  src={c.thumb_url}
+                  face={c.face}
+                  focus={focus}
+                  aspect={c.aspect}
+                  className="h-20 w-20 ring-1 ring-line"
+                />
+                {focus && (
+                  <Button size="sm" variant="ghost" onClick={() => setFocus(null)}>
+                    {c.face ? "Back to face" : "Reset"}
+                  </Button>
+                )}
+              </div>
             </div>
           </Field>
         )}

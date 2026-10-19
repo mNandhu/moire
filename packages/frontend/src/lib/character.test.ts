@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  avatarCrop,
   characterColours,
   characterFilters,
   characterHref,
@@ -66,5 +67,33 @@ describe("characterColours", () => {
       characterColours({ color: null, palette: ["a", "b"], cover_blurhash: null }),
     ).toEqual(["a", "b", "a"]);
     expect(characterColours({ color: null, palette: [], cover_blurhash: null })).toEqual([]);
+  });
+});
+
+describe("avatarCrop", () => {
+  it("zooms to a found face", () => {
+    // A 0.7-wide portrait, face at the top centre, a fifth of the width.
+    const crop = avatarCrop({ face: [0.5, 0.2, 0.2, 0.14], focus: null, aspect: 0.7 });
+    // side = max(0.14, 0.14) * 2.5 = 0.35 of the height
+    expect(crop).toEqual({ width: "200%", height: "285.71%", left: "-50%", top: "-7.14%" });
+  });
+  it("keeps the crop inside the image", () => {
+    const crop = avatarCrop({ face: [0.02, 0.01, 0.1, 0.07], focus: null, aspect: 0.7 });
+    expect(crop?.left).toBe("0%");
+    expect(crop?.top).toBe("0%");
+  });
+  it("moves to the user's point, keeping the face's zoom", () => {
+    const crop = avatarCrop({ face: [0.5, 0.2, 0.2, 0.14], focus: [0.5, 0.6], aspect: 0.7 });
+    expect(crop?.width).toBe("200%");
+    expect(crop?.top).toBe("-121.43%");
+  });
+  it("shows the whole width a third down without a face", () => {
+    expect(avatarCrop({ face: null, focus: null, aspect: 0.5 })).toEqual({
+      width: "100%",
+      height: "200%",
+      left: "0%",
+      top: "-16.67%",
+    });
+    expect(avatarCrop({ face: null, focus: null, aspect: null })).toBeNull();
   });
 });

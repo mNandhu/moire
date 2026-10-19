@@ -19,6 +19,10 @@ export type CharacterPage = Omit<TagDetail, "loras"> & {
   color: string | null;
   /** The avatar's focus point, 0..1 from the left and top. */
   focus: [number, number] | null;
+  /** The face found in the avatar: centre x / y, width / height (0..1). */
+  face: Face | null;
+  /** The avatar image's width / height. */
+  aspect: number | null;
   /** Colours from hair and eye tags, strongest first. */
   palette: string[];
   cover_blurhash: string | null;
@@ -40,7 +44,11 @@ export type CharacterEntry = {
   thumb_url: string;
   name: string | null;
   focus: [number, number] | null;
+  face: Face | null;
+  aspect: number | null;
 };
+
+export type Face = [number, number, number, number];
 
 /** What the user can set on a character page; "" clears a field. */
 export type CharacterPatch = Partial<{
@@ -48,8 +56,8 @@ export type CharacterPatch = Partial<{
   series: string;
   kind: "character" | "general" | "";
   color: string;
-  focus_x: number;
-  focus_y: number;
+  focus_x: number | "";
+  focus_y: number | "";
 }>;
 
 export const characterHref = (tag: string) => `/characters/${encodeURIComponent(tag)}`;
@@ -78,6 +86,35 @@ export function characterFilters(tag: string, aliases: readonly string[]): Filte
     tags: [tag, ...aliases].map((t) => `${ANY_PREFIX}${t}`),
     logic: aliases.length ? "or" : "and",
   };
+}
+
+/** How far around the face an avatar shows: the face's size times this. */
+export const FACE_ZOOM = 2.5;
+
+/**
+ * How to show an avatar image in a round frame: as a square crop of the
+ * image, given as the image's size and offset in percent of the frame. A
+ * found face is zoomed to (its box grown {@link FACE_ZOOM} times); the
+ * user's focus point moves the centre and keeps that zoom; with neither,
+ * the whole width shows, centred a third of the way down (portraits put the
+ * face high). Null without the image's shape: plain `object-cover` then.
+ */
+export function avatarCrop(a: {
+  face: Face | null;
+  focus: readonly [number, number] | null;
+  aspect: number | null;
+}): { width: string; height: string; left: string; top: string } | null {
+  const ratio = a.aspect;
+  if (!ratio || !Number.isFinite(ratio) || ratio <= 0) return null;
+  // Image coordinates with the height as 1 and the width as `ratio`.
+  const fit = Math.min(ratio, 1);
+  const side = a.face ? Math.min(fit, Math.max(a.face[2] * ratio, a.face[3]) * FACE_ZOOM) : fit;
+  const cx = (a.focus?.[0] ?? a.face?.[0] ?? 0.5) * ratio;
+  const cy = a.focus?.[1] ?? a.face?.[1] ?? 1 / 3;
+  const left = Math.min(ratio - side, Math.max(0, cx - side / 2));
+  const top = Math.min(1 - side, Math.max(0, cy - side / 2));
+  const pct = (v: number) => `${+(v * 100).toFixed(2)}%`;
+  return { width: pct(ratio / side), height: pct(1 / side), left: pct(-left / side), top: pct(-top / side) };
 }
 
 /** CSS `object-position` for an avatar's focus point. */

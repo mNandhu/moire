@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { TAGS_KEY } from "../lib/queries";
 import { formatTag, tagName } from "../lib/tags";
-import { characterHref, displayName, focusPosition, type CharacterEntry } from "../lib/character";
+import { characterHref, displayName, type CharacterEntry } from "../lib/character";
+import { CharacterAvatar } from "./CharacterAvatar";
 
 /** Every character in the library; shared by the image view and character pages. */
 export function useCharacters() {
@@ -41,12 +42,12 @@ export function ImageCharacters({ tags }: { tags: readonly string[] | undefined 
               title={`${formatTag(c.tag)}: ${c.count.toLocaleString()} ${c.count === 1 ? "image" : "images"}`}
               className="group flex w-20 flex-col items-center gap-1.5 text-center"
             >
-              <img
+              <CharacterAvatar
                 src={c.thumb_url}
-                alt=""
-                loading="lazy"
-                style={{ objectPosition: focusPosition(c.focus) }}
-                className="h-14 w-14 rounded-full object-cover bg-raised ring-1 ring-line group-hover:ring-brand-300"
+                face={c.face}
+                focus={c.focus}
+                aspect={c.aspect}
+                className="h-14 w-14 ring-1 ring-line group-hover:ring-brand-300"
               />
               <span className="w-full text-xs leading-tight text-neutral-200 line-clamp-2 break-words group-hover:text-white">
                 {name}

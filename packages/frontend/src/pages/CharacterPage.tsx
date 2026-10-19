@@ -10,6 +10,7 @@ import { useToast } from "../components/Toasts";
 import { Chip, ChipRow, MonthChart } from "../components/TagPanel";
 import { useCharacters } from "../components/ImageCharacters";
 import { CharacterEditDialog } from "../components/CharacterEditDialog";
+import { CharacterAvatar } from "../components/CharacterAvatar";
 import { cn } from "../lib/cn";
 import { tintAmbient } from "../lib/ambient";
 import { fetchSignatures } from "../lib/gen";
@@ -26,7 +27,6 @@ import {
   characterFilters,
   characterHref,
   displayName,
-  focusPosition,
   type CharacterPage as Character,
 } from "../lib/character";
 
@@ -121,18 +121,15 @@ export default function CharacterPage() {
 }
 
 function Avatar({ c, size, accent }: { c: Character; size: string; accent?: string }) {
-  return c.thumb_url ? (
-    <img
+  return (
+    <CharacterAvatar
       src={c.thumb_url}
-      alt=""
-      style={{
-        objectPosition: focusPosition(c.focus),
-        boxShadow: accent ? `0 0 0 2px ${accent}` : undefined,
-      }}
-      className={cn("shrink-0 rounded-full object-cover bg-raised ring-1 ring-line", size)}
+      face={c.face}
+      focus={c.focus}
+      aspect={c.aspect}
+      className={cn("ring-1 ring-line", size)}
+      style={accent ? { boxShadow: `0 0 0 2px ${accent}` } : undefined}
     />
-  ) : (
-    <div className={cn("shrink-0 rounded-full bg-raised", size)} />
   );
 }
 
@@ -323,17 +320,13 @@ function Sidebar({ c, accent }: { c: Character; accent?: string }) {
                   title={`${w.count.toLocaleString()} ${w.count === 1 ? "image" : "images"} together`}
                   className="group flex w-16 flex-col items-center gap-1 text-center"
                 >
-                  {other ? (
-                    <img
-                      src={other.thumb_url}
-                      alt=""
-                      loading="lazy"
-                      style={{ objectPosition: focusPosition(other.focus) }}
-                      className="h-12 w-12 rounded-full object-cover bg-raised ring-1 ring-line group-hover:ring-brand-300"
-                    />
-                  ) : (
-                    <div className="h-12 w-12 rounded-full bg-raised" />
-                  )}
+                  <CharacterAvatar
+                    src={other?.thumb_url}
+                    face={other?.face ?? null}
+                    focus={other?.focus ?? null}
+                    aspect={other?.aspect ?? null}
+                    className="h-12 w-12 ring-1 ring-line group-hover:ring-brand-300"
+                  />
                   <span className="w-full text-2xs leading-tight text-neutral-200 line-clamp-2 break-words">
                     {displayName({ tag: w.tag, name: other?.name }).name}
                   </span>
