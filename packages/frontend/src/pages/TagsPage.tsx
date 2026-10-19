@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Tag as TagIcon, Slash, Search, GitMerge, Undo2, LayoutGrid, List } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -23,6 +23,7 @@ import {
 } from "../lib/queries";
 import { formatTag, tagName } from "../lib/tags";
 import { invalidateFeeds } from "../lib/feedCache";
+import { OverlayOpenContext } from "../lib/backgroundLocation";
 import {
   SORT_LABEL,
   SOURCE_LABEL,
@@ -93,15 +94,17 @@ export default function TagsPage() {
   );
   const shownCount = characters.length + general.length;
 
-  // Escape closes the panel (the rename dialog handles its own Escape first).
+  // Escape closes the panel (the rename dialog handles its own Escape first),
+  // but not while an image is open over the page: that Escape is the viewer's.
+  const overlayOpen = useContext(OverlayOpenContext);
   useEffect(() => {
-    if (!selected) return;
+    if (!selected || overlayOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !e.defaultPrevented) setSelected(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected]);
+  }, [selected, overlayOpen]);
 
   // --- Rename / merge -------------------------------------------------------
   const queryClient = useQueryClient();
@@ -304,7 +307,7 @@ export default function TagsPage() {
                 onClick={() => setSelected(null)}
                 className="lg:hidden fixed inset-0 z-40 bg-black/50"
               />
-              <div className="fixed inset-y-0 right-0 z-50 w-full max-w-[400px] overflow-y-auto p-3 lg:p-0 lg:static lg:z-auto lg:max-w-none lg:w-auto lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)]">
+              <div className="fixed inset-y-0 right-0 z-50 w-full max-w-[400px] overflow-y-auto p-3 lg:p-0 lg:static lg:z-auto lg:max-w-none lg:w-auto lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)]">
                 <TagPanel
                   key={selected}
                   tag={selected}
@@ -459,7 +462,15 @@ function TagGrid({
             t.tag === selected ? "border-brand-400 ring-1 ring-brand-400" : "border-white/5",
           )}
         >
-          <Mosaic samples={samples[galleryTag(t.tag, source)]} cover={t.thumb_url} />
+          {/* A character reads best as one picture; a concept as a collage. */}
+          <Mosaic
+            samples={
+              t.category === "character"
+                ? samples[galleryTag(t.tag, source)]?.slice(0, 1)
+                : samples[galleryTag(t.tag, source)]
+            }
+            cover={t.thumb_url}
+          />
           <div className="p-3">
             <div className="text-sm font-semibold truncate">{formatTag(t.tag)}</div>
             <div className="text-xs text-neutral-400 tabular-nums">

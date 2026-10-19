@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Pencil, Pin, X } from "lucide-react";
 import { Badge } from "./ui/Badge";
@@ -16,6 +16,7 @@ import { TAGS_KEY, useBoilerplate, useTagDetail } from "../lib/queries";
 import { formatTag } from "../lib/tags";
 import { groupWorkflows, formatUsedRange } from "../lib/workflows";
 import { useImageFeed } from "../hooks/useImageFeed";
+import { withBackgroundLocation } from "../lib/backgroundLocation";
 import {
   foundBy,
   galleryTag,
@@ -27,7 +28,7 @@ import {
   type TagSource,
 } from "../lib/tagBrowse";
 
-const PICK_PAGE = 30;
+const PICK_PAGE = 30; // a 3-wide grid: ten rows a page
 const RELATED = 12;
 
 const galleryHref = (patch: Partial<Filters>) =>
@@ -126,7 +127,11 @@ export function TagPanel({
       </div>
 
       <div className="rounded-lg overflow-hidden">
-        <Mosaic samples={samples} cover={detail?.thumb_url ?? null} className="aspect-[16/10]" />
+        <Mosaic
+          samples={detail?.category === "character" ? samples?.slice(0, 1) : samples}
+          cover={detail?.thumb_url ?? null}
+          className="aspect-[16/10]"
+        />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -145,6 +150,10 @@ export function TagPanel({
             );
           })}
       </div>
+
+      {detail && (
+        <TagImages tag={tag} source={source} count={detail.count} pinned={detail.thumb_image_id} />
+      )}
 
       {!detail ? (
         <div className="space-y-3">
@@ -228,8 +237,6 @@ export function TagPanel({
             </section>
           )}
 
-          <CoverPicker tag={tag} source={source} pinned={detail.thumb_image_id} />
-
           <p className="text-2xs text-faint">
             Found by {foundBy(detail.sources)}.
             {detail.sources.ai > 0 && renamableTags(detail).length > 0 && " AI tags keep their name when renamed."}
@@ -262,17 +269,25 @@ function Chip({ to, title, label, share }: { to: string; title: string; label: s
   );
 }
 
-/** The tag's own images, newest first; clicking one pins it as the cover. */
-function CoverPicker({
+/**
+ * The tag's own images, newest first. Clicking one opens it in the viewer
+ * over the Tags page, paging through this tag's images; the pin on hover
+ * makes it the tag's cover.
+ */
+function TagImages({
   tag,
   source,
+  count,
   pinned,
 }: {
   tag: string;
   source: TagSource;
+  count: number;
   pinned: string | null;
 }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { push } = useToast();
   const filters = useMemo(
     () => ({ ...DEFAULT_FILTERS, tags: [galleryTag(tag, source)] }),
@@ -283,64 +298,61 @@ function CoverPicker({
     PICK_PAGE,
   );
 
+  const open = (id: string) =>
+    navigate(`/image/${encodeURIComponent(id)}?${serializeFilters(filters)}`, {
+      state: withBackgroundLocation(location),
+    });
   const pin = async (id: string) => {
     try {
-      await setTagThumbnail(tag, id);
+      if (id === pinned) await clearTagThumbnail(tag);
+      else await setTagThumbnail(tag, id);
       await qc.invalidateQueries({ queryKey: TAGS_KEY });
     } catch (e) {
-      push(`Couldn't set the cover: ${String(e)}`, "error");
-    }
-  };
-  const unpin = async () => {
-    try {
-      await clearTagThumbnail(tag);
-      await qc.invalidateQueries({ queryKey: TAGS_KEY });
-    } catch (e) {
-      push(`Couldn't clear the cover: ${String(e)}`, "error");
+      push(`Couldn't change the cover: ${String(e)}`, "error");
     }
   };
 
   return (
     <section>
-      <div className="flex items-baseline justify-between mb-2">
-        <h3 className="text-2xs uppercase tracking-wider text-faint">Cover</h3>
-        {pinned && (
-          <button type="button" onClick={() => void unpin()} className="text-2xs text-muted hover:text-white">
-            Let Moiré pick
-          </button>
-        )}
-      </div>
-      <div className="grid grid-cols-5 gap-1">
+      <h3 className="text-2xs uppercase tracking-wider text-faint mb-2">
+        Images · {count.toLocaleString()}
+      </h3>
+      <div className="grid grid-cols-3 gap-1">
         {isLoading &&
-          Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="aspect-square rounded" />)}
+          Array.from({ length: 9 }).map((_, i) => <Skeleton key={i} className="aspect-square rounded" />)}
         {items.map((img) => {
           const on = img._id === pinned;
           return (
-            <button
-              key={img._id}
-              type="button"
-              onClick={() => void pin(img._id)}
-              aria-pressed={on}
-              aria-label={on ? "Pinned cover" : "Use as cover"}
-              title={on ? "Pinned cover" : "Use as cover"}
-              className={cn(
-                "relative aspect-square rounded overflow-hidden bg-raised",
-                on ? "ring-2 ring-brand-300 ring-offset-1 ring-offset-surface" : "hover:opacity-80",
-              )}
-            >
-              <img src={img.thumb_url} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
-              {on && (
-                <span className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-black/70 inline-flex items-center justify-center text-white">
-                  <Pin size={9} />
-                </span>
-              )}
-            </button>
+            <div key={img._id} className="group/img relative aspect-square rounded overflow-hidden bg-raised">
+              <button
+                type="button"
+                onClick={() => open(img._id)}
+                aria-label={`Open ${img.path}`}
+                title={img.path}
+                className="absolute inset-0 hover:opacity-90"
+              >
+                <img src={img.thumb_url} alt="" loading="lazy" className="w-full h-full object-cover" />
+              </button>
+              {/* A sibling of the open button, not inside it. */}
+              <button
+                type="button"
+                onClick={() => void pin(img._id)}
+                aria-pressed={on}
+                aria-label={on ? "Unpin cover" : "Use as cover"}
+                title={on ? "Cover. Click to let Moiré pick again" : "Use as cover"}
+                className={cn(
+                  "absolute right-1 top-1 h-6 w-6 rounded-full inline-flex items-center justify-center transition-opacity",
+                  on
+                    ? "bg-brand-500 text-white"
+                    : "bg-black/60 text-white/85 hover:text-white opacity-0 group-hover/img:opacity-100 focus-visible:opacity-100",
+                )}
+              >
+                <Pin size={12} />
+              </button>
+            </div>
           );
         })}
       </div>
-      <p className="text-2xs text-faint mt-2">
-        {pinned ? "Pinned. Click another image to change it." : "Click an image to pin it as the cover."}
-      </p>
       {hasNextPage && (
         <Button size="sm" variant="ghost" className="mt-1" onClick={() => void fetchNextPage()} disabled={isFetchingNextPage}>
           {isFetchingNextPage ? "Loading…" : "More images"}

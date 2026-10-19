@@ -148,8 +148,10 @@ belongs in this file.
   every later thumbnail from loading, so the invariants are code, not comments.
 - **Tags page**: one entry per tag name (sources merged; the Source filter
   narrows to one), characters in their own section, grid or list. Clicking a
-  tag opens its panel (`components/TagPanel.tsx`): use over time, the loras
-  and workflows it was made with, related tags, and the cover picker. The
+  tag opens its panel (`components/TagPanel.tsx`): its images (each opens in
+  the viewer over the page; a pin sets the cover), use over time, the loras
+  and workflows it was made with, and related tags. Characters show as one
+  picture, other tags as a 2x2 mosaic. The
   page's sorting, sectioning and gallery links are pure (`lib/tagBrowse.ts`).
 - **Ruleset edit session**: the loaded-vs-edited state of one signature's
   extraction Ruleset: one definition of dirty, and the load/save/delete
