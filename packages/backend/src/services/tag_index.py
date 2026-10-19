@@ -32,7 +32,6 @@ here is a dict operation with no await inside it.
 from __future__ import annotations
 
 import threading
-import zlib
 import time
 from typing import Any
 
@@ -110,14 +109,31 @@ def reset_for_tests() -> None:
 # --- Pinned thumbnails ---------------------------------------------------------
 
 
-def _shuffled(tag: str):
-    """A fixed shuffle of images, different per tag: mosaics look varied
-    across tags (not every common tag showing the newest image) yet stay put
-    when an unrelated write refreshes them. Multiplicative hashing of the
-    rowid, seeded by the tag; integer math, no full sort key column."""
-    seed = zlib.crc32(tag.encode())
+_HASH_MUL, _HASH_MOD = 2654435761, 4294967291
+
+
+def _seed(base: str) -> int:
+    """A tag's shuffle seed. Mirrored in SQL by :func:`_seed_sql`, so the list
+    can pick the same cover the mosaic leads with."""
+    return len(base) * 7919 + ord(base[0]) * 104729 if base else 0
+
+
+def _seed_sql(base_col):
+    return sa.func.length(base_col) * 7919 + sa.func.unicode(base_col) * 104729
+
+
+def _shuffle_key(seed):
     rowid = sa.literal_column(f"{t.images.name}.rowid")
-    return (rowid * 2654435761 + seed) % 4294967291
+    return (rowid * _HASH_MUL + seed) % _HASH_MOD
+
+
+def _shuffled(tag: str):
+    """A fixed shuffle of a tag's images: mosaics look varied across tags (not
+    every common tag showing the newest image) yet stay put when an unrelated
+    write refreshes them. Multiplicative hashing of the rowid, seeded by the
+    tag's name, whichever source is asked for; the first image is the tag's
+    cover when nothing is pinned (:func:`browse` picks the same one)."""
+    return _shuffle_key(_seed(pin_key(tag)))
 
 
 def pin_key(tag: str) -> str:
@@ -338,36 +354,53 @@ def _source_clause(source: str):
 async def browse(source: str = "all") -> list[dict]:
     """One entry per tag name for the Tags page, the sources it was found by
     merged (``source`` keeps only one): distinct images, character or general,
-    when it was last used (newest file time) and a cover image (the pinned
-    one, else the newest id)."""
+    when it was last used (newest file time) and its cover (the image its
+    mosaic leads with)."""
     cache_key = f"browse:{source}"
     cached = _read(_tags_cache, cache_key, _TAGS_TTL_SECONDS)
     if cached is not None:
         return cached
 
     gen = current_generation()
+    it, im, tm = t.image_tags, t.images, t.tag_meta
+    joined = it.join(im, im.c._id == it.c.image_id)
+    where = (_source_clause(source), it.c.base != "", image_tags.not_quarantined())
     stmt = (
         sa.select(
-            t.image_tags.c.base,
-            sa.func.count(sa.distinct(t.image_tags.c.image_id)).label("count"),
-            sa.func.max(t.images.c.mtime).label("last_used"),
-            sa.func.max(t.image_tags.c.image_id).label("sample_image_id"),
+            it.c.base,
+            sa.func.count(sa.distinct(it.c.image_id)).label("count"),
+            sa.func.max(im.c.mtime).label("last_used"),
         )
-        .select_from(
-            t.image_tags.join(t.images, t.images.c._id == t.image_tags.c.image_id)
-        )
-        .where(
-            _source_clause(source),
-            t.image_tags.c.base != "",
-            image_tags.not_quarantined(),
-        )
-        .group_by(t.image_tags.c.base)
-        .order_by(sa.text("count DESC"), t.image_tags.c.base)
+        .select_from(joined)
+        .where(*where)
+        .group_by(it.c.base)
+        .order_by(sa.text("count DESC"), it.c.base)
     )
+    # The cover, by the mosaic's own rule (samples_for_tag): the pinned image
+    # if it is visible and carries the tag, else the first of the shuffle.
+    ranked = (
+        sa.select(
+            it.c.base,
+            it.c.image_id,
+            sa.func.row_number()
+            .over(
+                partition_by=it.c.base,
+                order_by=(
+                    sa.case((im.c._id == tm.c.thumb_image_id, 0), else_=1),
+                    _shuffle_key(_seed_sql(it.c.base)),
+                ),
+            )
+            .label("rn"),
+        )
+        .select_from(joined.outerjoin(tm, tm.c.tag == it.c.base))
+        .where(*where)
+        .subquery()
+    )
+    covers_stmt = sa.select(ranked.c.base, ranked.c.image_id).where(ranked.c.rn == 1)
     characters = await tag_categories.character_names()
     async with async_conn() as conn:
         rows = (await conn.execute(stmt)).fetchall()
-        pins = await _pins(conn, {r.base for r in rows})
+        covers = dict((await conn.execute(covers_stmt)).fetchall())
 
     result = [
         {
@@ -375,7 +408,7 @@ async def browse(source: str = "all") -> list[dict]:
             "count": r.count,
             "category": tag_categories.category(r.base, characters),
             "last_used": r.last_used,
-            "thumb_image_id": pins.get(r.base) or r.sample_image_id,
+            "thumb_image_id": covers.get(r.base),
         }
         for r in rows
     ]

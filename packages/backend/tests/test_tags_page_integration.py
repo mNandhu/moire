@@ -154,3 +154,29 @@ async def test_characters_lists_only_characters(client, seed, monkeypatch):
     got = (await client.get("/tags/characters")).json()
     assert [(c["tag"], c["count"]) for c in got] == [("frieren", 1)]
     assert got[0]["thumb_url"].endswith("/images/L1%3Aa/thumb")
+
+
+async def test_the_list_cover_is_the_mosaics_first_image(client, seed):
+    for i in range(12):
+        seed(f"L1:{i:02}", tags=("cat", "prompt:dog") if i % 2 else ("prompt:cat",))
+
+    async def lead(tag):
+        got = (await client.get(f"/tags/samples?tags=any:{tag}&per=4")).json()
+        return got[f"any:{tag}"][0]["_id"]
+
+    covers = {
+        r["tag"]: r["thumb_image_id"] for r in (await client.get("/tags/browse")).json()
+    }
+    assert covers["cat"] == await lead("cat")
+    assert covers["dog"] == await lead("dog")
+    # a pin leads both; quarantining it hands both to the shuffle again
+    await client.post("/tags/thumbnail/cat", json={"image_id": "L1:05"})
+    covers = {
+        r["tag"]: r["thumb_image_id"] for r in (await client.get("/tags/browse")).json()
+    }
+    assert covers["cat"] == await lead("cat") == "L1:05"
+    await client.post("/images/L1:05/quarantine", json={"quarantined": True})
+    covers = {
+        r["tag"]: r["thumb_image_id"] for r in (await client.get("/tags/browse")).json()
+    }
+    assert covers["cat"] == await lead("cat") != "L1:05"
