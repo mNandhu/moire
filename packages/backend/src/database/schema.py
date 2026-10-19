@@ -151,6 +151,27 @@ characters = sa.Table(
     sa.Column("updated_at", sa.Float),
 )
 
+# The face found in an image's thumbnail by the face detector, as fractions
+# of the image (centre x / y, width / height), for centring character
+# avatars. A row with a NULL conf means the model ran and found no face; no
+# row means it hasn't run. `model` names the detector that wrote it.
+image_faces = sa.Table(
+    "image_faces",
+    metadata,
+    sa.Column(
+        "image_id",
+        _BINARY,
+        sa.ForeignKey("images._id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("cx", sa.Float),
+    sa.Column("cy", sa.Float),
+    sa.Column("w", sa.Float),
+    sa.Column("h", sa.Float),
+    sa.Column("conf", sa.Float),
+    sa.Column("model", sa.Text, nullable=False),
+)
+
 # Derived from images.gen.loras: one row per lora an image used, for the LoRA
 # feed filter and its counts. Rebuilt with the gen subdoc on reprojection.
 image_loras = sa.Table(

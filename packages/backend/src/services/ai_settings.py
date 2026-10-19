@@ -29,6 +29,9 @@ DEFAULT_AI_SETTINGS: dict[str, Any] = {
     # When on (default), prompt: tags are derived from the positive prompt only,
     # so negative-prompt words don't pollute search. Applied at reprojection.
     "prompt_positive_only": True,
+    # Crop character avatars to the face once the face model is downloaded
+    # (services/face_detect.py). On by default: it does nothing until then.
+    "face_detect": True,
 }
 
 
@@ -62,6 +65,8 @@ def clean_settings_patch(patch: dict[str, Any]) -> dict[str, Any]:
 
     if "prompt_positive_only" in clean:
         clean["prompt_positive_only"] = bool(clean["prompt_positive_only"])
+    if "face_detect" in clean:
+        clean["face_detect"] = bool(clean["face_detect"])
 
     return clean
 

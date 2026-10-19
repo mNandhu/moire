@@ -22,7 +22,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import image_tags, tag_categories, tag_index
+from . import face_detect, image_tags, tag_categories, tag_index
 
 # Colour words in hair / eye tags, as (hue, saturation %, lightness %).
 COLOURS: dict[str, tuple[int, int, int]] = {
@@ -154,6 +154,13 @@ async def _named(base: str) -> tuple[str, list[str], dict[str, str], list[dict]]
     return key, found.get(key, [base]), key_of, rows
 
 
+async def names_of(base: str) -> tuple[list[str], bool]:
+    """All of ``base``'s names (itself alone if not a character) and whether
+    it is a character."""
+    key, names, key_of, _ = await _named(base)
+    return names, base in key_of
+
+
 async def listing() -> list[dict]:
     """Every character, aliases folded in, most images first: what the image
     view shows as the people in a picture."""
@@ -173,6 +180,7 @@ async def listing() -> list[dict]:
                 )
             ).scalar_one()
         meta = await _meta(conn, list(found))
+    avatars = await _avatars([by[key]["thumb_image_id"] for key in found])
     out = [
         {
             "tag": key,
@@ -181,11 +189,40 @@ async def listing() -> list[dict]:
             "thumb_image_id": by[key]["thumb_image_id"],
             "name": meta.get(key, {}).get("name"),
             "focus": _focus(meta.get(key)),
+            **avatars.get(by[key]["thumb_image_id"], _NO_AVATAR),
         }
         for key, names in found.items()
     ]
     out.sort(key=lambda r: (-r["count"], r["tag"]))
     return out
+
+
+_NO_AVATAR = {"face": None, "aspect": None}
+
+
+async def _avatars(image_ids: list[str | None]) -> dict[str, dict]:
+    """Each avatar image's shape (width / height) and the face found in it,
+    for cropping. Images not yet looked at go to the face detector."""
+    ids = [i for i in image_ids if i]
+    if not ids:
+        return {}
+    async with async_conn() as conn:
+        shapes = (
+            await conn.execute(
+                sa.select(t.images.c._id, t.images.c.width, t.images.c.height).where(
+                    t.images.c._id.in_(ids)
+                )
+            )
+        ).fetchall()
+    faces = await face_detect.faces_for(ids)
+    await face_detect.queue([i for i in ids if i not in faces])
+    return {
+        r._id: {
+            "face": list(faces[r._id]) if r._id in faces else None,
+            "aspect": r.width / r.height if r.width and r.height else None,
+        }
+        for r in shapes
+    }
 
 
 def _focus(meta: dict | None) -> list[float] | None:
@@ -222,6 +259,7 @@ async def page(base: str) -> dict | None:
     im, it = t.images, t.image_tags
     library = {r["tag"]: r["count"] for r in rows}
     vocab = await tag_categories.load()
+    cover = detail["thumb_image_id"] or _first(rows, key)
     async with async_conn() as conn:
         total = (
             await conn.execute(
@@ -294,11 +332,7 @@ async def page(base: str) -> dict | None:
         ).fetchall()
         meta = (await _meta(conn, [key])).get(key, {})
         cover_hash = (
-            await conn.execute(
-                sa.select(im.c.blurhash).where(
-                    im.c._id == (detail["thumb_image_id"] or _first(rows, key))
-                )
-            )
+            await conn.execute(sa.select(im.c.blurhash).where(im.c._id == cover))
         ).scalar()
 
     lora_avg = {name: (cnt, avg) for name, cnt, avg in lora_scores}
@@ -327,6 +361,7 @@ async def page(base: str) -> dict | None:
         "kind": meta.get("kind"),
         "color": meta.get("color"),
         "focus": _focus(meta),
+        **(await _avatars([cover])).get(cover or "", _NO_AVATAR),
         "palette": palette(
             [tuple(r) for r in hair_eyes], solo if solo >= SOLO_ENOUGH else n
         ),

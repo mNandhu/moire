@@ -14,6 +14,7 @@ def test_expected_tables_exist():
         "image_gen_raw",
         "tag_meta",
         "characters",
+        "image_faces",
         "tag_aliases",
         "image_loras",
         "image_embeddings",

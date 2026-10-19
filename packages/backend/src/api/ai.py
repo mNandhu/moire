@@ -7,7 +7,7 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn
 from ..database import schema as t
-from ..services import image_tags
+from ..services import face_detect, image_tags
 
 from ..services.ai_jobs import (
     get_ai_job_manager,
@@ -32,6 +32,7 @@ class SettingsPatch(BaseModel):
     idle_unload_s: int | None = None
     cache_dir: str | None = None
     prompt_positive_only: bool | None = None
+    face_detect: bool | None = None
 
 
 class TagRequest(BaseModel):
@@ -115,6 +116,25 @@ async def ai_model_download_cancel():
         .get_state(model_repo=repo, cache_dir=cache_dir)
         .as_dict(),
     }
+
+
+@router.get("/faces")
+async def faces_status():
+    """The face detector (character avatars): switched on, downloaded, the
+    download's progress, and how many images wait to be looked at."""
+    return await face_detect.status()
+
+
+@router.post("/faces/download")
+async def faces_download():
+    await face_detect.start_download()
+    return await face_detect.status()
+
+
+@router.post("/faces/download-cancel")
+async def faces_download_cancel():
+    ok = await face_detect.cancel_download()
+    return {"ok": ok, **(await face_detect.status())}
 
 
 @router.post("/model/unload")

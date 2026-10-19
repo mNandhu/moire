@@ -9,7 +9,14 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from ..database.db import async_tx
 from ..database import schema as t
 from ._utils import thumb_url, validate_tags
-from ..services import characters, image_tags, tag_index, tag_rename, tag_settings
+from ..services import (
+    characters,
+    face_detect,
+    image_tags,
+    tag_index,
+    tag_rename,
+    tag_settings,
+)
 
 router = APIRouter()
 
@@ -150,6 +157,8 @@ async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
     sources found the tag; the image must carry it from one of them."""
     tag = tag_index.pin_key(validate_tags([tag])[0])
     image_id = body.image_id
+    # A character's avatar may come from an image under any of its names.
+    names, is_character = await characters.names_of(tag)
 
     async with async_tx() as conn:
         exists = (
@@ -159,7 +168,7 @@ async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
                     sa.exists(
                         sa.select(1).where(
                             t.image_tags.c.image_id == t.images.c._id,
-                            t.image_tags.c.base == tag,
+                            t.image_tags.c.base.in_(names),
                         )
                     ),
                 )
@@ -182,6 +191,8 @@ async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
         await conn.execute(stmt)
 
     tag_index.invalidate()
+    if is_character:
+        await face_detect.detect_now(image_id)  # the new avatar crops at once
     return {"tag": tag, "thumb_image_id": image_id}
 
 
