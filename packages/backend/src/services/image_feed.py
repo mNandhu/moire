@@ -195,7 +195,7 @@ def feed_where(f: FeedFilter):
     if f.quarantined == 1:
         conds.append(t.images.c.quarantined.is_(True))
     else:
-        conds.append(sa.func.coalesce(t.images.c.quarantined, False).is_(False))
+        conds.append(image_tags.not_quarantined())
     if f.needs_mapping == 1:
         conds.append(t.images.c.gen_workflow_sig.isnot(None))
         conds.append(t.images.c.gen_prompt.is_(None))

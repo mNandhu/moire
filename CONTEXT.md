@@ -40,13 +40,15 @@ belongs in this file.
   caller that owns the transaction, i.e. `reproject._flush_batch`, once per batch.
 - **Tag index**: the aggregated views *derived* from Tag-state: the grouped tag
   counts (per stored tag, or collapsed across sources into one `any:<base>`
-  entry counting distinct images) and the per-tag **mosaic samples** (a pinned
-  `tag_meta` thumbnail first, then random fill). The Tags page reads its own
-  view (`browse`: one entry per tag name, sources merged, optionally one
-  source) and a per-tag `detail` (counts by source, use over time, loras,
-  workflows, related tags). A **pinned cover** belongs to the tag name, not to
-  a source (`tag_index.pin_key`), so it shows whichever sources found the tag. Both are memoized with a short
-  TTL. **Invalidation belongs to the index, not its callers**
+  entry counting distinct images), the per-tag **mosaic samples** (a pinned
+  `tag_meta` thumbnail first, then a fixed per-tag shuffle), and the Tags
+  page's own views: `browse` (one entry per tag name, sources merged,
+  optionally one source) and a per-tag `detail` (counts by source, use over
+  time, loras, workflows, related tags). Samples, `browse` and `detail` leave
+  quarantined images out, like the feed (`image_tags.not_quarantined`), so a
+  count matches its gallery link. A **pinned cover** belongs to the tag name,
+  not to a source (`tag_index.pin_key`). All are memoized with a short TTL
+  except `detail`. **Invalidation belongs to the index, not its callers**
   (`services/tag_index.py`): tag writers dirty it once their transaction has
   committed, so a new writer cannot forget to. A cached entry is valid only
   within its TTL *and* its generation, which also means a read that started

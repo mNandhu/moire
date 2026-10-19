@@ -5,9 +5,9 @@ The Tags browser reads two derived views over the ``image_tags`` join table:
 - the **tag list**: grouped counts, either per stored tag or collapsed across
   sources into one ``any:<base>`` entry counting distinct images;
 - the **mosaic samples**: up to N images per tag, a pinned ``tag_meta``
-  thumbnail first, then random fill.
+  thumbnail first, then a fixed per-tag shuffle of the rest.
 
-Both are expensive (a full ``GROUP BY``; an ``ORDER BY RANDOM()`` scan), so both
+Both are expensive (a full ``GROUP BY``; a sorted scan per tag), so both
 are memoized with a short TTL. **Invalidation belongs to this module, not to its
 callers.** Tag-state writers dirty the index through :func:`invalidate` once
 their transaction has committed; see :mod:`services.image_tags` (which owns
@@ -32,6 +32,7 @@ here is a dict operation with no await inside it.
 from __future__ import annotations
 
 import threading
+import zlib
 import time
 from typing import Any
 
@@ -107,6 +108,16 @@ def reset_for_tests() -> None:
 
 
 # --- Pinned thumbnails ---------------------------------------------------------
+
+
+def _shuffled(tag: str):
+    """A fixed shuffle of images, different per tag: mosaics look varied
+    across tags (not every common tag showing the newest image) yet stay put
+    when an unrelated write refreshes them. Multiplicative hashing of the
+    rowid, seeded by the tag; integer math, no full sort key column."""
+    seed = zlib.crc32(tag.encode())
+    rowid = sa.literal_column(f"{t.images.name}.rowid")
+    return (rowid * 2654435761 + seed) % 4294967291
 
 
 def pin_key(tag: str) -> str:
@@ -207,7 +218,7 @@ async def list_tags(
 async def samples_for_tag(tag: str, per: int) -> list[dict]:
     """Up to ``per`` distinct images for one tag's mosaic card (``tag`` a stored
     id, or ``any:<base>`` for every source). A pinned
-    ``tag_meta`` thumbnail leads when present; the rest are random fill. Rows
+    ``tag_meta`` thumbnail leads when present; the rest follow ``_shuffled``. Rows
     carry ``_id``/``width``/``height``/``blurhash``; the route decorates them
     with the thumb URL."""
     cache_key = (tag, per)
@@ -247,6 +258,7 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
                 await conn.execute(
                     sa.select(*cols).where(
                         t.images.c._id == pinned,
+                        image_tags.not_quarantined(),
                         sa.exists(
                             sa.select(1).where(
                                 t.image_tags.c.image_id == t.images.c._id, match
@@ -259,10 +271,11 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
                 seen.add(row._id)
                 out.append(dict(row._mapping))
 
-        # ORDER BY RANDOM() gives varied, non-duplicated images across tags, fixes
-        # common tags all showing the same most-recent image. Full scan + sort of
-        # the matching rows, but the result is cached (TTL) and per-tag match sets
+        # A fixed per-tag shuffle (`_shuffled`) varies images across tags and
+        # keeps each mosaic put across refreshes. Full scan + sort of the
+        # matching rows, but the result is cached (TTL) and per-tag match sets
         # are small. Over-fetch to backfill any collision with the pinned image.
+        # Quarantined images never show, pinned or not.
         remaining = per - len(out)
         if remaining > 0:
             rows = (
@@ -271,13 +284,14 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
                     # source, and one image twice would leave the mosaic short.
                     sa.select(*cols)
                     .where(
+                        image_tags.not_quarantined(),
                         sa.exists(
                             sa.select(1).where(
                                 t.image_tags.c.image_id == t.images.c._id, match
                             )
-                        )
+                        ),
                     )
-                    .order_by(sa.func.random())
+                    .order_by(_shuffled(tag))
                     .limit(remaining + (1 if pinned else 0))
                 )
             ).fetchall()
@@ -342,7 +356,11 @@ async def browse(source: str = "all") -> list[dict]:
         .select_from(
             t.image_tags.join(t.images, t.images.c._id == t.image_tags.c.image_id)
         )
-        .where(_source_clause(source), t.image_tags.c.base != "")
+        .where(
+            _source_clause(source),
+            t.image_tags.c.base != "",
+            image_tags.not_quarantined(),
+        )
         .group_by(t.image_tags.c.base)
         .order_by(sa.text("count DESC"), t.image_tags.c.base)
     )
@@ -375,9 +393,14 @@ async def detail(base: str, source: str = "all") -> dict | None:
     Related tags come untrimmed (``_RELATED``) so the caller can drop its
     boilerplate and still have some left."""
     it = t.image_tags
+    visible = sa.exists(
+        sa.select(1).where(
+            t.images.c._id == it.c.image_id, image_tags.not_quarantined()
+        )
+    )
     ids = (
         sa.select(it.c.image_id)
-        .where(it.c.base == base, _source_clause(source))
+        .where(it.c.base == base, _source_clause(source), visible)
         .distinct()
         .scalar_subquery()
     )
@@ -398,7 +421,7 @@ async def detail(base: str, source: str = "all") -> dict | None:
         kinds = (
             await conn.execute(
                 sa.select(it.c.tag, sa.func.count())
-                .where(it.c.base == base)
+                .where(it.c.base == base, visible)
                 .group_by(it.c.tag)
             )
         ).fetchall()

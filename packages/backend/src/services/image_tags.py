@@ -508,9 +508,19 @@ async def set_score(image_id: str, score: int) -> str | None:
     return await _set_columns(image_id, score=score)
 
 
+def not_quarantined():
+    """The images the default feed shows, and so the Tags page counts and
+    pictures. A missing/NULL flag reads as not quarantined (legacy rows)."""
+    return sa.func.coalesce(t.images.c.quarantined, False).is_(False)
+
+
 async def set_quarantine(image_id: str, quarantined: bool) -> str | None:
-    """Toggle the DB-only quarantine flag (hides from the default feed)."""
-    return await _set_columns(image_id, quarantined=quarantined)
+    """Toggle the DB-only quarantine flag (hides from the default feed and
+    from the Tags page, whose counts and covers then change)."""
+    resolved = await _set_columns(image_id, quarantined=quarantined)
+    if resolved is not None:
+        _dirty_tag_index()
+    return resolved
 
 
 async def clear_ai_all() -> tuple[int, int]:

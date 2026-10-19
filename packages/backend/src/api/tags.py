@@ -54,7 +54,7 @@ async def tag_samples(
     tags: list[str] = Query(default=[]),
     per: int = Query(default=4, ge=1, le=6),
 ):
-    """Up to `per` distinct, randomly-sampled images per tag for the mosaic
+    """Up to `per` distinct images per tag (a stable per-tag pick) for the mosaic
     cards. Bounded (caller passes only the visible tags) and cached."""
     if not tags:
         return {}
@@ -83,6 +83,21 @@ async def browse_tags(source: str = "all"):
     return [
         {**row, "thumb_url": thumb_url(row["thumb_image_id"])}
         for row in await tag_index.browse(_source(source))
+    ]
+
+
+@router.get("/characters")
+async def list_characters():
+    """The character tags in the library, most images first, each with its
+    cover: what the image view shows as the people in a picture."""
+    return [
+        {
+            "tag": r["tag"],
+            "count": r["count"],
+            "thumb_url": thumb_url(r["thumb_image_id"]),
+        }
+        for r in await tag_index.browse("all")
+        if r["category"] == "character"
     ]
 
 

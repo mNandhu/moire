@@ -114,3 +114,43 @@ async def test_any_samples_are_distinct_images(client, seed):
         tag_index.invalidate()
         got = (await client.get("/tags/samples?tags=any:cat&per=3")).json()["any:cat"]
         assert sorted(s["_id"] for s in got) == ["L1:a", "L1:b", "L1:c"]
+
+
+async def test_mosaics_stay_put_when_another_tag_changes(client, seed):
+    for i in range(8):
+        seed(f"L1:{i}", tags=("cat", "dog"))
+    url = "/tags/samples?tags=any:cat&per=4"
+    before = (await client.get(url)).json()["any:cat"]
+    # pinning dog's cover dirties the whole index
+    await client.post("/tags/thumbnail/dog", json={"image_id": "L1:3"})
+    assert (await client.get(url)).json()["any:cat"] == before
+    dog = (await client.get("/tags/samples?tags=any:dog&per=4")).json()["any:dog"]
+    assert dog[0]["_id"] == "L1:3"
+
+
+async def test_quarantined_images_leave_the_tags_page(client, seed):
+    seed("L1:a", tags=("cat",))
+    seed("L1:b", tags=("cat",))
+    await client.post("/tags/thumbnail/cat", json={"image_id": "L1:a"})
+    await client.post("/images/L1:a/quarantine", json={"quarantined": True})
+
+    rows = (await client.get("/tags/browse")).json()
+    assert [(r["tag"], r["count"]) for r in rows] == [("cat", 1)]
+    assert (await client.get("/tags/detail", params={"tag": "cat"})).json()[
+        "count"
+    ] == 1
+    # the pin stays, but a quarantined cover isn't shown
+    samples = (await client.get("/tags/samples?tags=any:cat&per=4")).json()["any:cat"]
+    assert [s["_id"] for s in samples] == ["L1:b"]
+
+    await client.post("/images/L1:a/quarantine", json={"quarantined": False})
+    samples = (await client.get("/tags/samples?tags=any:cat&per=4")).json()["any:cat"]
+    assert samples[0]["_id"] == "L1:a"
+
+
+async def test_characters_lists_only_characters(client, seed, monkeypatch):
+    monkeypatch.setattr(tag_categories, "character_names", lambda: _chars("frieren"))
+    seed("L1:a", tags=("prompt:frieren", "prompt:cat"))
+    got = (await client.get("/tags/characters")).json()
+    assert [(c["tag"], c["count"]) for c in got] == [("frieren", 1)]
+    assert got[0]["thumb_url"].endswith("/images/L1%3Aa/thumb")
