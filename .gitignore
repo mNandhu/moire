@@ -29,7 +29,7 @@ packages/**/.env
 .idea/
 
 # Downloaded models
-.cache/moire/
+/.cache/
 
 # Misc
 *.swp
