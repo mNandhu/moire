@@ -21,7 +21,7 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn
 from ..database import schema as t
-from . import image_tags, workflow_family
+from . import image_shapes, image_tags, workflow_family
 from .tag_names import canonical_name
 
 
@@ -130,6 +130,8 @@ class FeedFilter:
     model: list[str] | None = None
     lora: list[str] | None = None
     embedding: list[str] | None = None
+    # Size presets (`image_shapes`), any of them.
+    shape: list[str] | None = None
     min_w: int | None = None
     max_w: int | None = None
     min_h: int | None = None
@@ -249,6 +251,8 @@ def feed_where(f: FeedFilter):
                     )
                 )
             )
+    if f.shape:
+        conds.append(image_shapes.where(f.shape))
     if f.min_w is not None:
         conds.append(t.images.c.width >= f.min_w)
     if f.max_w is not None:

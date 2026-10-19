@@ -108,6 +108,41 @@ async def test_dimension_ranges(client, seed):
     assert await _ids(client, max_w=500) == ["L1:small"]
 
 
+async def test_shape_filter_matches_by_ratio_not_size(client, seed):
+    seed("L1:base", width=832, height=1216)
+    seed("L1:upscaled", width=1152, height=1680)  # 768x1120 at 1.5x: still 2:3
+    seed("L1:tall", width=768, height=1344)
+    seed("L1:square", width=1024, height=1024)
+    seed("L1:nosize")
+    assert set(await _ids(client, shape="2:3")) == {"L1:base", "L1:upscaled"}
+    # Several shapes: any of them.
+    assert set(await _ids(client, shape=["2:3", "1:1"])) == {
+        "L1:base",
+        "L1:upscaled",
+        "L1:square",
+    }
+    # Shape and a size range together: both.
+    assert await _ids(client, shape="2:3", min_w=1000) == ["L1:upscaled"]
+    assert await _ids(client, shape="nope") == []
+
+
+async def test_sizes_counts_every_preset(client, seed):
+    seed("L1:a", width=832, height=1216)
+    seed("L1:b", width=1152, height=1680)
+    seed("L1:c", width=1344, height=768)
+    seed("L1:q", width=1024, height=1024, quarantined=True)
+    resp = await client.get("/images/sizes")
+    assert resp.status_code == 200
+    rows = resp.json()
+    counts = {r["shape"]: r["count"] for r in rows}
+    assert counts["2:3"] == 2 and counts["16:9"] == 1 and counts["1:1"] == 0
+    # Portrait to landscape, every preset listed.
+    assert (
+        rows[0]["orientation"] == "portrait" and rows[-1]["orientation"] == "landscape"
+    )
+    assert len(rows) == 15
+
+
 async def test_model_filter(client, seed):
     seed("L1:a", gen={"model": "sdxl", "workflow_sig": "s"})
     seed("L1:b", gen={"model": "pony", "workflow_sig": "s"})

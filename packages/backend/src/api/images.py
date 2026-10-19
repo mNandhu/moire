@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ..services.storage_fs import thumb_path, delete_thumb
-from ..services import gen_metadata, image_tags, image_feed, tag_index
+from ..services import gen_metadata, image_shapes, image_tags, image_feed, tag_index
 from ..services.image_feed import FeedFilter, FeedFilterError
 from ..services.image_tags import find_image as _find_image_doc  # type: ignore
 from ._utils import thumb_url
@@ -57,6 +57,7 @@ def feed_filter(
     model: list[str] | None = Query(default=None),
     lora: list[str] | None = Query(default=None),
     embedding: list[str] | None = Query(default=None),
+    shape: list[str] | None = Query(default=None),
     min_w: int | None = Query(default=None, ge=0),
     max_w: int | None = Query(default=None, ge=0),
     min_h: int | None = Query(default=None, ge=0),
@@ -82,6 +83,7 @@ def feed_filter(
             model=model,
             lora=lora,
             embedding=embedding,
+            shape=shape,
             min_w=min_w,
             max_w=max_w,
             min_h=min_h,
@@ -283,6 +285,36 @@ async def list_embeddings(library_id: str | None = Query(default=None)):
     return [{"name": r.name, "count": r.count} for r in rows]
 
 
+@router.get("/sizes")
+async def list_sizes(library_id: str | None = Query(default=None)):
+    """Every size preset with how many images have that shape, for the Size
+    filter. Presets come in order (portrait to landscape), empty ones too."""
+    stmt = (
+        sa.select(t.images.c.width, t.images.c.height, sa.func.count().label("count"))
+        .where(image_tags.not_quarantined())
+        .group_by(t.images.c.width, t.images.c.height)
+    )
+    if library_id:
+        stmt = stmt.where(t.images.c.library_id == library_id)
+    async with async_conn() as conn:
+        rows = (await conn.execute(stmt)).fetchall()
+    counts: dict[str, int] = {}
+    for r in rows:
+        name = image_shapes.shape_of(r.width, r.height)
+        if name:
+            counts[name] = counts.get(name, 0) + r.count
+    return [
+        {
+            "shape": s.name,
+            "width": s.width,
+            "height": s.height,
+            "orientation": s.orientation,
+            "count": counts.get(s.name, 0),
+        }
+        for s in image_shapes.SHAPES
+    ]
+
+
 # Activity is counted per 15-minute slot, then each slot is placed on a local
 # day in Python. Every UTC offset in use is a multiple of 15 minutes, so this
 # is exact for any zone, DST changes included, which one fixed offset for the
@@ -348,6 +380,7 @@ async def list_groups(
     model: list[str] | None = Query(default=None),
     lora: list[str] | None = Query(default=None),
     embedding: list[str] | None = Query(default=None),
+    shape: list[str] | None = Query(default=None),
     min_w: int | None = Query(default=None, ge=0),
     max_w: int | None = Query(default=None, ge=0),
     min_h: int | None = Query(default=None, ge=0),
@@ -374,6 +407,7 @@ async def list_groups(
             model=model,
             lora=lora,
             embedding=embedding,
+            shape=shape,
             min_w=min_w,
             max_w=max_w,
             min_h=min_h,
