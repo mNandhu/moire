@@ -30,6 +30,8 @@ import math
 import re
 from typing import Any
 
+from .tag_names import canonical_name
+
 
 # --- Resilient JSON parsing (pure) -------------------------------------------
 #
@@ -277,7 +279,8 @@ def _sanitize_term(part: str) -> str:
     emphasis brackets (:func:`_strip_emphasis_brackets`) and any trailing
     ``:<number>`` weight. So ``(tag1:1.1`` and ``tag2)`` reduce to ``tag1``/``tag2``,
     a bare ``:1.1)`` collapses to empty (and is dropped), and multi-word danbooru
-    tags keep their spaces and balanced parens (``hu tao (genshin impact)``). Lora
+    tags keep their balanced parens, words joined by underscores in the canonical
+    tag spelling (``hu tao (genshin impact)`` -> ``hu_tao_(genshin_impact)``). Lora
     tokens (``<lora:foo:0.8>``) start with ``<`` and are left untouched so their
     internal ``:weight`` survives.
     """
@@ -286,7 +289,7 @@ def _sanitize_term(part: str) -> str:
     p = _strip_emphasis_brackets(p).strip()
     if not p or p.startswith("<"):
         return p
-    return _WEIGHT_RE.sub("", p)
+    return canonical_name(_WEIGHT_RE.sub("", p))
 
 
 def tokenize_prompt(*texts: str | None) -> list[str]:

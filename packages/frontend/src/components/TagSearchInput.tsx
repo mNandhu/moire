@@ -12,7 +12,7 @@ import { splitBoilerplate } from "../lib/boilerplate";
 import { useBoilerplate } from "../lib/queries";
 import { Badge } from "./ui/Badge";
 import { cn } from "../lib/cn";
-import { formatSearchTag, isManual, isPrompt } from "../lib/tags";
+import { formatSearchTag, isManual, isPrompt, tagQueryText } from "../lib/tags";
 
 export type TagSuggestion = { _id: string; count: number };
 
@@ -55,7 +55,9 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
       const pool = suggestions.filter((s) => !selected.has(s._id));
       // Boilerplate still matches (it stays searchable) but ranks after every
       // other match, so "best" offers "best friend" before "best quality".
-      const ranked = fuzzyRank(q, pool, (s) => formatSearchTag(s._id), pool.length);
+      // Ranked against the display form (spaces), so `blue_eyes` and
+      // `blue eyes` find the same tag.
+      const ranked = fuzzyRank(tagQueryText(q), pool, (s) => formatSearchTag(s._id), pool.length);
       const { kept, boilerplate } = splitBoilerplate(ranked, (s) => s._id, isBoilerplate);
       return [...kept, ...boilerplate].slice(0, MAX_SUGGESTIONS);
     }, [text, suggestions, selected, isBoilerplate]);

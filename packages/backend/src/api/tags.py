@@ -60,9 +60,10 @@ async def tag_samples(
         return {}
     if len(tags) > 200:
         raise HTTPException(status_code=422, detail="too many tags (max 200)")
+    # Keyed by what the caller asked for; looked up by the canonical spelling.
     tags = validate_tags(tags, max_count=200)
     results = await asyncio.gather(
-        *[tag_index.samples_for_tag(tag, per) for tag in tags]
+        *[tag_index.samples_for_tag(image_tags.canonical_tag(tag), per) for tag in tags]
     )
     return {
         tag: [{**row, "thumb_url": thumb_url(row["_id"])} for row in samples]
@@ -72,7 +73,7 @@ async def tag_samples(
 
 @router.post("/thumbnail/{tag:path}")
 async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
-    tag = validate_tags([tag])[0]
+    tag = image_tags.canonical_tag(validate_tags([tag])[0])
     image_id = body.image_id
 
     async with async_tx() as conn:
@@ -111,7 +112,7 @@ async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
 
 @router.delete("/thumbnail/{tag:path}")
 async def clear_tag_thumbnail(tag: str):
-    tag = validate_tags([tag])[0]
+    tag = image_tags.canonical_tag(validate_tags([tag])[0])
     async with async_tx() as conn:
         await conn.execute(sa.delete(t.tag_meta).where(t.tag_meta.c.tag == tag))
     tag_index.invalidate()
@@ -124,7 +125,9 @@ async def apply_tags(image_id: str, tags: list[str]):
     await image_tags.apply_manual(image_id, cleaned)
     return {
         "image_id": image_id,
-        "added": [image_tags.to_manual(tag) for tag in cleaned],
+        "added": [
+            image_tags.canonical_tag(image_tags.to_manual(tag)) for tag in cleaned
+        ],
     }
 
 
@@ -132,7 +135,10 @@ async def apply_tags(image_id: str, tags: list[str]):
 async def remove_tags(image_id: str, tags: list[str]):
     tags = validate_tags(tags)
     await image_tags.remove_tags(image_id, tags)
-    return {"image_id": image_id, "removed": tags}
+    return {
+        "image_id": image_id,
+        "removed": [image_tags.canonical_tag(tag) for tag in tags],
+    }
 
 
 class BulkManualTags(BaseModel):

@@ -22,6 +22,7 @@ import sqlalchemy as sa
 from ..database.db import async_conn
 from ..database import schema as t
 from . import image_tags, workflow_family
+from .tag_names import canonical_name
 
 
 class FeedFilterError(ValueError):
@@ -174,7 +175,10 @@ def feed_where(f: FeedFilter):
     if f.tags:
         # `any:<base>` entries fan out to all sources; exact tags stay precise.
         # AND across groups, OR within each group: one EXISTS per group.
-        for group in image_tags.tag_match_groups(f.tags, f.logic):
+        # Either spelling finds a tag (`blue eyes` = `blue_eyes`), so a typed
+        # tag or an old bookmarked URL still matches the canonical stored form.
+        wanted = [image_tags.canonical_tag(tag) for tag in f.tags]
+        for group in image_tags.tag_match_groups(wanted, f.logic):
             conds.append(_tag_group_exists(group))
         if f.no_ai_tags == 1:
             conds.append(t.images.c.has_ai_tags.is_(False))
@@ -195,7 +199,7 @@ def feed_where(f: FeedFilter):
         conds.append(t.images.c.gen_workflow_sig.isnot(None))
         conds.append(t.images.c.gen_prompt.is_(None))
     if f.pterms:
-        terms = [p.strip().lower() for p in f.pterms if p and p.strip()]
+        terms = [canonical_name(p.lower()) for p in f.pterms if p and p.strip()]
         if terms:
             if f.plogic == "or":
                 conds.append(

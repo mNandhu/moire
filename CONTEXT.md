@@ -17,6 +17,12 @@ belongs in this file.
     user; mirrors `gen.prompt_terms` (which stays the fast search field). AI and
     prompt tags may overlap (e.g. `1girl` and `prompt:1girl` coexist); they are
     distinct kinds and are never deduped against each other.
+  - **Tag name**: every kind is stored in one canonical spelling, words joined
+    by underscores (`blue_eyes`, `hu_tao_(genshin_impact)`), the WD tagger's
+    own vocabulary. `blue eyes` and `blue_eyes` are the same tag. Owned by
+    `services/tag_names.py` (`canonical_name`); `image_tags.canonical_tag`
+    applies it to a prefixed tag. The UI shows underscores as spaces
+    (`lib/tags.ts` `formatTag`), and kaomoji (`^_^`) keep theirs.
 - **Tag-state**: the invariant binding `tags` to its summary flags:
   `has_tags` (any *curatable* tag, meaning a non-`prompt:` tag, so prompt-only images
   stay "Untagged"), `has_ai_tags` (any tag that is *neither* `manual:` nor

@@ -138,6 +138,11 @@ def reproject_image(image_id: str) -> int:
     return _reproject_where(t.image_gen_raw.c._id == image_id)
 
 
+def reproject_all() -> int:
+    """Recompute ``gen.*`` for every image with captured generation data."""
+    return _reproject_where(sa.true())
+
+
 def reproject_by_sig(workflow_sig: str) -> int:
     """Recompute ``gen.*`` for every image of a signature across all libraries.
     Used when a ruleset is created/edited/deleted (rulesets are sig-global)."""

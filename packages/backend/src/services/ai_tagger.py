@@ -25,28 +25,6 @@ from .ai_tagger_download import (
 
 logger = logging.getLogger("moire.ai_tagger")
 
-KAOMOJIS = {
-    "0_0",
-    "(o)_(o)",
-    "+_+",
-    "+-",
-    "._.",
-    "<o>_<o>",
-    "<|>_<|>",
-    "=_=",
-    ">_<",
-    "3_3",
-    "6_9",
-    ">_o",
-    "@_@",
-    "^_^",
-    "o_o",
-    "u_u",
-    "x_x",
-    "|_|",
-    "||_||",
-}
-
 
 def mcut_threshold(probs: np.ndarray) -> float:
     """Compute the MCUT threshold.
@@ -90,9 +68,8 @@ def _load_labels_from_csv(csv_path: str) -> LabelIndex:
             except Exception:
                 continue
 
-            if name not in KAOMOJIS:
-                name = name.replace("_", " ")
-
+            # Stored as the model spells it: underscores are the canonical
+            # tag form (services/tag_names.py); the UI shows them as spaces.
             names.append(name)
             categories.append(cat)
 

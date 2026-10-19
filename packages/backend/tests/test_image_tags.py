@@ -248,3 +248,20 @@ def test_with_manual_edit_leaves_ai_and_prompt_alone():
         "cat",
         "prompt:cat",
     ]
+
+
+def test_canonical_tag_keeps_prefix_and_joins_words():
+    assert it.canonical_tag("manual:blue eyes") == "manual:blue_eyes"
+    assert (
+        it.canonical_tag("prompt:hu tao (genshin impact)")
+        == "prompt:hu_tao_(genshin_impact)"
+    )
+    assert it.canonical_tag("any:blue eyes") == "any:blue_eyes"
+    assert it.canonical_tag("blue eyes") == "blue_eyes"
+    assert it.canonical_tag(it.canonical_tag("manual:a b")) == "manual:a_b"
+
+
+def test_with_manual_edit_canonicalizes_names():
+    assert it.with_manual_edit(
+        ["manual:blue_eyes"], add=["red eyes"], remove=["blue eyes"]
+    ) == ["manual:red_eyes"]

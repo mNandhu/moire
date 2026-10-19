@@ -27,11 +27,50 @@ export function isAiTag(raw: string): boolean {
   return !isManual(raw) && !isPrompt(raw);
 }
 
-/** Strip the kind prefix from a stored tag for display. */
-export function formatTag(raw: string): string {
+/**
+ * WD tagger entries whose underscore is part of the face, not a word gap.
+ * Mirror of the backend's services/tag_names.py KAOMOJIS.
+ */
+const KAOMOJIS = new Set([
+  "0_0", "(o)_(o)", "+_+", "+-", "._.", "<o>_<o>", "<|>_<|>", "=_=", ">_<",
+  "3_3", "6_9", ">_o", "@_@", "^_^", "o_o", "u_u", "x_x", "|_|", "||_||",
+]);
+
+/**
+ * A stored tag's name without its kind prefix, in stored spelling. Tags are
+ * stored Danbooru-style with underscores (`blue_eyes`); see
+ * services/tag_names.py.
+ */
+export function tagName(raw: string): string {
   if (isManual(raw)) return raw.slice(MANUAL_PREFIX.length);
   if (isPrompt(raw)) return raw.slice(PROMPT_PREFIX.length);
   return raw;
+}
+
+/** Display form: no kind prefix, underscores read as spaces (kaomoji kept). */
+export function formatTag(raw: string): string {
+  const name = tagName(raw);
+  return KAOMOJIS.has(name) ? name : name.replace(/_/g, " ");
+}
+
+/**
+ * Text to match a typed query against a tag's display form: `blue_eyes` and
+ * `blue eyes` are the same tag, so either spelling finds it.
+ */
+export function tagQueryText(q: string): string {
+  return q.replace(/_/g, " ").toLowerCase();
+}
+
+/**
+ * Tags as prompt text for pasting into ComfyUI / A1111: stored (underscore)
+ * names, comma separated, each once, with `(` and `)` escaped, since bare parentheses
+ * are emphasis syntax there (`hu_tao_\(genshin_impact\)`).
+ */
+export function toPromptText(tags: readonly string[]): string {
+  // An AI tag and its prompt twin (`blue_eyes`, `prompt:blue_eyes`) are one
+  // word in a prompt: first occurrence wins.
+  const names = [...new Set(tags.map(tagName))];
+  return names.map((n) => n.replace(/([()])/g, "\\$1")).join(", ");
 }
 
 /**
@@ -102,7 +141,7 @@ export function tagFlow(tags: readonly string[] = [], ai?: AiTagMeta | null): Fl
   const aiFlow = aiTags.map(
     (raw): FlowTag => ({
       raw,
-      label: raw,
+      label: formatTag(raw),
       kind: characters.has(raw) ? "character" : "ai",
       confidence: conf.get(raw),
     }),

@@ -28,7 +28,7 @@ pnpm -C packages/frontend test src/lib/fuzzy.test.ts   # single test file
 pnpm -C packages/frontend build   # tsc -b && vite build
 ```
 
-Backend env is optional: `SQLITE_PATH` (defaults to `<repo>/data/moire.db`) and `THUMB_ROOT` (defaults to `<repo>/data/thumbs`). Settings load from repo-root `.env` then `packages/backend/.env` (`src/core/config.py`). The SQLite schema is created on startup (`ensure_schema` in `main.py` lifespan); there is no migration step. Backend tests now include router-level **integration tests** (`tests/test_*_integration.py`) that run against a temp-file SQLite DB via the `client`/`seed` fixtures in `tests/conftest.py`.
+Backend env is optional: `SQLITE_PATH` (defaults to `<repo>/data/moire.db`) and `THUMB_ROOT` (defaults to `<repo>/data/thumbs`). Settings load from repo-root `.env` then `packages/backend/.env` (`src/core/config.py`). The SQLite schema is created on startup (`ensure_schema` in `main.py` lifespan); there is no schema migration step. One-off *data* migrations run right after it (`services/tag_migrations.py` `run_pending`, recorded in the `app_settings` row "migrations"). Backend tests now include router-level **integration tests** (`tests/test_*_integration.py`) that run against a temp-file SQLite DB via the `client`/`seed` fixtures in `tests/conftest.py`.
 
 ## Domain model
 
@@ -36,6 +36,7 @@ Backend env is optional: `SQLITE_PATH` (defaults to `<repo>/data/moire.db`) and 
 
 - **Image `_id` is `{library_id}:{relative/path}`.** ID lookups normalize `/` vs `\` (`api/images.py` `_find_image_doc`).
 - **One `tags[]` array holds three tag kinds:** AI tags unprefixed (`1girl`), manual tags `manual:`-prefixed, prompt tags `prompt:`-prefixed. AI and prompt tags may overlap and are never deduped against each other.
+- **Tag names are stored with underscores** (`blue_eyes`, Danbooru style); `services/tag_names.py` `canonical_name` is the one spelling rule. Every writer and every route/filter that takes a tag from the user canonicalizes (`image_tags.canonical_tag`), so `blue eyes` = `blue_eyes`. Spaces are display only (`lib/tags.ts` `formatTag`); `toPromptText` builds paste-into-ComfyUI text (parens escaped).
 - **`services/image_tags.py` is the ONLY place that mutates `tags` and recomputes the summary flags** (`has_tags`, `has_ai_tags`, `has_prompt_tags`, `rating`). It writes the ordered `tags` JSON array, the flags, and the derived `image_tags(image_id, tag, base)` join rows **in one transaction** so they never drift. `normalize_rating` is the single rating normalizer.
 - **`tags` is a JSON-array column on `images` (ordered, authoritative); `image_tags` + `image_gen_terms` are derived join tables** rebuilt transactionally from it/`gen.prompt_terms` to serve `GROUP BY`/`$in`/`$all` queries. `gen.*` scalars filtered in the feed are promoted to indexed `gen_*` columns; the full `gen` subdoc stays JSON.
 - **The SQLite schema (tables + indexes) is defined once in `database/schema.py`** as a SQLAlchemy `MetaData`. `database/db.py` owns the async (app) and sync (scanner) engines, sets `WAL`/`busy_timeout` PRAGMAs, and creates the schema via `ensure_schema` on startup. **Writer discipline:** SQLite is single-writer. Keep scanner write-transactions small (they batch + commit often); the file lock + `busy_timeout` is the real cross-process serializer, not the per-side Python locks.

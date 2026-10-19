@@ -42,7 +42,14 @@ import {
 } from "../lib/imageMutations";
 import { accentFromBlurhash } from "../lib/blurhash";
 import { pickRating, ratingBadgeClass } from "../lib/rating";
-import { formatTag, partitionTags, tagFlow, type FlowTag, type TagKind } from "../lib/tags";
+import {
+  formatTag,
+  partitionTags,
+  tagFlow,
+  toPromptText,
+  type FlowTag,
+  type TagKind,
+} from "../lib/tags";
 import { splitBoilerplate } from "../lib/boilerplate";
 import { useBoilerplate } from "../lib/queries";
 import { isFormField } from "../lib/dom";
@@ -557,7 +564,9 @@ export default function ImageView() {
       push("No tags to copy", "info");
       return;
     }
-    const text = all.map(formatTag).join(", ");
+    // Prompt-ready: stored names with parentheses escaped, so a paste into
+    // ComfyUI reads `hu_tao_(genshin_impact)` as a tag, not as emphasis.
+    const text = toPromptText(all);
     try {
       await navigator.clipboard.writeText(text);
       push("Tags copied to clipboard", "success");
@@ -807,7 +816,7 @@ export default function ImageView() {
                       type="button"
                       onClick={() => void copyAllTags()}
                       className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
-                      title="Copy all tags as comma-separated text"
+                      title="Copy all tags as prompt text"
                     >
                       <Copy size={12} /> Copy all
                     </button>

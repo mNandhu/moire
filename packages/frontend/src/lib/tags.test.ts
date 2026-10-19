@@ -3,6 +3,8 @@ import {
   bulkTagNames,
   formatSearchTag,
   formatTag,
+  tagQueryText,
+  toPromptText,
   isAiTag,
   isManual,
   isPrompt,
@@ -19,6 +21,30 @@ describe("formatTag", () => {
   });
   it("leaves a bare AI tag untouched", () => {
     expect(formatTag("1girl")).toBe("1girl");
+  });
+  it("shows underscores as spaces", () => {
+    expect(formatTag("blue_eyes")).toBe("blue eyes");
+    expect(formatTag("prompt:hu_tao_(genshin_impact)")).toBe("hu tao (genshin impact)");
+  });
+  it("keeps a kaomoji's underscore", () => {
+    expect(formatTag("^_^")).toBe("^_^");
+  });
+});
+
+describe("tagQueryText", () => {
+  it("matches either spelling against the display form", () => {
+    expect(formatTag("blue_eyes").includes(tagQueryText("Blue_Eyes"))).toBe(true);
+  });
+});
+
+describe("toPromptText", () => {
+  it("keeps underscores, drops prefixes and escapes parentheses", () => {
+    expect(toPromptText(["1girl", "prompt:hu_tao_(genshin_impact)", "manual:keeper"])).toBe(
+      "1girl, hu_tao_\\(genshin_impact\\), keeper",
+    );
+  });
+  it("writes a tag once when AI and prompt both carry it", () => {
+    expect(toPromptText(["blue_eyes", "manual:x", "prompt:blue_eyes"])).toBe("blue_eyes, x");
   });
 });
 

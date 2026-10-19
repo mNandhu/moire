@@ -10,7 +10,7 @@ import { Input } from "../components/ui/Input";
 import { cn } from "../lib/cn";
 import { api } from "../lib/api";
 import { useAiCoverage, useBoilerplate, useTagAggregate, type TagAgg } from "../lib/queries";
-import { formatTag, isManual, isPrompt } from "../lib/tags";
+import { formatTag, isManual, isPrompt, tagQueryText } from "../lib/tags";
 
 type Sample = { _id: string; thumb_url: string };
 
@@ -49,7 +49,7 @@ export default function TagsPage() {
   const filtered = useMemo(() => {
     if (!tags) return [];
     const pool = showBoilerplate ? tags : tags.filter((t) => !isBoilerplate(t._id));
-    const needle = q.trim().toLowerCase();
+    const needle = tagQueryText(q.trim());
     if (!needle) return pool;
     return pool.filter((t) => formatTag(t._id).toLowerCase().includes(needle));
   }, [tags, q, showBoilerplate, isBoilerplate]);

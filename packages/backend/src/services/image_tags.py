@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
+from .tag_names import canonical_name
 
 MANUAL_PREFIX = "manual:"
 PROMPT_PREFIX = "prompt:"
@@ -79,6 +80,16 @@ def base_of(tag: str) -> str:
     if is_prompt(tag):
         return tag[len(PROMPT_PREFIX) :]
     return tag
+
+
+def canonical_tag(tag: str) -> str:
+    """A stored or searched tag in canonical spelling: its kind prefix (manual,
+    prompt, or the search-only ``any:``) kept, the name after it canonicalized
+    (:func:`services.tag_names.canonical_name`). Idempotent."""
+    for prefix in (MANUAL_PREFIX, PROMPT_PREFIX, ANY_PREFIX):
+        if tag.startswith(prefix):
+            return prefix + canonical_name(tag[len(prefix) :])
+    return canonical_name(tag)
 
 
 # Gallery-search sentinel: ``any:<base>`` is not a stored tag kind but a *query*
@@ -370,12 +381,18 @@ async def _mutate_tags(
 
 async def apply_manual(image_id: str, tags: list[str]) -> None:
     await _mutate_tags(
-        image_id, lambda current: union_tags(current, [to_manual(x) for x in tags])
+        image_id,
+        lambda current: union_tags(
+            current, [canonical_tag(to_manual(x)) for x in tags]
+        ),
     )
 
 
 async def remove_tags(image_id: str, tags: list[str]) -> None:
-    await _mutate_tags(image_id, lambda current: without_tags(current, tags))
+    """Remove stored tags (any kind, prefix included). Either spelling of a
+    name matches: the canonical form is what is stored."""
+    drop = [canonical_tag(x) for x in tags]
+    await _mutate_tags(image_id, lambda current: without_tags(current, drop))
 
 
 def with_manual_edit(
@@ -385,8 +402,8 @@ def with_manual_edit(
     first, so a name in both lists ends up present. AI and prompt tags are never
     touched: a bulk edit is curation, not a rewrite of what the tagger or the
     prompt produced."""
-    dropped = without_tags(existing, [to_manual(x) for x in remove])
-    return union_tags(dropped, [to_manual(x) for x in add])
+    dropped = without_tags(existing, [canonical_tag(to_manual(x)) for x in remove])
+    return union_tags(dropped, [canonical_tag(to_manual(x)) for x in add])
 
 
 async def bulk_manual(
@@ -484,6 +501,22 @@ async def clear_ai_all() -> tuple[int, int]:
 
 
 # --- Sync repo helpers (scanner / reproject threads) --------------------------
+
+
+def rewrite_tags_sync(
+    conn: Connection,
+    image_id: str,
+    new_tags: list[str],
+    extra: dict[str, Any] | None = None,
+) -> None:
+    """Persist a whole new tag array on a caller-owned sync transaction. For
+    one-off data migrations only (services/tag_migrations.py); like
+    :func:`replace_prompt_sync`, the caller invalidates the tag index."""
+    statements, rows = _persist_statements(image_id, new_tags, extra)
+    for stmt in statements:
+        conn.execute(stmt)
+    if rows:
+        conn.execute(sa.insert(t.image_tags), rows)
 
 
 def replace_prompt_sync(

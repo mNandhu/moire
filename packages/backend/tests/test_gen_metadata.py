@@ -130,13 +130,13 @@ def test_signature_none_on_empty():
 def test_tokenize_splits_on_commas_lowercase_dedup():
     # Commas are the tag separator; multi-word tags keep their spaces.
     terms = gm.tokenize_prompt("Cyberpunk City, neon, NEON")
-    assert terms == ["cyberpunk city", "neon"]
+    assert terms == ["cyberpunk_city", "neon"]
 
 
 def test_tokenize_preserves_multiword_tag_with_escaped_parens():
     # The reported bug: "hu tao \\(genshin impact\\)" is ONE tag, not hu + tao.
     terms = gm.tokenize_prompt(r"1girl, hu tao \(genshin impact\), smile")
-    assert terms == ["1girl", "hu tao (genshin impact)", "smile"]
+    assert terms == ["1girl", "hu_tao_(genshin_impact)", "smile"]
 
 
 def test_tokenize_preserves_lora_and_danbooru_tokens():
@@ -194,14 +194,14 @@ def test_extract_comfyui_fills_derived_fields():
     g = gm.extract({"source": "comfyui", "prompt": COMFY})
     assert g["model"] == "sdxl.safetensors"
     assert g["workflow_sig"] is not None
-    assert "a fox in snow" in g["prompt_terms"]
+    assert "a_fox_in_snow" in g["prompt_terms"]
     assert g["group_id"] is not None
 
 
 def test_extract_a1111():
     g = gm.extract({"source": "a1111", "parameters": A1111_FULL})
     assert g["seed"] == 12345
-    assert "a cyberpunk city" in g["prompt_terms"]
+    assert "a_cyberpunk_city" in g["prompt_terms"]
 
 
 def test_extract_unknown_source_returns_none():
@@ -211,7 +211,7 @@ def test_extract_unknown_source_returns_none():
 def test_extract_positive_only_default_excludes_negative_terms():
     # A1111_FULL negative is "blurry, lowres"; default (positive-only) drops them.
     g = gm.extract({"source": "a1111", "parameters": A1111_FULL})
-    assert "a cyberpunk city" in g["prompt_terms"]
+    assert "a_cyberpunk_city" in g["prompt_terms"]
     assert "blurry" not in g["prompt_terms"]
     assert "lowres" not in g["prompt_terms"]
 
@@ -220,7 +220,7 @@ def test_extract_positive_only_false_includes_negative_terms():
     g = gm.extract(
         {"source": "a1111", "parameters": A1111_FULL}, prompt_positive_only=False
     )
-    assert "a cyberpunk city" in g["prompt_terms"]
+    assert "a_cyberpunk_city" in g["prompt_terms"]
     assert "blurry" in g["prompt_terms"]
     assert gm.extract(None) is None
 
@@ -472,3 +472,7 @@ def test_match_workflow_file_picks_closest_above_threshold():
 def test_match_workflow_file_ties_go_to_newest_name():
     t = ["A", "B", "C"]
     assert gm.match_workflow_file(t, [("V2.2", t), ("V2.1", t)]) == ("V2.2", 1.0)
+
+
+def test_tokenize_space_and_underscore_spellings_are_one_term():
+    assert gm.tokenize_prompt("blue eyes, blue_eyes,  blue   eyes") == ["blue_eyes"]
