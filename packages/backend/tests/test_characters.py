@@ -260,3 +260,20 @@ async def test_renaming_carries_the_character_settings(client, seed, monkeypatch
         "#112233",
         "character",
     )
+
+
+async def test_the_list_carries_each_characters_colour(client, seed, monkeypatch):
+    monkeypatch.setattr(tag_categories, "load", _chars("nahida", "furina"))
+    for i in range(4):
+        seed(f"L1:n{i}", tags=("nahida", "green_eyes", "white_hair"))
+    seed("L1:f", tags=("furina", "blue_eyes"))
+    # shared with Furina: her blue eyes don't colour Nahida
+    seed("L1:both", tags=("nahida", "furina", "blue_eyes", "green_eyes"))
+    listed = {c["tag"]: c for c in (await client.get("/tags/characters")).json()}
+    page = (await client.get("/tags/character", params={"tag": "nahida"})).json()
+    assert listed["nahida"]["color"] == page["palette"][0] == "hsl(130 50% 45%)"
+    await client.patch(
+        "/tags/character", params={"tag": "nahida"}, json={"color": "#00ff00"}
+    )
+    listed = {c["tag"]: c for c in (await client.get("/tags/characters")).json()}
+    assert listed["nahida"]["color"] == "#00ff00"

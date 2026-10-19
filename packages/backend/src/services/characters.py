@@ -61,6 +61,11 @@ _WEAK = {"brown": 0.5, "light_brown": 0.5}
 # A colour leads only when this share of the character's images carry it.
 MIN_SHARE = 0.25
 _PART = re.compile(r"^(.+)_(hair|eyes)$")
+# The tags :func:`colour_of` reads, in SQL.
+_HAIR_EYES = sa.or_(
+    t.image_tags.c.base.like("%\\_hair", escape="\\"),
+    t.image_tags.c.base.like("%\\_eyes", escape="\\"),
+)
 
 
 def colour_of(base: str) -> str | None:
@@ -97,6 +102,18 @@ def palette(rows: list[tuple[str, str]], images: int) -> list[str]:
         key=lambda w: -weight[w],
     )
     return [f"hsl({h} {s}% {li}%)" for h, s, li in (COLOURS[w] for w in ranked[:3])]
+
+
+def solo_palette(
+    rows: list[tuple[str, str]], images: int, crowded: set[str]
+) -> list[str]:
+    """:func:`palette`, but another character's hair and eyes shouldn't colour
+    this one: the images they're alone in count, when there are enough of
+    them (``crowded`` are the shared ones). Pure."""
+    solo = images - len(crowded)
+    if solo >= SOLO_ENOUGH:
+        return palette([r for r in rows if r[0] not in crowded], solo)
+    return palette(rows, images)
 
 
 def signature(
@@ -168,31 +185,56 @@ async def listing() -> list[dict]:
     vocab = await tag_categories.load()
     by = {r["tag"]: r for r in rows}
     found = groups([r["tag"] for r in rows if r["category"] == "character"], vocab)
-    merged = {key: names for key, names in found.items() if len(names) > 1}
-    key_of = {name: key for key, names in merged.items() for name in names}
-    counts: dict[str, int] = {}
+    key_of = {name: key for key, names in found.items() for name in names}
+    images: dict[str, set[str]] = {}
+    hair_eyes: list[tuple[str, str]] = []
     async with async_conn() as conn:
         if key_of:
             it = t.image_tags
-            images: dict[str, set[str]] = {}
+            ids = tag_index.image_ids(list(key_of))
             for image_id, base in await conn.execute(
                 sa.select(it.c.image_id, it.c.base).where(
-                    it.c.image_id.in_(tag_index.image_ids(list(key_of))),
-                    it.c.base.in_(list(key_of)),
+                    it.c.image_id.in_(ids), it.c.base.in_(list(key_of))
                 )
             ):
                 images.setdefault(key_of[base], set()).add(image_id)
-            counts = {key: len(ids) for key, ids in images.items()}
+            hair_eyes = [
+                (r.image_id, r.base)
+                for r in await conn.execute(
+                    sa.select(it.c.image_id, it.c.base).where(
+                        it.c.image_id.in_(ids), _HAIR_EYES
+                    )
+                )
+            ]
         meta = await _meta(conn, list(found))
         covers = await _covers(conn, found, by)
     avatars = await _avatars(list(covers.values()))
+    keys_on: dict[str, set[str]] = {}
+    for key, ids in images.items():
+        for image_id in ids:
+            keys_on.setdefault(image_id, set()).add(key)
+    by_image: dict[str, list[tuple[str, str]]] = {}
+    for row in hair_eyes:
+        by_image.setdefault(row[0], []).append(row)
+
+    def colour(key: str) -> str | None:
+        if meta.get(key, {}).get("color"):
+            return meta[key]["color"]
+        ids = images.get(key, set())
+        crowded = {i for i in ids if len(keys_on[i]) > 1}
+        rows = [r for i in ids for r in by_image.get(i, [])]
+        found_colours = solo_palette(rows, len(ids), crowded)
+        return found_colours[0] if found_colours else None
+
     out = [
         {
             "tag": key,
             "aliases": names[1:],
-            "count": counts.get(key, by[key]["count"]),
+            "count": len(images[key]) if key in images else by[key]["count"],
             "thumb_image_id": covers[key],
             "name": meta.get(key, {}).get("name"),
+            "series": meta.get(key, {}).get("series"),
+            "color": colour(key),
             "focus": _focus(meta.get(key)),
             **avatars.get(covers[key] or "", _NO_AVATAR),
         }
@@ -318,11 +360,7 @@ async def page(base: str) -> dict | None:
         hair_eyes = (
             await conn.execute(
                 sa.select(it.c.image_id, it.c.base).where(
-                    it.c.image_id.in_(ids),
-                    sa.or_(
-                        it.c.base.like("%\\_hair", escape="\\"),
-                        it.c.base.like("%\\_eyes", escape="\\"),
-                    ),
+                    it.c.image_id.in_(ids), _HAIR_EYES
                 )
             )
         ).fetchall()
@@ -386,12 +424,7 @@ async def page(base: str) -> dict | None:
         ({"tag": k, "count": len(v)} for k, v in shared.items()),
         key=lambda r: (-r["count"], r["tag"]),
     )
-    # Another character's hair and eyes shouldn't colour this one: use the
-    # images they're alone in, when there are enough of them.
     crowded = set().union(*shared.values()) if shared else set()
-    solo = n - len(crowded)
-    if solo >= SOLO_ENOUGH:
-        hair_eyes = [r for r in hair_eyes if r[0] not in crowded]
     return {
         **detail,
         "tag": key,
@@ -403,9 +436,7 @@ async def page(base: str) -> dict | None:
         "color": meta.get("color"),
         "focus": _focus(meta),
         **(await _avatars([cover])).get(cover or "", _NO_AVATAR),
-        "palette": palette(
-            [tuple(r) for r in hair_eyes], solo if solo >= SOLO_ENOUGH else n
-        ),
+        "palette": solo_palette([tuple(r) for r in hair_eyes], n, crowded),
         "cover_blurhash": cover_hash,
         "signature": signature(
             tags_here,
