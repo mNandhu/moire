@@ -44,9 +44,9 @@ import { applyAmbient } from "../lib/ambient";
 import { LIBRARIES_KEY, TAGS_KEY, type Library } from "../lib/queries";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
-import { Input } from "../components/ui/Input";
 import { Picker } from "../components/ui/Picker";
 import { EmptyState } from "../components/ui/EmptyState";
+import { SizeFilter } from "../components/SizeFilter";
 import {
   TagSearchInput,
   type TagSuggestion,
@@ -1124,68 +1124,7 @@ export default function AllImagesPage() {
                     options={LOGIC_OPTIONS.prompt}
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted mb-1.5">
-                    Width (min / max)
-                  </label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      aria-label="Min width"
-                      placeholder="min"
-                      value={filters.minW ?? ""}
-                      onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          minW: e.target.value ? Number(e.target.value) : undefined,
-                        })
-                      }
-                    />
-                    <Input
-                      type="number"
-                      aria-label="Max width"
-                      placeholder="max"
-                      value={filters.maxW ?? ""}
-                      onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          maxW: e.target.value ? Number(e.target.value) : undefined,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted mb-1.5">
-                    Height (min / max)
-                  </label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      aria-label="Min height"
-                      placeholder="min"
-                      value={filters.minH ?? ""}
-                      onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          minH: e.target.value ? Number(e.target.value) : undefined,
-                        })
-                      }
-                    />
-                    <Input
-                      type="number"
-                      aria-label="Max height"
-                      placeholder="max"
-                      value={filters.maxH ?? ""}
-                      onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          maxH: e.target.value ? Number(e.target.value) : undefined,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
+                <SizeFilter filters={filters} setFilters={setFilters} />
               </div>
             </div>
 

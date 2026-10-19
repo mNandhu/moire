@@ -53,4 +53,27 @@ describe("Picker", () => {
     fireEvent.keyDown(screen.getByRole("listbox"), { key: "Enter" });
     expect(onChange).toHaveBeenCalledWith("w:1");
   });
+
+  it("picks several with an array value and stays open", () => {
+    const onChange = vi.fn();
+    render(
+      <Picker
+        aria-label="Size"
+        value={["2:3"]}
+        onChange={onChange}
+        placeholder="Any size"
+        options={[
+          { value: "2:3", label: "2:3" },
+          { value: "3:4", label: "3:4" },
+        ]}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Size" })).toHaveTextContent("2:3");
+    fireEvent.click(screen.getByRole("button", { name: "Size" }));
+    expect(screen.getByRole("listbox")).toHaveAttribute("aria-multiselectable", "true");
+    expect(screen.getByRole("option", { name: "2:3" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.mouseDown(screen.getByRole("option", { name: "3:4" }));
+    expect(onChange).toHaveBeenCalledWith("3:4");
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+  });
 });

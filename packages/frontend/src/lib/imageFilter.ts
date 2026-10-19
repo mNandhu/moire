@@ -67,6 +67,9 @@ export type Filters = {
   /** Embeddings either of its prompts used, every one (gen.embeddings);
    * `embedding:name` chips in the search box. */
   embedding: string[];
+  /** Size presets ("2:3"): the image's shape is any of them. Matched by
+   * ratio, so upscales count (services/image_shapes.py). */
+  shape: string[];
   minW?: number;
   maxW?: number;
   minH?: number;
@@ -97,6 +100,7 @@ export const DEFAULT_FILTERS: Filters = {
   model: undefined,
   lora: [],
   embedding: [],
+  shape: [],
   minW: undefined,
   maxW: undefined,
   minH: undefined,
@@ -134,6 +138,7 @@ export function parseFilters(sp: URLSearchParams): Filters {
     model: sp.get("model") || undefined,
     lora: sp.getAll("lora").filter(Boolean),
     embedding: sp.getAll("embedding").filter(Boolean),
+    shape: sp.getAll("shape").filter(Boolean),
     minW: numOrUndef(sp.get("min_w")),
     maxW: numOrUndef(sp.get("max_w")),
     minH: numOrUndef(sp.get("min_h")),
@@ -171,6 +176,7 @@ export function serializeFilters(filters: Filters): URLSearchParams {
   if (filters.model) sp.set("model", filters.model);
   filters.lora.forEach((n) => sp.append("lora", n));
   filters.embedding.forEach((n) => sp.append("embedding", n));
+  filters.shape.forEach((s) => sp.append("shape", s));
   if (filters.minW != null) sp.set("min_w", String(filters.minW));
   if (filters.maxW != null) sp.set("max_w", String(filters.maxW));
   if (filters.minH != null) sp.set("min_h", String(filters.minH));
@@ -275,6 +281,7 @@ export function hasActiveFilter(f: Filters): boolean {
     !!f.model ||
     f.lora.length > 0 ||
     f.embedding.length > 0 ||
+    f.shape.length > 0 ||
     f.minW != null ||
     f.maxW != null ||
     f.minH != null ||
@@ -364,6 +371,7 @@ export function activeFilterChips(
     });
   }
   if (f.model) add("model", `Model: ${f.model}`, { model: undefined });
+  if (f.shape.length) add("shape", `Size: ${f.shape.join(", ")}`, { shape: [] });
   if (f.minW != null || f.maxW != null) {
     add("width", rangeLabel("Width", f.minW, f.maxW), { minW: undefined, maxW: undefined });
   }

@@ -35,6 +35,7 @@ describe("Image filter URL round-trip", () => {
       model: "sdxl",
       lora: ["detail_xl", "NahidaXL"],
       embedding: ["lazypos"],
+      shape: ["2:3", "3:4"],
       minW: 512,
       maxW: 2048,
       minH: 768,
@@ -204,6 +205,12 @@ describe("activeFilterChips", () => {
     expect(w.label).toBe("Width 512–1024");
     expect(w.without.minW).toBeUndefined();
     expect(w.without.maxW).toBeUndefined();
+  });
+
+  it("shows the chosen size presets as one chip", () => {
+    const [c] = activeFilterChips(f({ shape: ["2:3", "3:4"] }));
+    expect(c.label).toBe("Size: 2:3, 3:4");
+    expect(c.without.shape).toEqual([]);
   });
 });
 

@@ -6,8 +6,14 @@ import { fuzzyRank } from "../../lib/fuzzy";
 export type PickerOption = {
   value: string;
   label: string;
-  /** Quiet text after the label (a count, a note). */
+  /** Quiet text at the row's end (a count, a note). */
   hint?: React.ReactNode;
+  /** Drawn before the label (a size preset's outline). */
+  icon?: React.ReactNode;
+  /** Quieter text right after the label. */
+  detail?: string;
+  /** Shown faded: there for completeness, nothing behind it yet. */
+  dim?: boolean;
   /** Heading the option sits under; consecutive options share it. */
   group?: string;
   /** Indented under the option before it (a workflow's versions). */
@@ -26,6 +32,9 @@ const SEARCH_FROM = 8;
  * Arrow keys move, Enter picks, Escape closes without reaching the page's
  * own shortcuts. The list renders inline, so a surrounding panel that
  * closes on outside clicks keeps it as its own.
+ *
+ * Given an array `value`, it picks several: each pick toggles one option
+ * (`onChange` gets the option's value) and the list stays open.
  */
 export function Picker({
   value,
@@ -39,7 +48,7 @@ export function Picker({
   align = "left",
   disabled,
 }: {
-  value: string;
+  value: string | readonly string[];
   options: readonly PickerOption[];
   onChange: (value: string) => void;
   placeholder?: string;
@@ -67,7 +76,11 @@ export function Picker({
     if (!q) return options;
     return fuzzyRank(q, options, (o) => (o.keywords ? `${o.label} ${o.keywords}` : o.label), options.length);
   }, [options, query]);
-  const chosen = options.find((o) => o.value === value) ?? null;
+  const multiple = typeof value !== "string";
+  const isOn = (o: PickerOption) => (multiple ? value.includes(o.value) : o.value === value);
+  const chosenLabel = multiple
+    ? options.filter(isOn).map((o) => o.label).join(", ") || null
+    : (options.find(isOn)?.label ?? null);
 
   const close = (refocus = true) => {
     setOpen(false);
@@ -76,13 +89,13 @@ export function Picker({
   };
   const pick = (o: PickerOption) => {
     onChange(o.value);
-    close();
+    if (!multiple) close();
   };
 
   // Opening starts on the chosen option; typing starts on the best match.
   useEffect(() => {
     if (!open) return;
-    const i = query ? 0 : Math.max(0, shown.findIndex((o) => o.value === value));
+    const i = query ? 0 : Math.max(0, shown.findIndex(isOn));
     setActive(i);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, query]);
@@ -149,11 +162,11 @@ export function Picker({
         )}
       >
         {trigger ? (
-          trigger({ open, label: chosen?.label ?? null })
+          trigger({ open, label: chosenLabel })
         ) : (
           <>
-            <span className={cn("flex-1 truncate", chosen ? "text-neutral-100" : "text-faint")}>
-              {chosen?.label ?? placeholder}
+            <span className={cn("flex-1 truncate", chosenLabel ? "text-neutral-100" : "text-faint")}>
+              {chosenLabel ?? placeholder}
             </span>
             <ChevronDown size={16} className={cn("shrink-0 text-faint transition-transform", open && "rotate-180")} />
           </>
@@ -188,6 +201,7 @@ export function Picker({
             role="listbox"
             tabIndex={-1}
             aria-label={ariaLabel}
+            aria-multiselectable={multiple || undefined}
             aria-activedescendant={!withSearch && shown[active] ? `${listId}-${active}` : undefined}
             className="max-h-72 overflow-auto py-1 outline-none"
           >
@@ -206,7 +220,7 @@ export function Picker({
                     id={`${listId}-${i}`}
                     data-index={i}
                     role="option"
-                    aria-selected={o.value === value}
+                    aria-selected={isOn(o)}
                     onMouseEnter={() => setActive(i)}
                     onMouseDown={(e) => {
                       e.preventDefault();
@@ -216,10 +230,15 @@ export function Picker({
                       "flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer",
                       o.indent && !query && "pl-7",
                       i === active ? "bg-brand-900/40" : "",
+                      o.dim && "opacity-45",
                     )}
                   >
-                    <span className="w-4 shrink-0 text-brand-300">{o.value === value && <Check size={14} />}</span>
-                    <span className="flex-1 min-w-0 truncate text-neutral-100">{o.label}</span>
+                    <span className="w-4 shrink-0 text-brand-300">{isOn(o) && <Check size={14} />}</span>
+                    {o.icon}
+                    <span className="flex-1 min-w-0 truncate text-neutral-100">
+                      {o.label}
+                      {o.detail && <span className="ml-2 text-xs text-faint tabular-nums">{o.detail}</span>}
+                    </span>
                     {o.hint != null && <span className="shrink-0 text-xs text-faint tabular-nums">{o.hint}</span>}
                   </li>
                 </React.Fragment>
