@@ -104,3 +104,13 @@ async def test_migration_keys_old_pins_by_name(temp_db):
             ).fetchall()
         )
     assert pins == {"cat": "L1:new", "dog": "L1:d"}
+
+
+async def test_any_samples_are_distinct_images(client, seed):
+    # every image carries the tag from two sources: two join rows each
+    for name in ("a", "b", "c"):
+        seed(f"L1:{name}", tags=("cat", "prompt:cat"))
+    for _ in range(6):
+        tag_index.invalidate()
+        got = (await client.get("/tags/samples?tags=any:cat&per=3")).json()["any:cat"]
+        assert sorted(s["_id"] for s in got) == ["L1:a", "L1:b", "L1:c"]

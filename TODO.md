@@ -87,8 +87,12 @@ ComfyUI's workflow mapping so it only gets built once.
 
 - Intermittent test flake: the LibrariesPage test under heavy load
 - 11 longstanding ESLint warnings (mostly `no-explicit-any`)
-- Not yet clicked through in the app: gallery Edit tags dialog and the Merge
-  rules panel (tests pass)
+- Not yet clicked through in the app: gallery Edit tags dialog, the Merge
+  rules panel, and a rename / merge submitted from the Tags page panel (the
+  dialog opens; the submit and the panel following the new name are untested)
+- Tags page counts, mosaics and covers include quarantined images, while
+  "Open in gallery" and the cover picker hide them (the feed default). Moot
+  while nothing is quarantined; reuse the feed's condition when it isn't
 - Feed order uses file mtime as generation time; copying (scp, browser
   download from a VPS, `cp` without `-p`) resets it. Checked 2026-10-19:
   ComfyUI's stock SaveImage embeds no timestamp (only `prompt`/`workflow`

@@ -267,13 +267,16 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
         if remaining > 0:
             rows = (
                 await conn.execute(
+                    # EXISTS, not a join: an `any:` match has a row per
+                    # source, and one image twice would leave the mosaic short.
                     sa.select(*cols)
-                    .select_from(
-                        t.images.join(
-                            t.image_tags, t.image_tags.c.image_id == t.images.c._id
+                    .where(
+                        sa.exists(
+                            sa.select(1).where(
+                                t.image_tags.c.image_id == t.images.c._id, match
+                            )
                         )
                     )
-                    .where(match)
                     .order_by(sa.func.random())
                     .limit(remaining + (1 if pinned else 0))
                 )
