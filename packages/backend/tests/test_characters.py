@@ -184,3 +184,23 @@ async def test_not_a_character_covers_every_name(client, seed, monkeypatch):
     cats = {r["tag"]: r["category"] for r in (await client.get("/tags/browse")).json()}
     assert cats["nahida_(genshin_impact)"] == cats["nahida"] == "general"
     assert (await client.get("/tags/characters")).json() == []
+
+
+async def test_an_avatar_pinned_under_an_alias_shows_everywhere(
+    client, seed, monkeypatch
+):
+    monkeypatch.setattr(
+        tag_categories,
+        "load",
+        _chars("furina_(genshin_impact)", furina="genshin_impact"),
+    )
+    seed("L1:a", tags=("furina_(genshin_impact)", "prompt:furina"))
+    seed("L1:b", tags=("prompt:furina", "prompt:genshin_impact"))
+    got = await client.post(
+        "/tags/thumbnail/furina_(genshin_impact)", json={"image_id": "L1:b"}
+    )
+    assert got.status_code == 200
+    page = (await client.get("/tags/character", params={"tag": "furina"})).json()
+    listed = (await client.get("/tags/characters")).json()[0]
+    assert page["thumb_url"] == listed["thumb_url"]
+    assert listed["thumb_url"].endswith("/images/L1%3Ab/thumb")

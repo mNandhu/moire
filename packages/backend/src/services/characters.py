@@ -180,21 +180,51 @@ async def listing() -> list[dict]:
                 )
             ).scalar_one()
         meta = await _meta(conn, list(found))
-    avatars = await _avatars([by[key]["thumb_image_id"] for key in found])
+        covers = await _covers(conn, found, by)
+    avatars = await _avatars(list(covers.values()))
     out = [
         {
             "tag": key,
             "aliases": names[1:],
             "count": counts.get(key, by[key]["count"]),
-            "thumb_image_id": by[key]["thumb_image_id"],
+            "thumb_image_id": covers[key],
             "name": meta.get(key, {}).get("name"),
             "focus": _focus(meta.get(key)),
-            **avatars.get(by[key]["thumb_image_id"], _NO_AVATAR),
+            **avatars.get(covers[key] or "", _NO_AVATAR),
         }
         for key, names in found.items()
     ]
     out.sort(key=lambda r: (-r["count"], r["tag"]))
     return out
+
+
+async def _covers(
+    conn, found: dict[str, list[str]], by: dict[str, dict]
+) -> dict[str, str | None]:
+    """Each character's avatar image. A pin may be an image tagged under an
+    alias only (``furina``), which the Tags list's cover can't pick, so a
+    visible pin carrying any of the character's names wins here."""
+    pins = await tag_index._pins(conn, set(found))
+    it = t.image_tags
+    valid: set[tuple[str, str]] = set()
+    if pins:
+        rows = await conn.execute(
+            sa.select(it.c.image_id, it.c.base).where(
+                it.c.image_id.in_(set(pins.values())),
+                sa.exists(
+                    sa.select(1).where(
+                        t.images.c._id == it.c.image_id, image_tags.not_quarantined()
+                    )
+                ),
+            )
+        )
+        valid = {(r.image_id, r.base) for r in rows}
+    return {
+        key: pins[key]
+        if key in pins and any((pins[key], n) in valid for n in names)
+        else by[key]["thumb_image_id"]
+        for key, names in found.items()
+    }
 
 
 _NO_AVATAR = {"face": None, "aspect": None}
@@ -214,7 +244,8 @@ async def _avatars(image_ids: list[str | None]) -> dict[str, dict]:
                 )
             )
         ).fetchall()
-    faces = await face_detect.faces_for(ids)
+    # Switched off: no crops, even from faces already found.
+    faces = await face_detect.faces_for(ids) if await face_detect.ready() else {}
     await face_detect.queue([i for i in ids if i not in faces])
     return {
         r._id: {

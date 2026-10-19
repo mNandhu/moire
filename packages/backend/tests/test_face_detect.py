@@ -135,3 +135,20 @@ async def test_the_model_arriving_queues_every_avatar(
     await client.get("/ai/faces")  # the Settings page polling
     await face_detect.idle()
     assert set(await face_detect.faces_for(["L1:a", "L1:b"])) == {"L1:a", "L1:b"}
+
+
+async def test_switching_off_stops_the_crops_already_found(
+    client, seed, monkeypatch, tmp_path
+):
+    monkeypatch.setattr(tag_categories, "load", _chars("frieren"))
+    seed("L1:a", tags=("frieren",), thumb_key="k/a")
+    monkeypatch.setattr(face_detect, "downloaded", lambda cache_dir: True)
+    monkeypatch.setattr(face_detect, "detect", lambda *a: (0.5, 0.3, 0.2, 0.2, 0.9))
+    monkeypatch.setattr(
+        face_detect.storage_fs, "thumb_path", lambda key: Path(tmp_path / key)
+    )
+    await client.get("/tags/characters")
+    await face_detect.idle()
+    assert (await client.get("/tags/characters")).json()[0]["face"]
+    await client.post("/ai/settings", json={"face_detect": False})
+    assert (await client.get("/tags/characters")).json()[0]["face"] is None
