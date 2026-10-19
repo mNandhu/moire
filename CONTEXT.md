@@ -63,6 +63,13 @@ belongs in this file.
   with its charset prefixes, sits behind the pure `gen_raw_from_embedded`,
   which takes the embedded sources as plain values so every branch is reachable
   from a table test.
+- **Runtime-built prompt**: a prompt assembled while the workflow runs (a
+  captioner's output joined to fixed text), so the graph never holds it. The
+  extractor walks upstream from the sampler (`gen_metadata._resolve_text`):
+  literal text, then text a display node (pysssss ShowText and kin) recorded
+  for that node (`display_cache`, from the graph's `text_0` or the editor
+  workflow's widget value), then links, SDXL `text_g`/`text_l`, string
+  widgets, and concat nodes joining whatever parts resolve.
 - **LoRA**: an add-on network an image was generated with, recorded as
   structured data (`gen.loras = [{name, strength}]`), never as a tag. From
   ComfyUI lora-loader nodes (LoraLoader, rgthree Power Lora Loader, stackers;

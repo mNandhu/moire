@@ -392,13 +392,68 @@ def _node(prompt_json: dict[str, Any], ref: Any) -> dict[str, Any] | None:
     return node if isinstance(node, dict) else None
 
 
-def _resolve_text(
-    prompt_json: dict[str, Any], ref: Any, _seen: set[str] | None = None
-) -> str | None:
-    """Follow a link to a text-encode node and return its ``text`` widget.
+# Prompts are often built at run time (a captioner's output joined to fixed
+# text), so the text a sampler saw may not be in the graph at all. Display
+# nodes (pysssss ShowText and kin) record the text they showed: in the API
+# graph as ``text_0`` and in the editor workflow as the node's widget value,
+# written when it ran. That cache is the closest thing to what the sampler saw.
 
-    Recurses through pass-through nodes (e.g. a primitive feeding ``text``),
-    guarding against cycles.
+_CONCAT_INPUT = re.compile(r"^(?:text|string)_?(?:\d+|[a-z])$")
+
+
+def _is_display(class_type: Any) -> bool:
+    ct = str(class_type or "").lower()
+    return "show" in ct or "display" in ct or ("preview" in ct and "image" not in ct)
+
+
+def display_cache(
+    prompt_json: dict[str, Any] | None, workflow_json: Any = None
+) -> dict[str, str]:
+    """``{source_node_id: text}``: the text a display node showed for the node
+    feeding it. Best effort; empty when there are no display nodes."""
+    if not isinstance(prompt_json, dict):
+        return {}
+    shown: dict[str, str] = {}
+    widgets: dict[str, str] = {}
+    nodes = workflow_json.get("nodes") if isinstance(workflow_json, dict) else None
+    for wn in nodes if isinstance(nodes, list) else []:
+        if not isinstance(wn, dict) or not _is_display(wn.get("type")):
+            continue
+        wv = wn.get("widgets_values")
+        while isinstance(wv, list) and wv:
+            wv = wv[0]
+        if isinstance(wv, str) and wv.strip():
+            widgets[str(wn.get("id"))] = wv
+    for node_id, node in prompt_json.items():
+        if not isinstance(node, dict) or not _is_display(node.get("class_type")):
+            continue
+        inp = node.get("inputs", {})
+        src = next((v for v in inp.values() if isinstance(v, list) and v), None)
+        if src is None:
+            continue
+        cached = inp.get("text_0")
+        text = (
+            cached
+            if isinstance(cached, str) and cached.strip()
+            else widgets.get(str(node_id))
+        )
+        if text:
+            shown.setdefault(str(src[0]), text)
+    return shown
+
+
+def _resolve_text(
+    prompt_json: dict[str, Any],
+    ref: Any,
+    _seen: set[str] | None = None,
+    shown: dict[str, str] | None = None,
+) -> str | None:
+    """Best-effort text a link carries, walking upstream from a text-encode.
+
+    In order: a literal ``text`` widget; text a display node showed for this
+    node (:func:`display_cache`); a ``text`` link; SDXL ``text_g`` / ``text_l``;
+    a string widget (primitives); a concat node's resolvable inputs joined
+    with its delimiter (a partial prompt beats none). Guards against cycles.
     """
     node = _node(prompt_json, ref)
     if node is None:
@@ -408,12 +463,50 @@ def _resolve_text(
     if key in seen:
         return None
     seen.add(key)
+    shown = shown or {}
+    inp = node.get("inputs", {})
+    if not isinstance(inp, dict):
+        return None
 
-    text = node.get("inputs", {}).get("text")
+    text = inp.get("text")
     if isinstance(text, str):
         return text
+    if key in shown:
+        return shown[key]
     if isinstance(text, list):  # text itself is a link
-        return _resolve_text(prompt_json, text, seen)
+        return _resolve_text(prompt_json, text, seen, shown)
+
+    def value(v: Any) -> str | None:
+        if isinstance(v, str):
+            return v
+        if isinstance(v, list):
+            return _resolve_text(prompt_json, v, seen, shown)
+        return None
+
+    sdxl = [value(inp.get(k)) for k in ("text_g", "text_l")]
+    sdxl = [t for t in sdxl if t and t.strip()]
+    if sdxl:
+        return sdxl[0] if len(set(sdxl)) == 1 else ", ".join(sdxl)
+    for k in ("string", "value", "prompt"):
+        v = value(inp.get(k))
+        if v is not None:
+            return v
+    parts = [
+        value(v)
+        for k, v in sorted(inp.items())
+        if _CONCAT_INPUT.match(k) and not k.startswith("text_0")
+    ]
+    parts = [p.strip() for p in parts if p and p.strip()]
+    if parts:
+        delim = next(
+            (
+                inp[k]
+                for k in ("delimiter", "separator", "join_with")
+                if isinstance(inp.get(k), str)
+            ),
+            ", ",
+        )
+        return (delim or " ").join(parts)
     return None
 
 
@@ -551,8 +644,12 @@ def _find_sampler(prompt_json: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def parse_comfyui(prompt_json: dict[str, Any] | None) -> dict[str, Any]:
-    """Best-effort structural extraction from a ComfyUI ``prompt`` graph."""
+def parse_comfyui(
+    prompt_json: dict[str, Any] | None, workflow_json: Any = None
+) -> dict[str, Any]:
+    """Best-effort structural extraction from a ComfyUI ``prompt`` graph.
+    ``workflow_json`` (the editor graph) only supplies display-node caches for
+    prompts built at run time."""
     g = _empty(source="comfyui")
     if not isinstance(prompt_json, dict) or not prompt_json:
         return g
@@ -566,8 +663,9 @@ def parse_comfyui(prompt_json: dict[str, Any] | None) -> dict[str, Any]:
         sn = inp.get("sampler_name")
         if isinstance(sn, str):
             g["sampler"] = sn
-        g["prompt"] = _resolve_text(prompt_json, inp.get("positive"))
-        g["negative"] = _resolve_text(prompt_json, inp.get("negative"))
+        shown = display_cache(prompt_json, workflow_json)
+        g["prompt"] = _resolve_text(prompt_json, inp.get("positive"), shown=shown)
+        g["negative"] = _resolve_text(prompt_json, inp.get("negative"), shown=shown)
         g["model"] = _resolve_ckpt(prompt_json, inp.get("model"))
     g["loras"] = comfy_loras(prompt_json)
 
@@ -775,7 +873,7 @@ def extract(
 
     if source == "comfyui":
         prompt_json = raw.get("prompt") if isinstance(raw.get("prompt"), dict) else {}
-        g = parse_comfyui(prompt_json)
+        g = parse_comfyui(prompt_json, raw.get("workflow"))
         g["workflow_sig"] = workflow_sig(prompt_json)
     elif source == "a1111":
         g = parse_a1111(raw.get("parameters"))

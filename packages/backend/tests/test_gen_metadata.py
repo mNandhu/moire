@@ -530,3 +530,88 @@ def test_a1111_loras_come_from_prompt_tokens():
         {"name": "other", "strength": None},
     ]
     assert "<lora" not in " ".join(gm.tokenize_prompt(g["prompt"]))
+
+
+# --- prompts built at run time -------------------------------------------------
+
+# The AutoCaption shape: fixed text + a captioner's output, joined by a concat
+# node, shown by a ShowText node. The captioner's output isn't in the graph.
+RUNTIME = {
+    "17": {"class_type": "CLIPTextEncode", "inputs": {"text": ["81", 0]}},
+    "31": {"class_type": "CLIPTextEncode", "inputs": {"text": "lowres"}},
+    "42": {
+        "class_type": "KSampler",
+        "inputs": {"seed": 1, "positive": ["17", 0], "negative": ["31", 0]},
+    },
+    "78": {"class_type": "WD14Tagger|pysssss", "inputs": {"image": ["76", 0]}},
+    "79": {"class_type": "Text Multiline", "inputs": {"text": "score_9, nahida"}},
+    "81": {
+        "class_type": "TextConcat",
+        "inputs": {
+            "delimiter": ",",
+            "text1": ["79", 0],
+            "text2": ["78", 0],
+            "text3": "",
+        },
+    },
+    "82": {"class_type": "ShowText|pysssss", "inputs": {"text": ["81", 0]}},
+}
+
+
+def test_runtime_prompt_from_the_editor_workflow_display_cache():
+    workflow = {
+        "nodes": [
+            {
+                "id": 82,
+                "type": "ShowText|pysssss",
+                "widgets_values": [["score_9, nahida,1girl, smile"]],
+            }
+        ]
+    }
+    g = gm.parse_comfyui(RUNTIME, workflow)
+    assert g["prompt"] == "score_9, nahida,1girl, smile"
+    assert g["negative"] == "lowres"
+
+
+def test_runtime_prompt_from_the_api_graph_text_0_cache():
+    graph = {
+        **RUNTIME,
+        "82": {
+            "class_type": "ShowText|pysssss",
+            "inputs": {"text": ["81", 0], "text_0": "cached, prompt"},
+        },
+    }
+    assert gm.parse_comfyui(graph)["prompt"] == "cached, prompt"
+
+
+def test_runtime_prompt_without_cache_keeps_the_resolvable_parts():
+    assert gm.parse_comfyui(RUNTIME)["prompt"] == "score_9, nahida"
+
+
+def test_sdxl_text_g_and_primitive_strings_resolve():
+    graph = {
+        "1": {
+            "class_type": "CLIPTextEncodeSDXL",
+            "inputs": {"text_g": ["2", 0], "text_l": ["2", 0]},
+        },
+        "2": {"class_type": "Primitive string", "inputs": {"string": "a cat"}},
+        "3": {"class_type": "KSampler", "inputs": {"positive": ["1", 0]}},
+    }
+    assert gm.parse_comfyui(graph)["prompt"] == "a cat"
+
+
+def test_extract_passes_the_workflow_for_display_caches():
+    raw = {
+        "source": "comfyui",
+        "prompt": RUNTIME,
+        "workflow": {
+            "nodes": [
+                {
+                    "id": 82,
+                    "type": "ShowText|pysssss",
+                    "widgets_values": ["score_9, nahida, smile"],
+                }
+            ]
+        },
+    }
+    assert "smile" in gm.extract(raw)["prompt_terms"]
