@@ -29,6 +29,7 @@ describe("Image filter URL round-trip", () => {
       promptLogic: "or",
       model: "sdxl",
       lora: "detail_xl",
+      embedding: "lazypos",
       minW: 512,
       maxW: 2048,
       minH: 768,

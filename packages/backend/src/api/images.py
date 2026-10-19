@@ -60,6 +60,7 @@ async def list_images(
     plogic: str = Query(default="and"),
     model: list[str] | None = Query(default=None),
     lora: list[str] | None = Query(default=None),
+    embedding: list[str] | None = Query(default=None),
     min_w: int | None = Query(default=None, ge=0),
     max_w: int | None = Query(default=None, ge=0),
     min_h: int | None = Query(default=None, ge=0),
@@ -86,6 +87,7 @@ async def list_images(
             plogic=plogic,
             model=model,
             lora=lora,
+            embedding=embedding,
             min_w=min_w,
             max_w=max_w,
             min_h=min_h,
@@ -243,6 +245,26 @@ async def list_loras(library_id: str | None = Query(default=None)):
     return [{"name": r.name, "count": r.count} for r in rows]
 
 
+@router.get("/embeddings")
+async def list_embeddings(library_id: str | None = Query(default=None)):
+    """Distinct embeddings with image counts (either prompt side), for the
+    embedding filter dropdown. Sorted by frequency."""
+    e = t.image_embeddings
+    count = sa.func.count(sa.distinct(e.c.image_id))
+    stmt = (
+        sa.select(e.c.name, count.label("count"))
+        .group_by(e.c.name)
+        .order_by(count.desc(), e.c.name)
+    )
+    if library_id:
+        stmt = stmt.join(t.images, t.images.c._id == e.c.image_id).where(
+            t.images.c.library_id == library_id
+        )
+    async with async_conn() as conn:
+        rows = (await conn.execute(stmt)).fetchall()
+    return [{"name": r.name, "count": r.count} for r in rows]
+
+
 # Activity is counted per 15-minute slot, then each slot is placed on a local
 # day in Python. Every UTC offset in use is a multiple of 15 minutes, so this
 # is exact for any zone, DST changes included, which one fixed offset for the
@@ -307,6 +329,7 @@ async def list_groups(
     plogic: str = Query(default="and"),
     model: list[str] | None = Query(default=None),
     lora: list[str] | None = Query(default=None),
+    embedding: list[str] | None = Query(default=None),
     min_w: int | None = Query(default=None, ge=0),
     max_w: int | None = Query(default=None, ge=0),
     min_h: int | None = Query(default=None, ge=0),
@@ -332,6 +355,7 @@ async def list_groups(
             plogic=plogic,
             model=model,
             lora=lora,
+            embedding=embedding,
             min_w=min_w,
             max_w=max_w,
             min_h=min_h,

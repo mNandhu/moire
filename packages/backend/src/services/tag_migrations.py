@@ -169,6 +169,8 @@ _MIGRATIONS = (
     ("gen_guess_paths", None, True),
     ("tag_meta_base", migrate_tag_meta_base, False),
     ("gen_display_eval", None, True),
+    # (v2: the dev library already ran a first cut that lowercased names)
+    ("gen_embeddings_v2", None, True),
 )
 
 

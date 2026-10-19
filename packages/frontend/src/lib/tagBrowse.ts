@@ -33,6 +33,8 @@ export type TagDetail = {
   /** Images per calendar month ("2026-03"), months with none left out. */
   months: Array<{ month: string; count: number }>;
   loras: Array<{ name: string; count: number }>;
+  /** Embeddings in the positive prompt, most used first. */
+  embeddings: Array<{ name: string; count: number }>;
   workflows: Array<{ sig: string; count: number }>;
   /** Tags on the same images, most shared first, boilerplate included. */
   related: Array<{ tag: string; count: number }>;

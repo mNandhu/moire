@@ -1220,7 +1220,7 @@ function GenPanel({
         </div>
       </div>
 
-      {(gen.model || !!gen.loras?.length) && (
+      {(gen.model || !!gen.loras?.length || !!gen.embeddings?.length) && (
         <div className="space-y-2">
           <div className="text-xs font-medium text-muted">
             Resources used
@@ -1239,6 +1239,15 @@ function GenPanel({
               badge="LoRA"
               sub={l.strength != null ? `Strength ${l.strength}` : undefined}
               to={`/?lora=${encodeURIComponent(l.name)}`}
+            />
+          ))}
+          {gen.embeddings?.map((e) => (
+            <ResourceRow
+              key={`${e.name}:${e.negative}`}
+              name={e.name}
+              badge="Embedding"
+              sub={e.negative ? "In the negative prompt" : undefined}
+              to={`/?embedding=${encodeURIComponent(e.name)}`}
             />
           ))}
         </div>

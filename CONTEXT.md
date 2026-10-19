@@ -100,6 +100,13 @@ belongs in this file.
   prompt tokens. `name` is the file name without folders or extension. The
   derived `image_loras` rows serve the LoRA feed filter and its counts.
   (`gen_metadata.comfy_loras` / `prompt_loras`)
+- **Embedding**: a textual inversion a prompt names, ComfyUI's
+  `embedding:name` (or `<embedding:name>`), recorded as structured data
+  (`gen.embeddings = [{name, negative}]`, from both prompts), never as a tag.
+  `name` drops folders and extension and keeps its case. The derived
+  `image_embeddings` rows serve the embedding feed filter and its counts.
+  Bare A1111 embedding names read as ordinary words.
+  (`gen_metadata.prompt_embeddings`)
 - **Prompt parsing**: turning prompt text into prompt tags, best effort. Prompts
   are hand-written and often malformed, so `services/prompt_parse.py` never
   rejects input: it reads emphasis groups the way ComfyUI does, cuts pieces at

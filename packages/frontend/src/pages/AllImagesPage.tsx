@@ -164,6 +164,12 @@ export default function AllImagesPage() {
     queryFn: ({ signal }) =>
       api<{ model: string; count: number }[]>(`/api/v1/images/models`, { signal }),
   });
+  // Distinct embeddings (with counts) for the embedding filter dropdown.
+  const { data: embeddingOptions = NO_LORAS } = useQuery({
+    queryKey: ["image-embeddings"],
+    queryFn: ({ signal }) =>
+      api<{ name: string; count: number }[]>(`/api/v1/images/embeddings`, { signal }),
+  });
   // Distinct loras (with counts) for the LoRA filter dropdown.
   const { data: loraOptions = NO_LORAS } = useQuery({
     queryKey: ["image-loras"],
@@ -1034,6 +1040,28 @@ export default function AllImagesPage() {
                     {loraOptions.map((l) => (
                       <option key={l.name} value={l.name}>
                         {l.name} ({l.count})
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1.5">
+                    Embedding
+                  </label>
+                  <Select
+                    aria-label="Embedding filter"
+                    value={filters.embedding || ""}
+                    onChange={(e) =>
+                      setFilters({
+                        ...filters,
+                        embedding: e.target.value || undefined,
+                      })
+                    }
+                  >
+                    <option value="">Any embedding</option>
+                    {embeddingOptions.map((o) => (
+                      <option key={o.name} value={o.name}>
+                        {o.name} ({o.count})
                       </option>
                     ))}
                   </Select>

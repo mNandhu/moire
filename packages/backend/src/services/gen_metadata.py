@@ -31,7 +31,7 @@ import re
 from typing import Any
 
 from . import prompt_guess, text_eval
-from .prompt_parse import parse_prompt
+from .prompt_parse import EMBEDDING_TOKEN, parse_prompt
 from .tag_names import canonical_name
 
 
@@ -105,6 +105,7 @@ _EMPTY: dict[str, Any] = {
     "cfg": None,
     "prompt_terms": [],
     "loras": [],
+    "embeddings": [],
     "group_id": None,
     "guessed": [],
     "guess_paths": {},
@@ -661,6 +662,25 @@ def prompt_loras(text: str | None) -> list[dict[str, Any]]:
     return [{"name": k, "strength": v} for k, v in out.items()]
 
 
+def prompt_embeddings(prompt: str | None, negative: str | None) -> list[dict[str, Any]]:
+    """Embeddings (textual inversions) named in the prompts, ComfyUI's
+    ``embedding:name`` or ``<embedding:name>``: ``{name, negative}`` once per
+    name and side, in prompt order. ``name`` drops folders and extension, like
+    a lora's. Bare A1111 embedding names read as words, so they aren't seen."""
+    out: dict[tuple[str, bool], None] = {}
+    for text, neg in ((prompt, False), (negative, True)):
+        # Read off the raw text, not the parsed pieces, which are lowercased:
+        # a file name keeps its case. Same word-start rule as the parser.
+        for m in EMBEDDING_TOKEN.finditer(text or ""):
+            before = text[m.start() - 1] if m.start() else " "
+            if before.isalnum() or before == "_":
+                continue
+            name = lora_name(m.group(1))
+            if name:
+                out.setdefault((name, neg), None)
+    return [{"name": name, "negative": neg} for name, neg in out]
+
+
 def _find_sampler(prompt_json: dict[str, Any]) -> dict[str, Any] | None:
     for node in prompt_json.values():
         if not isinstance(node, dict):
@@ -999,6 +1019,8 @@ def extract(
                 g[field] = picked[field].text
                 g["guessed"].append(field)
                 g["guess_paths"][field] = picked[field].path
+
+    g["embeddings"] = prompt_embeddings(g.get("prompt"), g.get("negative"))
 
     if prompt_positive_only:
         g["prompt_terms"] = tokenize_prompt(g.get("prompt"))

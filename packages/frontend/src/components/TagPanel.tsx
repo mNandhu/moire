@@ -189,7 +189,7 @@ export function TagPanel({
             </div>
           </section>
 
-          {(detail.loras.length > 0 || workflows.length > 0) && (
+          {(detail.loras.length > 0 || detail.embeddings.length > 0 || workflows.length > 0) && (
             <section className="space-y-2">
               <h3 className="text-2xs uppercase tracking-wider text-faint">Made with</h3>
               {detail.loras.length > 0 && (
@@ -201,6 +201,19 @@ export function TagPanel({
                       title={`${l.count.toLocaleString()} images`}
                       label={l.name}
                       share={share(l.count)}
+                    />
+                  ))}
+                </ChipRow>
+              )}
+              {detail.embeddings.length > 0 && (
+                <ChipRow label="Embedding">
+                  {detail.embeddings.map((e) => (
+                    <Chip
+                      key={e.name}
+                      to={galleryHref({ embedding: e.name })}
+                      title={`${e.count.toLocaleString()} images`}
+                      label={e.name}
+                      share={share(e.count)}
                     />
                   ))}
                 </ChipRow>

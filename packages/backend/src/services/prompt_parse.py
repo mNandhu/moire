@@ -83,7 +83,15 @@ _NETWORK_TOKEN = re.compile(
     r"<(?:lora|lyco|lycoris|hypernet|embedding|wlr):[^<>,\n]*>", re.IGNORECASE
 )
 _NETWORK_PREFIX = re.compile(
-    r"<(?:lora|lyco|lycoris|hypernet|embedding|wlr):", re.IGNORECASE
+    r"<(?:lora|lyco|lycoris|hypernet|embedding|wlr):|embedding:", re.IGNORECASE
+)
+# ComfyUI's textual-inversion syntax: ``embedding:name`` (a file name, maybe
+# with folders and extension), optionally weighted ``embedding:name:1.2``
+# inside a group. A word of its own, so it starts after a space, separator or
+# bracket; the weight is kept on the token, not left behind as a stray number.
+EMBEDDING_TOKEN = re.compile(
+    r"embedding:([^\s,()\[\]{}<>|:]+)(?::(-?\d*\.?\d+)(?=\s*[)\]},]|\s*$))?",
+    re.IGNORECASE,
 )
 # Leading joiners left on a piece by run-on prose ("and black thigh-highs").
 _LEAD_JOINER = re.compile(r"^(?:and|or)\s+")
@@ -200,6 +208,13 @@ def _scan(text: str) -> list[tuple[str, bool]]:
                 has_text = True
             i += 2
             continue
+        if ch in "eE" and (i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_")):
+            # embedding:name: its own piece even mid-run ("x embedding:y z").
+            m = EMBEDDING_TOKEN.match(text, i)
+            if m:
+                emit(m.group(0))
+                i = m.end()
+                continue
         if ch == "<":
             # <lora:name:0.8> / <embedding:x>: one opaque piece, but only when
             # it really is one. Any other "<" (``<3``, a kaomoji) is text.
@@ -289,7 +304,8 @@ def classify(text: str, raw: str | None = None) -> str:
     """Kind of a cleaned piece; ``raw`` (the piece before cleaning) lets the
     prose check see a sentence's closing period."""
     if _NETWORK_PREFIX.match(text):
-        # A lora / embedding token: structured data (gen.loras), not a tag.
+        # A lora / embedding token: structured data (gen.loras /
+        # gen.embeddings), not a tag.
         return "network"
     if text in _EMOTICONS:
         return "tag"

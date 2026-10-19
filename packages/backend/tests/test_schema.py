@@ -15,6 +15,7 @@ def test_expected_tables_exist():
         "tag_meta",
         "tag_aliases",
         "image_loras",
+        "image_embeddings",
         "gen_rulesets",
         "workflow_names",
         "workflow_files",

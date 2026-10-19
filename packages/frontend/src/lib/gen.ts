@@ -15,6 +15,8 @@ export type GenMeta = {
   prompt_terms?: string[];
   /** Loras the image was generated with (services/gen_metadata.py). */
   loras?: { name: string; strength: number | null }[];
+  /** Embeddings named in the prompt or the negative prompt. */
+  embeddings?: { name: string; negative: boolean }[];
   group_id?: string | null;
   /** Fields the graph didn't give up, guessed by keywords instead
    * (services/prompt_guess.py). */

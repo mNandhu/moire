@@ -102,6 +102,25 @@ def _flush_batch(batch: list[tuple[str, dict]]) -> None:
                         for lo in loras
                     ],
                 )
+            # And the embedding rows (embedding filter + counts).
+            conn.execute(
+                sa.delete(t.image_embeddings).where(
+                    t.image_embeddings.c.image_id == image_id
+                )
+            )
+            embeddings = g.get("embeddings") or []
+            if embeddings:
+                conn.execute(
+                    sa.insert(t.image_embeddings),
+                    [
+                        {
+                            "image_id": image_id,
+                            "name": e["name"],
+                            "negative": bool(e.get("negative")),
+                        }
+                        for e in embeddings
+                    ],
+                )
             # Mirror the extracted terms into prompt: tags (preserving AI + manual).
             prompt_tags = [to_prompt(term) for term in (g.get("prompt_terms") or [])]
             image_tags.replace_prompt_sync(conn, image_id, prompt_tags)

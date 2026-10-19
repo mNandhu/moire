@@ -129,6 +129,7 @@ class FeedFilter:
     plogic: str = "and"
     model: list[str] | None = None
     lora: list[str] | None = None
+    embedding: list[str] | None = None
     min_w: int | None = None
     max_w: int | None = None
     min_h: int | None = None
@@ -234,6 +235,17 @@ def feed_where(f: FeedFilter):
                     sa.select(1).where(
                         t.image_loras.c.image_id == t.images.c._id,
                         t.image_loras.c.name == name,
+                    )
+                )
+            )
+    if f.embedding:
+        # Every chosen embedding must have been used, on either prompt side.
+        for name in {n for n in f.embedding if n}:
+            conds.append(
+                sa.exists(
+                    sa.select(1).where(
+                        t.image_embeddings.c.image_id == t.images.c._id,
+                        t.image_embeddings.c.name == name,
                     )
                 )
             )

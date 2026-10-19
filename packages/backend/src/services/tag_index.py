@@ -389,7 +389,8 @@ _RELATED = 40
 async def detail(base: str, source: str = "all") -> dict | None:
     """What the Tags page panel shows for one tag (``None`` when no image has
     it): counts by source, first and last use, images per month, and what the
-    images were made with (loras, workflow signatures) or tagged with besides.
+    images were made with (loras, positive-prompt embeddings, workflow
+    signatures) or tagged with besides.
     Related tags come untrimmed (``_RELATED``) so the caller can drop its
     boilerplate and still have some left."""
     it = t.image_tags
@@ -442,6 +443,17 @@ async def detail(base: str, source: str = "all") -> dict | None:
                 .limit(5)
             )
         ).fetchall()
+        emb = t.image_embeddings
+        emb_count = sa.func.count(sa.distinct(emb.c.image_id))
+        embeddings = (
+            await conn.execute(
+                sa.select(emb.c.name, emb_count.label("count"))
+                .where(emb.c.image_id.in_(ids), emb.c.negative.is_(False))
+                .group_by(emb.c.name)
+                .order_by(emb_count.desc(), emb.c.name)
+                .limit(5)
+            )
+        ).fetchall()
         sigs = (
             await conn.execute(
                 sa.select(
@@ -486,6 +498,7 @@ async def detail(base: str, source: str = "all") -> dict | None:
         "sources": sources,
         "months": [{"month": m, "count": n} for m, n in months],
         "loras": [{"name": r.name, "count": r.count} for r in loras],
+        "embeddings": [{"name": r.name, "count": r.count} for r in embeddings],
         "workflows": [{"sig": r.sig, "count": r.count} for r in sigs],
         "related": [{"tag": r.base, "count": r.count} for r in related],
         "thumb_image_id": pin,

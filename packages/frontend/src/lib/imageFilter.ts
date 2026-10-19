@@ -63,6 +63,8 @@ export type Filters = {
   model?: string;
   /** A lora the image used (gen.loras). */
   lora?: string;
+  /** An embedding either of its prompts used (gen.embeddings). */
+  embedding?: string;
   minW?: number;
   maxW?: number;
   minH?: number;
@@ -92,6 +94,7 @@ export const DEFAULT_FILTERS: Filters = {
   promptLogic: "and",
   model: undefined,
   lora: undefined,
+  embedding: undefined,
   minW: undefined,
   maxW: undefined,
   minH: undefined,
@@ -128,6 +131,7 @@ export function parseFilters(sp: URLSearchParams): Filters {
     promptLogic: sp.get("plogic") === "or" ? "or" : "and",
     model: sp.get("model") || undefined,
     lora: sp.get("lora") || undefined,
+    embedding: sp.get("embedding") || undefined,
     minW: numOrUndef(sp.get("min_w")),
     maxW: numOrUndef(sp.get("max_w")),
     minH: numOrUndef(sp.get("min_h")),
@@ -164,6 +168,7 @@ export function serializeFilters(filters: Filters): URLSearchParams {
     sp.set("plogic", filters.promptLogic);
   if (filters.model) sp.set("model", filters.model);
   if (filters.lora) sp.set("lora", filters.lora);
+  if (filters.embedding) sp.set("embedding", filters.embedding);
   if (filters.minW != null) sp.set("min_w", String(filters.minW));
   if (filters.maxW != null) sp.set("max_w", String(filters.maxW));
   if (filters.minH != null) sp.set("min_h", String(filters.minH));
@@ -267,6 +272,7 @@ export function hasActiveFilter(f: Filters): boolean {
     f.promptTerms.length > 0 ||
     !!f.model ||
     !!f.lora ||
+    !!f.embedding ||
     f.minW != null ||
     f.maxW != null ||
     f.minH != null ||
@@ -333,6 +339,7 @@ export function activeFilterChips(
   }
   if (f.model) add("model", `Model: ${f.model}`, { model: undefined });
   if (f.lora) add("lora", `LoRA: ${f.lora}`, { lora: undefined });
+  if (f.embedding) add("embedding", `Embedding: ${f.embedding}`, { embedding: undefined });
   if (f.minW != null || f.maxW != null) {
     add("width", rangeLabel("Width", f.minW, f.maxW), { minW: undefined, maxW: undefined });
   }

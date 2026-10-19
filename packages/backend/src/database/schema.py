@@ -148,6 +148,22 @@ image_loras = sa.Table(
     sa.Column("strength", sa.Float),
 )
 
+# Derived from images.gen.embeddings: one row per embedding (textual
+# inversion) per prompt side an image used, for the embedding feed filter and
+# its counts. Rebuilt with the gen subdoc on reprojection.
+image_embeddings = sa.Table(
+    "image_embeddings",
+    metadata,
+    sa.Column(
+        "image_id",
+        _BINARY,
+        sa.ForeignKey("images._id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("name", sa.Text, primary_key=True),
+    sa.Column("negative", sa.Boolean, primary_key=True),
+)
+
 # Prompt-tag merge rules (Tags page): `from_name` -> `to_name`, canonical bare
 # names. Applied to `gen.prompt_terms` on every reprojection, so a merge survives
 # re-extraction. Kept resolved (no chains) by services/tag_rename.py.
@@ -246,6 +262,7 @@ sa.Index("ix_image_tags_tag", image_tags.c.tag)
 sa.Index("ix_image_tags_base", image_tags.c.base)
 sa.Index("ix_image_gen_terms_term", image_gen_terms.c.term)
 sa.Index("ix_image_loras_name", image_loras.c.name)
+sa.Index("ix_image_embeddings_name", image_embeddings.c.name)
 sa.Index("ix_gen_raw_lib", image_gen_raw.c.library_id)
 sa.Index("ix_gen_raw_lib_sig", image_gen_raw.c.library_id, image_gen_raw.c.workflow_sig)
 sa.Index("ix_gen_raw_sig", image_gen_raw.c.workflow_sig)
