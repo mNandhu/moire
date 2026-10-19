@@ -916,7 +916,7 @@ export default function AllImagesPage() {
         {/* With the panel closed, active filters would otherwise be invisible
             (the title changing to "Filtered Images" was the only hint). */}
         {!filtersOpen && filterChips.length > 0 && (
-          <div className="pb-3 flex flex-wrap items-center gap-1.5" aria-label="Active filters">
+          <div className="pt-3 pb-3 flex flex-wrap items-center gap-1.5" aria-label="Active filters">
             {filterChips.map((chip) => (
               <span
                 key={chip.key}
