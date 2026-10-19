@@ -146,6 +146,11 @@ belongs in this file.
   owns the global concurrency limit and the per-tile lifecycle (enqueue-once,
   token-matched release, unmount/stale-src guards). Leaked slots silently stop
   every later thumbnail from loading, so the invariants are code, not comments.
+- **Tags page**: one entry per tag name (sources merged; the Source filter
+  narrows to one), characters in their own section, grid or list. Clicking a
+  tag opens its panel (`components/TagPanel.tsx`): use over time, the loras
+  and workflows it was made with, related tags, and the cover picker. The
+  page's sorting, sectioning and gallery links are pure (`lib/tagBrowse.ts`).
 - **Ruleset edit session**: the loaded-vs-edited state of one signature's
   extraction Ruleset: one definition of dirty, and the load/save/delete
   transitions that reset the baseline (`hooks/useRulesetSession.ts`). The exits

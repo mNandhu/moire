@@ -18,6 +18,7 @@ import {
 } from "./boilerplate";
 import { api } from "./api";
 import { fetchAiCoverage } from "./ai";
+import type { BrowseTag, TagDetail, TagSource } from "./tagBrowse";
 
 export type Library = {
   _id: string;
@@ -61,6 +62,29 @@ export function useTagAggregate({ includePrompt = false } = {}) {
     queryFn: ({ signal }) =>
       api<TagAgg[]>(
         `/api/v1/tags?include_manual=1${includePrompt ? "&include_prompt=1" : ""}`,
+        { signal },
+      ),
+  });
+}
+
+/** The Tags page list: one entry per tag name, optionally from one source.
+ * Under TAGS_KEY, so every tag write refreshes it. */
+export function useTagBrowse(source: TagSource) {
+  return useQuery({
+    queryKey: [...TAGS_KEY, "browse", source],
+    queryFn: ({ signal }) =>
+      api<BrowseTag[]>(`/api/v1/tags/browse?source=${source}`, { signal }),
+  });
+}
+
+/** The Tags page panel for one tag; idle while `tag` is null. */
+export function useTagDetail(tag: string | null, source: TagSource) {
+  return useQuery({
+    queryKey: [...TAGS_KEY, "detail", tag, source],
+    enabled: tag !== null,
+    queryFn: ({ signal }) =>
+      api<TagDetail>(
+        `/api/v1/tags/detail?${new URLSearchParams({ tag: tag ?? "", source })}`,
         { signal },
       ),
   });

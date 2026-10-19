@@ -24,7 +24,6 @@ import {
   Ban,
   Download,
   PanelRight,
-  Image as ImageIcon,
   Workflow,
 } from "lucide-react";
 import { resolveMediaUrl } from "../lib/media";
@@ -38,12 +37,10 @@ import {
   setScore as apiSetScore,
   setQuarantine as apiSetQuarantine,
   setRating as apiSetRating,
-  setTagThumbnail as apiSetTagThumbnail,
 } from "../lib/imageMutations";
 import { accentFromBlurhash } from "../lib/blurhash";
 import { pickRating, ratingBadgeClass } from "../lib/rating";
 import {
-  formatTag,
   partitionTags,
   tagFlow,
   toPromptText,
@@ -545,19 +542,6 @@ export default function ImageView() {
     // Optional: could add visual feedback here for swipe in progress
   }, []);
 
-  const setTagThumbnail = useCallback(
-    async (tagRaw: string) => {
-      if (!data?._id) return;
-      try {
-        await apiSetTagThumbnail(tagRaw, data._id);
-        push(`Set thumbnail for "${formatTag(tagRaw)}"`, "success");
-      } catch (e) {
-        push(`Failed to set thumbnail: ${String(e)}`, "error");
-      }
-    },
-    [data?._id, formatTag, push],
-  );
-
   const copyAllTags = useCallback(async () => {
     const all = data?.tags ?? [];
     if (!all.length) {
@@ -826,10 +810,7 @@ export default function ImageView() {
                 {aiTags.length ||
                 manualTagsRaw.length ||
                 promptTagsRaw.length ? (
-                  <TagFlow
-                    tags={tagFlow(data.tags, data.ai)}
-                    onThumb={(t) => void setTagThumbnail(t)}
-                  />
+                  <TagFlow tags={tagFlow(data.tags, data.ai)} />
                 ) : (
                   <div className="text-xs text-faint">No tags yet.</div>
                 )}
@@ -1015,15 +996,9 @@ const KIND_LABEL: Record<TagKind, string> = {
  * An image's tags as one comma-separated run, like a prompt: dense, easy to
  * read top to bottom and to copy. Kind shows as text colour (legend below);
  * a less confident AI tag is fainter. Each tag links to the gallery filtered
- * by it; hovering shows a small "set as tag thumbnail" action.
+ * by it. A tag's cover is picked on the Tags page.
  */
-function TagFlow({
-  tags,
-  onThumb,
-}: {
-  tags: FlowTag[];
-  onThumb: (raw: string) => void;
-}) {
+function TagFlow({ tags }: { tags: FlowTag[] }) {
   // Boilerplate (Settings) folds into one quiet toggle at the end, so the
   // tags that describe this image lead instead of "masterpiece, best quality".
   const isBoilerplate = useBoilerplate();
@@ -1042,7 +1017,7 @@ function TagFlow({
       <p className="text-[13px] leading-7">
         {shown.map((t, i) => (
           <React.Fragment key={t.raw}>
-            <span className={`group relative ${i >= firstBoilerplate ? "opacity-50" : ""}`}>
+            <span className={i >= firstBoilerplate ? "opacity-50" : undefined}>
               <Link
                 to={tagHref(t.raw)}
                 className={`rounded px-0.5 -mx-0.5 hover:bg-raised hover:underline ${KIND_TEXT[t.kind]}`}
@@ -1059,15 +1034,6 @@ function TagFlow({
               >
                 {t.label}
               </Link>
-              <button
-                type="button"
-                onClick={() => onThumb(t.raw)}
-                aria-label={`Set thumbnail for ${t.label}`}
-                title="Set as tag thumbnail"
-                className="absolute -top-4 left-1/2 -translate-x-1/2 h-5 w-5 rounded-full inline-flex items-center justify-center bg-raised border border-line-strong text-muted hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-              >
-                <ImageIcon size={11} />
-              </button>
             </span>
             {i < shown.length - 1 && <span className="text-line-strong">, </span>}
           </React.Fragment>

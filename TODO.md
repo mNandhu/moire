@@ -43,11 +43,6 @@ ComfyUI's workflow mapping so it only gets built once.
     Backend `scanner.cancel_scan` exists (used on library delete); needs an
     API route and a button on the scan progress
   - Overview empty states double as the checklist ("2 of 4 done")
-- Tags page rework
-  - Rethink the page as a whole (browsing, counts, thumbnails, sources)
-  - Set a tag's thumbnail here, picking from that tag's images. Remove the
-    hover button in ImageView `TagFlow` only once this works
-  - Keep the "Show boilerplate" toggle (Settings > Boilerplate)
 - Content-rating ceiling (app-wide mode)
   - Show only images up to a chosen rating (general < sensitive <
     questionable < explicit), e.g. "safe for screen-sharing"
@@ -92,8 +87,8 @@ ComfyUI's workflow mapping so it only gets built once.
 
 - Intermittent test flake: the LibrariesPage test under heavy load
 - 11 longstanding ESLint warnings (mostly `no-explicit-any`)
-- Not yet clicked through in the app: gallery Edit tags dialog, Tags page
-  rename / merge dialog and the Merge rules panel (tests pass)
+- Not yet clicked through in the app: gallery Edit tags dialog and the Merge
+  rules panel (tests pass)
 - Feed order uses file mtime as generation time; copying (scp, browser
   download from a VPS, `cp` without `-p`) resets it. Checked 2026-10-19:
   ComfyUI's stock SaveImage embeds no timestamp (only `prompt`/`workflow`

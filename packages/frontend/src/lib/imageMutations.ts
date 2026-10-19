@@ -63,10 +63,16 @@ export function removeTags(id: string, tags: string[]): Promise<unknown> {
 
 /** Pin this image as the mosaic thumbnail for a tag. `tag` is the raw stored
  * form, prefix included. */
+/** Pin a tag's cover. Keyed by the tag's name, so it shows for every source. */
 export function setTagThumbnail(tag: string, imageId: string): Promise<unknown> {
   return post(`/api/v1/tags/thumbnail/${encodeURIComponent(tag)}`, {
     image_id: imageId,
   });
+}
+
+/** Unpin a tag's cover; its mosaic goes back to picking images itself. */
+export function clearTagThumbnail(tag: string): Promise<unknown> {
+  return api(`/api/v1/tags/thumbnail/${encodeURIComponent(tag)}`, { method: "DELETE" });
 }
 
 /** Add/remove manual tags (bare names) on many images in one transaction. */

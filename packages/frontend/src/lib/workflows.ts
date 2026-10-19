@@ -221,7 +221,7 @@ export function groupWorkflows(
  * families haven't loaded or when nothing matches.
  */
 export function workflowFilterName(
-  families: WorkflowFamily[],
+  families: readonly WorkflowFamily[],
   key: { workflow?: string; workflowSig?: string },
 ): string | undefined {
   if (key.workflow) return families.find((f) => f.id === key.workflow)?.name;
