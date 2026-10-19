@@ -4,7 +4,6 @@ import { groupWorkflows } from "./workflows";
 import {
   chartMonths,
   filterTags,
-  foundBy,
   galleryTag,
   recentMonths,
   renamableTags,
@@ -141,13 +140,10 @@ describe("tagWorkflows", () => {
   });
 });
 
-describe("renamableTags / foundBy", () => {
-  it("never offers the AI tag, and says who found it", () => {
+describe("renamableTags", () => {
+  it("never offers the AI tag", () => {
     const sources = { ai: 3, prompt: 2, manual: 0 };
     expect(renamableTags({ tag: "cat", sources })).toEqual(["prompt:cat"]);
     expect(renamableTags({ tag: "cat", sources: { ai: 1, prompt: 0, manual: 0 } })).toEqual([]);
-    expect(foundBy(sources)).toBe("AI and prompts");
-    expect(foundBy({ ai: 1, prompt: 1, manual: 1 })).toBe("AI, prompts and you");
-    expect(foundBy({ ai: 0, prompt: 0, manual: 2 })).toBe("you");
   });
 });

@@ -182,12 +182,3 @@ export function renamableTags(detail: Pick<TagDetail, "tag" | "sources">): strin
   if (detail.sources.manual) out.push(`${MANUAL_PREFIX}${detail.tag}`);
   return out;
 }
-
-/** "AI and prompt" for the panel's one line on where a tag was found. */
-export function foundBy(sources: TagDetail["sources"]): string {
-  const names = (["ai", "prompt", "manual"] as const)
-    .filter((k) => sources[k] > 0)
-    .map((k) => (k === "ai" ? "AI" : k === "prompt" ? "prompts" : "you"));
-  if (names.length <= 1) return names[0] ?? "";
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-}

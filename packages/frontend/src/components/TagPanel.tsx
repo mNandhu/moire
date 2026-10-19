@@ -18,7 +18,6 @@ import { groupWorkflows, formatUsedRange } from "../lib/workflows";
 import { useImageFeed } from "../hooks/useImageFeed";
 import { withBackgroundLocation } from "../lib/backgroundLocation";
 import {
-  foundBy,
   galleryTag,
   monthLabel,
   chartMonths,
@@ -144,7 +143,12 @@ export function TagPanel({
             const n = prompt ? detail.sources.prompt : detail.sources.manual;
             const both = renamableTags(detail).length > 1;
             return (
-              <Button key={stored} size="sm" onClick={() => onRename(stored, n)}>
+              <Button
+                key={stored}
+                size="sm"
+                onClick={() => onRename(stored, n)}
+                title={detail.sources.ai > 0 ? "The AI's tag keeps its name" : undefined}
+              >
                 <Pencil size={14} /> {both ? (prompt ? "Rename prompt tag" : "Rename my tag") : "Rename or merge"}
               </Button>
             );
@@ -237,10 +241,6 @@ export function TagPanel({
             </section>
           )}
 
-          <p className="text-2xs text-faint">
-            Found by {foundBy(detail.sources)}.
-            {detail.sources.ai > 0 && renamableTags(detail).length > 0 && " AI tags keep their name when renamed."}
-          </p>
         </>
       )}
     </aside>

@@ -1,5 +1,5 @@
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { Tag as TagIcon, Slash, Search, GitMerge, Undo2, LayoutGrid, List } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
@@ -62,7 +62,23 @@ export default function TagsPage() {
   // Boilerplate (Settings) is hidden unless asked for: it would otherwise fill
   // the top of the list, being on nearly every image.
   const [showBoilerplate, setShowBoilerplate] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
+  // The open tag lives in the URL (`?tag=`), so other pages can link to it
+  // (the image view's characters) and Back closes it.
+  const [params, setParams] = useSearchParams();
+  const selected = params.get("tag");
+  const setSelected = useCallback(
+    (tag: string | null) =>
+      setParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (tag) next.set("tag", tag);
+          else next.delete("tag");
+          return next;
+        },
+        { replace: !!selected && !!tag },
+      ),
+    [setParams, selected],
+  );
   const isBoilerplate = useBoilerplate();
 
   useEffect(() => {
@@ -104,7 +120,7 @@ export default function TagsPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, overlayOpen]);
+  }, [selected, overlayOpen, setSelected]);
 
   // --- Rename / merge -------------------------------------------------------
   const queryClient = useQueryClient();

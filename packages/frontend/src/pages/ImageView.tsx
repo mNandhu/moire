@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { resolveMediaUrl } from "../lib/media";
 import { useToast } from "../components/Toasts";
+import { ImageCharacters } from "../components/ImageCharacters";
 import { parseFilters, serializeFilters, fetchImage } from "../lib/imageFilter";
 import { useImageFeed } from "../hooks/useImageFeed";
 import { useAiTagging } from "../hooks/useAiTagging";
@@ -754,6 +755,9 @@ export default function ImageView() {
             {/* Flat sections split by rules: the sidebar is already a panel,
                 so boxing each section again read as cards inside a card. */}
             <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-line">
+              {/* Who is in it, first, like a photo app's people */}
+              <ImageCharacters tags={data.tags} />
+
               {/* Curation (Moiré-specific) */}
               <Section title="Curation">
                 <div className="flex items-center justify-between gap-2">
