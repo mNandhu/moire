@@ -133,6 +133,24 @@ tag_meta = sa.Table(
     sa.Column("updated_at", sa.Float),
 )
 
+# What the user set on a character page, keyed like tag_meta (the tag's base
+# name). Every column is an override; NULL keeps what Moiré works out. The
+# avatar image itself is the tag_meta cover pin; this only holds its framing.
+characters = sa.Table(
+    "characters",
+    metadata,
+    sa.Column("tag", sa.Text, primary_key=True),
+    sa.Column("name", sa.Text),
+    sa.Column("series", sa.Text),
+    # "character" or "general": overrides the tagger's word list.
+    sa.Column("kind", sa.Text),
+    sa.Column("color", sa.Text),  # "#rrggbb"
+    # The avatar's focus point, 0..1 from the left / top.
+    sa.Column("focus_x", sa.Float),
+    sa.Column("focus_y", sa.Float),
+    sa.Column("updated_at", sa.Float),
+)
+
 # Derived from images.gen.loras: one row per lora an image used, for the LoRA
 # feed filter and its counts. Rebuilt with the gen subdoc on reprojection.
 image_loras = sa.Table(

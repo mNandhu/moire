@@ -9,7 +9,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from ..database.db import async_tx
 from ..database import schema as t
 from ._utils import thumb_url, validate_tags
-from ..services import image_tags, tag_index, tag_rename, tag_settings
+from ..services import characters, image_tags, tag_index, tag_rename, tag_settings
 
 router = APIRouter()
 
@@ -88,17 +88,45 @@ async def browse_tags(source: str = "all"):
 
 @router.get("/characters")
 async def list_characters():
-    """The character tags in the library, most images first, each with its
-    cover: what the image view shows as the people in a picture."""
+    """The characters in the library, most images first, each with its other
+    names and cover: what the image view shows as the people in a picture."""
     return [
-        {
-            "tag": r["tag"],
-            "count": r["count"],
-            "thumb_url": thumb_url(r["thumb_image_id"]),
-        }
-        for r in await tag_index.browse("all")
-        if r["category"] == "character"
+        {**r, "thumb_url": thumb_url(r.pop("thumb_image_id"))}
+        for r in await characters.listing()
     ]
+
+
+@router.get("/character")
+async def character_page(tag: str):
+    """A character page, by any of the character's names."""
+    base = tag_index.pin_key(validate_tags([tag])[0])
+    got = await characters.page(base)
+    if got is None:
+        raise HTTPException(status_code=404, detail="No image has this tag")
+    cover = got["thumb_image_id"] or next(
+        (
+            r["thumb_image_id"]
+            for r in await tag_index.browse("all")
+            if r["tag"] == got["tag"]
+        ),
+        None,
+    )
+    return {
+        **got,
+        "thumb_url": thumb_url(cover) if cover else None,
+        "best": [{**b, "thumb_url": thumb_url(b["image_id"])} for b in got["best"]],
+    }
+
+
+@router.patch("/character")
+async def update_character(tag: str, patch: dict):
+    """Set what the user decides for a character: shown name and series, the
+    avatar's focus point, a colour, or whether the tag is a character at all.
+    An empty value clears a field."""
+    try:
+        return await characters.update(validate_tags([tag])[0], patch)
+    except characters.CharacterError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
 
 @router.get("/detail")

@@ -65,7 +65,7 @@ async def test_detail_describes_one_tag(client, seed):
     assert got["sources"] == {"ai": 1, "prompt": 2, "manual": 0}
     assert (got["first_used"], got["last_used"]) == (1_700_000_000, 1_710_000_000)
     assert sum(m["count"] for m in got["months"]) == 2
-    assert got["loras"] == [{"name": "fluffy", "count": 1}]
+    assert got["loras"] == [{"name": "fluffy", "count": 1, "strength": 1.0}]
     assert got["workflows"] == [{"sig": "S1", "count": 1}]
     assert got["related"] == [{"tag": "night", "count": 2}, {"tag": "rain", "count": 1}]
 

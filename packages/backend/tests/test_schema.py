@@ -13,6 +13,7 @@ def test_expected_tables_exist():
         "libraries",
         "image_gen_raw",
         "tag_meta",
+        "characters",
         "tag_aliases",
         "image_loras",
         "image_embeddings",

@@ -422,7 +422,27 @@ async def _characters(
 ) -> frozenset[str]:
     """The character names (lowercased) for ``bases``: listed ones, plus the
     bare-name candidates the library backs (``tag_categories.confirmed``),
-    counting visible images only, like everything else on the Tags page."""
+    counting visible images only, like everything else on the Tags page. The
+    user's say on a character page (``characters.kind``) beats both."""
+    names = set(await _listed_characters(conn, vocab, bases))
+    overrides = (
+        await conn.execute(
+            sa.select(t.characters.c.tag, t.characters.c.kind).where(
+                t.characters.c.kind.isnot(None)
+            )
+        )
+    ).fetchall()
+    for tag, kind in overrides:
+        if kind == "character":
+            names.add(tag.lower())
+        else:
+            names.discard(tag.lower())
+    return frozenset(names)
+
+
+async def _listed_characters(
+    conn, vocab: tag_categories.Vocab, bases: set[str]
+) -> frozenset[str]:
     names = set(vocab.names)
     spellings: dict[str, set[str]] = {}
     for base in bases:
@@ -472,25 +492,40 @@ async def _characters(
 _RELATED = 40
 
 
-async def detail(base: str, source: str = "all") -> dict | None:
-    """What the Tags page panel shows for one tag (``None`` when no image has
-    it): counts by source, first and last use, images per month, and what the
-    images were made with (loras, positive-prompt embeddings, workflow
-    signatures) or tagged with besides.
-    Related tags come untrimmed (``_RELATED``) so the caller can drop its
-    boilerplate and still have some left."""
+def image_ids(bases: list[str], source: str = "all"):
+    """The visible images carrying any of ``bases``, as a subquery."""
     it = t.image_tags
     visible = sa.exists(
         sa.select(1).where(
             t.images.c._id == it.c.image_id, image_tags.not_quarantined()
         )
     )
-    ids = (
+    return (
         sa.select(it.c.image_id)
-        .where(it.c.base == base, _source_clause(source), visible)
+        .where(it.c.base.in_(bases), _source_clause(source), visible)
         .distinct()
         .scalar_subquery()
     )
+
+
+async def detail(
+    base: str, source: str = "all", aliases: tuple[str, ...] = ()
+) -> dict | None:
+    """What the Tags page panel shows for one tag (``None`` when no image has
+    it): counts by source, first and last use, images per month, and what the
+    images were made with (loras with their usual weight, positive-prompt
+    embeddings, workflow signatures) or tagged with besides. ``aliases`` are
+    other names of the same thing (a character's bare name), counted as one.
+    Related tags come untrimmed (``_RELATED``) so the caller can drop its
+    boilerplate and still have some left."""
+    it = t.image_tags
+    bases = [base, *aliases]
+    visible = sa.exists(
+        sa.select(1).where(
+            t.images.c._id == it.c.image_id, image_tags.not_quarantined()
+        )
+    )
+    ids = image_ids(bases, source)
     in_ids = t.images.c._id.in_(ids)
     month = sa.func.strftime("%Y-%m", t.images.c.mtime, "unixepoch", "localtime")
     vocab = await tag_categories.load()  # a file read: before taking a connection
@@ -509,7 +544,7 @@ async def detail(base: str, source: str = "all") -> dict | None:
         kinds = (
             await conn.execute(
                 sa.select(it.c.tag, sa.func.count())
-                .where(it.c.base == base, visible)
+                .where(it.c.base.in_(bases), visible)
                 .group_by(it.c.tag)
             )
         ).fetchall()
@@ -523,7 +558,11 @@ async def detail(base: str, source: str = "all") -> dict | None:
         ).fetchall()
         loras = (
             await conn.execute(
-                sa.select(t.image_loras.c.name, sa.func.count().label("count"))
+                sa.select(
+                    t.image_loras.c.name,
+                    sa.func.count().label("count"),
+                    sa.func.avg(t.image_loras.c.strength).label("strength"),
+                )
                 .where(t.image_loras.c.image_id.in_(ids))
                 .group_by(t.image_loras.c.name)
                 .order_by(sa.text("count DESC"), t.image_loras.c.name)
@@ -557,7 +596,7 @@ async def detail(base: str, source: str = "all") -> dict | None:
                 sa.select(
                     it.c.base, sa.func.count(sa.distinct(it.c.image_id)).label("count")
                 )
-                .where(it.c.image_id.in_(ids), it.c.base != base, it.c.base != "")
+                .where(it.c.image_id.in_(ids), it.c.base.not_in(bases), it.c.base != "")
                 .group_by(it.c.base)
                 .order_by(sa.text("count DESC"), it.c.base)
                 .limit(_RELATED)
@@ -584,7 +623,14 @@ async def detail(base: str, source: str = "all") -> dict | None:
         "last_used": span[2],
         "sources": sources,
         "months": [{"month": m, "count": n} for m, n in months],
-        "loras": [{"name": r.name, "count": r.count} for r in loras],
+        "loras": [
+            {
+                "name": r.name,
+                "count": r.count,
+                "strength": None if r.strength is None else round(r.strength, 2),
+            }
+            for r in loras
+        ],
         "embeddings": [{"name": r.name, "count": r.count} for r in embeddings],
         "workflows": [{"sig": r.sig, "count": r.count} for r in sigs],
         "related": [{"tag": r.base, "count": r.count} for r in related],

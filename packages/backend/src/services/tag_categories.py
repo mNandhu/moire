@@ -30,7 +30,7 @@ from ..core.config import settings as app_settings
 from . import ai_settings
 from .ai_tagger_download import labels_csv_path, model_target
 
-CHARACTER = 4
+GENERAL, CHARACTER = 0, 4
 # The share of a candidate's images that must carry its series or full name.
 SERIES_SHARE = 0.5
 
@@ -48,11 +48,13 @@ class Candidate:
 
 @dataclass(frozen=True)
 class Vocab:
-    """Lowercased listed character names, and bare names (``furina``)
-    awaiting the library check."""
+    """Lowercased listed character names, bare names (``furina``) awaiting
+    the library check, and the general tags: what can be seen in a picture
+    (``white_hair``), as opposed to artists, LoRA triggers or quality tags."""
 
     names: frozenset[str] = frozenset()
     candidates: dict[str, Candidate] = field(default_factory=dict)
+    general: frozenset[str] = frozenset()
 
 
 EMPTY = Vocab()
@@ -63,20 +65,24 @@ _cache: tuple[str, float, Vocab] | None = None
 def _read(csv_path: str) -> Vocab:
     names: set[str] = set()
     others: set[str] = set()
+    general: set[str] = set()
     with open(csv_path, encoding="utf-8") as f:
         for row in csv.DictReader(f):
             name = (row.get("name") or "").strip().lower()
-            if (row.get("category") or "").strip() == str(CHARACTER):
+            category = (row.get("category") or "").strip()
+            if category == str(CHARACTER):
                 names.add(name)
             else:
                 others.add(name)
+                if category == str(GENERAL):
+                    general.add(name)
     names.discard("")
-    return vocab(names, others)
+    return vocab(names, others, general)
 
 
-def vocab(names: set[str], others: set[str]) -> Vocab:
-    """The character vocabulary from the listed character names and every
-    other listed tag. Pure."""
+def vocab(names: set[str], others: set[str], general: set[str] = frozenset()) -> Vocab:
+    """The character vocabulary from the listed character names, every other
+    listed tag, and the general ones among those. Pure."""
     by_bare: dict[str, list[Candidate]] = {}
     for name in names:
         if m := _QUALIFIER.match(name):
@@ -86,7 +92,7 @@ def vocab(names: set[str], others: set[str]) -> Vocab:
         for bare, found in by_bare.items()
         if len(found) == 1 and bare not in others and bare not in names
     }
-    return Vocab(frozenset(names), candidates)
+    return Vocab(frozenset(names), candidates, frozenset(general))
 
 
 def _load(csv_path: str) -> Vocab:
