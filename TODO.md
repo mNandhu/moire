@@ -47,6 +47,18 @@ ComfyUI's workflow mapping so it only gets built once.
     Backend `scanner.cancel_scan` exists (used on library delete); needs an
     API route and a button on the scan progress
   - Overview empty states double as the checklist ("2 of 4 done")
+  - Choices to ask, each one also kept in Settings so it can be changed
+    later (built: exists today; planned: asked once it exists):
+    - Libraries: which folders to watch (built: Libraries page)
+    - AI tagging: download the WD tagger model (built: Settings > AI
+      Tagging) and tag new images automatically (planned: Auto AI tagging)
+    - Face detection for character avatars: download the face model, about
+      12 MB (built: Settings > Characters). Off until downloaded
+    - Prompt tags from the positive prompt only (built: Settings > Prompt
+      Tags)
+    - ComfyUI URL, local or remote (planned: ComfyUI integration)
+    - Import and name workflows (planned: ComfyUI workflow mapping)
+    - Content-rating ceiling (planned)
 - Content-rating ceiling (app-wide mode)
   - Show only images up to a chosen rating (general < sensitive <
     questionable < explicit), e.g. "safe for screen-sharing"

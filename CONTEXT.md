@@ -70,6 +70,12 @@ belongs in this file.
   picks one; its signature tags are the tagger's general tags common on its
   images and rare elsewhere. The avatar is the tag's cover pin; the
   `characters` table holds only overrides. (`services/characters.py`)
+- **Face detection**: an optional anime face model (YOLOv8 nano, ONNX,
+  downloaded from Settings > Characters) that finds the face in each
+  character's avatar, in a background worker, kept in `image_faces`. Avatars
+  crop to it; a centre the user sets wins. Several faces: the largest
+  confident one, so a hand-set centre fixes shared images.
+  (`services/face_detect.py`, `lib/character.ts` `avatarCrop`)
 - **Rating**: one of `-`, `general`, `sensitive`, `questionable`, `explicit`.
   Normalized in one place (`image_tags.normalize_rating`) and written only
   through `image_tags.set_rating` (with `set_score` / `set_quarantine` for the
