@@ -63,6 +63,14 @@ belongs in this file.
   with its charset prefixes, sits behind the pure `gen_raw_from_embedded`,
   which takes the embedded sources as plain values so every branch is reachable
   from a table test.
+- **Prompt parsing**: turning prompt text into prompt tags, best effort. Prompts
+  are hand-written and often malformed, so `services/prompt_parse.py` never
+  rejects input: it reads emphasis groups the way ComfyUI does, cuts pieces at
+  separators and group edges, and classifies each as **tag**, **prose** (a
+  sentence fragment: stays in the prompt, never a tag) or **noise** (leaked
+  settings, joiners, stray weights). The raw prompt is never changed, so a
+  parser improvement reaches existing images by reprojection (a named
+  `tag_migrations` step).
 - **Scan**: discovering a library's files, indexing them, and **reconciling**
   away images that vanished from disk. (`services/scanner.py`;
   `reconcile_stale` is the pure deletion-decision step.) The scan's batched

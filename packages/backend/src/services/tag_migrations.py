@@ -1,4 +1,4 @@
-"""One-off tag data migrations, run once at startup (before the AI worker and
+"""One-off tag data migrations, run once each at startup (before the AI worker and
 the watchers start) and recorded in the ``app_settings`` row "migrations".
 
 ``tag_underscores``: tags used to be stored as spaced names (``blue eyes``;
@@ -137,7 +137,6 @@ def migrate_tag_underscores() -> None:
     _rekey_tag_meta()
     reprojected = reproject.reproject_all()
     tag_index.invalidate()
-    _mark("tag_underscores")
     logger.info(
         "tag_underscores: rewrote %d images, reprojected %d, in %.1fs",
         changed,
@@ -146,7 +145,31 @@ def migrate_tag_underscores() -> None:
     )
 
 
+def reproject_for_parser() -> None:
+    """Re-derive prompt tags with the current prompt parser
+    (services/prompt_parse.py). Raw prompts are untouched; this only rebuilds
+    what is derived from them. Bump the migration name when the parser
+    changes what it extracts, so existing images pick the change up."""
+    started = time.monotonic()
+    reprojected = reproject.reproject_all()
+    logger.info(
+        "prompt_parser_v2: reprojected %d images in %.1fs",
+        reprojected,
+        time.monotonic() - started,
+    )
+
+
+# In order. Each runs once; its name is recorded when it finishes.
+_MIGRATIONS = (
+    ("tag_underscores", migrate_tag_underscores),
+    ("prompt_parser_v2", reproject_for_parser),
+)
+
+
 def run_pending() -> None:
     """Run every migration not yet recorded. Sync: call off the event loop."""
-    if "tag_underscores" not in _done():
-        migrate_tag_underscores()
+    done = _done()
+    for name, fn in _MIGRATIONS:
+        if name not in done:
+            fn()
+            _mark(name)
