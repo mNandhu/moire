@@ -154,7 +154,11 @@ export function ImageThumbnail({
           !loaded || error ? "opacity-0" : dimmed ? "opacity-45" : "opacity-100",
           dimmed && "saturate-50"
         )}
-        loading="lazy"
+        // No `loading="lazy"`: when to load is decided above (the grid mounts
+        // only near the viewport, then a slot from the shared queue). The
+        // browser's own lazy gate held slotted tiles just off screen unfetched
+        // until a scroll, and with every slot held so, the visible tiles
+        // queued behind them sat on their BlurHash.
       />
       {/* Hover treatment lifts rather than dims. The old overlay was a
           `bg-black/10` veil, which darkened whichever image you pointed at:

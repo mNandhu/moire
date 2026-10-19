@@ -220,3 +220,12 @@ describe("ThumbnailTile batch peek", () => {
     );
   });
 });
+
+describe("ThumbnailTile loading", () => {
+  it("leaves when to load to the grid, not the browser's lazy gate", () => {
+    // A native lazy <img> holds its load slot unfetched while off screen,
+    // and enough of those starve the visible tiles of slots.
+    const { container } = renderTile(doc({}));
+    expect(container.querySelector("img")?.getAttribute("loading")).toBeNull();
+  });
+});
