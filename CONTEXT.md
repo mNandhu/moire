@@ -156,6 +156,42 @@ belongs in this file.
   `feed_where` builds the WHERE clause; `list_feed` / `list_groups` run the
   cursor-paged feed and the batch-collapsed grouped view. The feed and grouped
   view share one builder so they can never drift. (`services/image_feed.py`)
+- **Attire tag**: a general tag naming something worn (`serafuku`,
+  `thighhighs`), from a list built from Danbooru's attire tag groups and
+  limited to the tagger's vocabulary. Each carries its group (headwear,
+  legwear, ...).
+- **Outfit**: a named set of attire tags saved for one character, from an
+  image's attire tags. User-made; suggested groupings come later.
+- **Character recipe**: what picking a character puts in a prompt: the
+  character tag (full name), its **identity tags** (signature tags that are
+  not attire tags), a default outfit (its attire signature tags, swappable
+  for a saved Outfit), and a LoRA with strength (the one most used where the
+  character was prompted *and* the tagger confirmed it, weighted by score).
+  Computed from the library; the user's edits (drop a tag, force a LoRA) are
+  stored on top and win. A recipe is **weak** when the tagger seldom confirms
+  the character on images that prompted it; the rate is shown with and
+  without the LoRA.
+- **Prompt blocks**: how the composer holds a prompt: Base (the Generator's
+  own text), Character (a recipe), Outfit, and Extra (free tags), joined in
+  that order when queued. Swapping a character or outfit swaps only its block.
+  The negative has Base and Extra.
+- **Generator**: what Moiré queues on ComfyUI: a ComfyUI graph plus slots
+  (positive, negative, seed, ...) naming where each value is written. Either
+  the built-in one or made from a workflow family. A family-made Generator is a
+  snapshot: it never follows newer images of the family on its own, only when
+  the user updates it. A Generator is **ready** only after a test run whose
+  image reached the library.
+- **ComfyUI connection**: the one ComfyUI server Moiré queues on. Its
+  installed LoRAs are matched to an image's LoRA names by file name, folders
+  and extension ignored, so a recipe can say when a LoRA isn't installed.
+  Assumed to run on the same machine: its output folder is a Library, so
+  generated images arrive by the ordinary scan.
+- **Generation batch**: one press of Queue: N jobs from one Generator with
+  one set of slot values, plus the character, outfit and recipe picked.
+  Kept permanently and re-queueable. Its images join the library like any
+  other; reviewing them is keep (the default), reject (quarantine) or score.
+  Records what was *asked*, which an image's own metadata can't (the picked
+  character, outfit, recipe).
 
 ## Frontend
 
