@@ -10,7 +10,6 @@ import { useToast } from "./Toasts";
 import { useCharacters } from "./ImageCharacters";
 import { TagSuggestList, useTagMatches } from "./TagSuggestList";
 import { cn } from "../lib/cn";
-import { fuzzyRank } from "../lib/fuzzy";
 import { characterHref, characterName, displayName } from "../lib/character";
 import { createCharacter } from "../lib/imageMutations";
 import { TAGS_KEY } from "../lib/queries";
@@ -63,17 +62,16 @@ export function NewCharacterDialog({
   const matches = useTagMatches(suggest ? tag : "", pool);
   const wanted = asTag(tag).toLowerCase();
   const existing = (everyone ?? []).find((c) => c.tag.toLowerCase() === wanted || c.aliases.some((a) => a.toLowerCase() === wanted));
-  // Characters the library already has that the typed text finds. When the
-  // tagger offers nothing else, this is why: say so instead of showing nothing.
+  // Characters the library already has whose name contains what was typed
+  // ("hu tao" finds hu_tao_(genshin_impact)). Said above the field, since the
+  // tagger's suggestions below may be unrelated rows.
   const alike = useMemo(() => {
-    const q = asTag(tag);
-    if (!suggest || !q || existing) return [];
-    const rows = (everyone ?? []).flatMap((c) => [c.tag, ...c.aliases].map((n) => ({ n, c })));
-    return fuzzyRank(q.replace(/_/g, " "), rows, (r) => r.n.replace(/_/g, " "), 20)
-      .map((r) => r.c)
-      .filter((c, i, xs) => xs.indexOf(c) === i)
+    const q = asTag(tag).replace(/_/g, " ").toLowerCase();
+    if (q.length < 2 || existing) return [];
+    return (everyone ?? [])
+      .filter((c) => [c.tag, ...c.aliases].some((n) => n.replace(/_/g, " ").toLowerCase().includes(q)))
       .slice(0, 3);
-  }, [tag, suggest, existing, everyone]);
+  }, [tag, existing, everyone]);
   const offered = (words ?? []).map((w) => w.word).filter((w) => !identity.includes(asTag(w)));
   const fromTag = characterName(asTag(tag) || "character");
 
@@ -129,6 +127,19 @@ export function NewCharacterDialog({
     >
       <div className="space-y-5">
         <Field label="Tag" htmlFor="new-character-tag" hint={existing ? <span className="text-red-300">Already a character</span> : undefined}>
+          {alike.length > 0 && (
+            <p className="mb-1.5 text-sm text-amber-300">
+              Already a character:{" "}
+              {alike.map((c, i) => (
+                <span key={c.tag}>
+                  {i > 0 && ", "}
+                  <Link to={characterHref(c.tag)} onClick={onClose} className="underline hover:text-amber-200">
+                    {displayName(c).name}
+                  </Link>
+                </span>
+              ))}
+            </p>
+          )}
           <div className="relative">
             <Input
               id="new-character-tag"
@@ -159,19 +170,6 @@ export function NewCharacterDialog({
               <TagSuggestList matches={matches} active={active} onActive={setActive} onPick={(s) => pickTag(s._id)} />
             )}
           </div>
-          {!matches.length && alike.length > 0 && (
-            <p className="mt-1.5 text-sm text-amber-300">
-              Already a character:{" "}
-              {alike.map((c, i) => (
-                <span key={c.tag}>
-                  {i > 0 && ", "}
-                  <Link to={characterHref(c.tag)} onClick={onClose} className="underline hover:text-amber-200">
-                    {displayName(c).name}
-                  </Link>
-                </span>
-              ))}
-            </p>
-          )}
         </Field>
 
         <Field label="Name" htmlFor="new-character-name">
