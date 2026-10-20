@@ -20,7 +20,7 @@ import {
   FolderOpen,
 } from "lucide-react";
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
-import { Button } from "../components/ui/Button";
+import { Button, ButtonLink } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 import { useToast } from "../components/Toasts";
 import { useConfirm } from "../components/ConfirmDialog";
@@ -663,8 +663,8 @@ export default function RulesPage() {
                         <Link
                           to={`/?workflow=${encodeURIComponent(fam.id)}`}
                           className="shrink-0 p-1 rounded text-faint hover:text-neutral-100 hover:bg-raised"
-                          aria-label={`View images from ${fam.name}`}
-                          title="View images"
+                          aria-label={`Show images from every version of ${fam.name} in the gallery`}
+                          title="Show every version's images in the gallery"
                         >
                           <Images size={12} />
                         </Link>
@@ -777,6 +777,15 @@ export default function RulesPage() {
                       <AlertTriangle size={12} /> Unsaved changes
                     </span>
                   )}
+                  {/* This version's images (the family's are on its header). */}
+                  <ButtonLink
+                    variant="ghost"
+                    className="ml-auto"
+                    to={`/?workflow_sig=${encodeURIComponent(selected.workflow_sig)}`}
+                    title={`The ${selected.count} ${selected.count === 1 ? "image" : "images"} made with this version`}
+                  >
+                    <Images size={14} /> Show in gallery
+                  </ButtonLink>
                 </div>
 
                 {RULE_FIELDS.map((field) => (
