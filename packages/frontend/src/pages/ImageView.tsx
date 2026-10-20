@@ -62,6 +62,7 @@ import { characterHref, tagHref } from "../lib/character";
 import { splitBoilerplate } from "../lib/boilerplate";
 import { libraryPageHref, useBoilerplate, useLibraries, useTagFacets } from "../lib/queries";
 import { FACET_LABEL, FACET_TINT, TAG_TINT_CLASS, tagMarkStyle, type Facet } from "../lib/tagColour";
+import { useTagMarks } from "../hooks/useTagMarks";
 import { isFormField } from "../lib/dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { Button } from "../components/ui/Button";
@@ -1147,9 +1148,10 @@ function TagFlow({ tags }: { tags: FlowTag[] }) {
     shown.some((t) => t.kind === k),
   );
   const firstBoilerplate = kept.length;
-  const shownFacets = (Object.keys(FACET_TINT) as Facet[]).filter((f) =>
-    shown.some((t) => facetOf(t.raw) === f),
-  );
+  const marks = useTagMarks();
+  const shownFacets = marks.tints
+    ? (Object.keys(FACET_TINT) as Facet[]).filter((f) => shown.some((t) => facetOf(t.raw) === f))
+    : [];
   return (
     <div className="space-y-2">
       <p className="text-[13px] leading-7">
@@ -1160,7 +1162,7 @@ function TagFlow({ tags }: { tags: FlowTag[] }) {
                 to={tagPageHref(t)}
                 className={`rounded px-0.5 -mx-0.5 ${TAG_TINT_CLASS} hover:bg-raised hover:underline ${KIND_TEXT[t.kind]}`}
                 style={{
-                  ...tagMarkStyle(t.raw, facetOf(t.raw), PANEL_GROUND),
+                  ...tagMarkStyle(t.raw, facetOf(t.raw), PANEL_GROUND, marks),
                   ...(t.confidence != null ? { opacity: 0.45 + 0.55 * t.confidence } : {}),
                 }}
                 title={
