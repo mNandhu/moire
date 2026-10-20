@@ -147,23 +147,13 @@ export function jobAgo(createdAtS: number, nowMs: number = Date.now()): string {
   return `${d} ${d === 1 ? "day" : "days"} ago`;
 }
 
-/**
- * What the "Run AI tagging" button says while its job runs: the model's
- * download (with `downloadPct` once its size is known) or load first, then
- * the tagging itself. Null when there's no job.
- */
-export function aiJobLabel(
-  job: Pick<AiJob, "status" | "phase"> | null | undefined,
-  modelDownloading: boolean,
-  downloadPct: number | null = null,
-): string | null {
+/** What the "Run AI tagging" button says while its job runs; null when
+ * there's no job. The model's own download and load show beside it. */
+export function aiJobLabel(job: Pick<AiJob, "status" | "phase"> | null | undefined): string | null {
   if (!job) return null;
   if (job.status === "cancelling") return "Cancelling…";
   if (job.status === "queued") return "Queued…";
-  if (job.phase === "model") {
-    if (!modelDownloading) return "Loading model…";
-    return downloadPct == null ? "Downloading model…" : `Downloading model ${downloadPct}%`;
-  }
+  if (job.phase === "model") return "Waiting for model…";
   return "Tagging…";
 }
 

@@ -357,6 +357,13 @@ _scan_slots = threading.BoundedSemaphore(max(1, settings.scanner_max_concurrent_
 _current_scans: set[str] = set()
 _cancel_scans: set[str] = set()
 _scan_threads: dict[str, threading.Thread] = {}
+# Scans that have ended, however (the activity poll's "ended" count).
+_scans_ended = 0
+
+
+def scans_ended() -> int:
+    with _scan_lock:
+        return _scans_ended
 
 
 def _is_cancel_requested(library_id: str) -> bool:
@@ -515,6 +522,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
     )
 
     def _run():
+        global _scans_ended
         nonlocal library_id, root_path
         total = 0
         processed = 0
@@ -785,6 +793,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
             if has_slot:
                 _scan_slots.release()
             with _scan_lock:
+                _scans_ended += 1
                 _current_scans.discard(library_id)
                 _cancel_scans.discard(library_id)
                 _scan_threads.pop(library_id, None)

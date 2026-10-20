@@ -105,6 +105,9 @@ describe("LibrariesPage › deleting several", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete 2" }));
 
     await waitFor(() => expect(deleted).toEqual(["outer", "inner"]));
+    // Each stays marked until the list drops it, never back to a normal card
+    // (this fake server keeps listing them).
+    await waitFor(() => expect(screen.getAllByText("Deleting…")).toHaveLength(2));
   });
 
   it("picks a library by clicking anywhere on its card, but not on its links", async () => {

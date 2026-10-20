@@ -19,6 +19,9 @@ from typing import Any, Iterator
 _lock = threading.Lock()
 _tasks: dict[int, "Task"] = {}
 _ids = itertools.count(1)
+# How many tasks of each kind have ended: work that started and ended
+# between two polls still shows up as ended.
+_ended: dict[str, int] = {}
 
 
 @dataclass
@@ -53,6 +56,7 @@ def track(
     finally:
         with _lock:
             _tasks.pop(key, None)
+            _ended[kind] = _ended.get(kind, 0) + 1
 
 
 def snapshot() -> list[dict[str, Any]]:
@@ -68,6 +72,12 @@ def snapshot() -> list[dict[str, Any]]:
             }
             for key, task in sorted(_tasks.items())
         ]
+
+
+def ended() -> dict[str, int]:
+    """How many tasks of each kind have ended since the server started."""
+    with _lock:
+        return dict(_ended)
 
 
 def running(kind: str) -> set[str]:

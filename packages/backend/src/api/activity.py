@@ -3,7 +3,9 @@ indicator: scans, model downloads and loads, AI tagging, face finding,
 re-reading prompts, deleting libraries and generating.
 
 Each item is ``{key, kind, library_id?, done?, total?, unit?, phase?}``; the
-frontend words them (``lib/backgroundTasks.ts``).
+frontend words them (``lib/backgroundTasks.ts``). ``ended`` counts, per kind,
+the work that has ended since the server started, so the UI can refresh after
+work that came and went between two polls.
 """
 
 from __future__ import annotations
@@ -15,9 +17,9 @@ from fastapi import APIRouter
 
 from ..database import schema as t
 from ..database.db import async_conn
-from ..services import activity, face_detect
+from ..services import activity, face_detect, scanner
 from ..services.ai_jobs import get_ai_job_manager, get_ai_settings
-from ..services.ai_tagger import model_status_view
+from ..services.ai_tagger import model_status_view, resolved_model_target
 from ..services.generation_jobs import get_generation_manager
 
 router = APIRouter()
@@ -62,32 +64,35 @@ async def background_activity():
 
     items.extend(activity.snapshot())
 
-    model = model_status_view(await get_ai_settings())
+    settings = await get_ai_settings()
+    model = model_status_view(settings)
     download = _download("model-download", "model_download", model["model_download"])
     if download:
         items.append(download)
     elif (model.get("model_load") or {}).get("status") == "loading":
         items.append({"key": "model-load", "kind": "model_load"})
 
-    for job in get_ai_job_manager().list_jobs(limit=20):
-        if job.status in ("queued", "running", "cancelling"):
-            items.append(
-                {
-                    "key": f"ai:{job.id}",
-                    "kind": "ai_job",
-                    "job_id": job.id,
-                    "status": job.status,
-                    "phase": job.phase,
-                    "done": job.done + job.failed,
-                    "total": job.total,
-                    # A small job names its images, so an image's panel
-                    # opened mid-job shows that job's progress.
-                    **({"image_ids": job.image_ids()} if job.total <= 20 else {}),
-                }
-            )
+    jobs = get_ai_job_manager()
+    for job in jobs.active_jobs():
+        items.append(
+            {
+                "key": f"ai:{job.id}",
+                "kind": "ai_job",
+                "job_id": job.id,
+                "status": job.status,
+                "phase": job.phase,
+                "done": job.done + job.failed,
+                "total": job.total,
+                # A one-image job (an image's own "Run AI tagging") names it,
+                # so that image's panel, opened again mid-job, follows it.
+                **({"image_id": job.image_ids()[0]} if job.total == 1 else {}),
+            }
+        )
 
     faces = _download(
-        "face-download", "face_download", await face_detect.download_state()
+        "face-download",
+        "face_download",
+        face_detect.download_state(resolved_model_target(settings)[1]),
     )
     if faces:
         items.append(faces)
@@ -101,4 +106,10 @@ async def background_activity():
             {"key": "generate", "kind": "generate", "total": gen["queue_remaining"]}
         )
 
-    return {"items": items}
+    ended = {
+        **activity.ended(),
+        "scan": scanner.scans_ended(),
+        "ai_job": jobs.finished,
+        "faces": face_detect.drains,
+    }
+    return {"items": items, "ended": ended}

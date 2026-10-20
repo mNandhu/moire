@@ -26,15 +26,14 @@ import numpy as np
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from ..core.config import settings as app_settings
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from . import ai_settings, storage_fs
+from .ai_tagger import resolved_model_target
 from .ai_tagger_download import (
     RemoteFile,
     get_download_manager,
     hf_url,
-    model_target,
 )
 
 logger = logging.getLogger("moire.faces")
@@ -59,8 +58,7 @@ def files(cache_dir: str) -> list[RemoteFile]:
 
 
 async def _cache_dir() -> str:
-    _, cache_dir = model_target(await ai_settings.get_ai_settings())
-    return str(app_settings.resolve_cache_dir(cache_dir))
+    return resolved_model_target(await ai_settings.get_ai_settings())[1]
 
 
 def downloaded(cache_dir: str) -> bool:
@@ -193,6 +191,8 @@ def detect(image_path: str, cache_dir: str):
 _pending: set[str] = set()
 # Images queued since the worker last went idle: the "of N" in its progress.
 _batch = 0
+# Times the worker has emptied its queue (the activity poll's "ended" count).
+drains = 0
 _worker: asyncio.Task | None = None
 
 
@@ -270,13 +270,17 @@ async def detect_now(image_id: str) -> None:
 
 
 async def _drain() -> None:
+    global drains
     cache_dir = await _cache_dir()
-    while _pending:
-        image_id = next(iter(_pending))
-        try:
-            await _detect_and_store(image_id, cache_dir)
-        finally:
-            _pending.discard(image_id)  # counted as pending until stored
+    try:
+        while _pending:
+            image_id = next(iter(_pending))
+            try:
+                await _detect_and_store(image_id, cache_dir)
+            finally:
+                _pending.discard(image_id)  # counted as pending until stored
+    finally:
+        drains += 1
 
 
 _avatars_queued = False
@@ -337,10 +341,11 @@ def progress() -> tuple[int, int]:
     return _batch - len(_pending), _batch
 
 
-async def download_state() -> dict[str, Any]:
+def download_state(cache_dir: str) -> dict[str, Any]:
+    """The face model's download, for the model cache at ``cache_dir``."""
     return (
         get_download_manager()
-        .get_state(model_repo=MODEL, cache_dir=await _cache_dir())
+        .get_state(model_repo=MODEL, cache_dir=cache_dir)
         .as_dict()
     )
 

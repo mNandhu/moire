@@ -15,9 +15,13 @@ from ..database.db import async_conn
 from ..database import schema as t
 from . import image_tags
 from .ai_settings import DEFAULT_AI_SETTINGS, get_ai_settings, update_ai_settings
-from ..core.config import settings as app_settings
-from .ai_tagger import PreparedImage, decode_image, get_tagger_manager, prepare_image
-from .ai_tagger_download import model_target
+from .ai_tagger import (
+    PreparedImage,
+    decode_image,
+    get_tagger_manager,
+    prepare_image,
+    resolved_model_target,
+)
 
 logger = logging.getLogger("moire.ai_jobs")
 
@@ -102,6 +106,9 @@ class AIJobManager:
         self._worker_task: asyncio.Task | None = None
         # Prevent queueing the same image many times across jobs.
         self._in_flight: set[str] = set()
+        # Jobs that have ended, however: the activity poll compares it to
+        # notice a job that came and went between two polls.
+        self.finished = 0
 
     def start(self) -> None:
         if self._worker_task is None or self._worker_task.done():
@@ -111,6 +118,15 @@ class AIJobManager:
 
     def queue_depth(self) -> int:
         return self._queue.qsize()
+
+    def active_jobs(self) -> list[AIJob]:
+        """Every job not yet ended, oldest first."""
+        jobs = [
+            j
+            for j in self._jobs.values()
+            if j.status in ("queued", "running", "cancelling")
+        ]
+        return sorted(jobs, key=lambda j: j.created_at)
 
     def list_jobs(self, limit: int = 20) -> list[AIJob]:
         jobs = sorted(self._jobs.values(), key=lambda j: j.created_at, reverse=True)
@@ -153,6 +169,7 @@ class AIJobManager:
         else:
             # Nothing to do; mark as done so UI doesn't show it as queued forever.
             job.status = "done"
+            self.finished += 1
         return job
 
     async def enqueue_untagged(
@@ -182,6 +199,7 @@ class AIJobManager:
         if job.status == "queued":
             removed = await self._queue.remove(job_id)
             job.status = "cancelled"
+            self.finished += 1
             # Release in-flight ids.
             ids: list[str] = getattr(job, "_ids", [])
             for image_id in ids:
@@ -212,7 +230,7 @@ class AIJobManager:
                 get_tagger_manager().set_idle_unload_s(
                     int(settings.get("idle_unload_s", 0) or 0)
                 )
-                model = self._model_target(settings)
+                model = resolved_model_target(settings)
                 try:
                     ready = await self._prepare_model(job, *model)
                 except Exception as e:
@@ -264,22 +282,10 @@ class AIJobManager:
                     job.status = "done" if job.failed == 0 else "error"
             finally:
                 job.current = None
+                self.finished += 1
                 # Release in-flight ids
                 for image_id in ids:
                     self._in_flight.discard(image_id)
-
-    @staticmethod
-    def _model_target(settings: dict[str, Any]) -> tuple[str, str]:
-        """``(model_repo, cache_dir)`` as the status view spells them, so a
-        download this job starts shows up there."""
-        repo, cache_dir = model_target(
-            {
-                **settings,
-                "model_repo": settings.get("model_repo")
-                or DEFAULT_AI_SETTINGS["model_repo"],
-            }
-        )
-        return repo, str(app_settings.resolve_cache_dir(cache_dir))
 
     async def _prepare_model(self, job: AIJob, repo: str, cache_dir: str) -> bool:
         """Load the tagger model before the first image, through the shared
@@ -301,7 +307,12 @@ class AIJobManager:
                 load.add_done_callback(lambda f: f.cancelled() or f.exception())
                 return False
             await asyncio.wait({load}, timeout=0.5)
-        load.result()
+        try:
+            load.result()
+        except asyncio.CancelledError:
+            # The shared load was cancelled (Cancel on the AI page, or a new
+            # cache dir), not this worker: a failed job, not a dead worker.
+            raise RuntimeError("The model load was cancelled") from None
         return True
 
     async def _load_image(self, image_id: str) -> PreparedImage:

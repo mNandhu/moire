@@ -22,6 +22,14 @@ async def test_idle_is_empty(client):
 
 
 @pytest.mark.asyncio
+async def test_counts_work_that_ended_between_polls(client):
+    before = (await client.get("/activity")).json()["ended"].get("delete", 0)
+    with activity.track("delete", library_id="x"):
+        pass
+    assert (await client.get("/activity")).json()["ended"]["delete"] == before + 1
+
+
+@pytest.mark.asyncio
 async def test_scans_and_tracked_work_show_while_they_run(client, temp_db):
     with db.sync_tx() as conn:
         conn.execute(
@@ -82,3 +90,24 @@ def test_face_progress_counts_the_current_batch(monkeypatch):
     assert face_detect.progress() == (3, 5)
     monkeypatch.setattr(face_detect, "_pending", set())
     assert face_detect.progress() == (0, 0)
+
+
+def test_reprojecting_ids_never_moves_the_bar_back(monkeypatch):
+    from src.services import reproject
+
+    seen: list[tuple[int, int]] = []
+
+    def fake_where(where, *, task, count_total, **_kw):
+        assert count_total is False
+        # Only half of each chunk has raw data to derive.
+        for _ in range(250):
+            task.advance()
+            seen.append((task.done, task.total))
+        return 250
+
+    monkeypatch.setattr(reproject, "_reproject_where", fake_where)
+    with activity.track("reproject") as task:
+        reproject.reproject_ids([f"i{n}" for n in range(1000)], task=task)
+        assert (task.done, task.total) == (1000, 1000)
+    pcts = [d / t for d, t in seen]
+    assert pcts == sorted(pcts) and all(t == 1000 for _, t in seen)

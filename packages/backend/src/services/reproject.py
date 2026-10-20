@@ -153,7 +153,11 @@ def _write_gens(conn, gens: list[tuple[str, dict]]) -> None:
 
 
 def _reproject_where(
-    where, *, force: bool = False, task: activity.Task | None = None
+    where,
+    *,
+    force: bool = False,
+    task: activity.Task | None = None,
+    count_total: bool = True,
 ) -> int:
     """Recompute ``gen.*`` for every raw row matching ``where``. Returns how
     many were derived (written or already up to date). ``task`` shows the
@@ -174,7 +178,7 @@ def _reproject_where(
                 ).where(where)
             )
         ).fetchall()
-    if task is not None:
+    if task is not None and count_total:
         task.add_total(len(raws))
 
     updated = 0
@@ -232,10 +236,19 @@ def reproject_image(image_id: str) -> int:
 
 def reproject_ids(image_ids: list[str], *, task: activity.Task | None = None) -> int:
     """Recompute ``gen.*`` for specific images (after a merge-rule change)."""
+    # The whole run's size up front, so the bar never jumps back a chunk at
+    # a time; ids with nothing to derive count as done with their chunk.
+    if task is not None:
+        task.add_total(len(image_ids))
     updated = 0
     for i in range(0, len(image_ids), 500):
         chunk = image_ids[i : i + 500]
-        updated += _reproject_where(t.image_gen_raw.c._id.in_(chunk), task=task)
+        before = task.done if task is not None else 0
+        updated += _reproject_where(
+            t.image_gen_raw.c._id.in_(chunk), task=task, count_total=False
+        )
+        if task is not None:
+            task.advance(len(chunk) - (task.done - before))
     return updated
 
 

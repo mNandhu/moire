@@ -26,9 +26,9 @@ import os
 import re
 from dataclasses import dataclass, field
 
-from ..core.config import settings as app_settings
 from . import ai_settings
-from .ai_tagger_download import labels_csv_path, model_target
+from .ai_tagger import resolved_model_target
+from .ai_tagger_download import labels_csv_path
 
 GENERAL, CHARACTER = 0, 4
 # The share of a candidate's images that must carry its series or full name.
@@ -110,12 +110,10 @@ def _load(csv_path: str) -> Vocab:
 
 async def load() -> Vocab:
     """The configured model's character vocabulary; empty without one."""
-    repo, cache_dir = model_target(await ai_settings.get_ai_settings())
+    repo, cache_dir = resolved_model_target(await ai_settings.get_ai_settings())
     if not repo:
         return EMPTY
-    csv_path = labels_csv_path(
-        model_repo=repo, cache_dir=str(app_settings.resolve_cache_dir(cache_dir))
-    )
+    csv_path = labels_csv_path(model_repo=repo, cache_dir=cache_dir)
     return await asyncio.to_thread(_load, csv_path)
 
 

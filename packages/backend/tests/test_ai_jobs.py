@@ -244,3 +244,30 @@ async def test_cancel_while_the_model_loads(monkeypatch):
     finally:
         worker.cancel()
     assert job.status == "cancelled" and not events
+
+
+async def test_a_cancelled_model_load_fails_the_job_not_the_worker(monkeypatch):
+    events: list[str] = []
+    mgr = _job_manager(monkeypatch, events)
+    monkeypatch.setattr(mgr, "_prepare_model", AIJobManager._prepare_model.__get__(mgr))
+
+    class _Cancelled(_SlowLoader):
+        async def ensure_loaded(self, **_kw):
+            await asyncio.sleep(0.01)
+            raise asyncio.CancelledError  # the shared load, cancelled
+
+    monkeypatch.setattr(ai_jobs, "get_tagger_manager", lambda: _Cancelled(0))
+    first = await _run(mgr, ["a"])
+    assert (first.status, first.error) == ("error", "The model load was cancelled")
+    # The worker lived on: a later job still runs.
+    monkeypatch.setattr(ai_jobs, "get_tagger_manager", lambda: _SlowLoader(0))
+    second = await _run(mgr, ["b"])
+    assert second.status == "done"
+    assert mgr.finished == 2
+
+
+async def test_active_jobs_lists_every_unfinished_job_oldest_first():
+    mgr = AIJobManager()
+    jobs = [await mgr.enqueue(ids=[f"i{n}"]) for n in range(25)]
+    active = mgr.active_jobs()
+    assert len(active) == 25 and active[0] is jobs[0]

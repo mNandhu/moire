@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { describeTask, finishedKinds, taskPct, type BackgroundTask } from "./backgroundTasks";
+import { describeTask, endedKinds, startedKinds, taskPct, type BackgroundTask } from "./backgroundTasks";
 
 const names = (id: string) => ({ A: "sdxl" })[id];
 
@@ -41,9 +41,17 @@ it("never reads past 100%", () => {
   expect(taskPct({ done: 1, total: 0 })).toBeNull();
 });
 
-it("finds the kinds of work that just ended", () => {
+it("finds work that ended, even work no poll saw running", () => {
+  expect([...endedKinds({ scan: 2, ai_job: 1 }, { scan: 2, ai_job: 2 })]).toEqual(["ai_job"]);
+  expect([...endedKinds({}, { delete: 1 })]).toEqual(["delete"]);
+  expect(endedKinds({ scan: 1 }, { scan: 1 }).size).toBe(0);
+  // A restarted server counts from zero again.
+  expect([...endedKinds({ scan: 5 }, { scan: 0 })]).toEqual(["scan"]);
+});
+
+it("finds the kinds of work that just started", () => {
   const a = { key: "scan:A", kind: "scan" };
   const b = { key: "ai:1", kind: "ai_job" };
-  expect([...finishedKinds([a, b], [a])]).toEqual(["ai_job"]);
-  expect(finishedKinds([a], [a, b]).size).toBe(0);
+  expect([...startedKinds([a], [a, b])]).toEqual(["ai_job"]);
+  expect(startedKinds([a, b], [a]).size).toBe(0);
 });

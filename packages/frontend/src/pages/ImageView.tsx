@@ -37,7 +37,7 @@ import { useImageFeed } from "../hooks/useImageFeed";
 import { useAiTagging } from "../hooks/useAiTagging";
 import { useBackgroundTasks } from "../hooks/useBackgroundTasks";
 import { aiJobLabel } from "../lib/ai";
-import { taskPct } from "../lib/backgroundTasks";
+import { describeTask } from "../lib/backgroundTasks";
 import { ProgressBar } from "../components/ui/ProgressBar";
 import { fetchWorkflow, workflowClipboardText } from "../lib/gen";
 import {
@@ -873,15 +873,17 @@ function TagEditor({ id, onChange }: { id: string; onChange: () => void }) {
   const { start, adopt, cancel, submitting, cancelling, jobId, job, canCancel } =
     useAiTagging(onChange);
   const { data: tasks } = useBackgroundTasks();
-  // A job already tagging this image (started before the panel last closed).
-  const running = tasks?.find((t) => t.kind === "ai_job" && t.image_ids?.includes(id))?.job_id;
+  // A job tagging this image that the panel doesn't know (opened again
+  // mid-job, after a reload, or from another tab).
+  const running = tasks?.find((t) => t.kind === "ai_job" && t.image_id === id)?.job_id;
   useEffect(() => {
     if (running) adopt(running);
   }, [running, adopt]);
-  // The model's download, when this job is the one waiting on it.
-  const download = job?.phase === "model" ? tasks?.find((t) => t.kind === "model_download") : undefined;
-  const downloadPct = download ? taskPct(download) : null;
-  const jobLabel = aiJobLabel(job ?? (jobId ? { status: "queued" } : null), !!download, downloadPct);
+  // The tagging model is shared: its download or load shows on every
+  // image's panel, whichever image started it.
+  const model = tasks?.find((t) => t.kind === "model_download" || t.kind === "model_load");
+  const modelView = model ? describeTask(model) : null;
+  const jobLabel = aiJobLabel(job ?? (jobId ? { status: "queued" } : null));
 
   const add = async () => {
     if (adding) return;
@@ -947,7 +949,20 @@ function TagEditor({ id, onChange }: { id: string; onChange: () => void }) {
         )}
       </div>
 
-      {downloadPct != null && <ProgressBar value={downloadPct} aria-label="Model download" />}
+      {modelView && (
+        <div role="status" className="space-y-1 text-xs text-muted">
+          <div className="flex items-center gap-1.5">
+            <Loader2 size={12} className="animate-spin text-brand-300" />
+            {modelView.title}
+            {modelView.pct != null && <span className="ml-auto tabular-nums text-faint">{modelView.pct}%</span>}
+          </div>
+          <ProgressBar
+            value={modelView.pct ?? 0}
+            className={modelView.pct == null ? "animate-pulse" : undefined}
+            aria-label={modelView.title}
+          />
+        </div>
+      )}
 
       <Link
         to="/ai-tagging"

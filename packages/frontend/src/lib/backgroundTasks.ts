@@ -27,8 +27,8 @@ export type BackgroundTask = {
   phase?: string | null;
   status?: string;
   job_id?: string;
-  /** A small AI job's images. */
-  image_ids?: string[];
+  /** A one-image AI job's image. */
+  image_id?: string;
 };
 
 export type TaskView = {
@@ -102,8 +102,18 @@ export function describeTask(
   }
 }
 
-/** The kinds whose end changes what's on screen, by what they change. */
-export function finishedKinds(before: readonly BackgroundTask[], after: readonly BackgroundTask[]): Set<string> {
-  const still = new Set(after.map((t) => t.key));
-  return new Set(before.filter((t) => !still.has(t.key)).map((t) => t.kind));
+/** How many tasks of each kind have ended since the server started. */
+export type EndedCounts = Record<string, number>;
+
+/** The kinds of work that ended between two polls, including work that
+ * started and ended between them (never listed as running). A restarted
+ * server's counts start over; anything lower than before counts as ended. */
+export function endedKinds(before: EndedCounts, after: EndedCounts): Set<string> {
+  return new Set(Object.keys(after).filter((k) => after[k] !== (before[k] ?? 0)));
+}
+
+/** The kinds of work that just started. */
+export function startedKinds(before: readonly BackgroundTask[], after: readonly BackgroundTask[]): Set<string> {
+  const was = new Set(before.map((t) => t.key));
+  return new Set(after.filter((t) => !was.has(t.key)).map((t) => t.kind));
 }

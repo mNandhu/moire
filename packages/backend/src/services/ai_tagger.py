@@ -529,12 +529,19 @@ def get_tagger_manager() -> TaggerManager:
     return _tagger_manager
 
 
+def resolved_model_target(settings: dict[str, Any]) -> tuple[str, str]:
+    """``(model_repo, cache_dir)`` with the cache dir made absolute: the one
+    spelling of the model's location, so a download started anywhere (a job,
+    a load, the faces) is the one the status view reports."""
+    repo, cache_dir = model_target(settings)
+    return repo, str(app_settings.resolve_cache_dir(cache_dir))
+
+
 def model_status_view(settings: dict[str, Any]) -> dict[str, Any]:
     """The assembled model status the API serves: live tagger state, load state,
     and the download state for the settings' target. One place stitches the two
     managers together so routes don't reach into either's internals."""
-    repo, cache_dir = model_target(settings)
-    cache_dir = str(app_settings.resolve_cache_dir(cache_dir))
+    repo, cache_dir = resolved_model_target(settings)
     mgr = get_tagger_manager()
     return {
         "model": mgr.status(),

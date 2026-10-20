@@ -48,6 +48,16 @@ import {
 const COLLAPSED_KEY = "libraries:collapsedFolders";
 const libraryName = (l: Library) => l.name || l.path;
 
+/** `ids` added to (or taken out of) a set, as a new set. */
+function withIds(prev: Set<string>, ids: string[], on: boolean): Set<string> {
+  const next = new Set(prev);
+  for (const id of ids) {
+    if (on) next.add(id);
+    else next.delete(id);
+  }
+  return next;
+}
+
 export default function LibrariesPage() {
   const { push } = useToast();
   const confirm = useConfirm();
@@ -167,11 +177,11 @@ export default function LibrariesPage() {
     try {
       await api(`/api/v1/libraries/${id}`, { method: "DELETE" });
     } catch (e: any) {
+      markDeleting([id], false);
       push(e?.message || "Failed to delete library", "error");
       return;
-    } finally {
-      markDeleting([id], false);
     }
+    // Stays marked until the refetch drops it, or it would flash back.
     refresh();
     invalidateImageFeed();
   };
@@ -179,15 +189,7 @@ export default function LibrariesPage() {
   // Libraries being deleted: shown greyed out until they're gone. The server
   // says so too (`deleting`), for a delete started elsewhere or before a reload.
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
-  const markDeleting = (ids: string[], on: boolean) =>
-    setDeletingIds((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) {
-        if (on) next.add(id);
-        else next.delete(id);
-      }
-      return next;
-    });
+  const markDeleting = (ids: string[], on: boolean) => setDeletingIds((prev) => withIds(prev, ids, on));
   const isDeleting = (l: Library) => !!l.deleting || deletingIds.has(l._id);
 
   // Selection for deleting several at once. Ids of libraries gone since are
@@ -195,15 +197,7 @@ export default function LibrariesPage() {
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const selected = useMemo(() => libs.filter((l) => picked.has(l._id)), [libs, picked]);
-  const setPickedMany = (ids: string[], on: boolean) =>
-    setPicked((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) {
-        if (on) next.add(id);
-        else next.delete(id);
-      }
-      return next;
-    });
+  const setPickedMany = (ids: string[], on: boolean) => setPicked((prev) => withIds(prev, ids, on));
   const stopSelecting = () => {
     setSelecting(false);
     setPicked(new Set());
@@ -229,9 +223,9 @@ export default function LibrariesPage() {
     for (const l of order) {
       try {
         await api(`/api/v1/libraries/${l._id}`, { method: "DELETE" });
+        refresh(); // each one disappears as it goes, still marked till then
       } catch {
         failed += 1;
-      } finally {
         markDeleting([l._id], false);
       }
     }
