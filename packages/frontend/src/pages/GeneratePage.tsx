@@ -228,7 +228,9 @@ export default function GeneratePage() {
         })),
   );
   const defaultPerRequest = settings?.builtin_per_request ?? 1;
-  const perRequest = form.perRequest ?? defaultPerRequest;
+  // A size per batch only on the built-in for now (custom Generators: phase 3).
+  const ownBatchSize = gen?.kind === "builtin" && !!gen.slots.batch_size;
+  const perRequest = (ownBatchSize ? form.perRequest : null) ?? defaultPerRequest;
   const connected = !!status?.connected;
 
   const queue = useMutation({
@@ -437,7 +439,7 @@ export default function GeneratePage() {
                       schedulers={models?.schedulers ?? NO_STRINGS}
                       onChange={(v) => set("sampling", v)}
                       batchSize={
-                        gen.slots.batch_size
+                        ownBatchSize
                           ? { value: form.perRequest, default: defaultPerRequest, onChange: (n) => set("perRequest", n) }
                           : null
                       }

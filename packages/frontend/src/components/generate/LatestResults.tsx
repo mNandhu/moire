@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "../ui";
 import { BATCHES_KEY, STATUS_KEY, batchKey, useBatch, useBatches, type Batch } from "../../lib/generate";
 import { BatchResults } from "./BatchResults";
+import { batchRunTime, durationLabel } from "../../lib/batches";
 
 function Latest({ id }: { id: number }) {
   const qc = useQueryClient();
@@ -15,6 +16,7 @@ function Latest({ id }: { id: number }) {
     void qc.invalidateQueries({ queryKey: STATUS_KEY });
   };
   const done = b.requests.filter((q) => !["pending", "queued", "running"].includes(q.state)).length;
+  const took = batchRunTime(b.requests);
   return (
     <Card className="p-3.5">
       <div className="mb-2.5 flex items-center gap-2 text-sm">
@@ -24,6 +26,14 @@ function Latest({ id }: { id: number }) {
         {done < b.requests.length && (
           <span className="shrink-0 whitespace-nowrap font-mono text-xs text-muted">
             {done} / {b.requests.length}
+          </span>
+        )}
+        {took && (
+          <span
+            className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted"
+            title={took.perImage != null ? `${durationLabel(took.perImage)} per image` : undefined}
+          >
+            {durationLabel(took.total)}
           </span>
         )}
         <span className="flex-1" />

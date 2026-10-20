@@ -80,3 +80,25 @@ export function resultGrid(n: number, variant: "page" | "panel", ratio = 2 / 3):
   const cols = variant === "panel" ? panel : Math.min(m, 4);
   return { cols, rows: Math.max(1, Math.ceil(n / cols)) };
 }
+
+/** "8.4s", "42s", "1m 05s", "1h 02m". Pure. */
+export function durationLabel(seconds: number): string {
+  if (seconds < 10) return `${Math.round(seconds * 10) / 10}s`;
+  const s = Math.round(seconds);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${String(s % 60).padStart(2, "0")}s`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
+}
+
+/** Time ComfyUI spent on a batch's finished requests, and per image they
+ * returned; null before any has a time. Pure. */
+export function batchRunTime(
+  requests: readonly Pick<GenRequest, "ran" | "outputs">[],
+): { total: number; perImage: number | null } | null {
+  const timed = requests.filter((q) => q.ran != null);
+  if (!timed.length) return null;
+  const total = timed.reduce((a, q) => a + (q.ran ?? 0), 0);
+  const images = timed.reduce((a, q) => a + q.outputs.length, 0);
+  return { total, perImage: images ? total / images : null };
+}

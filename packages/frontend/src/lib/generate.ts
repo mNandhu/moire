@@ -119,6 +119,8 @@ export type GenRequest = {
   progress: Progress;
   queued_at: number | null;
   finished_at: number | null;
+  /** Seconds ComfyUI spent on it; null until it ends. */
+  ran: number | null;
   outputs: Output[];
 };
 
@@ -188,6 +190,8 @@ export type BatchInputs = {
   seed: { mode: "random" | "fixed"; value: number | null };
   count: number;
   per_request: number | null;
+  /** The size the user chose for this batch; null when it was the setting. */
+  per_request_asked?: number | null;
   positive_text: string;
   negative_text: string;
   test?: boolean;

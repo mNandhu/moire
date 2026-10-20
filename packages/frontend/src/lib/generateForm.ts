@@ -300,7 +300,7 @@ export function formFromBatch(i: BatchInputs, name: string | null): GenerateForm
     height: i.height ?? DEFAULT_FORM.height,
     seed: i.seed.mode === "fixed" ? { ...i.seed } : { mode: "random", value: null },
     count: i.count,
-    perRequest: i.per_request ?? null,
+    perRequest: i.per_request_asked ?? null,
     name,
   };
 }
@@ -325,7 +325,7 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     else if (isStr(d.character)) out.characters = [d.character];
     if (isStr(d.name) || d.name === null) out.name = d.name;
     for (const k of ["width", "height", "count"] as const) if (typeof d[k] === "number") out[k] = d[k];
-    if (typeof d.perRequest === "number") out.perRequest = d.perRequest;
+    if (Number.isInteger(d.perRequest) && d.perRequest >= 1 && d.perRequest <= 64) out.perRequest = d.perRequest;
     if (Array.isArray(d.loras)) {
       out.loras = d.loras
         .filter(

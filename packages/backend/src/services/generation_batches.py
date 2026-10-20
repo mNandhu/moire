@@ -93,6 +93,18 @@ async def get_batch(batch_id: int, manager: GenerationManager) -> dict[str, Any]
             )
         ).fetchall()
         outputs = await _outputs(conn, [q._id for q in reqs])
+        ran = dict(
+            (
+                await conn.execute(
+                    sa.select(
+                        t.generation_run_times.c.request_id,
+                        t.generation_run_times.c.seconds,
+                    ).where(
+                        t.generation_run_times.c.request_id.in_([q._id for q in reqs])
+                    )
+                )
+            ).fetchall()
+        )
     gen = await load_generator(batch.generator_id)
     requests = []
     for q in reqs:
@@ -107,6 +119,8 @@ async def get_batch(batch_id: int, manager: GenerationManager) -> dict[str, Any]
                 "progress": manager.progress.get(q.prompt_id) if q.prompt_id else None,
                 "queued_at": q.queued_at,
                 "finished_at": q.finished_at,
+                # Seconds ComfyUI spent on it; None before it ends.
+                "ran": ran.get(q._id),
                 "outputs": outputs.get(q._id, []),
             }
         )

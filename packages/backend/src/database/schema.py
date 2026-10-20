@@ -385,6 +385,20 @@ generation_requests = sa.Table(
     sa.Column("finished_at", sa.Float),
 )
 
+# How long ComfyUI spent on a request, from its history's execution
+# timestamps (waiting in its queue not counted).
+generation_run_times = sa.Table(
+    "generation_run_times",
+    metadata,
+    sa.Column(
+        "request_id",
+        sa.Integer,
+        sa.ForeignKey("generation_requests._id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("seconds", sa.Float, nullable=False),
+)
+
 # Images a request returned, from /history. `image_id` is the expected
 # `{output_library_id}:{subfolder/filename}`; it is joined to `images` on read,
 # so "waiting for scan" is just "no row yet".

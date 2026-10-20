@@ -170,7 +170,14 @@ class FakeComfy:
         ]
         self.history[pid] = {
             "outputs": {"9": {"images": files}} if files else {},
-            "status": {"status_str": "success", "completed": True, "messages": []},
+            "status": {
+                "status_str": "success",
+                "completed": True,
+                "messages": [
+                    ["execution_start", {"prompt_id": pid, "timestamp": 1_000_000}],
+                    ["execution_success", {"prompt_id": pid, "timestamp": 1_012_500}],
+                ],
+            },
         }
         self.push(
             "executed", {"prompt_id": pid, "node": "9", "output": {"images": files}}

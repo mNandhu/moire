@@ -32,6 +32,7 @@ def test_expected_tables_exist():
         "generation_batches",
         "generation_requests",
         "generation_outputs",
+        "generation_run_times",
     }
 
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { batchLine, dayLabel, resultGrid, resultSlots, whenLabel } from "./batches";
+import { batchLine, batchRunTime, dayLabel, durationLabel, resultGrid, resultSlots, whenLabel } from "./batches";
 
 describe("batch display", () => {
   it("summarizes images, failures and rejections", () => {
@@ -51,5 +51,23 @@ describe("result grid", () => {
     // Square stays as portrait; the page is wide enough either way.
     expect(resultGrid(2, "panel", 1)).toEqual({ cols: 2, rows: 1 });
     expect(resultGrid(2, "page", wide)).toEqual({ cols: 2, rows: 1 });
+  });
+});
+
+describe("run time", () => {
+  it("reads like a stopwatch", () => {
+    expect(durationLabel(8.43)).toBe("8.4s");
+    expect(durationLabel(42.4)).toBe("42s");
+    expect(durationLabel(65)).toBe("1m 05s");
+    expect(durationLabel(3720)).toBe("1h 02m");
+  });
+  it("adds up timed requests and divides by their images", () => {
+    const out = { idx: 0 } as never;
+    expect(batchRunTime([{ ran: null, outputs: [] }])).toBeNull();
+    expect(batchRunTime([{ ran: 10, outputs: [out, out] }, { ran: 6, outputs: [out] }, { ran: null, outputs: [] }])).toEqual({
+      total: 16,
+      perImage: 16 / 3,
+    });
+    expect(batchRunTime([{ ran: 5, outputs: [] }])).toEqual({ total: 5, perImage: null });
   });
 });

@@ -73,10 +73,11 @@ function NumberStepper({
   max: number;
 }) {
   const [typed, setTyped] = useState<string | null>(null);
-  const set = (n: number) => {
+  const fit = (n: number) => {
     const v = Math.max(min, Math.min(max, n));
-    onChange(step >= 1 ? Math.round(v) : Math.round(v * 100) / 100);
+    return step >= 1 ? Math.round(v) : Math.round(v * 100) / 100;
   };
+  const set = (n: number) => onChange(fit(n));
   return (
     <div>
       <FieldLabel>{label}</FieldLabel>
@@ -97,7 +98,8 @@ function NumberStepper({
             const raw = e.target.value;
             setTyped(raw);
             const n = Number(raw);
-            if (raw.trim() !== "" && Number.isFinite(n) && n >= min && n <= max) set(n);
+            // Only a value that needs no rounding, so what shows is what's kept.
+            if (raw.trim() !== "" && Number.isFinite(n) && fit(n) === n) set(n);
           }}
           onBlur={() => setTyped(null)}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
@@ -179,7 +181,9 @@ export function SamplingControl({
           invalid && "ring-1 ring-red-700",
         )}
       >
-        <span className={cn("flex-1 truncate", changed ? "text-neutral-100" : "text-muted")}>{samplingLabel(shown, true)}</span>
+        <span className={cn("flex-1 truncate", changed ? "text-neutral-100" : "text-muted")}>{samplingLabel(shown, true)}
+          {batchSize?.value != null && ` · ×${batchSize.value}`}
+        </span>
         <ChevronDown size={16} className={cn("shrink-0 text-faint transition-transform", open && "rotate-180")} />
       </button>
       {open && (

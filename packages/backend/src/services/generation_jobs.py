@@ -121,6 +121,30 @@ def history_result(entry: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
     return "done", None
 
 
+_ENDS = ("execution_success", "execution_error", "execution_interrupted")
+
+
+def run_seconds(entry: dict[str, Any]) -> float | None:
+    """How long ComfyUI ran a prompt: its history's ``execution_start`` to
+    the message that ended it (timestamps in ms). None when either is missing."""
+    start = end = None
+    for item in (entry.get("status") or {}).get("messages") or []:
+        if not (
+            isinstance(item, list) and len(item) == 2 and isinstance(item[1], dict)
+        ):
+            continue
+        ts = item[1].get("timestamp")
+        if not isinstance(ts, (int, float)):
+            continue
+        if item[0] == "execution_start":
+            start = ts
+        elif item[0] in _ENDS:
+            end = ts
+    if start is None or end is None or end < start:
+        return None
+    return round((end - start) / 1000, 2)
+
+
 _PART_KINDS = ("text", "character", "embedding")
 
 
@@ -549,6 +573,18 @@ class GenerationManager:
                     state=state, error=error, finished_at=time.time(), progress=None
                 )
             )
+            await conn.execute(
+                sa.delete(t.generation_run_times).where(
+                    t.generation_run_times.c.request_id == request_id
+                )
+            )
+            seconds = run_seconds(entry)
+            if seconds is not None:
+                await conn.execute(
+                    sa.insert(t.generation_run_times).values(
+                        request_id=request_id, seconds=seconds
+                    )
+                )
         self.progress.pop(prompt_id, None)
         if files and lib and s.get("download_outputs", True):
             await self._fetch_missing(lib, files)
@@ -706,11 +742,17 @@ class GenerationManager:
             raise Invalid("Run the Generator's test first")
 
         count = max(1, min(500, int(body.get("count") or 1)))
+        # Asked for this batch (built-in only: for a custom Generator it would
+        # also turn count from requests into images); else the setting.
+        asked = (
+            max(1, min(64, int(body["per_request"])))
+            if gen["kind"] == "builtin" and body.get("per_request")
+            else None
+        )
         if not gen["slots"].get("batch_size"):
             per_request: int | None = None
-        elif body.get("per_request"):
-            # Asked for this batch; else the Generator's (the built-in's is a setting).
-            per_request = max(1, min(64, int(body["per_request"])))
+        elif asked:
+            per_request = asked
         elif gen["kind"] == "builtin":
             per_request = int(s.get("builtin_per_request") or 1)
         else:
@@ -748,6 +790,8 @@ class GenerationManager:
             },
             "count": count,
             "per_request": per_request,
+            # What the user set, apart from the setting it resolved to.
+            "per_request_asked": asked,
             "test": test,
         }
         positive = _parts(body.get("positive"))
@@ -885,10 +929,11 @@ class GenerationManager:
                     "width",
                     "height",
                     "count",
-                    "per_request",
                     "seed",
                 )
             },
+            # Only a size the user chose is replayed; else today's setting.
+            "per_request": inputs.get("per_request_asked"),
             "generator_id": row.generator_id,
             "name": None if row.auto_name else row.name,
         }
@@ -945,11 +990,10 @@ class GenerationManager:
                     ],
                 )
             else:
-                await conn.execute(
-                    sa.delete(t.generation_outputs).where(
-                        t.generation_outputs.c.request_id == request_id
+                for table in (t.generation_outputs, t.generation_run_times):
+                    await conn.execute(
+                        sa.delete(table).where(table.c.request_id == request_id)
                     )
-                )
                 await conn.execute(
                     sa.update(r)
                     .where(r.c._id == request_id)

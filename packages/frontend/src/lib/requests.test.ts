@@ -13,6 +13,7 @@ describe("splitRequests", () => {
 describe("countLabel", () => {
   it("covers the three count modes", () => {
     expect(countLabel(8, { kind: "images", perRequest: 2 })).toBe("4 × 2");
+    expect(countLabel(1, { kind: "images", perRequest: 2 })).toBe("1 × 1");
     expect(countLabel(7, { kind: "images", perRequest: 3 })).toBe("2 × 3 + 1");
     expect(countLabel(8, { kind: "requests", literal: 4 })).toBe("8 × 4 = 32 images");
     expect(countLabel(8, { kind: "unknown" })).toBe("8 × ?");

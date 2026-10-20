@@ -510,3 +510,37 @@ def test_only_a_sampling_input_flags_sampling():
     ]
     out = generation_jobs.annotate_node_errors(errs, gen, gen["graph"])
     assert [e["field"] for e in out] == ["sampling", None]
+
+
+async def test_time_comfyui_spent_is_kept(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x"})).json()
+    got = (await client.get(f"/generate/batches/{b['_id']}")).json()
+    assert got["requests"][0]["ran"] is None
+    scanned(seed, comfy.finish(comfy.order[-1]))
+    await tick()
+    got = (await client.get(f"/generate/batches/{b['_id']}")).json()
+    assert got["requests"][0]["ran"] == 12.5
+
+
+def test_run_seconds_needs_both_ends():
+    msg = lambda kind, ts: [kind, {"timestamp": ts}]  # noqa: E731
+    entry = lambda *m: {"status": {"messages": list(m)}}  # noqa: E731
+    run = generation_jobs.run_seconds
+    assert run(entry(msg("execution_start", 1000), msg("execution_error", 4000))) == 3
+    assert run(entry(msg("execution_start", 1000))) is None
+    assert run(entry(msg("execution_success", 1000))) is None
+    assert run({}) is None
+
+
+async def test_requeue_replays_a_chosen_batch_size_not_the_setting(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    plain = (
+        await client.post("/generate/batches", json={"base": "x", "count": 2})
+    ).json()
+    await comfy_settings.update_settings({"builtin_per_request": 2})
+    again = (await client.post(f"/generate/batches/{plain['_id']}/requeue")).json()
+    got = (await client.get(f"/generate/batches/{again['_id']}")).json()
+    # Queued at the old setting (1), requeued at today's (2).
+    assert [q["images"] for q in got["requests"]] == [2]
+    assert got["inputs"]["per_request_asked"] is None

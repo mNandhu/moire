@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, Pencil } from "lucide-react";
 import { Badge, Button, ButtonLink, Card, Input, PageBody, PageHeader } from "../components/ui";
-import { stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
+import { batchRunTime, durationLabel, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
 import { displayWord } from "../lib/compose";
 import {
   BATCHES_KEY,
@@ -198,6 +198,7 @@ export default function BatchPage() {
   }
 
   const outputs = b.requests.flatMap((q) => q.outputs);
+  const took = batchRunTime(b.requests);
   const failed = b.requests.filter((q) => q.state === "failed" || q.state === "lost");
   const running = b.requests.filter((q) => UNFINISHED.has(q.state)).length;
   const inLibrary = outputs.filter((o) => o.in_library).length;
@@ -257,6 +258,12 @@ export default function BatchPage() {
             {b.requests.length} {b.requests.length === 1 ? "request" : "requests"}
             {perReq != null && perReq > 1 ? ` of ${perReq}` : ""}
           </span>
+          {took && (
+            <span title="Time ComfyUI spent generating">
+              Took {durationLabel(took.total)}
+              {took.perImage != null && outputs.length > 1 && `, ${durationLabel(took.perImage)} per image`}
+            </span>
+          )}
           {inLibrary < outputs.length && <span>{inLibrary} in library</span>}
           {running > 0 && <span>{running} running</span>}
           {failed.length > 0 && <span className="text-red-300">{failed.length} failed</span>}

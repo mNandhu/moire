@@ -174,6 +174,9 @@ describe("sampling", () => {
     expect(draft({}).sampling).toEqual({});
     expect(toQueueBody({ ...DEFAULT_FORM, perRequest: 2 }, "builtin", [], presets).per_request).toBe(2);
     expect(draft({ perRequest: 3 }).perRequest).toBe(3);
+    expect(draft({ perRequest: 100 }).perRequest).toBeNull();
+    const back = formFromBatch({ ...({} as BatchInputs), ...sent, per_request: 2, per_request_asked: null } as BatchInputs, null);
+    expect(back.perRequest).toBeNull();
     expect(samplingOf(null)).toEqual({});
   });
 });

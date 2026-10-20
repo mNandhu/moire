@@ -28,6 +28,8 @@ export function countLabel(count: number, mode: CountMode): string {
   if (mode.perRequest <= 1) return `${count} × 1`;
   const full = sizes.filter((n) => n === mode.perRequest).length;
   const rest = sizes.length > full ? sizes[sizes.length - 1] : 0;
+  // Fewer images than one request takes: a single smaller request.
+  if (!full) return `1 × ${rest}`;
   return rest ? `${full} × ${mode.perRequest} + ${rest}` : `${full} × ${mode.perRequest}`;
 }
 
