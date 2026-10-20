@@ -225,3 +225,73 @@ async def test_queued_scan_uses_the_path_the_library_has_when_it_starts(
 
     feed = await client.get("/images", params={"library_id": lib_id})
     assert {it["_id"] for it in feed.json()} == {f"{lib_id}:fresh.png"}
+
+
+async def test_rescan_skips_unchanged_files_and_rebuilds_on_change(
+    client, tmp_path, monkeypatch
+):
+    """A rescan opens only files whose size/mtime moved or whose thumbnail is
+    gone, and a change to the thumbnail settings rebuilds everything."""
+    import os
+
+    from src.core.config import settings
+    from src.services.storage_fs import delete_thumb
+
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    for name in ("a.png", "b.png", "c.png"):
+        _write_png(lib_dir / name)
+
+    resp = await client.post("/libraries", json={"path": str(lib_dir)})
+    lib_id = resp.json()["_id"]
+    _wait_scan(lib_id)
+
+    opened: list[str] = []
+    real_make = scanner._make_thumb_bytes
+
+    def counting_make(path):
+        opened.append(path.name)
+        return real_make(path)
+
+    reprojected: list[str] = []
+    monkeypatch.setattr(scanner, "_make_thumb_bytes", counting_make)
+    monkeypatch.setattr(
+        reproject, "reproject_library_async", lambda lid: reprojected.append(lid)
+    )
+
+    async def rescan() -> None:
+        opened.clear()
+        reprojected.clear()
+        await client.post(f"/libraries/{lib_id}/rescan")
+        _wait_scan(lib_id)
+
+    # Nothing changed: no file is opened, nothing is reprojected, and the
+    # library still counts all three.
+    await rescan()
+    assert opened == []
+    assert reprojected == []
+    async with db.async_conn() as conn:
+        count = (
+            await conn.execute(
+                sa.select(t.libraries.c.indexed_count).where(
+                    t.libraries.c._id == lib_id
+                )
+            )
+        ).scalar()
+    assert count == 3
+
+    # A touched file and a file whose thumbnail vanished are rebuilt.
+    st = os.stat(lib_dir / "a.png")
+    os.utime(lib_dir / "a.png", (st.st_atime, st.st_mtime + 10))
+    delete_thumb((await _img(f"{lib_id}:b.png")).thumb_key)
+    await rescan()
+    assert sorted(opened) == ["a.png", "b.png"]
+    assert reprojected == [lib_id]
+    assert (await _img(f"{lib_id}:a.png")).mtime == st.st_mtime + 10
+
+    # New thumbnail settings rebuild every file once.
+    monkeypatch.setattr(settings, "thumb_max_size", 640)
+    await rescan()
+    assert sorted(opened) == ["a.png", "b.png", "c.png"]
+    await rescan()
+    assert opened == []

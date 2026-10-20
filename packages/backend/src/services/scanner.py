@@ -13,7 +13,7 @@ from . import tag_index
 from . import gen_metadata
 from . import batch_pool
 from .scan_writer import ScanWriter
-from .storage_fs import put_thumb
+from .storage_fs import put_thumb, thumb_path
 from .blurhash import blurhash_for_image
 import hashlib
 import logging
@@ -30,6 +30,44 @@ from ..core.config import settings
 logger = logging.getLogger("moire.scanner")
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
+
+_THUMB_QUALITY = 85
+# Bump when the thumbnail encoding changes in code (resampling, encoder
+# options) so existing thumbnails are rebuilt on the next scan.
+_THUMB_RECIPE = 1
+
+
+def thumb_stamp() -> str:
+    """Everything that shapes a thumbnail. A rescan skips unchanged files only
+    while the library's last full scan ran with this same stamp, so changing
+    the size/format settings (or `_THUMB_RECIPE`) rebuilds every thumbnail."""
+    size = max(16, settings.thumb_max_size)
+    return f"{size}/{settings.thumb_format.lower()}/q{_THUMB_QUALITY}/r{_THUMB_RECIPE}"
+
+
+def _stamp_row(library_id: str) -> str:
+    return f"thumbs:{library_id}"
+
+
+def _load_stamp(library_id: str) -> str | None:
+    with sync_conn() as conn:
+        doc = conn.execute(
+            sa.select(t.app_settings.c.doc).where(
+                t.app_settings.c._id == _stamp_row(library_id)
+            )
+        ).scalar()
+    return (doc or {}).get("stamp")
+
+
+def _save_stamp(library_id: str, stamp: str) -> None:
+    doc = {"stamp": stamp}
+    with sync_tx() as conn:
+        stmt = sqlite_insert(t.app_settings).values(_id=_stamp_row(library_id), doc=doc)
+        conn.execute(
+            stmt.on_conflict_do_update(
+                index_elements=[t.app_settings.c._id], set_={"doc": doc}
+            )
+        )
 
 
 def _make_thumb_bytes(
@@ -62,9 +100,9 @@ def _make_thumb_bytes(
             buf = BytesIO()
             fmt = settings.thumb_format.upper()
             if fmt == "WEBP":
-                img.save(buf, format="WEBP", quality=85)
+                img.save(buf, format="WEBP", quality=_THUMB_QUALITY)
             else:
-                img.convert("RGB").save(buf, format=fmt, quality=85)
+                img.convert("RGB").save(buf, format=fmt, quality=_THUMB_QUALITY)
 
             # BlurHash from the already-downsampled thumbnail (it shrinks to
             # ~64px internally, so the result is identical to encoding the
@@ -330,18 +368,44 @@ class _ScanResult:
     gen_raw_doc: dict | None = None
     error: str | None = None
     stage: str | None = None
+    # Unchanged since the last scan; nothing to write.
+    skipped: bool = False
 
 
-def _process_image(library_id: str, root_path: Path, p: Path) -> _ScanResult:
+# image id -> (size, mtime, thumb_key) of the row a previous scan wrote.
+Known = dict[str, tuple[int | None, float | None, str | None]]
+
+
+def _unchanged(known: Known | None, image_id: str, stat: os.stat_result) -> bool:
+    prev = known.get(image_id) if known else None
+    if prev is None:
+        return False
+    size, mtime, thumb_key = prev
+    return (
+        size == stat.st_size
+        and mtime == stat.st_mtime
+        and thumb_key is not None
+        and thumb_path(thumb_key) is not None
+    )
+
+
+def _process_image(
+    library_id: str, root_path: Path, p: Path, known: Known | None = None
+) -> _ScanResult:
     """Process a single image file.
 
     This function performs file inspection + thumbnail write to the FS.
-    Mongo writes are performed in batches by the scan coordinator thread.
+    DB writes are performed in batches by the scan coordinator thread.
     Originals are served directly from the filesystem (Local Mount mode).
+    A file whose size and mtime match its row in ``known`` (and whose thumbnail
+    is still on disk) is skipped without opening it. The stat runs here, on
+    the pool, because each one is a slow round trip on network mounts.
     """
     try:
         stat = p.stat()
         image_id = image_id_for(library_id, root_path, p)
+        if _unchanged(known, image_id, stat):
+            return _ScanResult(image_id=image_id, ok=True, skipped=True)
         # Single decode yields the thumbnail, BlurHash placeholder, the original
         # dimensions (read from the header before downscaling), and any embedded
         # generation metadata.
@@ -431,6 +495,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
         total = 0
         processed = 0
         indexed = 0
+        skipped = 0
         failed = 0
         failed_samples: list[dict] = []
         discovered_image_ids: set[str] = set()
@@ -476,6 +541,25 @@ def scan_library_async(library_id: str, root: str) -> dict:
                 if library_id in _cancel_scans:
                     raise RuntimeError("cancelled")
 
+            # Rows a previous scan wrote with the current thumbnail settings
+            # can be skipped when their file is unchanged. With a different
+            # stamp (or none yet) every file is rebuilt.
+            stamp = thumb_stamp()
+            known: Known | None = None
+            if _load_stamp(library_id) == stamp:
+                with sync_conn() as conn:
+                    known = {
+                        r._id: (r.size, r.mtime, r.thumb_key)
+                        for r in conn.execute(
+                            sa.select(
+                                t.images.c._id,
+                                t.images.c.size,
+                                t.images.c.mtime,
+                                t.images.c.thumb_key,
+                            ).where(t.images.c.library_id == library_id)
+                        )
+                    }
+
             # Multithreaded processing (cap via config if provided)
             # Scanning is I/O + CPU heavy and competes with API traffic and the Mongo pool,
             # so keep auto-concurrency conservative.
@@ -510,8 +594,10 @@ def scan_library_async(library_id: str, root: str) -> dict:
             writer = ScanWriter(_commit_batch, batch_size=200)
 
             def _on_complete(res, exc) -> None:
-                nonlocal processed, failed, last_progress_write
-                if isinstance(res, _ScanResult) and res.ok and res.doc:
+                nonlocal processed, skipped, failed, last_progress_write
+                if isinstance(res, _ScanResult) and res.skipped:
+                    skipped += 1
+                elif isinstance(res, _ScanResult) and res.ok and res.doc:
                     writer.add(
                         image_upsert_values(res.doc),
                         _gen_raw_values(res.gen_raw_doc)
@@ -545,7 +631,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
 
             batch_pool.run_pool(
                 files,
-                lambda p: _process_image(library_id, root_path, p),
+                lambda p: _process_image(library_id, root_path, p, known),
                 _on_complete,
                 max_workers=workers,
                 is_cancelled=lambda: _is_cancel_requested(library_id),
@@ -557,7 +643,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
 
             # Flush the remaining partial batch.
             writer.flush()
-            indexed = writer.indexed
+            indexed = writer.indexed + skipped
 
             # Clean up stale images (images that exist in DB but weren't discovered in current scan)
             with sync_conn() as conn:
@@ -601,6 +687,8 @@ def scan_library_async(library_id: str, root: str) -> dict:
                         # Best effort cleanup - don't fail the scan if it fails
                         pass
 
+            _save_stamp(library_id, stamp)
+
             # Finalize
             _lib_set(
                 library_id,
@@ -617,10 +705,13 @@ def scan_library_async(library_id: str, root: str) -> dict:
             # Derive structured gen.* from the raw we just captured. Spawned in
             # its own thread so the scan slot frees immediately (a long reproject
             # must not make the library look "still scanning" / block a rescan).
+            # Skipped rows kept their gen data, so with nothing rewritten there
+            # is nothing to derive.
             try:
                 from .reproject import reproject_library_async
 
-                reproject_library_async(library_id)
+                if writer.indexed:
+                    reproject_library_async(library_id)
             except Exception:
                 # Reprojection is re-runnable via the manual endpoint; never let
                 # it fail the scan.
