@@ -10,6 +10,7 @@ import {
   STATUS_KEY,
   batchKey,
   cancelBatch,
+  cancelRequest,
   renameBatch,
   requeueBatch,
   retryRequest,
@@ -126,7 +127,7 @@ function RequestGroup({
     mutationFn: (single: boolean) => retryRequest(batch._id, req._id, single),
     onSuccess: (b) => onChanged(b),
   });
-  const cancel = useMutation({ mutationFn: () => cancelBatch(batch._id), onSuccess: (b) => onChanged(b) });
+  const cancel = useMutation({ mutationFn: () => cancelRequest(batch._id, req._id), onSuccess: (b) => onChanged(b) });
   const failed = req.state === "failed" || req.state === "lost";
   const empty = req.state === "done" && req.outputs.length === 0;
   const slots = req.outputs.length ? req.outputs.length : (req.images ?? 1);
@@ -313,6 +314,7 @@ export default function BatchPage() {
     },
     onError: (e) => toast.push(e.message, "error"),
   });
+  const cancelAll = useMutation({ mutationFn: () => cancelBatch(batchId), onSuccess: (nb) => changed(nb) });
   const retryAll = useMutation({
     mutationFn: async () => {
       let last: Batch | undefined;
@@ -352,6 +354,11 @@ export default function BatchPage() {
         width="wide"
         actions={
           <div className="flex flex-wrap gap-2">
+            {b.requests.some((q) => UNFINISHED.has(q.state)) && (
+              <Button size="sm" variant="ghost" onClick={() => cancelAll.mutate()} disabled={cancelAll.isPending}>
+                Cancel batch
+              </Button>
+            )}
             {failed.length > 0 && (
               <Button size="sm" onClick={() => retryAll.mutate()} disabled={retryAll.isPending}>
                 Retry failed ({failed.length})

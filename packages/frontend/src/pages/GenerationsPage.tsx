@@ -16,17 +16,21 @@ function Strip({ b }: { b: BatchSummary }) {
   const ratio = b.width && b.height ? b.width / b.height : 2 / 3;
   const w = Math.round(STRIP_H * ratio);
   if (!b.thumbs.length) {
-    return <div className="shrink-0 rounded-md bg-raised" style={{ width: w, height: STRIP_H }} />;
+    return (
+      <div className="w-64 shrink-0">
+        <div className="rounded-md bg-raised" style={{ width: w, height: STRIP_H }} />
+      </div>
+    );
   }
   return (
-    <div className="flex shrink-0 gap-1 overflow-hidden" style={{ maxWidth: w * 6 + 20 }}>
+    <div className="flex w-64 shrink-0 gap-1 overflow-hidden">
       {b.thumbs.slice(0, 6).map((id) => (
         <img
           key={id}
           src={thumbUrl(id)}
           alt=""
           loading="lazy"
-          className="rounded-md object-cover bg-raised"
+          className="shrink-0 rounded-md object-cover bg-raised"
           style={{ width: w, height: STRIP_H }}
         />
       ))}

@@ -380,3 +380,20 @@ async def test_retry_refuses_a_request_that_returned_images(client, comfy, seed)
     rid = b["requests"][0]["_id"]
     r = await client.post(f"/generate/batches/{b['_id']}/requests/{rid}/retry", json={})
     assert r.status_code == 400
+
+
+async def test_cancel_one_request_leaves_the_rest(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x", "count": 3})).json()
+    second = b["requests"][1]["_id"]
+    r = await client.post(f"/generate/batches/{b['_id']}/requests/{second}/cancel")
+    assert [q["state"] for q in r.json()["requests"]] == [
+        "queued",
+        "cancelled",
+        "pending",
+    ]
+    assert comfy.interrupted == []
+    scanned(seed, comfy.finish(comfy.order[-1]))
+    await tick()
+    reqs = (await client.get(f"/generate/batches/{b['_id']}")).json()["requests"]
+    assert [q["state"] for q in reqs] == ["done", "cancelled", "queued"]

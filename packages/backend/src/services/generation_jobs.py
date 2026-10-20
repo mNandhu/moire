@@ -776,18 +776,22 @@ class GenerationManager:
                 .values(state="active")
             )
 
-    async def cancel(self, batch_id: int) -> None:
+    async def cancel(self, batch_id: int, request_id: int | None = None) -> None:
+        """Cancel a batch's unfinished requests, or just one of them."""
         async with self._tick_lock:
-            await self._cancel(batch_id)
+            await self._cancel(batch_id, request_id)
         self._wake.set()
 
-    async def _cancel(self, batch_id: int) -> None:
+    async def _cancel(self, batch_id: int, request_id: int | None) -> None:
         r = t.generation_requests
+        scope = [r.c.batch_id == batch_id]
+        if request_id is not None:
+            scope.append(r.c._id == request_id)
         async with async_conn() as conn:
             rows = (
                 await conn.execute(
                     sa.select(r.c._id, r.c.state, r.c.prompt_id).where(
-                        r.c.batch_id == batch_id, r.c.state.in_(UNFINISHED)
+                        *scope, r.c.state.in_(UNFINISHED)
                     )
                 )
             ).fetchall()
@@ -796,7 +800,7 @@ class GenerationManager:
         async with async_tx() as conn:
             await conn.execute(
                 sa.update(r)
-                .where(r.c.batch_id == batch_id, r.c.state.in_(("pending", "queued")))
+                .where(*scope, r.c.state.in_(("pending", "queued")))
                 .values(state="cancelled", finished_at=time.time())
             )
         if self.client is not None:

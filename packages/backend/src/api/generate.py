@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from ..models.library import LibraryIn
-from ..services import comfy_models, comfy_settings, generation_batches
+from ..services import comfy_models, comfy_settings, generation_batches, library_watch
 from ..services.generation_jobs import (
     Invalid,
     Rejected,
@@ -111,7 +111,8 @@ async def put_comfyui(body: ComfyPatch):
         if not output_path.strip():
             patch["output_library_id"] = None
         else:
-            from ..api.libraries import add_library
+            from ..api.libraries import add_library, update_library
+            from ..models.library import LibraryUpdate
 
             try:
                 lib = await add_library(
@@ -119,6 +120,10 @@ async def put_comfyui(body: ComfyPatch):
                 )
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e)) from e
+            # Outputs reach the library through its watcher, so a reused
+            # library with watching off gets it turned on.
+            if not library_watch.is_watching(lib["_id"]):
+                await update_library(lib["_id"], LibraryUpdate(watch_enabled=True))
             patch["output_library_id"] = lib["_id"]
     before = await comfy_settings.get_settings()
     after = await comfy_settings.update_settings(patch)
@@ -270,4 +275,10 @@ async def retry_request(batch_id: int, request_id: int, body: RetryIn):
 @router.post("/batches/{batch_id}/cancel")
 async def cancel_batch(batch_id: int):
     await get_generation_manager().cancel(batch_id)
+    return await get_batch(batch_id)
+
+
+@router.post("/batches/{batch_id}/requests/{request_id}/cancel")
+async def cancel_request(batch_id: int, request_id: int):
+    await get_generation_manager().cancel(batch_id, request_id)
     return await get_batch(batch_id)

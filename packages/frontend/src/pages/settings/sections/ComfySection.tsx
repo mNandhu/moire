@@ -149,6 +149,11 @@ export function ComfySection() {
                     onFocus={() => {
                       if (h.value === HEADER_MASK) setHeaders(headers.map((x, j) => (j === i ? { ...x, value: "" } : x)));
                     }}
+                    onBlur={() => {
+                      // Left empty: keep the stored secret rather than erase it.
+                      if (!h.value && settings?.headers[h.name] === HEADER_MASK)
+                        setHeaders(headers.map((x, j) => (j === i ? { ...x, value: HEADER_MASK } : x)));
+                    }}
                     onChange={(e) => setHeaders(headers.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))}
                     className="font-mono"
                   />
