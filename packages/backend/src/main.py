@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-import starlette.middleware.gzip as _gzip
+from starlette.types import ASGIApp, Receive, Scope, Send
 from fastapi.responses import JSONResponse
 from .api import libraries, images, tags, ai, rules
 from .database.db import async_conn, ensure_schema
@@ -72,17 +72,29 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Moiré API", version="0.1.0", lifespan=lifespan)
 
-# GZip compression for JSON responses. Images and video are already
-# compressed: gzipping a thumbnail made it larger, an original saved ~2% for
-# ~30 ms of CPU, and both lost Content-Length. Starlette reads this module
-# tuple per response, so extending it excludes them. Level 6 (zlib's default)
-# costs less CPU than 9 for nearly the same size.
-# Fails loudly (AttributeError) if a Starlette upgrade renames the tuple;
-# test_thumbnails_are_served_without_gzip guards the behavior.
-_gzip.DEFAULT_EXCLUDED_CONTENT_TYPES = tuple(
-    dict.fromkeys((*_gzip.DEFAULT_EXCLUDED_CONTENT_TYPES, "image/", "video/"))
-)
-app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=6)
+
+class GZipExceptMedia:
+    """GZip for API responses; the media routes (an image's ``/thumb`` and
+    ``/file``) pass through untouched. Images and video are already
+    compressed: gzipping a thumbnail made it larger, an original saved ~2%
+    for ~30 ms of CPU, and both lost Content-Length. Level 6 (zlib's
+    default) costs less CPU than 9 for nearly the same size."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+        self.gzip = GZipMiddleware(app, minimum_size=1000, compresslevel=6)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        path = scope.get("path", "") if scope["type"] == "http" else ""
+        if path.startswith(f"{API_PREFIX}/images/") and path.endswith(
+            ("/thumb", "/file")
+        ):
+            await self.app(scope, receive, send)
+        else:
+            await self.gzip(scope, receive, send)
+
+
+app.add_middleware(GZipExceptMedia)
 
 # CORS: allow frontend dev server and Docker frontend
 app.add_middleware(

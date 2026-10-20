@@ -165,7 +165,9 @@ export UV_NO_GROUP=cpu
 uv --directory packages/backend sync --group gpu
 ```
 
-On Windows PowerShell, use `$env:UV_NO_GROUP = "cpu"`. The NVIDIA driver must be installed; under WSL2 that's the Windows driver.
+Put the `export` in your shell profile (`~/.zshrc`, `~/.bashrc`) so every shell has it, including the ones git hooks and editors start. On Windows PowerShell, use `$env:UV_NO_GROUP = "cpu"` (or set it as a user environment variable).
+
+If a `uv run` without it slips through, it installs the CPU build over the GPU one, both being the same `onnxruntime` package on disk. The backend log then warns that both are installed. Repair with `UV_NO_GROUP=cpu uv --directory packages/backend sync --group gpu --reinstall-package onnxruntime-gpu`. The NVIDIA driver must be installed; under WSL2 that's the Windows driver.
 
 When the model loads, the backend log says which device it got: `Tagger session providers: ['CUDAExecutionProvider', 'CPUExecutionProvider']`. If it shows only `CPUExecutionProvider`, the GPU wasn't usable and tagging carries on, on the CPU. To go back to the CPU build, unset `UV_NO_GROUP` and run `uv --directory packages/backend sync`. A warning about `/sys/class/drm/card0/device/vendor` under WSL2 is harmless. The legacy `AI_TAGGING_URL` env var refers to an older external-service path and is not the primary tagging route.
 

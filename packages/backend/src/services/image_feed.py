@@ -327,6 +327,8 @@ async def _drive_by_rarest(conn, f: FeedFilter) -> FeedFilter:
         )
         if len(ids) <= _RARE and (best is None or len(ids) < len(best)):
             best = ids
+            if len(ids) <= 1:
+                break  # can't get rarer; skip probing the other groups
     if best is None:
         return f
     return replace(f, driver_ids=tuple(best))

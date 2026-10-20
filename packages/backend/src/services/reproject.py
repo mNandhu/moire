@@ -13,6 +13,7 @@ lock held briefly (see :mod:`database.db` writer discipline).
 
 from __future__ import annotations
 
+import logging
 import threading
 
 import sqlalchemy as sa
@@ -24,6 +25,8 @@ from . import image_tags
 from . import tag_index
 from .image_tags import to_prompt
 from .tag_names import apply_aliases
+
+logger = logging.getLogger("moire.reproject")
 
 _BATCH = 200
 
@@ -228,10 +231,62 @@ def reproject_library_async(
     th.start()
 
 
+_all_lock = threading.Lock()
+_all_running = False
+_all_again = False
+
+
 def reproject_all_async() -> None:
-    """Fire-and-forget full reprojection (triggered on an extraction-settings
-    save)."""
-    threading.Thread(target=reproject_all, name="reproject-all", daemon=True).start()
+    """Fire-and-forget full reprojection (an extraction-settings save, the
+    positive-only switch). Coalesced: a request during a run queues one more
+    run after it, so overlapping runs that read the settings at different
+    moments can't leave rows derived with the older ones."""
+    global _all_running, _all_again
+    with _all_lock:
+        if _all_running:
+            _all_again = True
+            return
+        _all_running = True
+
+    def _run() -> None:
+        global _all_running, _all_again
+        while True:
+            try:
+                reproject_all()
+            except Exception:
+                logger.exception("Full reprojection failed")
+            with _all_lock:
+                if not _all_again:
+                    _all_running = False
+                    return
+                _all_again = False
+
+    threading.Thread(target=_run, name="reproject-all", daemon=True).start()
+
+
+def underived_ids(library_id: str) -> list[str]:
+    """Images of a library with captured generation data but no derived
+    ``gen``: what a reprojection cut off by a restart left behind (and raws
+    extraction can't read, which stay few)."""
+    with sync_conn() as conn:
+        return list(
+            conn.execute(
+                sa.select(t.image_gen_raw.c._id)
+                .join(t.images, t.images.c._id == t.image_gen_raw.c._id)
+                .where(
+                    t.image_gen_raw.c.library_id == library_id,
+                    # SQL NULL or a JSON null: never derived.
+                    sa.func.coalesce(sa.func.json_type(t.images.c.gen), "null")
+                    == "null",
+                )
+            ).scalars()
+        )
+
+
+def reproject_ids_async(image_ids: list[str]) -> None:
+    threading.Thread(
+        target=reproject_ids, args=(image_ids,), name="reproject-ids", daemon=True
+    ).start()
 
 
 def reproject_by_sig_async(workflow_sig: str) -> None:

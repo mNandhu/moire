@@ -146,7 +146,7 @@ def prepare_image(img: Image.Image, target_size: int | None) -> np.ndarray:
     a fraction of a pixel, which measurably moved borderline tags (one rating
     in 30 flipped). Blocking: call from a thread."""
     canvas = Image.new("RGBA", img.size, (255, 255, 255, 255))
-    canvas.alpha_composite(img.convert("RGBA"))
+    canvas.alpha_composite(img if img.mode == "RGBA" else img.convert("RGBA"))
     img = canvas.convert("RGB")
 
     w, h = img.size
@@ -263,11 +263,30 @@ class WDTagger:
         )
 
 
+def _warn_if_both_builds() -> None:
+    """Both onnxruntime builds share one `onnxruntime/` package dir, so having
+    both installed leaves whichever went in last (usually a `uv run` from a
+    shell without UV_NO_GROUP=cpu putting the CPU build over the GPU one)."""
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        version("onnxruntime")
+        version("onnxruntime-gpu")
+    except PackageNotFoundError:
+        return
+    logger.warning(
+        "Both onnxruntime and onnxruntime-gpu are installed, so tagging may run "
+        "on the CPU. Fix: UV_NO_GROUP=cpu uv sync --group gpu "
+        "--reinstall-package onnxruntime-gpu"
+    )
+
+
 def _make_session(ort, onnx_path: str):
     """An inference session on the GPU when the optional ``gpu`` dependency
     group is installed (onnxruntime-gpu plus the CUDA 12 pip wheels), else on
     the CPU. CUDA falls back to CPU per op, so a GPU session never fails a run
     a CPU one would pass."""
+    _warn_if_both_builds()
     providers = ["CPUExecutionProvider"]
     if "CUDAExecutionProvider" in ort.get_available_providers():
         # The CUDA/cuDNN libraries come from the nvidia-* wheels, which the
@@ -461,16 +480,29 @@ class TaggerManager:
             # unload() from dropping the session mid-run. Inference runs in a
             # thread (ORT releases the GIL) so a ~1s run doesn't stall the API.
             self._last_used = time.time()
-            return await asyncio.to_thread(
-                self._tagger.predict,
-                image=image,
-                general_thresh=general_thresh,
-                character_thresh=character_thresh,
-                general_mcut=general_mcut,
-                character_mcut=character_mcut,
-                max_general=max_general,
-                max_character=max_character,
+            run = asyncio.ensure_future(
+                asyncio.to_thread(
+                    self._tagger.predict,
+                    image=image,
+                    general_thresh=general_thresh,
+                    character_thresh=character_thresh,
+                    general_mcut=general_mcut,
+                    character_mcut=character_mcut,
+                    max_general=max_general,
+                    max_character=max_character,
+                )
             )
+            try:
+                return await asyncio.shield(run)
+            finally:
+                # Cancelled mid-run, the thread still uses the session: keep
+                # the lock until it ends, or an unload/reload could swap the
+                # session out from under it.
+                while not run.done():
+                    try:
+                        await asyncio.wait({run})
+                    except asyncio.CancelledError:
+                        pass
 
     async def idle_unload_loop(self, *, poll_s: float = 5.0) -> None:
         while True:

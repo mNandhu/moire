@@ -54,18 +54,30 @@ def _stamp_row(library_id: str) -> str:
     return f"thumbs:{library_id}"
 
 
-def _load_stamp(library_id: str) -> str | None:
+# How many failed ids a stamp remembers; past it, the next scan rebuilds all.
+_MAX_RETRY_IDS = 5000
+
+
+def _load_stamp(library_id: str) -> tuple[str | None, set[str]]:
+    """The library's last full-scan stamp and the ids that failed in it."""
     with sync_conn() as conn:
         doc = conn.execute(
             sa.select(t.app_settings.c.doc).where(
                 t.app_settings.c._id == _stamp_row(library_id)
             )
         ).scalar()
-    return (doc or {}).get("stamp")
+    doc = doc or {}
+    return doc.get("stamp"), set(doc.get("retry") or [])
 
 
-def _save_stamp(library_id: str, stamp: str) -> None:
-    doc = {"stamp": stamp}
+def _save_stamp(library_id: str, stamp: str | None, retry: list[str]) -> None:
+    """Record a finished scan. Files that failed in it kept whatever row an
+    earlier scan wrote (maybe with an older thumbnail recipe or capture), so
+    they are listed for the next scan to re-read rather than skip; too many
+    to list, and the stamp is dropped so the next scan re-reads everything."""
+    if len(retry) > _MAX_RETRY_IDS:
+        stamp, retry = None, []
+    doc = {"stamp": stamp, "retry": retry}
     with sync_tx() as conn:
         stmt = sqlite_insert(t.app_settings).values(_id=_stamp_row(library_id), doc=doc)
         conn.execute(
@@ -411,9 +423,10 @@ def _process_image(
     is still on disk) is skipped without opening it. The stat runs here, on
     the pool, because each one is a slow round trip on network mounts.
     """
+    image_id = f"{library_id}:<unknown>"
     try:
-        stat = p.stat()
         image_id = image_id_for(library_id, root_path, p)
+        stat = p.stat()
         if _unchanged(known, image_id, p, stat):
             return _ScanResult(image_id=image_id, ok=True, skipped=True)
         # Single decode yields the thumbnail, BlurHash placeholder, the original
@@ -471,7 +484,7 @@ def _process_image(
         # Includes stat/path errors
         logger.warning("Failed to process %s: %s", p, e)
         return _ScanResult(
-            image_id=f"{library_id}:<unknown>",
+            image_id=image_id,
             ok=False,
             error=str(e),
             stage="process",
@@ -556,7 +569,8 @@ def scan_library_async(library_id: str, root: str) -> dict:
             # stamp (or none yet) every file is rebuilt.
             stamp = thumb_stamp()
             known: Known | None = None
-            if _load_stamp(library_id) == stamp:
+            last_stamp, retry = _load_stamp(library_id)
+            if last_stamp == stamp:
                 with sync_conn() as conn:
                     known = {
                         r._id: (r.path, r.size, r.mtime, r.thumb_key)
@@ -569,6 +583,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
                                 t.images.c.thumb_key,
                             ).where(t.images.c.library_id == library_id)
                         )
+                        if r._id not in retry
                     }
 
             # Multithreaded processing (cap via config if provided)
@@ -603,6 +618,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
                 _retry(_do_flush, attempts=3, base_delay_s=0.2)
 
             writer = ScanWriter(_commit_batch, batch_size=200)
+            failed_ids: list[str] = []
 
             def _on_complete(res, exc) -> None:
                 nonlocal processed, skipped, failed, last_progress_write
@@ -617,6 +633,8 @@ def scan_library_async(library_id: str, root: str) -> dict:
                     )
                 else:
                     failed += 1
+                    if isinstance(res, _ScanResult):
+                        failed_ids.append(res.image_id)
                     if isinstance(res, _ScanResult) and len(failed_samples) < 20:
                         failed_samples.append(
                             {
@@ -698,7 +716,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
                         # Best effort cleanup - don't fail the scan if it fails
                         pass
 
-            _save_stamp(library_id, stamp)
+            _save_stamp(library_id, stamp, failed_ids)
 
             # Finalize
             _lib_set(
@@ -716,13 +734,20 @@ def scan_library_async(library_id: str, root: str) -> dict:
             # Derive structured gen.* from the raw we just captured. Spawned in
             # its own thread so the scan slot frees immediately (a long reproject
             # must not make the library look "still scanning" / block a rescan).
-            # Skipped rows kept their gen data, so with nothing rewritten there
-            # is nothing to derive.
+            # Skipped rows kept their gen data, so with nothing rewritten only
+            # rows a reprojection never reached (one cut off by a restart) need
+            # deriving.
             try:
-                from .reproject import reproject_library_async
+                from .reproject import (
+                    reproject_ids_async,
+                    reproject_library_async,
+                    underived_ids,
+                )
 
                 if writer.indexed:
                     reproject_library_async(library_id)
+                elif pending := underived_ids(library_id):
+                    reproject_ids_async(pending)
             except Exception:
                 # Reprojection is re-runnable via the manual endpoint; never let
                 # it fail the scan.

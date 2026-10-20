@@ -348,3 +348,95 @@ async def test_toggling_positive_only_reprojects(client, monkeypatch):
     assert calls == []
     await client.post("/ai/settings", json={"prompt_positive_only": not current})
     assert calls == ["all"]
+
+
+async def test_a_file_that_failed_in_a_rebuild_is_read_again(
+    client, tmp_path, monkeypatch
+):
+    """A rebuild scan (new thumbnail settings) where a file fails leaves that
+    file's old row; the next scan must re-read it, not skip it."""
+    from src.core.config import settings
+
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    for name in ("a.png", "b.png"):
+        _write_png(lib_dir / name)
+    resp = await client.post("/libraries", json={"path": str(lib_dir)})
+    lib_id = resp.json()["_id"]
+    _wait_scan(lib_id)
+
+    opened: list[str] = []
+    real_make = scanner._make_thumb_bytes
+    fail = {"b.png"}
+
+    def flaky_make(path):
+        opened.append(path.name)
+        if path.name in fail:
+            raise OSError("share hiccup")
+        return real_make(path)
+
+    monkeypatch.setattr(scanner, "_make_thumb_bytes", flaky_make)
+    monkeypatch.setattr(settings, "thumb_max_size", 640)
+
+    async def rescan() -> list[str]:
+        opened.clear()
+        await client.post(f"/libraries/{lib_id}/rescan")
+        _wait_scan(lib_id)
+        return sorted(opened)
+
+    assert await rescan() == ["a.png", "b.png"]  # rebuild; b fails
+    fail.clear()
+    assert await rescan() == ["b.png"]  # b retried, a skipped
+    assert await rescan() == []
+
+
+async def test_rescan_resumes_a_reprojection_cut_off(client, tmp_path, monkeypatch):
+    """With every file unchanged, a rescan still derives rows a reprojection
+    never reached (one killed by a restart)."""
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    _write_png(lib_dir / "gen.png", parameters="masterpiece\nSteps: 20, Model: sdxl")
+    _write_png(lib_dir / "plain.png")
+    resp = await client.post("/libraries", json={"path": str(lib_dir)})
+    lib_id = resp.json()["_id"]
+    _wait_scan(lib_id)
+    image_id = f"{lib_id}:gen.png"
+    deadline = time.time() + 20
+    while (await _img(image_id)).gen_model is None and time.time() < deadline:
+        time.sleep(0.05)
+
+    with db.sync_tx() as conn:  # as if the reprojection never got to it
+        conn.execute(
+            sa.update(t.images).where(t.images.c._id == image_id).values(gen=None)
+        )
+    resumed: list[list[str]] = []
+    monkeypatch.setattr(reproject, "reproject_ids_async", resumed.append)
+    await client.post(f"/libraries/{lib_id}/rescan")
+    _wait_scan(lib_id)
+    assert resumed == [[image_id]]
+
+
+def test_full_reprojections_coalesce(monkeypatch):
+    """Requests during a full run queue exactly one more run after it."""
+    import threading
+
+    started, release, done = threading.Event(), threading.Event(), threading.Event()
+    runs: list[int] = []
+
+    def fake_all() -> int:
+        runs.append(1)
+        started.set()
+        release.wait(5)
+        if len(runs) == 2:
+            done.set()
+        return 0
+
+    monkeypatch.setattr(reproject, "reproject_all", fake_all)
+    reproject.reproject_all_async()
+    assert started.wait(5)
+    reproject.reproject_all_async()
+    reproject.reproject_all_async()
+    release.set()
+    assert done.wait(5)
+    time.sleep(0.1)
+    assert len(runs) == 2

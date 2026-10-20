@@ -97,6 +97,7 @@ async def get_ai_settings() -> dict[str, Any]:
 async def update_ai_settings(patch: dict[str, Any]) -> dict[str, Any]:
     clean = clean_settings_patch(patch)
 
+    before = await get_ai_settings()
     existing = await _read_ai_doc() or {}
     new_doc = {**existing, **clean}
     async with async_tx() as conn:
@@ -110,4 +111,15 @@ async def update_ai_settings(patch: dict[str, Any]) -> dict[str, Any]:
     if "idle_unload_s" in clean:
         get_tagger_manager().set_idle_unload_s(int(clean["idle_unload_s"]))
 
-    return await get_ai_settings()
+    after = await get_ai_settings()
+    # Imported here: both reach back into this module's readers.
+    from . import reproject, tag_index
+
+    # Rescans only re-derive files that changed, so apply the switch now.
+    if before.get("prompt_positive_only") != after.get("prompt_positive_only"):
+        reproject.reproject_all_async()
+    # The model's labels decide which tags are characters, which the cached
+    # tag lists and character list carry.
+    if any(before.get(k) != after.get(k) for k in ("model_repo", "cache_dir")):
+        tag_index.invalidate()
+    return after

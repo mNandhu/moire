@@ -7,7 +7,7 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn
 from ..database import schema as t
-from ..services import face_detect, image_tags, reproject, tag_index
+from ..services import face_detect, image_tags
 
 from ..services.ai_jobs import (
     get_ai_job_manager,
@@ -52,16 +52,7 @@ async def ai_get_settings():
 
 @router.post("/settings")
 async def ai_set_settings(patch: SettingsPatch):
-    before = await get_ai_settings()
-    after = await update_ai_settings(patch.model_dump(exclude_none=True))
-    # Rescans only re-derive files that changed, so apply the switch now.
-    if before.get("prompt_positive_only") != after.get("prompt_positive_only"):
-        reproject.reproject_all_async()
-    # The model's labels decide which tags are characters, which the cached
-    # tag lists and character list carry.
-    if any(before.get(k) != after.get(k) for k in ("model_repo", "cache_dir")):
-        tag_index.invalidate()
-    return after
+    return await update_ai_settings(patch.model_dump(exclude_none=True))
 
 
 @router.get("/status")

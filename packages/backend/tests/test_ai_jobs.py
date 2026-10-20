@@ -136,3 +136,31 @@ async def test_cancel_drops_the_prefetch(monkeypatch):
     assert job.status == "cancelled" and job.done == 1
     assert "tag-start:b" not in events
     assert not mgr._in_flight
+
+
+async def test_cancelled_predict_holds_the_lock_until_inference_ends(monkeypatch):
+    """The ONNX thread can't be cancelled: until it ends, nothing else may
+    take the lock (an unload would pull the session out from under it)."""
+    mgr = TaggerManager()
+    finished = []
+
+    async def fake_ensure_loaded(*, model_repo: str, cache_dir: str) -> None:
+        return None
+
+    def slow_predict(**_kw):
+        time.sleep(0.3)
+        finished.append(time.monotonic())
+        return _RESULT
+
+    monkeypatch.setattr(mgr, "ensure_loaded", fake_ensure_loaded)
+    monkeypatch.setattr(mgr._tagger, "predict", slow_predict)
+
+    task = asyncio.create_task(
+        mgr.predict_image(image=Image.new("RGBA", (4, 4)), **_PREDICT_KW)
+    )
+    await asyncio.sleep(0.05)
+    task.cancel()
+    async with mgr._lock:
+        acquired = time.monotonic()
+    assert finished and acquired >= finished[0]
+    assert task.cancelled()

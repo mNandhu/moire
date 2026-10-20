@@ -290,6 +290,12 @@ export default function AllImagesPage() {
       containerRef.current
     );
   }, []);
+  const scrollRootOrViewport = useCallback(
+    () =>
+      (containerRef.current?.closest(".overflow-auto") as HTMLElement | null) ??
+      null,
+    [],
+  );
 
   // Scroll restoration keyed by the active filter. The hook only saves and
   // hands back the offset; the grid applies it, because only the grid knows
@@ -513,7 +519,10 @@ export default function AllImagesPage() {
         if (entries[0].isIntersecting) activeFeed.fetchNextPage();
       },
       {
-        root: getScrollContainer(),
+        // Without a scrolling ancestor, getScrollContainer falls back to the
+        // page's own wrapper, which contains the sentinel: as the root it
+        // would always intersect and page in everything. Use the viewport.
+        root: scrollRootOrViewport(),
         rootMargin: `0px 0px ${FETCH_AHEAD_PX}px 0px`,
       },
     );
@@ -523,7 +532,7 @@ export default function AllImagesPage() {
     activeFeed.hasNextPage,
     activeFeed.isFetchingNextPage,
     activeFeed.fetchNextPage,
-    getScrollContainer,
+    scrollRootOrViewport,
   ]);
 
   // Open a tile: in grouped view, clicking a batch (>1) drills into its members
