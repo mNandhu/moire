@@ -171,16 +171,14 @@ end to end 12 workers ~27-35 img/s. Metadata parsing is negligible. Startup migr
 
 ## API / DB
 
-Prototype: WIP commit `3586e3c` on branch `worktree-agent-a138fde68c184719a` (not for merge; marked `# PROTOTYPE`).
+Prototype: WIP commit `3586e3c` (branch deleted after the port in `aa9a4e6`; still reachable by hash until git gc).
 **Measured 2026-10-20** by one agent alone: baseline = main (backend identical to `db648fd`) vs prototype.
 - Datasets: backup-API copy of the real DB (3,881 images, 150k image_tags, 150k gen_terms), and a 30k synthetic DB (rows cloned from the real one; 1.1M image_tags, 1.2M gen_terms; 18 planted rare tags/terms of known size).
 - Method: real uvicorn on ports 8810/8811 with httpx, 30 runs after 3 warmups. A direct-call bench (no HTTP) separated query cost from serialization. A 4-way matrix (code x indexes) attributed D3.
 - Noise: p50 swings of 10-15% and 1-3 ms run to run; differences below that are treated as noise.
 - Correctness: ids, order and cursors are identical on every compared feed, ids and groups query, and tags/browse JSON is identical, except the characters cache (D5).
 - Prototype pytest: 4 failures. 3 are real (characters cache); 1 is expected (`test_schema` lists the old index names).
-- Scripts (DB copies deleted; rebuild with `copy_real.py` / `build_synth.py`): `.claude/worktrees/agent-a8a9ade2ecacaaf3f/perf-scratch/`, untracked.
-  - `run.sh` runs the HTTP bench, `drun.sh` the direct bench, `cmp4.py` the 4-way matrix, `srun.sh` the D1 sweep, `prun.sh` the query plans.
-  - Copy `*_base.db` to a fresh file before each prototype run, so index state is clean.
+- The benchmark scripts lived in the agent's worktree, removed at wrap-up; the method above is enough to rebuild them.
 
 ### D1. Drive rare filters by id list: keep, lower the threshold
 - Where: `services/image_feed.py` `_resolved` / `feed_where`.
