@@ -10,6 +10,7 @@ import { useCharacters } from "../ImageCharacters";
 import { cn } from "../../lib/cn";
 import { characterHref, displayName, fewImagesNote, type CharacterEntry } from "../../lib/character";
 import { chipBorderStyle } from "../../lib/tagColour";
+import { useTagMarks } from "../../hooks/useTagMarks";
 import { displayWord } from "../../lib/compose";
 import { putRecipe, recipeKey, useRecipe, type Recipe, type RecipePatch } from "../../lib/generate";
 import { toggleDropped } from "../../lib/recipe";
@@ -292,6 +293,7 @@ export function RecipeEditor({
   installedLoras: readonly string[];
   rejectedLoras?: ReadonlySet<string>;
 }) {
+  const { outlines } = useTagMarks();
   const qc = useQueryClient();
   const patch = useMutation({
     mutationFn: (p: RecipePatch) => putRecipe(recipe.tag, p),
@@ -316,7 +318,7 @@ export function RecipeEditor({
             <span
               key={c.tag}
               title={c.dropped ? "Dropped from this recipe" : c.added ? "Added by you" : undefined}
-              style={c.dropped ? undefined : chipBorderStyle(c.tag)}
+              style={c.dropped || !outlines ? undefined : chipBorderStyle(c.tag)}
               className={cn(
                 "inline-flex items-center gap-1 rounded-md border pl-2 pr-1 py-0.5 text-sm",
                 c.dropped

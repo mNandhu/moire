@@ -125,14 +125,17 @@ const RAINBOW =
  * colour (a 1px ring for one colour, a rainbow border for a multicolour tag).
  * `ground` is the opaque colour behind the tag: the rainbow is a border-box
  * gradient, so the fill (ground, then tint) is painted over it inside.
- * Undefined when there is nothing to mark.
+ * `marks` turns either off (Settings, Tag colours). Undefined when there is
+ * nothing to mark.
  */
 export function tagMarkStyle(
   raw: string,
   facet: Facet | null | undefined,
   ground: string,
+  marks: { outlines: boolean; tints: boolean } = { outlines: true, tints: true },
 ): CSSProperties | undefined {
-  const tint = facet ? FACET_TINT[facet] : null;
+  const tint = facet && marks.tints ? FACET_TINT[facet] : null;
+  if (!marks.outlines) return tint ? ({ "--tag-tint": tint } as CSSProperties) : undefined;
   if (isMulticolour(raw)) {
     const fill = tint ? `linear-gradient(${tint}, ${tint}) padding-box, ` : "";
     return {

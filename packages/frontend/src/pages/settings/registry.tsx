@@ -1,11 +1,12 @@
 import type { LucideIcon } from "lucide-react";
-import { Tags, FileText, EyeOff, Wand2, UserRound, Plug } from "lucide-react";
+import { Tags, FileText, EyeOff, Wand2, UserRound, Plug, Palette } from "lucide-react";
 import { TaggingSection } from "./sections/TaggingSection";
 import { PromptTagsSection } from "./sections/PromptTagsSection";
 import { BoilerplateSection } from "./sections/BoilerplateSection";
 import { PromptGuessSection } from "./sections/PromptGuessSection";
 import { CharactersSection } from "./sections/CharactersSection";
 import { ComfySection } from "./sections/ComfySection";
+import { TagColoursSection } from "./sections/TagColoursSection";
 
 /**
  * One settings page section: a left-nav entry + the panel it renders.
@@ -60,6 +61,13 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         label: "Boilerplate",
         icon: EyeOff,
         Component: BoilerplateSection,
+      },
+      {
+        id: "tag-colours",
+        label: "Tag Colours",
+        icon: Palette,
+        description: "How tag lists mark hair and eye colours and kinds of tags.",
+        Component: TagColoursSection,
       },
       {
         id: "characters",

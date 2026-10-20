@@ -21,6 +21,7 @@ import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFil
 import { useBoilerplate, useCharacterPage } from "../lib/queries";
 import { formatTag, toPromptText } from "../lib/tags";
 import { chipBorderStyle } from "../lib/tagColour";
+import { useTagMarks } from "../hooks/useTagMarks";
 import { tagWorkflows } from "../lib/tagBrowse";
 import { formatUsedRange, groupWorkflows } from "../lib/workflows";
 import { withBackgroundLocation } from "../lib/backgroundLocation";
@@ -160,6 +161,7 @@ function Avatar({ c, size, accent }: { c: Character; size: string; accent?: stri
 /** The avatar, how much of the library they're in, other names, their look
  * (a character's only). */
 function Profile({ c, accent, person }: { c: Character; accent?: string; person: boolean }) {
+  const { outlines } = useTagMarks();
   const isBoilerplate = useBoilerplate();
   const { push } = useToast();
   const look = useMemo(
@@ -203,7 +205,7 @@ function Profile({ c, accent, person }: { c: Character; accent?: string; person:
                   // The gallery can't AND a look onto "any of these names".
                   (c.aliases.length ? `. Opens those tagged ${formatTag(c.tag)}.` : "")
                 }
-                style={chipBorderStyle(s.tag)}
+                style={outlines ? chipBorderStyle(s.tag) : undefined}
                 className="inline-flex items-center h-6 px-2 rounded-full bg-raised/80 border border-line text-xs text-neutral-200 hover:border-line-strong"
               >
                 {formatTag(s.tag)}
@@ -346,6 +348,7 @@ function NoImagesYet({ c }: { c: Character }) {
 
 /** What the Generate composer writes for them, edited in the Edit dialog. */
 function Recipe({ c, onEdit }: { c: Character; onEdit: () => void }) {
+  const { outlines } = useTagMarks();
   const generate = useGenerateWith();
   const { data: recipe } = useRecipe(c.tag);
   const { data: models } = useComfyModels();
@@ -373,7 +376,7 @@ function Recipe({ c, onEdit }: { c: Character; onEdit: () => void }) {
           kept.map((x) => (
             <span
               key={x.tag}
-              style={chipBorderStyle(x.tag)}
+              style={outlines ? chipBorderStyle(x.tag) : undefined}
               className="inline-flex h-6 items-center rounded-full border border-line bg-raised/80 px-2 text-xs text-neutral-200"
             >
               {formatTag(x.tag)}

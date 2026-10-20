@@ -60,6 +60,16 @@ describe("tagMarkStyle", () => {
     expect(style?.border).toBe("1px solid transparent");
     expect(String(style?.background)).toMatch(/^linear-gradient\(rgb\(251 113 133 \/ 0.10\).*linear-gradient\(#15141c, #15141c\) padding-box, conic-gradient/);
   });
+
+  it("leaves out what Settings turned off", () => {
+    expect(tagMarkStyle("red_hair", "look", ground, { outlines: false, tints: true })).toEqual({
+      "--tag-tint": "rgb(251 113 133 / 0.10)",
+    });
+    expect(tagMarkStyle("multicolored_hair", "look", ground, { outlines: false, tints: false })).toBeUndefined();
+    expect(tagMarkStyle("red_hair", "look", ground, { outlines: true, tints: false })).toEqual({
+      boxShadow: "inset 0 0 0 1px hsl(355 70% 52%)",
+    });
+  });
 });
 
 describe("chipBorderStyle", () => {
