@@ -32,8 +32,8 @@ from .comfy_client import ComfyClient, ComfyError, ComfyRejected, ComfyUnreachab
 from .generation_compose import auto_name, compose
 from .generator_graph import (
     GraphError,
-    LoraPick,
     build_prompt,
+    merge_loras,
     seeds_for,
     split_requests,
 )
@@ -117,6 +117,22 @@ def history_result(entry: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
             "message": "ComfyUI reported an error",
         }
     return "done", None
+
+
+def _character_input(c: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The Character block as the batch keeps it: tag, display label, the tags
+    sent, and its LoRA (an installed file name) if any."""
+    if not c or not c.get("tag"):
+        return None
+    lora = c.get("lora")
+    return {
+        "tag": c["tag"],
+        "label": (c.get("label") or "").strip(),
+        "tags": [w for w in (c.get("tags") or []) if isinstance(w, str) and w.strip()],
+        "lora": {"name": lora["name"], "strength": float(lora.get("strength", 1.0))}
+        if lora and lora.get("name")
+        else None,
+    }
 
 
 def annotate_node_errors(
@@ -548,10 +564,9 @@ class GenerationManager:
             "height": inputs.get("height"),
             "batch_size": req.images,
             "checkpoint": inputs.get("checkpoint"),
-            "loras": [
-                LoraPick(lo["name"], float(lo["strength"]))
-                for lo in inputs.get("loras") or []
-            ],
+            "loras": merge_loras(
+                (inputs.get("character") or {}).get("lora"), inputs.get("loras")
+            ),
         }
         try:
             graph = build_prompt(gen["graph"], gen["slots"], values)
@@ -613,6 +628,7 @@ class GenerationManager:
         seeds = seeds_for(len(sizes), fixed=fixed)
 
         extra = list(body.get("extra") or [])
+        character = _character_input(body.get("character"))
         inputs = {
             "base": body.get("base") or "",
             "extra": extra,
@@ -623,6 +639,7 @@ class GenerationManager:
                 {"name": lo["name"], "strength": float(lo.get("strength", 1.0))}
                 for lo in body.get("loras") or []
             ],
+            "character": character,
             "width": body.get("width"),
             "height": body.get("height"),
             "seed": {
@@ -633,7 +650,9 @@ class GenerationManager:
             "per_request": per_request,
             "test": test,
         }
-        inputs["positive_text"] = compose(inputs["base"], extra)
+        inputs["positive_text"] = compose(
+            inputs["base"], character["tags"] if character else [], extra
+        )
         inputs["negative_text"] = compose(
             inputs["negative_base"], inputs["negative_extra"]
         )
@@ -670,8 +689,12 @@ class GenerationManager:
             )
             batch_id = int(res.inserted_primary_key[0])  # type: ignore[index]
             given = (body.get("name") or "").strip()
+            character = inputs.get("character")
             name = given or auto_name(
-                number=batch_id, generator=gen["name"], extra=extra
+                number=batch_id,
+                generator=gen["name"],
+                extra=extra,
+                character=character and (character["label"] or character["tag"]),
             )
             await conn.execute(
                 sa.update(b)
@@ -732,6 +755,7 @@ class GenerationManager:
                     "negative_extra",
                     "checkpoint",
                     "loras",
+                    "character",
                     "width",
                     "height",
                     "count",

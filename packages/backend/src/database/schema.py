@@ -280,6 +280,20 @@ lora_choices = sa.Table(
     sa.Column("name", sa.Text, nullable=False),
 )
 
+# What the user changed in a character's computed recipe, keyed by the
+# character's page key. `dropped` is a JSON list of identity tags left out;
+# `lora` NULL keeps the computed pick, "" means no LoRA, else a LoRA stem;
+# `strength` NULL keeps the computed one.
+recipe_edits = sa.Table(
+    "recipe_edits",
+    metadata,
+    sa.Column("tag", sa.Text, primary_key=True),
+    sa.Column("dropped", sa.JSON),
+    sa.Column("lora", sa.Text),
+    sa.Column("strength", sa.Float),
+    sa.Column("updated_at", sa.Float),
+)
+
 # A ComfyUI API-format graph plus slots (slot -> path into the graph). `ready`
 # flips once a test run's image is found in the library.
 generators = sa.Table(

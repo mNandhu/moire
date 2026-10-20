@@ -42,6 +42,27 @@ ATTIRE_GROUPS = frozenset(
     }
 )
 
+# Groups whose tags describe the body itself: what stays when a character
+# changes clothes, pose or scene (expressions, nudity and posture don't).
+IDENTITY_GROUPS = frozenset(
+    {
+        "breasts_tags",
+        "ears_tags",
+        "eyes_tags",
+        "hair",
+        "hair_color",
+        "hair_styles",
+        "skin_color",
+        "wings",
+    }
+)
+
+# Unlisted tags that still name a body feature.
+_BODY_WORDS = re.compile(
+    r"_(hair|eyes|pupils|sclera|ears|horns?|tail|wings|skin|bangs|eyebrows|eyelashes)$"
+    r"|^(halo|horns|freckles|mole|scar|heterochromia|ahoge|fang|fangs)"
+)
+
 # Poses and actions that the attire groups list because they involve clothing
 # (`adjusting_scarf`, `towel_around_neck`, `hand_on_headwear`), not garments.
 _NOT_WORN = re.compile(
@@ -101,6 +122,22 @@ def is_attire(tag: str) -> bool:
     key = _key(tag)
     entry = _load().get(key)
     return entry is not None and _attire_group(key, entry) is not None
+
+
+def is_identity(tag: str) -> bool:
+    """A body-feature tag (hair, eyes, ears, ...). An unlisted tag counts when
+    its name says so (``halo``, ``mole_under_eye``, ``x_pupils``); from the
+    breasts group only the sizes do. Never attire."""
+    key = _key(tag)
+    entry = _load().get(key)
+    if entry is None:
+        return bool(_BODY_WORDS.search(key))
+    if _attire_group(key, entry) is not None or key.startswith("looking_"):
+        return False
+    groups = _groups(entry) & IDENTITY_GROUPS
+    if groups == {"breasts_tags"}:
+        return key.endswith("breasts") or key == "flat_chest"
+    return bool(groups)
 
 
 def group_of(tag: str) -> str | None:

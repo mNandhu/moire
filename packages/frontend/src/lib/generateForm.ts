@@ -2,7 +2,7 @@
  * The Generate composer's state, its request body, and the per-viewer draft
  * kept in localStorage so a half-written prompt survives navigation.
  */
-import type { BatchInputs, LoraPick, NodeError, QueueBody } from "./generate";
+import type { BatchInputs, CharacterInput, LoraPick, NodeError, QueueBody } from "./generate";
 
 export type GenerateForm = {
   base: string;
@@ -11,6 +11,8 @@ export type GenerateForm = {
   negativeExtra: string[];
   checkpoint: string | null;
   loras: LoraPick[];
+  /** The picked character's page key; its block comes from the recipe. */
+  character: string | null;
   width: number;
   height: number;
   seed: { mode: "random" | "fixed"; value: number | null };
@@ -26,6 +28,7 @@ export const DEFAULT_FORM: GenerateForm = {
   negativeExtra: [],
   checkpoint: null,
   loras: [],
+  character: null,
   width: 832,
   height: 1216,
   seed: { mode: "random", value: null },
@@ -33,7 +36,7 @@ export const DEFAULT_FORM: GenerateForm = {
   name: null,
 };
 
-export function toQueueBody(f: GenerateForm, generatorId: string): QueueBody {
+export function toQueueBody(f: GenerateForm, generatorId: string, character: CharacterInput | null = null): QueueBody {
   return {
     generator_id: generatorId,
     base: f.base,
@@ -42,6 +45,7 @@ export function toQueueBody(f: GenerateForm, generatorId: string): QueueBody {
     negative_extra: f.negativeExtra,
     checkpoint: f.checkpoint,
     loras: f.loras,
+    character,
     width: f.width,
     height: f.height,
     seed: f.seed.mode === "fixed" && f.seed.value != null ? f.seed : { mode: "random", value: null },
@@ -60,6 +64,7 @@ export function formFromBatch(i: BatchInputs, name: string | null): GenerateForm
     negativeExtra: [...i.negative_extra],
     checkpoint: i.checkpoint,
     loras: i.loras.map((l) => ({ ...l })),
+    character: i.character?.tag ?? null,
     width: i.width ?? DEFAULT_FORM.width,
     height: i.height ?? DEFAULT_FORM.height,
     seed: i.seed.mode === "fixed" ? { ...i.seed } : { mode: "random", value: null },

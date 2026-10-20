@@ -425,6 +425,31 @@ double-submits a new batch or calls a just-queued prompt lost. Retrying a
 done request is allowed only when it returned no images. Cancel interrupts a
 running prompt only after a fresh `/queue` shows it is ours and running.
 
+**As built (phase 2, 2026-10-20).** `recipes.py` + `recipe_edits`;
+`GET/PUT /generate/recipes/{tag}`. Choices made against the real library:
+- Identity = signature tags in the body groups of the tag-group list (hair,
+  hair colour / styles, eyes, ears, skin colour, wings; breast sizes only);
+  unlisted tags only when the name says body (`_pupils`, `halo`, ...). The
+  plain "signature minus attire" let in scene, pose and nudity tags
+  (`full_moon`, `couch`, `looking_at_viewer`).
+- Character LoRA: a LoRA whose file name holds the character's name comes
+  first; any other must have at least 3 of the character's images, be mostly
+  theirs (50%), and be at least twice their share of the library (a character
+  on most images otherwise owns every style LoRA). Then confirmed weight
+  (images where prompted + tagger confirmed, 1 + score each), prompted
+  weight, count. Picker also lists every installed LoRA; "No LoRA" stores "".
+- The composer sends the block as sent (`character`: tag, label, tags, LoRA
+  file); the batch keeps it and requeue replays it, not today's recipe.
+  Character LoRA joins the style list once (by stem), character strength wins.
+- Recipe edits apply at once (drop / restore a chip, LoRA, strength on
+  release); a LoRA that isn't installed shows "Not installed" and is left out.
+- Default outfit is returned (`outfit`) but not shown until phase 4.
+- Identity and outfit are capped at 12 each, after filtering (near-duplicate
+  images can tie dozens of scene tags at the top of the signature).
+- "Edit and queue" from a character batch picks the character again and so
+  loads today's recipe, not the tags that batch recorded (Requeue replays
+  the recorded ones).
+
 ### Testing
 
 - Backend unit: `generator_graph` (fixtures: built-in graph, one real
@@ -573,8 +598,7 @@ copies can be wiped.
 
 ### Next session
 
-- Design is settled enough to build. Remaining undrawn: character picker
-  (phase 2), Remix entry in the viewer (phase 3), phone width. Block layout
+- Design is settled enough to build. Remaining undrawn: Remix entry in the viewer (phase 3), phone width. Block layout
   / Character block size was never revisited; check it when building.
 - Phase 1 built on `feat/comfyui-phase1` (2026-10-20), not merged: backend
   (tables, graph writer + LoRA splice, client, jobs, API) and frontend

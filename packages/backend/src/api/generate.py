@@ -13,7 +13,13 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from ..models.library import LibraryIn
-from ..services import comfy_models, comfy_settings, generation_batches, library_watch
+from ..services import (
+    comfy_models,
+    comfy_settings,
+    generation_batches,
+    library_watch,
+    recipes,
+)
 from ..services.generation_jobs import (
     Invalid,
     Rejected,
@@ -50,6 +56,16 @@ class SeedIn(BaseModel):
     value: int | None = None
 
 
+class CharacterIn(BaseModel):
+    #: The character's page key (the tagger's full name).
+    tag: str = Field(..., min_length=1)
+    #: Display name, for the batch's auto name.
+    label: str = Field("", max_length=200)
+    #: The Character block's tags as sent: character tag + identity left after drops.
+    tags: list[str] = Field(default_factory=list)
+    lora: LoraIn | None = None
+
+
 class BatchIn(BaseModel):
     generator_id: str = "builtin"
     base: str = ""
@@ -58,6 +74,7 @@ class BatchIn(BaseModel):
     negative_extra: list[str] = Field(default_factory=list)
     checkpoint: str | None = None
     loras: list[LoraIn] = Field(default_factory=list)
+    character: CharacterIn | None = None
     width: int | None = None
     height: int | None = None
     seed: SeedIn = Field(default_factory=SeedIn)
@@ -218,6 +235,28 @@ async def test_generator(generator_id: str, body: TestIn):
     except Rejected as e:
         return _rejected(e)
     return {"batch_id": batch_id}
+
+
+# -- Character recipes -----------------------------------------------------------
+
+
+@router.get("/recipes/{tag}")
+async def get_recipe(tag: str):
+    r = await recipes.recipe(tag)
+    if r is None:
+        raise HTTPException(status_code=404, detail="Character not found")
+    return r
+
+
+@router.put("/recipes/{tag}")
+async def put_recipe(tag: str, patch: dict[str, Any]):
+    try:
+        r = await recipes.update(tag, patch)
+    except recipes.RecipeError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if r is None:
+        raise HTTPException(status_code=404, detail="Character not found")
+    return r
 
 
 # -- Batches ----------------------------------------------------------------------

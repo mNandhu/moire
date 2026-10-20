@@ -24,6 +24,7 @@ def test_expected_tables_exist():
         "app_settings",
         "comfy_models",
         "lora_choices",
+        "recipe_edits",
         "generators",
         "generation_batches",
         "generation_requests",

@@ -14,7 +14,9 @@ import {
   SizePicker,
   StyleLoras,
 } from "../components/generate/RunControls";
+import { CharacterBlock } from "../components/generate/CharacterBlock";
 import { ComfyStatusLine } from "../components/generate/ComfyStatusLine";
+import { useCharacters } from "../components/ImageCharacters";
 import { RecentBatches } from "../components/generate/RecentBatches";
 import { autoBatchName } from "../lib/batchName";
 import { compose } from "../lib/compose";
@@ -31,10 +33,13 @@ import {
   useComfySettings,
   useComfyStatus,
   useGenerators,
+  useRecipe,
   type NodeError,
 } from "../lib/generate";
 import { loadDraft, rejectedFields, saveDraft, toQueueBody, type GenerateForm } from "../lib/generateForm";
 import { useTagAggregate } from "../lib/queries";
+import { displayName } from "../lib/character";
+import { characterInput, characterTags } from "../lib/recipe";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
 
@@ -189,12 +194,23 @@ export default function GeneratePage() {
   const pool = useMemo(() => bareTagPool(tagAgg ?? []), [tagAgg]);
   const usage = useMemo(() => new Map((models?.matching ?? []).map((m) => [m.stem, m.images])), [models]);
   const flagged = useMemo(() => rejectedFields(rejected ?? []), [rejected]);
-  const autoName = autoBatchName({ number: null, generator: gen?.name ?? "Built-in", extra: form.extra });
+  const { data: everyone } = useCharacters();
+  const { data: recipe } = useRecipe(form.character);
+  const charEntry = everyone?.find((c) => c.tag === form.character);
+  const charLabel = form.character ? displayName(charEntry ?? { tag: form.character }).name : null;
+  // The block as it would be sent; null until the recipe has loaded.
+  const character = recipe && charLabel && recipe.tag === form.character ? characterInput(recipe, charLabel) : null;
+  const autoName = autoBatchName({
+    number: null,
+    generator: gen?.name ?? "Built-in",
+    extra: form.extra,
+    character: charLabel,
+  });
   const perRequest = settings?.builtin_per_request ?? 1;
   const connected = !!status?.connected;
 
   const queue = useMutation({
-    mutationFn: () => queueBatch(toQueueBody(form, gen?._id ?? "builtin")),
+    mutationFn: () => queueBatch(toQueueBody(form, gen?._id ?? "builtin", character)),
     onMutate: () => setRejected(null),
     onSuccess: (b) => {
       toast.push(`Queued ${b.name}`, "success");
@@ -227,10 +243,11 @@ export default function GeneratePage() {
     );
   }
 
-  const positive = compose(form.base, form.extra);
+  const positive = compose(form.base, recipe && character ? characterTags(recipe) : [], form.extra);
   const negative = compose(form.negativeBase, form.negativeExtra);
   const ready = !!gen?.ready;
-  const canQueue = connected && ready && !!settings?.output_library_id && !queue.isPending;
+  const canQueue =
+    connected && ready && !!settings?.output_library_id && !queue.isPending && (!form.character || !!character);
 
   return (
     <>
@@ -249,7 +266,15 @@ export default function GeneratePage() {
             <Card className="p-4 space-y-4">
               <div className="text-sm font-medium text-neutral-100">Positive</div>
               <TextBlock label="Base" title="Prepended to every prompt" value={form.base} onChange={(v) => set("base", v)} />
-              <div>
+              <div className="border-t border-line pt-4">
+                <CharacterBlock
+                  value={form.character}
+                  onChange={(v) => set("character", v)}
+                  installedLoras={models?.loras ?? NO_STRINGS}
+                  rejectedLoras={flagged.loras}
+                />
+              </div>
+              <div className="border-t border-line pt-4">
                 <FieldLabel>Extra</FieldLabel>
                 <ChipInput
                   label="Extra positive tags"

@@ -82,6 +82,23 @@ def _next_ids(graph: Graph):
             yield str(n)
 
 
+def merge_loras(
+    character: dict[str, Any] | None, style: list[dict[str, Any]] | None
+) -> list[LoraPick]:
+    """The character's LoRA, then the style LoRAs, each file once (by stem, so
+    two spellings of one file can't both get in): the character's strength
+    wins over a style pick of the same LoRA. Pure."""
+    out: list[LoraPick] = []
+    seen: set[str] = set()
+    for lo in ([character] if character else []) + list(style or []):
+        stem = lora_stem(lo["name"])
+        if stem in seen:
+            continue
+        seen.add(stem)
+        out.append(LoraPick(lo["name"], float(lo.get("strength", 1.0))))
+    return out
+
+
 def lora_insertion(graph: Graph, loader_id: str) -> tuple[list[Any], list[Any] | None]:
     """Default "Model from" / "CLIP from" picks for a model loader: walk past
     the stock LoRA loaders already chained after it, so Moiré's chain goes in

@@ -221,9 +221,26 @@ function PromptPanel({ b }: { b: Batch }) {
       <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
         {row("Generator", b.generator.name ?? b.generator._id)}
         {i.checkpoint && row("Checkpoint", <span className="font-mono">{stemOf(i.checkpoint)}</span>)}
+        {i.character &&
+          row(
+            "Character",
+            <>
+              {i.character.label || displayWord(i.character.tag)}
+              {i.character.tags.length > 1 && (
+                <span className="text-muted"> + {i.character.tags.slice(1).map(displayWord).join(", ")}</span>
+              )}
+            </>,
+          )}
+        {i.character?.lora &&
+          row(
+            "Character LoRA",
+            <span className="font-mono">
+              {stemOf(i.character.lora.name)} {i.character.lora.strength.toFixed(2)}
+            </span>,
+          )}
         {i.loras.length > 0 &&
           row(
-            "LoRAs",
+            i.character ? "Style LoRAs" : "LoRAs",
             i.loras.map((l) => (
               <span key={l.name} className="mr-2 font-mono">
                 {stemOf(l.name)} {l.strength.toFixed(2)}

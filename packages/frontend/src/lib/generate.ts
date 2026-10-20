@@ -116,6 +116,27 @@ export type GenRequest = {
 
 export type LoraPick = { name: string; strength: number };
 
+/** The Character block as queued: tag, display label, the tags sent, its LoRA file. */
+export type CharacterInput = { tag: string; label: string; tags: string[]; lora: LoraPick | null };
+
+/** A character's computed recipe with the user's edits on top. */
+export type Recipe = {
+  tag: string;
+  aliases: string[];
+  count: number;
+  identity: { tag: string; dropped: boolean }[];
+  /** Attire signature tags: the default outfit (shown in phase 4). */
+  outfit: string[];
+  /** `file` is the installed file the stem resolves to; null when not installed. */
+  lora: { stem: string; file: string | null; strength: number; images: number } | null;
+  lora_edited: boolean;
+  strength_edited: boolean;
+  candidates: { stem: string; file: string | null; images: number; strength: number | null }[];
+};
+
+/** A recipe edit: dropped tags; lora a stem / file, "" none, null computed; strength or null. */
+export type RecipePatch = Partial<{ dropped: string[]; lora: string | null; strength: number | null }>;
+
 export type BatchInputs = {
   base: string;
   extra: string[];
@@ -123,6 +144,7 @@ export type BatchInputs = {
   negative_extra: string[];
   checkpoint: string | null;
   loras: LoraPick[];
+  character?: CharacterInput | null;
   width: number | null;
   height: number | null;
   seed: { mode: "random" | "fixed"; value: number | null };
@@ -180,6 +202,7 @@ export type QueueBody = {
   negative_extra: string[];
   checkpoint: string | null;
   loras: LoraPick[];
+  character: CharacterInput | null;
   width: number | null;
   height: number | null;
   seed: { mode: "random" | "fixed"; value: number | null };
@@ -227,6 +250,7 @@ export const SETTINGS_KEY = [...GEN_KEY, "settings"] as const;
 export const GENERATORS_KEY = [...GEN_KEY, "generators"] as const;
 export const BATCHES_KEY = [...GEN_KEY, "batches"] as const;
 export const batchKey = (id: number) => [...GEN_KEY, "batch", id] as const;
+export const recipeKey = (tag: string) => [...GEN_KEY, "recipe", tag] as const;
 
 export const getSettings = () => api<ComfySettings>(`${BASE}/comfyui`);
 export const putSettings = (patch: Partial<ComfySettings> & { output_path?: string | null }) =>
@@ -237,6 +261,8 @@ export const setLoraChoice = (stem: string, name: string | null) =>
   send<{ ok: boolean }>("/comfyui/lora-choices", "PUT", { stem, name });
 export const startTest = (generatorId: string, checkpoint: string | null) =>
   send<{ batch_id: number }>(`/generators/${generatorId}/test`, "POST", { checkpoint });
+export const putRecipe = (tag: string, patch: RecipePatch) =>
+  send<Recipe>(`/recipes/${encodeURIComponent(tag)}`, "PUT", patch);
 export const queueBatch = (body: QueueBody) => send<Batch>("/batches", "POST", body);
 export const renameBatch = (id: number, name: string) => send<Batch>(`/batches/${id}`, "PATCH", { name });
 export const requeueBatch = (id: number) => send<Batch>(`/batches/${id}/requeue`, "POST");
@@ -276,6 +302,14 @@ export function useGenerators() {
       q.state.data?.some((g) => !g.ready && g.test && !["failed", "lost", "cancelled"].includes(g.test.state))
         ? 1000
         : false,
+  });
+}
+
+export function useRecipe(tag: string | null) {
+  return useQuery({
+    queryKey: recipeKey(tag ?? ""),
+    queryFn: ({ signal }) => api<Recipe>(`${BASE}/recipes/${encodeURIComponent(tag!)}`, { signal }),
+    enabled: !!tag,
   });
 }
 
