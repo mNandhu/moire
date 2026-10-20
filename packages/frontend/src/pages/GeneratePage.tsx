@@ -10,10 +10,10 @@ import {
   CountStepper,
   SeedControl,
   SizePicker,
-  StyleLoras,
   stemOf,
 } from "../components/generate/RunControls";
 import { CharacterLayer } from "../components/generate/CharacterBlock";
+import { StyleLayer } from "../components/generate/StyleLayer";
 import { ComfyStatusLine } from "../components/generate/ComfyStatusLine";
 import { useCharacters } from "../components/ImageCharacters";
 import { LatestResults } from "../components/generate/LatestResults";
@@ -32,6 +32,7 @@ import {
   useComfySettings,
   useComfyStatus,
   useGenerators,
+  useLoraPresets,
   usePresets,
   useRecipe,
   type NodeError,
@@ -166,6 +167,7 @@ export default function GeneratePage() {
   const { data: models } = useComfyModels();
   const { data: generators } = useGenerators();
   const { data: presets } = usePresets();
+  const { data: loraPresets } = useLoraPresets();
   const { data: tagAgg } = useTagAggregate({ includePrompt: true });
   const [form, setForm] = useState<GenerateForm>(() => loadDraft());
   const [rejected, setRejected] = useState<NodeError[] | null>(null);
@@ -199,7 +201,7 @@ export default function GeneratePage() {
   const connected = !!status?.connected;
 
   const queue = useMutation({
-    mutationFn: () => queueBatch(toQueueBody(form, gen?._id ?? "builtin", character, presets)),
+    mutationFn: () => queueBatch(toQueueBody(form, gen?._id ?? "builtin", character, presets, loraPresets)),
     onMutate: () => setRejected(null),
     onSuccess: (b) => {
       toast.push(`Queued ${b.name}`, "success");
@@ -232,7 +234,7 @@ export default function GeneratePage() {
     );
   }
 
-  const parts = toParts(form, presets);
+  const parts = toParts(form, presets, loraPresets);
   const positive = previewText(parts.positive, recipe && character ? characterTags(recipe) : []);
   const negative = previewText(parts.negative, []);
   const sentLoras = [
@@ -302,15 +304,14 @@ export default function GeneratePage() {
                       />
                     </Card>
                   ) : blk.kind === "style" ? (
-                    <Card className="px-3.5 py-2.5">
-                      <StyleLoras
-                        value={form.loras}
-                        onChange={(v) => set("loras", v)}
-                        installed={models?.loras ?? NO_STRINGS}
-                        usage={usage}
-                        invalid={flagged.loras}
-                      />
-                    </Card>
+                    <StyleLayer
+                      value={form.loras}
+                      onChange={(v) => set("loras", v)}
+                      installed={models?.loras ?? NO_STRINGS}
+                      usage={usage}
+                      invalid={flagged.loras}
+                      presets={loraPresets}
+                    />
                   ) : blk.kind === "text" ? (
                     <TextLayer
                       value={blk.text}

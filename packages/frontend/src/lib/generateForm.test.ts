@@ -13,7 +13,7 @@ import {
   validBlocks,
   type GenerateForm,
 } from "./generateForm";
-import type { BatchInputs, NodeError, Preset } from "./generate";
+import type { BatchInputs, LoraPreset, NodeError, Preset } from "./generate";
 
 const presets: Preset[] = [
   { _id: "q", name: "Quality", kind: "positive", text: "masterpiece, best quality", updated_at: 0 },
@@ -72,6 +72,40 @@ describe("layers", () => {
   it("adds Style after the Prompt to layers saved before it existed", () => {
     const old = [{ kind: "prefix" }, { kind: "prompt" }, { kind: "text", id: "a", text: "t" }, { kind: "character" }];
     expect(validBlocks(old).map((b) => b.kind)).toEqual(["prefix", "prompt", "style", "text", "character"]);
+  });
+});
+
+describe("style LoRAs", () => {
+  const loraPresets: LoraPreset[] = [
+    { _id: "g", stem: "niji", name: "glitch", text: "0__11Xx_illu, glitch", strength: 0.6, updated_at: 0 },
+  ];
+  const form: GenerateForm = {
+    ...DEFAULT_FORM,
+    prompt: "swing",
+    loras: [
+      { name: "niji.safetensors", strength: 0.6, preset: { id: "g", text: "old" } },
+      { name: "detail.safetensors", strength: 0.5, preset: null },
+      { name: "gone.safetensors", strength: 1, preset: { id: "x", text: "flat color" } },
+    ],
+  };
+
+  it("sends each LoRA's words where the Style layer sits, and the LoRAs without presets", () => {
+    const body = toQueueBody(form, "builtin", null, presets, loraPresets);
+    expect(body.positive.slice(-2)).toEqual([
+      { kind: "text", role: "prompt", text: "swing" },
+      { kind: "text", role: "style", text: "0__11Xx_illu, glitch, flat color" },
+    ]);
+    expect(body.loras[0]).toEqual({ name: "niji.safetensors", strength: 0.6 });
+  });
+
+  it("brings the presets back with the batch", () => {
+    const sent = toQueueBody(form, "builtin", null, presets, loraPresets);
+    const f = formFromBatch({ ...({} as BatchInputs), ...sent, seed: sent.seed, composer: sent.composer } as BatchInputs, null);
+    expect(f.loras.map((l) => l.preset?.id ?? null)).toEqual(["g", null, "x"]);
+  });
+
+  it("keeps a draft's presets", () => {
+    expect(draft({ loras: form.loras }).loras).toEqual(form.loras);
   });
 });
 

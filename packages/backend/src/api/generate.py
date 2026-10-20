@@ -18,6 +18,7 @@ from ..services import (
     comfy_settings,
     generation_batches,
     library_watch,
+    lora_presets,
     prompt_presets,
     recipes,
 )
@@ -304,6 +305,46 @@ async def delete_preset(preset_id: str):
     if not await prompt_presets.delete(preset_id):
         raise HTTPException(status_code=404, detail="Preset not found")
     return {"ok": True}
+
+
+# -- LoRA activation presets ------------------------------------------------------
+
+
+@router.get("/lora-presets")
+async def list_lora_presets():
+    return await lora_presets.listing()
+
+
+@router.post("/lora-presets")
+async def create_lora_preset(body: dict[str, Any]):
+    try:
+        return await lora_presets.create(body)
+    except lora_presets.PresetError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.put("/lora-presets/{preset_id}")
+async def update_lora_preset(preset_id: str, body: dict[str, Any]):
+    try:
+        row = await lora_presets.update(preset_id, body)
+    except lora_presets.PresetError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if row is None:
+        raise HTTPException(status_code=404, detail="Preset not found")
+    return row
+
+
+@router.delete("/lora-presets/{preset_id}")
+async def delete_lora_preset(preset_id: str):
+    if not await lora_presets.delete(preset_id):
+        raise HTTPException(status_code=404, detail="Preset not found")
+    return {"ok": True}
+
+
+@router.get("/lora-words")
+async def lora_words(name: str):
+    """Suggested activation words for the installed LoRA file ``name``."""
+    return await lora_presets.suggestions(name, get_generation_manager().client)
 
 
 # -- Batches ----------------------------------------------------------------------

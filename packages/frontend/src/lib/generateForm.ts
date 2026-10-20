@@ -9,7 +9,7 @@
  * still sends what it said.
  */
 import { compose, composeParts, promptTerms } from "./compose";
-import type { BatchInputs, CharacterInput, LoraPick, NodeError, Preset, PromptPart, QueueBody } from "./generate";
+import type { BatchInputs, CharacterInput, LoraPreset, NodeError, Preset, PromptPart, QueueBody, StyleLora } from "./generate";
 
 export type PresetRef = { id: string; text: string } | null;
 
@@ -32,7 +32,8 @@ export type GenerateForm = {
   negativePreset: PresetRef;
   negative: string;
   checkpoint: string | null;
-  loras: LoraPick[];
+  /** Style LoRAs, each with its activation preset. */
+  loras: StyleLora[];
   /** The picked character's page key; its block comes from the recipe. */
   character: string | null;
   width: number;
@@ -89,15 +90,29 @@ export function presetText(ref: PresetRef, presets: readonly Preset[] | undefine
   return presets?.find((p) => p._id === ref.id)?.text ?? ref.text;
 }
 
+/** A style LoRA's activation words: its preset's current text, else the
+ * snapshot taken when it was picked. */
+export function loraWords(l: StyleLora, loraPresets: readonly LoraPreset[] | undefined): string {
+  if (!l.preset) return "";
+  return loraPresets?.find((p) => p._id === l.preset!.id)?.text ?? l.preset.text;
+}
+
 /** The ordered parts the backend composes (and the batch records). */
-export function toParts(f: GenerateForm, presets: readonly Preset[] | undefined): { positive: PromptPart[]; negative: PromptPart[] } {
+export function toParts(
+  f: GenerateForm,
+  presets: readonly Preset[] | undefined,
+  loraPresets?: readonly LoraPreset[],
+): { positive: PromptPart[]; negative: PromptPart[] } {
   const name = (ref: PresetRef) => presets?.find((p) => p._id === ref?.id)?.name ?? "";
   const positive: PromptPart[] = [];
   for (const b of f.blocks) {
     if (b.kind === "prefix") positive.push({ kind: "text", role: "prefix", label: name(f.prefix), text: presetText(f.prefix, presets) });
     else if (b.kind === "character") positive.push({ kind: "character" });
     else if (b.kind === "prompt") positive.push({ kind: "text", role: "prompt", text: f.prompt });
-    else if (b.kind === "style") continue;
+    else if (b.kind === "style") {
+      const words = f.loras.map((l) => loraWords(l, loraPresets).trim()).filter(Boolean);
+      if (words.length) positive.push({ kind: "text", role: "style", text: words.join(", ") });
+    }
     else if (b.kind === "text") positive.push({ kind: "text", role: "text", text: b.text });
     else if (b.kind === "preset") positive.push({ kind: "text", role: "preset", label: name(b.preset), text: presetText(b.preset, presets) });
     else if (b.name) positive.push({ kind: "embedding", name: b.name });
@@ -130,12 +145,13 @@ export function toQueueBody(
   generatorId: string,
   character: CharacterInput | null,
   presets: readonly Preset[] | undefined,
+  loraPresets?: readonly LoraPreset[],
 ): QueueBody {
-  const { positive, negative } = toParts(f, presets);
+  const { positive, negative } = toParts(f, presets, loraPresets);
   return {
     generator_id: generatorId,
     checkpoint: f.checkpoint,
-    loras: f.loras,
+    loras: f.loras.map(({ name, strength }) => ({ name, strength })),
     character,
     positive,
     negative,
@@ -151,7 +167,12 @@ export function toQueueBody(
 const COMPOSER_KEYS = ["prefix", "blocks", "prompt", "negativePreset", "negative"] as const;
 
 function composerState(f: GenerateForm): Record<string, unknown> {
-  return { v: 2, ...Object.fromEntries(COMPOSER_KEYS.map((k) => [k, f[k]])) };
+  return {
+    v: 2,
+    ...Object.fromEntries(COMPOSER_KEYS.map((k) => [k, f[k]])),
+    // The LoRAs themselves are in the batch's inputs; their presets are not.
+    loraPresets: Object.fromEntries(f.loras.filter((l) => l.preset).map((l) => [l.name, l.preset])),
+  };
 }
 
 // -- Validation (drafts and batches are stored data: never trust their shape) --
@@ -222,6 +243,12 @@ function migrated(d: Record<string, unknown>): Partial<GenerateForm> {
   };
 }
 
+function loraPresetOf(composer: Record<string, unknown> | null | undefined, name: string): PresetRef {
+  const all = composer?.loraPresets;
+  if (!all || typeof all !== "object") return null;
+  return presetRef((all as Record<string, unknown>)[name]) ?? null;
+}
+
 /** A batch's inputs back in the composer ("Edit and queue"). A typed name
  * stays; an auto name is picked again. */
 export function formFromBatch(i: BatchInputs, name: string | null): GenerateForm {
@@ -233,7 +260,7 @@ export function formFromBatch(i: BatchInputs, name: string | null): GenerateForm
       negative: compose(i.negative_base ?? "", i.negative_extra ?? []),
     }),
     checkpoint: i.checkpoint,
-    loras: i.loras.map((l) => ({ ...l })),
+    loras: i.loras.map((l) => ({ ...l, preset: loraPresetOf(i.composer, l.name) })),
     character: i.character?.tag ?? null,
     width: i.width ?? DEFAULT_FORM.width,
     height: i.height ?? DEFAULT_FORM.height,
@@ -261,10 +288,12 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     if (isStr(d.name) || d.name === null) out.name = d.name;
     for (const k of ["width", "height", "count"] as const) if (typeof d[k] === "number") out[k] = d[k];
     if (Array.isArray(d.loras)) {
-      out.loras = d.loras.filter(
-        (l: unknown): l is LoraPick =>
-          !!l && typeof l === "object" && isStr((l as LoraPick).name) && typeof (l as LoraPick).strength === "number",
-      );
+      out.loras = d.loras
+        .filter(
+          (l: unknown): l is StyleLora =>
+            !!l && typeof l === "object" && isStr((l as StyleLora).name) && typeof (l as StyleLora).strength === "number",
+        )
+        .map((l: StyleLora) => ({ name: l.name, strength: l.strength, preset: presetRef(l.preset) ?? null }));
     }
     const seed = d.seed;
     if (seed && (seed.mode === "random" || seed.mode === "fixed") && (seed.value === null || typeof seed.value === "number")) {

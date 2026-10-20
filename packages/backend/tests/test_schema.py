@@ -27,6 +27,7 @@ def test_expected_tables_exist():
         "recipe_edits",
         "recipe_additions",
         "prompt_presets",
+        "lora_presets",
         "generators",
         "generation_batches",
         "generation_requests",

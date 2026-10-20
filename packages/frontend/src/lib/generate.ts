@@ -116,6 +116,10 @@ export type GenRequest = {
 
 export type LoraPick = { name: string; strength: number };
 
+/** A style LoRA in the composer: the pick plus its activation preset (a
+ * snapshot of the words, like a prompt preset's). */
+export type StyleLora = LoraPick & { preset?: { id: string; text: string } | null };
+
 /** The Character block as queued: tag, display label, the tags sent, its LoRA file. */
 export type CharacterInput = { tag: string; label: string; tags: string[]; lora: LoraPick | null };
 
@@ -137,11 +141,17 @@ export type Recipe = {
 
 export type Preset = { _id: string; name: string; kind: "positive" | "negative"; text: string; updated_at: number };
 
+/** A style LoRA's activation preset: the words it wants, by LoRA stem. */
+export type LoraPreset = { _id: string; stem: string; name: string; text: string; strength: number | null; updated_at: number };
+
+/** A suggested activation word, and where it was found. */
+export type LoraWord = { word: string; sources: ("file" | "library")[]; prompts: number };
+
 /** One ordered part of a prompt as queued: free text (role says which layer),
  * the character's tags, or an embedding. */
 export type PromptPart = {
   kind: "text" | "character" | "embedding";
-  role?: "prefix" | "prompt" | "text" | "preset";
+  role?: "prefix" | "prompt" | "text" | "preset" | "style";
   label?: string;
   text?: string;
   name?: string;
@@ -267,6 +277,7 @@ export const GENERATORS_KEY = [...GEN_KEY, "generators"] as const;
 export const BATCHES_KEY = [...GEN_KEY, "batches"] as const;
 export const batchKey = (id: number) => [...GEN_KEY, "batch", id] as const;
 export const PRESETS_KEY = [...GEN_KEY, "presets"] as const;
+export const LORA_PRESETS_KEY = [...GEN_KEY, "lora-presets"] as const;
 export const recipeKey = (tag: string) => [...GEN_KEY, "recipe", tag] as const;
 
 export const getSettings = () => api<ComfySettings>(`${BASE}/comfyui`);
@@ -284,6 +295,12 @@ export const createPreset = (p: Pick<Preset, "name" | "kind" | "text">) => send<
 export const updatePreset = (id: string, p: Partial<Pick<Preset, "name" | "text">>) =>
   send<Preset>(`/presets/${encodeURIComponent(id)}`, "PUT", p);
 export const deletePreset = (id: string) => send<{ ok: boolean }>(`/presets/${encodeURIComponent(id)}`, "DELETE");
+export const createLoraPreset = (p: { lora: string; name: string; text: string; strength: number | null }) =>
+  send<LoraPreset>("/lora-presets", "POST", p);
+export const updateLoraPreset = (id: string, p: Partial<Pick<LoraPreset, "name" | "text" | "strength">>) =>
+  send<LoraPreset>(`/lora-presets/${encodeURIComponent(id)}`, "PUT", p);
+export const deleteLoraPreset = (id: string) =>
+  send<{ ok: boolean }>(`/lora-presets/${encodeURIComponent(id)}`, "DELETE");
 export const queueBatch = (body: QueueBody) => send<Batch>("/batches", "POST", body);
 export const renameBatch = (id: number, name: string) => send<Batch>(`/batches/${id}`, "PATCH", { name });
 export const requeueBatch = (id: number) => send<Batch>(`/batches/${id}/requeue`, "POST");
@@ -328,6 +345,22 @@ export function useGenerators() {
 
 export function usePresets() {
   return useQuery({ queryKey: PRESETS_KEY, queryFn: ({ signal }) => api<Preset[]>(`${BASE}/presets`, { signal }) });
+}
+
+export function useLoraPresets() {
+  return useQuery({
+    queryKey: LORA_PRESETS_KEY,
+    queryFn: ({ signal }) => api<LoraPreset[]>(`${BASE}/lora-presets`, { signal }),
+  });
+}
+
+export function useLoraWords(name: string | null) {
+  return useQuery({
+    queryKey: [...GEN_KEY, "lora-words", name ?? ""],
+    queryFn: ({ signal }) => api<LoraWord[]>(`${BASE}/lora-words?name=${encodeURIComponent(name!)}`, { signal }),
+    enabled: !!name,
+    staleTime: 5 * 60_000,
+  });
 }
 
 export function useRecipe(tag: string | null) {

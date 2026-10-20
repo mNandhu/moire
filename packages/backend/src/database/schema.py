@@ -318,6 +318,19 @@ prompt_presets = sa.Table(
     sa.Column("updated_at", sa.Float),
 )
 
+# Activation presets for a style LoRA, by stem: the words a LoRA wants in the
+# prompt, and a default strength (null: keep the one the user set).
+lora_presets = sa.Table(
+    "lora_presets",
+    metadata,
+    sa.Column("_id", sa.Text, primary_key=True),
+    sa.Column("stem", sa.Text, nullable=False, index=True),
+    sa.Column("name", sa.Text, nullable=False),
+    sa.Column("text", sa.Text, nullable=False, server_default=""),
+    sa.Column("strength", sa.Float),
+    sa.Column("updated_at", sa.Float),
+)
+
 # A ComfyUI API-format graph plus slots (slot -> path into the graph). `ready`
 # flips once a test run's image is found in the library.
 generators = sa.Table(

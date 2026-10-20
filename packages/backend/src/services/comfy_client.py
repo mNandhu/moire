@@ -151,6 +151,24 @@ class ComfyClient:
     async def object_info(self, class_type: str) -> dict[str, Any]:
         return (await self._json("GET", f"/object_info/{class_type}")) or {}
 
+    async def lora_metadata(self, name: str) -> dict[str, Any] | None:
+        """A LoRA file's safetensors metadata (``GET /view_metadata/loras``);
+        ``None`` when the file has none."""
+        r = await self._request(
+            "GET", "/view_metadata/loras", params={"filename": name}
+        )
+        if r.status_code == 404:
+            return None
+        if r.status_code >= 400:
+            raise ComfyError(
+                f"GET /view_metadata/loras: HTTP {r.status_code}", r.status_code
+            )
+        try:
+            body = r.json()
+        except ValueError:
+            return None
+        return body if isinstance(body, dict) else None
+
     async def embeddings(self) -> list[str]:
         return list((await self._json("GET", "/embeddings")) or [])
 

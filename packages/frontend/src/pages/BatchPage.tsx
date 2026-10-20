@@ -24,6 +24,9 @@ import { useToast } from "../components/Toasts";
 
 const UNFINISHED = new Set(["pending", "queued", "running"]);
 
+/** Which layers' text the inputs list shows, and as what. */
+const PART_ROW: Partial<Record<string, string>> = { prefix: "Prefix", prompt: "Prompt", style: "LoRA words" };
+
 function PromptPanel({ b }: { b: Batch }) {
   const i = b.inputs;
   const row = (k: string, v: React.ReactNode) => (
@@ -65,10 +68,10 @@ function PromptPanel({ b }: { b: Batch }) {
             )),
           )}
         {i.positive
-          ?.filter((p) => p.kind === "text" && p.text?.trim() && (p.role === "prefix" || p.role === "prompt"))
+          ?.filter((p) => p.kind === "text" && p.text?.trim() && p.role && p.role in PART_ROW)
           .map((p) => (
             <div key={p.role} className="contents">
-              {row(p.role === "prefix" ? "Prefix" : "Prompt", p.role === "prefix" ? p.label || p.text : p.text)}
+              {row(PART_ROW[p.role!]!, p.role === "prefix" ? p.label || p.text : p.text)}
             </div>
           ))}
         {i.extra.length > 0 && row("Extra", i.extra.map(displayWord).join(", "))}
