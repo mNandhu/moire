@@ -56,9 +56,8 @@ async def _move_thumbnail(conn, old: str, new: str) -> None:
             sa.select(t.tag_meta.c.thumb_image_id).where(t.tag_meta.c.tag == old)
         )
     ).scalar()
-    if pinned is None:
-        return
-    # Its framing goes with it (keyed to the image, so it only applies there).
+    # Its framing goes with it (keyed to the image, so it only applies there),
+    # pinned cover or not.
     if (
         await conn.execute(sa.select(t.tag_focus.c.tag).where(t.tag_focus.c.tag == new))
     ).scalar() is None:
@@ -67,6 +66,8 @@ async def _move_thumbnail(conn, old: str, new: str) -> None:
         )
     else:
         await conn.execute(sa.delete(t.tag_focus).where(t.tag_focus.c.tag == old))
+    if pinned is None:
+        return
     target_has = (
         await conn.execute(sa.select(t.tag_meta.c.tag).where(t.tag_meta.c.tag == new))
     ).scalar()

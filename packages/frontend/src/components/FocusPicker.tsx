@@ -28,11 +28,11 @@ export function FocusPicker({
       className={`relative ${height} max-w-full rounded-lg overflow-hidden bg-raised cursor-crosshair`}
       style={{ aspectRatio: aspect ?? 1 }}
       onClick={(e) => {
+        // Enter / Space (no pointer position): the middle.
+        if (e.detail === 0) return onChange([0.5, 0.5]);
         const r = e.currentTarget.getBoundingClientRect();
-        onChange([
-          Math.round(((e.clientX - r.left) / r.width) * 100) / 100,
-          Math.round(((e.clientY - r.top) / r.height) * 100) / 100,
-        ]);
+        const at = (v: number) => Math.round(Math.min(1, Math.max(0, v)) * 100) / 100;
+        onChange([at((e.clientX - r.left) / r.width), at((e.clientY - r.top) / r.height)]);
       }}
     >
       <img src={src} alt="" className="w-full h-full object-cover" />
