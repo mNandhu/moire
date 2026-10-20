@@ -1,0 +1,302 @@
+"""Generation end to end against a fake ComfyUI: settings, test-run gate,
+batching into requests, failures, retry, cancel, lost, connection down."""
+
+from __future__ import annotations
+
+import asyncio
+
+import pytest
+import pytest_asyncio
+
+from src.services import comfy_settings, generation_jobs
+from src.services.generation_jobs import get_generation_manager
+from tests.fake_comfy import FakeComfy
+
+OUT = "OUT"
+
+
+@pytest_asyncio.fixture
+async def comfy(temp_db):
+    generation_jobs.reset_for_tests()
+    fake = FakeComfy()
+    m = get_generation_manager()
+    m.transport = fake.transport()
+    await comfy_settings.update_settings(
+        {"address": "http://fake", "output_library_id": OUT}
+    )
+    await m.configure()
+    yield fake
+    await m.stop()
+    generation_jobs.reset_for_tests()
+
+
+def scanned(seed, paths):
+    """What the output library's scan does once ComfyUI writes the files."""
+    for p in paths:
+        seed(f"{OUT}:{p}", library_id=OUT, width=832, height=1216)
+
+
+async def tick():
+    await get_generation_manager().tick()
+
+
+async def make_ready(client, fake, seed):
+    r = await client.post("/generate/generators/builtin/test", json={})
+    assert r.status_code == 200, r.text
+    pid = fake.order[-1]
+    scanned(seed, fake.finish(pid, images=1))
+    await tick()
+    g = (await client.get("/generate/generators/builtin")).json()
+    assert g["ready"] is True
+    return pid
+
+
+async def test_connection_and_models(client, comfy):
+    r = await client.post("/generate/comfyui/test")
+    assert r.json()["ok"] is True and r.json()["connected"] is True
+    models = (await client.get("/generate/comfyui/models")).json()
+    assert models["checkpoints"] == sorted(comfy.checkpoints, key=str.lower)
+    assert "styles/flat_color_xl.safetensors" in models["loras"]
+    assert models["embeddings"] == ["easynegative", "pos/aesthetic"]
+
+
+async def test_headers_are_masked_and_kept(client, comfy):
+    r = await client.put(
+        "/generate/comfyui", json={"headers": {"Authorization": "Bearer secret"}}
+    )
+    assert r.json()["headers"] == {"Authorization": "••••"}
+    await client.put(
+        "/generate/comfyui", json={"headers": {"Authorization": "••••", "X-Other": "1"}}
+    )
+    s = await comfy_settings.get_settings()
+    assert s["headers"] == {"Authorization": "Bearer secret", "X-Other": "1"}
+    assert "secret" not in (await client.get("/generate/comfyui")).text
+
+
+async def test_queue_refused_until_test_run_passes(client, comfy, seed):
+    r = await client.post("/generate/batches", json={"base": "1girl"})
+    assert r.status_code == 400
+    pid = await make_ready(client, comfy, seed)
+    # The test chains one installed LoRA at strength 0.
+    loras = [n for n in comfy.prompts[pid].values() if n["class_type"] == "LoraLoader"]
+    assert len(loras) == 1 and loras[0]["inputs"]["strength_model"] == 0.0
+    # Test runs stay out of the Generations list.
+    assert (await client.get("/generate/batches")).json() == []
+
+
+async def test_eight_images_at_two_per_request(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    await comfy_settings.update_settings({"builtin_per_request": 2})
+    r = await client.post(
+        "/generate/batches",
+        json={
+            "base": "masterpiece",
+            "extra": ["red_dress", "night", "embedding:easynegative"],
+            "loras": [{"name": "styles/flat_color_xl.safetensors", "strength": 0.8}],
+            "checkpoint": "illustriousXL_v01.safetensors",
+            "width": 832,
+            "height": 1216,
+            "seed": {"mode": "fixed", "value": 100},
+            "count": 8,
+        },
+    )
+    assert r.status_code == 200, r.text
+    batch = r.json()
+    assert batch["name"] == "Built-in, red dress, night"
+    assert [q["images"] for q in batch["requests"]] == [2, 2, 2, 2]
+    assert [q["seed"] for q in batch["requests"]] == [100, 101, 102, 103]
+    assert [q["state"] for q in batch["requests"]] == [
+        "queued",
+        "pending",
+        "pending",
+        "pending",
+    ]
+
+    first = comfy.order[-1]
+    g = comfy.prompts[first]
+    assert (
+        g["6"]["inputs"]["text"]
+        == "masterpiece, red_dress, night, embedding:easynegative"
+    )
+    assert g["5"]["inputs"]["batch_size"] == 2 and g["3"]["inputs"]["seed"] == 100
+
+    # One request in ComfyUI at a time; each finish submits the next.
+    for _ in range(4):
+        pid = comfy.order[-1]
+        scanned(seed, comfy.finish(pid))
+        await tick()
+    batch = (await client.get(f"/generate/batches/{batch['_id']}")).json()
+    assert batch["state"] == "done"
+    assert all(
+        len(q["outputs"]) == 2 and all(o["in_library"] for o in q["outputs"])
+        for q in batch["requests"]
+    )
+    listed = (await client.get("/generate/batches")).json()
+    assert listed[0]["images"] == 8 and listed[0]["kept"] == 8
+
+
+async def test_extra_images_are_kept_and_zero_is_reported(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x", "count": 2})).json()
+    scanned(seed, comfy.finish(comfy.order[-1], images=3))
+    await tick()
+    comfy.finish(comfy.order[-1], images=0)
+    await tick()
+    reqs = (await client.get(f"/generate/batches/{b['_id']}")).json()["requests"]
+    assert [len(q["outputs"]) for q in reqs] == [3, 0]
+    assert [q["state"] for q in reqs] == ["done", "done"]
+
+
+async def test_first_request_rejected_keeps_nothing(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    comfy.reject_next = {
+        "error": {"message": "Prompt outputs failed validation"},
+        "node_errors": {
+            "4": {
+                "class_type": "CheckpointLoaderSimple",
+                "errors": [
+                    {
+                        "type": "value_not_in_list",
+                        "message": "Value not in list",
+                        "details": "ckpt_name",
+                        "extra_info": {"input_name": "ckpt_name"},
+                    }
+                ],
+            }
+        },
+    }
+    r = await client.post(
+        "/generate/batches", json={"base": "x", "checkpoint": "gone.safetensors"}
+    )
+    assert r.status_code == 422
+    assert r.json()["node_errors"][0]["input"] == "ckpt_name"
+    assert (await client.get("/generate/batches")).json() == []
+
+
+async def test_failure_retry_one_at_a_time(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    await comfy_settings.update_settings({"builtin_per_request": 2})
+    b = (await client.post("/generate/batches", json={"base": "x", "count": 2})).json()
+    comfy.fail(comfy.order[-1])
+    await tick()
+    batch = (await client.get(f"/generate/batches/{b['_id']}")).json()
+    assert batch["state"] == "failed"
+    req = batch["requests"][0]
+    assert (
+        req["error"]["message"] == "CUDA out of memory" and req["error"]["node"] == "3"
+    )
+
+    r = await client.post(
+        f"/generate/batches/{b['_id']}/requests/{req['_id']}/retry",
+        json={"single": True},
+    )
+    reqs = r.json()["requests"]
+    assert [(q["images"], q["state"]) for q in reqs] == [(1, "pending"), (1, "pending")]
+    await tick()
+    scanned(seed, comfy.finish(comfy.order[-1]))
+    await tick()
+    scanned(seed, comfy.finish(comfy.order[-1]))
+    await tick()
+    assert (await client.get(f"/generate/batches/{b['_id']}")).json()["state"] == "done"
+
+
+async def test_cancel_pending_and_interrupt_running(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x", "count": 3})).json()
+    pid = comfy.order[-1]
+    comfy.start(pid)
+    await tick()
+    r = await client.post(f"/generate/batches/{b['_id']}/cancel")
+    assert [q["state"] for q in r.json()["requests"]] == [
+        "running",
+        "cancelled",
+        "cancelled",
+    ]
+    assert comfy.interrupted == [pid]
+    comfy.history[pid] = {
+        "outputs": {},
+        "status": {"status_str": "error", "messages": [["execution_interrupted", {}]]},
+    }
+    comfy.running.remove(pid)
+    await tick()
+    assert (await client.get(f"/generate/batches/{b['_id']}")).json()[
+        "state"
+    ] == "cancelled"
+
+
+async def test_lost_when_comfyui_forgets_the_prompt(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x"})).json()
+    comfy.pending.clear()  # ComfyUI restarted: in neither queue nor history
+    await tick()
+    batch = (await client.get(f"/generate/batches/{b['_id']}")).json()
+    assert batch["requests"][0]["state"] == "lost"
+    assert batch["state"] == "failed"
+
+
+async def test_connection_down_pauses_and_refuses(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x", "count": 2})).json()
+    comfy.up = False
+    await tick()
+    assert (await client.get("/generate/status")).json()["connected"] is False
+    assert (await client.get(f"/generate/batches/{b['_id']}")).json()[
+        "state"
+    ] == "paused"
+    assert (
+        await client.post("/generate/batches", json={"base": "y"})
+    ).status_code == 503
+    comfy.up = True
+    scanned(seed, comfy.finish(comfy.order[-1]))
+    await tick()
+    assert (await client.get(f"/generate/batches/{b['_id']}")).json()[
+        "state"
+    ] == "running"
+
+
+async def test_rename_and_requeue(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    b = (
+        await client.post("/generate/batches", json={"base": "x", "extra": ["a"]})
+    ).json()
+    r = await client.patch(f"/generate/batches/{b['_id']}", json={"name": "Keepers"})
+    assert r.json()["name"] == "Keepers" and r.json()["auto_name"] is False
+    scanned(seed, comfy.finish(comfy.order[-1]))
+    await tick()
+    r = await client.post(f"/generate/batches/{b['_id']}/requeue")
+    assert (
+        r.status_code == 200
+        and r.json()["_id"] != b["_id"]
+        and r.json()["name"] == "Keepers"
+    )
+
+
+async def test_manager_starts_with_comfyui_down(temp_db):
+    generation_jobs.reset_for_tests()
+    fake = FakeComfy()
+    fake.up = False
+    m = get_generation_manager()
+    m.transport = fake.transport()
+    m.ws_connect = fake.connect
+    await comfy_settings.update_settings({"address": "http://fake"})
+    m.start()
+    await asyncio.sleep(0.05)
+    assert m.status()["configured"] is True and m.status()["connected"] is False
+    assert not m._loop_task.done()  # type: ignore[union-attr]
+    await m.stop()
+    generation_jobs.reset_for_tests()
+
+
+@pytest.mark.parametrize(
+    "states,connected,expected",
+    [
+        (["done", "running"], True, "running"),
+        (["done", "queued"], False, "paused"),
+        (["done", "lost"], True, "failed"),
+        (["cancelled"], True, "cancelled"),
+    ],
+)
+def test_batch_state(states, connected, expected):
+    from src.services.generation_batches import batch_state
+
+    assert batch_state(states, connected) == expected

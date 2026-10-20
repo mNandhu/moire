@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 from fastapi.responses import JSONResponse
-from .api import libraries, images, tags, ai, rules
+from .api import libraries, images, tags, ai, rules, generate
 from .database.db import async_conn, ensure_schema
 from .database import schema as t
 from .core.config import API_PREFIX, settings
@@ -14,6 +14,7 @@ from .services.storage_fs import ensure_thumb_root
 from .services.ai_jobs import get_ai_job_manager, get_ai_settings
 from .services.ai_tagger import get_tagger_manager
 from .services import library_watch, tag_migrations
+from .services.generation_jobs import get_generation_manager
 
 import logging
 import time
@@ -64,10 +65,15 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("Failed to start library watchers during startup")
 
+    # ComfyUI generation: reconnects and reconciles unfinished requests in the
+    # background, so a ComfyUI that is down never delays startup.
+    get_generation_manager().start()
+
     yield
 
     # Shutdown
     library_watch.stop_all()
+    await get_generation_manager().stop()
 
 
 app = FastAPI(title="Moiré API", version="0.1.0", lifespan=lifespan)
@@ -179,4 +185,5 @@ api.include_router(images.router, prefix="/images", tags=["images"])
 api.include_router(tags.router, prefix="/tags", tags=["tags"])
 api.include_router(ai.router, prefix="/ai", tags=["ai"])
 api.include_router(rules.router, prefix="/rules", tags=["rules"])
+api.include_router(generate.router, prefix="/generate", tags=["generate"])
 app.include_router(api)

@@ -1,0 +1,271 @@
+"""Generation (ComfyUI): settings, status, Generators, batches.
+
+The browser never talks to ComfyUI; everything goes through here. Progress
+is polled (``GET /status``, ``GET /batches/{id}``) like the AI job status.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+
+from ..models.library import LibraryIn
+from ..services import comfy_models, comfy_settings, generation_batches
+from ..services.generation_jobs import (
+    Invalid,
+    Rejected,
+    Unavailable,
+    get_generation_manager,
+)
+
+router = APIRouter()
+
+
+class ComfyPatch(BaseModel):
+    address: str | None = None
+    headers: dict[str, str] | None = None
+    builtin_per_request: int | None = None
+    #: Folder ComfyUI saves into; registered as (or matched to) a library.
+    output_path: str | None = None
+
+
+class LoraChoice(BaseModel):
+    stem: str
+    name: str | None = None
+
+
+class LoraIn(BaseModel):
+    name: str
+    strength: float = 1.0
+
+
+class SeedIn(BaseModel):
+    mode: str = "random"
+    value: int | None = None
+
+
+class BatchIn(BaseModel):
+    generator_id: str = "builtin"
+    base: str = ""
+    extra: list[str] = Field(default_factory=list)
+    negative_base: str = ""
+    negative_extra: list[str] = Field(default_factory=list)
+    checkpoint: str | None = None
+    loras: list[LoraIn] = Field(default_factory=list)
+    width: int | None = None
+    height: int | None = None
+    seed: SeedIn = Field(default_factory=SeedIn)
+    count: int = Field(1, ge=1, le=500)
+    name: str | None = None
+
+
+class RenameIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+
+
+class RetryIn(BaseModel):
+    single: bool = False
+
+
+class TestIn(BaseModel):
+    checkpoint: str | None = None
+
+
+def _rejected(e: Rejected) -> JSONResponse:
+    return JSONResponse(
+        status_code=422, content={"detail": e.message, "node_errors": e.node_errors}
+    )
+
+
+async def _settings_view() -> dict[str, Any]:
+    s = await comfy_settings.get_settings()
+    out = comfy_settings.public(s)
+    out["output_path"] = None
+    if s.get("output_library_id"):
+        from ..api.libraries import list_libraries
+
+        lib = next(
+            (x for x in await list_libraries() if x["_id"] == s["output_library_id"]),
+            None,
+        )
+        out["output_path"] = lib["path"] if lib else None
+    return out
+
+
+# -- ComfyUI connection -----------------------------------------------------------
+
+
+@router.get("/comfyui")
+async def get_comfyui():
+    return await _settings_view()
+
+
+@router.put("/comfyui")
+async def put_comfyui(body: ComfyPatch):
+    patch = body.model_dump(exclude_none=True)
+    output_path = patch.pop("output_path", None)
+    if output_path is not None:
+        if not output_path.strip():
+            patch["output_library_id"] = None
+        else:
+            from ..api.libraries import add_library
+
+            try:
+                lib = await add_library(
+                    LibraryIn(path=output_path, name="ComfyUI output")
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e)) from e
+            patch["output_library_id"] = lib["_id"]
+    before = await comfy_settings.get_settings()
+    after = await comfy_settings.update_settings(patch)
+    if before.get("address") != after.get("address") or before.get(
+        "headers"
+    ) != after.get("headers"):
+        await get_generation_manager().configure()
+    return await _settings_view()
+
+
+@router.post("/comfyui/test")
+async def test_comfyui():
+    m = get_generation_manager()
+    if m.client is None:
+        await m.configure()
+    ok = await m.check(refresh_models=True)
+    return {**m.status(), "ok": ok}
+
+
+@router.post("/comfyui/refresh")
+async def refresh_models():
+    m = get_generation_manager()
+    if not await m.check(refresh_models=True):
+        raise HTTPException(status_code=503, detail=m.error or "ComfyUI unreachable")
+    return await get_models()
+
+
+@router.get("/comfyui/models")
+async def get_models():
+    installed = await comfy_models.installed()
+    return {
+        "checkpoints": installed["checkpoint"],
+        "loras": installed["lora"],
+        "embeddings": installed["embedding"],
+        "matching": await comfy_models.matching(),
+    }
+
+
+@router.put("/comfyui/lora-choices")
+async def put_lora_choice(body: LoraChoice):
+    await comfy_models.set_choice(body.stem, body.name)
+    return {"ok": True}
+
+
+@router.get("/status")
+async def status():
+    return get_generation_manager().status()
+
+
+# -- Generators -------------------------------------------------------------------
+
+
+@router.get("/generators")
+async def list_generators():
+    m = get_generation_manager()
+    # Phase 1 has the built-in only; custom Generators come with setup.
+    view = await generation_batches.generator_view(m, "builtin")
+    return [view] if view else []
+
+
+@router.get("/generators/{generator_id}")
+async def get_generator(generator_id: str):
+    view = await generation_batches.generator_view(
+        get_generation_manager(), generator_id
+    )
+    if view is None:
+        raise HTTPException(status_code=404, detail="Generator not found")
+    return view
+
+
+@router.post("/generators/{generator_id}/test")
+async def test_generator(generator_id: str, body: TestIn):
+    m = get_generation_manager()
+    try:
+        batch_id = await generation_batches.start_test(m, generator_id, body.checkpoint)
+    except Unavailable as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except Invalid as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Rejected as e:
+        return _rejected(e)
+    return {"batch_id": batch_id}
+
+
+# -- Batches ----------------------------------------------------------------------
+
+
+@router.post("/batches")
+async def queue_batch(body: BatchIn):
+    m = get_generation_manager()
+    try:
+        batch_id = await m.queue_batch(body.model_dump())
+    except Unavailable as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except Invalid as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Rejected as e:
+        return _rejected(e)
+    return await generation_batches.get_batch(batch_id, m)
+
+
+@router.get("/batches")
+async def list_batches(limit: int = 50, before: int | None = None):
+    return await generation_batches.list_batches(
+        get_generation_manager(), limit=max(1, min(200, limit)), before=before
+    )
+
+
+@router.get("/batches/{batch_id}")
+async def get_batch(batch_id: int):
+    out = await generation_batches.get_batch(batch_id, get_generation_manager())
+    if out is None:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    return out
+
+
+@router.patch("/batches/{batch_id}")
+async def rename_batch(batch_id: int, body: RenameIn):
+    if not await generation_batches.rename(batch_id, body.name):
+        raise HTTPException(status_code=404, detail="Batch not found")
+    return await get_batch(batch_id)
+
+
+@router.post("/batches/{batch_id}/requeue")
+async def requeue_batch(batch_id: int):
+    m = get_generation_manager()
+    try:
+        new_id = await m.requeue(batch_id)
+    except Unavailable as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except Invalid as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Rejected as e:
+        return _rejected(e)
+    return await generation_batches.get_batch(new_id, m)
+
+
+@router.post("/batches/{batch_id}/requests/{request_id}/retry")
+async def retry_request(batch_id: int, request_id: int, body: RetryIn):
+    try:
+        await get_generation_manager().retry(batch_id, request_id, single=body.single)
+    except Invalid as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return await get_batch(batch_id)
+
+
+@router.post("/batches/{batch_id}/cancel")
+async def cancel_batch(batch_id: int):
+    await get_generation_manager().cancel(batch_id)
+    return await get_batch(batch_id)
