@@ -5,7 +5,6 @@ names with masked values, and a masked value on update keeps the stored one.
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 import sqlalchemy as sa
@@ -21,9 +20,6 @@ DEFAULT_COMFY_SETTINGS: dict[str, Any] = {
     "address": "",
     "headers": {},
     "output_library_id": None,
-    # The folder that library watches, kept so the library can be found again
-    # if it is removed and added back (it comes back under a new id).
-    "output_path": "",
     "builtin_per_request": 1,
     # Fetch finished images over /view when they aren't in the output folder:
     # for a ComfyUI on another machine, whose output folder isn't shared here.
@@ -58,8 +54,6 @@ def clean_patch(patch: dict[str, Any], current: dict[str, Any]) -> dict[str, Any
         clean["download_outputs"] = bool(patch["download_outputs"])
     if "ca_cert" in patch:
         clean["ca_cert"] = str(patch["ca_cert"] or "").strip()
-    if "output_path" in patch:
-        clean["output_path"] = str(patch["output_path"] or "").strip()
     if "output_library_id" in patch:
         clean["output_library_id"] = patch["output_library_id"] or None
     return clean
@@ -89,54 +83,3 @@ async def update_settings(patch: dict[str, Any]) -> dict[str, Any]:
         )
         await conn.execute(stmt)
     return new_doc
-
-
-async def adopt_output_library(library_id: str, path: str) -> None:
-    """Make `library_id` the output library. If the previous one is gone and
-    this is its folder coming back, its generated outputs follow: they are
-    keyed `{library_id}:{path}`, and a library removed and added back gets a new
-    id, which would leave them waiting for a scan that never matches."""
-    old = await removed_output_library(path, folder_unknown_ok=True)
-    await update_settings({"output_library_id": library_id, "output_path": path})
-    if not old:
-        return
-    async with async_tx() as conn:
-        await conn.execute(
-            sa.text(
-                "UPDATE generation_outputs"
-                " SET image_id = :lib || substr(image_id, instr(image_id, ':'))"
-                " WHERE substr(image_id, 1, instr(image_id, ':') - 1) = :old"
-            ),
-            {"lib": library_id, "old": old},
-        )
-
-
-def same_path(a: str, b: str) -> bool:
-    return os.path.normcase(os.path.normpath(a)) == os.path.normcase(
-        os.path.normpath(b)
-    )
-
-
-async def removed_output_library(
-    path: str, *, folder_unknown_ok: bool = False
-) -> str | None:
-    """The id of the output library when it has been removed and `path` is its
-    folder, else None. A folder not remembered (set before it was kept) counts
-    as a match only with `folder_unknown_ok`, for the user pointing the
-    output folder somewhere themselves."""
-    s = await get_settings()
-    lib_id, kept = s.get("output_library_id"), s.get("output_path")
-    if not lib_id:
-        return None
-    if kept:
-        if not same_path(kept, path):
-            return None
-    elif not folder_unknown_ok:
-        return None
-    async with async_conn() as conn:
-        found = (
-            await conn.execute(
-                sa.select(t.libraries.c._id).where(t.libraries.c._id == lib_id)
-            )
-        ).first()
-    return None if found else lib_id

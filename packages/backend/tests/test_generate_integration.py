@@ -546,20 +546,23 @@ async def test_requeue_replays_a_chosen_batch_size_not_the_setting(client, comfy
     assert got["inputs"]["per_request_asked"] is None
 
 
-async def test_outputs_follow_the_output_library_when_it_comes_back(temp_db):
-    """A library removed and added again has a new id; its generations,
-    keyed by the old one, must not stay waiting for a scan."""
+async def test_outputs_are_found_when_the_output_library_comes_back(client, tmp_path):
+    """A library removed and added again keeps its id (it comes from the
+    folder), so its generations, keyed by that id, find their images again
+    instead of waiting for a scan that never matches."""
     import sqlalchemy as sa
 
     from src.database import schema as t
-    from src.database.db import async_conn, async_tx
+    from src.database.db import async_tx
+    from src.services.generation_jobs import output_image_id
 
+    out = tmp_path / "out"
+    out.mkdir()
+    assert (
+        await client.put("/generate/comfyui", json={"output_path": str(out)})
+    ).status_code == 200
+    lib = (await comfy_settings.get_settings())["output_library_id"]
     async with async_tx() as conn:
-        await conn.execute(
-            sa.insert(t.libraries).values(
-                _id="new", path="/out", name="o", indexed_count=0
-            )
-        )
         await conn.execute(
             sa.insert(t.generation_batches).values(
                 _id=1,
@@ -580,20 +583,14 @@ async def test_outputs_follow_the_output_library_when_it_comes_back(temp_db):
                 request_id=1,
                 idx=0,
                 filename="a.png",
-                subfolder="s",
-                image_id="old:s/a.png",
+                subfolder="",
+                image_id=output_image_id(lib, "", "a.png"),
             )
         )
-    await comfy_settings.update_settings(
-        {"output_library_id": "old", "output_path": "/out"}
-    )
-    assert await comfy_settings.removed_output_library("/out") == "old"
-    assert await comfy_settings.removed_output_library("/elsewhere") is None
 
-    await comfy_settings.adopt_output_library("new", "/out")
-
-    async with async_conn() as conn:
-        got = (await conn.execute(sa.select(t.generation_outputs.c.image_id))).scalar()
-    assert got == "new:s/a.png"
-    assert (await comfy_settings.get_settings())["output_library_id"] == "new"
-    assert await comfy_settings.removed_output_library("/out") is None
+    await client.delete(f"/libraries/{lib}")
+    again = (await client.post("/libraries", json={"path": str(out)})).json()
+    assert again["_id"] == lib
+    # Re-pointing Generate at the folder lands on the same library too.
+    await client.put("/generate/comfyui", json={"output_path": str(out)})
+    assert (await comfy_settings.get_settings())["output_library_id"] == lib
