@@ -14,34 +14,39 @@ Effort: S (hours) · M (a day or so) · L (more)
 |----|------|---------|------|--------|--------|
 | G1 | Gallery | Next page fetched only when sentinel is on screen | Removes multi-second stalls on fast scroll | S | done (`426b0ae`) |
 | G2 | Gallery | BlurHash decoded at 64x64 on main thread, every mount | 4-20x less decode CPU | S | done (`426b0ae`, 32px) |
-| G3 | Gallery | Thumbnails ~700x1024 vs ~250px displayed | 2-4x smaller downloads + decode | M | open |
+| G3 | Gallery | Thumbnails ~700x1024 vs ~250px displayed | 2-4x smaller downloads + decode | M | done (`eb4e869`, 768px) |
 | G4 | Gallery | Grid setState every scroll frame | Small | S | open |
 | G5 | Gallery | `openTile` identity changes per page append | Small | S | open |
-| A1 | AI tagging | CPU-only ONNX; CUDA works on GTX 1650 | ~9x inference | M | open |
+| A1 | AI tagging | CPU-only ONNX; CUDA works on GTX 1650 | ~9x inference | M | done (`8e29af7`, `gpu` group; 134 ms/img on GTX 1650) |
 | A2 | AI tagging | Decode + inference run on the event loop | API p50 during job 1.2-1.5s -> 12ms | S-M | done (merged) |
 | A3 | AI tagging | Tag from local thumbnail instead of original on /mnt/g | ~45 ms/img, no 9P reads | S | open |
 | A4 | AI tagging | Pad-then-resize prep + Python `select_tags` loop | ~45 ms/img (matters only with A1) | S | open |
 | A5 | AI tagging | ORT `intra_op_num_threads` untuned | Unclear (contention artifact?) | S | open |
 | S1 | Scan | Rescan re-processes every unchanged file; 15-min reconcile triggers it per watched library, plus full reproject | Unchanged rescan 6.8s -> 0.16s / 297 imgs (~40x) | S | done (`2d5e32a`) |
-| S2 | Scan | Thumbs 1080px webp; 640px enough | Scan ~1.7-2x faster, thumbs ~45% smaller | S (+ regen) | open |
+| S2 | Scan | Thumbs 1080px webp; 640px enough | Scan ~1.7-2x faster, thumbs ~45% smaller | S (+ regen) | done (`eb4e869`, 768px after visual check; 512 too soft for avatars) |
 | S3 | Prompt extraction | Reproject reruns needlessly; `parse_prompt` ~22 calls/img uncached | Gate on change (S1); lru_cache 20.1 -> 14.5s real library (-28%) | S | done (a, b); c open |
 | S4 | Scan | Thread pool + GIL bound past ~4 workers; process pool | Maybe 1.3-2x, unproven | M | open |
 | S5 | Scan | Serial walk + stat over 9P (~7 ms/file) | Needed once S1 lands: 10k stats 70s -> ~10s | S | done (`2d5e32a`, stat on the pool) |
-| D1 | API / DB | Rare tag/term filter walks all images in sort order, probing EXISTS per row | Rare filter 128 -> 5 ms @30k; threshold 3000 regresses mid filters 3-7x | S-M | measured: keep, `_RARE` ~300 |
-| D2 | API / DB | Cursor row-value compare can't seek the sort index; deep pages O(depth) | deep140 49 -> 3 ms @30k; sort=top not covered | S | measured: keep |
-| D3 | API / DB | `image_tags` indexes not covering `(tag, image_id)` / `(base, image_id)` | Cold tag list 1.8s -> 0.24s @30k; +11-22% DB size | S | measured: keep, drop `ix_images_cover` |
-| D4 | API / DB | Tags `browse` covers via window fn sorting every image_tags row | ~10% alone; browse cold 9.8 -> 4.7s with D3 | S | measured: keep |
-| D5 | API / DB | Characters listing uncached; `jsonable_encoder` on big lists; gzip on media | JSONResponse 3-5x on big lists; characters cache buggy | S | measured: keep, fix cache |
+| D1 | API / DB | Rare tag/term filter walks all images in sort order, probing EXISTS per row | Rare filter 128 -> 5 ms @30k; threshold 3000 regresses mid filters 3-7x | S-M | done (`aa9a4e6`, `_RARE`=300) |
+| D2 | API / DB | Cursor row-value compare can't seek the sort index; deep pages O(depth) | deep140 49 -> 3 ms @30k; sort=top not covered | S | done (`aa9a4e6`, all sorts incl. top) |
+| D3 | API / DB | `image_tags` indexes not covering `(tag, image_id)` / `(base, image_id)` | Cold tag list 1.8s -> 0.24s @30k; +11-22% DB size | S | done (`aa9a4e6`, no `ix_images_cover`) |
+| D4 | API / DB | Tags `browse` covers via window fn sorting every image_tags row | ~10% alone; browse cold 9.8 -> 4.7s with D3 | S | done (`aa9a4e6`) |
+| D5 | API / DB | Characters listing uncached; `jsonable_encoder` on big lists; gzip on media | JSONResponse 3-5x on big lists; characters cache buggy | S | done (`aa9a4e6`; avatars live, gzip level 6) |
 
 ## Next steps (agreed order)
 
-1. Merge A2 (`perf/a2-ai-offload`, `109314c`; tests green, 416 passed).
-2. S1 + S5 (skip unchanged on rescan, stat in a pool), with a thumb-settings version stamp.
-3. G1 (sentinel prefetch margin) and G2 (`BLUR_PX` 16/32). One-liners, high visibility.
-4. S2 + G3 together (640px thumbs + `method` setting), regenerated via S1's version stamp. Check visual quality.
-5. S3b (`lru_cache` on `parse_prompt`).
-6. A1 (GPU) as an optional `gpu` extra, then A3/A4 on top of it.
-7. ~~Re-measure D1-D5~~ done 2026-10-20 (see API / DB). Next: port D1-D5 onto main with the fixes listed there.
+Done 2026-10-20: A2, S1 + S5, G1, G2, S2 + G3 (768px), S3b, A1, D1-D5, plus the medium code review of the cache and skip work (`dd642d0`).
+
+Still open, roughly by value:
+1. A3/A4 on top of A1: tag from the 768px thumbnail instead of the original on /mnt/g; faster preprocessing and `select_tags`.
+2. S3c: batch the reproject flush (executemany).
+3. G4/G5: grid re-renders per scroll frame; `openTile` identity churn. Small.
+4. S4 process pool, A5 ORT threads: unproven, low priority.
+5. Tags browse is still 5-9 s cold at 30k (per-row work); profile if the Tags page feels slow.
+
+Review findings left as is (`dd642d0` review):
+- Stamp saved when some files failed in a rebuild scan. Decode and thumbnail-write failures already store `thumb_key = NULL`, so they are retried. Only a transient `stat` failure during the one rebuild scan keeps an old-size thumbnail: cosmetic.
+- The rare-filter id list and the page query run as separate statements (separate snapshots). An image tagged in the milliseconds between them can miss one page; plain EXISTS paging has the same exposure across pages.
 
 ## Working notes (how this was run, for re-running)
 
