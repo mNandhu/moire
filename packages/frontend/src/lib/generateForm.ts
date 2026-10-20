@@ -2,7 +2,7 @@
  * The Generate composer's state, its request body, and the per-viewer draft
  * kept in localStorage so a half-written prompt survives navigation.
  */
-import type { LoraPick, NodeError, QueueBody } from "./generate";
+import type { BatchInputs, LoraPick, NodeError, QueueBody } from "./generate";
 
 export type GenerateForm = {
   base: string;
@@ -47,6 +47,24 @@ export function toQueueBody(f: GenerateForm, generatorId: string): QueueBody {
     seed: f.seed.mode === "fixed" && f.seed.value != null ? f.seed : { mode: "random", value: null },
     count: f.count,
     name: f.name,
+  };
+}
+
+/** A batch's inputs back in the composer ("Edit and queue"). A typed name
+ * stays; an auto name is picked again. */
+export function formFromBatch(i: BatchInputs, name: string | null): GenerateForm {
+  return {
+    base: i.base,
+    extra: [...i.extra],
+    negativeBase: i.negative_base,
+    negativeExtra: [...i.negative_extra],
+    checkpoint: i.checkpoint,
+    loras: i.loras.map((l) => ({ ...l })),
+    width: i.width ?? DEFAULT_FORM.width,
+    height: i.height ?? DEFAULT_FORM.height,
+    seed: i.seed.mode === "fixed" ? { ...i.seed } : { mode: "random", value: null },
+    count: i.count,
+    name,
   };
 }
 

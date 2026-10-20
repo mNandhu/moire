@@ -20,6 +20,7 @@ import {
   type Output,
 } from "../lib/generate";
 import { setQuarantine, setScore } from "../lib/imageMutations";
+import { formFromBatch, saveDraft } from "../lib/generateForm";
 import { withBackgroundLocation } from "../lib/backgroundLocation";
 import { cn } from "../lib/cn";
 import { stemOf } from "../components/generate/RunControls";
@@ -356,6 +357,15 @@ export default function BatchPage() {
                 Retry failed ({failed.length})
               </Button>
             )}
+            <Button
+              size="sm"
+              onClick={() => {
+                saveDraft(formFromBatch(b.inputs, b.auto_name ? null : b.name));
+                navigate("/generate");
+              }}
+            >
+              Edit and queue
+            </Button>
             <Button size="sm" variant="primary" onClick={() => requeue.mutate()} disabled={requeue.isPending}>
               Queue again
             </Button>

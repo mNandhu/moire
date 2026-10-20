@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_FORM, loadDraft, rejectedFields, toQueueBody } from "./generateForm";
-import type { NodeError } from "./generate";
+import { DEFAULT_FORM, formFromBatch, loadDraft, rejectedFields, toQueueBody } from "./generateForm";
+import type { BatchInputs, NodeError } from "./generate";
 
 describe("toQueueBody", () => {
   it("sends a fixed seed only when it has a value", () => {
@@ -37,4 +37,24 @@ it("rejectedFields picks the checkpoint and LoRA names", () => {
   const r = rejectedFields(errs);
   expect(r.checkpoint).toBe(true);
   expect([...r.loras]).toEqual(["x.safetensors"]);
+});
+
+it("formFromBatch round-trips a batch into the composer", () => {
+  const inputs = {
+    base: "b",
+    extra: ["x"],
+    negative_base: "n",
+    negative_extra: [],
+    checkpoint: "c.safetensors",
+    loras: [{ name: "l", strength: 0.5 }],
+    width: 1024,
+    height: 1024,
+    seed: { mode: "fixed", value: 5 },
+    count: 8,
+    per_request: 2,
+    positive_text: "b, x",
+    negative_text: "n",
+  } as BatchInputs;
+  const f = formFromBatch(inputs, null);
+  expect(toQueueBody(f, "builtin")).toMatchObject({ base: "b", extra: ["x"], count: 8, seed: { mode: "fixed", value: 5 }, name: null });
 });

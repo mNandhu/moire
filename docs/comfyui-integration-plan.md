@@ -576,8 +576,14 @@ copies can be wiped.
 - Design is settled enough to build. Remaining undrawn: character picker
   (phase 2), Remix entry in the viewer (phase 3), phone width. Block layout
   / Character block size was never revisited; check it when building.
-- Phase 1 in progress on `feat/comfyui-phase1`. Phase 0 runs in parallel in
-  a separate session (worktree `../Tagify-attire`, branch `feat/attire-list`).
+- Phase 1 built on `feat/comfyui-phase1` (2026-10-20), not merged: backend
+  (tables, graph writer + LoRA splice, client, jobs, API) and frontend
+  (Generate, Generations, batch page, ComfyUI settings). Tested against the
+  fake ComfyUI only; the UI has not been clicked through in a browser yet.
+  Left out of phase 1: "Open these in Gallery" from a batch (needs an
+  image-id filter), the queue card outside /generate, phone width.
+- Phase 0 runs in parallel in a separate session (worktree
+  `../Tagify-attire`, branch `feat/attire-list`).
 - No ComfyUI reachable from the dev box yet: phase 1 is tested against the
   fake ComfyUI only; the real end-to-end check is the user's.
 - Canvas comments: replies from the auto-reply bot are sometimes wrong
