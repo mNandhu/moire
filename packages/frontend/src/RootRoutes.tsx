@@ -14,6 +14,7 @@ import { useRefreshOnFinish } from "./hooks/useBackgroundTasks";
 import { useTrackHistory } from "./hooks/useHistoryNav";
 import GeneratePage from "./pages/GeneratePage";
 import GenerationsPage from "./pages/GenerationsPage";
+import WorkflowSetupPage from "./pages/WorkflowSetupPage";
 import BatchPage from "./pages/BatchPage";
 
 // ImageView opens over the gallery rather than replacing it: opening a thumbnail
@@ -46,6 +47,8 @@ export default function RootRoutes() {
           <Route path="rules" element={<RulesPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="generate" element={<GeneratePage />} />
+          <Route path="generate/workflows/new" element={<WorkflowSetupPage />} />
+          <Route path="generate/workflows/:id" element={<WorkflowSetupPage />} />
           <Route path="generations" element={<GenerationsPage />} />
           <Route path="generations/:id" element={<BatchPage />} />
         </Route>

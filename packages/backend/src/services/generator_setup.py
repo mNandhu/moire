@@ -102,6 +102,27 @@ async def image_source(image_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
                     )
                 )
             ).scalar()
+        file_name = None
+        if family and not name:
+            # An unnamed family: the imported workflow file it matches.
+            files = [
+                (r.filename, list(r.node_types or []))
+                for r in (
+                    await conn.execute(
+                        sa.select(
+                            t.workflow_files.c.filename, t.workflow_files.c.node_types
+                        ).where(t.workflow_files.c.workflow_id == family)
+                    )
+                ).fetchall()
+            ]
+            nodes = workflow.get("nodes")
+            match = gen_metadata.match_workflow_file(
+                gen_metadata.editor_node_types(
+                    {"nodes": nodes} if isinstance(nodes, list) else None
+                ),
+                files,
+            )
+            file_name = match[0] if match else None
         pins = (
             await conn.execute(
                 sa.select(t.gen_rulesets.c.doc).where(
@@ -114,6 +135,7 @@ async def image_source(image_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
         "image_id": image_id,
         "family": family,
         "family_name": name,
+        "file_name": file_name,
         "workflow_sig": row.workflow_sig,
         "pins": (pins or {}).get("fields") if isinstance(pins, dict) else None,
     }

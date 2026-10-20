@@ -71,6 +71,7 @@ async def test_discover_from_a_library_image(client, seed):
         "image_id": "L1:a.png",
         "family": "fam-1",
         "family_name": "Portrait",
+        "file_name": None,
         "workflow_sig": "sig-1",
     }
     assert d["slots"]["positive"] == ["14", "text"]

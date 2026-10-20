@@ -93,11 +93,14 @@ export function checklist(setup: GeneratorSetup, slots: GeneratorSlots): CheckIt
 /** Whether the checklist lets the Generator be saved. */
 export const canSave = (items: readonly CheckItem[]) => items.every((i) => i.ok);
 
-/** The setup page's name for a new Generator: the family's, the file's, or
- * a plain fallback. */
+/** The setup page's name for a new workflow: the family's, the imported
+ * file it matches, the uploaded file's, its Save Image prefix, or a plain
+ * fallback. */
 export function defaultName(setup: GeneratorSetup): string {
   const s = setup.source;
-  if (s.kind === "image" && s.family_name) return s.family_name;
-  if (s.kind === "upload" && s.filename) return s.filename.replace(/\.json$/i, "");
+  const file = s.kind === "image" ? (s.family_name ?? s.file_name) : s.filename;
+  if (file) return file.replace(/\.json$/i, "");
+  const prefix = setup.outputs.find((o) => o.saves && o.prefix)?.prefix;
+  if (prefix) return prefix.split("/").filter(Boolean).pop() ?? prefix;
   return "Workflow";
 }

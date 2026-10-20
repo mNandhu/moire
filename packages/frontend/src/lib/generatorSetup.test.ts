@@ -110,5 +110,11 @@ describe("checklist", () => {
 it("defaultName prefers the family, then the file", () => {
   expect(defaultName(setup())).toBe("Portrait");
   expect(defaultName(setup({ source: { kind: "upload", filename: "flow.json" } }))).toBe("flow");
-  expect(defaultName(setup({ source: { kind: "upload", filename: null } }))).toBe("Workflow");
+  expect(defaultName(setup({ source: { kind: "upload", filename: null }, outputs: [] }))).toBe("Workflow");
+});
+
+it("defaultName falls back to the matched file, then the save prefix", () => {
+  const img = { kind: "image" as const, image_id: "a", family: "f", family_name: null, workflow_sig: "s" };
+  expect(defaultName(setup({ source: { ...img, file_name: "Portrait v3.json" } }))).toBe("Portrait v3");
+  expect(defaultName(setup({ source: img, outputs: [{ node: "9", title: "Save", saves: true, prefix: "VPS/hires" }] }))).toBe("hires");
 });

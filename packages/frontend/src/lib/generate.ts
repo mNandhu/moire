@@ -112,7 +112,15 @@ export type GeneratorSlots = Partial<{
 }>;
 
 export type GeneratorOrigin =
-  | { kind: "image"; image_id: string; family: string | null; family_name: string | null; workflow_sig: string | null }
+  | {
+      kind: "image";
+      image_id: string;
+      family: string | null;
+      family_name: string | null;
+      /** The imported workflow file an unnamed family matches. */
+      file_name?: string | null;
+      workflow_sig: string | null;
+    }
   | { kind: "upload"; filename: string | null };
 
 /** What setup is given: a library image, or an uploaded Export (API) file. */
@@ -146,6 +154,8 @@ export type GeneratorSetup = {
     sampler: NodeRef | null;
     positive?: FoundPrompt | null;
     negative?: FoundPrompt | null;
+    /** The model loader's checkpoint input, offered as a slot (never chosen for the user). */
+    checkpoint?: { path: SlotPath; value: string };
     lora?: {
       loader: NodeRef;
       model: { ref: OutputRef; title: string };
