@@ -17,7 +17,7 @@ export function PromptTagsSection() {
             setSettings({ ...settings, prompt_positive_only: v })
           }
           label="Positive prompt only"
-          hint="Derive prompt: tags from the positive prompt only, so negative-prompt words don't pollute search. Applies on next reprojection."
+          hint="Derive prompt: tags from the positive prompt only, so negative-prompt words don't pollute search. Changing it re-derives prompt tags in the background."
         />
       ) : (
         <div className="text-sm text-faint">Loading settings…</div>

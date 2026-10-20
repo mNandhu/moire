@@ -180,6 +180,13 @@ def gen_raw_from_embedded(info: Any, user_comment: Any = None) -> dict | None:
     return None
 
 
+# Bump when what the scanner captures changes (a new embedded format, a parser
+# fix, the `workflow_sig` algorithm): a rescan skips unchanged files without
+# opening them, and this version is part of its skip stamp, so a bump makes
+# the next scan of each library recapture everything.
+CAPTURE_VERSION = 1
+
+
 def read_gen_raw(img: Any) -> dict | None:
     """Capture the ``image_gen_raw`` doc from an open PIL image.
 

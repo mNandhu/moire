@@ -318,3 +318,33 @@ async def test_thumbnails_are_served_without_gzip(client, tmp_path):
     assert len(resp.content) > 1000  # above the middleware's minimum size
     assert "content-encoding" not in resp.headers
     assert int(resp.headers["content-length"]) == len(resp.content)
+
+
+async def test_moved_library_rescan_updates_paths(client, tmp_path):
+    """Ids are relative to the root, so after a move every unchanged file
+    still matches its row; the rescan must still point rows at the new path."""
+    old_dir, new_dir = tmp_path / "old", tmp_path / "new"
+    old_dir.mkdir()
+    _write_png(old_dir / "a.png")
+    resp = await client.post("/libraries", json={"path": str(old_dir)})
+    lib_id = resp.json()["_id"]
+    _wait_scan(lib_id)
+
+    old_dir.rename(new_dir)  # keeps size and mtime
+    resp = await client.patch(f"/libraries/{lib_id}", json={"path": str(new_dir)})
+    assert resp.status_code == 200, resp.text
+    _wait_scan(lib_id)
+
+    assert (await _img(f"{lib_id}:a.png")).path == str(new_dir / "a.png")
+
+
+async def test_toggling_positive_only_reprojects(client, monkeypatch):
+    """Rescans only re-derive changed files, so the switch must reproject."""
+    calls: list[str] = []
+    monkeypatch.setattr(reproject, "reproject_all_async", lambda: calls.append("all"))
+    current = (await client.get("/ai/settings")).json()["prompt_positive_only"]
+
+    await client.post("/ai/settings", json={"prompt_positive_only": current})
+    assert calls == []
+    await client.post("/ai/settings", json={"prompt_positive_only": not current})
+    assert calls == ["all"]

@@ -38,11 +38,16 @@ _THUMB_RECIPE = 1
 
 
 def thumb_stamp() -> str:
-    """Everything that shapes a thumbnail. A rescan skips unchanged files only
-    while the library's last full scan ran with this same stamp, so changing
-    the size/format settings (or `_THUMB_RECIPE`) rebuilds every thumbnail."""
+    """Everything a scan derives from a file: the thumbnail recipe and the
+    generation-metadata capture. A rescan skips unchanged files only while
+    the library's last full scan ran with this same stamp, so changing the
+    size/format settings, `_THUMB_RECIPE` or `gen_metadata.CAPTURE_VERSION`
+    re-reads every file."""
     size = max(16, settings.thumb_max_size)
-    return f"{size}/{settings.thumb_format.lower()}/q{_THUMB_QUALITY}/r{_THUMB_RECIPE}"
+    return (
+        f"{size}/{settings.thumb_format.lower()}/q{_THUMB_QUALITY}/r{_THUMB_RECIPE}"
+        f"/c{gen_metadata.CAPTURE_VERSION}"
+    )
 
 
 def _stamp_row(library_id: str) -> str:
@@ -372,17 +377,22 @@ class _ScanResult:
     skipped: bool = False
 
 
-# image id -> (size, mtime, thumb_key) of the row a previous scan wrote.
-Known = dict[str, tuple[int | None, float | None, str | None]]
+# image id -> (path, size, mtime, thumb_key) of the row a previous scan wrote.
+Known = dict[str, tuple[str | None, int | None, float | None, str | None]]
 
 
-def _unchanged(known: Known | None, image_id: str, stat: os.stat_result) -> bool:
+def _unchanged(
+    known: Known | None, image_id: str, p: Path, stat: os.stat_result
+) -> bool:
     prev = known.get(image_id) if known else None
     if prev is None:
         return False
-    size, mtime, thumb_key = prev
+    path, size, mtime, thumb_key = prev
+    # Ids are relative to the library root, so a moved library matches every
+    # id; its rows still need the new absolute path.
     return (
-        size == stat.st_size
+        path == str(p)
+        and size == stat.st_size
         and mtime == stat.st_mtime
         and thumb_key is not None
         and thumb_path(thumb_key) is not None
@@ -404,7 +414,7 @@ def _process_image(
     try:
         stat = p.stat()
         image_id = image_id_for(library_id, root_path, p)
-        if _unchanged(known, image_id, stat):
+        if _unchanged(known, image_id, p, stat):
             return _ScanResult(image_id=image_id, ok=True, skipped=True)
         # Single decode yields the thumbnail, BlurHash placeholder, the original
         # dimensions (read from the header before downscaling), and any embedded
@@ -549,10 +559,11 @@ def scan_library_async(library_id: str, root: str) -> dict:
             if _load_stamp(library_id) == stamp:
                 with sync_conn() as conn:
                     known = {
-                        r._id: (r.size, r.mtime, r.thumb_key)
+                        r._id: (r.path, r.size, r.mtime, r.thumb_key)
                         for r in conn.execute(
                             sa.select(
                                 t.images.c._id,
+                                t.images.c.path,
                                 t.images.c.size,
                                 t.images.c.mtime,
                                 t.images.c.thumb_key,

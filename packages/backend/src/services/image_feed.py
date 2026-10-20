@@ -311,29 +311,25 @@ async def _drive_by_rarest(conn, f: FeedFilter) -> FeedFilter:
     if f.pterms and f.plogic == "and":
         for term in [canonical_name(p.lower()) for p in f.pterms if p and p.strip()]:
             groups.append((t.image_gen_terms, t.image_gen_terms.c.term, [term]))
-    best = None
+    best: list[str] | None = None
     for tbl, col, vals in groups:
-        n = (
-            await conn.execute(
-                sa.select(sa.func.count()).select_from(
+        # Distinct ids, capped: one query both sizes the group and, when it
+        # is rare, is the id list itself.
+        ids = list(
+            (
+                await conn.execute(
                     sa.select(tbl.c.image_id)
                     .where(col.in_(vals))
+                    .distinct()
                     .limit(_RARE + 1)
-                    .subquery()
                 )
-            )
-        ).scalar_one()
-        if n <= _RARE and (best is None or n < best[0]):
-            best = (n, tbl, col, vals)
+            ).scalars()
+        )
+        if len(ids) <= _RARE and (best is None or len(ids) < len(best)):
+            best = ids
     if best is None:
         return f
-    _, tbl, col, vals = best
-    ids = (
-        (await conn.execute(sa.select(tbl.c.image_id).where(col.in_(vals)).distinct()))
-        .scalars()
-        .all()
-    )
-    return replace(f, driver_ids=tuple(ids))
+    return replace(f, driver_ids=tuple(best))
 
 
 async def list_ids(f: FeedFilter, *, limit: int) -> list[str]:

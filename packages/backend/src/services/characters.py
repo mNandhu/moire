@@ -189,7 +189,16 @@ async def listing() -> list[dict]:
         rows = await _listing()
         tag_index.store_view("characters", gen, rows)
     avatars = await _avatars([r["thumb_image_id"] for r in rows])
-    return [{**r, **avatars.get(r["thumb_image_id"] or "", _NO_AVATAR)} for r in rows]
+    # Fresh dicts and lists per call: the cached rows are shared.
+    return [
+        {
+            **r,
+            "aliases": list(r["aliases"]),
+            "focus": list(r["focus"]) if r["focus"] else r["focus"],
+            **avatars.get(r["thumb_image_id"] or "", _NO_AVATAR),
+        }
+        for r in rows
+    ]
 
 
 async def _listing() -> list[dict]:

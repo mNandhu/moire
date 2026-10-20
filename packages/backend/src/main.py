@@ -77,10 +77,10 @@ app = FastAPI(title="Moiré API", version="0.1.0", lifespan=lifespan)
 # ~30 ms of CPU, and both lost Content-Length. Starlette reads this module
 # tuple per response, so extending it excludes them. Level 6 (zlib's default)
 # costs less CPU than 9 for nearly the same size.
-_gzip.DEFAULT_EXCLUDED_CONTENT_TYPES = (
-    *_gzip.DEFAULT_EXCLUDED_CONTENT_TYPES,
-    "image/",
-    "video/",
+# Fails loudly (AttributeError) if a Starlette upgrade renames the tuple;
+# test_thumbnails_are_served_without_gzip guards the behavior.
+_gzip.DEFAULT_EXCLUDED_CONTENT_TYPES = tuple(
+    dict.fromkeys((*_gzip.DEFAULT_EXCLUDED_CONTENT_TYPES, "image/", "video/"))
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=6)
 

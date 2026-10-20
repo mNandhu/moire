@@ -288,3 +288,53 @@ async def test_sorts_page_without_gaps(client, seed, sort, expected):
 
 async def test_unknown_sort_is_rejected(client):
     assert (await client.get("/images", params={"sort": "random"})).status_code == 422
+
+
+async def test_rare_filter_by_ids_matches_the_full_walk(client, seed, monkeypatch):
+    """A rare tag group or prompt term drives the query by id
+    (`_drive_by_rarest`); it must return exactly what the plain walk does,
+    page by page, whatever else the filter holds."""
+    from src.services import image_feed
+
+    for i in range(12):
+        tags = (
+            ["common"] + (["rare"] if i % 4 == 0 else []) + (["mid"] if i % 2 else [])
+        )
+        seed(
+            f"L1:{i:02d}",
+            tags=tuple(tags),
+            mtime=1000 + (i % 5),
+            score=i % 3,
+            gen={"prompt_terms": ["sky"] + (["rareterm"] if i % 3 == 0 else [])},
+        )
+    seed("L1:q", tags=("rare",), quarantined=True)
+
+    async def walk(**params):
+        out, cursor = [], None
+        while True:
+            q = {**params, "limit": 2, **({"cursor": cursor} if cursor else {})}
+            resp = await client.get("/images", params=q)
+            assert resp.status_code == 200, resp.text
+            page = [it["_id"] for it in resp.json()]
+            if not page:
+                return out
+            out += page
+            cursor = resp.headers.get("X-Next-Cursor")
+            if not cursor:
+                return out
+
+    filters = [
+        {"tags": ["rare"]},
+        {"tags": ["rare", "common"]},
+        {"tags": ["rare", "mid"], "logic": "or"},
+        {"tags": ["any:rare"]},
+        {"pterms": ["rareterm"]},
+        {"pterms": ["rareterm", "sky"], "tags": ["mid"]},
+        {"tags": ["rare"], "sort": "top"},
+        {"tags": ["rare"], "sort": "oldest"},
+    ]
+    driven = [await walk(**f) for f in filters]
+    monkeypatch.setattr(image_feed, "_RARE", -1)  # never drive by id
+    walked = [await walk(**f) for f in filters]
+    assert driven == walked
+    assert all(driven[:6])  # every filter matched something
