@@ -1,7 +1,7 @@
 # Moiré: ComfyUI Integration Plan
 
 Date started: 2026-10-19
-Status: design (grilling in progress; open questions at the end)
+Status: design done (mock revision 2.1), implementation planned; no code yet
 Glossary: the terms below (Generator, Character recipe, Prompt blocks, Outfit,
 Attire tag, Generation batch, ComfyUI connection) are defined in `CONTEXT.md`.
 
@@ -196,8 +196,8 @@ Job states: pending → queued → running → done / failed / cancelled / lost.
 
 | Failure | Detected by | Result |
 |---|---|---|
-| ComfyUI down | connect error | Queue disabled, badge red; nothing persisted |
-| Rejected on submit | `/prompt` `node_errors` | Job failed, errors mapped to slot cards |
+| ComfyUI down | connect error | Status red with Retry and a link to settings; Queue disabled; running batches show Paused and resume tracking on reconnect; model pickers keep the last known list |
+| Rejected on submit | `/prompt` `node_errors` | First request rejected: nothing is queued and no batch is kept; the composer stays as it was, the errors list node + message, and fields they map to (checkpoint, a LoRA) turn red. A later request rejected: that request fails on the batch page |
 | Error mid-run (OOM, node) | ws `execution_error` / `/history` | Job failed with node + message; "Retry failed" |
 | Cancelled | ws `execution_interrupted` | cancelled |
 | Moiré restarts | startup reconcile via `/queue` + `/history` | resumes tracking |
@@ -225,19 +225,215 @@ Moiré never cancels or reorders a job it didn't send.
 
 Each phase is usable end to end.
 
-0. **Attire list**: dev script, committed JSON, loader. Independent.
-1. **Tracer**: ComfyUI page (URL, output folder as library, checkpoint and
-   LoRA index from `/object_info`), built-in Generator, composer (Base +
-   Extra, autocomplete), Queue, job tracking and failures, batch review,
-   Generations history.
-2. **Character recipe**: Character block, identity tags, LoRA splice
-   (character + style LoRAs), recipe edits. (Weak-recipe warning deferred.)
-3. **Custom Generators**: setup flow (slot discovery, seed grouping,
-   SaveImage check, test-run gate), update from latest, Remix.
-4. **Outfits**: save from image, Outfit block, default outfit from recipe.
+0. **Attire list**: dev script, committed JSON, loader. Independent. Needs a
+   Danbooru session that passes Cloudflare, so it can run after phase 1.
+1. **Tracer**: ComfyUI settings page (address, headers, output folder as
+   library, checkpoint / LoRA / embedding index, LoRA matching table, built-in
+   images per request), built-in Generator with its test run, composer (Base
+   + Extra with tag and embedding autocomplete, negative), run panel
+   (checkpoint, Style LoRAs list, size dropdown, seed random / fixed, count
+   with requests split, batch name), Queue, request tracking and failures
+   (connection down, rejected, OOM, lost), queue card + global busy, batch
+   review (requests, keep / reject / score, retry, cancel), Generations
+   list, sidebar "Create" group, LoRA splice at the built-in's model / CLIP
+   (needed by Style LoRAs; decided 2026-10-20).
+2. **Character recipe**: character picker, Character block, identity tags,
+   character LoRA (through phase 1's splice), recipe edits. (Weak-recipe warning deferred.)
+3. **Custom Generators**: setup flow (slot discovery, Base from the image
+   minus character / outfit tags, node picker, seed grouping, images per
+   request, LoRA insertion point model / CLIP picks, SaveImage check,
+   test-run gate), update from latest on the Generator page, Remix from the
+   viewer.
+4. **Outfits**: default outfit from the recipe, Outfit block + picker with
+   thumbnails, save-outfit dialog in the viewer, sharing / hide per
+   character, Outfits page, character page strip, Open in gallery.
 
 Later: adherence stats, settings recall, learned negatives, X/Y batches,
 coverage gaps. Deferred: reference images.
+
+## Implementation
+
+Planned 2026-10-20 against the code as of `9879823`. Phase 1 is detailed to
+the file; later phases list what they add.
+
+### Dependencies
+
+- **Backend**: `httpx` (already a dependency) for ComfyUI's REST API.
+  `websockets` (v15, today only a transitive dependency of uvicorn[standard])
+  becomes a declared dependency for the ComfyUI websocket client
+  (`websockets.asyncio.client.connect`, used as an async iterator for
+  automatic reconnect, `additional_headers` for the optional headers).
+  Nothing else.
+- **Frontend**: none. Existing pieces cover it: `Picker` (single select when
+  `value` is a string; `icon` takes any node, so it can hold a thumbnail),
+  `TagSuggestList`, `SizeFilter`'s presets endpoint and `ShapeIcon`,
+  `Dialog`, TanStack Query polling as in `useAiStatus`.
+- **Data**: the attire list JSON (phase 0) under `packages/backend/data/` or
+  next to the tagger vocab, loaded once.
+
+### Backend
+
+**Schema.** `ensure_schema` only runs `create_all`: new tables appear on
+existing databases, new columns on old tables don't. So everything new is a
+new table in `database/schema.py`; nothing is added to `images` or
+`characters`.
+
+| Table | Holds | Phase |
+|---|---|---|
+| `app_settings` row `"comfyui"` | address, headers (server-side only), output library id, built-in images per request | 1 |
+| `comfy_models` | installed checkpoints, LoRAs, embeddings from ComfyUI (kind, name, folder path, stem), refreshed on connect / Refresh | 1 |
+| `lora_choices` | stem → chosen file when two files share a name | 1 |
+| `generators` | id, name, kind (builtin / custom), source (family id + image id, or upload), API graph JSON, slots JSON, ready flag, created / updated | 1 (builtin), 3 |
+| `generation_batches` | id, number, name, auto-name flag, generator id, inputs doc (blocks, character, outfit, LoRAs, size, seed mode, count, per request), state, created | 1 |
+| `generation_requests` | id, batch id, index, ComfyUI prompt_id, seed, image count, state (pending / queued / running / done / failed / cancelled / lost), error doc (node, type, message), progress, timestamps | 1 |
+| `generation_outputs` | request id, index in request, filename, subfolder, expected image `_id` | 1 |
+| `recipe_edits` | character tag → dropped tags, forced LoRA / strength | 2 |
+| `outfits` | id, name, owner character tag (NULL = shared), tags JSON, thumbnail image id, created | 4 |
+| `outfit_hidden` | (character tag, outfit id) for shared outfits hidden per character | 4 |
+
+**Output matching.** A request's outputs come from `/history/<prompt_id>`
+(`type: output` only). The expected image id is
+`{output_library_id}:{subfolder/filename}`; the batch page joins it to
+`images` when it reads, so "waiting for scan" is just "no row yet". No hook
+in the scanner. Reject / score go through `image_tags.set_quarantine` /
+`set_score`, the single mutator.
+
+**Services** (`src/services/`):
+
+- `comfy_client.py`: thin async client. REST via `httpx.AsyncClient`
+  (`/system_stats` for Test, `/object_info/{class}`, `/embeddings`,
+  `POST /prompt` with a fixed `client_id`, `/history/{id}`, `/queue`,
+  `POST /interrupt`, `POST /queue` delete). One websocket task
+  (`/ws?clientId=…`): `status` (queue_remaining, global busy), `executing`,
+  `progress` (value / max per node), `execution_error`,
+  `execution_interrupted`, `execution_success`. Binary preview frames
+  ignored.
+- `comfy_settings.py`: the `"comfyui"` row, like `ai_settings.py`. Setting
+  the output folder registers a library (or reuses one at that path) via the
+  existing libraries code.
+- `comfy_models.py`: refresh the index from `object_info`
+  (`CheckpointLoaderSimple.ckpt_name`, `LoraLoader.lora_name`) and
+  `/embeddings`; stem matching against `image_loras` / `gen.loras` names;
+  the LoRA matching table for Settings.
+- `generator_graph.py`: **pure functions, no I/O, the most tests.**
+  - slot discovery (reuse `gen_metadata._find_sampler`, `_resolve_text`,
+    `text_candidates`, ruleset pins), seed grouping, latent node
+    (size, `batch_size`), SaveImage check, model / CLIP pick candidates
+  - `build_prompt(graph, slots, values)`: write text, seeds, size,
+    batch_size; splice the LoRA chain at the model / CLIP picks and rewire
+    every consumer; `LoraLoaderModelOnly` when there's no CLIP; override the
+    strength of a LoRA the graph already loads through a stock loader
+  - `split_requests(count, per_request)` and the seed sequence
+- `builtin_generator.py`: the shipped txt2img graph + its slots.
+- `generation_jobs.py`: modelled on `ai_jobs.py`, started in lifespan.
+  Turns a batch into requests, submits them (one in flight per batch is
+  enough; ComfyUI queues the rest), maps ws events to request state, reads
+  `/history` as the final word, records outputs. On startup it reconciles
+  unfinished requests against `/queue` + `/history` (missing from both =
+  lost). Connection down: Queue refused, nothing persisted.
+- `generation_compose.py`: blocks → positive / negative text (reuse the
+  `toPromptText` escaping rules, ported or shared), embeddings as
+  `embedding:name`, batch auto-name.
+- Phase 2 `recipes.py` (on `characters.signature` minus attire tags, LoRA
+  pick from `image_loras` + confirmed character tags, score weighted, edits
+  on top). Phase 4 `outfits.py`, `attire.py` (phase 0 loader).
+
+**API** (`src/api/generate.py`, mounted at `/api/v1/generate`):
+
+- `GET/PUT /comfyui`, `POST /comfyui/test`, `POST /comfyui/refresh`,
+  `GET /comfyui/models`, `PUT /comfyui/lora-choices`
+- `GET /status`: connection, busy, queue card data (polled)
+- `GET /generators`, `GET /generators/{id}`; phase 3: `POST /generators`
+  (from family image or upload), `POST /generators/{id}/discover`,
+  `PUT /generators/{id}`, `POST /generators/{id}/test`
+- `POST /batches` (queue), `GET /batches` (Generations list, filters),
+  `GET /batches/{id}` (requests, outputs joined to images, progress),
+  `PATCH /batches/{id}` (rename), `POST /batches/{id}/requeue`,
+  `POST /batches/{id}/requests/{rid}/retry` (`single: true` = one at a
+  time), `POST /batches/{id}/cancel`
+- `GET /autocomplete?q=` tags (tagger vocab + library counts) + embeddings
+- Phase 2 `GET/PUT /recipes/{tag}`; phase 4 `/outfits` CRUD,
+  `PUT /outfits/{id}/hidden`
+
+Progress reaches the browser by polling `GET /status` and
+`GET /batches/{id}` (1s while running, off when idle), like the AI job
+status. The browser never talks to ComfyUI.
+
+### Frontend
+
+**Routes** (`RootRoutes.tsx`): `/generate`, `/generations`,
+`/generations/:id`, `/outfits` (phase 4), `/generate/generators/new`
+(phase 3). Settings registry gains a "Generation" group with a `comfyui`
+section. Sidebar gains the "Create" group (Generate, Generations, Outfits).
+
+**Pure `lib/` with tests:** `compose.ts` (blocks to text, join order,
+escaping via `toPromptText`), `batchName.ts`, `requests.ts` (split,
+`4 × 2` label, count mode: images / requests / unknown), `seed.ts`
+(fixed sequence per request).
+
+**Hooks:** `useComfyStatus` (polled), `useBatch(id)` (polled while
+running), `useGenerators`, later `useRecipe`, `useOutfits`.
+
+**Components** (`components/generate/`):
+
+- `PromptBlock` (Base textarea, chip blocks with `TagSuggestList`; embedding
+  chips styled apart), `CharacterBlock` (phase 2), `OutfitBlock` +
+  `OutfitPicker` (phase 4)
+- `RunPanel`: checkpoint `Picker`, `StyleLoras`, `SizePicker` (single-select
+  version of `SizeFilter`, same presets and `ShapeIcon`), `SeedControl`,
+  `CountStepper` (`4 × 2` / `8 × 4` / `8 × ?`), `BatchName` (text + pencil),
+  Queue button, `QueueCard`, recent batches
+- `BatchReview`: request groups, tiles (score / reject / restore via the
+  existing image mutations, K / X / 1-5 keys), failed and running request
+  cards, Prompt panel
+- `GenerationsList`, `ComfySettingsSection` (connection, output folder,
+  model counts, LoRA matching table)
+- Phase 3: `GeneratorSetup` + `NodePicker`; phase 4: `SaveOutfitDialog` in
+  `ImageView`, `CharacterOutfits` strip on `CharacterPage`, `OutfitsPage`
+- Rules that apply throughout: no native `<select>`, no helper captions
+  (tooltips), no em dashes, pure logic in `lib/`.
+
+### Per phase
+
+0. Attire list: dev script, JSON, `attire.py` loader + tests.
+1. Tracer: deps; tables `comfy_models`, `lora_choices`, `generators`,
+   `generation_*`; `comfy_client`, `comfy_settings`, `comfy_models`,
+   `generator_graph` (write + split + LoRA splice), `builtin_generator`,
+   `generation_jobs`, `generation_compose`; router; frontend Settings
+   section, `/generate` (Base + Extra, Style LoRAs, run panel),
+   `/generations`, `/generations/:id`, sidebar.
+2. Recipes: `recipe_edits`, `recipes.py`, `CharacterBlock`, character
+   picker.
+3. Custom Generators: discovery half of `generator_graph`, setup API,
+   `GeneratorSetup` + `NodePicker`, test-run gate, Remix in `ImageView`.
+4. Outfits: `outfits`, `outfit_hidden`, `outfits.py`, save dialog, Outfit
+   block + picker, Outfits page, character page strip, Open in gallery
+   (plain all-of `tags` filter).
+
+### Testing
+
+- Backend unit: `generator_graph` (fixtures: built-in graph, one real
+  family graph from the library with hires + detailer, a UNET + CLIP graph),
+  `generation_compose`, stem matching.
+- Backend integration (`tests/test_generate_integration.py`, existing
+  `client` / `seed` fixtures) with a fake ComfyUI: a small FastAPI app or
+  `httpx.MockTransport` serving `/prompt`, `/history`, `/queue`,
+  `/object_info`, `/embeddings`, plus a scripted ws feed.
+- Frontend: vitest for the `lib/` modules; component tests for the count
+  stepper modes and request grouping.
+
+### Decided before phase 1 (2026-10-20)
+
+- The built-in Generator goes through the test-run gate too (it proves the
+  output folder mapping and that the checkpoint loads).
+- The built-in Generator's images per request is a number on the ComfyUI
+  settings page, default 1.
+- The LoRA splice joins phase 1 (built-in graph only), so the Style LoRAs
+  list ships as drawn; phase 2 reuses it for the character LoRA.
+- "All Images" stays as is for now; the rename to "Gallery" comes later.
+- Connection-down and submit-rejected states get drawn on the canvas before
+  phase 1 code. Drawn: board `Errors.dc.html` ("Generate: connection down and
+  rejected"); behaviour in the Failures table.
 
 ## Facts checked while planning
 
@@ -256,6 +452,15 @@ coverage gaps. Deferred: reference images.
   output|temp). "Batch count" is a ComfyUI frontend concept, not in the graph.
 - Danbooru `/wiki_pages/<title>.json` returned a Cloudflare challenge from
   this machine (2026-10-19).
+- ComfyUI docs (2026-10-20): `GET /embeddings` lists embedding names;
+  `GET /object_info/{class}` returns one node's schema; ws messages include
+  `status` (queue_remaining), `executing`, `progress` (value / max),
+  `executed`, `execution_cached`, `execution_success`, `execution_error`
+  (exception_type, exception_message, traceback), `execution_interrupted`.
+- `websockets` 15 asyncio client: `connect()` as an async iterator
+  reconnects with backoff; headers via `additional_headers`.
+- `ensure_schema` is `create_all` only: new tables reach old databases, new
+  columns don't.
 
 ## UI
 
@@ -265,7 +470,7 @@ https://claude.ai/artifact/9NuwckDfNaD4wXqGn46h8a
 Revision 1 (2026-10-19), four static screens styled on Moiré's tokens
 (canvas `#0d0c12`, surface/raised, brand violet `#6e52d6`, Instrument Sans,
 JetBrains Mono for values, Caveat Brush for scores), placeholder striped
-tiles instead of images:
+tiles instead of images (later revisions below change parts of this; where they disagree, the later one wins):
 
 1. **Generate** (`Main.dc.html`): prompt blocks in join order (Base, +,
    Character, +, Outfit, +, Extra), Negative (Base + Extra), "Prompt as sent";
@@ -315,7 +520,8 @@ Revision 2.1 (same day, second comment round):
 Source files live only in the artifact (scratchpad copies may be gone): to
 revise, `read` the canvas's `project/*.dc.html` first.
 
-### Next session
+### Revision 2.1 log (2026-10-20, later rounds)
+
 
 - New boards in revision 2.1: `Outfit.dc.html` ("Viewer: save outfit") and
   `Picker.dc.html` ("Generator setup: node picker": popover, search, groups
@@ -342,9 +548,23 @@ revise, `read` the canvas's `project/*.dc.html` first.
   day, search, character filter, All / Running / Failed; each row a strip of
   its first images at the batch's ratio (fixed 72px height), name, counts,
   Generator, time, status. Sidebar and breadcrumb now link to it.
-- Review revision 2; still untouched: block layout and how much room the
-  Character block takes.
-- Not drawn yet: character picker, Remix entry in the viewer,
-  connection-down and submit-rejected states, phone width.
-- The mocks need several revisions before implementation starts (user's
-  call: "well made, properly designed").
+- `Errors.dc.html` ("Generate: connection down and rejected") added.
+
+Canvas boards now (12): Main, Batch, Setup, ComfyUI (settings), Outfit (save
+dialog), Picker (node picker), Outfits, CharOutfits, Naming (picker, naming,
+size, outfit dropdown and count states), Generations, Errors, plus
+`canvas.json`. Read them from the artifact before revising; the scratchpad
+copies can be wiped.
+
+### Next session
+
+- Design is settled enough to build. Remaining undrawn: character picker
+  (phase 2), Remix entry in the viewer (phase 3), phone width. Block layout
+  / Character block size was never revisited; check it when building.
+- Phase 1 in progress on `feat/comfyui-phase1`. Phase 0 runs in parallel in
+  a separate session (worktree `../Tagify-attire`, branch `feat/attire-list`).
+- No ComfyUI reachable from the dev box yet: phase 1 is tested against the
+  fake ComfyUI only; the real end-to-end check is the user's.
+- Canvas comments: replies from the auto-reply bot are sometimes wrong
+  (offered options for things already decided); read each thread and correct
+  it rather than trusting the bot's reply.
