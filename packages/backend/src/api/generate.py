@@ -165,7 +165,9 @@ async def put_lora_choice(body: LoraChoice):
 
 @router.get("/status")
 async def status():
-    return get_generation_manager().status()
+    """Connection, global busy, and the queue card's active batches."""
+    m = get_generation_manager()
+    return {**m.status(), "active": await generation_batches.active_summary(m)}
 
 
 # -- Generators -------------------------------------------------------------------

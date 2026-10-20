@@ -44,7 +44,7 @@ async def make_ready(client, fake, seed):
     r = await client.post("/generate/generators/builtin/test", json={})
     assert r.status_code == 200, r.text
     pid = fake.order[-1]
-    scanned(seed, fake.finish(pid, images=1))
+    await asyncio.to_thread(scanned, seed, fake.finish(pid, images=1))
     await tick()
     g = (await client.get("/generate/generators/builtin")).json()
     assert g["ready"] is True
@@ -103,6 +103,10 @@ async def test_eight_images_at_two_per_request(client, comfy, seed):
     assert r.status_code == 200, r.text
     batch = r.json()
     assert batch["name"] == "Built-in, red dress, night"
+    active = (await client.get("/generate/status")).json()["active"]
+    assert [(a["name"], a["requests"], a["finished"]) for a in active] == [
+        ("Built-in, red dress, night", 4, 0)
+    ]
     assert [q["images"] for q in batch["requests"]] == [2, 2, 2, 2]
     assert [q["seed"] for q in batch["requests"]] == [100, 101, 102, 103]
     assert [q["state"] for q in batch["requests"]] == [
@@ -300,3 +304,79 @@ def test_batch_state(states, connected, expected):
     from src.services.generation_batches import batch_state
 
     assert batch_state(states, connected) == expected
+
+
+async def test_live_loop_never_double_submits_or_loses(client, comfy, seed):
+    """The background loop runs while the API queues: no prompt is sent twice,
+    none is called lost."""
+    m = get_generation_manager()
+    m.transport = comfy.transport(latency=0.005)
+    await m.configure()
+    m.ws_connect = comfy.connect
+    m.start()
+    await make_ready(client, comfy, seed)
+    m.interval = m.idle_interval = 0.001
+    sent_before = len(comfy.order)
+    posts = await asyncio.gather(
+        *(
+            client.post("/generate/batches", json={"base": "x", "count": 2})
+            for _ in range(5)
+        )
+    )
+    ids = [p.json()["_id"] for p in posts]
+    for _ in range(500):
+        await asyncio.sleep(0.005)
+        if comfy.pending:
+            # Off the event loop: the seed helper's sync write would otherwise
+            # block the loop's own async transaction until busy_timeout.
+            files = comfy.finish(comfy.pending[0])
+            await asyncio.to_thread(scanned, seed, files)
+        states = [
+            (await client.get(f"/generate/batches/{i}")).json()["state"] for i in ids
+        ]
+        if all(st != "running" for st in states):
+            break
+    assert states == ["done"] * 5
+    assert len(comfy.order) - sent_before == 10
+
+
+async def test_rejection_maps_errors_to_fields(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    comfy.reject_next = {
+        "error": {"message": "Prompt outputs failed validation"},
+        "node_errors": {
+            "4": {
+                "class_type": "CheckpointLoaderSimple",
+                "errors": [
+                    {"type": "value_not_in_list", "message": "Value not in list"}
+                ],
+            },
+            "10": {
+                "class_type": "LoraLoader",
+                "errors": [
+                    {"type": "value_not_in_list", "message": "Value not in list"}
+                ],
+            },
+        },
+    }
+    r = await client.post(
+        "/generate/batches",
+        json={"base": "x", "loras": [{"name": "gone.safetensors", "strength": 1}]},
+    )
+    errs = {e["node"]: e for e in r.json()["node_errors"]}
+    assert errs["4"]["field"] == "checkpoint"
+    assert {k: errs["10"][k] for k in ("field", "lora_name", "added")} == {
+        "field": "lora",
+        "lora_name": "gone.safetensors",
+        "added": True,
+    }
+
+
+async def test_retry_refuses_a_request_that_returned_images(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x"})).json()
+    scanned(seed, comfy.finish(comfy.order[-1]))
+    await tick()
+    rid = b["requests"][0]["_id"]
+    r = await client.post(f"/generate/batches/{b['_id']}/requests/{rid}/retry", json={})
+    assert r.status_code == 400

@@ -110,6 +110,39 @@ def history_result(entry: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
     return "done", None
 
 
+def annotate_node_errors(
+    errors: list[dict[str, Any]], gen: dict[str, Any], graph: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Add ``field`` (checkpoint / lora / positive / negative) to each node
+    error, so the composer can flag the control it came from. A LoRA loader
+    the Generator's own graph doesn't have was added by Moiré (``added``)."""
+    slots = gen.get("slots") or {}
+
+    def slot_node(key: str) -> str | None:
+        path = slots.get(key)
+        return str(path[0]) if path else None
+
+    out = []
+    for err in errors:
+        node = str(err.get("node") or "")
+        extra: dict[str, Any] = {"field": None}
+        cls = (graph.get(node) or {}).get("class_type")
+        if node and node == slot_node("checkpoint"):
+            extra["field"] = "checkpoint"
+        elif cls in ("LoraLoader", "LoraLoaderModelOnly"):
+            extra = {
+                "field": "lora",
+                "lora_name": graph[node]["inputs"].get("lora_name"),
+                "added": node not in (gen.get("graph") or {}),
+            }
+        elif node and node == slot_node("positive"):
+            extra["field"] = "positive"
+        elif node and node == slot_node("negative"):
+            extra["field"] = "negative"
+        out.append({**err, **extra})
+    return out
+
+
 async def load_generator(generator_id: str) -> dict[str, Any] | None:
     """A Generator row; the built-in is created on first read."""
     async with async_conn() as conn:
@@ -157,6 +190,9 @@ class GenerationManager:
         self._wake = asyncio.Event()
         self._tick_lock = asyncio.Lock()
         self._models_loaded = False
+        # Poll cadence (s) with requests in flight / idle; tests shorten it.
+        self.interval = 1.0
+        self.idle_interval = 5.0
 
     # -- lifecycle -------------------------------------------------------------
 
@@ -236,7 +272,8 @@ class GenerationManager:
             self._wake.clear()
             try:
                 await asyncio.wait_for(
-                    self._wake.wait(), timeout=1.0 if active else 5.0
+                    self._wake.wait(),
+                    timeout=self.interval if active else self.idle_interval,
                 )
             except asyncio.TimeoutError:
                 pass
@@ -479,7 +516,11 @@ class GenerationManager:
             graph = build_prompt(gen["graph"], gen["slots"], values)
         except GraphError as e:
             raise ComfyRejected(str(e), []) from e
-        pid = await self.client.queue_prompt(graph)
+        try:
+            pid = await self.client.queue_prompt(graph)
+        except ComfyRejected as e:
+            e.node_errors = annotate_node_errors(e.node_errors, gen, graph)
+            raise
         async with async_tx() as conn:
             await conn.execute(
                 sa.update(r)
@@ -556,6 +597,23 @@ class GenerationManager:
             inputs["negative_base"], inputs["negative_extra"]
         )
 
+        async with self._tick_lock:
+            batch_id = await self._insert_and_submit(gen, inputs, sizes, seeds, body)
+        self._wake.set()
+        return batch_id
+
+    async def _insert_and_submit(
+        self,
+        gen: dict[str, Any],
+        inputs: dict[str, Any],
+        sizes: list[int | None],
+        seeds: list[int],
+        body: dict[str, Any],
+    ) -> int:
+        """Caller holds ``_tick_lock``, so the loop can't see the new pending
+        rows (and submit them too) or a stale queue snapshot (and call the new
+        prompt lost)."""
+        extra = inputs["extra"]
         b, r = t.generation_batches, t.generation_requests
         now = time.time()
         async with async_tx() as conn:
@@ -569,7 +627,7 @@ class GenerationManager:
                     created_at=now,
                 )
             )
-            batch_id = int(res.inserted_primary_key[0])
+            batch_id = int(res.inserted_primary_key[0])  # type: ignore[index]
             given = (body.get("name") or "").strip()
             name = given or auto_name(
                 number=batch_id, generator=gen["name"], extra=extra
@@ -601,7 +659,6 @@ class GenerationManager:
             await self._delete_batch(batch_id)
             self._down(str(e))
             raise Unavailable(str(e)) from e
-        self._wake.set()
         return batch_id
 
     async def _delete_batch(self, batch_id: int) -> None:
@@ -648,6 +705,11 @@ class GenerationManager:
     async def retry(
         self, batch_id: int, request_id: int, *, single: bool = False
     ) -> None:
+        async with self._tick_lock:
+            await self._retry(batch_id, request_id, single=single)
+        self._wake.set()
+
+    async def _retry(self, batch_id: int, request_id: int, *, single: bool) -> None:
         r = t.generation_requests
         async with async_conn() as conn:
             req = (
@@ -655,6 +717,13 @@ class GenerationManager:
                     sa.select(r).where(r.c._id == request_id, r.c.batch_id == batch_id)
                 )
             ).first()
+            outputs = (
+                await conn.execute(
+                    sa.select(sa.func.count())
+                    .select_from(t.generation_outputs)
+                    .where(t.generation_outputs.c.request_id == request_id)
+                )
+            ).scalar()
             top = (
                 await conn.execute(
                     sa.select(sa.func.max(r.c.idx)).where(r.c.batch_id == batch_id)
@@ -662,6 +731,9 @@ class GenerationManager:
             ).scalar()
         if req is None or req.state not in ("failed", "lost", "cancelled", "done"):
             raise Invalid("Only a finished request can be retried")
+        if req.state == "done" and outputs:
+            # Its images are in the library; retrying would drop them from the batch.
+            raise Invalid("This request returned images")
         async with async_tx() as conn:
             if single and (req.images or 0) > 1:
                 await conn.execute(
@@ -703,9 +775,13 @@ class GenerationManager:
                 .where(t.generation_batches.c._id == batch_id)
                 .values(state="active")
             )
-        self._wake.set()
 
     async def cancel(self, batch_id: int) -> None:
+        async with self._tick_lock:
+            await self._cancel(batch_id)
+        self._wake.set()
+
+    async def _cancel(self, batch_id: int) -> None:
         r = t.generation_requests
         async with async_conn() as conn:
             rows = (
@@ -727,13 +803,17 @@ class GenerationManager:
             try:
                 if queued:
                     await self.client.delete_queued(queued)
-                for pid in running:
-                    # Its final state (cancelled) comes from /history.
-                    await self.client.interrupt(pid)
+                if running:
+                    # Older ComfyUI ignores the prompt_id and interrupts whatever
+                    # runs, so only interrupt when ours is running right now.
+                    # Its final state (cancelled) then comes from /history.
+                    now_running, _ = await self.client.queue()
+                    for pid in running:
+                        if pid in now_running:
+                            await self.client.interrupt(pid)
             except (ComfyUnreachable, ComfyError) as e:
                 self._down(str(e))
         await self._close_finished_batches()
-        self._wake.set()
 
 
 _manager: GenerationManager | None = None

@@ -283,7 +283,7 @@ new table in `database/schema.py`; nothing is added to `images` or
 | `app_settings` row `"comfyui"` | address, headers (server-side only), output library id, built-in images per request | 1 |
 | `comfy_models` | installed checkpoints, LoRAs, embeddings from ComfyUI (kind, name, folder path, stem), refreshed on connect / Refresh | 1 |
 | `lora_choices` | stem → chosen file when two files share a name | 1 |
-| `generators` | id, name, kind (builtin / custom), source (family id + image id, or upload), API graph JSON, slots JSON, ready flag, created / updated | 1 (builtin), 3 |
+| `generators` | id, name, kind (builtin / custom), source (family id + image id, or upload), API graph JSON, slots JSON, ready flag, test (last test run's batch id), created / updated | 1 (builtin), 3 |
 | `generation_batches` | id, number, name, auto-name flag, generator id, inputs doc (blocks, character, outfit, LoRAs, size, seed mode, count, per request), state, created | 1 |
 | `generation_requests` | id, batch id, index, ComfyUI prompt_id, seed, image count, state (pending / queued / running / done / failed / cancelled / lost), error doc (node, type, message), progress, timestamps | 1 |
 | `generation_outputs` | request id, index in request, filename, subfolder, expected image `_id` | 1 |
@@ -342,7 +342,8 @@ in the scanner. Reject / score go through `image_tags.set_quarantine` /
 
 - `GET/PUT /comfyui`, `POST /comfyui/test`, `POST /comfyui/refresh`,
   `GET /comfyui/models`, `PUT /comfyui/lora-choices`
-- `GET /status`: connection, busy, queue card data (polled)
+- `GET /status`: connection, busy, and the queue card's active batches
+  (name, requests finished / total, failed, current step progress), polled
 - `GET /generators`, `GET /generators/{id}`; phase 3: `POST /generators`
   (from family image or upload), `POST /generators/{id}/discover`,
   `PUT /generators/{id}`, `POST /generators/{id}/test`
@@ -351,7 +352,12 @@ in the scanner. Reject / score go through `image_tags.set_quarantine` /
   `PATCH /batches/{id}` (rename), `POST /batches/{id}/requeue`,
   `POST /batches/{id}/requests/{rid}/retry` (`single: true` = one at a
   time), `POST /batches/{id}/cancel`
-- `GET /autocomplete?q=` tags (tagger vocab + library counts) + embeddings
+- No separate autocomplete endpoint (built): the composer merges the
+  existing tag suggestions with the embeddings list from
+  `GET /comfyui/models`.
+- A rejected first request answers 422 with `node_errors`, each carrying
+  `field` (checkpoint / lora / positive / negative, or null) and for LoRAs
+  `lora_name` + `added` (spliced by Moiré), which is what the composer flags.
 - Phase 2 `GET/PUT /recipes/{tag}`; phase 4 `/outfits` CRUD,
   `PUT /outfits/{id}/hidden`
 
@@ -409,6 +415,15 @@ running), `useGenerators`, later `useRecipe`, `useOutfits`.
 4. Outfits: `outfits`, `outfit_hidden`, `outfits.py`, save dialog, Outfit
    block + picker, Outfits page, character page strip, Open in gallery
    (plain all-of `tags` filter).
+
+**As built (phase 1 backend, 2026-10-20).** ComfyUI's `/queue` +
+`/history` are the truth: a poll loop (1s with work in flight, 5s idle) moves
+requests along and records outputs; the websocket only adds step progress and
+wakes the loop. One request per batch is in ComfyUI at a time; the rest wait
+as pending. Queue, retry and cancel take the loop's lock, so the loop never
+double-submits a new batch or calls a just-queued prompt lost. Retrying a
+done request is allowed only when it returned no images. Cancel interrupts a
+running prompt only after a fresh `/queue` shows it is ours and running.
 
 ### Testing
 

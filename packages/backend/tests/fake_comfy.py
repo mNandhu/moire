@@ -35,8 +35,17 @@ class FakeComfy:
 
     # -- REST ----------------------------------------------------------------
 
-    def transport(self) -> httpx.MockTransport:
-        return httpx.MockTransport(self._handle)
+    def transport(self, latency: float = 0.0) -> httpx.MockTransport:
+        """``latency`` makes every call yield to the event loop, so a running
+        poll loop and API calls interleave the way they do for real."""
+        if not latency:
+            return httpx.MockTransport(self._handle)
+
+        async def slow(request: httpx.Request) -> httpx.Response:
+            await asyncio.sleep(latency)
+            return self._handle(request)
+
+        return httpx.MockTransport(slow)
 
     def _handle(self, request: httpx.Request) -> httpx.Response:
         self.headers_seen.append(dict(request.headers))

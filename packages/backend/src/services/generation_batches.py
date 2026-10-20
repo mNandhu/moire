@@ -263,3 +263,52 @@ async def generator_view(
         "slots": gen["slots"],
         "test": test,
     }
+
+
+async def active_summary(manager: GenerationManager) -> list[dict[str, Any]]:
+    """The queue card: every batch with work left, oldest first. Images count
+    what was asked (None per request when batch_size is unknown)."""
+    async with async_conn() as conn:
+        batches = (
+            await conn.execute(
+                sa.select(_b.c._id, _b.c.name, _b.c.inputs)
+                .where(_b.c.state == "active")
+                .order_by(_b.c._id)
+            )
+        ).fetchall()
+        ids = [b._id for b in batches]
+        reqs = (
+            (
+                await conn.execute(
+                    sa.select(
+                        _r.c.batch_id, _r.c.state, _r.c.images, _r.c.prompt_id
+                    ).where(_r.c.batch_id.in_(ids), _VISIBLE)
+                )
+            ).fetchall()
+            if ids
+            else []
+        )
+    by_batch: dict[int, list[Any]] = {}
+    for q in reqs:
+        by_batch.setdefault(q.batch_id, []).append(q)
+    out = []
+    for b in batches:
+        rs = by_batch.get(b._id, [])
+        current = next((q for q in rs if q.state == "running"), None)
+        out.append(
+            {
+                "_id": b._id,
+                "name": b.name,
+                "test": bool(b.inputs.get("test")),
+                "state": batch_state([q.state for q in rs], manager.connected),
+                "requests": len(rs),
+                "finished": sum(
+                    1 for q in rs if q.state not in ("pending", "queued", "running")
+                ),
+                "failed": sum(1 for q in rs if q.state in ("failed", "lost")),
+                "progress": manager.progress.get(current.prompt_id)
+                if current is not None and current.prompt_id
+                else None,
+            }
+        )
+    return out
