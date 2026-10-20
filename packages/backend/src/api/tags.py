@@ -207,7 +207,7 @@ async def clear_tag_thumbnail(tag: str):
     return {"tag": tag, "cleared": True}
 
 
-@router.post("/apply/{image_id}")
+@router.post("/apply/{image_id:path}")
 async def apply_tags(image_id: str, tags: list[str]):
     cleaned = validate_tags(tags)
     await image_tags.apply_manual(image_id, cleaned)
@@ -219,7 +219,7 @@ async def apply_tags(image_id: str, tags: list[str]):
     }
 
 
-@router.post("/remove/{image_id}")
+@router.post("/remove/{image_id:path}")
 async def remove_tags(image_id: str, tags: list[str]):
     tags = validate_tags(tags)
     await image_tags.remove_tags(image_id, tags)
@@ -282,7 +282,7 @@ async def delete_alias(from_name: str):
     return res
 
 
-@router.post("/ai/{image_id}")
+@router.post("/ai/{image_id:path}")
 async def ai_tag(image_id: str):
     # Deprecated route retained for convenience.
     # Internal AI tagging is implemented under /ai/*.
