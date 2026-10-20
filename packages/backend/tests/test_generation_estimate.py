@@ -108,8 +108,18 @@ def test_images_per_request():
     assert per(builtin, {"per_request": 4}) == (4, 4)
     assert per(builtin, {"per_request": 200}) == (64, 64)
     assert per(builtin, {}, {"builtin_per_request": 2}) == (2, None)
-    assert per(custom, {"per_request": 4}) == (3, None)
+    # A size asked for one batch applies to a custom Generator too.
+    assert per(custom, {"per_request": 4}) == (4, 4)
+    assert per(custom, {}) == (3, None)
     assert per({"kind": "custom", "slots": {}}, {"per_request": 4}) == (None, None)
+
+
+def test_checkpoint_only_where_the_graph_has_a_slot():
+    body = {"checkpoint": "a.safetensors"}
+    with_slot = {"kind": "custom", "slots": {"checkpoint": ["4", "ckpt_name"]}}
+    without = {"kind": "custom", "slots": {}}
+    assert batch_shape(with_slot, body, {})["checkpoint"] == "a.safetensors"
+    assert batch_shape(without, body, {})["checkpoint"] is None
 
 
 def test_what_a_batch_leaves_unset_is_the_graphs_own():
