@@ -80,9 +80,14 @@ export function buildLibraryTree<L extends { path: string }>(
   return top.sort((a, b) => label(a).localeCompare(label(b), undefined, { numeric: true }));
 }
 
+/** Every library a node holds, itself included, outermost first. */
+export function librariesUnder<L>(node: LibraryTreeNode<L>): L[] {
+  return [...(node.library ? [node.library] : []), ...node.children.flatMap(librariesUnder)];
+}
+
 /** How many libraries a node holds, itself included. */
 export function countLibraries<L>(node: LibraryTreeNode<L>): number {
-  return (node.library ? 1 : 0) + node.children.reduce((n, c) => n + countLibraries(c), 0);
+  return librariesUnder(node).length;
 }
 
 /** The keys of the folders on the way to `match`'s library, outermost first. */

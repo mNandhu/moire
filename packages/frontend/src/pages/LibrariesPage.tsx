@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import {
+  CheckSquare,
+  Square,
   ChevronRight,
   Folder,
   FolderOpen,
@@ -23,6 +25,7 @@ import { Dialog } from "../components/ui/Dialog";
 import { AddLibraryDialog } from "../components/AddLibraryDialog";
 import { useConfirm } from "../components/ConfirmDialog";
 import { Button, ButtonLink } from "../components/ui/Button";
+import { Checkbox } from "../components/ui/Checkbox";
 import { Input, Field } from "../components/ui/Input";
 import { Skeleton, Spinner } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -37,6 +40,7 @@ import { cn } from "../lib/cn";
 import {
   buildLibraryTree,
   countLibraries,
+  librariesUnder,
   pathToLibrary,
   type LibraryTreeNode,
 } from "../lib/libraryTree";
@@ -169,6 +173,54 @@ export default function LibrariesPage() {
     invalidateImageFeed();
   };
 
+  // Selection for deleting several at once. Ids of libraries gone since are
+  // ignored rather than pruned.
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const selected = useMemo(() => libs.filter((l) => picked.has(l._id)), [libs, picked]);
+  const setPickedMany = (ids: string[], on: boolean) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  const stopSelecting = () => {
+    setSelecting(false);
+    setPicked(new Set());
+  };
+
+  const deleteSelected = async () => {
+    if (!selected.length) return;
+    const n = selected.length;
+    const ok = await confirm({
+      title: `Delete ${n} ${n === 1 ? "library" : "libraries"}?`,
+      message:
+        "Their indexed images, tags and thumbnails are removed from Moiré. Files on disk are not touched.",
+      confirmLabel: `Delete ${n === 1 ? "library" : "libraries"}`,
+      tone: "danger",
+    });
+    if (!ok) return;
+    // Outermost first: removing an inner library makes the one around it
+    // rescan its folder, wasted work if that one is going too.
+    const order = [...selected].sort((a, b) => a.path.length - b.path.length);
+    let failed = 0;
+    for (const l of order) {
+      try {
+        await api(`/api/v1/libraries/${l._id}`, { method: "DELETE" });
+      } catch {
+        failed += 1;
+      }
+    }
+    stopSelecting();
+    refresh();
+    invalidateImageFeed();
+    if (failed) push(`Deleted ${n - failed} of ${n}. ${failed} failed.`, "error");
+    else push(`Deleted ${n} ${n === 1 ? "library" : "libraries"}`, "success");
+  };
+
   const rescan = async (l: Library) => {
     setRescanning((s) => new Set(s).add(l._id));
     try {
@@ -261,9 +313,21 @@ export default function LibrariesPage() {
         return (
           <Card
             key={l._id}
-            className={cn("p-4", l._id === focusId && "ring-1 ring-brand-400 border-brand-400")}
+            className={cn(
+              "p-4",
+              (l._id === focusId || (selecting && picked.has(l._id))) &&
+                "ring-1 ring-brand-400 border-brand-400",
+            )}
           >
             <div className="flex items-center gap-4">
+              {selecting && (
+                <Checkbox
+                  checked={picked.has(l._id)}
+                  onChange={(on) => setPickedMany([l._id], on)}
+                  aria-label={`Select ${l.name || l.path}`}
+                  className="shrink-0"
+                />
+              )}
               <span className="hidden sm:inline-flex items-center justify-center w-10 h-10 rounded-lg shrink-0 text-brand-300 bg-brand-500/10">
                 <FolderOpen size={18} />
               </span>
@@ -390,26 +454,38 @@ export default function LibrariesPage() {
     }
     const n = countLibraries(node);
     const listId = `folder-${node.key}`;
+    const inside = librariesUnder(node).map((l) => l._id);
+    const allPicked = inside.every((id) => picked.has(id));
     return (
       <div key={node.key} className="grid grid-cols-[minmax(0,1fr)] gap-2">
-        <button
-          type="button"
-          onClick={() => setFolderCollapsed([node.key], open)}
-          aria-expanded={open}
-          aria-controls={listId}
-          title={node.key}
-          className="flex items-center gap-2 min-w-0 px-1 py-1 rounded-lg text-left hover:bg-raised"
-        >
-          <ChevronRight
-            size={14}
-            className={cn("shrink-0 text-faint transition-transform", open && "rotate-90")}
-          />
-          <Folder size={15} className="shrink-0 text-muted" />
-          <span className="truncate text-sm font-medium text-neutral-200">{node.label}</span>
-          <span className="shrink-0 text-xs text-faint tabular-nums">
-            {n} {n === 1 ? "library" : "libraries"}
-          </span>
-        </button>
+        <div className="flex items-center gap-2 min-w-0">
+          {selecting && (
+            <Checkbox
+              checked={allPicked}
+              onChange={() => setPickedMany(inside, !allPicked)}
+              aria-label={`Select every library in ${node.label}`}
+              className="shrink-0 pl-1"
+            />
+          )}
+          <button
+            type="button"
+            onClick={() => setFolderCollapsed([node.key], open)}
+            aria-expanded={open}
+            aria-controls={listId}
+            title={node.key}
+            className="flex flex-1 items-center gap-2 min-w-0 px-1 py-1 rounded-lg text-left hover:bg-raised"
+          >
+            <ChevronRight
+              size={14}
+              className={cn("shrink-0 text-faint transition-transform", open && "rotate-90")}
+            />
+            <Folder size={15} className="shrink-0 text-muted" />
+            <span className="truncate text-sm font-medium text-neutral-200">{node.label}</span>
+            <span className="shrink-0 text-xs text-faint tabular-nums">
+              {n} {n === 1 ? "library" : "libraries"}
+            </span>
+          </button>
+        </div>
         <div id={listId} hidden={!open}>
           {kids}
         </div>
@@ -422,13 +498,44 @@ export default function LibrariesPage() {
       <PageHeader
         title="Libraries"
         count={initialLoading ? undefined : libs.length}
-        description="Folders Moiré indexes."
+        description={selecting ? `${selected.length} selected` : "Folders Moiré indexes."}
         actions={
           <div className="flex items-center gap-3">
             {refreshing && !initialLoading && (
               <span className="flex items-center gap-2 text-xs text-neutral-400">
                 <Spinner className="h-3 w-3" /> Refreshing…
               </span>
+            )}
+            {selecting && (
+              <>
+                <Button
+                  onClick={() =>
+                    selected.length === libs.length
+                      ? setPicked(new Set())
+                      : setPickedMany(libs.map((l) => l._id), true)
+                  }
+                >
+                  {selected.length === libs.length ? "Select none" : "Select all"}
+                </Button>
+                <Button
+                  variant="dangerSoft"
+                  onClick={() => void deleteSelected()}
+                  disabled={!selected.length}
+                >
+                  <Trash2 size={15} />
+                  Delete{selected.length ? ` ${selected.length}` : ""}
+                </Button>
+              </>
+            )}
+            {libs.length > 0 && (
+              <Button
+                active={selecting}
+                onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+                title={selecting ? "Done selecting" : "Select libraries to delete several at once"}
+              >
+                {selecting ? <CheckSquare size={16} /> : <Square size={16} />}
+                {selecting ? "Done" : "Select"}
+              </Button>
             )}
             <Button variant="primary" onClick={() => setAddOpen(true)}>
               <Plus size={16} />

@@ -59,3 +59,51 @@ describe("LibrariesPage › delete invalidates the gallery", () => {
     });
   });
 });
+
+describe("LibrariesPage › deleting several", () => {
+  const deleted: string[] = [];
+  beforeEach(() => {
+    deleted.length = 0;
+    vi.stubGlobal("confirm", () => true);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method === "DELETE") {
+          deleted.push(String(url).split("/").pop()!);
+          return new Response("{}", { status: 200 });
+        }
+        return new Response(
+          JSON.stringify([
+            { _id: "inner", name: "Inner", path: "/art/out/inner" },
+            { _id: "outer", name: "Outer", path: "/art/out" },
+            { _id: "other", name: "Other", path: "/photos" },
+          ]),
+          { status: 200 },
+        );
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("deletes the picked libraries, outermost first", async () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ToastProvider>
+          <MemoryRouter>
+            <LibrariesPage />
+          </MemoryRouter>
+        </ToastProvider>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Select" }));
+    fireEvent.click(screen.getByLabelText("Select Inner"));
+    fireEvent.click(screen.getByLabelText("Select Outer"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete 2" }));
+
+    await waitFor(() => expect(deleted).toEqual(["outer", "inner"]));
+  });
+});

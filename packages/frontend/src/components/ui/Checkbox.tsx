@@ -14,6 +14,7 @@ export function Checkbox({
   id,
   disabled,
   className,
+  "aria-label": ariaLabel,
 }: {
   checked: boolean;
   onChange: (checked: boolean) => void;
@@ -22,6 +23,8 @@ export function Checkbox({
   id?: string;
   disabled?: boolean;
   className?: string;
+  /** Its name for screen readers when there's no visible `label`. */
+  "aria-label"?: string;
 }) {
   return (
     <label
@@ -45,6 +48,7 @@ export function Checkbox({
           className="peer sr-only"
           checked={checked}
           disabled={disabled}
+          aria-label={ariaLabel}
           onChange={(e) => onChange(e.target.checked)}
         />
         <span
