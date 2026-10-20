@@ -12,26 +12,26 @@ Effort: S (hours) · M (a day or so) · L (more)
 
 | ID | Area | Finding | Gain | Effort | Status |
 |----|------|---------|------|--------|--------|
-| G1 | Gallery | Next page fetched only when sentinel is on screen | Removes multi-second stalls on fast scroll | S | verified (code) |
-| G2 | Gallery | BlurHash decoded at 64x64 on main thread, every mount | 4-20x less decode CPU | S | verified (code) |
+| G1 | Gallery | Next page fetched only when sentinel is on screen | Removes multi-second stalls on fast scroll | S | done (`426b0ae`) |
+| G2 | Gallery | BlurHash decoded at 64x64 on main thread, every mount | 4-20x less decode CPU | S | done (`426b0ae`, 32px) |
 | G3 | Gallery | Thumbnails ~700x1024 vs ~250px displayed | 2-4x smaller downloads + decode | M | open |
 | G4 | Gallery | Grid setState every scroll frame | Small | S | open |
 | G5 | Gallery | `openTile` identity changes per page append | Small | S | open |
 | A1 | AI tagging | CPU-only ONNX; CUDA works on GTX 1650 | ~9x inference | M | open |
-| A2 | AI tagging | Decode + inference run on the event loop | API p50 during job 1.2-1.5s -> 12ms | S-M | done (branch `perf/a2-ai-offload`, unmerged) |
+| A2 | AI tagging | Decode + inference run on the event loop | API p50 during job 1.2-1.5s -> 12ms | S-M | done (merged) |
 | A3 | AI tagging | Tag from local thumbnail instead of original on /mnt/g | ~45 ms/img, no 9P reads | S | open |
 | A4 | AI tagging | Pad-then-resize prep + Python `select_tags` loop | ~45 ms/img (matters only with A1) | S | open |
 | A5 | AI tagging | ORT `intra_op_num_threads` untuned | Unclear (contention artifact?) | S | open |
-| S1 | Scan | Rescan re-processes every unchanged file; 15-min reconcile triggers it per watched library, plus full reproject | Unchanged rescan 6.8s -> 0.16s / 297 imgs (~40x) | S | verified (code) |
+| S1 | Scan | Rescan re-processes every unchanged file; 15-min reconcile triggers it per watched library, plus full reproject | Unchanged rescan 6.8s -> 0.16s / 297 imgs (~40x) | S | done (`2d5e32a`) |
 | S2 | Scan | Thumbs 1080px webp; 640px enough | Scan ~1.7-2x faster, thumbs ~45% smaller | S (+ regen) | open |
 | S3 | Prompt extraction | Reproject reruns needlessly; `parse_prompt` ~22 calls/img uncached | Gate on change (S1); lru_cache ~25% of reproject | S | open |
 | S4 | Scan | Thread pool + GIL bound past ~4 workers; process pool | Maybe 1.3-2x, unproven | M | open |
-| S5 | Scan | Serial walk + stat over 9P (~7 ms/file) | Needed once S1 lands: 10k stats 70s -> ~10s | S | open |
-| D1 | API / DB | Rare tag/term filter walks all images in sort order, probing EXISTS per row | Unmeasured | S-M | prototype |
-| D2 | API / DB | Cursor row-value compare can't seek the sort index; deep pages O(depth) | Unmeasured | S | prototype |
-| D3 | API / DB | `image_tags` indexes not covering `(tag, image_id)` / `(base, image_id)` | Unmeasured | S | prototype |
-| D4 | API / DB | Tags `browse` covers via window fn sorting every image_tags row | Unmeasured | S | prototype |
-| D5 | API / DB | Characters listing uncached; `jsonable_encoder` on big lists; gzip on media | Unmeasured | S | prototype |
+| S5 | Scan | Serial walk + stat over 9P (~7 ms/file) | Needed once S1 lands: 10k stats 70s -> ~10s | S | done (`2d5e32a`, stat on the pool) |
+| D1 | API / DB | Rare tag/term filter walks all images in sort order, probing EXISTS per row | Rare filter 128 -> 5 ms @30k; threshold 3000 regresses mid filters 3-7x | S-M | measured: keep, `_RARE` ~300 |
+| D2 | API / DB | Cursor row-value compare can't seek the sort index; deep pages O(depth) | deep140 49 -> 3 ms @30k; sort=top not covered | S | measured: keep |
+| D3 | API / DB | `image_tags` indexes not covering `(tag, image_id)` / `(base, image_id)` | Cold tag list 1.8s -> 0.24s @30k; +11-22% DB size | S | measured: keep, drop `ix_images_cover` |
+| D4 | API / DB | Tags `browse` covers via window fn sorting every image_tags row | ~10% alone; browse cold 9.8 -> 4.7s with D3 | S | measured: keep |
+| D5 | API / DB | Characters listing uncached; `jsonable_encoder` on big lists; gzip on media | JSONResponse 3-5x on big lists; characters cache buggy | S | measured: keep, fix cache |
 
 ## Next steps (agreed order)
 
@@ -41,7 +41,7 @@ Effort: S (hours) · M (a day or so) · L (more)
 4. S2 + G3 together (640px thumbs + `method` setting), regenerated via S1's version stamp. Check visual quality.
 5. S3b (`lru_cache` on `parse_prompt`).
 6. A1 (GPU) as an optional `gpu` extra, then A3/A4 on top of it.
-7. Re-measure D1-D5 from the WIP prototype, one agent alone, ~30k-row synthetic DB.
+7. ~~Re-measure D1-D5~~ done 2026-10-20 (see API / DB). Next: port D1-D5 onto main with the fixes listed there.
 
 ## Working notes (how this was run, for re-running)
 
@@ -156,29 +156,67 @@ end to end 12 workers ~27-35 img/s. Metadata parsing is negligible. Startup migr
 
 ## API / DB
 
-The agent was synthesizing a ~90k-image DB when WSL ran out of memory; its report and numbers are lost.
-Its prototype edits survived and are saved as WIP commit `3586e3c` on branch
-`worktree-agent-a138fde68c184719a` (not for merge; marked `# PROTOTYPE`). All D findings are
-**inferred from the prototype, not measured**: re-measure before choosing (smaller synthetic DB, ~30k rows).
+Prototype: WIP commit `3586e3c` on branch `worktree-agent-a138fde68c184719a` (not for merge; marked `# PROTOTYPE`).
+**Measured 2026-10-20** by one agent alone: baseline = main (backend identical to `db648fd`) vs prototype.
+- Datasets: backup-API copy of the real DB (3,881 images, 150k image_tags, 150k gen_terms), and a 30k synthetic DB (rows cloned from the real one; 1.1M image_tags, 1.2M gen_terms; 18 planted rare tags/terms of known size).
+- Method: real uvicorn on ports 8810/8811 with httpx, 30 runs after 3 warmups. A direct-call bench (no HTTP) separated query cost from serialization. A 4-way matrix (code x indexes) attributed D3.
+- Noise: p50 swings of 10-15% and 1-3 ms run to run; differences below that are treated as noise.
+- Correctness: ids, order and cursors are identical on every compared feed, ids and groups query, and tags/browse JSON is identical, except the characters cache (D5).
+- Prototype pytest: 4 failures. 3 are real (characters cache); 1 is expected (`test_schema` lists the old index names).
+- Scripts (DB copies deleted; rebuild with `copy_real.py` / `build_synth.py`): `.claude/worktrees/agent-a8a9ade2ecacaaf3f/perf-scratch/`, untracked.
+  - `run.sh` runs the HTTP bench, `drun.sh` the direct bench, `cmp4.py` the 4-way matrix, `srun.sh` the D1 sweep, `prun.sh` the query plans.
+  - Copy `*_base.db` to a fresh file before each prototype run, so index state is clean.
 
-### D1. Drive rare filters by id list
+### D1. Drive rare filters by id list: keep, lower the threshold
 - Where: `services/image_feed.py` `_resolved` / `feed_where`.
-- Idea: when the rarest tag group or prompt term matches <= 3000 images, fetch their ids first and filter `_id IN (...)`, instead of SQLite walking `images` in sort order with an EXISTS probe per row.
+- Idea: when the rarest tag group or prompt term matches few images, fetch their ids first and filter `_id IN (...)`.
+- Rare filter (30 matches) at 30k: 126 -> 7 ms (HTTP), and `/images/ids` 128 -> 6 ms. On the real DB the gain is small (17.5 -> 9 ms).
+- **The 3000 threshold is wrong.** D1 costs about 10 ms per 1000 ids, while the baseline gets cheaper as the filter gets denser.
 
-### D2. Keyset paging seek
-- Where: `services/image_feed.py` `list_feed` cursor clause.
-- Idea: SQLite won't seek an expression index from a row-value `<` comparison. Add a redundant `key <= v` (desc) / `key >= v` range on the leading sort key so deep pages seek.
+  | DB | break-even | mid filter that regressed |
+  |----|------------|---------------------------|
+  | 30k | ~1300 matches | 2900 matches: 2.9x slower |
+  | real (3.9k) | ~350 matches | 1899 matches: 7.1 -> 21.7 ms (3x); 2591 matches: 7.5x |
 
-### D3. Covering indexes
-- Where: `database/schema.py`.
-- Idea: replace `ix_image_tags_tag` / `ix_image_tags_base` with `(tag, image_id)` / `(base, image_id)`; add `ix_images_cover (_id, mtime, quarantined)`. Old names go to `RETIRED_INDEXES`.
+- Fix: `_RARE` about 300, or about 4-5x sqrt(N). The big wins are all under 100 matches.
 
-### D4. Tags browse covers in one grouped pass
-- Where: `services/tag_index.py` `browse` (~378).
-- Idea: replace `row_number() OVER (PARTITION BY base ...)` with `GROUP BY base` + `min(key)` (SQLite bare-column rule).
+### D2. Keyset paging seek: keep, extend to sort=top
+- Plan: `SCAN images USING INDEX ix_images_recent` becomes `SEARCH ... (<expr><?)`.
+- Deep pages go flat: on 30k, deep140 drops 58 -> 8 ms over HTTP and 49 -> 3 ms direct; newest, oldest, library and tag filters all benefit.
+- Sort=top (two keys: score, mtime) still scans: deep50 ~21 ms, deep140 ~55 ms. Add the same range on the score key.
 
-### D5. Small API overheads
-- Characters `listing()` (`services/characters.py:181`) uncached: cache it via tag_index TTL + generation.
-- Large list routes (`/images`, `/images/ids`, `/tags`, `/tags/browse`) return dicts through `jsonable_encoder`: return `JSONResponse` directly.
-- `GZipMiddleware` (`main.py`) also compresses image/video responses: exclude them, `compresslevel=5`.
-- `find_image` ignores its projection (`services/image_tags.py:~303`): select only the requested columns.
+### D3. Covering indexes: keep the two image_tags indexes, drop `ix_images_cover`
+- `(tag, image_id)` / `(base, image_id)` replace the single-column indexes.
+- `/tags` with all sources, cold: 1794 -> 243 ms on 30k (7.4x), 298 -> 69 ms on the real DB. All of that gain is D3.
+- Browse, cold: 9.8 s -> 5.8 s with D3 alone.
+- `ix_images_cover` appears in no plan: drop it.
+- Cost:
+  - Index build: one-time, ~0.4 s on the real DB, ~3.8 s on 30k (startup 4.7 s vs 0.9 s; later boots are normal).
+  - DB size: the real DB file grows 194.6 -> 216.4 MB (+11%); 30k goes +22%. The indexes repeat the long `_id` in every entry, and the dropped indexes' pages aren't reclaimed without VACUUM.
+
+### D4. Tags browse in one grouped pass: keep (small alone)
+- `GROUP BY base` + `min(key)` instead of the `row_number()` window. Output is identical (md5 matches in all 4 configs).
+- Alone: browse(all) cold 9.8 -> 8.7 s (~11%). With D3: 4.7 s.
+- Browse is still 5-9 s cold at 30k (per-row work dominates). Browse(ai/manual) is unchanged. That is the next thing to look at if browse matters.
+
+### D5. Small API overheads: keep JSONResponse + gzip changes, fix the characters cache
+- **JSONResponse** instead of `jsonable_encoder` is the biggest warm win. Identity encoding:
+  - feed limit=1000: 45 -> 18 ms
+  - `/tags` all sources: 32 -> 6 ms
+  - browse: 70 -> 24 ms
+
+  Bodies are byte-equal JSON.
+- **GZip media exclusion: keep.**
+  - Baseline gzips thumbnails (0.06% larger) and originals (2.3% smaller, ~30 ms CPU each, no Content-Length).
+  - A 200-tile page spends ~0.4 s CPU compressing thumbs.
+- **compresslevel 5 vs default 9: a trade.**
+  - About 60% less gzip CPU.
+  - Payloads 8-31% larger (`/images/ids` +31%).
+  - Prefer 6 if remote access over slow links matters.
+- **Characters cache: buggy as written.**
+  - Warm: 844 ms -> 4 ms at 30k.
+  - Nothing invalidates it on colour/name/series/focus edits: `characters.update` invalidates only when `kind` changes.
+  - Nothing invalidates it on background face-detector results.
+  - Result: stale for up to 30 s. 3 failing tests.
+  - Fix: invalidate on every `update()` and after face-detector writes.
+- **`find_image` projection:** saves under 0.25 ms per call. Harmless, negligible.
