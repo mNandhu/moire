@@ -294,6 +294,17 @@ recipe_edits = sa.Table(
     sa.Column("updated_at", sa.Float),
 )
 
+# Identity tags the user added to a character's recipe (a JSON list), keyed
+# like recipe_edits. Its own table because recipe_edits already exists on
+# databases that ran phase 2 (create_all adds tables, not columns).
+recipe_additions = sa.Table(
+    "recipe_additions",
+    metadata,
+    sa.Column("tag", sa.Text, primary_key=True),
+    sa.Column("tags", sa.JSON),
+    sa.Column("updated_at", sa.Float),
+)
+
 # Saved prompt snippets for the composer's Prefix (kind "positive") and
 # Negative (kind "negative") layers. String ids; a batch records the text it
 # sent, so editing or deleting a preset never changes an old batch.

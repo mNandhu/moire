@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, ExternalLink, Pencil, Pin, UserRound } from "lucide-react";
+import { Copy, ExternalLink, Pencil, Pin, UserRound, Wand2 } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { Skeleton } from "../components/ui/Skeleton";
@@ -11,6 +11,9 @@ import { Chip, ChipRow, MonthChart } from "../components/TagPanel";
 import { useCharacters } from "../components/ImageCharacters";
 import { CharacterEditDialog } from "../components/CharacterEditDialog";
 import { CharacterAvatar } from "../components/CharacterAvatar";
+import { RecipeEditor } from "../components/generate/CharacterBlock";
+import { useComfyModels, useRecipe } from "../lib/generate";
+import { loadDraft, saveDraft } from "../lib/generateForm";
 import { cn } from "../lib/cn";
 import { tintAmbient } from "../lib/ambient";
 import { fetchSignatures } from "../lib/gen";
@@ -294,6 +297,35 @@ function Images({ c }: { c: Character }) {
   );
 }
 
+/** What the Generate composer writes for them: identity tags and LoRA,
+ * editable here or in the composer (the same saved recipe). */
+function Recipe({ c }: { c: Character }) {
+  const navigate = useNavigate();
+  const { data: recipe } = useRecipe(c.tag);
+  const { data: models } = useComfyModels();
+  if (!recipe) return null;
+  const { name } = displayName(c);
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xs uppercase tracking-wider text-faint" title="What Generate writes for this character">
+          Recipe
+        </h2>
+        <Button
+          size="sm"
+          onClick={() => {
+            saveDraft({ ...loadDraft(), character: c.tag });
+            navigate("/generate");
+          }}
+        >
+          <Wand2 size={13} /> Generate
+        </Button>
+      </div>
+      <RecipeEditor recipe={recipe} label={name} installedLoras={models?.loras ?? []} />
+    </section>
+  );
+}
+
 /** Who they appear with, what they were made with, when, and how rated. */
 function Sidebar({ c, accent }: { c: Character; accent?: string }) {
   const { data: everyone } = useCharacters();
@@ -312,6 +344,7 @@ function Sidebar({ c, accent }: { c: Character; accent?: string }) {
 
   return (
     <aside className="space-y-6">
+      <Recipe c={c} />
       {c.with.length > 0 && (
         <section>
           <h2 className="text-2xs uppercase tracking-wider text-faint mb-2">Appears with</h2>

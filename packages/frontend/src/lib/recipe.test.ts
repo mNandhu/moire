@@ -7,8 +7,9 @@ const recipe: Recipe = {
   aliases: ["hu_tao"],
   count: 12,
   identity: [
-    { tag: "red_eyes", dropped: false },
-    { tag: "smile", dropped: true },
+    { tag: "red_eyes", dropped: false, added: false },
+    { tag: "smile", dropped: true, added: false },
+    { tag: "fang", dropped: false, added: true },
   ],
   outfit: ["porkpie_hat"],
   lora: { stem: "hu_tao_v2", file: "chars/hu_tao_v2.safetensors", strength: 0.8, images: 4 },
@@ -19,14 +20,14 @@ const recipe: Recipe = {
 
 describe("recipe", () => {
   it("writes the character tag and the kept identity tags", () => {
-    expect(characterTags(recipe)).toEqual(["hu_tao_(genshin_impact)", "red_eyes"]);
+    expect(characterTags(recipe)).toEqual(["hu_tao_(genshin_impact)", "red_eyes", "fang"]);
   });
 
   it("sends the installed file, or no LoRA when it isn't installed", () => {
     expect(characterInput(recipe, "Hu Tao")).toEqual({
       tag: "hu_tao_(genshin_impact)",
       label: "Hu Tao",
-      tags: ["hu_tao_(genshin_impact)", "red_eyes"],
+      tags: ["hu_tao_(genshin_impact)", "red_eyes", "fang"],
       lora: { name: "chars/hu_tao_v2.safetensors", strength: 0.8 },
     });
     const missing = { ...recipe, lora: { ...recipe.lora!, file: null } };

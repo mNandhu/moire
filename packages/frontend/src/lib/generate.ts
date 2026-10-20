@@ -124,7 +124,8 @@ export type Recipe = {
   tag: string;
   aliases: string[];
   count: number;
-  identity: { tag: string; dropped: boolean }[];
+  /** Computed tags (droppable), then the ones the user added. */
+  identity: { tag: string; dropped: boolean; added: boolean }[];
   /** Attire signature tags: the default outfit (shown in phase 4). */
   outfit: string[];
   /** `file` is the installed file the stem resolves to; null when not installed. */
@@ -147,7 +148,7 @@ export type PromptPart = {
 };
 
 /** A recipe edit: dropped tags; lora a stem / file, "" none, null computed; strength or null. */
-export type RecipePatch = Partial<{ dropped: string[]; lora: string | null; strength: number | null }>;
+export type RecipePatch = Partial<{ dropped: string[]; added: string[]; lora: string | null; strength: number | null }>;
 
 export type BatchInputs = {
   base: string;

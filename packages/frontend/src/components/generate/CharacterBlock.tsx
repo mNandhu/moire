@@ -12,6 +12,9 @@ import { displayWord } from "../../lib/compose";
 import { putRecipe, recipeKey, useRecipe, type Recipe, type RecipePatch } from "../../lib/generate";
 import { toggleDropped } from "../../lib/recipe";
 import { FieldLabel, stemOf } from "./RunControls";
+import { bareTagPool } from "./ChipInput";
+import { TagSuggestList, useTagMatches } from "../TagSuggestList";
+import { useTagAggregate } from "../../lib/queries";
 
 const NO_LORA = "\u0000none";
 
@@ -177,6 +180,131 @@ function LoraControl({
   );
 }
 
+/** Type a tag to add to the identity: library tags as suggestions. */
+function AddTagInput({ onAdd, taken }: { onAdd: (tag: string) => void; taken: ReadonlySet<string> }) {
+  const [text, setText] = useState("");
+  const [active, setActive] = useState(0);
+  const [moved, setMoved] = useState(false);
+  const { data: tagAgg } = useTagAggregate({ includePrompt: true });
+  const pool = useMemo(() => bareTagPool(tagAgg ?? []).filter((t) => !taken.has(t._id)), [tagAgg, taken]);
+  const matches = useTagMatches(text, pool);
+  const add = (tag: string) => {
+    const t = tag.trim().replace(/\s+/g, "_");
+    if (t) onAdd(t);
+    setText("");
+    setMoved(false);
+  };
+  return (
+    <div className="relative">
+      <input
+        aria-label="Add identity tag"
+        value={text}
+        placeholder="Add tag"
+        onChange={(e) => {
+          setText(e.target.value);
+          setActive(0);
+          setMoved(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            setMoved(true);
+            setActive((a) => (e.key === "ArrowDown" ? Math.min(a + 1, matches.length - 1) : Math.max(a - 1, 0)));
+          } else if (e.key === "Tab" && matches.length) {
+            e.preventDefault();
+            add(matches[active]._id);
+          } else if (e.key === "Enter" || e.key === ",") {
+            e.preventDefault();
+            add(moved && matches[active] ? matches[active]._id : text);
+          } else if (e.key === "Escape") setText("");
+        }}
+        className="h-7 w-32 rounded-md border border-dashed border-line-strong bg-transparent px-2 text-sm text-neutral-100 placeholder:text-faint outline-none focus:w-48 focus:border-solid focus:border-brand-600/60"
+      />
+      {text.trim() && matches.length > 0 && (
+        <div className="absolute left-0 top-full z-30 w-64">
+          <TagSuggestList matches={matches} active={active} onActive={setActive} onPick={(m) => add(m._id)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A recipe's editable parts: identity tags (drop a computed one, add your
+ * own) and the character LoRA. Changes are saved to the recipe at once, so
+ * the composer and the character page show the same thing.
+ */
+export function RecipeEditor({
+  recipe,
+  label,
+  installedLoras,
+  rejectedLoras,
+}: {
+  recipe: Recipe;
+  label: string;
+  installedLoras: readonly string[];
+  rejectedLoras?: ReadonlySet<string>;
+}) {
+  const qc = useQueryClient();
+  const patch = useMutation({
+    mutationFn: (p: RecipePatch) => putRecipe(recipe.tag, p),
+    onSuccess: (r) => qc.setQueryData(recipeKey(r.tag), r),
+  });
+  const added = recipe.identity.filter((c) => c.added).map((c) => c.tag);
+  const taken = useMemo(() => new Set([recipe.tag, ...recipe.identity.map((c) => c.tag)]), [recipe]);
+  return (
+    <>
+      <div>
+        <FieldLabel>Identity</FieldLabel>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span
+            className="inline-flex items-center rounded-md border border-brand-700 bg-brand-900/30 px-2 py-0.5 text-sm text-brand-100"
+            title={recipe.tag}
+          >
+            {displayWord(recipe.tag)}
+          </span>
+          {recipe.identity.map((c) => (
+            <span
+              key={c.tag}
+              title={c.dropped ? "Dropped from this recipe" : c.added ? "Added by you" : undefined}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md border pl-2 pr-1 py-0.5 text-sm",
+                c.dropped
+                  ? "border-line/60 text-faint line-through"
+                  : c.added
+                    ? "border-brand-800 bg-raised text-neutral-100"
+                    : "border-line bg-raised text-neutral-100",
+              )}
+            >
+              {displayWord(c.tag)}
+              <button
+                type="button"
+                onClick={() =>
+                  patch.mutate(
+                    c.added ? { added: added.filter((a) => a !== c.tag) } : { dropped: toggleDropped(recipe, c.tag) },
+                  )
+                }
+                aria-label={`${c.dropped ? "Restore" : c.added ? "Remove" : "Drop"} ${displayWord(c.tag)}`}
+                className="rounded p-0.5 text-muted no-underline hover:bg-line hover:text-neutral-100"
+              >
+                {c.dropped ? <Undo2 size={13} /> : <X size={13} />}
+              </button>
+            </span>
+          ))}
+          <AddTagInput taken={taken} onAdd={(tag) => !taken.has(tag) && patch.mutate({ added: [...added, tag] })} />
+        </div>
+      </div>
+      <LoraControl
+        recipe={recipe}
+        installed={installedLoras}
+        invalid={!!recipe.lora?.file && !!rejectedLoras?.has(recipe.lora.file)}
+        onPatch={(p) => patch.mutate(p)}
+        label={label}
+      />
+    </>
+  );
+}
+
 /**
  * The Character block: the picked character, their identity tags (drop one to
  * leave it out of this recipe, kept for next time) and their LoRA. Edits are
@@ -193,14 +321,9 @@ export function CharacterBlock({
   installedLoras: readonly string[];
   rejectedLoras: ReadonlySet<string>;
 }) {
-  const qc = useQueryClient();
   const { data: everyone } = useCharacters();
   const entry = useMemo(() => everyone?.find((c) => c.tag === value) ?? null, [everyone, value]);
   const { data: recipe, isError } = useRecipe(value);
-  const patch = useMutation({
-    mutationFn: (p: RecipePatch) => putRecipe(value!, p),
-    onSuccess: (r) => qc.setQueryData(recipeKey(r.tag), r),
-  });
 
   if (!value) {
     return (
@@ -267,46 +390,7 @@ export function CharacterBlock({
 
       {isError && <div className="text-xs text-red-300">Not in the library any more</div>}
       {recipe && (
-        <>
-          <div>
-            <FieldLabel>Identity</FieldLabel>
-            <div className="flex flex-wrap gap-1.5">
-              <span
-                className="inline-flex items-center rounded-md border border-brand-700 bg-brand-900/30 px-2 py-0.5 text-sm text-brand-100"
-                title={recipe.tag}
-              >
-                {displayWord(recipe.tag)}
-              </span>
-              {recipe.identity.map((c) => (
-                <span
-                  key={c.tag}
-                  title={c.dropped ? "Dropped from this recipe" : undefined}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-md border pl-2 pr-1 py-0.5 text-sm",
-                    c.dropped ? "border-line/60 text-faint line-through" : "border-line bg-raised text-neutral-100",
-                  )}
-                >
-                  {displayWord(c.tag)}
-                  <button
-                    type="button"
-                    onClick={() => patch.mutate({ dropped: toggleDropped(recipe, c.tag) })}
-                    aria-label={`${c.dropped ? "Restore" : "Drop"} ${displayWord(c.tag)}`}
-                    className="rounded p-0.5 text-muted no-underline hover:bg-line hover:text-neutral-100"
-                  >
-                    {c.dropped ? <Undo2 size={13} /> : <X size={13} />}
-                  </button>
-                </span>
-              ))}
-            </div>
-          </div>
-          <LoraControl
-            recipe={recipe}
-            installed={installedLoras}
-            invalid={!!recipe.lora?.file && rejectedLoras.has(recipe.lora.file)}
-            onPatch={(p) => patch.mutate(p)}
-            label={name}
-          />
-        </>
+        <RecipeEditor recipe={recipe} label={name} installedLoras={installedLoras} rejectedLoras={rejectedLoras} />
       )}
     </div>
   );

@@ -21,7 +21,7 @@ export function characterInput(r: Recipe, label: string): CharacterInput {
   };
 }
 
-/** The dropped list after toggling one identity tag. */
+/** The dropped list after toggling one computed identity tag. */
 export function toggleDropped(r: Recipe, tag: string): string[] {
   const dropped = new Set(r.identity.filter((c) => c.dropped).map((c) => c.tag));
   if (dropped.has(tag)) dropped.delete(tag);

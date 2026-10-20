@@ -84,8 +84,8 @@ def test_edits_win_over_the_computed_recipe():
         ["red_eyes", "smile"], cands, None
     )
     assert chips == [
-        {"tag": "red_eyes", "dropped": False},
-        {"tag": "smile", "dropped": False},
+        {"tag": "red_eyes", "dropped": False, "added": False},
+        {"tag": "smile", "dropped": False, "added": False},
     ]
     assert (stem, strength, forced) == ("hu_tao_v2", 0.75, False)
 
@@ -93,7 +93,12 @@ def test_edits_win_over_the_computed_recipe():
     chips, stem, strength, forced = recipes.apply_edits(
         ["red_eyes", "smile"], cands, edit
     )
-    assert chips[1] == {"tag": "smile", "dropped": True}
+    assert chips[1] == {"tag": "smile", "dropped": True, "added": False}
+    chips, *_ = recipes.apply_edits(["red_eyes"], cands, None, ["fang", "red_eyes"])
+    assert [(c["tag"], c["added"]) for c in chips] == [
+        ("red_eyes", False),
+        ("fang", True),
+    ]
     assert (stem, strength, forced) == ("alt", recipes.DEFAULT_STRENGTH, True)
 
     _, stem, strength, _ = recipes.apply_edits([], cands, {"lora": ""})
@@ -165,7 +170,13 @@ async def test_recipe_edit_and_queue(client, comfy, seed, monkeypatch):  # noqa:
             json={"dropped": ["twintails"], "strength": 0.6},
         )
     ).json()
-    assert r["identity"][1] == {"tag": "twintails", "dropped": True}
+    assert r["identity"][1] == {"tag": "twintails", "dropped": True, "added": False}
+    r = (
+        await client.put(
+            "/generate/recipes/hu_tao_(genshin_impact)", json={"added": ["hair flower"]}
+        )
+    ).json()
+    assert r["identity"][-1] == {"tag": "hair_flower", "dropped": False, "added": True}
     assert r["lora"]["strength"] == 0.6 and r["strength_edited"] is True
     r = (
         await client.put("/generate/recipes/hu_tao_(genshin_impact)", json={"lora": ""})

@@ -30,6 +30,7 @@ from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from . import attire, characters, comfy_models, image_tags, tag_categories, tag_index
 from .generator_graph import lora_stem
+from .image_tags import canonical_tag
 
 # A LoRA counts as this character's when at least this share of the images it
 # was used on are theirs: a style or detail LoRA used on everything never is.
@@ -107,12 +108,20 @@ def apply_edits(
     identity: list[str],
     candidates: list[LoraUse],
     edit: dict[str, Any] | None,
+    added: list[str] = (),
 ) -> tuple[list[dict], str | None, float | None, bool]:
-    """Identity chips with their dropped flag, the LoRA stem and strength,
-    and whether the LoRA is the user's choice. Pure."""
+    """Identity chips (computed ones with their dropped flag, then the ones
+    the user added), the LoRA stem and strength, and whether the LoRA is the
+    user's choice. Pure."""
     edit = edit or {}
     dropped = set(edit.get("dropped") or [])
-    chips = [{"tag": s, "dropped": s in dropped} for s in identity]
+    chips = [{"tag": s, "dropped": s in dropped, "added": False} for s in identity]
+    have = set(identity)
+    chips += [
+        {"tag": a, "dropped": False, "added": True}
+        for a in dict.fromkeys(added)
+        if a not in have
+    ]
     forced = edit.get("lora")
     if forced is None:
         stem = candidates[0].stem if candidates else None
@@ -137,6 +146,18 @@ async def _edit(key: str) -> dict[str, Any] | None:
             )
         ).first()
     return dict(row._mapping) if row else None
+
+
+async def _added(key: str) -> list[str]:
+    async with async_conn() as conn:
+        tags = (
+            await conn.execute(
+                sa.select(t.recipe_additions.c.tags).where(
+                    t.recipe_additions.c.tag == key
+                )
+            )
+        ).scalar()
+    return [x for x in tags or [] if isinstance(x, str)]
 
 
 async def _uses(names: list[str]) -> list[LoraUse]:
@@ -261,7 +282,9 @@ async def recipe(tag: str) -> dict | None:
         await _uses(names), names, count / total if total else 0.0
     )
     edit = await _edit(key)
-    chips, stem, strength, forced = apply_edits(identity, candidates, edit)
+    chips, stem, strength, forced = apply_edits(
+        identity, candidates, edit, await _added(key)
+    )
     files = await _files([c.stem for c in candidates] + ([stem] if stem else []))
     used = {c.stem: c for c in candidates}
     return {
@@ -316,7 +339,8 @@ async def _files(stems: list[str]) -> dict[str, str | None]:
 
 
 def clean(patch: dict) -> dict:
-    """A recipe edit from the API. ``dropped`` a list of tags; ``lora`` a stem
+    """A recipe edit from the API. ``dropped`` a list of tags; ``added`` the
+    identity tags the user added (replaces the list); ``lora`` a stem
     or file name ("" = no LoRA, null = back to the computed pick);
     ``strength`` a number or null."""
     out: dict[str, Any] = {}
@@ -325,6 +349,13 @@ def clean(patch: dict) -> dict:
         if not isinstance(d, list) or not all(isinstance(x, str) for x in d):
             raise RecipeError("dropped must be a list of tags")
         out["dropped"] = sorted({x for x in d if x.strip()})
+    if "added" in patch:
+        a = patch["added"]
+        if not isinstance(a, list) or not all(isinstance(x, str) for x in a):
+            raise RecipeError("added must be a list of tags")
+        out["added"] = list(dict.fromkeys(canonical_tag(x) for x in a if x.strip()))[
+            :40
+        ]
     if "lora" in patch:
         lo = patch["lora"]
         if lo is not None and not isinstance(lo, str):
@@ -345,11 +376,19 @@ async def update(tag: str, patch: dict) -> dict | None:
     if key not in key_of:
         return None
     values = clean(patch)
-    if values:
-        values["updated_at"] = time.time()
-        stmt = sqlite_insert(t.recipe_edits).values(tag=key, **values)
-        async with async_tx() as conn:
+    added = values.pop("added", None)
+    now = time.time()
+    async with async_tx() as conn:
+        if values:
+            values["updated_at"] = now
+            stmt = sqlite_insert(t.recipe_edits).values(tag=key, **values)
             await conn.execute(
                 stmt.on_conflict_do_update(index_elements=["tag"], set_=values)
+            )
+        if added is not None:
+            row = {"tags": added, "updated_at": now}
+            stmt = sqlite_insert(t.recipe_additions).values(tag=key, **row)
+            await conn.execute(
+                stmt.on_conflict_do_update(index_elements=["tag"], set_=row)
             )
     return await recipe(key)
