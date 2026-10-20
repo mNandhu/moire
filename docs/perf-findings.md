@@ -21,11 +21,11 @@ Effort: S (hours) · M (a day or so) · L (more)
 | A2 | AI tagging | Decode + inference run on the event loop | API p50 during job 1.2-1.5s -> 12ms | S-M | done (merged) |
 | A3 | AI tagging | Tag from local thumbnail instead of original on /mnt/g | ~45 ms/img, no 9P reads | S | dropped (measured: no gain behind the A2 prefetch; tags drift at 768px) |
 | A4 | AI tagging | Pad-then-resize prep + Python `select_tags` loop | ~45 ms/img (matters only with A1) | S | done (`2907b74`: prep in the prefetch, numpy select; GPU job 166 -> 133 ms/img) |
-| A5 | AI tagging | ORT `intra_op_num_threads` untuned | Unclear (contention artifact?) | S | open |
+| A5 | AI tagging | ORT `intra_op_num_threads` untuned | Unclear (contention artifact?) | S | dropped (measured: default/6/12 threads within noise) |
 | S1 | Scan | Rescan re-processes every unchanged file; 15-min reconcile triggers it per watched library, plus full reproject | Unchanged rescan 6.8s -> 0.16s / 297 imgs (~40x) | S | done (`2d5e32a`) |
 | S2 | Scan | Thumbs 1080px webp; 640px enough | Scan ~1.7-2x faster, thumbs ~45% smaller | S (+ regen) | done (`eb4e869`, 768px after visual check; 512 too soft for avatars) |
 | S3 | Prompt extraction | Reproject reruns needlessly; `parse_prompt` ~22 calls/img uncached | Gate on change (S1); lru_cache 20.1 -> 14.5s real library (-28%) | S | done (a, b; c `a6f5e64`: skip unchanged + bulk writes, full re-run 17.6 -> 5.1 s) |
-| S4 | Scan | Thread pool + GIL bound past ~4 workers; process pool | Maybe 1.3-2x, unproven | M | open |
+| S4 | Scan | Thread pool + GIL bound past ~4 workers; process pool | Maybe 1.3-2x, unproven | M | dropped (measured: +12% warm, first scans only) |
 | S5 | Scan | Serial walk + stat over 9P (~7 ms/file) | Needed once S1 lands: 10k stats 70s -> ~10s | S | done (`2d5e32a`, stat on the pool) |
 | D1 | API / DB | Rare tag/term filter walks all images in sort order, probing EXISTS per row | Rare filter 128 -> 5 ms @30k; threshold 3000 regresses mid filters 3-7x | S-M | done (`aa9a4e6`, `_RARE`=300) |
 | D2 | API / DB | Cursor row-value compare can't seek the sort index; deep pages O(depth) | deep140 49 -> 3 ms @30k; sort=top not covered | S | done (`aa9a4e6`, all sorts incl. top) |
@@ -42,7 +42,9 @@ Done after that (2026-10-20):
 - G4/G5 (`f16bf28`).
 - Tags browse (`df95782`): one pass, materialized visible images. Byte-identical; cold all 565 -> 350 ms, prompt 1040 -> 395, ai 408 -> 33.
 
-Still open (unproven, low priority): S4 process pool for scans, A5 ORT thread count.
+Measured and dropped (2026-10-20), so nothing is open:
+- S4: 240 real files, warm page cache, 768px thumbs. Thread pool x12: 45-47 img/s; process pool x12: 50-53 img/s (+12%). It only helps a library's first scan (rescans skip unchanged files), the cold read over /mnt/g is I/O that threads already overlap, and 12 worker processes cost memory and make cancellation harder.
+- A5: WD v3 on CPU, 12 runs each, twice: default 754-780 ms, 6 threads 755-769 ms, 12 threads 746-760 ms. All within noise; ORT's default is fine.
 
 Review findings left as is (`dd642d0` review):
 - The rare-filter id list and the page query run as separate statements (separate snapshots). An image tagged in the milliseconds between them can miss one page; plain EXISTS paging has the same exposure across pages.
