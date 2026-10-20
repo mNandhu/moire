@@ -68,7 +68,11 @@ belongs in this file.
   library (an *alias*, counted as one). Its colour comes from hair and eye
   tags (solo images when there are enough), never pixels, unless the user
   picks one; its signature tags are the tagger's general tags common on its
-  images and rare elsewhere. The avatar is the tag's cover pin; the
+  images and rare elsewhere, read from its solo images when there are
+  enough, trusted only when the share holds up for that many images (so a
+  one-off tag on a 3-image character is dropped), and keeping one hair and
+  one eye colour (two with `multicolored_hair` / `heterochromia`). Few images
+  shows a "may be off" note. The avatar is the tag's cover pin; the
   `characters` table holds only overrides. (`services/characters.py`)
 - **Face detection**: an optional anime face model (YOLOv8 nano, ONNX,
   downloaded from Settings > Characters) that finds the face in each

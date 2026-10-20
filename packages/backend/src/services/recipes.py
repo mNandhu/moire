@@ -228,8 +228,9 @@ async def _uses(names: list[str]) -> list[LoraUse]:
 
 async def _signature(
     names: list[str], key_of: dict, rows: list
-) -> tuple[int, list[str]]:
-    """How many images the character is in, and their signature tags."""
+) -> tuple[int, int, list[str]]:
+    """How many images the character is in, how many the signature was read
+    from (:func:`characters.signature_counts`), and their signature tags."""
     it = t.image_tags
     ids = tag_index.image_ids(names)
     vocab = await tag_categories.load()
@@ -246,18 +247,12 @@ async def _signature(
                 sa.select(sa.func.count()).where(image_tags.not_quarantined())
             )
         ).scalar_one()
-        here = dict(
-            (
-                await conn.execute(
-                    sa.select(it.c.base, sa.func.count(sa.distinct(it.c.image_id)))
-                    .where(it.c.image_id.in_(ids), it.c.base != "")
-                    .group_by(it.c.base)
-                )
-            ).fetchall()
+        here, counted = await characters.signature_counts(
+            conn, ids, [c for c in key_of if c not in names], n
         )
     sig = characters.signature(
         here,
-        n,
+        counted,
         {r["tag"]: r["count"] for r in rows},
         total,
         skip=set(key_of) | set(names),
@@ -266,7 +261,7 @@ async def _signature(
         # many scene tags at the top and would crowd out hair and eyes.
         limit=10_000,
     )
-    return n, [s["tag"] for s in sig]
+    return n, counted, [s["tag"] for s in sig]
 
 
 async def recipe(tag: str) -> dict | None:
@@ -275,7 +270,7 @@ async def recipe(tag: str) -> dict | None:
     key, names, key_of, rows = await characters._named(tag)
     if key not in key_of and not await characters.is_made(key, rows):
         return None
-    count, sig = await _signature(names, key_of, rows)
+    count, sig_images, sig = await _signature(names, key_of, rows)
     identity, outfit = split_signature(sig)
     total = await _visible_count()
     candidates = lora_candidates(
@@ -292,6 +287,8 @@ async def recipe(tag: str) -> dict | None:
         "aliases": names[1:],
         "count": count,
         "identity": chips,
+        # The images identity was read from: few means it's a guess.
+        "identity_images": sig_images,
         "outfit": outfit,
         "lora": None
         if stem is None

@@ -27,6 +27,8 @@ export type CharacterPage = Omit<TagDetail, "loras"> & {
   palette: string[];
   cover_blurhash: string | null;
   signature: Array<{ tag: string; count: number }>;
+  /** The images the signature was read from (solo ones when there are enough). */
+  signature_images: number;
   /** Other characters on the same images. */
   with: Array<{ tag: string; count: number }>;
   best: Array<{ image_id: string; score: number; thumb_url: string }>;
@@ -220,3 +222,16 @@ export const SWATCHES = [
   "#9a7357",
   "#a3a7b3",
 ] as const;
+
+/** Under this many images, a character's look is called a guess. */
+export const FEW_IMAGES = 5;
+
+/**
+ * The note under a look read from only a few images, else null: a
+ * character's look and identity come from what their images share, and a
+ * handful of images can't tell a habit from a one-off.
+ */
+export function fewImagesNote(images: number): string | null {
+  if (images <= 0 || images >= FEW_IMAGES) return null;
+  return `Based on just ${images} ${images === 1 ? "image" : "images"}, so this may be off.`;
+}

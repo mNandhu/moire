@@ -32,6 +32,7 @@ import {
   characterFilters,
   characterHref,
   displayName,
+  fewImagesNote,
   tagHref,
   type CharacterPage as Character,
 } from "../lib/character";
@@ -209,6 +210,9 @@ function Profile({ c, accent, person }: { c: Character; accent?: string; person:
             </Button>
           </div>
         )}
+        {look.length > 0 && fewImagesNote(c.signature_images) && (
+          <p className="text-xs text-faint">{fewImagesNote(c.signature_images)}</p>
+        )}
       </div>
     </section>
   );
@@ -375,6 +379,9 @@ function Recipe({ c, onEdit }: { c: Character; onEdit: () => void }) {
           <span className="text-xs text-faint">No identity tags</span>
         )}
       </div>
+      {kept.length > 0 && fewImagesNote(recipe.identity_images) && (
+        <p className="text-xs text-faint">{fewImagesNote(recipe.identity_images)}</p>
+      )}
       {lora && (
         <p className={cn("font-mono text-xs", missing ? "text-amber-200 line-through" : "text-muted")} title={missing ? "Not installed in ComfyUI" : undefined}>
           {lora.stem} {lora.strength.toFixed(2)}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  fewImagesNote,
   mixColours,
   avatarCrop,
   inkOn,
@@ -131,5 +132,14 @@ describe("mixColours", () => {
     expect(mixColours([["a1", "a2", "a3"], ["b1", "b2"]])).toEqual(["a1", "b1", "a2"]);
     expect(mixColours([["a1"], [], ["c1"], ["d1"], ["e1"]])).toEqual(["a1", "c1", "d1"]);
     expect(mixColours([[], []])).toEqual([]);
+  });
+});
+
+describe("fewImagesNote", () => {
+  it("speaks up only for a handful of images", () => {
+    expect(fewImagesNote(1)).toBe("Based on just 1 image, so this may be off.");
+    expect(fewImagesNote(3)).toBe("Based on just 3 images, so this may be off.");
+    expect(fewImagesNote(5)).toBeNull();
+    expect(fewImagesNote(0)).toBeNull();
   });
 });

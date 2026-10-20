@@ -140,6 +140,8 @@ export type Recipe = {
   count: number;
   /** Computed tags (droppable), then the ones the user added. */
   identity: { tag: string; dropped: boolean; added: boolean }[];
+  /** The images identity was read from (solo ones when there are enough). */
+  identity_images: number;
   /** Attire signature tags: the default outfit (shown in phase 4). */
   outfit: string[];
   /** `file` is the installed file the stem resolves to; null when not installed. */

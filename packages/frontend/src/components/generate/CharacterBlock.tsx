@@ -8,7 +8,8 @@ import { Dialog } from "../ui/Dialog";
 import { CharacterAvatar } from "../CharacterAvatar";
 import { useCharacters } from "../ImageCharacters";
 import { cn } from "../../lib/cn";
-import { characterHref, displayName, type CharacterEntry } from "../../lib/character";
+import { characterHref, displayName, fewImagesNote, type CharacterEntry } from "../../lib/character";
+import { chipBorderStyle } from "../../lib/tagColour";
 import { displayWord } from "../../lib/compose";
 import { putRecipe, recipeKey, useRecipe, type Recipe, type RecipePatch } from "../../lib/generate";
 import { toggleDropped } from "../../lib/recipe";
@@ -313,6 +314,7 @@ export function RecipeEditor({
             <span
               key={c.tag}
               title={c.dropped ? "Dropped from this recipe" : c.added ? "Added by you" : undefined}
+              style={c.dropped ? undefined : chipBorderStyle(c.tag)}
               className={cn(
                 "inline-flex items-center gap-1 rounded-md border pl-2 pr-1 py-0.5 text-sm",
                 c.dropped
@@ -339,6 +341,9 @@ export function RecipeEditor({
           ))}
           <AddTagInput taken={taken} onAdd={(tag) => !taken.has(tag) && patch.mutate({ added: [...added, tag] })} />
         </div>
+        {fewImagesNote(recipe.identity_images) && (
+          <p className="mt-1.5 text-xs text-faint">{fewImagesNote(recipe.identity_images)}</p>
+        )}
       </div>
       <LoraControl
         recipe={recipe}

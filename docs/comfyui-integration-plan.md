@@ -465,6 +465,15 @@ running prompt only after a fresh `/queue` shows it is ours and running.
 - Default outfit is returned (`outfit`) but not shown until phase 4.
 - Identity and outfit are capped at 12 each, after filtering (near-duplicate
   images can tie dozens of scene tags at the top of the signature).
+- Signature noise on small characters (2026-10-20): `characters.signature`
+  reads the images the character is alone in once there are 3
+  (`signature_counts`, as the palette does), so a co-star's hair and eyes
+  don't leak in; a tag's share must also clear a Wilson lower bound (z = 1)
+  of 0.25 (`confident`: 2 of 3 images, not 1 of 3); then
+  `one_colour_per_slot` keeps the most common hair colour and eye colour (a
+  second when a multicolour tag is in the signature too). The page and
+  recipe return how many images it read (`signature_images` /
+  `identity_images`); under 5, the UI says the look may be off.
 - "Edit and queue" from a character batch picks the character again and so
   loads today's recipe, not the tags that batch recorded (Requeue replays
   the recorded ones).
