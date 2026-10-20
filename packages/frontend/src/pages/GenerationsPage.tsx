@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { History, ImageOff, Layers, Loader2, Search } from "lucide-react";
 import { Badge, EmptyState, Input, PageBody, PageHeader } from "../components/ui";
-import { batchLine, coverAspect, dayLabel, scrubIndex, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
+import { batchLine, coverAspect, dayLabel, dealColumns, scrubIndex, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
 import { thumbUrl, useBatches, type BatchSummary } from "../lib/generate";
 import { cn } from "../lib/cn";
 import { fuzzyRank } from "../lib/fuzzy";
@@ -10,25 +10,62 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 type Show = "all" | "running" | "failed";
 
-// How far each image behind the front one peeks out, up and to the right.
-const PEEK = 6;
+// Masonry columns: at least this wide, this far apart; a card adds its name
+// lines and its deck edges under and above its cover.
+const MIN_COL = 190;
+const GAP = 12;
+const CARD_EXTRA = 62;
+
+/** Cards in masonry columns, as many as fit the width, each card in the
+ * shortest column so far. */
+function Masonry({ items }: { items: BatchSummary[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    setWidth(el.clientWidth);
+    const ro = new ResizeObserver(([e]) => setWidth(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const cols = Math.max(1, Math.floor((width + GAP) / (MIN_COL + GAP)));
+  const colWidth = (width - GAP * (cols - 1)) / cols;
+  const columns = useMemo(
+    () => dealColumns(items.map((b) => coverAspect(b.width, b.height)), cols, colWidth, CARD_EXTRA, GAP),
+    [items, cols, colWidth],
+  );
+  return (
+    <div ref={ref} className="flex items-start" style={{ gap: GAP }}>
+      {width > 0 &&
+        columns.map((col, c) => (
+          <ul key={c} className="flex min-w-0 flex-1 flex-col" style={{ gap: GAP }}>
+            {col.map((i) => (
+              <li key={items[i]._id}>
+                <BatchCard b={items[i]} />
+              </li>
+            ))}
+          </ul>
+        ))}
+    </div>
+  );
+}
 
 /**
- * A batch's images as a stacked deck at the batch's own shape: the first
- * image whole in front, up to two more peeking out behind it, and a count.
- * Moving the pointer across the cover (or arrow keys on the card) flips
- * through them, a strip per image, with a thin bar showing where you are.
+ * A batch's cover at the batch's own shape: its first image, edge to edge.
+ * Moving the pointer across it (or arrow keys on the card) flips through the
+ * images, a strip per image, with a thin bar showing where you are.
  */
 function Cover({ b, at, onAt, warm }: { b: BatchSummary; at: number; onAt: (i: number) => void; warm: boolean }) {
   const ids = b.thumbs;
   if (!ids.length) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-1.5 text-xs text-faint">
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-2 text-center text-xs text-faint">
         {b.state === "running" || b.state === "paused" ? (
           <Loader2 size={20} className="animate-spin" />
         ) : (
           <>
-            <ImageOff size={20} />
+            <ImageOff size={18} />
             {b.images > 0 && "All rejected"}
           </>
         )}
@@ -36,76 +73,59 @@ function Cover({ b, at, onAt, warm }: { b: BatchSummary; at: number; onAt: (i: n
     );
   }
   const n = ids.length;
-  const behind = Math.min(n - 1, 2);
-  // The card at depth `d` (0 in front), all the same size, each one further
-  // back shifted up and right by PEEK.
-  const frame = (d: number): React.CSSProperties => ({
-    top: PEEK * (behind - d),
-    right: PEEK * (behind - d),
-    bottom: PEEK * d,
-    left: PEEK * d,
-  });
-  const count = Math.max(b.kept, n);
   return (
     <div
-      // A deck sits a little in from the card's edge, so it reads as a stack.
-      className={cn("absolute", behind ? "inset-2" : "inset-0")}
+      className="absolute inset-0"
       onPointerMove={(e) => {
         const r = e.currentTarget.getBoundingClientRect();
         onAt(scrubIndex(e.clientX - r.left, r.width, n));
       }}
       onPointerLeave={() => onAt(0)}
     >
-      {Array.from({ length: behind }, (_, k) => behind - k).map((d) => (
-        <div
-          key={d}
-          aria-hidden
-          className="absolute overflow-hidden rounded-md bg-raised shadow-[0_1px_3px_rgb(0_0_0/0.5)]"
-          style={frame(d)}
-        >
+      {ids.map((id, i) =>
+        // The rest load once the card is hovered or focused: until then
+        // only the front image is seen.
+        warm || i === at ? (
           <img
-            src={thumbUrl(ids[(at + d) % n])}
+            key={i}
+            src={thumbUrl(id)}
             alt=""
             loading="lazy"
-            className="h-full w-full object-cover opacity-50"
+            className={cn("absolute inset-0 h-full w-full object-cover", i !== at && "opacity-0")}
           />
-        </div>
-      ))}
-      <div
-        className={cn("absolute overflow-hidden bg-raised", behind ? "rounded-md shadow-[0_2px_6px_rgb(0_0_0/0.55)]" : "")}
-        style={frame(0)}
-      >
-        {ids.map((id, i) =>
-          // The rest load once the card is hovered or focused: until then
-          // only the front image (and the two behind) are seen.
-          warm || i === at ? (
-            <img
-              key={i}
-              src={thumbUrl(id)}
-              alt=""
-              loading="lazy"
-              className={cn("absolute inset-0 h-full w-full object-cover", i !== at && "opacity-0")}
-            />
-          ) : null,
-        )}
-        {n > 1 && (
-          <>
-            <span className="absolute bottom-1.5 right-1.5 inline-flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-2xs font-medium tabular-nums text-white">
-              <Layers size={11} aria-hidden />
-              {count}
-            </span>
-            <div
-              aria-hidden
-              className="absolute bottom-2 left-1.5 right-12 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-            >
-              {ids.map((_, i) => (
-                <span key={i} className={cn("h-0.5 flex-1 rounded-full", i === at ? "bg-white" : "bg-white/30")} />
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+        ) : null,
+      )}
+      {n > 1 && (
+        <>
+          <span className="absolute bottom-1.5 right-1.5 inline-flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-2xs font-medium tabular-nums text-white">
+            <Layers size={11} aria-hidden />
+            {Math.max(b.kept, n)}
+          </span>
+          <div
+            aria-hidden
+            className="absolute bottom-2 left-1.5 right-12 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+          >
+            {ids.map((_, i) => (
+              <span key={i} className={cn("h-0.5 flex-1 rounded-full", i === at ? "bg-white" : "bg-white/30")} />
+            ))}
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+/** A batch with several images is a deck: the edges of the cards behind
+ * show above it, one for two images, two for more. */
+function DeckEdges({ n }: { n: number }) {
+  if (n < 2) return null;
+  return (
+    <>
+      {n > 2 && (
+        <span aria-hidden className="absolute inset-x-[14%] top-0 h-3 rounded-t-lg border border-b-0 border-line bg-raised/50" />
+      )}
+      <span aria-hidden className="absolute inset-x-[7%] top-1 h-3 rounded-t-lg border border-b-0 border-line-strong bg-raised" />
+    </>
   );
 }
 
@@ -114,37 +134,40 @@ function BatchCard({ b }: { b: BatchSummary }) {
   const [warm, setWarm] = useState(false);
   const n = b.thumbs.length;
   return (
-    <Link
-      to={`/generations/${b._id}`}
-      aria-label={`${b.name}, ${batchLine(b)}`}
-      onKeyDown={(e) => {
-        if (n < 2 || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
-        e.preventDefault();
-        setAt((i) => (i + (e.key === "ArrowRight" ? 1 : n - 1)) % n);
-      }}
-      onBlur={() => setAt(0)}
-      onFocus={() => setWarm(true)}
-      onPointerEnter={() => setWarm(true)}
-      className="group block overflow-hidden rounded-xl border border-line bg-surface transition-colors hover:border-line-strong"
-    >
-      <div className="relative bg-canvas" style={{ aspectRatio: coverAspect(b.width, b.height) }}>
-        <Cover b={b} at={Math.min(at, Math.max(0, n - 1))} onAt={setAt} warm={warm} />
-        {b.state !== "done" && (
-          <Badge tone={stateTone(b.state)} className="absolute left-2 top-2 shadow-panel">
-            {STATE_LABEL[b.state]}
-          </Badge>
-        )}
-      </div>
-      <div className="px-3 py-2">
-        <div className="flex items-baseline gap-2">
-          <span className="min-w-0 flex-1 truncate text-sm text-neutral-100 group-hover:text-white">{b.name}</span>
-          <span className="shrink-0 text-xs tabular-nums text-faint">{whenLabel(b.created_at)}</span>
+    <div className="relative pt-2">
+      <DeckEdges n={n} />
+      <Link
+        to={`/generations/${b._id}`}
+        aria-label={`${b.name}, ${batchLine(b)}`}
+        onKeyDown={(e) => {
+          if (n < 2 || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+          e.preventDefault();
+          setAt((i) => (i + (e.key === "ArrowRight" ? 1 : n - 1)) % n);
+        }}
+        onBlur={() => setAt(0)}
+        onFocus={() => setWarm(true)}
+        onPointerEnter={() => setWarm(true)}
+        className="group relative block overflow-hidden rounded-xl border border-line bg-surface transition-colors hover:border-line-strong"
+      >
+        <div className="relative bg-canvas" style={{ aspectRatio: coverAspect(b.width, b.height) }}>
+          <Cover b={b} at={Math.min(at, Math.max(0, n - 1))} onAt={setAt} warm={warm} />
+          {b.state !== "done" && (
+            <Badge tone={stateTone(b.state)} className="absolute left-2 top-2 shadow-panel">
+              {STATE_LABEL[b.state]}
+            </Badge>
+          )}
         </div>
-        <div className="truncate text-xs text-faint" title={b.generator ?? undefined}>
-          {batchLine(b)}
+        <div className="px-3 py-2">
+          <div className="flex items-baseline gap-2">
+            <span className="min-w-0 flex-1 truncate text-sm text-neutral-100 group-hover:text-white">{b.name}</span>
+            <span className="shrink-0 text-xs tabular-nums text-faint">{whenLabel(b.created_at)}</span>
+          </div>
+          <div className="truncate text-xs text-faint" title={b.generator ?? undefined}>
+            {batchLine(b)}
+          </div>
         </div>
-      </div>
-    </Link>
+      </Link>
+    </div>
   );
 }
 
@@ -207,13 +230,7 @@ export default function GenerationsPage() {
             {groups.map((g) => (
               <section key={g.day}>
                 <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">{g.day}</h2>
-                <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] items-start gap-3">
-                  {g.items.map((b) => (
-                    <li key={b._id}>
-                      <BatchCard b={b} />
-                    </li>
-                  ))}
-                </ul>
+                <Masonry items={g.items} />
               </section>
             ))}
           </div>

@@ -114,6 +114,26 @@ export function coverAspect(width: number | null, height: number | null): number
   return Math.min(3 / 2, Math.max(2 / 3, width / height));
 }
 
+/**
+ * Masonry: deal cards of the given cover shapes (`aspects`, width / height)
+ * into `cols` columns `colWidth` wide, each into the shortest column so far
+ * (ties go left), which keeps them close to reading order. `extra` is the
+ * height every card adds under its cover. Returns the card indexes per
+ * column, top to bottom. Pure.
+ */
+export function dealColumns(aspects: readonly number[], cols: number, colWidth: number, extra: number, gap = 0): number[][] {
+  const n = Math.max(1, cols);
+  const out: number[][] = Array.from({ length: n }, () => []);
+  const heights = new Array<number>(n).fill(0);
+  aspects.forEach((a, i) => {
+    let col = 0;
+    for (let c = 1; c < n; c++) if (heights[c] < heights[col] - 0.5) col = c;
+    out[col].push(i);
+    heights[col] += colWidth / a + extra + gap;
+  });
+  return out;
+}
+
 /** Which of `n` images a pointer at `x` across a cover `width` wide shows:
  * the cover split into `n` equal strips, left to right. Pure. */
 export function scrubIndex(x: number, width: number, n: number): number {
