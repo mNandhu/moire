@@ -227,7 +227,8 @@ export default function GeneratePage() {
           return c ? [c] : [];
         })),
   );
-  const perRequest = settings?.builtin_per_request ?? 1;
+  const defaultPerRequest = settings?.builtin_per_request ?? 1;
+  const perRequest = form.perRequest ?? defaultPerRequest;
   const connected = !!status?.connected;
 
   const queue = useMutation({
@@ -435,6 +436,11 @@ export default function GeneratePage() {
                       samplers={models?.samplers ?? NO_STRINGS}
                       schedulers={models?.schedulers ?? NO_STRINGS}
                       onChange={(v) => set("sampling", v)}
+                      batchSize={
+                        gen.slots.batch_size
+                          ? { value: form.perRequest, default: defaultPerRequest, onChange: (n) => set("perRequest", n) }
+                          : null
+                      }
                       invalid={flagged.sampling ? "ComfyUI refused these sampler settings" : null}
                     />
                   )}

@@ -485,3 +485,28 @@ async def test_sampling_reaches_the_sampler_and_requeue_keeps_it(client, comfy, 
         "/generate/batches", json={"base": "x", "sampling": {"steps": 0}}
     )
     assert bad.status_code == 422
+
+
+async def test_images_per_request_for_one_batch(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    b = (
+        await client.post(
+            "/generate/batches", json={"base": "x", "count": 7, "per_request": 3}
+        )
+    ).json()
+    assert comfy.prompts[comfy.order[-1]]["5"]["inputs"]["batch_size"] == 3
+    got = (await client.get(f"/generate/batches/{b['_id']}")).json()
+    assert [q["images"] for q in got["requests"]] == [3, 3, 1]
+    assert got["inputs"]["per_request"] == 3
+
+
+def test_only_a_sampling_input_flags_sampling():
+    from src.services import builtin_generator
+
+    gen = {"slots": builtin_generator.slots(), "graph": builtin_generator.graph()}
+    errs = [
+        {"node": "3", "input": "steps"},
+        {"node": "3", "input": "seed"},
+    ]
+    out = generation_jobs.annotate_node_errors(errs, gen, gen["graph"])
+    assert [e["field"] for e in out] == ["sampling", None]

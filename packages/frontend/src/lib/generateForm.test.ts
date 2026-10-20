@@ -169,7 +169,11 @@ describe("sampling", () => {
     const f = formFromBatch({ ...({} as BatchInputs), ...sent, seed: sent.seed } as BatchInputs, null);
     expect(f.sampling).toEqual({ sampler: "dpmpp_2m", steps: 20 });
     expect(draft({ sampling: { steps: 20, cfg: "x", junk: 1 } }).sampling).toEqual({ steps: 20 });
+    expect(samplingOf({ steps: 20.5, cfg: 31 })).toEqual({});
+    expect(samplingLabel({ scheduler: "sgm_uniform" })).toBe("sgm uniform scheduler");
     expect(draft({}).sampling).toEqual({});
+    expect(toQueueBody({ ...DEFAULT_FORM, perRequest: 2 }, "builtin", [], presets).per_request).toBe(2);
+    expect(draft({ perRequest: 3 }).perRequest).toBe(3);
     expect(samplingOf(null)).toEqual({});
   });
 });

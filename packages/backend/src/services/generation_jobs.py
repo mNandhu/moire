@@ -221,6 +221,11 @@ def annotate_node_errors(
         path = slots.get(key)
         return str(path[0]) if path else None
 
+    def at_slot(key: str, node: str, err: dict[str, Any]) -> bool:
+        # The sampler node has other inputs (seed, model, latent): match the input too.
+        path = slots.get(key)
+        return bool(path) and node == str(path[0]) and err.get("input") == path[1]
+
     out = []
     for err in errors:
         node = str(err.get("node") or "")
@@ -228,7 +233,7 @@ def annotate_node_errors(
         cls = (graph.get(node) or {}).get("class_type")
         if node and node == slot_node("checkpoint"):
             extra["field"] = "checkpoint"
-        elif node and any(node == slot_node(k) for k in SAMPLING):
+        elif node and any(at_slot(k, node, err) for k in SAMPLING):
             extra["field"] = "sampling"
         elif cls in ("LoraLoader", "LoraLoaderModelOnly"):
             extra = {
@@ -254,10 +259,19 @@ async def load_generator(generator_id: str) -> dict[str, Any] | None:
         ).first()
     if row is not None:
         gen = dict(row._mapping)
-        if gen["kind"] == "builtin":
-            # Moiré's own graph: the stored copy may predate a new slot.
+        if gen["kind"] == "builtin" and (
+            gen["graph"] != builtin_generator.graph()
+            or gen["slots"] != builtin_generator.slots()
+        ):
+            # Moiré's own graph: a stored copy from before a new slot is updated.
             gen["graph"] = builtin_generator.graph()
             gen["slots"] = builtin_generator.slots()
+            async with async_tx() as conn:
+                await conn.execute(
+                    sa.update(t.generators)
+                    .where(t.generators.c._id == generator_id)
+                    .values(graph=gen["graph"], slots=gen["slots"])
+                )
         return gen
     if generator_id != builtin_generator.BUILTIN_ID:
         return None
@@ -692,14 +706,15 @@ class GenerationManager:
             raise Invalid("Run the Generator's test first")
 
         count = max(1, min(500, int(body.get("count") or 1)))
-        if gen["kind"] == "builtin":
-            per_request: int | None = int(s.get("builtin_per_request") or 1)
+        if not gen["slots"].get("batch_size"):
+            per_request: int | None = None
+        elif body.get("per_request"):
+            # Asked for this batch; else the Generator's (the built-in's is a setting).
+            per_request = max(1, min(64, int(body["per_request"])))
+        elif gen["kind"] == "builtin":
+            per_request = int(s.get("builtin_per_request") or 1)
         else:
-            per_request = (
-                gen["slots"].get("per_request")
-                if gen["slots"].get("batch_size")
-                else None
-            )
+            per_request = gen["slots"].get("per_request")
         sizes = split_requests(count, per_request)
         seed = body.get("seed") or {}
         fixed = (
@@ -870,6 +885,7 @@ class GenerationManager:
                     "width",
                     "height",
                     "count",
+                    "per_request",
                     "seed",
                 )
             },

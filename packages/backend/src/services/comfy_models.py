@@ -15,7 +15,7 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from .comfy_client import ComfyClient
+from .comfy_client import ComfyClient, ComfyError
 from .generator_graph import lora_stem
 
 
@@ -34,7 +34,11 @@ async def refresh(client: ComfyClient) -> dict[str, int]:
         "ckpt_name",
     )
     loras = _combo(await client.object_info("LoraLoader"), "LoraLoader", "lora_name")
-    sampler_info = await client.object_info("KSampler")
+    try:
+        sampler_info = await client.object_info("KSampler")
+    except ComfyError:
+        # Only the sampling pickers need it; keep the models.
+        sampler_info = {}
     samplers = _combo(sampler_info, "KSampler", "sampler_name")
     schedulers = _combo(sampler_info, "KSampler", "scheduler")
     embeddings = await client.embeddings()
@@ -55,6 +59,7 @@ async def refresh(client: ComfyClient) -> dict[str, int]:
         "loras": len(loras),
         "embeddings": len(embeddings),
         "samplers": len(samplers),
+        "schedulers": len(schedulers),
     }
 
 

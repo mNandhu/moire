@@ -245,6 +245,7 @@ export type QueueBody = {
   height: number | null;
   seed: { mode: "random" | "fixed"; value: number | null };
   count: number;
+  per_request: number | null;
   name: string | null;
 };
 

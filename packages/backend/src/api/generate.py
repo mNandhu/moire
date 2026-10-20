@@ -106,6 +106,8 @@ class BatchIn(BaseModel):
     height: int | None = None
     seed: SeedIn = Field(default_factory=SeedIn)
     count: int = Field(1, ge=1, le=500)
+    #: Images per request; left out, the Generator's.
+    per_request: int | None = Field(None, ge=1, le=64)
     name: str | None = None
 
 

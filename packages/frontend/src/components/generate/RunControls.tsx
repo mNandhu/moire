@@ -91,11 +91,15 @@ function NumberStepper({
           step={step}
           min={min}
           max={max}
-          onChange={(e) => setTyped(e.target.value)}
-          onBlur={() => {
-            if (typed !== null && typed.trim() !== "" && Number.isFinite(Number(typed))) set(Number(typed));
-            setTyped(null);
+          onChange={(e) => {
+            // Kept as typed, taken at once when in range: the popover can close
+            // (and unmount this) before a blur would arrive.
+            const raw = e.target.value;
+            setTyped(raw);
+            const n = Number(raw);
+            if (raw.trim() !== "" && Number.isFinite(n) && n >= min && n <= max) set(n);
           }}
+          onBlur={() => setTyped(null)}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           className="w-full min-w-0 bg-transparent text-center tabular-nums text-sm outline-none"
         />
@@ -118,6 +122,7 @@ export function SamplingControl({
   samplers,
   schedulers,
   onChange,
+  batchSize,
   invalid,
 }: {
   value: Sampling;
@@ -125,12 +130,14 @@ export function SamplingControl({
   samplers: readonly string[];
   schedulers: readonly string[];
   onChange: (s: Sampling) => void;
+  /** Images per request, when the Generator takes it: null is its default. */
+  batchSize?: { value: number | null; default: number; onChange: (n: number | null) => void } | null;
   invalid?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const shown = { ...defaults, ...value };
-  const changed = Object.keys(value).length > 0;
+  const changed = Object.keys(value).length > 0 || batchSize?.value != null;
   const patch = (p: Sampling) => {
     const next = { ...value, ...p };
     // Back at the Generator's own value: no longer a change.
@@ -176,7 +183,7 @@ export function SamplingControl({
         <ChevronDown size={16} className={cn("shrink-0 text-faint transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="absolute bottom-full left-0 z-50 mb-1 w-80 max-w-[90vw] space-y-3 rounded-lg border border-line-strong bg-raised p-3 shadow-panel">
+        <div className="absolute bottom-full left-0 z-50 mb-1 w-[26rem] max-w-[90vw] space-y-3 rounded-lg border border-line-strong bg-raised p-3 shadow-panel">
           {"sampler" in defaults && (
             <div>
               <FieldLabel>Sampler</FieldLabel>
@@ -204,18 +211,31 @@ export function SamplingControl({
               />
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {"steps" in defaults && (
               <NumberStepper label="Steps" value={shown.steps} onChange={(n) => patch({ steps: n })} step={1} min={1} max={200} />
             )}
             {"cfg" in defaults && (
               <NumberStepper label="CFG" value={shown.cfg} onChange={(n) => patch({ cfg: n })} step={0.5} min={0} max={30} />
             )}
+            {batchSize && (
+              <NumberStepper
+                label="Batch size"
+                value={batchSize.value ?? batchSize.default}
+                onChange={(n) => batchSize.onChange(n === batchSize.default ? null : n)}
+                step={1}
+                min={1}
+                max={64}
+              />
+            )}
           </div>
           {changed && (
             <button
               type="button"
-              onClick={() => onChange({})}
+              onClick={() => {
+                onChange({});
+                batchSize?.onChange(null);
+              }}
               title={samplingLabel(defaults)}
               className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-neutral-100"
             >

@@ -53,6 +53,8 @@ export type GenerateForm = {
   height: number;
   seed: { mode: "random" | "fixed"; value: number | null };
   count: number;
+  /** Images per request; null keeps the Generator's. */
+  perRequest: number | null;
   /** A typed batch name; null keeps the auto name. */
   name: string | null;
 };
@@ -73,6 +75,7 @@ export const DEFAULT_FORM: GenerateForm = {
   height: 1216,
   seed: { mode: "random", value: null },
   count: 4,
+  perRequest: null,
   name: null,
 };
 
@@ -189,6 +192,7 @@ export function toQueueBody(
     height: f.height,
     seed: f.seed.mode === "fixed" && f.seed.value != null ? f.seed : { mode: "random", value: null },
     count: f.count,
+    per_request: f.perRequest,
     name: f.name,
   };
 }
@@ -296,6 +300,7 @@ export function formFromBatch(i: BatchInputs, name: string | null): GenerateForm
     height: i.height ?? DEFAULT_FORM.height,
     seed: i.seed.mode === "fixed" ? { ...i.seed } : { mode: "random", value: null },
     count: i.count,
+    perRequest: i.per_request ?? null,
     name,
   };
 }
@@ -320,6 +325,7 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     else if (isStr(d.character)) out.characters = [d.character];
     if (isStr(d.name) || d.name === null) out.name = d.name;
     for (const k of ["width", "height", "count"] as const) if (typeof d[k] === "number") out[k] = d[k];
+    if (typeof d.perRequest === "number") out.perRequest = d.perRequest;
     if (Array.isArray(d.loras)) {
       out.loras = d.loras
         .filter(
@@ -361,8 +367,9 @@ export function samplingOf(v: unknown): Sampling {
   const out: Sampling = {};
   if (isStr(d.sampler)) out.sampler = d.sampler;
   if (isStr(d.scheduler)) out.scheduler = d.scheduler;
-  if (typeof d.steps === "number") out.steps = d.steps;
-  if (typeof d.cfg === "number") out.cfg = d.cfg;
+  // The backend's limits; anything else is left to the Generator.
+  if (Number.isInteger(d.steps) && (d.steps as number) >= 1 && (d.steps as number) <= 200) out.steps = d.steps as number;
+  if (typeof d.cfg === "number" && d.cfg >= 0 && d.cfg <= 30) out.cfg = d.cfg;
   return out;
 }
 
@@ -376,7 +383,7 @@ export function samplerLabel(sampler: string, scheduler?: string): string {
  * whichever settings are given. Pure. */
 export function samplingLabel(s: Sampling, short = false): string {
   return [
-    s.sampler ? samplerLabel(s.sampler, s.scheduler) : s.scheduler,
+    s.sampler ? samplerLabel(s.sampler, s.scheduler) : s.scheduler && `${s.scheduler.replace(/_/g, " ")} scheduler`,
     s.steps != null && (short ? `${s.steps}` : `${s.steps} steps`),
     s.cfg != null && (short ? `${s.cfg}` : `CFG ${s.cfg}`),
   ]
