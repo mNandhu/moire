@@ -9,8 +9,11 @@ import numpy as np
 
 from src.services.ai_tagger import (
     LabelIndex,
+    PreparedImage,
     TaggerManager,
+    WDTagger,
     mcut_threshold,
+    prepare_image,
     select_tags,
 )
 from src.services.ai_tagger_download import (
@@ -194,3 +197,45 @@ def test_start_load_same_target_in_flight_is_noop(monkeypatch):
             await first
 
     asyncio.run(_run())
+
+
+class _FakeSession:
+    """Records the tensor it was fed; returns fixed predictions."""
+
+    def __init__(self) -> None:
+        self.fed: list[np.ndarray] = []
+
+    def get_inputs(self):
+        return [type("I", (), {"name": "in"})()]
+
+    def get_outputs(self):
+        return [type("O", (), {"name": "out"})()]
+
+    def run(self, _outputs, feeds):
+        self.fed.append(feeds["in"])
+        return [np.array([[0.9, 0.1, 0.8, 0.2, 0.95]])]
+
+
+def _fake_tagger(size: int) -> tuple[WDTagger, _FakeSession]:
+    tagger, sess = WDTagger(), _FakeSession()
+    tagger._session, tagger._labels, tagger._target_size = sess, _labels(), size
+    return tagger, sess
+
+
+def test_predict_uses_a_prepared_tensor_of_the_right_size():
+    from PIL import Image
+
+    img = Image.new("RGBA", (30, 20), (10, 20, 30, 255))
+    tagger, sess = _fake_tagger(8)
+    kw = dict(general_thresh=0.35, character_thresh=0.85)
+
+    ready = prepare_image(img, 8)
+    out = tagger.predict(image=PreparedImage(img, ready), **kw)
+    assert sess.fed[-1] is ready
+    assert [t for t, _ in out["general_tags"]] == ["cat"]
+
+    # Made for another model's size, or not made at all: prepared again.
+    for stale in (prepare_image(img, 16), None):
+        tagger.predict(image=PreparedImage(img, stale), **kw)
+        assert sess.fed[-1].shape == (1, 8, 8, 3)
+        assert np.array_equal(sess.fed[-1], ready)

@@ -103,27 +103,26 @@ def select_tags(
     ONNX session so the tagging logic can be unit-tested with a fake ``preds``
     array and a small :class:`LabelIndex`, no onnxruntime required.
     """
-    scored = list(zip(labels.names, preds.astype(float)))
+    probs = preds.astype(float)
 
-    rating = dict(scored[i] for i in labels.rating_idx)
+    rating = {labels.names[i]: float(probs[i]) for i in labels.rating_idx}
 
-    general = [scored[i] for i in labels.general_idx]
-    if general_mcut and general:
-        general_thresh = mcut_threshold(np.array([p for _, p in general]))
-    general = [(t, p) for (t, p) in general if p > general_thresh]
-    general.sort(key=lambda x: x[1], reverse=True)
-    if max_general > 0:
-        general = general[: int(max_general)]
+    def pick(idx: np.ndarray, thresh: float, cap: int) -> list[tuple[str, float]]:
+        # Masks over the label indexes, so only the kept handful of the ~10k
+        # labels become Python tuples. Stable sort: ties keep label order.
+        keep = idx[probs[idx] > thresh]
+        keep = keep[np.argsort(-probs[keep], kind="stable")]
+        if cap > 0:
+            keep = keep[: int(cap)]
+        return [(labels.names[i], float(probs[i])) for i in keep]
 
-    character = [scored[i] for i in labels.character_idx]
-    if character_mcut and character:
-        character_thresh = max(
-            0.15, mcut_threshold(np.array([p for _, p in character]))
-        )
-    character = [(t, p) for (t, p) in character if p > character_thresh]
-    character.sort(key=lambda x: x[1], reverse=True)
-    if max_character > 0:
-        character = character[: int(max_character)]
+    if general_mcut and len(labels.general_idx):
+        general_thresh = mcut_threshold(probs[labels.general_idx])
+    general = pick(labels.general_idx, general_thresh, max_general)
+
+    if character_mcut and len(labels.character_idx):
+        character_thresh = max(0.15, mcut_threshold(probs[labels.character_idx]))
+    character = pick(labels.character_idx, character_thresh, max_character)
 
     caption = ", ".join([t for t, _ in general])
 
@@ -138,6 +137,40 @@ def select_tags(
 def decode_image(image_bytes: bytes) -> Image.Image:
     """Decode to RGBA (forces the full load). Blocking: call from a thread."""
     return Image.open(BytesIO(image_bytes)).convert("RGBA")
+
+
+def prepare_image(img: Image.Image, target_size: int | None) -> np.ndarray:
+    """The model's input tensor: alpha flattened onto white, padded square
+    with white, resized to ``target_size``, BGR float32. Pads before resizing,
+    as the reference WD tagger code does: resizing first shifts the picture by
+    a fraction of a pixel, which measurably moved borderline tags (one rating
+    in 30 flipped). Blocking: call from a thread."""
+    canvas = Image.new("RGBA", img.size, (255, 255, 255, 255))
+    canvas.alpha_composite(img.convert("RGBA"))
+    img = canvas.convert("RGB")
+
+    w, h = img.size
+    m = max(w, h)
+    pad = Image.new("RGB", (m, m), (255, 255, 255))
+    pad.paste(img, ((m - w) // 2, (m - h) // 2))
+
+    target = target_size if target_size is not None else m
+    if m != target:
+        pad = pad.resize((int(target), int(target)), Image.Resampling.BICUBIC)
+
+    arr = np.asarray(pad, dtype=np.float32)[:, :, ::-1]  # RGB -> BGR
+    return arr[None, ...]
+
+
+@dataclass(frozen=True)
+class PreparedImage:
+    """A decoded image and, when the model's input size was known at load
+    time, its input tensor. Lets the job worker's prefetch do the resize
+    off the inference path; the tagger re-prepares from ``image`` when the
+    tensor is missing or was made for another model's size."""
+
+    image: Image.Image
+    tensor: np.ndarray | None = None
 
 
 class WDTagger:
@@ -188,29 +221,15 @@ class WDTagger:
         self._target_size = target_size
         self._repo = model_repo
 
-    def _prepare_image(self, img: Image.Image) -> np.ndarray:
-        # Convert to RGB with white background for alpha
-        canvas = Image.new("RGBA", img.size, (255, 255, 255, 255))
-        canvas.alpha_composite(img.convert("RGBA"))
-        img = canvas.convert("RGB")
-
-        w, h = img.size
-        m = max(w, h)
-        pad = Image.new("RGB", (m, m), (255, 255, 255))
-        pad.paste(img, ((m - w) // 2, (m - h) // 2))
-
-        target = self._target_size if self._target_size is not None else m
-        if m != target:
-            resample = getattr(getattr(Image, "Resampling", Image), "BICUBIC", 3)
-            pad = pad.resize((int(target), int(target)), resample)
-
-        arr = np.asarray(pad, dtype=np.float32)[:, :, ::-1]  # RGB -> BGR
-        return arr[None, ...]
+    @property
+    def input_size(self) -> int | None:
+        """The model's square input side, once loaded."""
+        return self._target_size if self._session is not None else None
 
     def predict(
         self,
         *,
-        image: Image.Image,
+        image: Image.Image | PreparedImage,
         general_thresh: float,
         character_thresh: float,
         general_mcut: bool = False,
@@ -220,7 +239,13 @@ class WDTagger:
     ) -> dict[str, Any]:
         assert self._session is not None and self._labels is not None
 
-        input_tensor = self._prepare_image(image)
+        if isinstance(image, PreparedImage):
+            tensor = image.tensor
+            if tensor is None or tensor.shape[1] != self._target_size:
+                tensor = prepare_image(image.image, self._target_size)
+        else:
+            tensor = prepare_image(image, self._target_size)
+        input_tensor = tensor
         input_name = self._session.get_inputs()[0].name
         output_name = self._session.get_outputs()[0].name
 
@@ -413,10 +438,14 @@ class TaggerManager:
         async with self._lock:
             self._tagger.unload()
 
+    def input_size(self) -> int | None:
+        """The loaded model's square input side, else None."""
+        return self._tagger.input_size
+
     async def predict_image(
         self,
         *,
-        image: Image.Image,
+        image: Image.Image | PreparedImage,
         model_repo: str,
         cache_dir: str,
         general_thresh: float,

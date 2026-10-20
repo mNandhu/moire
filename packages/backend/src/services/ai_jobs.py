@@ -15,7 +15,7 @@ from ..database.db import async_conn
 from ..database import schema as t
 from . import image_tags
 from .ai_settings import DEFAULT_AI_SETTINGS, get_ai_settings, update_ai_settings
-from .ai_tagger import decode_image, get_tagger_manager
+from .ai_tagger import PreparedImage, decode_image, get_tagger_manager, prepare_image
 
 logger = logging.getLogger("moire.ai_jobs")
 
@@ -244,8 +244,10 @@ class AIJobManager:
                 for image_id in ids:
                     self._in_flight.discard(image_id)
 
-    async def _load_image(self, image_id: str) -> Image.Image:
-        """Read and decode an image's original, off the event loop."""
+    async def _load_image(self, image_id: str) -> PreparedImage:
+        """Read, decode and (with the model loaded) resize an image's original
+        to the model's input, off the event loop. Running as the prefetch, it
+        overlaps all of that with inference on the previous image."""
         doc = await image_tags.find_image(image_id, {"path": 1})
         if not doc:
             raise RuntimeError("image not found")
@@ -253,14 +255,21 @@ class AIJobManager:
         if not path:
             raise RuntimeError("image has no file path")
 
-        def _read() -> Image.Image:
+        size = get_tagger_manager().input_size()
+
+        def _read() -> PreparedImage:
             with open(str(path), "rb") as f:
-                return decode_image(f.read())
+                img = decode_image(f.read())
+            return PreparedImage(img, prepare_image(img, size) if size else None)
 
         return await asyncio.to_thread(_read)
 
     async def _tag_one(
-        self, *, image_id: str, image: Image.Image, settings: dict[str, Any]
+        self,
+        *,
+        image_id: str,
+        image: Image.Image | PreparedImage,
+        settings: dict[str, Any],
     ) -> None:
         model_repo = str(
             settings.get("model_repo") or DEFAULT_AI_SETTINGS["model_repo"]
