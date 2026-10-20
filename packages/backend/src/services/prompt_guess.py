@@ -20,6 +20,7 @@ candidate texts, with where each sits so a guess can be pinned.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any, Iterable, NamedTuple
 
 from .prompt_parse import parse_prompt
@@ -83,11 +84,19 @@ def clean_keywords(entries: Any) -> list[str]:
 
 
 def _hits(text: str, keywords: Keywords) -> tuple[int, int] | None:
-    pieces = [p for p in parse_prompt(text) if p.kind in ("tag", "prose")]
-    if len(pieces) < MIN_PIECES:
+    count, names = _piece_names(text)
+    if count < MIN_PIECES:
         return None
-    names = {keyword_key(p.text) for p in pieces}
     return len(names & keywords.positive), len(names & keywords.negative)
+
+
+# Every candidate text of every graph is scored, and a library repeats its
+# prompts, so the keyword forms of a text are worth keeping. Pure in `text`.
+@lru_cache(maxsize=4096)
+def _piece_names(text: str) -> tuple[int, frozenset[str]]:
+    """How many tag/prose pieces ``text`` has, and their keyword forms."""
+    pieces = [p for p in parse_prompt(text) if p.kind in ("tag", "prose")]
+    return len(pieces), frozenset(keyword_key(p.text) for p in pieces)
 
 
 class Candidate(NamedTuple):

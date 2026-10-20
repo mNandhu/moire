@@ -101,6 +101,42 @@ async def test_reproject_model_filter_works_after_real_reprojection(client, seed
     assert [it["_id"] for it in resp.json()] == [image_id]
 
 
+async def test_unchanged_rows_are_skipped_unless_forced(temp_db, seed):
+    """A plain re-run leaves rows whose gen and tags already match alone; a
+    forced one (migrations) rebuilds them, so a derived table added later
+    gets filled even though gen is unchanged."""
+    image_id = "L1:art.png"
+    seed(image_id, tags=("1girl",))
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.insert(t.image_gen_raw).values(
+                _id=image_id,
+                library_id="L1",
+                workflow_sig=None,
+                raw={
+                    "source": "a1111",
+                    "parameters": "masterpiece, 1girl\nSteps: 20, Model: sdxl",
+                },
+            )
+        )
+    reproject.reproject_all()
+
+    def term_count() -> int:
+        with db.sync_conn() as conn:
+            return conn.execute(
+                sa.select(sa.func.count()).select_from(t.image_gen_terms)
+            ).scalar_one()
+
+    before = term_count()
+    assert before
+    with db.sync_tx() as conn:  # as if image_gen_terms were a new, empty table
+        conn.execute(sa.delete(t.image_gen_terms))
+    assert reproject.reproject_all() == 1
+    assert term_count() == 0  # unchanged gen: skipped
+    reproject.reproject_all(force=True)
+    assert term_count() == before
+
+
 # --- full disk scan (sync, multithreaded) ------------------------------------
 
 

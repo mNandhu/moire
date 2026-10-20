@@ -337,7 +337,7 @@ def _persist_statements(
     recomputed flags, drop this image's join rows, and the rows to reinsert.
 
     Built once and executed by both the async path (:func:`_persist`) and the
-    caller-owned sync path (:func:`replace_prompt_sync`), so the invariant
+    caller-owned sync path (:func:`rewrite_tags_sync`), so the invariant
     binding ``tags`` to its flags and its join rows exists in exactly one place.
     """
     values: dict[str, Any] = {"tags": new_tags, **recompute_flags(new_tags)}
@@ -552,7 +552,7 @@ def rewrite_tags_sync(
 ) -> None:
     """Persist a whole new tag array on a caller-owned sync transaction. For
     one-off data migrations only (services/tag_migrations.py); like
-    :func:`replace_prompt_sync`, the caller invalidates the tag index."""
+    :func:`replace_prompt_many_sync`, the caller invalidates the tag index."""
     statements, rows = _persist_statements(image_id, new_tags, extra)
     for stmt in statements:
         conn.execute(stmt)
@@ -560,26 +560,55 @@ def rewrite_tags_sync(
         conn.execute(sa.insert(t.image_tags), rows)
 
 
-def replace_prompt_sync(
-    conn: Connection, image_id: str, prompt_tags: list[str]
-) -> None:
-    """Replace ``prompt:`` tags on one image, operating on a caller-owned sync
-    transaction so reprojection can batch many images per commit.
+def replace_prompt_many_sync(
+    conn: Connection,
+    items: list[tuple[str, list[str], list[str]]],
+    *,
+    force: bool = False,
+) -> int:
+    """Replace ``prompt:`` tags on many images at once, on a caller-owned sync
+    transaction so reprojection writes a whole batch per commit. Each item is
+    ``(image_id, its current tags, its new prompt tags)``; images whose tag
+    array comes out the same are not written unless ``force``. Returns how
+    many were written.
 
+    The bulk twin of :func:`_persist_statements` (same array + flags + join
+    rows), as one executemany per statement instead of three per image.
     Deliberately does *not* invalidate the tag index: the caller owns the
-    transaction, so only the caller knows when the write became visible. It
-    invalidates once per committed batch (:func:`services.reproject._flush_batch`)
-    rather than once per image.
+    transaction, so only the caller knows when the write became visible
+    (:func:`services.reproject._flush_batch` does, once per batch).
     """
-    current = (
-        conn.execute(sa.select(t.images.c.tags).where(t.images.c._id == image_id))
-    ).scalar()
-    if current is None:
-        return
-    statements, rows = _persist_statements(
-        image_id, with_replaced_prompt(current, prompt_tags)
+    changed: list[tuple[str, list[str]]] = []
+    for image_id, current, prompt_tags in items:
+        new = with_replaced_prompt(current, prompt_tags)
+        if force or new != current:
+            changed.append((image_id, new))
+    if not changed:
+        return 0
+    conn.execute(
+        sa.update(t.images)
+        .where(t.images.c._id == sa.bindparam("b_id"))
+        .values(
+            tags=sa.bindparam("b_tags", type_=t.images.c.tags.type),
+            has_tags=sa.bindparam("b_has_tags"),
+            has_ai_tags=sa.bindparam("b_has_ai_tags"),
+            has_prompt_tags=sa.bindparam("b_has_prompt_tags"),
+        ),
+        [
+            {
+                "b_id": image_id,
+                "b_tags": new,
+                **{f"b_{k}": v for k, v in recompute_flags(new).items()},
+            }
+            for image_id, new in changed
+        ],
     )
-    for stmt in statements:
-        conn.execute(stmt)
+    conn.execute(
+        sa.delete(t.image_tags).where(
+            t.image_tags.c.image_id.in_([image_id for image_id, _ in changed])
+        )
+    )
+    rows = [row for image_id, new in changed for row in _tag_rows(image_id, new)]
     if rows:
         conn.execute(sa.insert(t.image_tags), rows)
+    return len(changed)

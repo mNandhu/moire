@@ -194,7 +194,9 @@ def run_pending() -> None:
             step()
     if any(needs for _n, _s, needs in pending):
         started = time.monotonic()
-        reprojected = reproject.reproject_all()
+        # Forced: a step may have added a derived table that unchanged gen
+        # data must still be written into.
+        reprojected = reproject.reproject_all(force=True)
         logger.info(
             "migrations %s: reprojected %d images in %.1fs",
             ", ".join(n for n, _s, _r in pending),

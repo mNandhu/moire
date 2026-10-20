@@ -13,6 +13,7 @@ lock held briefly (see :mod:`database.db` writer discipline).
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 
@@ -61,79 +62,99 @@ def _prompt_positive_only() -> bool:
     return bool((doc or {}).get("prompt_positive_only", True))
 
 
-def _flush_batch(batch: list[tuple[str, dict]]) -> None:
-    """Persist one batch of ``(image_id, gen)`` results in a single small tx."""
+def _flush_batch(batch: list[tuple[str, dict]], *, force: bool = False) -> None:
+    """Persist one batch of ``(image_id, gen)`` results in a single small tx,
+    one statement per table for the whole batch. Rows whose stored ``gen``
+    and tags already match are not written (most of a full reprojection
+    after a settings change), unless ``force``: a migration that added a
+    derived table needs every row rebuilt even when ``gen`` is unchanged."""
+    ids = [image_id for image_id, _ in batch]
     with sync_tx() as conn:
+        current = {
+            r._id: r
+            for r in conn.execute(
+                sa.select(t.images.c._id, t.images.c.gen, t.images.c.tags).where(
+                    t.images.c._id.in_(ids)
+                )
+            )
+        }
+        gens: list[tuple[str, dict]] = []
+        tag_items: list[tuple[str, list[str], list[str]]] = []
         for image_id, g in batch:
-            conn.execute(
-                sa.update(t.images)
-                .where(t.images.c._id == image_id)
-                .values(
-                    gen=g,
-                    gen_model=g.get("model"),
-                    gen_workflow_sig=g.get("workflow_sig"),
-                    gen_group_id=g.get("group_id"),
-                    gen_prompt=g.get("prompt"),
-                )
-            )
-            # Rebuild the derived prompt-term rows for this image.
-            conn.execute(
-                sa.delete(t.image_gen_terms).where(
-                    t.image_gen_terms.c.image_id == image_id
-                )
-            )
-            terms = list(dict.fromkeys(g.get("prompt_terms") or []))
-            if terms:
-                conn.execute(
-                    sa.insert(t.image_gen_terms),
-                    [{"image_id": image_id, "term": term} for term in terms],
-                )
-            # Rebuild the derived lora rows (LoRA filter + counts).
-            conn.execute(
-                sa.delete(t.image_loras).where(t.image_loras.c.image_id == image_id)
-            )
-            loras = g.get("loras") or []
-            if loras:
-                conn.execute(
-                    sa.insert(t.image_loras),
-                    [
-                        {
-                            "image_id": image_id,
-                            "name": lo["name"],
-                            "strength": lo.get("strength"),
-                        }
-                        for lo in loras
-                    ],
-                )
-            # And the embedding rows (embedding filter + counts).
-            conn.execute(
-                sa.delete(t.image_embeddings).where(
-                    t.image_embeddings.c.image_id == image_id
-                )
-            )
-            embeddings = g.get("embeddings") or []
-            if embeddings:
-                conn.execute(
-                    sa.insert(t.image_embeddings),
-                    [
-                        {
-                            "image_id": image_id,
-                            "name": e["name"],
-                            "negative": bool(e.get("negative")),
-                        }
-                        for e in embeddings
-                    ],
-                )
-            # Mirror the extracted terms into prompt: tags (preserving AI + manual).
+            row = current.get(image_id)
+            if row is None:
+                continue  # deleted since the raws were read
+            # As stored (JSON round trip), so tuples compare equal to lists.
+            g = json.loads(json.dumps(g))
+            if force or g != row.gen:
+                gens.append((image_id, g))
+            # Mirror the extracted terms into prompt: tags (keeping AI + manual).
             prompt_tags = [to_prompt(term) for term in (g.get("prompt_terms") or [])]
-            image_tags.replace_prompt_sync(conn, image_id, prompt_tags)
+            tag_items.append((image_id, list(row.tags or []), prompt_tags))
+        if gens:
+            _write_gens(conn, gens)
+        tagged = image_tags.replace_prompt_many_sync(conn, tag_items, force=force)
     # This batch owns its transaction, so it owns the post-commit invalidation of
     # the derived tag aggregation, once per batch, not once per image.
-    tag_index.invalidate()
+    if gens or tagged:
+        tag_index.invalidate()
 
 
-def _reproject_where(where) -> int:
-    """Recompute ``gen.*`` for every raw row matching ``where``. Returns updated."""
+def _write_gens(conn, gens: list[tuple[str, dict]]) -> None:
+    """``gen``, its promoted columns and its derived rows (prompt terms,
+    loras, embeddings) for a batch of images."""
+    ids = [image_id for image_id, _ in gens]
+    conn.execute(
+        sa.update(t.images)
+        .where(t.images.c._id == sa.bindparam("b_id"))
+        .values(
+            gen=sa.bindparam("b_gen", type_=t.images.c.gen.type),
+            gen_model=sa.bindparam("b_model"),
+            gen_workflow_sig=sa.bindparam("b_sig"),
+            gen_group_id=sa.bindparam("b_group"),
+            gen_prompt=sa.bindparam("b_prompt"),
+        ),
+        [
+            {
+                "b_id": image_id,
+                "b_gen": g,
+                "b_model": g.get("model"),
+                "b_sig": g.get("workflow_sig"),
+                "b_group": g.get("group_id"),
+                "b_prompt": g.get("prompt"),
+            }
+            for image_id, g in gens
+        ],
+    )
+    for table in (t.image_gen_terms, t.image_loras, t.image_embeddings):
+        conn.execute(sa.delete(table).where(table.c.image_id.in_(ids)))
+    terms = [
+        {"image_id": image_id, "term": term}
+        for image_id, g in gens
+        for term in dict.fromkeys(g.get("prompt_terms") or [])
+    ]
+    loras = [
+        {"image_id": image_id, "name": lo["name"], "strength": lo.get("strength")}
+        for image_id, g in gens
+        for lo in g.get("loras") or []
+    ]
+    embeddings = [
+        {"image_id": image_id, "name": e["name"], "negative": bool(e.get("negative"))}
+        for image_id, g in gens
+        for e in g.get("embeddings") or []
+    ]
+    for table, rows in (
+        (t.image_gen_terms, terms),
+        (t.image_loras, loras),
+        (t.image_embeddings, embeddings),
+    ):
+        if rows:
+            conn.execute(sa.insert(table), rows)
+
+
+def _reproject_where(where, *, force: bool = False) -> int:
+    """Recompute ``gen.*`` for every raw row matching ``where``. Returns how
+    many were derived (written or already up to date)."""
     rulesets = _load_rulesets()
     positive_only = _prompt_positive_only()
     aliases = _load_aliases()
@@ -174,11 +195,11 @@ def _reproject_where(where) -> int:
         g["prompt_terms"] = apply_aliases(g.get("prompt_terms") or [], aliases)
         batch.append((row._id, g))
         if len(batch) >= _BATCH:
-            _flush_batch(batch)
+            _flush_batch(batch, force=force)
             updated += len(batch)
             batch = []
     if batch:
-        _flush_batch(batch)
+        _flush_batch(batch, force=force)
         updated += len(batch)
     return updated
 
@@ -206,9 +227,10 @@ def reproject_ids(image_ids: list[str]) -> int:
     return updated
 
 
-def reproject_all() -> int:
-    """Recompute ``gen.*`` for every image with captured generation data."""
-    return _reproject_where(sa.true())
+def reproject_all(*, force: bool = False) -> int:
+    """Recompute ``gen.*`` for every image with captured generation data.
+    ``force`` rewrites rows that come out unchanged too (migrations)."""
+    return _reproject_where(sa.true(), force=force)
 
 
 def reproject_by_sig(workflow_sig: str) -> int:

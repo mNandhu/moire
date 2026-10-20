@@ -62,9 +62,11 @@ async def test_migration_runs_once(temp_db, seed):
 async def test_fresh_install_reprojects_once(temp_db, monkeypatch):
     calls = []
     monkeypatch.setattr(
-        tag_migrations.reproject, "reproject_all", lambda: calls.append(1) or 0
+        tag_migrations.reproject,
+        "reproject_all",
+        lambda force=False: calls.append(force) or 0,
     )
     tag_migrations.run_pending()
-    assert calls == [1]
+    assert calls == [True]  # once, forced: steps may add derived tables
     tag_migrations.run_pending()
-    assert calls == [1]
+    assert calls == [True]
