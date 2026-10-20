@@ -105,3 +105,18 @@ export function batchRunTime(
   const spent = made.reduce((a, q) => a + (q.ran ?? 0), 0);
   return { total, perImage: images ? spent / images : null, images };
 }
+
+/** A batch cover's width / height: the batch's own shape (every image in a
+ * batch is the same size), kept between 2:3 and 3:2 so one very wide or very
+ * tall batch doesn't dwarf its row; 3:4 when the size isn't known. Pure. */
+export function coverAspect(width: number | null, height: number | null): number {
+  if (!width || !height) return 3 / 4;
+  return Math.min(3 / 2, Math.max(2 / 3, width / height));
+}
+
+/** Which of `n` images a pointer at `x` across a cover `width` wide shows:
+ * the cover split into `n` equal strips, left to right. Pure. */
+export function scrubIndex(x: number, width: number, n: number): number {
+  if (n <= 1 || width <= 0) return 0;
+  return Math.min(n - 1, Math.max(0, Math.floor((x / width) * n)));
+}

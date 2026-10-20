@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { batchLine, batchRunTime, dayLabel, durationLabel, resultGrid, resultSlots, whenLabel } from "./batches";
+import {
+  batchLine,
+  batchRunTime,
+  coverAspect,
+  dayLabel,
+  durationLabel,
+  resultGrid,
+  resultSlots,
+  scrubIndex,
+  whenLabel,
+} from "./batches";
 
 describe("batch display", () => {
   it("summarizes images, failures and rejections", () => {
@@ -74,5 +84,24 @@ describe("run time", () => {
       ]),
     ).toEqual({ total: 46, perImage: 16 / 3, images: 3 });
     expect(batchRunTime([{ ran: 5, outputs: [], state: "failed" }])).toEqual({ total: 5, perImage: null, images: 0 });
+  });
+});
+
+describe("batch covers", () => {
+  it("take the batch's shape, within limits", () => {
+    expect(coverAspect(832, 1216)).toBeCloseTo(832 / 1216);
+    expect(coverAspect(1216, 832)).toBeCloseTo(1216 / 832);
+    expect(coverAspect(1024, 1024)).toBe(1);
+    expect(coverAspect(2048, 512)).toBe(3 / 2);
+    expect(coverAspect(512, 2048)).toBe(2 / 3);
+    expect(coverAspect(null, 1024)).toBe(3 / 4);
+  });
+  it("scrub across their images in strips", () => {
+    expect(scrubIndex(0, 200, 4)).toBe(0);
+    expect(scrubIndex(99, 200, 4)).toBe(1);
+    expect(scrubIndex(199, 200, 4)).toBe(3);
+    expect(scrubIndex(250, 200, 4)).toBe(3);
+    expect(scrubIndex(-5, 200, 4)).toBe(0);
+    expect(scrubIndex(120, 200, 1)).toBe(0);
   });
 });
