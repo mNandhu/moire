@@ -109,6 +109,19 @@ export const LOAD_AHEAD_PX = 1200;
 export const OVERSCAN_PX = LOAD_AHEAD_PX + 400;
 
 /**
+ * The grid tracks the scroll offset in steps of this many px, so it re-renders
+ * when the scroll crosses a step instead of on every frame. The mount window
+ * can lag the real offset by up to one step, so the step must stay well under
+ * OVERSCAN_PX - LOAD_AHEAD_PX, or tiles would mount after they want to load.
+ */
+export const SCROLL_STEP_PX = 128;
+
+/** The scroll offset as the grid tracks it (see SCROLL_STEP_PX). */
+export function scrollStep(top: number): number {
+  return Math.floor(top / SCROLL_STEP_PX) * SCROLL_STEP_PX;
+}
+
+/**
  * How far below the viewport the infinite-scroll sentinel asks for the next
  * page. A few screens ahead, so a fast scroll doesn't reach the end of the
  * loaded tiles and stall while the page is fetched.

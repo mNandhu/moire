@@ -13,6 +13,8 @@ import {
   packColumns,
   visibleSlice,
   LOAD_AHEAD_PX,
+  SCROLL_STEP_PX,
+  scrollStep,
   OVERSCAN_PX,
 } from "./masonryLayout";
 
@@ -272,5 +274,15 @@ describe("load-ahead constants", () => {
     // These were two unrelated literals in two files; the ordering is the whole
     // point of the pairing.
     expect(OVERSCAN_PX).toBeGreaterThan(LOAD_AHEAD_PX);
+  });
+});
+
+describe("scrollStep", () => {
+  it("snaps down to a step that the mount window can absorb", () => {
+    expect(scrollStep(0)).toBe(0);
+    expect(scrollStep(SCROLL_STEP_PX - 1)).toBe(0);
+    expect(scrollStep(SCROLL_STEP_PX * 3 + 5)).toBe(SCROLL_STEP_PX * 3);
+    // Tiles must still mount before they start loading their image.
+    expect(SCROLL_STEP_PX).toBeLessThan(OVERSCAN_PX - LOAD_AHEAD_PX);
   });
 });

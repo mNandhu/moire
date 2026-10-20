@@ -5,6 +5,7 @@ import {
   gapForDensity,
   gridColumns,
   packColumns,
+  scrollStep,
   visibleSlice,
   DEFAULT_DENSITY,
 } from "../lib/masonryLayout";
@@ -113,19 +114,21 @@ export function VirtualizedGrid({
     const wrapper = wrapperRef.current;
     if (!scrollEl || !wrapper) return;
 
-    // Coalesce scroll events to one state update per animation frame.
+    // Coalesce scroll events to one update per animation frame, and track the
+    // offset in SCROLL_STEP_PX steps: React skips a state set to the same
+    // value, so the grid re-renders only when the scroll crosses a step.
     let rafId = 0;
     const handleScroll = () => {
       if (rafId) return;
       rafId = requestAnimationFrame(() => {
         rafId = 0;
-        setScrollTop(scrollEl.scrollTop);
+        setScrollTop(scrollStep(scrollEl.scrollTop));
       });
     };
 
     // Initial
     recomputeLayout(scrollEl);
-    setScrollTop(scrollEl.scrollTop);
+    setScrollTop(scrollStep(scrollEl.scrollTop));
 
     // Observe wrapper resize for column changes
     const ro = new ResizeObserver(() => recomputeLayout(scrollEl));

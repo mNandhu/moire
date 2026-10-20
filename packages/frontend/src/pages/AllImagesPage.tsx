@@ -550,6 +550,12 @@ export default function AllImagesPage() {
     },
     [groupMode, items, filters, setFilters, openImage],
   );
+  // Tiles are memoized, and `openTile` changes with every page append (new
+  // `items`) and navigation (new `location`), which re-rendered every mounted
+  // tile. They get a stable wrapper that calls the latest one.
+  const openTileRef = useRef(openTile);
+  openTileRef.current = openTile;
+  const onOpenTile = useCallback((id: string) => openTileRef.current(id), []);
 
   // --- Keyboard triage on the focused tile -----------------------------------
   const triageEnabled = !selectionMode && !groupMode && !showShortcuts;
@@ -1222,7 +1228,7 @@ export default function AllImagesPage() {
           items={items}
           selection={selection}
           onToggle={toggleSelection}
-          onOpen={openTile}
+          onOpen={onOpenTile}
           getScrollContainer={getScrollContainer}
           selectionMode={selectionMode}
           focusedIndex={focusedIndex}
