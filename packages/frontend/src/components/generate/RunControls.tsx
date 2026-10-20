@@ -81,7 +81,7 @@ function NumberStepper({
   return (
     <div>
       <FieldLabel>{label}</FieldLabel>
-      <div className="flex items-center rounded-lg border border-line">
+      <div className="flex h-9 items-center rounded-lg border border-line">
         <button type="button" aria-label={`Less ${label}`} onClick={() => set((value ?? min) - step)} className="p-2 text-muted hover:text-neutral-100">
           <Minus size={14} />
         </button>
@@ -306,47 +306,66 @@ export function SizePicker({ value, onChange }: { value: Size; onChange: (s: Siz
 export type SeedValue = { mode: "random" | "fixed"; value: number | null };
 
 export function SeedControl({ value, onChange }: { value: SeedValue; onChange: (s: SeedValue) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const fixed = value.mode === "fixed";
+  // One field: Random on the left, and the fixed seed itself on the right, so
+  // the number gets the whole remaining width instead of a sliver beside a
+  // two-button toggle. Choosing Fixed (or clicking the number) edits it.
+  const toFixed = () => {
+    if (!fixed) onChange({ mode: "fixed", value: value.value ?? randomSeed() });
+    requestAnimationFrame(() => inputRef.current?.select());
+  };
   return (
     <div>
-      <FieldLabel>Seed</FieldLabel>
-      <div className="flex gap-2">
-        <div role="radiogroup" aria-label="Seed mode" className="inline-flex rounded-lg border border-line p-0.5">
-          {(["random", "fixed"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="radio"
-              aria-checked={value.mode === m}
-              onClick={() => onChange({ mode: m, value: m === "fixed" ? (value.value ?? randomSeed()) : value.value })}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-xs capitalize",
-                value.mode === m ? "bg-brand-600 text-white" : "text-muted hover:text-neutral-100",
-              )}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
-        {value.mode === "fixed" && (
-          <div className="flex flex-1 items-center gap-1">
-            <Input
+      <FieldLabel htmlFor="seed-value">Seed</FieldLabel>
+      <div className="flex h-9 items-stretch gap-0.5 rounded-lg border border-line bg-canvas p-0.5 focus-within:border-brand-500/70 transition-colors">
+        <button
+          type="button"
+          aria-pressed={!fixed}
+          title="A new seed for every request"
+          onClick={() => onChange({ mode: "random", value: value.value })}
+          className={cn(
+            "shrink-0 rounded-md px-2.5 text-xs",
+            !fixed ? "bg-brand-600 text-white" : "text-muted hover:text-neutral-100",
+          )}
+        >
+          Random
+        </button>
+        {fixed ? (
+          <div className="flex min-w-0 flex-1 items-center rounded-md bg-brand-600/15 ring-1 ring-inset ring-brand-500/50">
+            <input
+              ref={inputRef}
+              id="seed-value"
               type="number"
+              inputMode="numeric"
               aria-label="Seed"
               title="Later requests count up from this seed"
               value={value.value ?? ""}
+              placeholder="Seed"
               onChange={(e) => onChange({ mode: "fixed", value: e.target.value ? Number(e.target.value) : null })}
-              className="tabular-nums no-spin"
+              className="no-spin h-full w-full min-w-0 bg-transparent pl-2.5 text-sm tabular-nums text-neutral-100 outline-none placeholder:text-faint"
             />
             <button
               type="button"
               aria-label="New random seed"
               title="New random seed"
               onClick={() => onChange({ mode: "fixed", value: randomSeed() })}
-              className="rounded-md p-2 text-muted hover:bg-raised hover:text-neutral-100"
+              className="shrink-0 rounded-md p-1.5 text-muted hover:text-neutral-100"
             >
-              <Dices size={16} />
+              <Dices size={15} />
             </button>
           </div>
+        ) : (
+          <button
+            type="button"
+            aria-pressed={false}
+            title="Keep one seed (later requests count up from it)"
+            onClick={toFixed}
+            className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2.5 text-xs text-muted hover:text-neutral-100"
+          >
+            Fixed
+            {value.value != null && <span className="truncate tabular-nums text-faint">{value.value}</span>}
+          </button>
         )}
       </div>
     </div>
@@ -375,7 +394,7 @@ export function CountStepper({
       <div className="flex items-start gap-2">
         <div>
           <FieldLabel>{label}</FieldLabel>
-          <div className="inline-flex items-center rounded-lg border border-line">
+          <div className="inline-flex h-9 items-center rounded-lg border border-line">
             <button type="button" aria-label="Fewer" onClick={() => set(value - 1)} className="p-2 text-muted hover:text-neutral-100">
               <Minus size={14} />
             </button>
@@ -467,7 +486,8 @@ export function BatchName({
   return (
     <div>
       <FieldLabel>Batch name</FieldLabel>
-      <div className="flex items-center gap-2 text-sm">
+      {/* As tall as the fields beside it, so the name lines up with their values. */}
+      <div className="flex h-9 items-center gap-2 text-sm">
         <span className="truncate text-neutral-100">{name}</span>
         <button
           type="button"
