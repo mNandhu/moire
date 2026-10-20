@@ -53,8 +53,8 @@ def test_expected_indexes_present():
         "ix_images_lib_has_ai_tags_recent",
         "ix_images_model_recent",
         "ix_images_sig_recent",
-        "ix_image_tags_tag",
-        "ix_image_tags_base",
+        "ix_image_tags_tag_img",
+        "ix_image_tags_base_img",
         "ix_image_gen_terms_term",
         "ix_gen_raw_sig",
     } <= names

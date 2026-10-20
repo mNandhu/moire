@@ -295,3 +295,26 @@ async def test_rescan_skips_unchanged_files_and_rebuilds_on_change(
     assert sorted(opened) == ["a.png", "b.png", "c.png"]
     await rescan()
     assert opened == []
+
+
+async def test_thumbnails_are_served_without_gzip(client, tmp_path):
+    """Images are already compressed: gzip only adds CPU (and drops
+    Content-Length), so the middleware must pass them through."""
+    import os
+
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    Image.frombytes("RGB", (256, 256), os.urandom(256 * 256 * 3)).save(
+        lib_dir / "noise.png"
+    )
+    resp = await client.post("/libraries", json={"path": str(lib_dir)})
+    lib_id = resp.json()["_id"]
+    _wait_scan(lib_id)
+
+    resp = await client.get(
+        f"/images/{lib_id}:noise.png/thumb", headers={"Accept-Encoding": "gzip"}
+    )
+    assert resp.status_code == 200
+    assert len(resp.content) > 1000  # above the middleware's minimum size
+    assert "content-encoding" not in resp.headers
+    assert int(resp.headers["content-length"]) == len(resp.content)

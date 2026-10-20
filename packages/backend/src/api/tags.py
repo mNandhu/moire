@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import time
 import asyncio
@@ -31,10 +32,13 @@ async def list_tags(
     include_prompt: bool = False,
     merge_sources: bool = False,
 ):
-    return await tag_index.list_tags(
-        include_manual=include_manual,
-        include_prompt=include_prompt,
-        merge_sources=merge_sources,
+    # Plain JSON rows: JSONResponse skips jsonable_encoder's walk.
+    return JSONResponse(
+        await tag_index.list_tags(
+            include_manual=include_manual,
+            include_prompt=include_prompt,
+            merge_sources=merge_sources,
+        )
     )
 
 
@@ -87,10 +91,12 @@ def _source(source: str) -> str:
 @router.get("/browse")
 async def browse_tags(source: str = "all"):
     """The Tags page list: one entry per tag name, its sources merged."""
-    return [
-        {**row, "thumb_url": thumb_url(row["thumb_image_id"])}
-        for row in await tag_index.browse(_source(source))
-    ]
+    return JSONResponse(
+        [
+            {**row, "thumb_url": thumb_url(row["thumb_image_id"])}
+            for row in await tag_index.browse(_source(source))
+        ]
+    )
 
 
 @router.get("/characters")

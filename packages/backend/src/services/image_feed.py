@@ -143,6 +143,9 @@ class FeedFilter:
     # The family's signatures, resolved from `workflow_id` by `_resolved`
     # before the query is built (not a user input).
     family_sigs: tuple[str, ...] | None = None
+    # The images of the filter's rarest tag group or prompt term, when that
+    # is few enough to drive the query by id (`_drive_by_rarest`).
+    driver_ids: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if self.sort not in SORTS:
@@ -176,6 +179,8 @@ def _tag_group_exists(ids: list[str]):
 def feed_where(f: FeedFilter):
     """Build the SQL WHERE clause shared by the feed and the grouped view."""
     conds: list = []
+    if f.driver_ids is not None:
+        conds.append(t.images.c._id.in_(f.driver_ids))
     if f.tags:
         # `any:<base>` entries fan out to all sources; exact tags stay precise.
         # AND across groups, OR within each group: one EXISTS per group.
@@ -278,8 +283,57 @@ async def _resolved(conn, f: FeedFilter) -> FeedFilter:
     up front, so the page query filters on a plain indexed ``IN`` list."""
     if f.workflow_id and f.family_sigs is None:
         sigs = await workflow_family.family_sigs(conn, f.workflow_id)
-        return replace(f, family_sigs=sigs)
-    return f
+        f = replace(f, family_sigs=sigs)
+    return await _drive_by_rarest(conn, f)
+
+
+# Below this many matches, fetching a tag's ids first beats walking `images`
+# in sort order with an EXISTS probe per row. Measured break-even was ~350
+# matches on a 3.9k-image library and ~1300 on 30k; past it the id list
+# costs more (about 10 ms per 1000 ids) than the walk it replaces.
+_RARE = 300
+
+
+async def _drive_by_rarest(conn, f: FeedFilter) -> FeedFilter:
+    """``f`` driven by the ids of its rarest tag group or prompt term, when
+    that is rare. SQLite walks ``images`` in sort order and probes each row's
+    EXISTS filters, so a tag on 30 of 30k images costs a full walk; an
+    ``_id IN (...)`` list of those 30 is a handful of lookups. Every group is
+    ANDed into the filter, so its images are a superset of the result and the
+    other conditions still apply."""
+    if f.driver_ids is not None:
+        return f
+    groups = []  # (table, column, values)
+    if f.tags:
+        wanted = [image_tags.canonical_tag(tag) for tag in f.tags]
+        for grp in image_tags.tag_match_groups(wanted, f.logic):
+            groups.append((t.image_tags, t.image_tags.c.tag, grp))
+    if f.pterms and f.plogic == "and":
+        for term in [canonical_name(p.lower()) for p in f.pterms if p and p.strip()]:
+            groups.append((t.image_gen_terms, t.image_gen_terms.c.term, [term]))
+    best = None
+    for tbl, col, vals in groups:
+        n = (
+            await conn.execute(
+                sa.select(sa.func.count()).select_from(
+                    sa.select(tbl.c.image_id)
+                    .where(col.in_(vals))
+                    .limit(_RARE + 1)
+                    .subquery()
+                )
+            )
+        ).scalar_one()
+        if n <= _RARE and (best is None or n < best[0]):
+            best = (n, tbl, col, vals)
+    if best is None:
+        return f
+    _, tbl, col, vals = best
+    ids = (
+        (await conn.execute(sa.select(tbl.c.image_id).where(col.in_(vals)).distinct()))
+        .scalars()
+        .all()
+    )
+    return replace(f, driver_ids=tuple(ids))
 
 
 async def list_ids(f: FeedFilter, *, limit: int) -> list[str]:
@@ -313,6 +367,11 @@ async def list_feed(
         row = sa.tuple_(*keys, t.images.c._id)
         after = sa.tuple_(*(sa.literal(v) for v in values), sa.literal(image_id))
         stmt = stmt.where(row < after if desc else row > after)
+        # SQLite won't seek an index from a row-value comparison, so a deep
+        # page walked every row above it. The redundant range on the leading
+        # key (implied by the row compare) lets it seek straight there.
+        lead = sa.literal(values[0])
+        stmt = stmt.where(keys[0] <= lead if desc else keys[0] >= lead)
     stmt = stmt.order_by(*_directed([*keys, t.images.c._id], f.sort)).limit(limit)
     if not cursor and offset:
         stmt = stmt.offset(offset)

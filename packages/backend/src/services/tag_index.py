@@ -97,6 +97,18 @@ def _store(
         cache[key] = (time.time(), gen, value)
 
 
+def read_view(key: str) -> list[dict] | None:
+    """A view another module caches alongside the tag lists (same TTL, same
+    invalidation), or None when stale."""
+    return _read(_tags_cache, key, _TAGS_TTL_SECONDS)
+
+
+def store_view(key: str, gen: int, value: list[dict]) -> None:
+    """Cache ``value`` under ``key`` unless a write intervened since ``gen``
+    (:func:`current_generation`, read before building it)."""
+    _store(_tags_cache, key, gen, value)
+
+
 def reset_for_tests() -> None:
     """Drop all cached state and the generation counter."""
     global _generation
@@ -378,29 +390,24 @@ async def browse(source: str = "all") -> list[dict]:
     )
     # The cover, by the mosaic's own rule (samples_for_tag): the pinned image
     # if it is visible and carries the tag, else the first of the shuffle.
-    ranked = (
-        sa.select(
-            it.c.base,
-            it.c.image_id,
-            sa.func.row_number()
-            .over(
-                partition_by=it.c.base,
-                order_by=(
-                    sa.case((im.c._id == tm.c.thumb_image_id, 0), else_=1),
-                    _shuffle_key(_seed_sql(it.c.base)),
-                ),
-            )
-            .label("rn"),
-        )
+    # One grouped pass: SQLite takes a bare column (image_id) from the row
+    # holding min() of the group, so this picks the lowest key without a
+    # window sorting every image_tags row. The shuffle key is never negative,
+    # so a pin's -1 always wins.
+    key = sa.case(
+        (im.c._id == tm.c.thumb_image_id, -1),
+        else_=_shuffle_key(_seed_sql(it.c.base)),
+    )
+    covers_stmt = (
+        sa.select(it.c.base, it.c.image_id, sa.func.min(key))
         .select_from(joined.outerjoin(tm, tm.c.tag == it.c.base))
         .where(*where)
-        .subquery()
+        .group_by(it.c.base)
     )
-    covers_stmt = sa.select(ranked.c.base, ranked.c.image_id).where(ranked.c.rn == 1)
     vocab = await tag_categories.load()  # a file read: before taking a connection
     async with async_conn() as conn:
         rows = (await conn.execute(stmt)).fetchall()
-        covers = dict((await conn.execute(covers_stmt)).fetchall())
+        covers = {r[0]: r[1] for r in (await conn.execute(covers_stmt)).fetchall()}
         characters = await _characters(conn, vocab, {r.base for r in rows})
 
     result = [

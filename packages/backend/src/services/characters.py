@@ -180,7 +180,19 @@ async def names_of(base: str) -> tuple[str, list[str], bool]:
 
 async def listing() -> list[dict]:
     """Every character, aliases folded in, most images first: what the image
-    view shows as the people in a picture."""
+    view shows as the people in a picture. Cached with the tag lists; the
+    avatar crops are read fresh, since the face detector fills them in the
+    background and can be switched off."""
+    rows = tag_index.read_view("characters")
+    if rows is None:
+        gen = tag_index.current_generation()
+        rows = await _listing()
+        tag_index.store_view("characters", gen, rows)
+    avatars = await _avatars([r["thumb_image_id"] for r in rows])
+    return [{**r, **avatars.get(r["thumb_image_id"] or "", _NO_AVATAR)} for r in rows]
+
+
+async def _listing() -> list[dict]:
     rows = await tag_index.browse("all")
     vocab = await tag_categories.load()
     by = {r["tag"]: r for r in rows}
@@ -208,7 +220,6 @@ async def listing() -> list[dict]:
             ]
         meta = await _meta(conn, list(found))
         covers = await _covers(conn, found, by)
-    avatars = await _avatars(list(covers.values()))
     keys_on: dict[str, set[str]] = {}
     for key, ids in images.items():
         for image_id in ids:
@@ -236,7 +247,6 @@ async def listing() -> list[dict]:
             "series": meta.get(key, {}).get("series"),
             "color": colour(key),
             "focus": _focus(meta.get(key)),
-            **avatars.get(covers[key] or "", _NO_AVATAR),
         }
         for key, names in found.items()
     ]
@@ -510,6 +520,8 @@ async def update(tag: str, patch: dict) -> dict:
                 )
             )
         row = (await _meta(conn, [key])).get(key, {"tag": key})
-    if "kind" in values:
+    # Every field shows in the cached character list; `kind` also moves the
+    # tag between the character and general lists.
+    if values:
         tag_index.invalidate()
     return row

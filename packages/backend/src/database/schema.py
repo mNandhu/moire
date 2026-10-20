@@ -297,11 +297,14 @@ RETIRED_INDEXES = (
     "ix_images_lib_has_ai_tags",
     "ix_images_gen_model",
     "ix_images_gen_workflow_sig",
+    "ix_image_tags_tag",
+    "ix_image_tags_base",
 )
 
 sa.Index("ix_images_gen_group_id", images.c.gen_group_id)
-sa.Index("ix_image_tags_tag", image_tags.c.tag)
-sa.Index("ix_image_tags_base", image_tags.c.base)
+# Covering (x, image_id): tag counts and `$in` lookups read the index alone.
+sa.Index("ix_image_tags_tag_img", image_tags.c.tag, image_tags.c.image_id)
+sa.Index("ix_image_tags_base_img", image_tags.c.base, image_tags.c.image_id)
 sa.Index("ix_image_gen_terms_term", image_gen_terms.c.term)
 sa.Index("ix_image_loras_name", image_loras.c.name)
 sa.Index("ix_image_embeddings_name", image_embeddings.c.name)

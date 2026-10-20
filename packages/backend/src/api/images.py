@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Header, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 import mimetypes
 import time
@@ -99,7 +99,6 @@ def feed_filter(
 
 @router.get("")
 async def list_images(
-    response: Response,
     f: FeedFilter = Depends(feed_filter),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=200, ge=1, le=1000),
@@ -108,8 +107,9 @@ async def list_images(
     if cursor and len(cursor) > 1024:
         raise HTTPException(status_code=422, detail="cursor too long")
 
+    headers: dict[str, str] = {}
     if not cursor and offset:
-        response.headers["X-Moire-Warn"] = (
+        headers["X-Moire-Warn"] = (
             "offset pagination is deprecated; prefer cursor-based pagination"
         )
 
@@ -122,10 +122,12 @@ async def list_images(
     # The next page's cursor, from the values the server sorted on; the body
     # stays a plain list so other callers are unaffected.
     if next_cursor:
-        response.headers["X-Next-Cursor"] = next_cursor
+        headers["X-Next-Cursor"] = next_cursor
     for it in items:
         _attach_thumb_url(it)
-    return items
+    # Rows are plain JSON values already: skip jsonable_encoder's walk, which
+    # cost more than the query on a 1000-row page.
+    return JSONResponse(items, headers=headers)
 
 
 # The most "Select all" picks at once; more is a sign of a mistake.
@@ -137,7 +139,9 @@ async def list_image_ids(f: FeedFilter = Depends(feed_filter)):
     """Every image matching the gallery filter, as ids ("Select all"). Same
     filter as the feed, batch grouping aside: these are images, not batches."""
     ids = await image_feed.list_ids(f, limit=SELECT_ALL_CAP + 1)
-    return {"ids": ids[:SELECT_ALL_CAP], "truncated": len(ids) > SELECT_ALL_CAP}
+    return JSONResponse(
+        {"ids": ids[:SELECT_ALL_CAP], "truncated": len(ids) > SELECT_ALL_CAP}
+    )
 
 
 @router.get("/{image_id:path}/file")
