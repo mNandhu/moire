@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, ChevronDown, Pencil, RotateCcw, Undo2, UserPlus, UserRound, X } from "lucide-react";
+import { ArrowLeftRight, Ban, Check, Pencil, RotateCcw, Undo2, UserRound, X } from "lucide-react";
 import { Badge, Card } from "../ui";
 import { Picker, type PickerOption } from "../ui/Picker";
 import { Dialog } from "../ui/Dialog";
@@ -43,14 +43,29 @@ function CharacterPicker({
   value,
   onChange,
   trigger,
+  defaultOpen,
+  onClose,
+  align,
+  taken,
 }: {
   value: string | null;
   onChange: (tag: string) => void;
   trigger?: (p: { open: boolean; label: string | null }) => React.ReactNode;
+  defaultOpen?: boolean;
+  onClose?: () => void;
+  align?: "left" | "right";
+  /** Characters already in the prompt, left out of the list. */
+  taken?: readonly string[];
 }) {
   const { data } = useCharacters();
   const [creating, setCreating] = useState(false);
-  const opts = useMemo(() => [...characterOptions(data ?? []), { value: NEW_CHARACTER, label: "New character" }], [data]);
+  const opts = useMemo(
+    () => [
+      ...characterOptions((data ?? []).filter((c) => c.tag === value || !taken?.includes(c.tag))),
+      { value: NEW_CHARACTER, label: "New character" },
+    ],
+    [data, taken, value],
+  );
   return (
     <>
       <Picker
@@ -61,7 +76,9 @@ function CharacterPicker({
         placeholder="Pick a character"
         searchable
         trigger={trigger}
-        align={trigger ? "right" : "left"}
+        defaultOpen={defaultOpen}
+        onClose={onClose}
+        align={align ?? (trigger ? "right" : "left")}
         className={trigger ? undefined : "w-full"}
       />
       {creating && <NewCharacterDialog open onClose={() => setCreating(false)} onCreated={onChange} />}
@@ -316,99 +333,8 @@ export function RecipeEditor({
 }
 
 /**
- * The Character block: the picked character, their identity tags (drop one to
- * leave it out of this recipe, kept for next time) and their LoRA. Edits are
- * the recipe's, stored on the server; the batch records what was sent.
- */
-export function CharacterBlock({
-  value,
-  onChange,
-  installedLoras,
-  rejectedLoras,
-}: {
-  value: string | null;
-  onChange: (tag: string | null) => void;
-  installedLoras: readonly string[];
-  rejectedLoras: ReadonlySet<string>;
-}) {
-  const { data: everyone } = useCharacters();
-  const entry = useMemo(() => everyone?.find((c) => c.tag === value) ?? null, [everyone, value]);
-  const { data: recipe, isError } = useRecipe(value);
-
-  if (!value) {
-    return (
-      <div>
-        <FieldLabel>Character</FieldLabel>
-        <CharacterPicker value={null} onChange={onChange} />
-      </div>
-    );
-  }
-
-  const { name, series } = displayName(entry ?? { tag: value });
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="w-full text-xs font-medium text-muted">Character</div>
-        {entry ? (
-          <CharacterAvatar
-            src={entry.thumb_url}
-            face={entry.face}
-            focus={entry.focus}
-            aspect={entry.aspect}
-            className="h-12 w-12 ring-1 ring-line"
-          />
-        ) : (
-          <div className="grid h-12 w-12 place-items-center rounded-full bg-raised text-faint">
-            <UserRound size={20} />
-          </div>
-        )}
-        <div className="min-w-0">
-          <Link to={characterHref(value)} className="block truncate text-base font-semibold text-neutral-50 hover:underline">
-            {name}
-          </Link>
-          <div className="text-xs text-muted">
-            {series && (
-              <>
-                {series} <span className="text-line-strong">|</span>{" "}
-              </>
-            )}
-            {(recipe?.count ?? entry?.count ?? 0).toLocaleString()} images
-          </div>
-        </div>
-        <div className="ml-auto flex items-center gap-1.5">
-          <CharacterPicker
-            value={value}
-            onChange={onChange}
-            trigger={() => (
-              <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-raised px-2.5 text-xs text-neutral-200 hover:border-line-strong">
-                Change character
-                <ChevronDown size={13} />
-              </span>
-            )}
-          />
-          <button
-            type="button"
-            onClick={() => onChange(null)}
-            aria-label="Remove character"
-            title="Remove character"
-            className="rounded-lg p-1.5 text-muted hover:bg-line hover:text-neutral-100"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      </div>
-
-      {isError && <div className="text-xs text-red-300">Not in the library any more</div>}
-      {recipe && (
-        <RecipeEditor recipe={recipe} label={name} installedLoras={installedLoras} rejectedLoras={rejectedLoras} />
-      )}
-    </div>
-  );
-}
-
-/**
  * The Character layer: one line (avatar, name, the identity tags it adds, its
- * LoRA) that expands into the full {@link CharacterBlock}; the pencil opens
+ * LoRA) that unfolds the recipe editor below it; the pencil opens
  * just the recipe. With no character, just the picker.
  */
 function CharacterRow({
@@ -416,14 +342,18 @@ function CharacterRow({
   onChange,
   installedLoras,
   rejectedLoras,
-  adder,
+  open = false,
+  onPickerClose,
+  taken,
 }: {
   value: string | null;
   onChange: (tag: string | null) => void;
   installedLoras: readonly string[];
   rejectedLoras: ReadonlySet<string>;
-  /** Shown on the folded row: the control that adds another character. */
-  adder?: React.ReactNode;
+  taken?: readonly string[];
+  /** With no character: the picker starts open. */
+  open?: boolean;
+  onPickerClose?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -437,18 +367,7 @@ function CharacterRow({
       <Card className="flex min-h-[3.25rem] items-center gap-3 px-3.5 py-2">
         {label}
         <div className="w-72 max-w-full">
-          <CharacterPicker value={null} onChange={onChange} />
-        </div>
-      </Card>
-    );
-  }
-  if (expanded) {
-    return (
-      <Card className="p-4">
-        <CharacterBlock value={value} onChange={onChange} installedLoras={installedLoras} rejectedLoras={rejectedLoras} />
-        <div className="mt-2 flex justify-end">
-          <ExpandButton open onToggle={() => setExpanded(false)} />
-          {adder}
+          <CharacterPicker value={null} onChange={onChange} defaultOpen={open} onClose={onPickerClose} taken={taken} />
         </div>
       </Card>
     );
@@ -457,15 +376,41 @@ function CharacterRow({
   const kept = recipe?.identity.filter((c) => !c.dropped).map((c) => displayWord(c.tag)) ?? [];
   const lora = recipe?.lora;
   return (
-    <Card className="flex min-h-[3.25rem] items-center gap-3 px-3.5 py-2">
+    <Card className="px-3.5 py-2 hover:border-line-strong">
+      {/* The same row open or folded, so the chevron stays under the mouse. A
+          click on it toggles; its own buttons and the picker keep theirs. */}
+      <div
+        className="flex min-h-[2.25rem] cursor-pointer items-center gap-3"
+        onClick={(e) => {
+          if (!(e.target as HTMLElement).closest("button, a, input, [role=listbox], [role=dialog]")) setExpanded((x) => !x);
+        }}
+      >
       {label}
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
-        {entry ? (
-          <CharacterAvatar src={entry.thumb_url} face={entry.face} focus={entry.focus} aspect={entry.aspect} className="h-7 w-7 ring-1 ring-line" />
-        ) : (
-          <UserRound size={18} className="text-faint" />
-        )}
-        <span className="shrink-0 font-semibold text-neutral-50">{name}</span>
+        <CharacterPicker
+          value={value}
+          onChange={onChange}
+          align="left"
+          taken={taken}
+          trigger={() => (
+            <span className="group/pick -mx-1 inline-flex items-center gap-2.5 rounded-md px-1 py-0.5 hover:bg-line/60" title="Change character">
+              {entry ? (
+                <CharacterAvatar
+                  src={entry.thumb_url}
+                  face={entry.face}
+                  focus={entry.focus}
+                  aspect={entry.aspect}
+                  letter={name}
+                  className="h-7 w-7 text-xs ring-1 ring-line"
+                />
+              ) : (
+                <UserRound size={18} className="text-faint" />
+              )}
+              <span className="shrink-0 font-semibold text-neutral-50">{name}</span>
+              <ArrowLeftRight size={13} className="text-faint opacity-0 transition-opacity group-hover/pick:opacity-100" />
+            </span>
+          )}
+        />
         <span className="min-w-0 flex-1 truncate text-xs text-faint" title={kept.join(", ")}>
           {kept.join(", ")}
         </span>
@@ -495,8 +440,7 @@ function CharacterRow({
       >
         <Pencil size={14} />
       </button>
-      <ExpandButton open={false} onToggle={() => setExpanded(true)} />
-      {adder}
+      <ExpandButton open={expanded} onToggle={() => setExpanded((x) => !x)} />
       <button
         type="button"
         onClick={() => onChange(null)}
@@ -506,6 +450,15 @@ function CharacterRow({
       >
         <X size={14} />
       </button>
+      </div>
+      {expanded && recipe && (
+        <div className="mt-2 space-y-4 border-t border-line pb-2 pt-3">
+          <RecipeEditor recipe={recipe} label={name} installedLoras={installedLoras} rejectedLoras={rejectedLoras} />
+          <Link to={characterHref(value)} className="inline-block text-xs text-muted hover:text-neutral-100">
+            {recipe.count.toLocaleString()} {recipe.count === 1 ? "image" : "images"} · character page
+          </Link>
+        </div>
+      )}
       {recipe && (
         <Dialog open={editing} onClose={() => setEditing(false)} title={name}>
           <div className="space-y-4">
@@ -519,19 +472,24 @@ function CharacterRow({
 
 /**
  * The Character layer: one row per picked character, in prompt order, each
- * folding open into its {@link CharacterBlock}; the last row adds another.
- * With none, just the picker.
+ * unfolding its recipe below. With none, just the picker.
+ * `adding` (from the "+" between layers) shows one more row with the picker
+ * open; `onAdded` is called when it closes, picked or not.
  */
 export function CharacterLayer({
   value,
   onChange,
   installedLoras,
   rejectedLoras,
+  adding = false,
+  onAdded,
 }: {
   value: readonly string[];
   onChange: (tags: string[]) => void;
   installedLoras: readonly string[];
   rejectedLoras: ReadonlySet<string>;
+  adding?: boolean;
+  onAdded?: () => void;
 }) {
   const add = (tag: string) => {
     if (!value.includes(tag)) onChange([...value, tag]);
@@ -543,6 +501,8 @@ export function CharacterLayer({
         onChange={(t) => t && add(t)}
         installedLoras={installedLoras}
         rejectedLoras={rejectedLoras}
+        open={adding}
+        onPickerClose={onAdded}
       />
     );
   }
@@ -555,25 +515,20 @@ export function CharacterLayer({
           onChange={(t) => onChange(replaceCharacter(value, i, t))}
           installedLoras={installedLoras}
           rejectedLoras={rejectedLoras}
-          adder={
-            i === value.length - 1 && value.length < MAX_CHARACTERS ? (
-              <CharacterPicker
-                value={null}
-                onChange={add}
-                trigger={() => (
-                  <span
-                    className="inline-flex rounded p-1 text-muted hover:bg-line hover:text-neutral-100"
-                    title="Add a character"
-                    aria-label="Add a character"
-                  >
-                    <UserPlus size={15} />
-                  </span>
-                )}
-              />
-            ) : undefined
-          }
+          taken={value}
         />
       ))}
+      {adding && value.length < MAX_CHARACTERS && (
+        <CharacterRow
+          value={null}
+          onChange={(t) => t && add(t)}
+          installedLoras={installedLoras}
+          rejectedLoras={rejectedLoras}
+          open
+          onPickerClose={onAdded}
+          taken={value}
+        />
+      )}
     </div>
   );
 }

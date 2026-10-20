@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, Plus, Sparkles, TextCursorInput, X, Bookmark } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Sparkles, TextCursorInput, UserRound, X, Bookmark } from "lucide-react";
 import { Button, Card, Input } from "../ui";
 import { Dialog } from "../ui/Dialog";
 import { Picker, type PickerOption } from "../ui/Picker";
@@ -72,7 +72,14 @@ export function ExpandButton({ open, onToggle }: { open: boolean; onToggle: () =
 }
 
 /** The "+" between two layers: adds a Text, Preset or Embedding layer there. */
-export function AddLayer({ onAdd }: { onAdd: (kind: AddedKind) => void }) {
+export function AddLayer({
+  onAdd,
+  onCharacter,
+}: {
+  onAdd: (kind: AddedKind) => void;
+  /** Adds a character to the Character layer; absent at the limit. */
+  onCharacter?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -112,6 +119,21 @@ export function AddLayer({ onAdd }: { onAdd: (kind: AddedKind) => void }) {
           role="menu"
           className="absolute left-14 top-0 z-30 w-48 rounded-lg border border-line-strong bg-raised py-1 shadow-panel"
         >
+          {onCharacter && (
+            <button
+              type="button"
+              role="menuitem"
+              title="Another character, in the Character layer"
+              onClick={() => {
+                onCharacter();
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-neutral-200 hover:bg-line hover:text-white"
+            >
+              <UserRound size={14} />
+              Character
+            </button>
+          )}
           {ADD.map((a) => (
             <button
               key={a.kind}

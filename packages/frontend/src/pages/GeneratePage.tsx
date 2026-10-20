@@ -42,6 +42,7 @@ import {
 } from "../lib/generate";
 import {
   insertBlock,
+  MAX_CHARACTERS,
   loadDraft,
   nameWords,
   previewText,
@@ -176,6 +177,10 @@ export default function GeneratePage() {
   const { data: tagAgg } = useTagAggregate({ includePrompt: true });
   const [form, setForm] = useState<GenerateForm>(() => loadDraft());
   const [rejected, setRejected] = useState<NodeError[] | null>(null);
+  // The "+" between layers asked for another character: the Character layer
+  // shows a row with its picker open.
+  const [addingCharacter, setAddingCharacter] = useState(false);
+  const addCharacter = form.characters.length < MAX_CHARACTERS ? () => setAddingCharacter(true) : undefined;
   const set = <K extends keyof GenerateForm>(k: K, v: GenerateForm[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   useEffect(() => saveDraft(form), [form]);
@@ -298,7 +303,9 @@ export default function GeneratePage() {
             <div className="flex flex-col" aria-label="Positive prompt">
               {form.blocks.map((blk, i) => (
                 <div key={"id" in blk ? blk.id : blk.kind}>
-                  {i > 0 && <AddLayer onAdd={(k) => set("blocks", insertBlock(form.blocks, i, k))} />}
+                  {i > 0 && (
+                    <AddLayer onAdd={(k) => set("blocks", insertBlock(form.blocks, i, k))} onCharacter={addCharacter} />
+                  )}
                   {blk.kind === "prefix" ? (
                     <LayerRow label="Prefix">
                       <PresetControl kind="positive" value={form.prefix} onChange={(v) => set("prefix", v)} presets={presets} label="Prefix preset" />
@@ -307,6 +314,8 @@ export default function GeneratePage() {
                     <CharacterLayer
                       value={form.characters}
                       onChange={(v) => set("characters", v)}
+                      adding={addingCharacter}
+                      onAdded={() => setAddingCharacter(false)}
                       installedLoras={models?.loras ?? NO_STRINGS}
                       rejectedLoras={flagged.loras}
                     />
@@ -364,7 +373,10 @@ export default function GeneratePage() {
                   )}
                 </div>
               ))}
-              <AddLayer onAdd={(k) => set("blocks", insertBlock(form.blocks, form.blocks.length, k))} />
+              <AddLayer
+                onAdd={(k) => set("blocks", insertBlock(form.blocks, form.blocks.length, k))}
+                onCharacter={addCharacter}
+              />
               <NegativeLayer
                 preset={form.negativePreset}
                 onPreset={(v) => set("negativePreset", v)}

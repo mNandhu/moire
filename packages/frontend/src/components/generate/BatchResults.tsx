@@ -245,7 +245,7 @@ export function BatchResults({
       ? `calc((100vh - 12rem) / ${Math.min(rows, 2)} * ${ratio})`
       : `max(6rem, calc((100dvh - 26rem) / ${rows} * ${ratio}))`;
   return (
-    <div className={cn("grid gap-2", variant === "panel" && "justify-center")} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, ${cell}))` }}>
+    <div className={cn("grid gap-2", (variant === "panel" || cols === 1) && "justify-center")} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, ${cell}))` }}>
       {slots.map((s) => (
         <div key={s.kind === "image" ? `${s.req._id}:${s.out.idx}` : `${s.req._id}:${s.kind}:${slots.indexOf(s)}`} title={cellTitle(s)}>
           {s.kind === "image" ? (

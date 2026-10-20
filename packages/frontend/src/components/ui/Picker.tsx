@@ -48,6 +48,8 @@ export function Picker({
   align = "left",
   side = "down",
   disabled,
+  defaultOpen = false,
+  onClose,
 }: {
   value: string | readonly string[];
   options: readonly PickerOption[];
@@ -63,8 +65,19 @@ export function Picker({
   /** Open below the trigger, or above it (for controls near the bottom). */
   side?: "down" | "up";
   disabled?: boolean;
+  /** Start open (a picker shown in answer to a click elsewhere). */
+  defaultOpen?: boolean;
+  /** Called when the list closes, picked or not. */
+  onClose?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
+  const wasOpen = useRef(open);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    if (wasOpen.current && !open) onCloseRef.current?.();
+    wasOpen.current = open;
+  }, [open]);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
