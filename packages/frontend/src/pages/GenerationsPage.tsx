@@ -19,7 +19,7 @@ const PEEK = 6;
  * Moving the pointer across the cover (or arrow keys on the card) flips
  * through them, a strip per image, with a thin bar showing where you are.
  */
-function Cover({ b, at, onAt }: { b: BatchSummary; at: number; onAt: (i: number) => void }) {
+function Cover({ b, at, onAt, warm }: { b: BatchSummary; at: number; onAt: (i: number) => void; warm: boolean }) {
   const ids = b.thumbs;
   if (!ids.length) {
     return (
@@ -50,11 +50,11 @@ function Cover({ b, at, onAt }: { b: BatchSummary; at: number; onAt: (i: number)
     <div
       // A deck sits a little in from the card's edge, so it reads as a stack.
       className={cn("absolute", behind ? "inset-2" : "inset-0")}
-      onMouseMove={(e) => {
+      onPointerMove={(e) => {
         const r = e.currentTarget.getBoundingClientRect();
         onAt(scrubIndex(e.clientX - r.left, r.width, n));
       }}
-      onMouseLeave={() => onAt(0)}
+      onPointerLeave={() => onAt(0)}
     >
       {Array.from({ length: behind }, (_, k) => behind - k).map((d) => (
         <div
@@ -75,15 +75,19 @@ function Cover({ b, at, onAt }: { b: BatchSummary; at: number; onAt: (i: number)
         className={cn("absolute overflow-hidden bg-raised", behind ? "rounded-md shadow-[0_2px_6px_rgb(0_0_0/0.55)]" : "")}
         style={frame(0)}
       >
-        {ids.map((id, i) => (
-          <img
-            key={id}
-            src={thumbUrl(id)}
-            alt=""
-            loading="lazy"
-            className={cn("absolute inset-0 h-full w-full object-cover", i !== at && "opacity-0")}
-          />
-        ))}
+        {ids.map((id, i) =>
+          // The rest load once the card is hovered or focused: until then
+          // only the front image (and the two behind) are seen.
+          warm || i === at ? (
+            <img
+              key={i}
+              src={thumbUrl(id)}
+              alt=""
+              loading="lazy"
+              className={cn("absolute inset-0 h-full w-full object-cover", i !== at && "opacity-0")}
+            />
+          ) : null,
+        )}
         {n > 1 && (
           <>
             <span className="absolute bottom-1.5 right-1.5 inline-flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-2xs font-medium tabular-nums text-white">
@@ -92,10 +96,10 @@ function Cover({ b, at, onAt }: { b: BatchSummary; at: number; onAt: (i: number)
             </span>
             <div
               aria-hidden
-              className="absolute inset-x-1.5 top-1 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+              className="absolute bottom-2 left-1.5 right-12 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
             >
-              {ids.map((id, i) => (
-                <span key={id} className={cn("h-0.5 flex-1 rounded-full", i === at ? "bg-white" : "bg-white/30")} />
+              {ids.map((_, i) => (
+                <span key={i} className={cn("h-0.5 flex-1 rounded-full", i === at ? "bg-white" : "bg-white/30")} />
               ))}
             </div>
           </>
@@ -107,6 +111,7 @@ function Cover({ b, at, onAt }: { b: BatchSummary; at: number; onAt: (i: number)
 
 function BatchCard({ b }: { b: BatchSummary }) {
   const [at, setAt] = useState(0);
+  const [warm, setWarm] = useState(false);
   const n = b.thumbs.length;
   return (
     <Link
@@ -118,10 +123,12 @@ function BatchCard({ b }: { b: BatchSummary }) {
         setAt((i) => (i + (e.key === "ArrowRight" ? 1 : n - 1)) % n);
       }}
       onBlur={() => setAt(0)}
+      onFocus={() => setWarm(true)}
+      onPointerEnter={() => setWarm(true)}
       className="group block overflow-hidden rounded-xl border border-line bg-surface transition-colors hover:border-line-strong"
     >
       <div className="relative bg-canvas" style={{ aspectRatio: coverAspect(b.width, b.height) }}>
-        <Cover b={b} at={Math.min(at, Math.max(0, n - 1))} onAt={setAt} />
+        <Cover b={b} at={Math.min(at, Math.max(0, n - 1))} onAt={setAt} warm={warm} />
         {b.state !== "done" && (
           <Badge tone={stateTone(b.state)} className="absolute left-2 top-2 shadow-panel">
             {STATE_LABEL[b.state]}
