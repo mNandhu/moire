@@ -46,6 +46,7 @@ export function CheckpointPicker({
           searchable
           disabled={disabled}
           className="w-full"
+          side="up"
         />
       </div>
     </div>
@@ -83,6 +84,7 @@ export function SizePicker({ value, onChange }: { value: Size; onChange: (s: Siz
         }}
         searchable
         className="w-full"
+        side="up"
       />
     </div>
   );

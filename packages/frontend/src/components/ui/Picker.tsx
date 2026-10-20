@@ -46,6 +46,7 @@ export function Picker({
   className,
   trigger,
   align = "left",
+  side = "down",
   disabled,
 }: {
   value: string | readonly string[];
@@ -59,6 +60,8 @@ export function Picker({
   /** A custom trigger in place of the default field-styled button. */
   trigger?: (props: { open: boolean; label: string | null }) => React.ReactNode;
   align?: "left" | "right";
+  /** Open below the trigger, or above it (for controls near the bottom). */
+  side?: "down" | "up";
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -176,7 +179,8 @@ export function Picker({
       {open && (
         <div
           className={cn(
-            "absolute z-50 mt-1 min-w-full w-max max-w-[min(32rem,90vw)] rounded-lg border border-line-strong bg-raised shadow-panel",
+            "absolute z-50 min-w-full w-max max-w-[min(32rem,90vw)] rounded-lg border border-line-strong bg-raised shadow-panel",
+            side === "up" ? "bottom-full mb-1" : "mt-1",
             align === "right" ? "right-0" : "left-0",
           )}
         >
