@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
+import { PageErrorBoundary } from "./components/ErrorScreen";
 import { MobileNavContext } from "./components/ui/PageHeader";
 import { cn } from "./lib/cn";
 import { useOverlayOpen } from "./lib/backgroundLocation";
@@ -179,7 +180,9 @@ export default function App() {
               scroller, so rubber-banding past the top dragged the header down
               with the content. */}
           <div ref={scrollRef} className="flex-1 overflow-auto overscroll-none">
-            <Outlet />
+            <PageErrorBoundary resetKey={loc.pathname}>
+              <Outlet />
+            </PageErrorBoundary>
           </div>
         </div>
       </div>

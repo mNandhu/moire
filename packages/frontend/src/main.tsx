@@ -9,8 +9,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import RootRoutes from "./RootRoutes";
 import { ToastProvider } from "./components/Toasts";
 import { ConfirmProvider } from "./components/ConfirmDialog";
+import { RouteError } from "./components/ErrorScreen";
 
-const router = createBrowserRouter([{ path: "*", element: <RootRoutes /> }]);
+const router = createBrowserRouter([
+  { path: "*", element: <RootRoutes />, errorElement: <RouteError /> },
+]);
 
 // Server-state cache. staleTime keeps the Image feed warm so navigating
 // gallery -> ImageView -> gallery reuses already-fetched pages instead of refetching.

@@ -15,6 +15,7 @@ import { NavLink } from "react-router-dom";
 import { cn } from "../lib/cn";
 import { MoireMark } from "./ui/Logo";
 import { ActivityIndicator } from "./ActivityIndicator";
+import { BackButton } from "./HistoryButtons";
 
 type Status = string;
 
@@ -121,22 +122,32 @@ export function Sidebar({
         {!collapsed && (
           <>
             <span className="text-lg font-semibold text-neutral-50">Moiré</span>
-            {onToggle && (
-              <button
-                onClick={onToggle}
-                title="Collapse sidebar"
-                aria-label="Collapse sidebar"
-                className="ml-auto hidden md:inline-flex p-1.5 rounded-lg text-faint hover:text-neutral-100 hover:bg-raised/60 transition-colors"
-              >
-                <PanelLeftClose size={18} />
-              </button>
-            )}
+            <div className="ml-auto flex items-center gap-0.5">
+              {onToggle && (
+                <button
+                  onClick={onToggle}
+                  title="Collapse sidebar"
+                  aria-label="Collapse sidebar"
+                  className="hidden md:inline-flex p-1.5 rounded-lg text-faint hover:text-neutral-100 hover:bg-raised/60 transition-colors"
+                >
+                  <PanelLeftClose size={18} />
+                </button>
+              )}
+              {/* Last in the row, nearest the edge its forward button
+                  floats past. */}
+              <BackButton />
+            </div>
           </>
         )}
       </div>
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+        {collapsed && (
+          <div className="hidden [@media(hover:hover)_and_(pointer:fine)]:flex justify-center">
+            <BackButton />
+          </div>
+        )}
         {NAV.map((group, gi) => (
           <div key={gi} className="space-y-1">
             {group.section && !collapsed && (
