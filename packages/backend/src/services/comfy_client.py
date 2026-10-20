@@ -177,12 +177,16 @@ class ComfyClient:
     async def embeddings(self) -> list[str]:
         return list((await self._json("GET", "/embeddings")) or [])
 
-    async def queue_prompt(self, graph: dict[str, Any]) -> str:
-        """Queue a prompt; returns its prompt_id. Raises :class:`ComfyRejected`
-        when ComfyUI's validation fails."""
-        r = await self._request(
-            "POST", "/prompt", json={"prompt": graph, "client_id": CLIENT_ID}
-        )
+    async def queue_prompt(
+        self, graph: dict[str, Any], workflow: dict[str, Any] | None = None
+    ) -> str:
+        """Queue a prompt; returns its prompt_id. ``workflow`` is embedded in
+        the saved images as their editor workflow (``extra_pnginfo``). Raises
+        :class:`ComfyRejected` when ComfyUI's validation fails."""
+        body: dict[str, Any] = {"prompt": graph, "client_id": CLIENT_ID}
+        if workflow is not None:
+            body["extra_data"] = {"extra_pnginfo": {"workflow": workflow}}
+        r = await self._request("POST", "/prompt", json=body)
         try:
             body = r.json()
         except ValueError:

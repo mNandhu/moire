@@ -28,14 +28,22 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import builtin_generator, comfy_models, comfy_settings, generation_estimate
+from . import (
+    builtin_generator,
+    comfy_models,
+    comfy_settings,
+    gen_metadata,
+    generation_estimate,
+)
 from .comfy_client import ComfyClient, ComfyError, ComfyRejected, ComfyUnreachable
 from .generation_compose import auto_name, compose, compose_parts, prompt_terms
 from .generator_graph import (
     SAMPLING,
     GraphError,
     build_prompt,
+    clear_display_text,
     drop_missing,
+    editor_workflow,
     merge_loras,
     seeds_for,
     split_requests,
@@ -388,6 +396,7 @@ class GenerationManager:
         self.transport: httpx.AsyncBaseTransport | None = None
         self.ws_connect: Any = None
         self._classes: set[str] | None = None
+        self._setup_failed = False
         self.connected = False
         self.error: str | None = None
         self.queue_remaining = 0
@@ -472,11 +481,21 @@ class GenerationManager:
         self.error = error
         self._models_loaded = False
 
-    async def _run(self) -> None:
+    async def _set_up(self) -> None:
+        """configure(), kept from failing the loop: a failure (the certificate
+        file's drive not mounted yet at boot, say) is shown in the status and
+        retried on the next idle tick instead of leaving Moiré disconnected
+        until someone presses Test."""
         try:
             await self.configure()
-        except Exception:
+            self._setup_failed = False
+        except Exception as e:
             log.exception("ComfyUI configure failed")
+            self._setup_failed = True
+            self.error = f"Couldn't set up the connection: {e}"
+
+    async def _run(self) -> None:
+        await self._set_up()
         while True:
             try:
                 active = await self.tick()
@@ -540,6 +559,8 @@ class GenerationManager:
     async def tick(self) -> bool:
         """One pass: sync request states with ComfyUI, submit the next
         request of idle batches. Returns whether anything is in flight."""
+        if self.client is None and self._setup_failed:
+            await self._set_up()
         async with self._tick_lock:
             if self.client is None:
                 return False
@@ -819,12 +840,17 @@ class GenerationManager:
             graph = build_prompt(gen["graph"], gen["slots"], values)
         except GraphError as e:
             raise ComfyRejected(str(e), []) from e
+        workflow = None
+        # A graph saved before setup cleaned it may still hold NaN.
+        graph = gen_metadata.sanitize_json(graph)
         if gen["kind"] != "builtin":
             classes = await self._node_classes()
             if classes:
                 drop_missing(graph, {n["class_type"] for n in graph.values()} - classes)
+            clear_display_text(graph)
+            workflow = editor_workflow(gen.get("source"))
         try:
-            pid = await self.client.queue_prompt(graph)
+            pid = await self.client.queue_prompt(graph, workflow)
         except ComfyRejected as e:
             e.node_errors = annotate_node_errors(e.node_errors, gen, graph)
             raise

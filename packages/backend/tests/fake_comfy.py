@@ -22,6 +22,7 @@ class FakeComfy:
         self.loras = ["styles/flat_color_xl.safetensors", "chars/hu_tao_v2.safetensors"]
         self.embedding_names = ["easynegative", "pos/aesthetic"]
         self.prompts: dict[str, dict[str, Any]] = {}  # prompt_id -> graph
+        self.extras: dict[str, Any] = {}  # prompt_id -> extra_data sent
         self.order: list[str] = []
         self.history: dict[str, dict[str, Any]] = {}
         self.pending: list[str] = []
@@ -94,10 +95,12 @@ class FakeComfy:
             if self.reject_next is not None:
                 body, self.reject_next = self.reject_next, None
                 return httpx.Response(400, json=body)
-            graph = json.loads(request.content)["prompt"]
+            sent = json.loads(request.content)
+            graph = sent["prompt"]
             self._n += 1
             pid = f"p{self._n}"
             self.prompts[pid] = graph
+            self.extras[pid] = sent.get("extra_data")
             self.order.append(pid)
             self.pending.append(pid)
             return httpx.Response(

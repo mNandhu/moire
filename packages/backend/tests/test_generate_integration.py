@@ -649,3 +649,32 @@ async def test_estimate_learns_from_runs_and_counts_checkpoint_loads(
     items = (await client.get("/activity")).json()["items"]
     gen = next(i for i in items if i["kind"] == "generate")
     assert gen["eta_s"] == pytest.approx(20, abs=1)
+
+
+async def test_a_failed_setup_at_startup_is_retried(temp_db, monkeypatch):
+    """The certificate's drive not mounted yet at boot: the connection is set
+    up on a later tick, not only when someone presses Test."""
+    generation_jobs.reset_for_tests()
+    fake = FakeComfy()
+    m = get_generation_manager()
+    m.transport = fake.transport()
+    await comfy_settings.update_settings(
+        {"address": "http://fake", "output_library_id": OUT}
+    )
+    real = generation_jobs.ComfyClient
+    calls = {"n": 0}
+
+    def flaky(*a, **kw):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OSError("ca file not found")
+        return real(*a, **kw)
+
+    monkeypatch.setattr(generation_jobs, "ComfyClient", flaky)
+    await m._set_up()
+    assert m.status()["configured"] is False
+    assert "Couldn't set up the connection" in m.status()["error"]
+    await m.tick()
+    assert m.status()["configured"] is True and m.status()["connected"] is True
+    await m.stop()
+    generation_jobs.reset_for_tests()

@@ -314,3 +314,49 @@ async def test_missing_models_are_proposed_out(client, comfy, seed):  # noqa: F8
     assert sent[added]["inputs"]["model"] == ["20", 0]
     # Its checkpoint slot takes an installed one.
     assert sent["20"]["inputs"]["ckpt_name"] in comfy.checkpoints
+
+
+async def test_prompts_carry_the_family_and_no_cached_text(client, comfy, seed):  # noqa: F811
+    g = _graph("graph_runtime_prompt.json")
+    _with_raw(seed, "L1:a.png", g)
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.update(t.image_gen_raw)
+            .where(t.image_gen_raw.c._id == "L1:a.png")
+            .values(
+                raw={
+                    "prompt": g,
+                    "workflow": {
+                        "id": "fam-1",
+                        "nodes": [
+                            {
+                                "id": 11,
+                                "type": "CLIPTextEncode",
+                                "widgets_values": ["old prompt"],
+                            }
+                        ],
+                    },
+                }
+            )
+        )
+    d = (
+        await client.post(
+            "/generate/generators/discover", json={"image_id": "L1:a.png"}
+        )
+    ).json()
+    assert "editor_nodes" not in d["source"]
+    slots = {**d["slots"], "positive": ["11", "text"], "replace_links": ["positive"]}
+    gen = (
+        await client.post(
+            "/generate/generators",
+            json={"source": {"image_id": "L1:a.png"}, "name": "X", "slots": slots},
+        )
+    ).json()
+    await client.post(f"/generate/generators/{gen['_id']}/test", json={})
+    pid = comfy.order[-1]
+    wf = comfy.extras[pid]["extra_pnginfo"]["workflow"]
+    assert wf["id"] == "fam-1"
+    # Node types for the family's file match; no widget values, no old prompt.
+    assert wf["nodes"] == [{"id": 11, "type": "CLIPTextEncode"}]
+    # The display node's cached text from the editor doesn't travel.
+    assert comfy.prompts[pid]["22"]["inputs"]["text2"] == ""

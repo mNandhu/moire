@@ -303,7 +303,11 @@ async def generator_view(
         "ready": bool(gen["ready"]),
         "slots": gen["slots"],
         # Where a custom one came from, and its default Base / negative.
-        "source": {k: v for k, v in source.items() if k not in ("defaults", "pins")}
+        "source": {
+            k: v
+            for k, v in source.items()
+            if k not in ("defaults", "pins", "editor_nodes")
+        }
         or None,
         "defaults": source.get("defaults"),
         # What each exposed sampling setting is when left alone.

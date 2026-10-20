@@ -73,7 +73,13 @@ def parse_upload(doc: Any) -> dict[str, Any]:
             and isinstance(node.get("inputs"), dict)
         ):
             raise SetupError("This file isn't a ComfyUI API workflow")
-    return {str(k): v for k, v in doc.items()}
+    # Only what ComfyUI runs: editor state like `is_changed: NaN` isn't JSON.
+    return {
+        str(k): gen_metadata.sanitize_json(
+            {key: v[key] for key in ("class_type", "inputs", "_meta") if key in v}
+        )
+        for k, v in doc.items()
+    }
 
 
 async def image_source(image_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -139,6 +145,13 @@ async def image_source(image_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
         "family_name": name,
         "file_name": file_name,
         "workflow_sig": row.workflow_sig,
+        # The editor graph's node ids and types, without widget values: sent
+        # with each prompt so outputs join this family (and match its file).
+        "editor_nodes": [
+            {"id": n.get("id"), "type": n.get("type")}
+            for n in (workflow.get("nodes") or [])
+            if isinstance(n, dict)
+        ],
         "pins": (pins or {}).get("fields") if isinstance(pins, dict) else None,
     }
     return parse_upload(graph), source
@@ -329,8 +342,10 @@ def clean_defaults(raw: Any) -> dict[str, str]:
 
 
 def public_source(source: dict[str, Any]) -> dict[str, Any]:
-    """A source as the client sees it: no ruleset pins, no defaults."""
-    return {k: v for k, v in source.items() if k not in ("pins", "defaults")}
+    """A source as the client sees it: no ruleset pins, defaults or editor nodes."""
+    return {
+        k: v for k, v in source.items() if k not in ("pins", "defaults", "editor_nodes")
+    }
 
 
 async def has_work(gen_id: str) -> bool:

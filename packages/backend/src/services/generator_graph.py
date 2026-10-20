@@ -302,6 +302,38 @@ def bypass_loras(
     return refs
 
 
+def _is_display(class_type: Any) -> bool:
+    ct = str(class_type or "").lower()
+    return "show" in ct or "display" in ct or ("preview" in ct and "image" not in ct)
+
+
+def clear_display_text(graph: Graph) -> Graph:
+    """Empty the text display nodes (Show Text and kin) cached from the last
+    run in the editor: it would travel with every prompt and is shown again
+    once this run ends anyway. Mutates."""
+    for node in graph.values():
+        if _is_display(node.get("class_type")):
+            for name, v in node.get("inputs", {}).items():
+                if isinstance(v, str):
+                    node["inputs"][name] = ""
+    return graph
+
+
+def editor_workflow(source: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The editor workflow sent with a prompt so its images join the family
+    they were set up from: the family id and node types, no widget values
+    (no old prompts). None for an upload or an image without one."""
+    src = source or {}
+    if not src.get("family"):
+        return None
+    return {
+        "id": src["family"],
+        "nodes": [n for n in src.get("editor_nodes") or [] if n.get("type")],
+        "links": [],
+        "version": 0.4,
+    }
+
+
 def build_prompt(graph: Graph, slots: dict[str, Any], values: dict[str, Any]) -> Graph:
     """The graph for one request. ``values``: positive, negative, seed, and
     optionally width, height, batch_size, checkpoint, sampler, scheduler,
