@@ -30,9 +30,10 @@ export function useNextEstimate(body: EstimateBody | null, { busy }: { busy: boo
 }
 
 /**
- * The next batch, drawn as a dashed outline in the output column before it
- * exists: how many images at what size, and about how long they'd take.
- * Nothing before there are runs to go on.
+ * What Generate would make from the form as it stands, drawn as a dashed
+ * outline in the output column before it exists: how many images at what
+ * size, and about how long they'd take. Not the queue: it shows with nothing
+ * queued. Nothing before there are runs to go on.
  */
 export function NextBatch({
   estimate,
@@ -52,10 +53,10 @@ export function NextBatch({
   const said = estimateNotes(estimate, checkpoint ? stemOf(checkpoint) : null);
   if (!said) return null;
   return (
-    <section aria-label="Next batch" className="rounded-xl border border-dashed border-line-strong/70 px-3.5 py-3">
+    <section aria-label="If you generate now" className="rounded-xl border border-dashed border-line-strong/70 px-3.5 py-3">
       <div className="flex items-baseline gap-2 text-sm">
         <span className="text-muted">
-          Next batch <span className="text-faint">·</span> {generator}
+          If you generate now <span className="text-faint">·</span> {generator}
         </span>
         <span className="flex-1" />
         <span className="whitespace-nowrap tabular-nums text-neutral-100" title={said.basis ?? undefined}>
