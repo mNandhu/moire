@@ -277,3 +277,63 @@ async def test_the_list_carries_each_characters_colour(client, seed, monkeypatch
     )
     listed = {c["tag"]: c for c in (await client.get("/tags/characters")).json()}
     assert listed["nahida"]["color"] == "#00ff00"
+
+
+def test_a_share_needs_enough_images_to_be_trusted():
+    # 1 of 3 is a third, but could be chance; 2 of 3 is not.
+    assert not characters.confident(1, 3)
+    assert characters.confident(2, 3)
+    assert not characters.confident(1, 2)
+    assert characters.confident(2, 2)
+    # with many images a third is enough
+    assert characters.confident(17, 50)
+    assert not characters.confident(0, 5)
+    assert not characters.confident(1, 0)
+
+
+def test_signature_drops_one_off_tags_on_few_images():
+    # Arima Kana on three images: red eyes on all, a cap on one.
+    counts = {"red_eyes": 3, "blonde_hair": 3, "beret": 1}
+    library = {"red_eyes": 10, "blonde_hair": 10, "beret": 1}
+    got = characters.signature(counts, 3, library, 1000, skip=set(), visual=frozenset())
+    assert [r["tag"] for r in got] == ["blonde_hair", "red_eyes"]
+
+
+def test_signature_keeps_one_colour_per_slot():
+    counts = {"blonde_hair": 9, "brown_hair": 4, "red_eyes": 9, "blue_eyes": 4}
+    library = dict.fromkeys(counts, 10)
+    got = characters.signature(
+        counts, 10, library, 1000, skip=set(), visual=frozenset()
+    )
+    assert [r["tag"] for r in got] == ["blonde_hair", "red_eyes"]
+
+
+def test_a_multicolour_tag_makes_room_for_a_second_colour():
+    found = [
+        {"tag": "red_eyes", "count": 9},
+        {"tag": "heterochromia", "count": 8},
+        {"tag": "blue_eyes", "count": 8},
+        {"tag": "green_eyes", "count": 4},
+        {"tag": "white_hair", "count": 9},
+        {"tag": "black_hair", "count": 5},
+        {"tag": "long_hair", "count": 9},
+    ]
+    got = [r["tag"] for r in characters.one_colour_per_slot(found)]
+    assert got == ["red_eyes", "heterochromia", "blue_eyes", "white_hair", "long_hair"]
+
+
+async def test_signature_reads_solo_images_once_there_are_enough(
+    client, seed, monkeypatch
+):
+    monkeypatch.setattr(tag_categories, "load", _chars("nahida", "furina"))
+    for i in range(3):
+        seed(f"L1:n{i}", tags=("nahida", "green_eyes", "white_hair"))
+    # Shared with Furina twice: her top hat isn't Nahida's look.
+    for i in range(2):
+        seed(f"L1:both{i}", tags=("nahida", "furina", "top_hat", "green_eyes"))
+    for i in range(20):
+        seed(f"L1:x{i}", tags=("1girl",))
+    page = (await client.get("/tags/character", params={"tag": "nahida"})).json()
+    assert page["signature_images"] == 3
+    assert "top_hat" not in {s["tag"] for s in page["signature"]}
+    assert {"green_eyes", "white_hair"} <= {s["tag"] for s in page["signature"]}

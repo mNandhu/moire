@@ -6,6 +6,7 @@ const recipe: Recipe = {
   tag: "hu_tao_(genshin_impact)",
   aliases: ["hu_tao"],
   count: 12,
+  identity_images: 12,
   identity: [
     { tag: "red_eyes", dropped: false, added: false },
     { tag: "smile", dropped: true, added: false },

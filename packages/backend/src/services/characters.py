@@ -14,6 +14,7 @@ it; white, silver, grey and black only count when no real colour does.
 
 from __future__ import annotations
 
+import math
 import re
 import time
 
@@ -116,6 +117,63 @@ def solo_palette(
     return palette(rows, images)
 
 
+# How sure a share must be before a tag joins the signature: the Wilson lower
+# bound (z = 1, roughly 68%) of its share must reach this. One image in three
+# is a third, but on three images it could easily be chance; on fifty it
+# isn't. See :func:`confident`.
+CONFIDENT_SHARE = 0.25
+# Hair and eye tags that allow a second colour in their slot.
+MULTICOLOUR = {
+    "hair": frozenset(
+        {
+            "multicolored_hair",
+            "two-tone_hair",
+            "gradient_hair",
+            "split-color_hair",
+            "streaked_hair",
+            "colored_inner_hair",
+            "rainbow_hair",
+        }
+    ),
+    "eyes": frozenset({"heterochromia", "multicolored_eyes", "gradient_eyes"}),
+}
+
+
+def confident(n: int, images: int) -> bool:
+    """Whether ``n`` of ``images`` is a share the signature can trust: the
+    Wilson lower bound (z = 1) of ``n / images`` reaches
+    :data:`CONFIDENT_SHARE`. With 3 images that takes 2 of them; with 50,
+    the third :func:`signature` already asks for is plenty. Pure."""
+    if images <= 0 or n <= 0:
+        return False
+    p = n / images
+    denom = 1 + 1 / images
+    centre = p + 1 / (2 * images)
+    margin = math.sqrt(p * (1 - p) / images + 1 / (4 * images * images))
+    return (centre - margin) / denom >= CONFIDENT_SHARE
+
+
+def one_colour_per_slot(found: list[dict]) -> list[dict]:
+    """``found`` (most common first) keeping one hair colour and one eye
+    colour, the most common of each, or two where a multicolour tag of that
+    slot (``multicolored_hair``, ``heterochromia``) is in ``found`` too: a
+    character has one hair colour, and a stray ``brown_hair`` on one image is
+    the tagger's noise. Other tags pass through. Pure."""
+    tags = {r["tag"].lower() for r in found}
+    room = {part: 2 if tags & multi else 1 for part, multi in MULTICOLOUR.items()}
+    out = []
+    for r in found:
+        base = r["tag"].lower()
+        m = _PART.match(base)
+        if m and colour_of(base) is not None:
+            part = m.group(2)
+            if room[part] <= 0:
+                continue
+            room[part] -= 1
+        out.append(r)
+    return out
+
+
 def signature(
     counts: dict[str, int],
     images: int,
@@ -126,11 +184,21 @@ def signature(
     visual: frozenset[str],
     limit: int = 30,
 ) -> list[dict]:
-    """The tags that make a character look like themselves: on at least a
-    third of their images and at least twice as common there as across the
-    library. Only ``visual`` tags count when there are any (the tagger's
-    general tags: no artists, LoRA triggers or quality tags); ``skip`` drops
-    other characters and their own names. Most common first. Pure."""
+    """The tags that make a character look like themselves, from ``counts``
+    of their tags over ``images`` images (see :func:`signature_counts`).
+
+    A tag qualifies when, in order:
+
+    1. it is a ``visual`` tag, when there are any (the tagger's general tags:
+       no artists, LoRA triggers or quality tags), and not in ``skip`` (other
+       characters and their own names);
+    2. it is on at least a third of the images, and at least twice as common
+       there as across the library;
+    3. that share is :func:`confident` for this many images, so with few
+       images a one-off tag doesn't count;
+    4. it survives :func:`one_colour_per_slot`.
+
+    Most common first. Pure."""
     found = []
     for base, n in counts.items():
         if base in skip or images <= 0 or total <= 0:
@@ -139,10 +207,47 @@ def signature(
             continue
         share = n / images
         overall = library.get(base, n) / total
-        if share >= 1 / 3 and share >= 2 * overall:
+        if share >= 1 / 3 and share >= 2 * overall and confident(n, images):
             found.append({"tag": base, "count": n})
     found.sort(key=lambda r: (-r["count"], r["tag"]))
-    return found[:limit]
+    return one_colour_per_slot(found)[:limit]
+
+
+async def signature_counts(
+    conn, ids, others: list[str], images: int
+) -> tuple[dict[str, int], int]:
+    """The tag counts a signature reads, and over how many images: ``ids``
+    (a subquery of the character's images) without the ones another
+    character (``others``, their tag names) is in, once at least
+    :data:`SOLO_ENOUGH` are left; all of ``images`` before that. So a
+    character drawn beside someone else doesn't take on their hair and eyes,
+    as long as there are enough pictures of them alone."""
+    it = t.image_tags
+    shared = (
+        sa.select(it.c.image_id).where(it.c.image_id.in_(ids), it.c.base.in_(others))
+        if others
+        else None
+    )
+    where = [it.c.image_id.in_(ids), it.c.base != ""]
+    counted = images
+    if shared is not None:
+        sub = shared.subquery()
+        crowded = (
+            await conn.execute(sa.select(sa.func.count(sa.distinct(sub.c.image_id))))
+        ).scalar_one()
+        if images - crowded >= SOLO_ENOUGH:
+            where.append(it.c.image_id.not_in(shared))
+            counted = images - crowded
+    counts = dict(
+        (
+            await conn.execute(
+                sa.select(it.c.base, sa.func.count(sa.distinct(it.c.image_id)))
+                .where(*where)
+                .group_by(it.c.base)
+            )
+        ).fetchall()
+    )
+    return counts, counted
 
 
 def groups(characters: list[str], vocab: tag_categories.Vocab) -> dict[str, list[str]]:
@@ -272,6 +377,7 @@ def made_page(row: dict) -> dict:
         "palette": [],
         "cover_blurhash": None,
         "signature": [],
+        "signature_images": 0,
         "with": [],
         "best": [],
         "scored": {"count": 0, "average": None},
@@ -473,14 +579,8 @@ async def page(base: str) -> dict | None:
                 sa.select(sa.func.count()).where(image_tags.not_quarantined())
             )
         ).scalar_one()
-        tags_here = dict(
-            (
-                await conn.execute(
-                    sa.select(it.c.base, sa.func.count(sa.distinct(it.c.image_id)))
-                    .where(it.c.image_id.in_(ids), it.c.base != "")
-                    .group_by(it.c.base)
-                )
-            ).fetchall()
+        tags_here, sig_images = await signature_counts(
+            conn, ids, [c for c in key_of if c not in names], n
         )
         hair_eyes = (
             await conn.execute(
@@ -565,12 +665,14 @@ async def page(base: str) -> dict | None:
         "cover_blurhash": cover_hash,
         "signature": signature(
             tags_here,
-            n,
+            sig_images,
             library,
             total,
             skip=set(key_of) | set(names),
             visual=vocab.general,
         ),
+        # The images the signature was read from: few means it's a guess.
+        "signature_images": sig_images,
         "with": with_others[:12],
         "best": [{"image_id": r._id, "score": r.score} for r in best],
         "scored": {
