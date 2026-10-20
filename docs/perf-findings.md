@@ -35,7 +35,7 @@ Effort: S (hours) · M (a day or so) · L (more)
 
 ## Next steps (agreed order)
 
-Done 2026-10-20: A2, S1 + S5, G1, G2, S2 + G3 (768px), S3b, A1, D1-D5, plus the medium code review of the cache and skip work (`dd642d0`).
+Done 2026-10-20: A2, S1 + S5, G1, G2, S2 + G3 (768px), S3b, A1, D1-D5, plus the medium code review of the cache and skip work (`dd642d0`). A4 (`2907b74`) and a high code review of all of it (`f02ba49`: failed-file retry, resuming cut-off reprojections, coalesced full reprojections, lock held through cancelled inference, gzip wrapper, sentinel viewport fallback).
 
 Still open, roughly by value:
 1. S3c: batch the reproject flush (executemany).
@@ -44,7 +44,6 @@ Still open, roughly by value:
 4. Tags browse is still 5-9 s cold at 30k (per-row work); profile if the Tags page feels slow.
 
 Review findings left as is (`dd642d0` review):
-- Stamp saved when some files failed in a rebuild scan. Decode and thumbnail-write failures already store `thumb_key = NULL`, so they are retried. Only a transient `stat` failure during the one rebuild scan keeps an old-size thumbnail: cosmetic.
 - The rare-filter id list and the page query run as separate statements (separate snapshots). An image tagged in the milliseconds between them can miss one page; plain EXISTS paging has the same exposure across pages.
 
 ## Working notes (how this was run, for re-running)
