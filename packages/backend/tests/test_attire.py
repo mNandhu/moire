@@ -267,6 +267,9 @@ def test_expressions_and_eye_states_are_not_identity():
     ):
         assert not attire.is_identity(tag), tag
         assert attire.facet_of(tag) == "pose", tag
+    # Even with no tag groups to go on.
+    assert attire._facet("tearing_up", None) == "pose"
+    assert not attire.is_identity("tearing_up")
     # What the eyes are like stays.
     for tag in ("red_eyes", "heart-shaped_pupils", "heterochromia"):
         assert attire.is_identity(tag), tag

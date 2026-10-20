@@ -146,14 +146,16 @@ def is_identity(tag: str) -> bool:
     its name says so (``halo``, ``mole_under_eye``, ``x_pupils``); from the
     breasts group only the sizes do. Never attire."""
     key = _key(tag)
+    # A passing eye state: how they look in one picture, not who they are.
+    if key in EYE_STATES:
+        return False
     entry = _load().get(key)
     if entry is None:
         return bool(_BODY_WORDS.search(key))
     if _attire_group(key, entry) is not None or key.startswith("looking_"):
         return False
-    # An expression, though also listed with eyes (`@_@`, `closed_eyes`),
-    # or a passing eye state: how they look in one picture, not who they are.
-    if entry[1] == "face_tags" or key in EYE_STATES:
+    # An expression, though also listed with eyes (`@_@`, `closed_eyes`).
+    if entry[1] == "face_tags":
         return False
     groups = _groups(entry) & IDENTITY_GROUPS
     if groups == {"breasts_tags"}:
@@ -235,12 +237,12 @@ FACETS = ("look", "outfit", "pose", "scene", "framing")
 
 
 def _facet(key: str, entry: tuple[str, str, tuple[str, ...]] | None) -> str | None:
+    if key in EYE_STATES:
+        return "pose"
     if entry is None:
         return "look" if _BODY_WORDS.search(key) else None
     if _attire_group(key, entry) is not None:
         return "outfit"
-    if key in EYE_STATES:
-        return "pose"
     if is_identity(key):
         return "look"
     groups = _groups(entry)
