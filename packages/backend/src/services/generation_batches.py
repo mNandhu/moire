@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import comfy_models
+from . import comfy_models, generation_estimate
 from .generation_jobs import GenerationManager, load_generator
 from .generator_graph import sampling_defaults
 
@@ -106,6 +106,12 @@ async def get_batch(batch_id: int, manager: GenerationManager) -> dict[str, Any]
             ).fetchall()
         )
     gen = await load_generator(batch.generator_id)
+    unfinished = any(q.state in ("pending", "queued", "running") for q in reqs)
+    expected = (
+        (await generation_estimate.queue_plan(manager.started))["requests"]
+        if unfinished
+        else {}
+    )
     requests = []
     for q in reqs:
         requests.append(
@@ -121,6 +127,11 @@ async def get_batch(batch_id: int, manager: GenerationManager) -> dict[str, Any]
                 "finished_at": q.finished_at,
                 # Seconds ComfyUI spent on it; None before it ends.
                 "ran": ran.get(q._id),
+                # Before it ends: the seconds it should take (None without
+                # history), and how long ComfyUI has been running it (None
+                # until it starts; seconds, so the client's clock doesn't matter).
+                "expected": expected.get(q._id),
+                "elapsed": manager.running_for(q.prompt_id),
                 "outputs": outputs.get(q._id, []),
             }
         )

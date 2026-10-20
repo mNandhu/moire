@@ -412,6 +412,21 @@ generation_run_times = sa.Table(
     sa.Column("seconds", sa.Float, nullable=False),
 )
 
+# Whether ComfyUI loaded the checkpoint for a request (cold) or reused the one
+# already in memory (warm), from its history's `execution_cached` nodes. No
+# row: not known (an older run, or a Generator without a checkpoint slot).
+generation_run_loads = sa.Table(
+    "generation_run_loads",
+    metadata,
+    sa.Column(
+        "request_id",
+        sa.Integer,
+        sa.ForeignKey("generation_requests._id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("cold", sa.Boolean, nullable=False),
+)
+
 # Images a request returned, from /history. `image_id` is the expected
 # `{output_library_id}:{subfolder/filename}`; it is joined to `images` on read,
 # so "waiting for scan" is just "no row yet".

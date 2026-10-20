@@ -28,7 +28,7 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import builtin_generator, comfy_models, comfy_settings
+from . import builtin_generator, comfy_models, comfy_settings, generation_estimate
 from .comfy_client import ComfyClient, ComfyError, ComfyRejected, ComfyUnreachable
 from .generation_compose import auto_name, compose, compose_parts, prompt_terms
 from .generator_graph import (
@@ -122,6 +122,41 @@ def history_result(entry: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
 
 
 _ENDS = ("execution_success", "execution_error", "execution_interrupted")
+
+
+def per_request_for(
+    gen: dict[str, Any], body: dict[str, Any], settings: dict[str, Any]
+) -> int | None:
+    """Images per request for a batch: what the body asks (built-in only:
+    for a custom Generator it would also turn count from requests into
+    images), else the setting; ``None`` when the Generator has no batch size
+    (the count is then in requests)."""
+    if not gen["slots"].get("batch_size"):
+        return None
+    if gen["kind"] == "builtin" and body.get("per_request"):
+        return max(1, min(64, int(body["per_request"])))
+    if gen["kind"] == "builtin":
+        return int(settings.get("builtin_per_request") or 1)
+    return gen["slots"].get("per_request")
+
+
+def model_loaded(entry: dict[str, Any], node_id: str | None) -> bool | None:
+    """Whether a prompt had to load its checkpoint: ComfyUI's history lists
+    the nodes it reused from cache (``execution_cached``), so a checkpoint
+    loader that isn't among them ran, and read the model from disk. ``None``
+    when that can't be told (no checkpoint node, no such message)."""
+    if not node_id:
+        return None
+    for item in (entry.get("status") or {}).get("messages") or []:
+        if (
+            isinstance(item, list)
+            and len(item) == 2
+            and item[0] == "execution_cached"
+            and isinstance(item[1], dict)
+        ):
+            nodes = item[1].get("nodes") or []
+            return str(node_id) not in {str(n) for n in nodes}
+    return None
 
 
 def run_seconds(entry: dict[str, Any]) -> float | None:
@@ -329,6 +364,9 @@ class GenerationManager:
         self.error: str | None = None
         self.queue_remaining = 0
         self.progress: dict[str, dict[str, Any]] = {}
+        # When ComfyUI started running each prompt (our clock): the run-time
+        # estimate counts down from it.
+        self.started: dict[str, float] = {}
         self._loop_task: asyncio.Task | None = None
         self._ws_task: asyncio.Task | None = None
         self._wake = asyncio.Event()
@@ -447,6 +485,8 @@ class GenerationManager:
                 "max": data.get("max"),
                 "node": data.get("node"),
             }
+        if kind == "execution_start" and data.get("prompt_id"):
+            self.started.setdefault(data["prompt_id"], time.time())
         if kind in (
             "execution_success",
             "execution_error",
@@ -546,6 +586,7 @@ class GenerationManager:
         files = outputs_from_history(entry)
         s = await comfy_settings.get_settings()
         lib = s.get("output_library_id") or ""
+        node = await self._checkpoint_node(request_id)
         async with async_tx() as conn:
             await conn.execute(
                 sa.delete(t.generation_outputs).where(
@@ -585,9 +626,48 @@ class GenerationManager:
                         request_id=request_id, seconds=seconds
                     )
                 )
+            await conn.execute(
+                sa.delete(t.generation_run_loads).where(
+                    t.generation_run_loads.c.request_id == request_id
+                )
+            )
+            cold = model_loaded(entry, node)
+            if cold is not None:
+                await conn.execute(
+                    sa.insert(t.generation_run_loads).values(
+                        request_id=request_id, cold=cold
+                    )
+                )
+        generation_estimate.forget()
         self.progress.pop(prompt_id, None)
+        self.started.pop(prompt_id, None)
         if files and lib and s.get("download_outputs", True):
             await self._fetch_missing(lib, files)
+
+    def running_for(self, prompt_id: str | None) -> float | None:
+        """Seconds since ComfyUI started ``prompt_id``; None until it has."""
+        at = self.started.get(prompt_id) if prompt_id else None
+        return max(0.0, time.time() - at) if at is not None else None
+
+    async def _checkpoint_node(self, request_id: int) -> str | None:
+        """The node id of the checkpoint loader in the request's Generator."""
+        async with async_conn() as conn:
+            gen_id = (
+                await conn.execute(
+                    sa.select(t.generation_batches.c.generator_id)
+                    .select_from(
+                        t.generation_requests.join(
+                            t.generation_batches,
+                            t.generation_batches.c._id
+                            == t.generation_requests.c.batch_id,
+                        )
+                    )
+                    .where(t.generation_requests.c._id == request_id)
+                )
+            ).scalar()
+        gen = await load_generator(gen_id) if gen_id else None
+        slot = (gen or {}).get("slots", {}).get("checkpoint")
+        return str(slot[0]) if slot else None
 
     async def _fetch_missing(
         self, library_id: str, files: list[tuple[str, str]]
@@ -742,8 +822,8 @@ class GenerationManager:
             raise Invalid("Run the Generator's test first")
 
         count = max(1, min(500, int(body.get("count") or 1)))
-        # Asked for this batch (built-in only: for a custom Generator it would
-        # also turn count from requests into images); else the setting.
+        # What the user set (built-in only), apart from the setting it
+        # resolves to.
         asked = (
             max(1, min(64, int(body["per_request"])))
             if gen["kind"] == "builtin"
@@ -751,14 +831,7 @@ class GenerationManager:
             and body.get("per_request")
             else None
         )
-        if not gen["slots"].get("batch_size"):
-            per_request: int | None = None
-        elif asked:
-            per_request = asked
-        elif gen["kind"] == "builtin":
-            per_request = int(s.get("builtin_per_request") or 1)
-        else:
-            per_request = gen["slots"].get("per_request")
+        per_request = per_request_for(gen, body, s)
         sizes = split_requests(count, per_request)
         seed = body.get("seed") or {}
         fixed = (
@@ -992,7 +1065,11 @@ class GenerationManager:
                     ],
                 )
             else:
-                for table in (t.generation_outputs, t.generation_run_times):
+                for table in (
+                    t.generation_outputs,
+                    t.generation_run_times,
+                    t.generation_run_loads,
+                ):
                     await conn.execute(
                         sa.delete(table).where(table.c.request_id == request_id)
                     )
@@ -1013,6 +1090,7 @@ class GenerationManager:
                 .where(t.generation_batches.c._id == batch_id)
                 .values(state="active")
             )
+        generation_estimate.forget()
 
     async def cancel(self, batch_id: int, request_id: int | None = None) -> None:
         """Cancel a batch's unfinished requests, or just one of them."""
@@ -1071,3 +1149,4 @@ def get_generation_manager() -> GenerationManager:
 def reset_for_tests() -> None:
     global _manager
     _manager = None
+    generation_estimate.forget()

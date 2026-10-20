@@ -144,10 +144,18 @@ class FakeComfy:
         self.push("progress", {"prompt_id": pid, "node": "3", "value": 1, "max": 4})
 
     def finish(
-        self, pid: str, *, images: int | None = None, prefix: str = "moire/gen"
+        self,
+        pid: str,
+        *,
+        images: int | None = None,
+        prefix: str = "moire/gen",
+        seconds: float = 12.5,
+        cached: list[str] | None = None,
     ) -> list[str]:
         """Complete ``pid`` with ``images`` outputs (default: the graph's
-        batch_size). Returns the output paths relative to the output folder."""
+        batch_size), having run ``seconds``; ``cached`` lists the nodes
+        ComfyUI reused (as its ``execution_cached`` message). Returns the
+        output paths relative to the output folder."""
         if pid in self.pending:
             self.start(pid)
         if pid in self.running:
@@ -175,7 +183,18 @@ class FakeComfy:
                 "completed": True,
                 "messages": [
                     ["execution_start", {"prompt_id": pid, "timestamp": 1_000_000}],
-                    ["execution_success", {"prompt_id": pid, "timestamp": 1_012_500}],
+                    *(
+                        [["execution_cached", {"prompt_id": pid, "nodes": cached}]]
+                        if cached is not None
+                        else []
+                    ),
+                    [
+                        "execution_success",
+                        {
+                            "prompt_id": pid,
+                            "timestamp": 1_000_000 + int(seconds * 1000),
+                        },
+                    ],
                 ],
             },
         }
