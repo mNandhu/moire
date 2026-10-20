@@ -10,6 +10,7 @@ work that came and went between two polls.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import sqlalchemy as sa
@@ -23,6 +24,7 @@ from ..services.ai_tagger import model_status_view, resolved_model_target
 from ..services.generation_jobs import get_generation_manager
 
 router = APIRouter()
+logger = logging.getLogger("moire.activity")
 
 
 def _download(key: str, kind: str, state: dict[str, Any]) -> dict[str, Any] | None:
@@ -105,7 +107,12 @@ async def background_activity():
     manager = get_generation_manager()
     gen = manager.status()
     if gen.get("busy"):
-        eta = (await generation_estimate.queue_plan(manager.started))["total"]
+        try:
+            eta = (await generation_estimate.queue_plan(manager.started))["total"]
+        except Exception:
+            # The estimate is extra; the activity list still answers.
+            logger.exception("Couldn't estimate the generation queue")
+            eta = None
         items.append(
             {
                 "key": "generate",

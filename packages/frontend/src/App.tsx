@@ -6,8 +6,10 @@ import { MobileNavContext } from "./components/ui/PageHeader";
 import { cn } from "./lib/cn";
 import { useOverlayOpen } from "./lib/backgroundLocation";
 import { restoreAmbient } from "./lib/ambient";
+import { useQueueTitle } from "./hooks/useQueueTitle";
 
 export default function App() {
+  useQueueTitle();
   const overlayOpen = useOverlayOpen();
   const [status, setStatus] = useState("loading");
   const [collapsed, setCollapsed] = useState(

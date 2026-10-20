@@ -5,7 +5,6 @@ import { cn } from "../lib/cn";
 import { describeTask, type BackgroundTask, type TaskView } from "../lib/backgroundTasks";
 import { libraryPageHref, useLibraries } from "../lib/queries";
 import { useBackgroundTasks } from "../hooks/useBackgroundTasks";
-import { useQueueTitle } from "../hooks/useQueueTitle";
 import { ProgressBar } from "./ui";
 
 /** Where a task's own page is, if it has one. */
@@ -49,7 +48,6 @@ export function ActivityIndicator({ collapsed }: { collapsed: boolean }) {
   const { data: tasks = [] } = useBackgroundTasks();
   const { data: libraries } = useLibraries({ poll: false });
   const [open, setOpen] = useState(false);
-  useQueueTitle();
   if (!tasks.length) return null;
 
   const name = (id: string) => {

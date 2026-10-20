@@ -57,6 +57,8 @@ describe("batchLeft", () => {
     expect(left).toEqual({ seconds: 0, over: true });
     expect(leftLabel(left)).toBe("Taking longer than usual");
     expect(leftLabel({ seconds: 150, over: false })).toBe("about 2m 30s left");
+    // Past the estimate, not yet an overrun.
+    expect(leftLabel({ seconds: 0, over: false })).toBe("Almost done");
   });
 });
 
