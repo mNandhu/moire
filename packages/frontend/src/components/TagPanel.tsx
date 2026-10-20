@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Pencil, Pin, UserRound, X } from "lucide-react";
+import { ExternalLink, Pencil, UserRound, X } from "lucide-react";
 import { Badge } from "./ui/Badge";
 import { Button, ButtonLink } from "./ui/Button";
 import { Skeleton } from "./ui/Skeleton";
@@ -11,7 +11,7 @@ import { api } from "../lib/api";
 import { cn } from "../lib/cn";
 import { fetchSignatures } from "../lib/gen";
 import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
-import { clearTagThumbnail, setTagThumbnail, updateCharacter } from "../lib/imageMutations";
+import { updateCharacter } from "../lib/imageMutations";
 import { characterHref } from "../lib/character";
 import { CharacterAvatar } from "./CharacterAvatar";
 import { useCharacterLookup } from "./ImageCharacters";
@@ -19,6 +19,8 @@ import { TAGS_KEY, useBoilerplate, useTagDetail } from "../lib/queries";
 import { formatTag } from "../lib/tags";
 import { groupWorkflows, formatUsedRange } from "../lib/workflows";
 import { useImageFeed } from "../hooks/useImageFeed";
+import { usePinCover } from "../hooks/usePinCover";
+import { PendingVeil, PinButton } from "./PinButton";
 import { withBackgroundLocation } from "../lib/backgroundLocation";
 import {
   galleryTag,
@@ -355,10 +357,8 @@ function TagImages({
   count: number;
   pinned: string | null;
 }) {
-  const qc = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
-  const { push } = useToast();
   const filters = useMemo(
     () => ({ ...DEFAULT_FILTERS, tags: [galleryTag(tag, source)] }),
     [tag, source],
@@ -372,15 +372,7 @@ function TagImages({
     navigate(`/image/${encodeURIComponent(id)}?${serializeFilters(filters)}`, {
       state: withBackgroundLocation(location),
     });
-  const pin = async (id: string) => {
-    try {
-      if (id === pinned) await clearTagThumbnail(tag);
-      else await setTagThumbnail(tag, id);
-      await qc.invalidateQueries({ queryKey: TAGS_KEY });
-    } catch (e) {
-      push(`Couldn't change the cover: ${String(e)}`, "error");
-    }
-  };
+  const { pin, pending } = usePinCover("cover");
 
   return (
     <section>
@@ -404,21 +396,14 @@ function TagImages({
                 <img src={img.thumb_url} alt="" loading="lazy" className="w-full h-full object-cover" />
               </button>
               {/* A sibling of the open button, not inside it. */}
-              <button
-                type="button"
-                onClick={() => void pin(img._id)}
-                aria-pressed={on}
-                aria-label={on ? "Unpin cover" : "Use as cover"}
-                title={on ? "Cover. Click to let Moiré pick again" : "Use as cover"}
-                className={cn(
-                  "absolute right-1 top-1 h-6 w-6 rounded-full inline-flex items-center justify-center transition-opacity",
-                  on
-                    ? "bg-brand-500 text-white"
-                    : "bg-black/60 text-white/85 hover:text-white opacity-0 group-hover/img:opacity-100 focus-visible:opacity-100",
-                )}
-              >
-                <Pin size={12} />
-              </button>
+              {pending === img._id && <PendingVeil />}
+              <PinButton
+                on={on}
+                pending={pending === img._id}
+                disabled={pending !== null}
+                noun="cover"
+                onClick={() => void pin(tag, img._id, { unpin: on })}
+              />
             </div>
           );
         })}

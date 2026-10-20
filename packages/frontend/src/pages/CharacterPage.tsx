@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, ExternalLink, Pencil, Pin, UserRound, Wand2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Copy, ExternalLink, Pencil, UserRound, Wand2 } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { Skeleton } from "../components/ui/Skeleton";
@@ -18,13 +18,14 @@ import { cn } from "../lib/cn";
 import { tintAmbient } from "../lib/ambient";
 import { fetchSignatures } from "../lib/gen";
 import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
-import { clearTagThumbnail, setTagThumbnail } from "../lib/imageMutations";
-import { TAGS_KEY, useBoilerplate, useCharacterPage } from "../lib/queries";
+import { useBoilerplate, useCharacterPage } from "../lib/queries";
 import { formatTag, toPromptText } from "../lib/tags";
 import { tagWorkflows } from "../lib/tagBrowse";
 import { formatUsedRange, groupWorkflows } from "../lib/workflows";
 import { withBackgroundLocation } from "../lib/backgroundLocation";
 import { useImageFeed } from "../hooks/useImageFeed";
+import { usePinCover } from "../hooks/usePinCover";
+import { PendingVeil, PinButton } from "../components/PinButton";
 import {
   characterColours,
   characterFilters,
@@ -232,21 +233,11 @@ function BestOf({ c }: { c: Character }) {
 
 /** Every image of theirs, newest first; the pin makes one their avatar. */
 function Images({ c }: { c: Character }) {
-  const qc = useQueryClient();
-  const { push } = useToast();
+  const { pin, pending } = usePinCover("avatar");
   const filters = useMemo(() => characterFilters(c.tag, c.aliases), [c.tag, c.aliases]);
   const open = useOpenImage(filters);
   const { items, hasNextPage, fetchNextPage, isFetchingNextPage, isLoading } = useImageFeed(filters, PAGE);
   const pinned = c.thumb_image_id;
-  const pin = async (id: string) => {
-    try {
-      if (id === pinned) await clearTagThumbnail(c.tag);
-      else await setTagThumbnail(c.tag, id);
-      await qc.invalidateQueries({ queryKey: TAGS_KEY });
-    } catch (e) {
-      push(`Couldn't change the avatar: ${String(e)}`, "error");
-    }
-  };
 
   return (
     <section>
@@ -269,21 +260,14 @@ function Images({ c }: { c: Character }) {
               >
                 <img src={img.thumb_url} alt="" loading="lazy" className="w-full h-full object-cover" />
               </button>
-              <button
-                type="button"
-                onClick={() => void pin(img._id)}
-                aria-pressed={on}
-                aria-label={on ? "Unpin avatar" : "Use as avatar"}
-                title={on ? "Avatar. Click to let Moiré pick again" : "Use as avatar"}
-                className={cn(
-                  "absolute right-1 top-1 h-6 w-6 rounded-full inline-flex items-center justify-center transition-opacity",
-                  on
-                    ? "bg-brand-500 text-white"
-                    : "bg-black/60 text-white/85 hover:text-white opacity-0 group-hover/img:opacity-100 focus-visible:opacity-100",
-                )}
-              >
-                <Pin size={12} />
-              </button>
+              {pending === img._id && <PendingVeil />}
+              <PinButton
+                on={on}
+                pending={pending === img._id}
+                disabled={pending !== null}
+                noun="avatar"
+                onClick={() => void pin(c.tag, img._id, { unpin: on })}
+              />
             </div>
           );
         })}

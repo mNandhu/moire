@@ -1,15 +1,15 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pin } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2, Pin } from "lucide-react";
 import { api } from "../lib/api";
 import { cn } from "../lib/cn";
 import { TAGS_KEY } from "../lib/queries";
-import { setTagThumbnail } from "../lib/imageMutations";
 import { useToast } from "./Toasts";
 import { formatTag, tagName } from "../lib/tags";
 import { characterHref, displayName, type CharacterEntry } from "../lib/character";
 import { CharacterAvatar } from "./CharacterAvatar";
+import { usePinCover } from "../hooks/usePinCover";
 
 /** Every character in the library; shared by the image view and character pages. */
 export function useCharacters() {
@@ -46,8 +46,9 @@ export function ImageCharacters({
   quarantined?: boolean;
 }) {
   const { data: characters } = useCharacters();
+  const { pin } = usePinCover("avatar");
+  // Which character's avatar is changing: one image, several characters.
   const [pinning, setPinning] = useState<string | null>(null);
-  const qc = useQueryClient();
   const { push } = useToast();
   const here = useMemo(() => {
     const names = new Set((tags ?? []).map(tagName));
@@ -56,13 +57,10 @@ export function ImageCharacters({
   if (!here.length) return null;
 
   const pinAvatar = async (c: CharacterEntry) => {
+    if (pinning) return;
     setPinning(c.tag);
     try {
-      await setTagThumbnail(c.tag, imageId);
-      await qc.invalidateQueries({ queryKey: TAGS_KEY });
-      push(`Avatar set for ${displayName(c).name}`, "success");
-    } catch (e) {
-      push(`Couldn't change the avatar: ${String(e)}`, "error");
+      if (await pin(c.tag, imageId)) push(`Avatar set for ${displayName(c).name}`, "success");
     } finally {
       setPinning(null);
     }
@@ -75,6 +73,7 @@ export function ImageCharacters({
         {here.map((c) => {
           const { name, series } = displayName(c);
           const isAvatar = c.thumb_image_id === imageId;
+          const busy = pinning === c.tag;
           const title = isAvatar
             ? "This image is their avatar"
             : quarantined
@@ -87,13 +86,23 @@ export function ImageCharacters({
                 title={`${formatTag(c.tag)}: ${c.count.toLocaleString()} ${c.count === 1 ? "image" : "images"}`}
                 className="flex flex-col items-center gap-1.5 text-center"
               >
-                <CharacterAvatar
-                  src={c.thumb_url}
-                  face={c.face}
-                  focus={c.focus}
-                  aspect={c.aspect}
-                  className="h-14 w-14 ring-1 ring-line group-hover:ring-brand-300"
-                />
+                <span className="relative">
+                  <CharacterAvatar
+                    src={c.thumb_url}
+                    face={c.face}
+                    focus={c.focus}
+                    aspect={c.aspect}
+                    className={cn(
+                      "h-14 w-14 ring-1 ring-line group-hover:ring-brand-300",
+                      busy && "ring-2 ring-brand-400 animate-pulse",
+                    )}
+                  />
+                  {busy && (
+                    <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50">
+                      <Loader2 size={18} className="animate-spin text-white" />
+                    </span>
+                  )}
+                </span>
                 <span className="w-full text-xs leading-tight text-neutral-200 line-clamp-2 break-words group-hover:text-white">
                   {name}
                 </span>
@@ -106,15 +115,16 @@ export function ImageCharacters({
                 onClick={() => void pinAvatar(c)}
                 disabled={isAvatar || quarantined || pinning !== null}
                 aria-label={isAvatar ? `This image is ${name}'s avatar` : `Use as ${name}'s avatar`}
-                title={title}
+                aria-busy={busy}
+                title={busy ? "Updating…" : title}
                 className={cn(
                   "absolute right-1.5 top-0 h-6 w-6 rounded-full inline-flex items-center justify-center transition-opacity",
-                  isAvatar
+                  isAvatar || busy
                     ? "bg-brand-500 text-white"
                     : "bg-black/70 text-white/85 hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0 disabled:group-hover:opacity-40",
                 )}
               >
-                <Pin size={12} />
+                {busy ? <Loader2 size={12} className="animate-spin" /> : <Pin size={12} />}
               </button>
             </div>
           );
