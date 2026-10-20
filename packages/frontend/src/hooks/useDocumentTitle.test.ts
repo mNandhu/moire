@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { useDocumentTitle } from "./useDocumentTitle";
+import { setTitlePrefix, useDocumentTitle } from "./useDocumentTitle";
 
 afterEach(() => {
+  setTitlePrefix("");
   document.title = "";
 });
 
@@ -29,6 +30,20 @@ describe("useDocumentTitle", () => {
     rerender({ t: "Filtered Images" });
     expect(document.title).toBe("Filtered Images · Moiré");
     rerender({ t: undefined });
+    expect(document.title).toBe("Moiré");
+  });
+
+  it("keeps a prefix in front as pages come and go", () => {
+    document.title = "Moiré";
+    setTitlePrefix("2m left · ");
+    expect(document.title).toBe("2m left · Moiré");
+    const { unmount } = renderHook(() => useDocumentTitle("Generate"));
+    expect(document.title).toBe("2m left · Generate · Moiré");
+    setTitlePrefix("1m left · ");
+    expect(document.title).toBe("1m left · Generate · Moiré");
+    unmount();
+    expect(document.title).toBe("1m left · Moiré");
+    setTitlePrefix("");
     expect(document.title).toBe("Moiré");
   });
 });

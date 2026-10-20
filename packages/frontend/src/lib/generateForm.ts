@@ -12,6 +12,7 @@ import { compose, composeParts, promptTerms } from "./compose";
 import type {
   BatchInputs,
   CharacterInput,
+  EstimateBody,
   LoraPreset,
   NodeError,
   Preset,
@@ -194,6 +195,21 @@ export function toQueueBody(
     count: f.count,
     per_request: f.perRequest,
     name: f.name,
+  };
+}
+
+/** The part of the queue body that decides how long a batch takes, for the
+ * run-time estimate: prompts, LoRAs and seeds don't, so editing them doesn't
+ * ask again. */
+export function toEstimateBody(f: GenerateForm, generatorId: string): EstimateBody {
+  return {
+    generator_id: generatorId,
+    checkpoint: f.checkpoint,
+    sampling: f.sampling,
+    width: f.width,
+    height: f.height,
+    count: f.count,
+    per_request: f.perRequest,
   };
 }
 

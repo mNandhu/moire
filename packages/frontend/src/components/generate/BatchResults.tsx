@@ -7,6 +7,7 @@ import { cancelRequest, retryRequest, thumbUrl, type Batch, type GenRequest, typ
 import { setQuarantine, setScore } from "../../lib/imageMutations";
 import { withBackgroundLocation } from "../../lib/backgroundLocation";
 import { cn } from "../../lib/cn";
+import { developing, etaLabel } from "../../lib/eta";
 import { useToast } from "../Toasts";
 
 export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; onChanged: () => void }) {
@@ -93,6 +94,21 @@ function cellTitle(s: ResultSlot): string {
   return `Request ${s.number}, seed ${s.req.seed}`;
 }
 
+/** The first cell's line: time left (or an overrun) when there's an
+ * estimate, else ComfyUI's step count, or where it waits. */
+function waitingLabel(req: GenRequest, dev: ReturnType<typeof developing>): string {
+  if (dev) {
+    if (dev.over) return "Taking longer than usual";
+    return `${etaLabel(Math.max(0, (req.expected ?? 0) - (req.elapsed ?? 0)))} left`;
+  }
+  if (req.state === "running") {
+    if (!req.progress) return "Running";
+    const steps = `${req.progress.value} / ${req.progress.max}`;
+    return req.progress.node ? `${req.progress.node} ${steps}` : steps;
+  }
+  return req.state === "queued" ? "Queued" : "Waiting";
+}
+
 function WaitingCell({
   batch,
   req,
@@ -109,6 +125,9 @@ function WaitingCell({
   const cancel = useMutation({ mutationFn: () => cancelRequest(batch._id, req._id), onSuccess: (b) => onChanged(b) });
   const running = req.state === "running";
   const pct = req.progress && req.progress.max ? (req.progress.value / req.progress.max) * 100 : 0;
+  // With an estimate, the tile develops like an instant photo as the time
+  // passes; without one it pulses.
+  const dev = running ? developing(req.expected, req.elapsed) : null;
   return (
     <div
       className={cn(
@@ -117,20 +136,25 @@ function WaitingCell({
       )}
       style={{ aspectRatio: ratio }}
     >
-      <div className={cn("absolute inset-0", running ? "animate-pulse bg-brand-900/10" : "bg-raised/40")} />
+      {dev ? (
+        <div
+          aria-hidden
+          className="absolute inset-0 transition-[opacity,filter] duration-1000 ease-linear"
+          style={{
+            opacity: 0.1 + dev.fill * 0.9,
+            filter: `saturate(${0.2 + dev.fill * 0.8})`,
+            background:
+              "radial-gradient(120% 80% at 30% 20%, rgb(251 191 136 / 0.3), transparent 60%), radial-gradient(90% 70% at 75% 85%, rgb(129 140 248 / 0.28), transparent 65%), linear-gradient(to bottom, rgb(255 255 255 / 0.09), rgb(255 255 255 / 0.03))",
+          }}
+        />
+      ) : (
+        <div className={cn("absolute inset-0", running ? "animate-pulse bg-brand-900/10" : "bg-raised/40")} />
+      )}
       {first && (
         <div className="relative space-y-1.5">
           <div className="flex items-center gap-1.5 text-xs">
-            <span className={running ? "text-neutral-100" : "text-muted"}>
-              {running
-                ? req.progress?.node
-                  ? `${req.progress.node} ${req.progress.value} / ${req.progress.max}`
-                  : req.progress
-                    ? `${req.progress.value} / ${req.progress.max}`
-                    : "Running"
-                : req.state === "queued"
-                  ? "Queued"
-                  : "Waiting"}
+            <span className={cn("leading-tight", running ? "text-neutral-100" : "text-muted")}>
+              {waitingLabel(req, dev)}
             </span>
             <span className="flex-1" />
             <button

@@ -19,6 +19,7 @@ import { StyleLayer } from "../components/generate/StyleLayer";
 import { ComfyStatusLine } from "../components/generate/ComfyStatusLine";
 import { useCharacters } from "../components/ImageCharacters";
 import { LatestResults } from "../components/generate/LatestResults";
+import { NextBatch, useNextEstimate } from "../components/generate/NextBatch";
 import { RecentBatches } from "../components/generate/RecentBatches";
 import { autoBatchName } from "../lib/batchName";
 import {
@@ -51,11 +52,13 @@ import {
   removeBlock,
   saveDraft,
   toParts,
+  toEstimateBody,
   toQueueBody,
   updateBlock,
   type GenerateForm,
 } from "../lib/generateForm";
 import { checkCountTags, fixCountTags, type Kind } from "../lib/countTags";
+import { queueTitle } from "../lib/eta";
 import { cn } from "../lib/cn";
 import type { CountMode } from "../lib/requests";
 import { PromptInput } from "../components/generate/PromptInput";
@@ -268,6 +271,11 @@ export default function GeneratePage() {
     () => (genders ? checkCountTags(form.prompt, JSON.parse(genders) as (Kind | null)[]) : null),
     [form.prompt, genders],
   );
+
+  // How long the form's batch would take, for the next-batch card.
+  const estimate = useNextEstimate(gen?.ready && connected ? toEstimateBody(form, gen._id) : null, {
+    busy: !!status?.active.length,
+  });
 
   if (status && !status.configured) {
     return (
@@ -508,6 +516,7 @@ export default function GeneratePage() {
                     className="w-full h-11 text-[15px]"
                     disabled={!canQueue}
                     onClick={() => queue.mutate()}
+                    title={queueTitle(estimate)}
                   >
                     {queue.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
                     Queue {form.count} {form.count === 1 ? "image" : "images"}
@@ -521,6 +530,16 @@ export default function GeneratePage() {
             className="space-y-4 pb-6 lg:sticky lg:top-[5.5rem] lg:max-h-[calc(100dvh-5.5rem)] lg:overflow-y-auto"
             aria-label="Output"
           >
+            {/* Narrow screens: the Queue button's tooltip says it instead. */}
+            <div className="hidden lg:block">
+              <NextBatch
+                estimate={estimate}
+                generator={gen?.name ?? "Built-in"}
+                checkpoint={form.checkpoint}
+                count={form.count}
+                ratio={form.width && form.height ? form.width / form.height : 2 / 3}
+              />
+            </div>
             {status && (
               // Other batches still running or waiting; the newest shows below with its images.
               <QueueCard active={status.active.filter((x) => x._id !== newest?.[0]?._id)} connected={connected} />

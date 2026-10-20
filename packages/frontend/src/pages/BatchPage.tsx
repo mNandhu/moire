@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, Pencil } from "lucide-react";
 import { Badge, Button, ButtonLink, Card, Input, PageBody, PageHeader } from "../components/ui";
 import { batchRunTime, durationLabel, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
+import { batchLeft, leftLabel } from "../lib/eta";
 import { displayWord } from "../lib/compose";
 import {
   BATCHES_KEY,
@@ -199,6 +200,7 @@ export default function BatchPage() {
 
   const outputs = b.requests.flatMap((q) => q.outputs);
   const took = batchRunTime(b.requests);
+  const left = batchLeft(b.requests);
   const failed = b.requests.filter((q) => q.state === "failed" || q.state === "lost");
   const running = b.requests.filter((q) => UNFINISHED.has(q.state)).length;
   const inLibrary = outputs.filter((o) => o.in_library).length;
@@ -266,6 +268,7 @@ export default function BatchPage() {
           )}
           {inLibrary < outputs.length && <span>{inLibrary} in library</span>}
           {running > 0 && <span>{running} running</span>}
+          {left && <span title="From how long the same work took before">{leftLabel(left)}</span>}
           {failed.length > 0 && <span className="text-red-300">{failed.length} failed</span>}
         </div>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">

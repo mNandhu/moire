@@ -4,6 +4,7 @@
  */
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { api } from "./api";
+import type { NewEstimate } from "./eta";
 
 const BASE = "/api/v1/generate";
 
@@ -33,6 +34,8 @@ export type ActiveBatch = {
   finished: number;
   failed: number;
   progress: Progress;
+  /** Seconds left on it; null when some request has no estimate. */
+  eta?: number | null;
 };
 
 export type ComfyStatus = {
@@ -42,6 +45,8 @@ export type ComfyStatus = {
   busy: boolean;
   queue_remaining: number;
   active: ActiveBatch[];
+  /** Seconds left on the whole queue; null when some of it can't be told. */
+  eta?: number | null;
 };
 
 export type LoraMatch = { stem: string; images: number; files: string[]; name: string | null };
@@ -121,6 +126,10 @@ export type GenRequest = {
   finished_at: number | null;
   /** Seconds ComfyUI spent on it; null until it ends. */
   ran: number | null;
+  /** Before it ends: the seconds it should take, from past runs (null with
+   * nothing to go on), and how long ComfyUI has been running it. */
+  expected?: number | null;
+  elapsed?: number | null;
   outputs: Output[];
 };
 
@@ -257,6 +266,12 @@ export type QueueBody = {
   name: string | null;
 };
 
+/** What the run-time estimate reads of a queue body. */
+export type EstimateBody = Pick<
+  QueueBody,
+  "generator_id" | "checkpoint" | "sampling" | "width" | "height" | "count" | "per_request"
+>;
+
 /** Thrown by {@link queueBatch} when ComfyUI rejects the first request. */
 export class RejectedError extends Error {
   constructor(
@@ -323,6 +338,14 @@ export const updateLoraPreset = (id: string, p: Partial<Pick<LoraPreset, "name" 
 export const deleteLoraPreset = (id: string) =>
   send<{ ok: boolean }>(`/lora-presets/${encodeURIComponent(id)}`, "DELETE");
 export const queueBatch = (body: QueueBody) => send<Batch>("/batches", "POST", body);
+/** How long a batch would take if queued now, from past runs. */
+export const estimateBatch = (body: EstimateBody, signal?: AbortSignal) =>
+  api<NewEstimate>(`${BASE}/estimate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
 export const renameBatch = (id: number, name: string) => send<Batch>(`/batches/${id}`, "PATCH", { name });
 export const requeueBatch = (id: number) => send<Batch>(`/batches/${id}/requeue`, "POST");
 export const cancelBatch = (id: number) => send<Batch>(`/batches/${id}/cancel`, "POST");

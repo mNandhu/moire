@@ -34,6 +34,13 @@ describe("describeTask", () => {
     );
   });
 
+  it("adds the time left on the generation queue when it's known", () => {
+    expect(describeTask({ key: "g", kind: "generate", total: 2, eta_s: 148 }).detail).toBe(
+      "2 in the ComfyUI queue · about 2m 30s left",
+    );
+    expect(describeTask({ key: "g", kind: "generate", total: 2 }).detail).toBe("2 in the ComfyUI queue");
+  });
+
   it("names an unknown library generically", () => {
     expect(describeTask({ key: "x", kind: "delete", library_id: "Z" }, names).title).toBe("Deleting a library");
   });

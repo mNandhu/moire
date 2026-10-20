@@ -645,3 +645,7 @@ async def test_estimate_learns_from_runs_and_counts_checkpoint_loads(
     assert [q["expected"] for q in got["requests"]] == [10, 10]
     ahead = (await client.post("/generate/estimate", json=body)).json()["ahead"]
     assert ahead == pytest.approx(20, abs=1)
+    await tick()
+    items = (await client.get("/activity")).json()["items"]
+    gen = next(i for i in items if i["kind"] == "generate")
+    assert gen["eta_s"] == pytest.approx(20, abs=1)
