@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, Dices, Minus, Plus, RotateCcw } from "lucide-react";
+import { ChevronDown, Dices, Minus, Pencil, Plus, RotateCcw } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { countHint, countLabel, randomSeed, type CountMode } from "../../lib/requests";
 import { ShapeIcon, SIZE_GROUP, useSizePresets } from "../SizeFilter";
@@ -453,10 +453,7 @@ export function CountStepper({
   );
 }
 
-/**
- * The batch name: a plain field whose placeholder is the auto name. Typing
- * names the batch; clearing it goes back to the auto name.
- */
+/** The batch name as text with a pencil; editing stops the auto name. */
 export function BatchName({
   auto,
   custom,
@@ -466,21 +463,66 @@ export function BatchName({
   custom: string | null;
   onChange: (name: string | null) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const name = custom ?? auto;
+  if (editing) {
+    const commit = () => {
+      const t = draft.trim();
+      onChange(t && t !== auto ? t : null);
+      setEditing(false);
+    };
+    return (
+      <div>
+        <FieldLabel>Batch name</FieldLabel>
+        <div className="flex items-center gap-2">
+          <Input
+            autoFocus
+            aria-label="Batch name"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commit();
+              if (e.key === "Escape") setEditing(false);
+            }}
+          />
+          {custom && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onChange(null);
+                setEditing(false);
+              }}
+              className="shrink-0 text-xs text-muted hover:text-neutral-100"
+            >
+              Use auto name
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
   return (
     <div>
-      <FieldLabel htmlFor="batch-name">Batch name</FieldLabel>
-      <Input
-        id="batch-name"
-        value={custom ?? ""}
-        placeholder={auto}
-        title="Shown on the Generations page. Leave empty for the auto name."
-        onChange={(e) => onChange(e.target.value.trim() ? e.target.value : null)}
-        onBlur={(e) => {
-          const t = e.target.value.trim();
-          onChange(t && t !== auto ? t : null);
-        }}
-        className="placeholder:text-muted"
-      />
+      <FieldLabel>Batch name</FieldLabel>
+      {/* As tall as the fields beside it, so the name lines up with their values. */}
+      <div className="flex h-9 items-center gap-2 text-sm">
+        <span className="truncate text-neutral-100">{name}</span>
+        <button
+          type="button"
+          aria-label="Rename batch"
+          title="Rename"
+          onClick={() => {
+            setDraft(name);
+            setEditing(true);
+          }}
+          className="rounded p-1 text-muted hover:bg-raised hover:text-neutral-100"
+        >
+          <Pencil size={13} />
+        </button>
+      </div>
     </div>
   );
 }
