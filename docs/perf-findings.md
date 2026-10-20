@@ -19,8 +19,8 @@ Effort: S (hours) · M (a day or so) · L (more)
 | G5 | Gallery | `openTile` identity changes per page append | Small | S | open |
 | A1 | AI tagging | CPU-only ONNX; CUDA works on GTX 1650 | ~9x inference | M | done (`8e29af7`, `gpu` group; 134 ms/img on GTX 1650) |
 | A2 | AI tagging | Decode + inference run on the event loop | API p50 during job 1.2-1.5s -> 12ms | S-M | done (merged) |
-| A3 | AI tagging | Tag from local thumbnail instead of original on /mnt/g | ~45 ms/img, no 9P reads | S | open |
-| A4 | AI tagging | Pad-then-resize prep + Python `select_tags` loop | ~45 ms/img (matters only with A1) | S | open |
+| A3 | AI tagging | Tag from local thumbnail instead of original on /mnt/g | ~45 ms/img, no 9P reads | S | dropped (measured: no gain behind the A2 prefetch; tags drift at 768px) |
+| A4 | AI tagging | Pad-then-resize prep + Python `select_tags` loop | ~45 ms/img (matters only with A1) | S | done (`2907b74`: prep in the prefetch, numpy select; GPU job 166 -> 133 ms/img) |
 | A5 | AI tagging | ORT `intra_op_num_threads` untuned | Unclear (contention artifact?) | S | open |
 | S1 | Scan | Rescan re-processes every unchanged file; 15-min reconcile triggers it per watched library, plus full reproject | Unchanged rescan 6.8s -> 0.16s / 297 imgs (~40x) | S | done (`2d5e32a`) |
 | S2 | Scan | Thumbs 1080px webp; 640px enough | Scan ~1.7-2x faster, thumbs ~45% smaller | S (+ regen) | done (`eb4e869`, 768px after visual check; 512 too soft for avatars) |
@@ -38,11 +38,10 @@ Effort: S (hours) · M (a day or so) · L (more)
 Done 2026-10-20: A2, S1 + S5, G1, G2, S2 + G3 (768px), S3b, A1, D1-D5, plus the medium code review of the cache and skip work (`dd642d0`).
 
 Still open, roughly by value:
-1. A3/A4 on top of A1: tag from the 768px thumbnail instead of the original on /mnt/g; faster preprocessing and `select_tags`.
-2. S3c: batch the reproject flush (executemany).
-3. G4/G5: grid re-renders per scroll frame; `openTile` identity churn. Small.
-4. S4 process pool, A5 ORT threads: unproven, low priority.
-5. Tags browse is still 5-9 s cold at 30k (per-row work); profile if the Tags page feels slow.
+1. S3c: batch the reproject flush (executemany).
+2. G4/G5: grid re-renders per scroll frame; `openTile` identity churn. Small.
+3. S4 process pool, A5 ORT threads: unproven, low priority.
+4. Tags browse is still 5-9 s cold at 30k (per-row work); profile if the Tags page feels slow.
 
 Review findings left as is (`dd642d0` review):
 - Stamp saved when some files failed in a rebuild scan. Decode and thumbnail-write failures already store `thumb_key = NULL`, so they are retried. Only a transient `stat` failure during the one rebuild scan keeps an old-size thumbnail: cosmetic.
@@ -120,9 +119,18 @@ Model lifecycle fine (load once, 300s idle unload). Face detect not on tagging p
 - Fix: read thumb via `storage_fs` if present, else original. Tags shift slightly: maybe a setting.
 - Repro: `scratchpad/ai/equiv.py`.
 
+### A3 result (2026-10-20): dropped
+- With the A2 prefetch, reading + decoding the next original runs during inference. Cold read over /mnt/g plus decode was ~89 ms against ~117 ms of GPU inference, so it is already hidden.
+- Tags from 768px thumbnails vs originals, 30 images: mean Jaccard 0.946, min 0.80, ratings 30/30. The earlier 0.976 was likely measured on 1024px thumbs.
+
 ### A4. Cheaper prep + vectorized select_tags
 - Where: `ai_tagger.py` `_prepare_image` (~175-190), `select_tags` (~90-125).
 - Fix: resize before pad; numpy masks over 10,861 labels. Re-check tag equivalence. Only worth it with A1.
+- Result (`2907b74`):
+  - Resize-before-pad moved borderline tags (Jaccard 0.959, 1/30 ratings flipped), so it was dropped. The reference pad-then-resize is kept, and it now runs in the prefetch thread.
+  - Numpy select: 4 -> 0.2 ms.
+  - Tags are identical to before (30/30).
+  - 40-image job on GTX 1650, warm cache, alternating runs: 166 -> 133 ms/img. On the CPU, ~1%.
 
 ### A5. ORT thread count
 - 4-6 intra-op threads looked faster under heavy external load; low confidence.
