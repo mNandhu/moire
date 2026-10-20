@@ -4,10 +4,11 @@ import { useImageLoadSlot } from "../hooks/useImageLoadSlot";
 import { decode } from "blurhash";
 import React, { useEffect, useRef } from "react";
 
-// Decodes a BlurHash to a canvas, scaled up by CSS to fill the tile. Bigger
-// than the bare minimum so the upscaled preview reads as a soft photo rather
-// than a few colour blobs; still cheap since BlurHash decode is O(px * comps).
-const BLUR_PX = 64;
+// Decodes a BlurHash to a canvas, scaled up by CSS to fill the tile. A hash
+// only holds a few low-frequency components, so 32px upscaled with smoothing
+// looks the same as 64px at a quarter of the decode cost (BlurHash decode is
+// O(px * comps)), which every virtualized tile pays again on each mount.
+const BLUR_PX = 32;
 
 const BlurhashCanvas = React.memo(function BlurhashCanvas({
   hash,

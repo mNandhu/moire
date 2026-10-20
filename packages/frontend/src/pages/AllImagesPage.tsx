@@ -62,7 +62,7 @@ import { useScrollRestoration } from "../hooks/useScrollRestoration";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ImageDoc } from "../lib/imageFilter";
 import { nextFocusIndex, isGridNavKey } from "../lib/gridNav";
-import { gridColumns } from "../lib/masonryLayout";
+import { FETCH_AHEAD_PX, gridColumns } from "../lib/masonryLayout";
 import { runBulk } from "../lib/bulk";
 import {
   setScore as apiSetScore,
@@ -500,20 +500,30 @@ export default function AllImagesPage() {
   );
 
 
-  // Infinite scroll: fetch the next page (feed or grouped view) on sentinel view.
+  // Infinite scroll: fetch the next page (feed or grouped view) once the
+  // sentinel comes within FETCH_AHEAD_PX of the viewport. The root must be the
+  // real scroll element: rootMargin only expands the root, and the page's
+  // scroll container would clip a margin set on the document viewport.
   useEffect(() => {
     if (!activeFeed.hasNextPage || activeFeed.isFetchingNextPage) return;
     const el = sentinelRef.current;
     if (!el) return;
-    const obs = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) activeFeed.fetchNextPage();
-    });
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) activeFeed.fetchNextPage();
+      },
+      {
+        root: getScrollContainer(),
+        rootMargin: `0px 0px ${FETCH_AHEAD_PX}px 0px`,
+      },
+    );
     obs.observe(el);
     return () => obs.disconnect();
   }, [
     activeFeed.hasNextPage,
     activeFeed.isFetchingNextPage,
     activeFeed.fetchNextPage,
+    getScrollContainer,
   ]);
 
   // Open a tile: in grouped view, clicking a batch (>1) drills into its members

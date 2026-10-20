@@ -108,6 +108,13 @@ export const LOAD_AHEAD_PX = 1200;
  */
 export const OVERSCAN_PX = LOAD_AHEAD_PX + 400;
 
+/**
+ * How far below the viewport the infinite-scroll sentinel asks for the next
+ * page. A few screens ahead, so a fast scroll doesn't reach the end of the
+ * loaded tiles and stall while the page is fetched.
+ */
+export const FETCH_AHEAD_PX = 3000;
+
 /** One positioned tile in the masonry layout (pixel coords within the wrapper). */
 export type PackedTile<T> = {
   item: T;
