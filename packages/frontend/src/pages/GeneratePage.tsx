@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, FlaskConical, Loader2, Lock, Wand2 } from "lucide-react";
-import { Button, ButtonLink, Card, EmptyState, PageBody, PageHeader, Badge } from "../components/ui";
+import { Button, ButtonLink, Card, EmptyState, PageBody, PageHeader } from "../components/ui";
 import { bareTagPool } from "../components/generate/ChipInput";
 import {
   BatchName,
@@ -299,15 +299,9 @@ export default function GeneratePage() {
 
   return (
     <>
-      <PageHeader title="Generate" width="wide">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-          <span className="text-muted">
-            Generator <span className="text-neutral-100">{gen?.name ?? "Built-in"}</span>
-          </span>
-          {gen && (ready ? <Badge tone="success">Ready</Badge> : <Badge tone="warning">Needs a test run</Badge>)}
-          <ComfyStatusLine />
-        </div>
-      </PageHeader>
+      {/* One status on the right: ComfyUI's state and the Generator's test
+          run folded into a single word. */}
+      <PageHeader title="Generate" width="wide" actions={<ComfyStatusLine ready={gen ? ready : undefined} />} />
       <PageBody width="wide" className="pb-0">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_30rem] lg:items-start">
           {/* The run bar pins to the bottom of the view; long layers scroll above it. */}
@@ -424,6 +418,8 @@ export default function GeneratePage() {
             <div className="sticky bottom-0 z-[5] -mx-2 bg-gradient-to-t from-canvas from-80% to-transparent px-2 pb-4 pt-3">
               <Card className="space-y-3 p-4 shadow-panel">
                 {gen && !ready && <TestRunCard checkpoint={form.checkpoint} disabled={!connected} />}
+                {/* The run card's heading: this batch's name, renamed in place. */}
+                <BatchName auto={autoName} custom={form.name} onChange={(v) => set("name", v)} />
                 <div
                   className={cn(
                     "grid grid-cols-2 items-start gap-3",
@@ -469,30 +465,26 @@ export default function GeneratePage() {
                     refreshing={refresh.isPending}
                   />
                 )}
-                {/* The run's name sits with the button that queues it. */}
-                <div className="flex items-center gap-3">
-                  <BatchName auto={autoName} custom={form.name} onChange={(v) => set("name", v)} className="w-56 max-w-[40%] shrink-0" />
-                  {blocked ? (
-                    <Button
-                      className="h-11 flex-1 text-[15px]"
-                      disabled
-                      title={!ready && connected ? "Use Test run above: one image proves the checkpoint and the output folder" : undefined}
-                    >
-                      {blocked === "Run the test first" ? <FlaskConical size={16} /> : <Lock size={16} />}
-                      {blocked}
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="primary"
-                      className="h-11 flex-1 text-[15px]"
-                      disabled={!canQueue}
-                      onClick={() => queue.mutate()}
-                    >
-                      {queue.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                      Queue {form.count} {form.count === 1 ? "image" : "images"}
-                    </Button>
-                  )}
-                </div>
+                {blocked ? (
+                  <Button
+                    className="w-full h-11 text-[15px]"
+                    disabled
+                    title={!ready && connected ? "Use Test run above: one image proves the checkpoint and the output folder" : undefined}
+                  >
+                    {blocked === "Run the test first" ? <FlaskConical size={16} /> : <Lock size={16} />}
+                    {blocked}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    className="w-full h-11 text-[15px]"
+                    disabled={!canQueue}
+                    onClick={() => queue.mutate()}
+                  >
+                    {queue.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                    Queue {form.count} {form.count === 1 ? "image" : "images"}
+                  </Button>
+                )}
               </Card>
             </div>
           </div>

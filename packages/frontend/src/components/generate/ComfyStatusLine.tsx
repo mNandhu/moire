@@ -4,8 +4,13 @@ import { cn } from "../../lib/cn";
 import { STATUS_KEY, testConnection, useComfySettings, useComfyStatus } from "../../lib/generate";
 import { Button } from "../ui";
 
-/** "ComfyUI 127.0.0.1:8188 | idle", red with Retry and Settings when down. */
-export function ComfyStatusLine({ withActions = true }: { withActions?: boolean }) {
+/**
+ * One status for generating: a dot and a word ("Ready", "Generating",
+ * "Needs a test run", "Unreachable"), then where ComfyUI is. Red with Retry
+ * and Settings when it is down. `ready` is whether the Generator has passed
+ * its test run; leave it out where that doesn't apply ("Connected").
+ */
+export function ComfyStatusLine({ withActions = true, ready }: { withActions?: boolean; ready?: boolean }) {
   const qc = useQueryClient();
   const { data: status } = useComfyStatus();
   const { data: settings } = useComfySettings();
@@ -16,20 +21,21 @@ export function ComfyStatusLine({ withActions = true }: { withActions?: boolean 
   if (!status?.configured) return null;
   const down = !status.connected;
   const address = (settings?.address ?? "").replace(/^https?:\/\//, "");
+  const [tone, label] = down
+    ? (["bg-red-500", "Unreachable"] as const)
+    : status.busy
+      ? (["bg-amber-400 animate-pulse", "Generating"] as const)
+      : ready === false
+        ? (["bg-amber-400", "Needs a test run"] as const)
+        : (["bg-emerald-400", ready ? "Ready" : "Connected"] as const);
   return (
-    <div role={down ? "alert" : undefined} className="flex flex-wrap items-center gap-2 text-sm text-muted">
-      <span
-        className={cn(
-          "h-2 w-2 rounded-full",
-          down ? "bg-red-500" : status.busy ? "bg-amber-400" : "bg-emerald-400",
-        )}
-      />
-      <span>
-        ComfyUI <span className="font-mono text-faint">{address}</span>
+    <div role={down ? "alert" : undefined} className="flex flex-wrap items-center gap-2 text-sm">
+      <span className={cn("h-2 w-2 rounded-full", tone)} />
+      <span className={down ? "text-red-200" : "text-neutral-100"} title={down ? status.error ?? undefined : undefined}>
+        {label}
       </span>
-      <span className="text-line-strong">|</span>
-      <span className={down ? "text-red-200" : undefined} title={down ? status.error ?? undefined : undefined}>
-        {down ? "unreachable" : status.busy ? "busy" : "idle"}
+      <span className="text-faint" title={`ComfyUI at ${address}`}>
+        ComfyUI <span className="font-mono">{address}</span>
       </span>
       {down && withActions && (
         <>
