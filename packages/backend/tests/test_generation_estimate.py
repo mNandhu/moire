@@ -12,7 +12,7 @@ from src.services.generation_estimate import (
     plan,
     warm_estimate,
 )
-from src.services.generation_estimate import _job
+from src.services.generation_estimate import _job, _run_order
 from src.services.generation_jobs import batch_shape, model_loaded
 
 PX = 832 * 1216
@@ -132,3 +132,17 @@ def test_what_a_batch_leaves_unset_is_the_graphs_own():
     # A link (another node's output) isn't a value.
     gen["graph"]["3"]["inputs"]["steps"] = ["9", 0]
     assert _job(gen, "g", {}, None).steps is None
+
+
+def test_pending_requests_take_turns_between_batches():
+    from types import SimpleNamespace as Row
+
+    rows = [
+        Row(state="running", batch_id=2, idx=0),
+        Row(state="pending", batch_id=1, idx=1),
+        Row(state="pending", batch_id=1, idx=2),
+        Row(state="pending", batch_id=2, idx=1),
+        Row(state="pending", batch_id=2, idx=2),
+    ]
+    got = [(r.batch_id, r.idx) for r in _run_order(rows)]
+    assert got == [(2, 0), (1, 1), (2, 1), (1, 2), (2, 2)]

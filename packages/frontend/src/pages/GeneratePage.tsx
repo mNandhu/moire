@@ -266,7 +266,9 @@ export default function GeneratePage() {
   // Count tags (1girl, solo...) in the main prompt against the cast, once
   // every picked character's recipe is in.
   const genders =
-    recipes.length && recipes.every(Boolean) ? JSON.stringify(recipes.map((r) => r!.gender)) : null;
+    recipes.length && form.characters.every((tag, i) => recipes[i]?.tag === tag)
+      ? JSON.stringify(recipes.map((r) => r!.gender))
+      : null;
   const counts = useMemo(
     () => (genders ? checkCountTags(form.prompt, JSON.parse(genders) as (Kind | null)[]) : null),
     [form.prompt, genders],

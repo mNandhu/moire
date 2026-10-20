@@ -43,8 +43,7 @@ const COUNT = /^(\d+|6\+)(girl|boy|other)s?$/;
 
 /** A prompt term as a tag: weight and brackets off, spelled as stored
  * (`canonicalName`), `2 girls` and `2_girls` as `2girls`. A term with
- * unbalanced brackets is one end of a weighted group (`(1girl, smile:1.2)`)
- * and reads as nothing, so the group is never split. */
+ * unbalanced brackets reads as nothing. */
 function normalise(term: string): string {
   const opens = (term.match(/[([{]/g) ?? []).length;
   const closes = (term.match(/[)\]}]/g) ?? []).length;
@@ -69,14 +68,29 @@ function parse(tag: string): Parsed | null {
   return { kind: m[2] as Kind, n: m[1] === "6+" ? 6 : Number(m[1]), atLeast: m[1] === "6+" };
 }
 
-/** The comma-separated terms of `text` with their offsets, spaces trimmed. */
+/** Follows bracket depth across comma-separated pieces: `inGroup(piece)` is
+ * true for every piece of a weighted group (`(1girl, solo, smile:1.2)`), its
+ * middle terms included, so a group is left whole. A stray closer never
+ * takes the depth below zero. */
+function groupTracker(): (piece: string) => boolean {
+  let depth = 0;
+  return (piece) => {
+    const before = depth;
+    depth = Math.max(0, depth + (piece.match(/[([{]/g) ?? []).length - (piece.match(/[)\]}]/g) ?? []).length);
+    return before > 0 || depth > 0;
+  };
+}
+
+/** The comma-separated terms of `text` outside weighted groups, with their
+ * offsets, spaces trimmed. */
 function terms(text: string): { start: number; end: number; text: string }[] {
   const out: { start: number; end: number; text: string }[] = [];
+  const inGroup = groupTracker();
   let at = 0;
   for (const piece of text.split(/[,\n]/)) {
     const lead = piece.length - piece.trimStart().length;
     const word = piece.trim();
-    if (word) out.push({ start: at + lead, end: at + lead + word.length, text: word });
+    if (!inGroup(piece) && word) out.push({ start: at + lead, end: at + lead + word.length, text: word });
     at += piece.length + 1;
   }
   return out;
@@ -144,10 +158,11 @@ export function fixCountTags(prompt: string, expected: readonly string[]): strin
   const parts = prompt.split(/([,\n])/);
   const kept: string[] = [];
   let placed = false;
+  const inGroup = groupTracker();
   for (let i = 0; i < parts.length; i += 2) {
     const piece = parts[i];
     const sep = parts[i + 1] ?? "";
-    if (piece.trim() && parse(normalise(piece))) {
+    if (!inGroup(piece) && piece.trim() && parse(normalise(piece))) {
       // Dropped with its comma; a line break stays a line break.
       if (placed || !words) {
         if (sep === "\n") kept.push(sep);

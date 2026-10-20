@@ -79,7 +79,7 @@ export function colourWord(raw: string): string | null {
   for (const n of [2, 1]) {
     if (words.length < n) continue;
     const word = words.slice(-n).join("_");
-    if (word in COLOURS) return word;
+    if (Object.prototype.hasOwnProperty.call(COLOURS, word)) return word;
   }
   return null;
 }

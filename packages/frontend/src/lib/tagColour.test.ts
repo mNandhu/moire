@@ -4,6 +4,8 @@ import { chipBorderStyle, colourWord, isMulticolour, tagColour, tagMarkStyle } f
 describe("colourWord", () => {
   it("reads the colour from hair and eye tags", () => {
     expect(colourWord("blue_eyes")).toBe("blue");
+    expect(colourWord("constructor_hair")).toBeNull();
+    expect(colourWord("to_string_eyes")).toBeNull();
     expect(colourWord("red_hair")).toBe("red");
     expect(colourWord("light_blue_hair")).toBe("light_blue");
     expect(colourWord("large_innocent_green_eyes")).toBe("green");
