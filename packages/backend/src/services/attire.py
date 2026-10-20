@@ -62,6 +62,11 @@ _BODY_WORDS = re.compile(
     r"_(hair|eyes|pupils|sclera|ears|horns?|tail|wings|skin|bangs|eyebrows|eyelashes)$"
     r"|^(halo|horns|freckles|mole|scar|heterochromia|ahoge|fang|fangs)"
 )
+# Kemonomimi the groups don't list (`fox_girl`, `wolf_boy`).
+_ANIMAL_PERSON = re.compile(
+    r"^(bear|bird|cow|deer|dog|dragon|fox|horse|lion|monkey|mouse|"
+    r"rabbit|raccoon|shark|sheep|snake|squirrel|tiger|wolf)_(girl|boy)$"
+)
 
 # Poses and actions that the attire groups list because they involve clothing
 # (`adjusting_scarf`, `towel_around_neck`, `hand_on_headwear`), not garments.
@@ -240,7 +245,11 @@ def _facet(key: str, entry: tuple[str, str, tuple[str, ...]] | None) -> str | No
     if key in EYE_STATES:
         return "pose"
     if entry is None:
-        return "look" if _BODY_WORDS.search(key) else None
+        return "look" if _BODY_WORDS.search(key) or _ANIMAL_PERSON.match(key) else None
+    # Animal traits the groups file beside animals and body parts: `cat_girl`,
+    # `demon_boy`, `tail`.
+    if key == "tail" or (entry[0] == "creatures" and key.endswith(("_girl", "_boy"))):
+        return "look"
     if _attire_group(key, entry) is not None:
         return "outfit"
     if is_identity(key):

@@ -229,8 +229,10 @@ def signature(
     return one_colour_per_slot(found)[:limit]
 
 
-# The facets (attire.FACETS) a character page's look leaves out.
-NOT_LOOK = frozenset({"pose", "scene", "framing"})
+# The facets (attire.FACETS) a character page's look keeps: the body and what
+# they wear. Props, scenes, poses, expressions and anything the tag groups
+# can't place are what one set of images shares, not the character.
+LOOK = frozenset({"look", "outfit"})
 
 GENDERS = {
     kind: (
@@ -722,7 +724,7 @@ async def page(base: str) -> dict | None:
                 visual=vocab.general,
                 limit=len(tags_here),
             )
-            if attire.facet_of(s["tag"]) not in NOT_LOOK
+            if attire.facet_of(s["tag"]) in LOOK
         ][:30],
         # The images the signature was read from: few means it's a guess.
         "signature_images": sig_images,
