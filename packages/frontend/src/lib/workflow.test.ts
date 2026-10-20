@@ -72,3 +72,9 @@ it("options put the chosen one first, with a line on where it came from", () => 
   ]);
   expect(workflowLine(gen({ name: "Portraits" }))).toBeUndefined();
 });
+
+it("a test that made images but none reached the library waits, one that made none failed", () => {
+  const t = { batch_id: 1, error: null, progress: null, image_id: null };
+  expect(testState(gen({ ready: false, test: { ...t, state: "done", outputs: 2 } }))).toBe("waiting");
+  expect(testState(gen({ ready: false, test: { ...t, state: "done", outputs: 0 } }))).toBe("failed");
+});

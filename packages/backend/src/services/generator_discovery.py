@@ -17,7 +17,14 @@ import re
 from typing import Any
 
 from . import gen_metadata
-from .generator_graph import SAMPLING, Graph, _is_link, has_save_image, lora_insertion
+from .generator_graph import (
+    SAMPLING,
+    Graph,
+    _is_link,
+    has_save_image,
+    is_save_image,
+    lora_insertion,
+)
 
 # Inputs a sampling slot maps to on a KSampler-like node.
 _SAMPLING_INPUTS = {
@@ -37,7 +44,8 @@ _NOT_TEXT = re.compile(
     r"|^upload|^image|^ratio_selected|^delimiter|^separator|_regex|^crop|^method"
     r"|^upscale_method|^sampling|^trigger|^key_path|^value_type|^outputs|^enabled"
     r"|^title|^format|^extension|^weight_interpretation|^token_normalization"
-    r"|_hint|_mode|_url|^workflow|_use_negative)$"
+    r"|_hint|_mode|_url|^workflow|_use_negative|^use_.*|^regex|^find|^replace|^file"
+    r"|^preview|_model|_length)$"
 )
 _CONDITIONING = re.compile(r"conditioning|^positive$|^negative$|^cond")
 _MODEL_LOADER = re.compile(
@@ -221,6 +229,9 @@ def text_inputs(graph: Graph, sampler: str | None) -> list[dict[str, Any]]:
                 and not _NOT_TEXT.search(key)
                 # An unused join input ("text3": "") is no place for a prompt.
                 and (bool(value.strip()) or key in _TEXT_INPUTS)
+                # A switch or a number typed as text is no prompt.
+                and value.strip().lower() not in ("true", "false", "none")
+                and not value.strip().replace(".", "", 1).isdigit()
             )
             joined = (
                 key in ("text", "text_g") and _is_link(value) and _encodes(graph, nid)
@@ -391,13 +402,11 @@ def discover(graph: Graph) -> dict[str, Any]:
         loader = model_loader(graph, sampler)
         if loader is not None:
             # Offered, never chosen: a workflow is often tied to its model.
-            ckpt = next(
-                (
-                    k
-                    for k in ("ckpt_name", "unet_name")
-                    if isinstance(_inputs(graph, loader).get(k), str)
-                ),
-                None,
+            # Checkpoints only: a UNET's file isn't in ComfyUI's checkpoint list.
+            ckpt = (
+                "ckpt_name"
+                if isinstance(_inputs(graph, loader).get("ckpt_name"), str)
+                else None
             )
             if ckpt:
                 found["checkpoint"] = {
@@ -424,6 +433,17 @@ def discover(graph: Graph) -> dict[str, Any]:
                 ],
                 "consumers": _consumers(graph, model),
             }
+    # The workflow's own LoRAs: each can be left out (not on this ComfyUI).
+    found["loras"] = [
+        {
+            "node": nid,
+            "name": n["inputs"]["lora_name"],
+            "strength": n["inputs"].get("strength_model"),
+        }
+        for nid, n in graph.items()
+        if n.get("class_type") in ("LoraLoader", "LoraLoaderModelOnly")
+        and isinstance(n["inputs"].get("lora_name"), str)
+    ]
     seeds = seed_groups(graph)
     slots["seeds"] = [e["path"] for g in seeds for e in g["inputs"]]
     return {
@@ -460,7 +480,7 @@ def fixed_values(graph: Graph, slots: dict[str, Any]) -> dict[str, Any]:
             None,
         )
     latent = _latent(graph, sampler)
-    if latent is not None and not slots.get("width"):
+    if latent is not None and not (slots.get("width") and slots.get("height")):
         inp = _inputs(graph, latent)
         w, h = inp.get("width"), inp.get("height")
         if isinstance(w, int) and isinstance(h, int):
@@ -476,7 +496,8 @@ def outputs(graph: Graph) -> list[dict[str, Any]]:
     out = []
     for nid, node in graph.items():
         ct = str(node.get("class_type", ""))
-        if ct not in ("SaveImage", "PreviewImage"):
+        saves = is_save_image(ct)
+        if not saves and "preview" not in ct.lower():
             continue
         prefix = _inputs(graph, nid).get("filename_prefix")
         if _is_link(prefix):
@@ -485,7 +506,7 @@ def outputs(graph: Graph) -> list[dict[str, Any]]:
             {
                 "node": nid,
                 "title": _title(graph, nid),
-                "saves": ct == "SaveImage",
+                "saves": saves,
                 "prefix": prefix if isinstance(prefix, str) else None,
             }
         )
@@ -523,6 +544,12 @@ def check_slots(graph: Graph, slots: dict[str, Any]) -> list[str]:
         ref = slots.get(key)
         if ref and str(ref[0]) not in graph:
             problems.append("The LoRA insertion point isn't in this workflow")
+    for nid in slots.get("drop_loras") or []:
+        if (graph.get(str(nid)) or {}).get("class_type") not in (
+            "LoraLoader",
+            "LoraLoaderModelOnly",
+        ):
+            problems.append(f"Node {nid} isn't a LoRA loader")
     if not has_save_image(graph):
         problems.append("Add a Save Image node: previews never reach the library")
     return problems

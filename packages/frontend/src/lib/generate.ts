@@ -2,6 +2,7 @@
  * Generation (ComfyUI) API: types, fetchers and the polled queries. The
  * browser never talks to ComfyUI; everything goes through `/api/v1/generate`.
  */
+import { testState } from "./workflow";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 import type { NewEstimate } from "./eta";
@@ -109,6 +110,8 @@ export type GeneratorSlots = Partial<{
   cfg: SlotPath;
   lora_model: OutputRef;
   lora_clip: OutputRef | null;
+  /** The workflow's own LoRA loaders left out (not on the connected ComfyUI). */
+  drop_loras: string[];
 }>;
 
 export type GeneratorOrigin =
@@ -155,7 +158,9 @@ export type GeneratorSetup = {
     positive?: FoundPrompt | null;
     negative?: FoundPrompt | null;
     /** The model loader's checkpoint input, offered as a slot (never chosen for the user). */
-    checkpoint?: { path: SlotPath; value: string };
+    checkpoint?: { path: SlotPath; value: string; installed?: boolean | null };
+    /** The workflow's own LoRAs; ``installed`` null before ComfyUI was reached. */
+    loras?: { node: string; name: string; strength: number | null; installed?: boolean | null }[];
     lora?: {
       loader: NodeRef;
       model: { ref: OutputRef; title: string };
@@ -492,10 +497,11 @@ export function useGenerators() {
   return useQuery({
     queryKey: GENERATORS_KEY,
     queryFn: ({ signal }) => api<Generator[]>(`${BASE}/generators`, { signal }),
-    refetchInterval: (q) =>
-      q.state.data?.some((g) => !g.ready && g.test && !["failed", "lost", "cancelled"].includes(g.test.state))
-        ? 1000
-        : false,
+    // Fast while a test runs, slower while its image waits for the scan.
+    refetchInterval: (q) => {
+      const states = (q.state.data ?? []).map(testState);
+      return states.includes("running") ? 1000 : states.includes("waiting") ? 3000 : false;
+    },
   });
 }
 

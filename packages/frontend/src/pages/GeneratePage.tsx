@@ -19,7 +19,7 @@ import { CharacterLayer } from "../components/generate/CharacterBlock";
 import { StyleLayer } from "../components/generate/StyleLayer";
 import { ComfyStatusLine } from "../components/generate/ComfyStatusLine";
 import { WorkflowPicker } from "../components/generate/WorkflowPicker";
-import { countModeOf, defaultBatchSize, forWorkflow, runBarOf } from "../lib/workflow";
+import { canRunTest, countModeOf, defaultBatchSize, forWorkflow, runBarOf, testState } from "../lib/workflow";
 import { useCharacters } from "../components/ImageCharacters";
 import { LatestResults } from "../components/generate/LatestResults";
 import { NextBatch, useNextEstimate } from "../components/generate/NextBatch";
@@ -132,10 +132,11 @@ function TestRunCard({ gen, checkpoint, disabled }: { gen: Generator; checkpoint
     },
     onSettled: () => qc.invalidateQueries({ queryKey: GENERATORS_KEY }),
   });
-  const t = gen?.test;
-  const running = !!t && ["pending", "queued", "running"].includes(t.state);
-  const waiting = !!t && t.state === "done" && !t.image_id;
-  const failed = t && ["failed", "lost", "cancelled"].includes(t.state);
+  const t = gen.test;
+  const state = testState(gen);
+  const running = state === "running";
+  const waiting = state === "waiting";
+  const failed = state === "failed";
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between gap-3">
@@ -144,11 +145,11 @@ function TestRunCard({ gen, checkpoint, disabled }: { gen: Generator; checkpoint
           size="sm"
           variant="primary"
           onClick={() => run.mutate()}
-          disabled={disabled || running || waiting || run.isPending}
+          disabled={disabled || !canRunTest(state) || run.isPending}
           title={disabled ? "Waiting for connection" : "One image at the chosen checkpoint"}
         >
-          {(running || waiting || run.isPending) && <Loader2 size={14} className="animate-spin" />}
-          {running ? "Running" : waiting ? "Waiting for scan" : "Test run"}
+          {(running || run.isPending) && <Loader2 size={14} className="animate-spin" />}
+          {running ? "Running" : waiting || failed ? "Run again" : "Test run"}
         </Button>
       </div>
       {failed && t?.error && (
@@ -156,8 +157,9 @@ function TestRunCard({ gen, checkpoint, disabled }: { gen: Generator; checkpoint
           {t.error.class_type} {t.error.node && `node ${t.error.node}`}: {t.error.message}
         </div>
       )}
-      {failed && !t?.error && <div className="mt-2 text-xs text-red-300">{t?.state === "lost" ? "Lost" : "Cancelled"}</div>}
-      {waiting && t.outputs === 0 && <div className="mt-2 text-xs text-red-300">Returned 0 images</div>}
+      {failed && !t?.error && t?.state !== "done" && <div className="mt-2 text-xs text-red-300">{t?.state === "lost" ? "Lost" : "Cancelled"}</div>}
+      {failed && t?.state === "done" && <div className="mt-2 text-xs text-red-300">Returned 0 images</div>}
+      {waiting && <div className="mt-2 text-xs text-muted">Waiting for the library scan</div>}
       {run.error && !(run.error instanceof RejectedError) && (
         <div className="mt-2 text-xs text-red-300">{run.error.message}</div>
       )}

@@ -107,7 +107,7 @@ def test_replacing_a_joined_prompt(runtime):
 def test_no_sampler_graph():
     g = _load("graph_no_sampler.json")
     d = discover(g)
-    assert d["found"] == {"sampler": None}
+    assert d["found"] == {"sampler": None, "loras": []}
     assert "positive" not in d["slots"] and "lora_model" not in d["slots"]
     # Without a sampler nothing is known to reach a prompt.
     assert all(t["reaches"] is None for t in d["text_inputs"])
@@ -235,3 +235,96 @@ def test_checkpoint_is_offered_not_chosen_and_fixed_values(hires):
         "checkpoint": None,
         "size": None,
     }
+
+
+def test_custom_savers_count_previews_do_not():
+    from src.services.generator_graph import is_save_image
+
+    assert is_save_image("SaveImage") and is_save_image("Save Image w/o Metadata")
+    assert is_save_image("Image Save")
+    assert not is_save_image("PreviewImage") and not is_save_image(
+        "Preview Image (Image Save)"
+    )
+    g = builtin_generator.graph()
+    g["9"]["class_type"] = "Save Image w/o Metadata"
+    assert check_slots(g, discover(g)["slots"]) == []
+    assert discover(g)["outputs"][0]["saves"] is True
+
+
+def test_a_unet_is_not_offered_as_a_checkpoint():
+    g = {
+        "1": {"class_type": "UNETLoader", "inputs": {"unet_name": "flux.safetensors"}},
+        "3": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {"text": "p", "clip": ["2", 0]},
+        },
+        "6": {
+            "class_type": "KSampler",
+            "inputs": {"model": ["1", 0], "positive": ["3", 0], "seed": 3},
+        },
+    }
+    from src.services.generator_discovery import fixed_values
+
+    assert "checkpoint" not in discover(g)["found"]
+    assert fixed_values(g, {})["checkpoint"] == "flux.safetensors"
+
+
+def test_drop_missing_takes_out_dead_branches_only(runtime):
+    import copy
+
+    from src.services.generator_graph import drop_missing
+
+    g = build_prompt(
+        runtime,
+        {
+            "positive": ["11", "text"],
+            "replace_links": ["positive"],
+            "negative": ["12", "text"],
+        },
+        {"positive": "1girl", "negative": "bad", "seed": 1},
+    )
+    before = copy.deepcopy(g)
+    # The join (#18) and the display reading it (#22) feed no image now.
+    left = drop_missing(g, {"TextConcat", "ShowText|pysssss", "WD14Tagger|pysssss"})
+    assert "18" not in g and "22" not in g
+    # The tagger feeds nothing Save Image needs either.
+    assert "4" not in g
+    # Save Image's folder is itself a join (#111:1): needed, so it stays.
+    assert left == ["TextConcat"] and "111:1" in g
+    # Missing but needed: left for ComfyUI to name.
+    g2 = copy.deepcopy(before)
+    assert drop_missing(g2, {"KSampler"}) == ["KSampler"]
+    assert g2 == before
+
+
+def test_left_out_loras_are_bypassed_and_the_insertion_point_follows(hires):
+    from src.services.generator_graph import LoraPick
+
+    d = discover(hires)
+    assert [lo["node"] for lo in d["found"]["loras"]] == ["40", "41", "42", "43"]
+    # Leave out the top of the chain (40, the insertion point) and one below.
+    slots = {**d["slots"], "drop_loras": ["40", "42"]}
+    assert check_slots(hires, slots) == []
+    g = build_prompt(
+        hires,
+        slots,
+        {
+            "positive": "p",
+            "negative": "n",
+            "seed": 1,
+            "loras": [LoraPick("styles/a.safetensors", 0.5)],
+        },
+    )
+    assert "40" not in g and "42" not in g
+    assert g["41"]["inputs"]["model"] == ["43", 0]
+    # Moiré's LoRA now goes after 41, where 40 was.
+    added = next(
+        k
+        for k, n in g.items()
+        if n["inputs"].get("lora_name") == "styles/a.safetensors"
+    )
+    assert g[added]["inputs"]["model"] == ["41", 0]
+    assert g["22"]["inputs"]["model"] == [added, 0]
+    assert check_slots(hires, {**slots, "drop_loras": ["16"]}) == [
+        "Node 16 isn't a LoRA loader"
+    ]

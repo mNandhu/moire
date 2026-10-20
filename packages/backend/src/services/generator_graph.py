@@ -229,6 +229,79 @@ def splice_loras(
     return graph
 
 
+def drop_missing(graph: Graph, missing: set[str]) -> list[str]:
+    """Take out nodes whose class ComfyUI doesn't have, where no image
+    output needs them (a display or a prompt join Moiré replaced), and the
+    nodes reading from them that no output needs either. ComfyUI refuses a
+    graph with any unknown class, used or not. Returns the missing classes an
+    output does need (left in: ComfyUI's error names them). Mutates."""
+    saves = [nid for nid, n in graph.items() if is_save_image(n.get("class_type"))]
+    needed: set[str] = set()
+    todo = list(saves)
+    while todo:
+        nid = todo.pop()
+        if nid in needed or nid not in graph:
+            continue
+        needed.add(nid)
+        todo.extend(
+            str(v[0]) for v in graph[nid].get("inputs", {}).values() if _is_link(v)
+        )
+    gone = {
+        nid
+        for nid, n in graph.items()
+        if n.get("class_type") in missing and nid not in needed
+    }
+    while True:
+        more = {
+            nid
+            for nid, n in graph.items()
+            if nid not in gone
+            and nid not in needed
+            and any(
+                _is_link(v) and str(v[0]) in gone for v in n.get("inputs", {}).values()
+            )
+        }
+        if not more:
+            break
+        gone |= more
+    for nid in gone:
+        del graph[nid]
+    return sorted(
+        {
+            graph[n]["class_type"]
+            for n in needed
+            if graph[n].get("class_type") in missing
+        }
+    )
+
+
+def bypass_loras(
+    graph: Graph, node_ids: list[str], refs: list[list[Any] | None] = ()
+) -> list[list[Any] | None]:
+    """Leave out stock LoRA loaders (one the connected ComfyUI doesn't have):
+    whatever read a loader's model / CLIP reads what fed it. ``refs`` (the
+    LoRA insertion point) are moved the same way and returned. Mutates."""
+    refs = [list(r) if r else None for r in refs]
+    for nid in node_ids:
+        node = graph.get(str(nid))
+        if node is None or node.get("class_type") not in _STOCK_LORA_LOADERS:
+            continue
+        nid = str(nid)
+        feeds = {0: node["inputs"].get("model"), 1: node["inputs"].get("clip")}
+        del graph[nid]
+
+        def moved(v: Any) -> Any:
+            if _is_link(v) and str(v[0]) == nid and feeds.get(int(v[1])) is not None:
+                return list(feeds[int(v[1])])
+            return v
+
+        for other in graph.values():
+            for name, v in list(other.get("inputs", {}).items()):
+                other["inputs"][name] = moved(v)
+        refs = [moved(r) if r else None for r in refs]
+    return refs
+
+
 def build_prompt(graph: Graph, slots: dict[str, Any], values: dict[str, Any]) -> Graph:
     """The graph for one request. ``values``: positive, negative, seed, and
     optionally width, height, batch_size, checkpoint, sampler, scheduler,
@@ -251,11 +324,16 @@ def build_prompt(graph: Graph, slots: dict[str, Any], values: dict[str, Any]) ->
             _write(g, slots.get(key), values[key])
     if values.get("batch_size") is not None and slots.get("batch_size"):
         _write(g, slots["batch_size"], values["batch_size"])
+    model_from, clip_from = slots.get("lora_model"), slots.get("lora_clip")
+    if slots.get("drop_loras"):
+        model_from, clip_from = bypass_loras(
+            g, slots["drop_loras"], [model_from, clip_from]
+        )
     loras = values.get("loras") or []
     if loras:
-        if not slots.get("lora_model"):
+        if not model_from:
             raise GraphError("this workflow has no LoRA insertion point")
-        splice_loras(g, slots["lora_model"], slots.get("lora_clip"), loras)
+        splice_loras(g, model_from, clip_from, loras)
     return g
 
 
@@ -284,5 +362,13 @@ def seeds_for(
     return [r.randrange(SEED_MAX) for _ in range(n)]
 
 
+def is_save_image(class_type: object) -> bool:
+    """A node that writes images into ComfyUI's output folder: stock SaveImage
+    and the custom savers named like it ("Save Image w/o Metadata", "Image
+    Save"); previews are temporary and don't count."""
+    ct = str(class_type or "").lower().replace(" ", "")
+    return "preview" not in ct and ("saveimage" in ct or "imagesave" in ct)
+
+
 def has_save_image(graph: Graph) -> bool:
-    return any(n.get("class_type") == "SaveImage" for n in graph.values())
+    return any(is_save_image(n.get("class_type")) for n in graph.values())

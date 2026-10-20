@@ -151,6 +151,11 @@ class ComfyClient:
     async def object_info(self, class_type: str) -> dict[str, Any]:
         return (await self._json("GET", f"/object_info/{class_type}")) or {}
 
+    async def node_classes(self) -> set[str]:
+        """Every node class ComfyUI has (``GET /object_info``, all of it: the
+        one-class route can't take a name with a slash in it)."""
+        return set((await self._json("GET", "/object_info")) or {})
+
     async def lora_metadata(self, name: str) -> dict[str, Any] | None:
         """A LoRA file's safetensors metadata (``GET /view_metadata/loras``);
         ``None`` when the file has none."""

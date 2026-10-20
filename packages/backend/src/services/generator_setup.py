@@ -20,7 +20,8 @@ import sqlalchemy as sa
 
 from ..database import schema as t
 from ..database.db import async_conn, async_tx
-from . import attire, gen_metadata, tag_categories
+from . import attire, comfy_models, gen_metadata, tag_categories
+from .generator_graph import lora_stem
 from .generation_compose import without_terms
 from .generator_discovery import check_slots, discover
 from .generator_graph import SAMPLING
@@ -45,6 +46,7 @@ _SLOT_KEYS = (
     "cfg",
     "lora_model",
     "lora_clip",
+    "drop_loras",
 )
 
 
@@ -201,6 +203,23 @@ async def setup_view(
         if pin and side not in proposed:
             proposed[side] = pin
             d["found"][side] = {"path": pin, "replaces_link": False, "from": "rule"}
+    # What the connected ComfyUI has (empty before the first connection: then
+    # nothing is judged missing).
+    have = await comfy_models.installed()
+    lora_stems = {lora_stem(n) for n in have["lora"]}
+    for lo in d["found"]["loras"]:
+        lo["installed"] = lora_stem(lo["name"]) in lora_stems if have["lora"] else None
+    ckpt = d["found"].get("checkpoint")
+    if ckpt:
+        ckpt["installed"] = (
+            ckpt["value"] in have["checkpoint"] if have["checkpoint"] else None
+        )
+        if ckpt["installed"] is False:
+            # Its own isn't there: choosing one in Generate is the way to run it.
+            proposed["checkpoint"] = ckpt["path"]
+    missing = [lo["node"] for lo in d["found"]["loras"] if lo["installed"] is False]
+    if missing:
+        proposed["drop_loras"] = missing
     chosen = slots if slots is not None else proposed
     saved = source.get("defaults") if isinstance(source.get("defaults"), dict) else None
     base = (
@@ -295,6 +314,10 @@ def clean_slots(raw: Any) -> dict[str, Any]:
         if ref is None:
             raise SetupError("Bad LoRA insertion point")
         out[key] = ref
+    drops = raw.get("drop_loras") or []
+    if not isinstance(drops, list) or not all(isinstance(n, (str, int)) for n in drops):
+        raise SetupError("Bad LoRAs to leave out")
+    out["drop_loras"] = [str(n) for n in drops]
     if out.get("lora_clip") and not out.get("lora_model"):
         raise SetupError("A CLIP insertion point needs a model one")
     return out

@@ -12,7 +12,9 @@ import {
   getGeneratorSetup,
   putGenerator,
   startTest,
+  useComfyStatus,
   useGenerators,
+  RejectedError,
   type GeneratorSetup,
   type GeneratorSlots,
   type GeneratorSourceIn,
@@ -24,6 +26,7 @@ import {
   defaultName,
   groupTicked,
   inputAt,
+  leaveOut,
   pathKey,
   pickPrompt,
   pickerOptions,
@@ -31,6 +34,8 @@ import {
   type Side,
 } from "../lib/generatorSetup";
 import { cn } from "../lib/cn";
+import { canRunTest, testState } from "../lib/workflow";
+import { useConfirm } from "../components/ConfirmDialog";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
 
@@ -313,7 +318,12 @@ function SetupForm({
                   setSlots(next);
                 }}
                 label={<span className="text-[13px]">Choose the checkpoint in Generate</span>}
-                hint={<span className="font-mono">{ckpt.value}</span>}
+                hint={
+                  <span className="font-mono">
+                    {ckpt.value}
+                    {ckpt.installed === false && <span className="ml-2 font-sans text-amber-200">not on ComfyUI</span>}
+                  </span>
+                }
               />
             ) : (
               <p className="text-xs text-muted">No checkpoint loader found.</p>
@@ -367,19 +377,33 @@ function SetupForm({
               ) : (
                 <p className="text-xs text-muted">Model only: this loader has no CLIP output.</p>
               )}
-              {lora.existing.length > 0 && (
-                <p className="text-xs text-muted">
-                  After the workflow's own:{" "}
-                  {lora.existing
-                    .map((l) => `${l.name.replace(/\.safetensors$/, "").split("/").pop()}${l.strength != null ? ` ${+l.strength.toFixed(2)}` : ""}`)
-                    .join(", ")}
-                </p>
-              )}
             </div>
           ) : (
             <p className="text-xs text-muted">The Style layer and character LoRAs are off for this workflow.</p>
           )}
         </SlotCard>
+
+        {(setup.found.loras?.length ?? 0) > 0 && (
+          <SlotCard title="The workflow's own LoRAs">
+            <ul className="space-y-1.5">
+              {setup.found.loras!.map((l) => (
+                <li key={l.node} className="flex flex-wrap items-center gap-2.5 text-[13px]">
+                  <span className={cn("min-w-0 truncate", (slots.drop_loras ?? []).includes(l.node) ? "text-faint line-through" : "text-neutral-200")}>
+                    {l.name.replace(/\.safetensors$/, "").split("/").pop()}
+                  </span>
+                  {l.strength != null && <span className="font-mono text-xs text-faint">{+l.strength.toFixed(2)}</span>}
+                  {l.installed === false && <Badge tone="warning">Not on ComfyUI</Badge>}
+                  <Checkbox
+                    className="ml-auto"
+                    checked={(slots.drop_loras ?? []).includes(l.node)}
+                    onChange={(out) => setSlots(leaveOut(slots, l.node, out))}
+                    label={<span className="text-xs">Leave out</span>}
+                  />
+                </li>
+              ))}
+            </ul>
+          </SlotCard>
+        )}
       </div>
 
       <div className="space-y-4 lg:sticky lg:top-[5.5rem]">
@@ -475,12 +499,13 @@ function SourceStep({ onSource, error }: { onSource: (s: GeneratorSourceIn) => v
   );
 }
 
-/** A saved workflow's test run: start it, follow it, and once it passed,
- * open Generate on it. */
+/** A saved workflow's test run: start it (again), follow it, and once it
+ * passed, open Generate on it. */
 function TestStep({ id }: { id: string }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { data: generators } = useGenerators();
+  const { data: status } = useComfyStatus();
   const gen = generators?.find((g) => g._id === id);
   const run = useMutation({
     mutationFn: () => startTest(id, null),
@@ -488,41 +513,73 @@ function TestStep({ id }: { id: string }) {
   });
   if (!gen) return null;
   const t = gen.test;
-  const busy = run.isPending || (!!t && ["pending", "queued", "running"].includes(t.state)) || (t?.state === "done" && !t.image_id);
-  const failed = t && ["failed", "lost", "cancelled"].includes(t.state);
+  const state = testState(gen);
+  const connected = !!status?.connected;
+  const rejected = run.error instanceof RejectedError ? run.error.nodeErrors : null;
   return (
     <Card className="space-y-3 p-4">
       <div className="flex flex-wrap items-center gap-2.5">
         <h3 className="text-sm font-semibold text-neutral-50">Test run</h3>
         <TestBadge gen={gen} />
         <div className="ml-auto flex gap-2">
-          {gen.ready ? (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => navigate(`/generate?workflow=${encodeURIComponent(id)}`)}
-            >
+          {state === "ready" ? (
+            <Button variant="primary" size="sm" onClick={() => navigate(`/generate?workflow=${encodeURIComponent(id)}`)}>
               <Wand2 size={14} /> Open in Generate
             </Button>
           ) : (
-            <Tooltip content="One image with the default prompt and, where it can, one LoRA at strength 0: proves the prompts, the output folder and the insertion point.">
-              <Button variant="primary" size="sm" disabled={busy} onClick={() => run.mutate()}>
-                {busy && <Loader2 size={14} className="animate-spin" />}
-                {busy ? "Running" : "Run test image"}
+            <Tooltip
+              content={
+                connected
+                  ? "One image with the default prompt and, where it can, one LoRA at strength 0: proves the prompts, the output folder and the insertion point."
+                  : "Waiting for ComfyUI"
+              }
+            >
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={!connected || run.isPending || !canRunTest(state)}
+                onClick={() => run.mutate()}
+              >
+                {(run.isPending || state === "running") && <Loader2 size={14} className="animate-spin" />}
+                {state === "running" ? "Running" : state === "untested" ? "Run test image" : "Run again"}
               </Button>
             </Tooltip>
           )}
         </div>
       </div>
-      {failed && t?.error && (
+      {state === "failed" && t?.error && (
         <p className="font-mono text-xs text-red-300">
           {t.error.class_type} {t.error.node && `node ${t.error.node}`}: {t.error.message}
         </p>
       )}
-      {run.error && <p className="text-xs text-red-300">{run.error.message}</p>}
-      {t?.state === "done" && t.outputs === 0 && <p className="text-xs text-red-300">Returned 0 images</p>}
+      {state === "failed" && t?.state === "done" && <p className="text-xs text-red-300">Returned 0 images</p>}
+      {state === "waiting" && (
+        <p className="text-xs text-muted">
+          It made {t?.outputs} {t?.outputs === 1 ? "image" : "images"}; waiting for the library scan. If nothing arrives, check
+          that the workflow saves into ComfyUI's output folder.
+        </p>
+      )}
+      {rejected ? (
+        <ul className="space-y-1 font-mono text-xs text-red-300">
+          {rejected.map((e, i) => (
+            <li key={i}>
+              {e.class_type ?? "Node"} {e.added ? "(added by Moiré)" : `#${e.node}`}: {e.input ? `${e.input}: ` : ""}
+              {e.message}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        run.error && <p className="text-xs text-red-300">{run.error.message}</p>
+      )}
     </Card>
   );
+}
+
+/** A short stable hash of a string: an uploaded graph's cache key. */
+function hashOf(text: string): string {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
 }
 
 export default function WorkflowSetupPage() {
@@ -541,7 +598,7 @@ export default function WorkflowSetupPage() {
   useDocumentTitle(saved ? `Set up ${saved.name}` : "Set up a workflow");
 
   const sourceKey = useMemo(
-    () => (source && "image_id" in source ? source.image_id : source ? `upload:${(source as { filename?: string }).filename}:${JSON.stringify(source).length}` : null),
+    () => (source && "image_id" in source ? source.image_id : source ? `upload:${hashOf(JSON.stringify(source))}` : null),
     [source],
   );
   const discovered = useQuery({
@@ -585,6 +642,7 @@ export default function WorkflowSetupPage() {
     },
     onError: (e) => toast.push((e as Error).message, "error"),
   });
+  const confirm = useConfirm();
   const remove = useMutation({
     mutationFn: () => deleteGenerator(id!),
     onSuccess: () => {
@@ -612,7 +670,20 @@ export default function WorkflowSetupPage() {
         width="wide"
         actions={
           id && (
-            <Button variant="ghost" size="sm" onClick={() => remove.mutate()} disabled={remove.isPending}>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={remove.isPending}
+              onClick={async () => {
+                const ok = await confirm({
+                  title: `Delete ${saved?.name ?? "this workflow"}?`,
+                  message: "Its setup and test run go. Batches made with it stay, and so do their images.",
+                  confirmLabel: "Delete workflow",
+                  tone: "danger",
+                });
+                if (ok) remove.mutate();
+              }}
+            >
               <Trash2 size={14} /> Delete
             </Button>
           )
@@ -635,7 +706,7 @@ export default function WorkflowSetupPage() {
           ) : (
             <SourceStep onSource={setSource} error={loadError.message} />
           )
-        ) : !setup ? (
+        ) : !setup || (id && !saved) ? (
           <div className="flex justify-center py-16">
             <Loader2 className="animate-spin text-muted" />
           </div>

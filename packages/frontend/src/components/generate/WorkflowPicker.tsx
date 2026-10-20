@@ -1,6 +1,6 @@
 import { ChevronDown, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Badge, Picker, Tooltip } from "../ui";
+import { Badge, Picker } from "../ui";
 import { cn } from "../../lib/cn";
 import type { Generator } from "../../lib/generate";
 import { SET_UP, testState, workflowOptions, type TestState } from "../../lib/workflow";
@@ -9,6 +9,7 @@ const STATE: Record<TestState, { tone: "success" | "warning" | "danger" | "brand
   ready: { tone: "success", label: "Ready" },
   untested: { tone: "warning", label: "Needs a test run" },
   running: { tone: "brand", label: "Testing" },
+  waiting: { tone: "brand", label: "Waiting for scan" },
   failed: { tone: "danger", label: "Test failed" },
 };
 
@@ -37,6 +38,7 @@ export function WorkflowPicker({
     const g = generators.find((x) => x._id === o.value)!;
     return { ...o, hint: <TestBadge gen={g} /> };
   });
+  // The page's status line says when the chosen one needs its test run.
   return (
     <div className="flex items-center gap-2">
       <Picker
@@ -66,21 +68,15 @@ export function WorkflowPicker({
         footer={
           <button
             type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              navigate("/settings?section=comfyui#workflows");
-            }}
+            // Mousedown would blur the list first; the click is what navigates (keys too).
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => navigate("/settings?section=comfyui#workflows")}
             className="w-full rounded-md px-3 py-1.5 text-left text-sm text-muted hover:bg-white/[0.06] hover:text-neutral-100"
           >
             Manage workflows
           </button>
         }
       />
-      {chosen && !chosen.ready && (
-        <Tooltip content="Run its test before queueing: one image proves the workflow, its output folder and its LoRA insertion point.">
-          <TestBadge gen={chosen} />
-        </Tooltip>
-      )}
     </div>
   );
 }

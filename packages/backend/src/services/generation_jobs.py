@@ -35,6 +35,7 @@ from .generator_graph import (
     SAMPLING,
     GraphError,
     build_prompt,
+    drop_missing,
     merge_loras,
     seeds_for,
     split_requests,
@@ -386,6 +387,7 @@ class GenerationManager:
         # Tests swap in an httpx.MockTransport / fake websocket connect.
         self.transport: httpx.AsyncBaseTransport | None = None
         self.ws_connect: Any = None
+        self._classes: set[str] | None = None
         self.connected = False
         self.error: str | None = None
         self.queue_remaining = 0
@@ -426,6 +428,7 @@ class GenerationManager:
         self.client = None
         self.connected = False
         self._models_loaded = False
+        self._classes = None
         self.error = None
         if not s.get("address"):
             return
@@ -816,6 +819,10 @@ class GenerationManager:
             graph = build_prompt(gen["graph"], gen["slots"], values)
         except GraphError as e:
             raise ComfyRejected(str(e), []) from e
+        if gen["kind"] != "builtin":
+            classes = await self._node_classes()
+            if classes:
+                drop_missing(graph, {n["class_type"] for n in graph.values()} - classes)
         try:
             pid = await self.client.queue_prompt(graph)
         except ComfyRejected as e:
@@ -830,6 +837,17 @@ class GenerationManager:
         return pid
 
     # -- actions ---------------------------------------------------------------
+
+    async def _node_classes(self) -> set[str]:
+        """ComfyUI's node classes, read once per connection; empty when it
+        won't say (then nothing is dropped)."""
+        if self._classes is None:
+            assert self.client is not None
+            try:
+                self._classes = await self.client.node_classes()
+            except (ComfyError, ComfyUnreachable):
+                return set()
+        return self._classes
 
     async def _require_connection(self) -> dict[str, Any]:
         s = await comfy_settings.get_settings()

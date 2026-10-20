@@ -276,3 +276,41 @@ async def test_slots_locked_while_a_batch_runs(client, comfy, seed):  # noqa: F8
     assert (
         await client.delete(f"/generate/generators/{gen['_id']}")
     ).status_code == 409
+
+
+async def test_missing_models_are_proposed_out(client, comfy, seed):  # noqa: F811
+    # The model index is loaded: none of the graph's own files are installed.
+    await client.post("/generate/comfyui/test")
+    _with_raw(seed, "L1:a.png", _graph("graph_hires_detailer.json"))
+    d = (
+        await client.post(
+            "/generate/generators/discover", json={"image_id": "L1:a.png"}
+        )
+    ).json()
+    assert [lo["installed"] for lo in d["found"]["loras"]] == [False] * 4
+    assert d["found"]["checkpoint"]["installed"] is False
+    assert d["slots"]["drop_loras"] == ["40", "41", "42", "43"]
+    assert d["slots"]["checkpoint"] == ["20", "ckpt_name"]
+    r = await client.post(
+        "/generate/generators",
+        json={
+            "source": {"image_id": "L1:a.png"},
+            "name": "X",
+            "slots": d["slots"],
+            "defaults": d["defaults"],
+        },
+    )
+    gen = r.json()
+    await client.post(f"/generate/generators/{gen['_id']}/test", json={})
+    sent = comfy.prompts[comfy.order[-1]]
+    own = {
+        k
+        for k, n in sent.items()
+        if n["inputs"].get("lora_name") in [lo["name"] for lo in d["found"]["loras"]]
+    }
+    assert own == set()
+    # The test's own LoRA goes straight after the checkpoint now.
+    added = next(k for k, n in sent.items() if n["class_type"] == "LoraLoader")
+    assert sent[added]["inputs"]["model"] == ["20", 0]
+    # Its checkpoint slot takes an installed one.
+    assert sent["20"]["inputs"]["ckpt_name"] in comfy.checkpoints

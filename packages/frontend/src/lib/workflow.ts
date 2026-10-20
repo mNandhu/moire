@@ -40,15 +40,22 @@ export function defaultBatchSize(gen: Generator | undefined, builtinDefault: num
   return gen?.kind === "builtin" ? builtinDefault : (gen?.slots.per_request ?? 1);
 }
 
-export type TestState = "ready" | "untested" | "running" | "failed";
+export type TestState = "ready" | "untested" | "running" | "waiting" | "failed";
 
+/** Where a workflow's test run is. "waiting": it ran and made images that
+ * aren't in the library yet (the scan, or a wrong output folder). A run that
+ * made none failed. */
 export function testState(gen: Generator): TestState {
   if (gen.ready) return "ready";
   const t = gen.test;
   if (!t) return "untested";
   if (["failed", "lost", "cancelled"].includes(t.state)) return "failed";
+  if (t.state === "done") return t.outputs > 0 ? "waiting" : "failed";
   return "running";
 }
+
+/** A test can be (re)started unless one is in ComfyUI right now. */
+export const canRunTest = (s: TestState) => s !== "running" && s !== "ready";
 
 /** What a workflow is, in a few words, from what its graph has. */
 export function workflowLine(gen: Generator): string | undefined {

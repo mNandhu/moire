@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GeneratorSetup, SeedGroup, TextInput } from "./generate";
-import { canSave, checklist, defaultName, groupTicked, pickPrompt, pickerOptions, tickGroup } from "./generatorSetup";
+import { canSave, checklist, defaultName, groupTicked, leaveOut, pickPrompt, pickerOptions, tickGroup } from "./generatorSetup";
 
 const input = (over: Partial<TextInput>): TextInput => ({
   path: ["1", "text"],
@@ -117,4 +117,29 @@ it("defaultName falls back to the matched file, then the save prefix", () => {
   const img = { kind: "image" as const, image_id: "a", family: "f", family_name: null, workflow_sig: "s" };
   expect(defaultName(setup({ source: { ...img, file_name: "Portrait v3.json" } }))).toBe("Portrait v3");
   expect(defaultName(setup({ source: img, outputs: [{ node: "9", title: "Save", saves: true, prefix: "VPS/hires" }] }))).toBe("hires");
+});
+
+describe("missing models", () => {
+  const s = setup({
+    found: {
+      sampler: { node: "3", title: "KSampler" },
+      checkpoint: { path: ["4", "ckpt_name"], value: "old.safetensors", installed: false },
+      loras: [
+        { node: "8", name: "gone.safetensors", strength: 1, installed: false },
+        { node: "9", name: "here.safetensors", strength: 1, installed: true },
+      ],
+    },
+  });
+  const base = { positive: ["6", "text"] as [string, string], negative: ["7", "text"] as [string, string] };
+  it("blocks until the checkpoint is chosen in Generate and missing LoRAs are left out", () => {
+    const labels = checklist(s, base).filter((i) => !i.ok).map((i) => i.label);
+    expect(labels).toEqual([
+      "Its checkpoint isn't on ComfyUI: choose one in Generate",
+      "1 of its LoRAs isn't on ComfyUI: leave it out",
+    ]);
+    const fixed = leaveOut({ ...base, checkpoint: ["4", "ckpt_name"] }, "8", true);
+    expect(fixed.drop_loras).toEqual(["8"]);
+    expect(canSave(checklist(s, fixed))).toBe(true);
+    expect(leaveOut(fixed, "8", false).drop_loras).toEqual([]);
+  });
 });

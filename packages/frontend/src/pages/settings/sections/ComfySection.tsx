@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, RefreshCw, Settings2, X } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Section } from "../../../components/ui/Card";
 import { Badge, Button, Checkbox, Input, Picker } from "../../../components/ui";
 import { ComfyStatusLine } from "../../../components/generate/ComfyStatusLine";
@@ -28,10 +28,20 @@ type HeaderRow = { name: string; value: string };
 /** Every workflow set up to run in Generate: its test state and setup page. */
 function WorkflowsList() {
   const { data: generators } = useGenerators();
+  const ref = useRef<HTMLSpanElement>(null);
+  // "Manage workflows" lands here: a client-side route change doesn't scroll to the hash.
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash === "#workflows" && generators) ref.current?.scrollIntoView({ block: "start" });
+  }, [hash, generators]);
   const custom = (generators ?? []).filter((g) => g.kind === "custom");
   return (
     <Section
-      title={<span id="workflows">Workflows</span>}
+      title={
+        <span id="workflows" ref={ref} className="scroll-mt-24">
+          Workflows
+        </span>
+      }
       actions={
         <Link to="/generate/workflows/new" className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200">
           <Plus size={13} /> Set up a workflow

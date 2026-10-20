@@ -51,6 +51,12 @@ export function pickPrompt(slots: GeneratorSlots, side: Side, input: TextInput):
   return { ...slots, [side]: input.path, replace_links: [...links] };
 }
 
+/** Slots with the workflow's own LoRA ``node`` left out, or back in. */
+export function leaveOut(slots: GeneratorSlots, node: string, out: boolean): GeneratorSlots {
+  const rest = (slots.drop_loras ?? []).filter((n) => n !== node);
+  return { ...slots, drop_loras: out ? [...rest, node] : rest };
+}
+
 /** Whether every input of a seed group is ticked (Moiré writes it). */
 export function groupTicked(slots: GeneratorSlots, group: SeedGroup): boolean {
   const on = new Set((slots.seeds ?? []).map(pathKey));
@@ -83,6 +89,15 @@ export function checklist(setup: GeneratorSetup, slots: GeneratorSlots): CheckIt
       ? { label: "LoRA insertion point found", ok: true }
       : { label: "No LoRA insertion point: LoRAs are off", ok: true, note: true },
   ];
+  const ckpt = setup.found.checkpoint;
+  if (ckpt?.installed === false && !slots.checkpoint) {
+    items.push({ label: `Its checkpoint isn't on ComfyUI: choose one in Generate`, ok: false });
+  }
+  const dropped = new Set(slots.drop_loras ?? []);
+  const absent = (setup.found.loras ?? []).filter((l) => l.installed === false && !dropped.has(l.node));
+  if (absent.length) {
+    items.push({ label: `${absent.length} of its LoRAs ${absent.length === 1 ? "isn't" : "aren't"} on ComfyUI: leave ${absent.length === 1 ? "it" : "them"} out`, ok: false });
+  }
   if (!slots.seeds?.length) items.push({ label: "No seed is randomized: every image repeats", ok: true, note: true });
   for (const img of setup.input_images) {
     items.push({ label: `Uses an input image: ${img.title} #${img.node}`, ok: true, note: true });
