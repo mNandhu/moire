@@ -75,10 +75,94 @@ export type Generator = {
   name: string;
   kind: "builtin" | "custom";
   ready: boolean;
-  slots: Record<string, unknown>;
+  slots: GeneratorSlots;
   /** The graph's own value for each sampling setting it exposes. */
   sampling: Sampling;
+  /** Where a custom Generator came from (null for the built-in). */
+  source: GeneratorOrigin | null;
+  /** A custom Generator's own prompt, from its source. */
+  defaults: { base: string; negative: string } | null;
   test: GeneratorTest | null;
+};
+
+/** ``[node id, input name]`` in the Generator's graph. */
+export type SlotPath = [string, string];
+/** ``[node id, output index]``: where Moiré's LoRA chain starts. */
+export type OutputRef = [string, number];
+
+export type GeneratorSlots = Partial<{
+  positive: SlotPath;
+  negative: SlotPath;
+  /** Prompt slots whose path is a link Moiré overwrites (a run-time join). */
+  replace_links: ("positive" | "negative")[];
+  seeds: SlotPath[];
+  width: SlotPath;
+  height: SlotPath;
+  batch_size: SlotPath;
+  per_request: number;
+  checkpoint: SlotPath;
+  sampler: SlotPath;
+  scheduler: SlotPath;
+  steps: SlotPath;
+  cfg: SlotPath;
+  lora_model: OutputRef;
+  lora_clip: OutputRef | null;
+}>;
+
+export type GeneratorOrigin =
+  | { kind: "image"; image_id: string; family: string | null; family_name: string | null; workflow_sig: string | null }
+  | { kind: "upload"; filename: string | null };
+
+/** What setup is given: a library image, or an uploaded Export (API) file. */
+export type GeneratorSourceIn = { image_id: string } | { graph: unknown; filename?: string };
+
+export type NodeRef = { node: string; title: string };
+
+export type FoundPrompt = { path: SlotPath; replaces_link: boolean; text?: string | null; from?: "rule" };
+
+export type TextInput = {
+  path: SlotPath;
+  class_type: string;
+  title: string;
+  text: string | null;
+  /** Writing here replaces a link (the text is joined at run time). */
+  replaces_link: boolean;
+  /** Which of the sampler's prompts it feeds; null: neither. */
+  reaches: "positive" | "negative" | "both" | null;
+};
+
+export type SeedGroup = {
+  value: number;
+  inputs: { path: SlotPath; value: number; used_by: NodeRef[] }[];
+};
+
+export type GeneratorSetup = {
+  /** The slots shown: the saved ones when editing, else the proposal. */
+  slots: GeneratorSlots;
+  proposed: GeneratorSlots;
+  found: {
+    sampler: NodeRef | null;
+    positive?: FoundPrompt | null;
+    negative?: FoundPrompt | null;
+    lora?: {
+      loader: NodeRef;
+      model: { ref: OutputRef; title: string };
+      clip: { ref: OutputRef; title: string } | null;
+      existing: { name: string; strength: number | null }[];
+      consumers: NodeRef[];
+    };
+  };
+  text_inputs: TextInput[];
+  seeds: SeedGroup[];
+  outputs: { node: string; title: string; saves: boolean; prefix: string | null }[];
+  input_images: { node: string; title: string; image: string | null }[];
+  source: GeneratorOrigin;
+  defaults: { base: string; negative: string };
+  /** Tags in the default Base that the Character and Outfit blocks add. */
+  offer: string[];
+  base_without: string;
+  /** What still stops these slots from being saved. */
+  problems: string[];
 };
 
 /** Sampler settings; one left out stays as the Generator's graph has it. */
@@ -325,6 +409,22 @@ export const setLoraChoice = (stem: string, name: string | null) =>
   send<{ ok: boolean }>("/comfyui/lora-choices", "PUT", { stem, name });
 export const startTest = (generatorId: string, checkpoint: string | null) =>
   send<{ batch_id: number }>(`/generators/${generatorId}/test`, "POST", { checkpoint });
+export const discoverGenerator = (source: GeneratorSourceIn) =>
+  send<GeneratorSetup>("/generators/discover", "POST", source);
+export const createGenerator = (body: {
+  source: GeneratorSourceIn;
+  name: string;
+  slots: GeneratorSlots;
+  defaults: { base: string; negative: string };
+}) => send<Generator>("/generators", "POST", body);
+export const putGenerator = (
+  id: string,
+  patch: Partial<{ name: string; slots: GeneratorSlots; defaults: { base: string; negative: string } }>,
+) => send<Generator>(`/generators/${encodeURIComponent(id)}`, "PUT", patch);
+export const deleteGenerator = (id: string) =>
+  send<{ ok: boolean }>(`/generators/${encodeURIComponent(id)}`, "DELETE");
+export const getGeneratorSetup = (id: string, signal?: AbortSignal) =>
+  api<GeneratorSetup>(`${BASE}/generators/${encodeURIComponent(id)}/setup`, { signal });
 export const putRecipe = (tag: string, patch: RecipePatch) =>
   send<Recipe>(`/recipes/${encodeURIComponent(tag)}`, "PUT", patch);
 export const createPreset = (p: Pick<Preset, "name" | "kind" | "text">) => send<Preset>("/presets", "POST", p);
@@ -375,7 +475,7 @@ export function useComfyModels() {
   });
 }
 
-/** The Generators (phase 1: the built-in); polls while a test run is going. */
+/** The built-in, then custom Generators; polls while a test run is going. */
 export function useGenerators() {
   return useQuery({
     queryKey: GENERATORS_KEY,
