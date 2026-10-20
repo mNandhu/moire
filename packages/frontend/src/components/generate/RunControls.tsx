@@ -4,7 +4,7 @@ import { ChevronDown, Dices, Minus, Pencil, Plus, RotateCcw } from "lucide-react
 import { cn } from "../../lib/cn";
 import { countHint, countLabel, randomSeed, type CountMode } from "../../lib/requests";
 import { ShapeIcon, SIZE_GROUP, useSizePresets } from "../SizeFilter";
-import { Input, Picker, ProgressBar, type PickerOption } from "../ui";
+import { Picker, ProgressBar, type PickerOption } from "../ui";
 import type { ActiveBatch, Sampling } from "../../lib/generate";
 import { samplerLabel, samplingLabel } from "../../lib/generateForm";
 
@@ -178,13 +178,28 @@ export function SamplingControl({
           invalid && "ring-1 ring-red-700",
         )}
       >
-        {/* The sampler gives way when space is short; steps and CFG keep
-            their own labelled chips, so the numbers never truncate. */}
-        <span className={cn("min-w-[3.5rem] flex-1 truncate", changed ? "text-neutral-100" : "text-muted")}>
+        {/* The sampler gives way when space is short; steps and CFG never
+            truncate, and drop their words when the field is narrow. */}
+        <span className={cn("min-w-0 flex-1 truncate", changed ? "text-neutral-100" : "text-muted")}>
           {shown.sampler ? samplerLabel(shown.sampler) : samplingLabel({ scheduler: shown.scheduler }) || "Default"}
         </span>
-        {shown.steps != null && <SamplingChip label="steps" value={shown.steps} />}
-        {shown.cfg != null && <SamplingChip label="CFG" value={shown.cfg} labelFirst />}
+        {(shown.steps != null || shown.cfg != null) && (
+          <span className="shrink-0 whitespace-nowrap tabular-nums text-muted">
+            {shown.steps != null && (
+              <>
+                {shown.steps}
+                <span className="sampling-unit"> steps</span>
+              </>
+            )}
+            {shown.steps != null && shown.cfg != null && <span className="text-faint"> · </span>}
+            {shown.cfg != null && (
+              <>
+                <span className="sampling-unit">CFG </span>
+                {shown.cfg}
+              </>
+            )}
+          </span>
+        )}
         <ChevronDown size={16} className={cn("shrink-0 text-faint transition-transform", open && "rotate-180")} />
       </button>
       {open && (
@@ -238,17 +253,6 @@ export function SamplingControl({
         </div>
       )}
     </div>
-  );
-}
-
-/** "30 steps" / "CFG 7" in the Sampling field: a value with its faint label. */
-function SamplingChip({ label, value, labelFirst = false }: { label: string; value: number; labelFirst?: boolean }) {
-  return (
-    <span title={`${value} ${label}`} className="shrink-0 whitespace-nowrap rounded bg-raised px-1.5 py-0.5 text-xs tabular-nums text-neutral-200">
-      {labelFirst && <span className="mr-1 text-faint">{label}</span>}
-      {value}
-      {!labelFirst && <span className="sampling-unit ml-1 text-faint">{label}</span>}
-    </span>
   );
 }
 
@@ -449,19 +453,26 @@ export function CountStepper({
   );
 }
 
-/** The batch name as text with a pencil; editing stops the auto name. */
+/**
+ * The batch name, beside the Queue button: what this run will be called. A
+ * box as tall as the button; clicking it renames, and editing stops the auto
+ * name.
+ */
 export function BatchName({
   auto,
   custom,
   onChange,
+  className,
 }: {
   auto: string;
   custom: string | null;
   onChange: (name: string | null) => void;
+  className?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const name = custom ?? auto;
+  const box = "flex h-11 min-w-0 items-center gap-2 rounded-lg border border-line bg-canvas px-3 text-sm";
   if (editing) {
     const commit = () => {
       const t = draft.trim();
@@ -469,57 +480,52 @@ export function BatchName({
       setEditing(false);
     };
     return (
-      <div>
-        <FieldLabel>Batch name</FieldLabel>
-        <div className="flex items-center gap-2">
-          <Input
-            autoFocus
-            aria-label="Batch name"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commit();
-              if (e.key === "Escape") setEditing(false);
+      <div className={cn(box, "border-brand-500/70", className)}>
+        <span className="shrink-0 text-xs text-faint">Batch</span>
+        <input
+          autoFocus
+          aria-label="Batch name"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") setEditing(false);
+          }}
+          className="min-w-0 flex-1 bg-transparent text-neutral-100 outline-none"
+        />
+        {custom && (
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              onChange(null);
+              setEditing(false);
             }}
-          />
-          {custom && (
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                onChange(null);
-                setEditing(false);
-              }}
-              className="shrink-0 text-xs text-muted hover:text-neutral-100"
-            >
-              Use auto name
-            </button>
-          )}
-        </div>
+            title="Use the auto name"
+            className="shrink-0 text-xs text-muted hover:text-neutral-100"
+          >
+            Auto
+          </button>
+        )}
       </div>
     );
   }
   return (
-    <div>
-      <FieldLabel>Batch name</FieldLabel>
-      {/* As tall as the fields beside it, so the name lines up with their values. */}
-      <div className="flex h-9 items-center gap-2 text-sm">
-        <span className="truncate text-neutral-100">{name}</span>
-        <button
-          type="button"
-          aria-label="Rename batch"
-          title="Rename"
-          onClick={() => {
-            setDraft(name);
-            setEditing(true);
-          }}
-          className="rounded p-1 text-muted hover:bg-raised hover:text-neutral-100"
-        >
-          <Pencil size={13} />
-        </button>
-      </div>
-    </div>
+    <button
+      type="button"
+      aria-label={`Batch name: ${name}. Rename`}
+      title="Rename this batch"
+      onClick={() => {
+        setDraft(name);
+        setEditing(true);
+      }}
+      className={cn(box, "group text-left hover:border-line-strong", className)}
+    >
+      <span className="shrink-0 text-xs text-faint">Batch</span>
+      <span className="min-w-0 flex-1 truncate text-neutral-100">{name}</span>
+      <Pencil size={13} className="shrink-0 text-faint group-hover:text-neutral-100" />
+    </button>
   );
 }
 

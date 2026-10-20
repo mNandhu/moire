@@ -105,7 +105,7 @@ body {
 .sampling-field {
   container-type: inline-size;
 }
-@container (max-width: 15rem) {
+@container (max-width: 14rem) {
   .sampling-unit {
     display: none;
   }
