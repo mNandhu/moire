@@ -24,9 +24,9 @@ const draft = (d: unknown) => loadDraft({ getItem: () => JSON.stringify(d) });
 
 describe("toQueueBody", () => {
   it("sends a fixed seed only when it has a value", () => {
-    const body = toQueueBody({ ...DEFAULT_FORM, seed: { mode: "fixed", value: null } }, "builtin", null, presets);
+    const body = toQueueBody({ ...DEFAULT_FORM, seed: { mode: "fixed", value: null } }, "builtin", [], presets);
     expect(body.seed).toEqual({ mode: "random", value: null });
-    expect(toQueueBody({ ...DEFAULT_FORM, seed: { mode: "fixed", value: 7 } }, "builtin", null, presets).seed).toEqual({
+    expect(toQueueBody({ ...DEFAULT_FORM, seed: { mode: "fixed", value: 7 } }, "builtin", [], presets).seed).toEqual({
       mode: "fixed",
       value: 7,
     });
@@ -55,7 +55,7 @@ describe("layers", () => {
     ]);
     // A deleted preset still sends the text it had when picked.
     expect(negative[0]).toMatchObject({ text: "bad hands" });
-    expect(previewText(positive, ["hu_tao_(genshin_impact)"])).toBe(
+    expect(previewText(positive, [["hu_tao_(genshin_impact)"]])).toBe(
       "masterpiece, best quality, hu_tao_\\(genshin_impact\\), embedding:pos/aesthetic, (smile:1.2), swing",
     );
     expect(removeBlock(blocks, emb.id)).toEqual(DEFAULT_BLOCKS);
@@ -90,7 +90,7 @@ describe("style LoRAs", () => {
   };
 
   it("sends each LoRA's words where the Style layer sits, and the LoRAs without presets", () => {
-    const body = toQueueBody(form, "builtin", null, presets, loraPresets);
+    const body = toQueueBody(form, "builtin", [], presets, loraPresets);
     expect(body.positive.slice(-2)).toEqual([
       { kind: "text", role: "prompt", text: "swing" },
       { kind: "text", role: "style", text: "0__11Xx_illu, glitch, flat color" },
@@ -99,7 +99,7 @@ describe("style LoRAs", () => {
   });
 
   it("brings the presets back with the batch", () => {
-    const sent = toQueueBody(form, "builtin", null, presets, loraPresets);
+    const sent = toQueueBody(form, "builtin", [], presets, loraPresets);
     const f = formFromBatch({ ...({} as BatchInputs), ...sent, seed: sent.seed, composer: sent.composer } as BatchInputs, null);
     expect(f.loras.map((l) => l.preset?.id ?? null)).toEqual(["g", null, "x"]);
   });
@@ -120,6 +120,11 @@ describe("loadDraft", () => {
       }),
     ).toEqual(DEFAULT_FORM);
     expect(loadDraft(null)).toEqual(DEFAULT_FORM);
+  });
+
+  it("keeps a draft's one character as the list", () => {
+    expect(draft({ character: "nahida" }).characters).toEqual(["nahida"]);
+    expect(draft({ characters: ["a", "b", "a", 3] }).characters).toEqual(["a", "b"]);
   });
 
   it("keeps known fields of the right type", () => {
@@ -169,8 +174,15 @@ describe("formFromBatch", () => {
     expect(f).toMatchObject({ prompt: "b, x", negative: "n", count: 8, seed: { mode: "fixed", value: 5 }, name: null });
   });
 
+  it("brings back every character, or the one an older batch had", () => {
+    const one = { tag: "a", label: "A", tags: ["a"], lora: null };
+    const two = { tag: "b", label: "B", tags: ["b"], lora: null };
+    expect(formFromBatch({ ...base, character: one, characters: [one, two] }, null).characters).toEqual(["a", "b"]);
+    expect(formFromBatch({ ...base, character: one }, null).characters).toEqual(["a"]);
+  });
+
   it("restores a layered batch's composer", () => {
-    const sent = toQueueBody({ ...DEFAULT_FORM, prompt: "swing", prefix: { id: "q", text: "t" } }, "builtin", null, presets);
+    const sent = toQueueBody({ ...DEFAULT_FORM, prompt: "swing", prefix: { id: "q", text: "t" } }, "builtin", [], presets);
     const f = formFromBatch({ ...base, composer: sent.composer }, "Mine");
     expect(f).toMatchObject({ prompt: "swing", prefix: { id: "q", text: "t" }, name: "Mine" });
   });

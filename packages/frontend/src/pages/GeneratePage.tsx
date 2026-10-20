@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, FlaskConical, Loader2, Lock, Wand2 } from "lucide-react";
 import { Button, ButtonLink, Card, EmptyState, PageBody, PageHeader, Badge } from "../components/ui";
 import { bareTagPool } from "../components/generate/ChipInput";
@@ -36,7 +36,8 @@ import {
   useGenerators,
   useLoraPresets,
   usePresets,
-  useRecipe,
+  useRecipes,
+  type CharacterInput,
   type NodeError,
 } from "../lib/generate";
 import {
@@ -55,8 +56,9 @@ import {
 import { cn } from "../lib/cn";
 import { PromptInput } from "../components/generate/PromptInput";
 import { AddLayer, EmbeddingLayer, LayerRow, NegativeLayer, PresetControl, TextLayer } from "../components/generate/Layers";
-import { useTagAggregate } from "../lib/queries";
-import { displayName } from "../lib/character";
+import { characterPageQuery, useTagAggregate } from "../lib/queries";
+import { characterColours, displayName, mixColours } from "../lib/character";
+import { tintAmbient } from "../lib/ambient";
 import { characterInput, characterTags } from "../lib/recipe";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
@@ -189,22 +191,32 @@ export default function GeneratePage() {
   const usage = useMemo(() => new Map((models?.matching ?? []).map((m) => [m.stem, m.images])), [models]);
   const flagged = useMemo(() => rejectedFields(rejected ?? []), [rejected]);
   const { data: everyone } = useCharacters();
-  const { data: recipe } = useRecipe(form.character);
-  const charEntry = everyone?.find((c) => c.tag === form.character);
-  const charLabel = form.character ? displayName(charEntry ?? { tag: form.character }).name : null;
-  // The block as it would be sent; null until the recipe has loaded.
-  const character = recipe && charLabel && recipe.tag === form.character ? characterInput(recipe, charLabel) : null;
+  const recipes = useRecipes(form.characters);
+  const labels = form.characters.map(
+    (tag) => displayName(everyone?.find((c) => c.tag === tag) ?? { tag }).name,
+  );
+  // Each block as it would be sent; null until its recipe has loaded.
+  const inputs = form.characters.map((tag, i) => {
+    const r = recipes[i];
+    return r && r.tag === tag ? characterInput(r, labels[i]) : null;
+  });
+  const characters = inputs.every((c) => c) ? (inputs as CharacterInput[]) : null;
   const autoName = autoBatchName({
     number: null,
     generator: gen?.name ?? "Built-in",
     extra: nameWords(form),
-    character: charLabel,
+    character: labels.length ? labels.join(" & ") : null,
   });
+
+  // The page takes the picked characters' colours, one from each.
+  const pages = useQueries({ queries: form.characters.map(characterPageQuery) });
+  const colourKey = mixColours(pages.map((q) => (q.data ? characterColours(q.data) : []))).join("|");
+  useEffect(() => tintAmbient(colourKey ? colourKey.split("|") : []), [colourKey]);
   const perRequest = settings?.builtin_per_request ?? 1;
   const connected = !!status?.connected;
 
   const queue = useMutation({
-    mutationFn: () => queueBatch(toQueueBody(form, gen?._id ?? "builtin", character, presets, loraPresets)),
+    mutationFn: () => queueBatch(toQueueBody(form, gen?._id ?? "builtin", characters ?? [], presets, loraPresets)),
     onMutate: () => setRejected(null),
     onSuccess: (b) => {
       toast.push(`Queued ${b.name}`, "success");
@@ -238,12 +250,15 @@ export default function GeneratePage() {
   }
 
   const parts = toParts(form, presets, loraPresets);
-  const positive = previewText(parts.positive, recipe && character ? characterTags(recipe) : []);
+  const positive = previewText(
+    parts.positive,
+    recipes.flatMap((r) => (r ? [characterTags(r)] : [])),
+  );
   const negative = previewText(parts.negative, []);
-  const sentLoras = [
-    ...(character?.lora ? [character.lora] : []),
-    ...form.loras.filter((l) => !character?.lora || stemOf(l.name) !== stemOf(character.lora.name)),
-  ];
+  // As the backend merges them: characters' LoRAs first, each file once.
+  const sentLoras = [...(characters ?? []).flatMap((c) => (c.lora ? [c.lora] : [])), ...form.loras].filter(
+    (l, i, all) => all.findIndex((x) => stemOf(x.name) === stemOf(l.name)) === i,
+  );
   const ready = !!gen?.ready;
   // Why Queue can't run yet, said on the button itself.
   const blocked = !connected
@@ -252,7 +267,7 @@ export default function GeneratePage() {
       ? "Run the test first"
       : !settings?.output_library_id
         ? "Set the output folder"
-        : form.character && !character
+        : form.characters.length && !characters
           ? "Loading character"
           : null;
   const canQueue = !blocked && !queue.isPending;
@@ -282,8 +297,8 @@ export default function GeneratePage() {
                     </LayerRow>
                   ) : blk.kind === "character" ? (
                     <CharacterLayer
-                      value={form.character}
-                      onChange={(v) => set("character", v)}
+                      value={form.characters}
+                      onChange={(v) => set("characters", v)}
                       installedLoras={models?.loras ?? NO_STRINGS}
                       rejectedLoras={flagged.loras}
                     />

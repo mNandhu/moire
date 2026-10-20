@@ -83,14 +83,18 @@ def _next_ids(graph: Graph):
 
 
 def merge_loras(
-    character: dict[str, Any] | None, style: list[dict[str, Any]] | None
+    characters: list[dict[str, Any] | None] | dict[str, Any] | None,
+    style: list[dict[str, Any]] | None,
 ) -> list[LoraPick]:
-    """The character's LoRA, then the style LoRAs, each file once (by stem, so
-    two spellings of one file can't both get in): the character's strength
-    wins over a style pick of the same LoRA. Pure."""
+    """The characters' LoRAs in order, then the style LoRAs, each file once
+    (by stem, so two spellings of one file can't both get in): a character's
+    strength wins over a style pick of the same LoRA. One character's LoRA
+    may be passed alone. Pure."""
+    if not isinstance(characters, list):
+        characters = [characters]
     out: list[LoraPick] = []
     seen: set[str] = set()
-    for lo in ([character] if character else []) + list(style or []):
+    for lo in [c for c in characters if c] + list(style or []):
         stem = lora_stem(lo["name"])
         if stem in seen:
             continue

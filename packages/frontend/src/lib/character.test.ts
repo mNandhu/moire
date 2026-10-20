@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  mixColours,
   avatarCrop,
   inkOn,
   characterColours,
@@ -121,5 +122,14 @@ describe("inkOn", () => {
     expect(inkOn("#ffffff")).toBe("dark");
     expect(inkOn("#112233")).toBe("light");
     expect(inkOn("red")).toBe("light");
+  });
+});
+
+describe("mixColours", () => {
+  it("takes one colour from each character before anyone's second", () => {
+    expect(mixColours([["a1", "a2", "a3"]])).toEqual(["a1", "a2", "a3"]);
+    expect(mixColours([["a1", "a2", "a3"], ["b1", "b2"]])).toEqual(["a1", "b1", "a2"]);
+    expect(mixColours([["a1"], [], ["c1"], ["d1"], ["e1"]])).toEqual(["a1", "c1", "d1"]);
+    expect(mixColours([[], []])).toEqual([]);
   });
 });

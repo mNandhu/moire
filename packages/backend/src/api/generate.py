@@ -86,6 +86,8 @@ class BatchIn(BaseModel):
     checkpoint: str | None = None
     loras: list[LoraIn] = Field(default_factory=list)
     character: CharacterIn | None = None
+    #: Several characters, in prompt order (``character`` is one, for older clients).
+    characters: list[CharacterIn] | None = None
     #: The layered composer: ordered parts; base / extra are for old batches.
     positive: list[PartIn] | None = None
     negative: list[PartIn] | None = None

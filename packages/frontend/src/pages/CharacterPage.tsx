@@ -287,7 +287,7 @@ function Images({ c }: { c: Character }) {
 function useGenerateWith() {
   const navigate = useNavigate();
   return (tag: string) => {
-    saveDraft({ ...loadDraft(), character: tag });
+    saveDraft({ ...loadDraft(), characters: [tag] });
     navigate("/generate");
   };
 }

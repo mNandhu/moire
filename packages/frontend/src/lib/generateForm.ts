@@ -34,8 +34,9 @@ export type GenerateForm = {
   checkpoint: string | null;
   /** Style LoRAs, each with its activation preset. */
   loras: StyleLora[];
-  /** The picked character's page key; its block comes from the recipe. */
-  character: string | null;
+  /** The picked characters' page keys, in prompt order; each one's block
+   * comes from its recipe. */
+  characters: string[];
   width: number;
   height: number;
   seed: { mode: "random" | "fixed"; value: number | null };
@@ -54,7 +55,7 @@ export const DEFAULT_FORM: GenerateForm = {
   negative: "",
   checkpoint: null,
   loras: [],
-  character: null,
+  characters: [],
   width: 832,
   height: 1216,
   seed: { mode: "random", value: null },
@@ -125,11 +126,16 @@ export function toParts(
   };
 }
 
-/** What the backend will send, for the "Prompt as sent" preview. */
-export function previewText(parts: readonly PromptPart[], characterTags: readonly string[]): string {
+/** What the backend will send, for the "Prompt as sent" preview: each
+ * character's tags are their own block. */
+export function previewText(parts: readonly PromptPart[], characterTags: readonly (readonly string[])[]): string {
   return composeParts(
-    parts.map((p) =>
-      p.kind === "text" ? (p.text ?? "") : p.kind === "character" ? characterTags : p.name ? `embedding:${p.name}` : "",
+    parts.flatMap((p) =>
+      p.kind === "text"
+        ? [p.text ?? ""]
+        : p.kind === "character"
+          ? characterTags
+          : [p.name ? `embedding:${p.name}` : ""],
     ),
   );
 }
@@ -142,7 +148,7 @@ export function nameWords(f: Pick<GenerateForm, "prompt">): string[] {
 export function toQueueBody(
   f: GenerateForm,
   generatorId: string,
-  character: CharacterInput | null,
+  characters: CharacterInput[],
   presets: readonly Preset[] | undefined,
   loraPresets?: readonly LoraPreset[],
 ): QueueBody {
@@ -151,7 +157,7 @@ export function toQueueBody(
     generator_id: generatorId,
     checkpoint: f.checkpoint,
     loras: f.loras.map(({ name, strength }) => ({ name, strength })),
-    character,
+    characters,
     positive,
     negative,
     composer: composerState(f),
@@ -260,7 +266,7 @@ export function formFromBatch(i: BatchInputs, name: string | null): GenerateForm
     }),
     checkpoint: i.checkpoint,
     loras: i.loras.map((l) => ({ ...l, preset: loraPresetOf(i.composer, l.name) })),
-    character: i.character?.tag ?? null,
+    characters: (i.characters ?? (i.character ? [i.character] : [])).map((c) => c.tag),
     width: i.width ?? DEFAULT_FORM.width,
     height: i.height ?? DEFAULT_FORM.height,
     seed: i.seed.mode === "fixed" ? { ...i.seed } : { mode: "random", value: null },
@@ -283,7 +289,9 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     const out: GenerateForm = { ...DEFAULT_FORM, ...composerFrom(d) };
     if (!("prompt" in d) && ("base" in d || "extra" in d)) Object.assign(out, migrated(d));
     if (isStr(d.checkpoint) || d.checkpoint === null) out.checkpoint = d.checkpoint;
-    if (isStr(d.character) || d.character === null) out.character = d.character;
+    // Drafts from before several characters keep their one.
+    if (Array.isArray(d.characters)) out.characters = [...new Set<string>(d.characters.filter(isStr))];
+    else if (isStr(d.character)) out.characters = [d.character];
     if (isStr(d.name) || d.name === null) out.name = d.name;
     for (const k of ["width", "height", "count"] as const) if (typeof d[k] === "number") out[k] = d[k];
     if (Array.isArray(d.loras)) {

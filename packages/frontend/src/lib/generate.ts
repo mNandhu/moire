@@ -2,7 +2,7 @@
  * Generation (ComfyUI) API: types, fetchers and the polled queries. The
  * browser never talks to ComfyUI; everything goes through `/api/v1/generate`.
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 
 const BASE = "/api/v1/generate";
@@ -168,6 +168,8 @@ export type BatchInputs = {
   checkpoint: string | null;
   loras: LoraPick[];
   character?: CharacterInput | null;
+  /** Every character, in prompt order (`character` is the first). */
+  characters?: CharacterInput[] | null;
   /** Layered composer batches: the parts sent and the composer's own state. */
   positive?: PromptPart[] | null;
   negative?: PromptPart[] | null;
@@ -225,7 +227,7 @@ export type QueueBody = {
   generator_id: string;
   checkpoint: string | null;
   loras: LoraPick[];
-  character: CharacterInput | null;
+  characters: CharacterInput[];
   positive: PromptPart[];
   negative: PromptPart[];
   composer: Record<string, unknown>;
@@ -381,6 +383,16 @@ export function useRecipe(tag: string | null) {
     queryFn: ({ signal }) => api<Recipe>(`${BASE}/recipes/${encodeURIComponent(tag!)}`, { signal }),
     enabled: !!tag,
   });
+}
+
+/** Several characters' recipes, in order (undefined while one loads). */
+export function useRecipes(tags: readonly string[]): (Recipe | undefined)[] {
+  return useQueries({
+    queries: tags.map((tag) => ({
+      queryKey: recipeKey(tag),
+      queryFn: ({ signal }: { signal: AbortSignal }) => api<Recipe>(`${BASE}/recipes/${encodeURIComponent(tag)}`, { signal }),
+    })),
+  }).map((q) => q.data);
 }
 
 export function useBatches(limit = 50) {

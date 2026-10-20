@@ -29,6 +29,8 @@ const PART_ROW: Partial<Record<string, string>> = { prefix: "Prefix", prompt: "P
 
 function PromptPanel({ b }: { b: Batch }) {
   const i = b.inputs;
+  // Older batches have one `character`.
+  const cast = i.characters ?? (i.character ? [i.character] : []);
   const row = (k: string, v: React.ReactNode) => (
     <div className="contents">
       <dt className="text-faint">{k}</dt>
@@ -41,26 +43,30 @@ function PromptPanel({ b }: { b: Batch }) {
       <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
         {row("Generator", b.generator.name ?? b.generator._id)}
         {i.checkpoint && row("Checkpoint", <span className="font-mono">{stemOf(i.checkpoint)}</span>)}
-        {i.character &&
-          row(
-            "Character",
-            <>
-              {i.character.label || displayWord(i.character.tag)}
-              {i.character.tags.length > 1 && (
-                <span className="text-muted"> + {i.character.tags.slice(1).map(displayWord).join(", ")}</span>
-              )}
-            </>,
-          )}
-        {i.character?.lora &&
-          row(
-            "Character LoRA",
-            <span className="font-mono">
-              {stemOf(i.character.lora.name)} {i.character.lora.strength.toFixed(2)}
-            </span>,
-          )}
+        {cast.map((c) => (
+          <div key={c.tag} className="contents">
+            {row(
+              cast.length > 1 ? c.label || displayWord(c.tag) : "Character",
+              <>
+                {cast.length === 1 && (c.label || displayWord(c.tag))}
+                {c.tags.length > 1 && (
+                  <span className="text-muted">
+                    {cast.length === 1 && " + "}
+                    {c.tags.slice(1).map(displayWord).join(", ")}
+                  </span>
+                )}
+                {c.lora && (
+                  <span className="ml-2 font-mono text-muted">
+                    {stemOf(c.lora.name)} {c.lora.strength.toFixed(2)}
+                  </span>
+                )}
+              </>,
+            )}
+          </div>
+        ))}
         {i.loras.length > 0 &&
           row(
-            i.character ? "Style LoRAs" : "LoRAs",
+            cast.length ? "Style LoRAs" : "LoRAs",
             i.loras.map((l) => (
               <span key={l.name} className="mr-2 font-mono">
                 {stemOf(l.name)} {l.strength.toFixed(2)}

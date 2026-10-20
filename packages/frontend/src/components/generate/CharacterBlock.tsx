@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, ChevronDown, Pencil, RotateCcw, Undo2, UserRound, X } from "lucide-react";
+import { Ban, Check, ChevronDown, Pencil, RotateCcw, Undo2, UserPlus, UserRound, X } from "lucide-react";
 import { Badge, Card } from "../ui";
 import { Picker, type PickerOption } from "../ui/Picker";
 import { Dialog } from "../ui/Dialog";
@@ -410,16 +410,19 @@ export function CharacterBlock({
  * LoRA) that expands into the full {@link CharacterBlock}; the pencil opens
  * just the recipe. With no character, just the picker.
  */
-export function CharacterLayer({
+function CharacterRow({
   value,
   onChange,
   installedLoras,
   rejectedLoras,
+  adder,
 }: {
   value: string | null;
   onChange: (tag: string | null) => void;
   installedLoras: readonly string[];
   rejectedLoras: ReadonlySet<string>;
+  /** Shown on the folded row: the control that adds another character. */
+  adder?: React.ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -491,6 +494,7 @@ export function CharacterLayer({
         <Pencil size={14} />
       </button>
       <ExpandButton open={false} onToggle={() => setExpanded(true)} />
+      {adder}
       <button
         type="button"
         onClick={() => onChange(null)}
@@ -508,5 +512,68 @@ export function CharacterLayer({
         </Dialog>
       )}
     </Card>
+  );
+}
+
+/**
+ * The Character layer: one row per picked character, in prompt order, each
+ * folding open into its {@link CharacterBlock}; the last row adds another.
+ * With none, just the picker.
+ */
+export function CharacterLayer({
+  value,
+  onChange,
+  installedLoras,
+  rejectedLoras,
+}: {
+  value: readonly string[];
+  onChange: (tags: string[]) => void;
+  installedLoras: readonly string[];
+  rejectedLoras: ReadonlySet<string>;
+}) {
+  const add = (tag: string) => {
+    if (!value.includes(tag)) onChange([...value, tag]);
+  };
+  if (!value.length) {
+    return (
+      <CharacterRow
+        value={null}
+        onChange={(t) => t && add(t)}
+        installedLoras={installedLoras}
+        rejectedLoras={rejectedLoras}
+      />
+    );
+  }
+  return (
+    <div className="space-y-1.5">
+      {value.map((tag, i) => (
+        <CharacterRow
+          key={tag}
+          value={tag}
+          onChange={(t) =>
+            onChange(t ? value.map((x, j) => (j === i ? t : x)).filter((x, j, all) => all.indexOf(x) === j) : value.filter((_, j) => j !== i))
+          }
+          installedLoras={installedLoras}
+          rejectedLoras={rejectedLoras}
+          adder={
+            i === value.length - 1 ? (
+              <CharacterPicker
+                value={null}
+                onChange={add}
+                trigger={() => (
+                  <span
+                    className="inline-flex rounded p-1 text-muted hover:bg-line hover:text-neutral-100"
+                    title="Add a character"
+                    aria-label="Add a character"
+                  >
+                    <UserPlus size={15} />
+                  </span>
+                )}
+              />
+            ) : undefined
+          }
+        />
+      ))}
+    </div>
   );
 }

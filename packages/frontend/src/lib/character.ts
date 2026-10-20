@@ -188,6 +188,21 @@ export function characterColours(c: {
   return [0, 1, 2].map((i) => colours[i] ?? colours[0]);
 }
 
+/**
+ * The wash for several characters at once: one colour from each (their
+ * first), then their seconds, up to three. One character keeps all three of
+ * their own. Pure.
+ */
+export function mixColours(each: readonly (readonly string[])[]): string[] {
+  const lists = each.filter((c) => c.length);
+  if (lists.length <= 1) return [...(lists[0] ?? [])];
+  const out: string[] = [];
+  for (let i = 0; out.length < 3 && lists.some((c) => i < c.length); i++) {
+    for (const c of lists) if (i < c.length && out.length < 3) out.push(c[i]);
+  }
+  return out;
+}
+
 /** Colour choices for the edit dialog: the character's own, then a wheel. */
 export const SWATCHES = [
   "#d6455a",

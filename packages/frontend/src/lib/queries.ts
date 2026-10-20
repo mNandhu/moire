@@ -101,13 +101,16 @@ export function useTagBrowse(source: TagSource, { enabled = true } = {}) {
 
 /** A character page, by any of the character's names. Under TAGS_KEY, so
  * every tag write (a new cover, a setting) refreshes it. */
+/** A character page's query, for one (useCharacterPage) or several. */
+export const characterPageQuery = (tag: string) => ({
+  queryKey: [...TAGS_KEY, "character", tag],
+  queryFn: ({ signal }: { signal: AbortSignal }) =>
+    api<CharacterPage>(`/api/v1/tags/character?${new URLSearchParams({ tag })}`, { signal }),
+  retry: false,
+});
+
 export function useCharacterPage(tag: string) {
-  return useQuery({
-    queryKey: [...TAGS_KEY, "character", tag],
-    queryFn: ({ signal }) =>
-      api<CharacterPage>(`/api/v1/tags/character?${new URLSearchParams({ tag })}`, { signal }),
-    retry: false,
-  });
+  return useQuery(characterPageQuery(tag));
 }
 
 /** The Tags page panel for one tag; idle while `tag` is null. */

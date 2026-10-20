@@ -146,20 +146,43 @@ def _parts(raw: Any) -> list[dict[str, Any]] | None:
 
 
 def _resolve(
-    parts: list[dict[str, Any]], character: dict[str, Any] | None
+    parts: list[dict[str, Any]], characters: list[dict[str, Any]]
 ) -> list[str | list[str]]:
-    """Parts as :func:`compose_parts` items: text raw, the character's tags as
-    a chip block (nothing when no character is picked), embeddings as words."""
+    """Parts as :func:`compose_parts` items: text raw, each character's tags
+    as its own chip block, in order (nothing when none is picked), embeddings
+    as words."""
     items: list[str | list[str]] = []
     for p in parts:
         if p["kind"] == "text":
             items.append(p["text"])
         elif p["kind"] == "character":
-            if character:
-                items.append(character["tags"])
+            items.extend(c["tags"] for c in characters)
         elif p["name"]:
             items.append(f"embedding:{p['name']}")
     return items
+
+
+MAX_CHARACTERS = 8
+
+
+def characters_of(holder: dict[str, Any]) -> list[dict[str, Any]]:
+    """The characters of a queue body or a batch's inputs: ``characters``, or
+    the single ``character`` older batches have. Pure."""
+    many = holder.get("characters")
+    if isinstance(many, list):
+        return [c for c in many if isinstance(c, dict)]
+    one = holder.get("character")
+    return [one] if isinstance(one, dict) else []
+
+
+def _characters_input(body: dict[str, Any]) -> list[dict[str, Any]]:
+    """The body's characters as the batch keeps them, each tag once."""
+    out: list[dict[str, Any]] = []
+    for raw in characters_of(body)[:MAX_CHARACTERS]:
+        c = _character_input(raw)
+        if c and all(x["tag"] != c["tag"] for x in out):
+            out.append(c)
+    return out
 
 
 def _character_input(c: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -608,7 +631,7 @@ class GenerationManager:
             "batch_size": req.images,
             "checkpoint": inputs.get("checkpoint"),
             "loras": merge_loras(
-                (inputs.get("character") or {}).get("lora"), inputs.get("loras")
+                [c.get("lora") for c in characters_of(inputs)], inputs.get("loras")
             ),
         }
         try:
@@ -671,7 +694,7 @@ class GenerationManager:
         seeds = seeds_for(len(sizes), fixed=fixed)
 
         extra = list(body.get("extra") or [])
-        character = _character_input(body.get("character"))
+        characters = _characters_input(body)
         inputs = {
             "base": body.get("base") or "",
             "extra": extra,
@@ -682,7 +705,9 @@ class GenerationManager:
                 {"name": lo["name"], "strength": float(lo.get("strength", 1.0))}
                 for lo in body.get("loras") or []
             ],
-            "character": character,
+            "characters": characters,
+            # The first, for readers of batches from before several.
+            "character": characters[0] if characters else None,
             "width": body.get("width"),
             "height": body.get("height"),
             "seed": {
@@ -706,14 +731,14 @@ class GenerationManager:
                 if isinstance(composer, dict) and len(json.dumps(composer)) < 50_000
                 else None
             )
-            inputs["positive_text"] = compose_parts(_resolve(positive, character))
-            inputs["negative_text"] = compose_parts(_resolve(negative, None))
+            inputs["positive_text"] = compose_parts(_resolve(positive, characters))
+            inputs["negative_text"] = compose_parts(_resolve(negative, []))
             extra = prompt_terms(
                 " , ".join(p["text"] for p in positive if p.get("role") == "prompt")
             )
         else:
             inputs["positive_text"] = compose(
-                inputs["base"], character["tags"] if character else [], extra
+                inputs["base"], [w for c in characters for w in c["tags"]], extra
             )
             inputs["negative_text"] = compose(
                 inputs["negative_base"], inputs["negative_extra"]
@@ -753,12 +778,12 @@ class GenerationManager:
             )
             batch_id = int(res.inserted_primary_key[0])  # type: ignore[index]
             given = (body.get("name") or "").strip()
-            character = inputs.get("character")
+            who = [c["label"] or c["tag"] for c in characters_of(inputs)]
             name = given or auto_name(
                 number=batch_id,
                 generator=gen["name"],
                 extra=name_words,
-                character=character and (character["label"] or character["tag"]),
+                character=" & ".join(who) if who else None,
             )
             await conn.execute(
                 sa.update(b)
@@ -820,6 +845,7 @@ class GenerationManager:
                     "checkpoint",
                     "loras",
                     "character",
+                    "characters",
                     "positive",
                     "negative",
                     "composer",

@@ -73,3 +73,55 @@ async def test_layers_compose_in_order_and_requeue(client, comfy, seed):  # noqa
     again = await client.post(f"/generate/batches/{batch['_id']}/requeue")
     assert again.status_code == 200, again.text
     assert sorted(_texts(comfy.prompts[comfy.order[-1]])) == sorted(want)
+
+
+async def test_several_characters_each_get_a_block_and_their_lora(client, comfy, seed):  # noqa: F811
+    await make_ready(client, comfy, seed)
+    body = {
+        "positive": [
+            {"kind": "character"},
+            {"kind": "text", "role": "prompt", "text": "holding hands"},
+        ],
+        "negative": [],
+        "characters": [
+            {
+                "tag": "nahida_(genshin_impact)",
+                "label": "Nahida",
+                "tags": ["nahida_(genshin_impact)", "white_hair"],
+                "lora": {"name": "styles/flat_color_xl.safetensors", "strength": 0.8},
+            },
+            {
+                "tag": "fern_(sousou_no_frieren)",
+                "label": "Fern",
+                "tags": ["fern_(sousou_no_frieren)", "purple_hair"],
+                "lora": None,
+            },
+        ],
+        "loras": [{"name": "flat_color_xl", "strength": 0.3}],
+        "count": 1,
+    }
+    res = await client.post("/generate/batches", json=body)
+    assert res.status_code == 200, res.text
+    batch = res.json()
+    assert batch["name"] == "Nahida & Fern"
+    graph = comfy.prompts[comfy.order[-1]]
+    assert (
+        r"nahida_\(genshin_impact\), white_hair, fern_\(sousou_no_frieren\), purple_hair, holding hands"
+        in _texts(graph)
+    )
+    loras = [
+        (n["inputs"]["lora_name"], n["inputs"]["strength_model"])
+        for n in graph.values()
+        if n["class_type"] == "LoraLoader"
+    ]
+    # The character's strength wins over the same file picked as a style.
+    assert loras == [("styles/flat_color_xl.safetensors", 0.8)]
+    assert [c["tag"] for c in batch["inputs"]["characters"]] == [
+        "nahida_(genshin_impact)",
+        "fern_(sousou_no_frieren)",
+    ]
+    assert batch["inputs"]["character"]["tag"] == "nahida_(genshin_impact)"
+
+    again = await client.post(f"/generate/batches/{batch['_id']}/requeue")
+    assert again.status_code == 200, again.text
+    assert again.json()["name"] == "Nahida & Fern"
