@@ -64,6 +64,13 @@ function PromptPanel({ b }: { b: Batch }) {
               </span>
             )),
           )}
+        {i.positive
+          ?.filter((p) => p.kind === "text" && p.text?.trim() && (p.role === "prefix" || p.role === "prompt"))
+          .map((p) => (
+            <div key={p.role} className="contents">
+              {row(p.role === "prefix" ? "Prefix" : "Prompt", p.role === "prefix" ? p.label || p.text : p.text)}
+            </div>
+          ))}
         {i.extra.length > 0 && row("Extra", i.extra.map(displayWord).join(", "))}
         {i.width && i.height && row("Size", `${i.width} × ${i.height}`)}
         {i.per_request != null && row("Per request", `${i.per_request} ${i.per_request === 1 ? "image" : "images"}`)}
