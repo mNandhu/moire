@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, RefreshCw, X } from "lucide-react";
+import { Plus, RefreshCw, Settings2, X } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Section } from "../../../components/ui/Card";
 import { Badge, Button, Checkbox, Input, Picker } from "../../../components/ui";
 import { ComfyStatusLine } from "../../../components/generate/ComfyStatusLine";
+import { TestBadge } from "../../../components/generate/WorkflowPicker";
 import {
   GEN_KEY,
   HEADER_MASK,
@@ -15,12 +17,48 @@ import {
   testConnection,
   useComfyModels,
   useComfySettings,
+  useGenerators,
   type ComfySettings,
   type LoraMatch,
 } from "../../../lib/generate";
 import { useToast } from "../../../components/Toasts";
 
 type HeaderRow = { name: string; value: string };
+
+/** Every workflow set up to run in Generate: its test state and setup page. */
+function WorkflowsList() {
+  const { data: generators } = useGenerators();
+  const custom = (generators ?? []).filter((g) => g.kind === "custom");
+  return (
+    <Section
+      title={<span id="workflows">Workflows</span>}
+      actions={
+        <Link to="/generate/workflows/new" className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200">
+          <Plus size={13} /> Set up a workflow
+        </Link>
+      }
+    >
+      {custom.length === 0 ? (
+        <p className="text-sm text-faint">Only the built-in so far.</p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {custom.map((g) => (
+            <li key={g._id} className="flex items-center gap-3 py-2 text-sm">
+              <span className="min-w-0 flex-1 truncate text-neutral-100">{g.name}</span>
+              <TestBadge gen={g} />
+              <Link
+                to={`/generate/workflows/${g._id}`}
+                className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
+              >
+                <Settings2 size={13} /> Setup
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}
 
 function MatchRow({ m, onPick }: { m: LoraMatch; onPick: (name: string) => void }) {
   let status: React.ReactNode;
@@ -249,6 +287,8 @@ export function ComfySection() {
           />
         </div>
       </Section>
+
+      <WorkflowsList />
 
       <Section title="Built-in workflow">
         <label className="flex items-center justify-between gap-4 text-sm">

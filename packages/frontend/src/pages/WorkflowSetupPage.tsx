@@ -30,7 +30,6 @@ import {
   tickGroup,
   type Side,
 } from "../lib/generatorSetup";
-import { saveDraft, loadDraft } from "../lib/generateForm";
 import { cn } from "../lib/cn";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
@@ -501,10 +500,7 @@ function TestStep({ id }: { id: string }) {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => {
-                saveDraft({ ...loadDraft(), workflow: id, sampling: {}, perRequest: null });
-                navigate("/generate");
-              }}
+              onClick={() => navigate(`/generate?workflow=${encodeURIComponent(id)}`)}
             >
               <Wand2 size={14} /> Open in Generate
             </Button>

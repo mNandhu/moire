@@ -40,6 +40,9 @@ import { LibraryScopeTabs } from "../components/LibraryScopeTabs";
 import { SortControl } from "../components/SortControl";
 import { fetchSignatures } from "../lib/gen";
 import { groupWorkflows, workflowFilterName } from "../lib/workflows";
+import { useGenerators } from "../lib/generate";
+import { generatorFor } from "../components/generate/InGenerate";
+import { Badge } from "../components/ui";
 import { ambientPalette } from "../lib/blurhash";
 import { applyAmbient } from "../lib/ambient";
 import { LIBRARIES_KEY, TAGS_KEY, type Library } from "../lib/queries";
@@ -228,6 +231,19 @@ export default function AllImagesPage() {
     () => ({ lora: loraOptions.map((o) => o.name), embedding: embeddingOptions.map((o) => o.name) }),
     [loraOptions, embeddingOptions],
   );
+  const { data: generators } = useGenerators();
+  // A workflow set up to run in Generate says so beside its count.
+  const countHint = (n: number, inGenerate: boolean) =>
+    inGenerate ? (
+      <span className="inline-flex items-center gap-2">
+        <Badge tone="brand" className="px-1.5 text-2xs">
+          In Generate
+        </Badge>
+        {n.toLocaleString()}
+      </span>
+    ) : (
+      n.toLocaleString()
+    );
   const workflowPickerOptions = useMemo(
     () => [
       { value: "", label: "Any workflow" },
@@ -237,7 +253,7 @@ export default function AllImagesPage() {
               {
                 value: `w:${fam.id}`,
                 label: fam.versions.length > 1 ? `${fam.name}, all ${fam.versions.length} versions` : fam.name,
-                hint: fam.images.toLocaleString(),
+                hint: countHint(fam.images, !!generatorFor(generators, { family: fam.id })),
                 group: fam.name,
               },
             ]
@@ -246,7 +262,7 @@ export default function AllImagesPage() {
           ? fam.versions.map((v) => ({
               value: `s:${v.row.workflow_sig}`,
               label: v.note ? `${v.title} · ${v.note}` : v.title,
-              hint: v.row.count.toLocaleString(),
+              hint: countHint(v.row.count, !!generatorFor(generators, { sig: v.row.workflow_sig })),
               group: fam.name,
               indent: !!fam.id,
               keywords: fam.name,
@@ -254,7 +270,7 @@ export default function AllImagesPage() {
           : []),
       ]),
     ],
-    [workflowFamilies],
+    [workflowFamilies, generators],
   );
 
   const {

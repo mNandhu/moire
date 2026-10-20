@@ -18,6 +18,7 @@ import {
   ChevronRight,
   FileJson,
   FolderOpen,
+  Wand2,
 } from "lucide-react";
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
 import { Button, ButtonLink } from "../components/ui/Button";
@@ -44,6 +45,8 @@ import {
 import { Input } from "../components/ui/Input";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { filesFromDrop } from "../lib/dropFiles";
+import { useGenerators } from "../lib/generate";
+import { InGenerateBadge, generatorFor } from "../components/generate/InGenerate";
 
 const COLLAPSED_KEY = "rules:collapsedWorkflows";
 const isJson = (name: string) => /\.json$/i.test(name);
@@ -283,6 +286,8 @@ export default function RulesPage() {
   useEffect(() => loadSignatures(), [loadSignatures]);
 
   const families = useMemo(() => groupWorkflows(sigs), [sigs]);
+  // Workflows set up to run in Generate, to mark their families and versions.
+  const { data: generators } = useGenerators();
   const wfq = wfQuery.trim().toLowerCase();
   // The picker's search: versions matching by title, note, file or signature;
   // a workflow whose own name matches keeps all its versions.
@@ -714,6 +719,13 @@ export default function RulesPage() {
                           <Images size={12} />
                         </Link>
                       )}
+                      {fam.id && (
+                        <InGenerateBadge
+                          generators={generators}
+                          family={fam.id}
+                          versions={fam.versions.map((v) => v.row.workflow_sig)}
+                        />
+                      )}
                       <span className="ml-auto text-2xs text-faint tabular-nums shrink-0">
                         {fam.versions.length} {fam.versions.length === 1 ? "version" : "versions"}
                       </span>
@@ -831,6 +843,21 @@ export default function RulesPage() {
                   >
                     <Images size={14} /> Show in gallery
                   </ButtonLink>
+                  {(() => {
+                    const gen = generatorFor(generators, { sig: selected.workflow_sig });
+                    return gen ? (
+                      <ButtonLink variant="ghost" to={`/generate?workflow=${encodeURIComponent(gen._id)}`}>
+                        <Wand2 size={14} /> Open in Generate
+                      </ButtonLink>
+                    ) : selected.sample_image_id ? (
+                      <ButtonLink
+                        variant="ghost"
+                        to={`/generate/workflows/new?image=${encodeURIComponent(selected.sample_image_id)}`}
+                      >
+                        <Wand2 size={14} /> Use in Generate
+                      </ButtonLink>
+                    ) : null;
+                  })()}
                 </div>
 
                 {RULE_FIELDS.map((field) => (

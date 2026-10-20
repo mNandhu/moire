@@ -275,6 +275,12 @@ Each phase is usable end to end.
 Later: adherence stats, settings recall, learned negatives, X/Y batches,
 coverage gaps. Deferred: reference images.
 
+TBD (user's call, 2026-10-20): **img2img workflows**. An image slot
+(the Load Image node) mapped in setup and an input image picker on Generate,
+uploaded to ComfyUI's input folder per batch. Until then such workflows can
+be set up as they are (their Load Image keeps the file it had) and setup
+flags them: "Uses an input image".
+
 ## Implementation
 
 Planned 2026-10-20 against the code as of `9879823`. Phase 1 is detailed to

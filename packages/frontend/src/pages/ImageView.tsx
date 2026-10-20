@@ -29,6 +29,7 @@ import {
   PanelRight,
   Plus,
   Workflow,
+  Wand2,
   X,
 } from "lucide-react";
 import { resolveMediaUrl } from "../lib/media";
@@ -68,6 +69,8 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { Button } from "../components/ui/Button";
 import { MARKER_DIGIT } from "../components/ui/ScoreMark";
 import { Input } from "../components/ui/Input";
+import { useGenerators } from "../lib/generate";
+import { generatorFor } from "../components/generate/InGenerate";
 
 /** A tag's own page: the character page for a character, else the tag page. */
 const tagPageHref = (t: FlowTag) =>
@@ -845,6 +848,7 @@ export default function ImageView() {
 
               {/* Generation data */}
               <GenPanel
+                imageId={data._id}
                 gen={data.gen}
                 width={data.width}
                 height={data.height}
@@ -1323,12 +1327,28 @@ function GuessedBadge() {
   );
 }
 
+/** Set this image's workflow up for Generate, or open the one already set up. */
+function UseInGenerate({ imageId, sig }: { imageId: string; sig: string }) {
+  const { data: generators } = useGenerators();
+  const gen = generatorFor(generators, { sig });
+  return (
+    <Link
+      to={gen ? `/generate?workflow=${encodeURIComponent(gen._id)}` : `/generate/workflows/new?image=${encodeURIComponent(imageId)}`}
+      className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
+    >
+      <Wand2 size={12} /> {gen ? "Open in Generate" : "Use in Generate"}
+    </Link>
+  );
+}
+
 function GenPanel({
+  imageId,
   gen,
   width,
   height,
   onCopyAll,
 }: {
+  imageId: string;
   gen?: import("../lib/gen").GenMeta;
   width?: number;
   height?: number;
@@ -1349,6 +1369,7 @@ function GenPanel({
               <Workflow size={12} /> Edit rule
             </Link>
           )}
+          {gen.source === "comfyui" && gen.workflow_sig && <UseInGenerate imageId={imageId} sig={gen.workflow_sig} />}
           <button
             type="button"
             onClick={onCopyAll}

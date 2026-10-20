@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, FlaskConical, Loader2, Lock, Wand2 } from "lucide-react";
 import { Badge, Button, ButtonLink, Card, EmptyState, PageBody, PageHeader, Tooltip } from "../components/ui";
@@ -196,6 +196,9 @@ export default function GeneratePage() {
   // The chosen workflow; one that is gone falls back to the built-in.
   const gen = generators?.find((g) => g._id === form.workflow) ?? generators?.[0];
   const bar = runBarOf(gen);
+  // ?workflow=<id> (Open in Generate): choose it once the list has it.
+  const [params, setParams] = useSearchParams();
+  const asked = params.get("workflow");
   const hasSampling = bar.sampling;
   /** Switching workflows: settings tied to the old graph go; an empty
    * Prompt and Negative take the new one's own. */
@@ -215,6 +218,16 @@ export default function GeneratePage() {
   useEffect(() => {
     if (!form.checkpoint && checkpoints.length) set("checkpoint", checkpoints[0]);
   }, [checkpoints, form.checkpoint]);
+
+  useEffect(() => {
+    if (!asked || !generators?.some((g) => g._id === asked)) return;
+    if (asked !== form.workflow) chooseWorkflow(asked);
+    setParams((p) => {
+      p.delete("workflow");
+      return p;
+    }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asked, generators]);
 
   const pool = useMemo(() => bareTagPool(tagAgg ?? []), [tagAgg]);
   const usage = useMemo(() => new Map((models?.matching ?? []).map((m) => [m.stem, m.images])), [models]);
