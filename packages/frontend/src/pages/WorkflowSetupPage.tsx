@@ -9,6 +9,7 @@ import {
   createGenerator,
   deleteGenerator,
   discoverGenerator,
+  getGeneratorLatest,
   getGeneratorSetup,
   putGenerator,
   startTest,
@@ -584,11 +585,13 @@ function hashOf(text: string): string {
 
 export default function WorkflowSetupPage() {
   const { id } = useParams();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
   const image = params.get("image");
+  // Moving a saved workflow to a newer version: that version's image.
+  const updateTo = id ? params.get("update") : null;
   const [source, setSource] = useState<GeneratorSourceIn | null>(image ? { image_id: image } : null);
   useEffect(() => {
     if (image) setSource({ image_id: image });
@@ -609,11 +612,17 @@ export default function WorkflowSetupPage() {
     staleTime: Infinity,
   });
   const existing = useQuery({
-    queryKey: ["generate", "setup", id],
-    queryFn: ({ signal }) => getGeneratorSetup(id!, signal),
+    queryKey: ["generate", "setup", id, updateTo],
+    queryFn: ({ signal }) => getGeneratorSetup(id!, signal, updateTo),
     enabled: !!id,
     retry: false,
   });
+  const latest = useQuery({
+    queryKey: ["generate", "latest", id],
+    queryFn: ({ signal }) => getGeneratorLatest(id!, signal),
+    enabled: !!id && !updateTo,
+  });
+  const newer = latest.data?.newer;
   const setup = id ? existing.data : discovered.data;
   const loadError = (id ? existing.error : discovered.error) as Error | null;
 
@@ -634,10 +643,13 @@ export default function WorkflowSetupPage() {
     onError: (e) => toast.push((e as Error).message, "error"),
   });
   const update = useMutation({
-    mutationFn: (v: { name: string; slots: GeneratorSlots; defaults: { base: string; negative: string } }) => putGenerator(id!, v),
+    mutationFn: (v: { name: string; slots: GeneratorSlots; defaults: { base: string; negative: string } }) =>
+      putGenerator(id!, updateTo ? { ...v, source: { image_id: updateTo } } : v),
     onSuccess: (g) => {
       void qc.invalidateQueries({ queryKey: GENERATORS_KEY });
       void qc.invalidateQueries({ queryKey: ["generate", "setup", id] });
+      void qc.invalidateQueries({ queryKey: ["generate", "latest", id] });
+      if (updateTo) setParams({}, { replace: true });
       toast.push(g.ready ? "Saved" : "Saved. Run the test again before queueing.", "success");
     },
     onError: (e) => toast.push((e as Error).message, "error"),
@@ -697,7 +709,27 @@ export default function WorkflowSetupPage() {
           <span className="mx-1.5">/</span>
           {id ? "Workflow setup" : "Set up a workflow"}
         </nav>
-        {id && <div className="mb-4"><TestStep id={id} /></div>}
+        {id && newer && (
+          <Card className="mb-4 flex flex-wrap items-center gap-3 border-brand-700/60 p-4">
+            <span className="text-sm text-neutral-100">
+              A newer version is in your library: version {newer.version} of {newer.versions}.
+            </span>
+            <Tooltip content="Opens it here with your choices carried over where its nodes still fit. Saving puts the workflow back behind a test run.">
+              <Button size="sm" className="ml-auto" onClick={() => setParams({ update: newer.image_id })}>
+                Update to it
+              </Button>
+            </Tooltip>
+          </Card>
+        )}
+        {id && updateTo && (
+          <Card className="mb-4 flex flex-wrap items-center gap-3 p-4">
+            <span className="text-sm text-neutral-100">Updating to the newer version. Check the slots, then save.</span>
+            <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setParams({}, { replace: true })}>
+              Keep the current one
+            </Button>
+          </Card>
+        )}
+        {id && !updateTo && <div className="mb-4"><TestStep id={id} /></div>}
         {!id && !source ? (
           <SourceStep onSource={setSource} error={null} />
         ) : loadError ? (
@@ -712,11 +744,11 @@ export default function WorkflowSetupPage() {
           </div>
         ) : (
           <SetupForm
-            key={id ?? sourceKey ?? ""}
+            key={`${id ?? sourceKey ?? ""}:${updateTo ?? ""}`}
             setup={setup}
             initialName={saved?.name ?? defaultName(setup)}
             saving={create.isPending || update.isPending}
-            saveLabel={id ? "Save" : "Save and run test"}
+            saveLabel={updateTo ? "Update and save" : id ? "Save" : "Save and run test"}
             onSave={(v) => (id ? update.mutate(v) : create.mutate(v))}
           />
         )}

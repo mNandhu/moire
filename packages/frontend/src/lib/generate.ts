@@ -436,12 +436,25 @@ export const createGenerator = (body: {
 }) => send<Generator>("/generators", "POST", body);
 export const putGenerator = (
   id: string,
-  patch: Partial<{ name: string; slots: GeneratorSlots; defaults: { base: string; negative: string } }>,
+  patch: Partial<{
+    name: string;
+    slots: GeneratorSlots;
+    defaults: { base: string; negative: string };
+    /** Move to a newer version of the workflow: its library image. */
+    source: { image_id: string };
+  }>,
 ) => send<Generator>(`/generators/${encodeURIComponent(id)}`, "PUT", patch);
 export const deleteGenerator = (id: string) =>
   send<{ ok: boolean }>(`/generators/${encodeURIComponent(id)}`, "DELETE");
-export const getGeneratorSetup = (id: string, signal?: AbortSignal) =>
-  api<GeneratorSetup>(`${BASE}/generators/${encodeURIComponent(id)}/setup`, { signal });
+export const getGeneratorSetup = (id: string, signal?: AbortSignal, image?: string | null) =>
+  api<GeneratorSetup>(
+    `${BASE}/generators/${encodeURIComponent(id)}/setup${image ? `?image=${encodeURIComponent(image)}` : ""}`,
+    { signal },
+  );
+
+export type NewerVersion = { image_id: string; workflow_sig: string; version: number; versions: number };
+export const getGeneratorLatest = (id: string, signal?: AbortSignal) =>
+  api<{ newer: NewerVersion | null }>(`${BASE}/generators/${encodeURIComponent(id)}/latest`, { signal });
 export const putRecipe = (tag: string, patch: RecipePatch) =>
   send<Recipe>(`/recipes/${encodeURIComponent(tag)}`, "PUT", patch);
 export const createPreset = (p: Pick<Preset, "name" | "kind" | "text">) => send<Preset>("/presets", "POST", p);

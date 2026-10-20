@@ -145,6 +145,8 @@ class GeneratorIn(BaseModel):
 
 class GeneratorPatch(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=200)
+    # A newer version of the workflow: its library image.
+    source: dict[str, str] | None = None
     slots: dict[str, Any] | None = None
     defaults: dict[str, str] | None = None
 
@@ -322,13 +324,30 @@ async def _custom(generator_id: str) -> dict[str, Any]:
 
 
 @router.get("/generators/{generator_id}/setup")
-async def generator_setup_view(generator_id: str):
+async def generator_setup_view(generator_id: str, image: str | None = None):
     """The setup page for a saved Generator: its slots and defaults over a
-    fresh discovery."""
+    fresh discovery. With ``image`` (a newer version of its workflow): that
+    graph, with the slots that still fit carried over."""
     gen = await _custom(generator_id)
+    source = gen.get("source") or {}
+    if not image:
+        return await generator_setup.setup_view(gen["graph"], source, gen["slots"])
+    try:
+        graph, new = await generator_setup.image_source(image)
+    except SetupError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    new = {**new, "defaults": source.get("defaults")}
+    proposed = (await generator_setup.setup_view(graph, new))["proposed"]
     return await generator_setup.setup_view(
-        gen["graph"], gen.get("source") or {}, gen["slots"]
+        graph, new, generator_setup.carry_slots(gen["slots"], graph, proposed)
     )
+
+
+@router.get("/generators/{generator_id}/latest")
+async def generator_latest(generator_id: str):
+    """A newer version of the workflow in the library, if there is one."""
+    gen = await _custom(generator_id)
+    return {"newer": await generator_setup.newer_version(gen)}
 
 
 @router.put("/generators/{generator_id}")

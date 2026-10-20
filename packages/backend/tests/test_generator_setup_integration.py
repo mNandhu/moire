@@ -360,3 +360,77 @@ async def test_prompts_carry_the_family_and_no_cached_text(client, comfy, seed):
     assert wf["nodes"] == [{"id": 11, "type": "CLIPTextEncode"}]
     # The display node's cached text from the editor doesn't travel.
     assert comfy.prompts[pid]["22"]["inputs"]["text2"] == ""
+
+
+def _version(seed, image_id: str, graph: dict, sig: str, mtime: float):
+    seed(image_id, gen={"workflow_sig": sig}, mtime=mtime)
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.insert(t.image_gen_raw).values(
+                _id=image_id,
+                library_id="L1",
+                workflow_sig=sig,
+                raw={"prompt": graph, "workflow": {"id": "fam-1", "nodes": []}},
+            )
+        )
+
+
+async def test_update_from_a_newer_version(client, seed):
+    old = _graph("graph_hires_detailer.json")
+    _version(seed, "L1:a.png", old, "sig-1", 1.0)
+    d = (
+        await client.post(
+            "/generate/generators/discover", json={"image_id": "L1:a.png"}
+        )
+    ).json()
+    slots = {**d["slots"], "seeds": [["16", "seed"]]}
+    gen = (
+        await client.post(
+            "/generate/generators",
+            json={
+                "source": {"image_id": "L1:a.png"},
+                "name": "P",
+                "slots": slots,
+                "defaults": {"base": "mine", "negative": ""},
+            },
+        )
+    ).json()
+    assert (await client.get(f"/generate/generators/{gen['_id']}/latest")).json() == {
+        "newer": None
+    }
+
+    # A newer version: the upscaler is gone and a node was added.
+    new = {k: v for k, v in old.items() if k not in ("34", "35")}
+    new["24"] = {**new["24"], "inputs": {**new["24"]["inputs"], "images": ["26", 0]}}
+    _version(seed, "L1:b.png", new, "sig-2", 2.0)
+    newer = (await client.get(f"/generate/generators/{gen['_id']}/latest")).json()[
+        "newer"
+    ]
+    assert newer == {
+        "image_id": "L1:b.png",
+        "workflow_sig": "sig-2",
+        "version": 2,
+        "versions": 2,
+    }
+
+    s = (
+        await client.get(
+            f"/generate/generators/{gen['_id']}/setup", params={"image": "L1:b.png"}
+        )
+    ).json()
+    # The user's seed choice carries over; the old upscaler's seed doesn't.
+    assert s["slots"]["seeds"] == [["16", "seed"]]
+    assert s["slots"]["positive"] == ["14", "text"]
+    assert s["defaults"]["base"] == "mine"
+
+    r = await client.put(
+        f"/generate/generators/{gen['_id']}",
+        json={"source": {"image_id": "L1:b.png"}, "slots": s["slots"]},
+    )
+    assert r.status_code == 200, r.text
+    v = r.json()
+    assert v["ready"] is False and v["source"]["workflow_sig"] == "sig-2"
+    assert v["defaults"]["base"] == "mine"
+    assert (await client.get(f"/generate/generators/{gen['_id']}/latest")).json() == {
+        "newer": None
+    }

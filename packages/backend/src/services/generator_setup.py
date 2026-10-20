@@ -20,7 +20,7 @@ import sqlalchemy as sa
 
 from ..database import schema as t
 from ..database.db import async_conn, async_tx
-from . import attire, comfy_models, gen_metadata, tag_categories
+from . import attire, comfy_models, gen_metadata, tag_categories, workflow_family
 from .generator_graph import lora_stem
 from .generation_compose import without_terms
 from .generator_discovery import check_slots, discover
@@ -396,17 +396,107 @@ async def create(
     return gen_id
 
 
+async def newer_version(gen: dict[str, Any]) -> dict[str, Any] | None:
+    """The family's newest image when it was made with another version than
+    the one this workflow was set up from: ``{image_id, workflow_sig,
+    version, versions}`` (versions counted oldest first), else None."""
+    src = gen.get("source") or {}
+    if src.get("kind") != "image" or not src.get("family"):
+        return None
+    images = t.images
+    async with async_conn() as conn:
+        sigs = await workflow_family.family_sigs(conn, src["family"])
+        if not sigs:
+            return None
+        newest = (
+            await conn.execute(
+                sa.select(images.c._id, images.c.gen_workflow_sig)
+                .where(images.c.gen_workflow_sig.in_(sigs))
+                .order_by(
+                    sa.func.coalesce(images.c.mtime, 0).desc(), images.c._id.desc()
+                )
+                .limit(1)
+            )
+        ).first()
+        firsts = (
+            await conn.execute(
+                sa.select(images.c.gen_workflow_sig, sa.func.min(images.c.mtime))
+                .where(images.c.gen_workflow_sig.in_(sigs))
+                .group_by(images.c.gen_workflow_sig)
+            )
+        ).fetchall()
+    if newest is None or newest.gen_workflow_sig == src.get("workflow_sig"):
+        return None
+    order = [r[0] for r in sorted(firsts, key=lambda r: (r[1] or 0, r[0]))]
+    return {
+        "image_id": newest._id,
+        "workflow_sig": newest.gen_workflow_sig,
+        "version": order.index(newest.gen_workflow_sig) + 1,
+        "versions": len(order),
+    }
+
+
+def carry_slots(
+    old: dict[str, Any], graph: dict[str, Any], proposed: dict[str, Any]
+) -> dict[str, Any]:
+    """A workflow's slots moved onto a newer version of its graph: each one
+    that still points at the same kind of input there is kept (node ids
+    survive edits in ComfyUI), the rest come from the new proposal. Pure."""
+    out = dict(proposed)
+    for key, value in old.items():
+        if value is None or key in ("seeds", "drop_loras", "replace_links"):
+            continue
+        trial = {**proposed, key: value}
+        if key in ("positive", "negative"):
+            trial["replace_links"] = [
+                k for k in old.get("replace_links") or [] if k == key
+            ]
+        if not set(check_slots(graph, trial)) - set(check_slots(graph, proposed)):
+            out[key] = value
+            if key in ("positive", "negative"):
+                links = set(out.get("replace_links") or []) - {key}
+                out["replace_links"] = sorted(links | set(trial["replace_links"]))
+    seeds = [
+        p
+        for p in old.get("seeds") or []
+        if not check_slots(graph, {**proposed, "seeds": [p]})
+    ]
+    if seeds:
+        out["seeds"] = seeds
+    drops = [
+        n
+        for n in old.get("drop_loras") or []
+        if (graph.get(str(n)) or {}).get("class_type")
+        in ("LoraLoader", "LoraLoaderModelOnly")
+    ]
+    out["drop_loras"] = sorted(set(drops) | set(proposed.get("drop_loras") or []))
+    return out
+
+
 async def update(gen: dict[str, Any], patch: dict[str, Any]) -> None:
-    """Rename, or set new slots / defaults. New slots reset the test-run gate."""
+    """Rename, set new slots / defaults, or move to a newer version of the
+    graph (``source``: its image). New slots or graph reset the test gate."""
     values: dict[str, Any] = {"updated_at": time.time()}
     if isinstance(patch.get("name"), str) and patch["name"].strip():
         values["name"] = patch["name"].strip()
+    graph = gen["graph"]
+    if isinstance(patch.get("source"), dict) and patch["source"].get("image_id"):
+        graph, source = await image_source(str(patch["source"]["image_id"]))
+        if await has_work(gen["_id"]):
+            raise SetupError("Wait for its batches to finish or cancel them first")
+        values.update(
+            graph=graph,
+            source={**source, "defaults": (gen.get("source") or {}).get("defaults")},
+            ready=False,
+            test=None,
+        )
+        gen = {**gen, "source": values["source"]}
     if "slots" in patch:
         slots = clean_slots(patch["slots"])
-        problems = check_slots(gen["graph"], slots)
+        problems = check_slots(graph, slots)
         if problems:
             raise SetupError(problems[0])
-        if slots != gen["slots"]:
+        if slots != gen["slots"] or "graph" in values:
             if await has_work(gen["_id"]):
                 raise SetupError("Wait for its batches to finish or cancel them first")
             values.update(slots=slots, ready=False, test=None)
