@@ -27,26 +27,52 @@ const jobOfImage = new Map<string, string>();
 export function useAiTagging(onTagged?: () => void, imageId?: string) {
   const { push } = useToast();
   const qc = useQueryClient();
-  const [jobId, setJobId] = useState<string | null>(
-    () => (imageId && jobOfImage.get(imageId)) || null,
-  );
+  // A job picked back up from an earlier visit to this image. If it ended
+  // while the panel was closed, it is cleared quietly; if the backend
+  // restarted and forgot it, it is dropped.
+  const [resumed] = useState<string | null>(() => (imageId && jobOfImage.get(imageId)) || null);
+  const [jobId, setJobId] = useState<string | null>(resumed);
   const [submitting, setSubmitting] = useState(false);
 
-  const { data: job } = useQuery({
+  const { data: job, isError } = useQuery({
     queryKey: ["aiJob", jobId],
     queryFn: ({ signal }) => fetchAiJob(jobId!, signal),
     enabled: !!jobId,
+    retry: 1,
     refetchInterval: (query) =>
       isTerminalJob(query.state.data?.status) ? false : JOB_POLL_MS,
   });
 
+  const forget = useCallback(
+    (id: string) => {
+      if (imageId && jobOfImage.get(imageId) === id) jobOfImage.delete(imageId);
+    },
+    [imageId],
+  );
+
+  useEffect(() => {
+    if (!jobId || !isError) return;
+    forget(jobId);
+    setJobId(null);
+  }, [jobId, isError, forget]);
+
   // React to terminal transition: toast, refresh, clear the job.
   const handled = useRef<string | null>(null);
+  const sawRunning = useRef<string | null>(null);
   const status = job?.status;
+  useEffect(() => {
+    if (jobId && status && !isTerminalJob(status)) sawRunning.current = jobId;
+  }, [jobId, status]);
   useEffect(() => {
     if (!jobId || !isTerminalJob(status) || handled.current === jobId) return;
     handled.current = jobId;
-    if (imageId && jobOfImage.get(imageId) === jobId) jobOfImage.delete(imageId);
+    forget(jobId);
+    if (jobId === resumed && sawRunning.current !== jobId) {
+      // Ended while this image was closed: its toast was already due then.
+      onTagged?.();
+      setJobId(null);
+      return;
+    }
     if (status === "done") {
       push("AI tagging completed", "success");
       onTagged?.();
@@ -57,7 +83,7 @@ export function useAiTagging(onTagged?: () => void, imageId?: string) {
       push("AI tagging was cancelled", "info");
     }
     setJobId(null);
-  }, [jobId, status, job?.error, push, onTagged, imageId]);
+  }, [jobId, status, job?.error, push, onTagged, forget, resumed]);
 
   const start = useCallback(
     async (ids: string[]) => {

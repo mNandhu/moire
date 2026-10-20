@@ -42,4 +42,44 @@ describe("useAiTagging › an image's own job", () => {
     expect(back.result.current.jobId).toBe("J1");
     await waitFor(() => expect(back.result.current.job?.status).toBe("running"));
   });
+
+  it("clears quietly a job that ended while the image was closed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/ai/tag")) return new Response(JSON.stringify({ job_id: "J2" }));
+        if (url.includes("/ai/jobs/J2")) {
+          return new Response(JSON.stringify({ id: "J2", status: "done", phase: "tagging", total: 1, done: 1, failed: 0 }));
+        }
+        return new Response(JSON.stringify({ items: [], ended: {} }));
+      }),
+    );
+    const first = renderHook(() => useAiTagging(undefined, "lib:c.png"), { wrapper });
+    await act(() => first.result.current.start(["lib:c.png"]));
+    first.unmount();
+
+    const onTagged = vi.fn();
+    const back = renderHook(() => useAiTagging(onTagged, "lib:c.png"), { wrapper });
+    await waitFor(() => expect(back.result.current.jobId).toBeNull());
+    expect(onTagged).toHaveBeenCalledTimes(1);
+    // Gone from the map: a third visit starts clean.
+    const again = renderHook(() => useAiTagging(undefined, "lib:c.png"), { wrapper });
+    expect(again.result.current.jobId).toBeNull();
+  });
+
+  it("drops a job the backend no longer knows", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/ai/tag")) return new Response(JSON.stringify({ job_id: "J3" }));
+        if (url.includes("/ai/jobs/J3")) return new Response(JSON.stringify({ detail: "Not found" }), { status: 404 });
+        return new Response(JSON.stringify({ items: [], ended: {} }));
+      }),
+    );
+    const first = renderHook(() => useAiTagging(undefined, "lib:d.png"), { wrapper });
+    await act(() => first.result.current.start(["lib:d.png"]));
+    first.unmount();
+    const back = renderHook(() => useAiTagging(undefined, "lib:d.png"), { wrapper });
+    await waitFor(() => expect(back.result.current.jobId).toBeNull(), { timeout: 4000 });
+  });
 });
