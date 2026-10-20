@@ -569,11 +569,20 @@ running prompt only after a fresh `/queue` shows it is ours and running.
   generators (TIPO, regex): setup needs a hand-picked positive there.
 - The connected ComfyUI is public: no NSFW graphs to it (every text node
   travels). Tests run against the fake only.
-- Still to do: send the editor workflow with each prompt so outputs stay in
-  their family; update from latest; Remix from the viewer (undrawn); the
-  manager doesn't retry a failed connect at startup (stayed unconfigured
-  until Test once); clear cached display text (Show Text `text_0`) before
-  submitting, so stale prompts don't travel.
+- Later the same night: a failed connection setup at startup is shown and
+  retried on idle ticks (it stayed unconfigured until Test before); prompts
+  carry an editor workflow with the family id and node types only (outputs
+  join their family, no old widget text travels); Show Text caches are
+  emptied; stored graphs keep class_type / inputs / _meta only (no NaN);
+  required widget inputs a node gained since the workflow was made get
+  ComfyUI's default (UltimateSDUpscale's batch_size); update from a newer
+  version in the library (slots carried where they still fit, test gate
+  reset).
+- Checked on the user's ComfyUI (SFW only): the hires / FaceDetailer / USDU
+  workflow with its four missing LoRAs left out ran, its test passed, and
+  the image joined its family.
+- Still to do: Remix from the viewer (board "Viewer: Remix" drawn
+  2026-10-20, awaiting the user's look).
 
 ### Testing
 
