@@ -37,12 +37,16 @@ export function PinButton({
         disabled && !pending && !on && "group-hover/img:opacity-40",
       )}
     >
-      {pending ? <Loader2 size={12} className="animate-spin" /> : <Pin size={12} />}
+      <Pin size={12} />
     </button>
   );
 }
 
-/** Dims a tile while its pin is in flight. */
+/** Dims a tile behind a spinner while its pin is in flight. */
 export function PendingVeil() {
-  return <div className="pointer-events-none absolute inset-0 bg-black/40 animate-pulse" />;
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/50">
+      <Loader2 size={20} className="animate-spin text-white" />
+    </div>
+  );
 }

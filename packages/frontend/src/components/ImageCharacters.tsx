@@ -94,7 +94,7 @@ export function ImageCharacters({
                     aspect={c.aspect}
                     className={cn(
                       "h-14 w-14 ring-1 ring-line group-hover:ring-brand-300",
-                      busy && "ring-2 ring-brand-400 animate-pulse",
+                      busy && "ring-2 ring-brand-400",
                     )}
                   />
                   {busy && (
@@ -124,7 +124,7 @@ export function ImageCharacters({
                     : "bg-black/70 text-white/85 hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0 disabled:group-hover:opacity-40",
                 )}
               >
-                {busy ? <Loader2 size={12} className="animate-spin" /> : <Pin size={12} />}
+                <Pin size={12} />
               </button>
             </div>
           );
