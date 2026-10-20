@@ -254,7 +254,7 @@ def build_prompt(graph: Graph, slots: dict[str, Any], values: dict[str, Any]) ->
     loras = values.get("loras") or []
     if loras:
         if not slots.get("lora_model"):
-            raise GraphError("this Generator has no LoRA insertion point")
+            raise GraphError("this workflow has no LoRA insertion point")
         splice_loras(g, slots["lora_model"], slots.get("lora_clip"), loras)
     return g
 

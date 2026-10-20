@@ -333,7 +333,7 @@ export default function GeneratePage() {
         actions={
           <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm">
             <span className="text-muted">
-              Generator <span className="font-medium text-neutral-100">{gen?.name ?? "Built-in"}</span>
+              Workflow <span className="font-medium text-neutral-100">{gen?.name ?? "Built-in"}</span>
             </span>
             <ComfyStatusLine ready={gen ? ready : undefined} />
           </div>

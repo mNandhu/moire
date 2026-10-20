@@ -42,7 +42,7 @@ function PromptPanel({ b }: { b: Batch }) {
     <Card className="p-4 text-sm">
       <div className="mb-3 font-medium text-neutral-100">Prompt</div>
       <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
-        {row("Generator", b.generator.name ?? b.generator._id)}
+        {row("Workflow", b.generator.name ?? b.generator._id)}
         {i.checkpoint && row("Checkpoint", <span className="font-mono">{stemOf(i.checkpoint)}</span>)}
         {i.sampling && Object.keys(i.sampling).length > 0 && row("Sampling", samplingLabel(i.sampling))}
         {cast.map((c) => (

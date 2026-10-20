@@ -248,7 +248,7 @@ export function SamplingControl({
               className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-neutral-100"
             >
               <RotateCcw size={12} />
-              Generator's settings
+              Workflow's settings
             </button>
           )}
         </div>

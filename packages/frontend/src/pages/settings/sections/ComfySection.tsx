@@ -250,7 +250,7 @@ export function ComfySection() {
         </div>
       </Section>
 
-      <Section title="Built-in Generator">
+      <Section title="Built-in workflow">
         <label className="flex items-center justify-between gap-4 text-sm">
           <span className="text-neutral-200" title="The most images ComfyUI makes at once in one request">
             Images per request

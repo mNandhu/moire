@@ -315,7 +315,7 @@ async def create_generator(body: GeneratorIn):
 async def _custom(generator_id: str) -> dict[str, Any]:
     gen = await load_generator(generator_id)
     if gen is None:
-        raise HTTPException(status_code=404, detail="Generator not found")
+        raise HTTPException(status_code=404, detail="Workflow not found")
     if gen["kind"] != "custom":
         raise HTTPException(status_code=400, detail="The built-in can't be changed")
     return gen
@@ -359,7 +359,7 @@ async def get_generator(generator_id: str):
         get_generation_manager(), generator_id
     )
     if view is None:
-        raise HTTPException(status_code=404, detail="Generator not found")
+        raise HTTPException(status_code=404, detail="Workflow not found")
     return view
 
 

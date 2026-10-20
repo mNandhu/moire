@@ -797,7 +797,7 @@ class GenerationManager:
             ).one()
         gen = await load_generator(batch.generator_id)
         if gen is None:
-            raise ComfyRejected("Generator was deleted", [])
+            raise ComfyRejected("Its workflow was deleted", [])
         inputs = batch.inputs
         values = {
             "positive": inputs["positive_text"],
@@ -849,9 +849,9 @@ class GenerationManager:
             body.get("generator_id") or builtin_generator.BUILTIN_ID
         )
         if gen is None:
-            raise Invalid("Unknown generator")
+            raise Invalid("Unknown workflow")
         if not gen["ready"] and not test:
-            raise Invalid("Run the Generator's test first")
+            raise Invalid("Run the workflow's test first")
 
         shape = batch_shape(gen, body, s)
         count = shape["count"]

@@ -197,7 +197,10 @@ belongs in this file.
   the built-in one or made from a workflow family. A family-made Generator is a
   snapshot: it never follows newer images of the family on its own, only when
   the user updates it. A Generator is **ready** only after a test run whose
-  image reached the library.
+  image reached the library. The UI calls it a **workflow** (one that is set
+  up to run in Generate): the same ComfyUI workflow the extraction rules and
+  the gallery filter list, at a later stage. "Generator" stays the code and
+  API name.
 - **ComfyUI connection**: the one ComfyUI server Moiré queues on. Its
   installed LoRAs are matched to an image's LoRA names by file name, folders
   and extension ignored, so a recipe can say when a LoRA isn't installed.

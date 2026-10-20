@@ -93,6 +93,11 @@ Deferred: reference images (ControlNet / IPAdapter, face crops).
 ### Generator
 
 - A ComfyUI API-format graph plus **slots** (slot → path into the graph).
+- **UI name: "workflow"** (decided 2026-10-20, phase 3). The same ComfyUI
+  workflow the extraction rules and the gallery filter list, once set up to
+  run: Rules and the viewer say "Use in Generate" / "Open in Generate", the
+  Generate header has a workflow picker. "Generator" stays the code and API
+  name.
 - **Built-in Generator**: a simple txt2img graph Moiré ships.
 - **Custom Generator**: from an image of a workflow family (its embedded
   API graph) or an uploaded *Export (API)* JSON. Editor-format workflow files

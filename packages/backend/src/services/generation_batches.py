@@ -223,7 +223,7 @@ async def start_test(
     chained at strength 0 so a bad insertion point fails here."""
     gen = await load_generator(generator_id)
     if gen is None:
-        raise Invalid("Unknown generator")
+        raise Invalid("Unknown workflow")
     # Connecting loads the model index the first time; read it after.
     if not await manager.check():
         raise Unavailable("Can't reach ComfyUI")
