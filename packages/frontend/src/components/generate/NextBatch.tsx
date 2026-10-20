@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { GEN_KEY, estimateBatch, type EstimateBody } from "../../lib/generate";
 import { estimateNotes, type NewEstimate } from "../../lib/eta";
 import { stemOf } from "./RunControls";
+import { ShapeIcon } from "../SizeFilter";
 
 /**
  * How long the batch on the form would take if queued now. The form is read
@@ -30,7 +31,7 @@ export function useNextEstimate(body: EstimateBody | null, { busy }: { busy: boo
 
 /**
  * The next batch, drawn as a dashed outline in the output column before it
- * exists: how many images at what shape, and about how long they'd take.
+ * exists: how many images at what size, and about how long they'd take.
  * Nothing before there are runs to go on.
  */
 export function NextBatch({
@@ -38,17 +39,18 @@ export function NextBatch({
   generator,
   checkpoint,
   count,
-  ratio,
+  width,
+  height,
 }: {
   estimate: NewEstimate | undefined;
   generator: string;
   checkpoint: string | null;
   count: number;
-  ratio: number;
+  width: number;
+  height: number;
 }) {
   const said = estimateNotes(estimate, checkpoint ? stemOf(checkpoint) : null);
   if (!said) return null;
-  const tiles = Math.min(count, 4);
   return (
     <section aria-label="Next batch" className="rounded-xl border border-dashed border-line-strong/70 px-3.5 py-3">
       <div className="flex items-baseline gap-2 text-sm">
@@ -60,11 +62,11 @@ export function NextBatch({
           {said.time}
         </span>
       </div>
-      <div className="mt-2.5 flex items-end gap-1.5" aria-hidden>
-        {Array.from({ length: tiles }, (_, i) => (
-          <div key={i} className="h-14 rounded-md border border-dashed border-line" style={{ aspectRatio: ratio }} />
-        ))}
-        {count > tiles && <span className="pb-1 text-xs tabular-nums text-faint">+{count - tiles}</span>}
+      <div className="mt-1.5 flex items-center gap-2 text-xs text-muted">
+        <ShapeIcon width={width} height={height} size={12} />
+        <span className="tabular-nums">
+          {count} {count === 1 ? "image" : "images"} · {width}×{height}
+        </span>
       </div>
       {said.notes.length > 0 && (
         <div className="mt-2 space-y-0.5 text-xs text-faint">

@@ -18,6 +18,36 @@ const NO_MARKS: readonly PromptMark[] = [];
  * moved into with the arrow keys, so a typed word (a LoRA trigger) is never
  * swapped for a near match.
  */
+/** What decides where a line wraps: copied from the textarea to the copy
+ * behind it. */
+const MIRRORED = [
+  "font-family",
+  "font-size",
+  "font-weight",
+  "font-style",
+  "font-stretch",
+  "font-variant",
+  "font-feature-settings",
+  "line-height",
+  "letter-spacing",
+  "word-spacing",
+  "text-indent",
+  "text-transform",
+  "tab-size",
+  "white-space",
+  "word-break",
+  "overflow-wrap",
+  "padding-top",
+  "padding-right",
+  "padding-bottom",
+  "padding-left",
+  "border-top-width",
+  "border-right-width",
+  "border-bottom-width",
+  "border-left-width",
+  "border-style",
+] as const;
+
 export function PromptInput({
   value,
   onChange,
@@ -106,14 +136,23 @@ export function PromptInput({
     markRefs.current = markRefs.current.slice(0, marks.length);
     setShown(null);
   }, [marksKey, marks.length]);
-  // The copy behind wraps at the textarea's content width (a scrollbar
-  // narrows it) and follows its scroll.
+  // The copy behind must wrap exactly like the textarea, or an outline lands
+  // on the wrong words: it takes the textarea's own box and text styles, and
+  // its width less any scrollbar, and follows its scroll.
   const syncBack = useCallback(() => {
     const el = ref.current;
     const back = backRef.current;
     if (!el || !back) return;
-    back.style.width = `${el.clientWidth}px`;
-    back.style.height = `${el.clientHeight}px`;
+    const cs = getComputedStyle(el);
+    for (const p of MIRRORED) back.style.setProperty(p, cs.getPropertyValue(p));
+    const bx = parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+    const by = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+    back.style.borderColor = "transparent";
+    back.style.boxSizing = "border-box";
+    back.style.width = `${el.clientWidth + bx}px`;
+    back.style.height = `${el.clientHeight + by}px`;
+    back.style.top = `${el.offsetTop}px`;
+    back.style.left = `${el.offsetLeft}px`;
     back.scrollTop = el.scrollTop;
   }, []);
   useLayoutEffect(syncBack, [syncBack, value, marksKey]);

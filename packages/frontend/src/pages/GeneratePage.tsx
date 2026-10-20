@@ -376,7 +376,8 @@ export default function GeneratePage() {
                         embeddings={models?.embeddings ?? NO_STRINGS}
                         rows={6}
                         placeholder="Scene, pose, lighting"
-                        className="text-[15px] leading-relaxed"
+                        // The card is already outlined; no focus ring inside it.
+                        className="text-[15px] leading-relaxed focus-visible:shadow-none"
                         marks={counts?.marks}
                         fix={countFix}
                       />
@@ -537,7 +538,8 @@ export default function GeneratePage() {
                 generator={gen?.name ?? "Built-in"}
                 checkpoint={form.checkpoint}
                 count={form.count}
-                ratio={form.width && form.height ? form.width / form.height : 2 / 3}
+                width={form.width}
+                height={form.height}
               />
             </div>
             {status && (
