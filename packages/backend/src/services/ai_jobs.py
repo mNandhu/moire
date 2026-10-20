@@ -55,15 +55,36 @@ class AIJob:
     error: str | None = None
     errors: list[dict[str, Any]] = field(default_factory=list)
     cancel_requested: bool = False
+    # When the first image started (the model ready) and when the job ended:
+    # the span its throughput is measured over.
+    started_at: float | None = None
+    finished_at: float | None = None
 
     def image_ids(self) -> list[str]:
         return list(getattr(self, "_ids", []))
+
+    def throughput(self, now: float | None = None) -> dict[str, float]:
+        """``rate`` (images a second) and, while running, ``eta_s``; empty
+        until an image is through."""
+        processed = self.done + self.failed
+        if self.started_at is None or processed == 0:
+            return {}
+        end = self.finished_at or (now if now is not None else time.time())
+        elapsed = end - self.started_at
+        if elapsed <= 0:
+            return {}
+        rate = processed / elapsed
+        out = {"rate": round(rate, 2), "elapsed_s": round(elapsed, 1)}
+        if self.finished_at is None:
+            out["eta_s"] = round(max(0, self.total - processed) / rate, 1)
+        return out
 
     def public(self) -> dict[str, Any]:
         """Serializable view for the API. Excludes private attributes (e.g. the
         ``_ids`` work list stashed via ``setattr``), which would otherwise leak
         hundreds of image ids into every ``/status`` and ``/jobs`` poll."""
-        return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
+        out = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
+        return {**out, **self.throughput()}
 
 
 class _JobQueue:
@@ -243,6 +264,7 @@ class AIJobManager:
                     job.status = "cancelled"
                     continue
                 job.phase = "tagging"
+                job.started_at = time.time()
 
                 # Read + decode of the next image overlaps inference on the
                 # current one; `pending` is the load for ids[i].
@@ -282,6 +304,8 @@ class AIJobManager:
                     job.status = "done" if job.failed == 0 else "error"
             finally:
                 job.current = None
+                if job.started_at is not None:
+                    job.finished_at = time.time()
                 self.finished += 1
                 # Release in-flight ids
                 for image_id in ids:

@@ -27,7 +27,9 @@ import {
   Download,
   FolderOpen,
   PanelRight,
+  Plus,
   Workflow,
+  X,
 } from "lucide-react";
 import { resolveMediaUrl } from "../lib/media";
 import { useToast } from "../components/Toasts";
@@ -833,32 +835,17 @@ export default function ImageView() {
               />
 
               {/* Tags: kept last; can be long, so it never pushes Curation
-                  and Generation data below the fold. */}
-              <Section
-                title="Tags"
-                right={
-                  (aiTags.length || manualTagsRaw.length || promptTagsRaw.length) ? (
-                    <button
-                      type="button"
-                      onClick={() => void copyAllTags()}
-                      className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
-                      title="Copy all tags as prompt text"
-                    >
-                      <Copy size={12} /> Copy all
-                    </button>
-                  ) : undefined
-                }
+                  and Generation data below the fold. Keyed: an AI job
+                  belongs to the image it was started on. */}
+              <TagsSection
+                key={data._id}
+                id={data._id}
+                hasTags={Boolean(aiTags.length || manualTagsRaw.length || promptTagsRaw.length)}
+                onCopyAll={() => void copyAllTags()}
+                onChange={onTagsChanged}
               >
-                {aiTags.length ||
-                manualTagsRaw.length ||
-                promptTagsRaw.length ? (
-                  <TagFlow tags={tagFlow(data.tags, data.ai)} />
-                ) : (
-                  <div className="text-xs text-faint">No tags yet.</div>
-                )}
-                {/* Keyed: a job belongs to the image it was started on. */}
-                <TagEditor key={data._id} id={data._id} onChange={onTagsChanged} />
-              </Section>
+                <TagFlow tags={tagFlow(data.tags, data.ai)} />
+              </TagsSection>
             </div>
           </>
         )}
@@ -867,9 +854,22 @@ export default function ImageView() {
   );
 }
 
-function TagEditor({ id, onChange }: { id: string; onChange: () => void }) {
-  const [val, setVal] = useState("");
-  const [adding, setAdding] = useState(false);
+/** A quiet text action for a section header ("Copy all", "Tag with AI"). */
+const HEADER_ACTION = "inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200";
+
+function TagsSection({
+  id,
+  hasTags,
+  onCopyAll,
+  onChange,
+  children,
+}: {
+  id: string;
+  hasTags: boolean;
+  onCopyAll: () => void;
+  onChange: () => void;
+  children: React.ReactNode;
+}) {
   const { start, adopt, cancel, submitting, cancelling, jobId, job, canCancel } =
     useAiTagging(onChange);
   const { data: tasks } = useBackgroundTasks();
@@ -883,95 +883,135 @@ function TagEditor({ id, onChange }: { id: string; onChange: () => void }) {
   // image's panel, whichever image started it.
   const model = tasks?.find((t) => t.kind === "model_download" || t.kind === "model_load");
   const modelView = model ? describeTask(model) : null;
-  const jobLabel = aiJobLabel(job ?? (jobId ? { status: "queued" } : null));
-
-  const add = async () => {
-    if (adding) return;
-    const tags = val
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (!tags.length) return;
-    setAdding(true);
-    await applyTags(id, tags);
-    setVal("");
-    onChange();
-    setAdding(false);
-  };
-  const ai = () => void start([id]);
+  const busy = submitting || Boolean(jobId);
+  const jobLabel = submitting
+    ? "Starting…"
+    : aiJobLabel(job ?? (jobId ? { status: "queued" } : null));
 
   return (
-    <div className="mt-2 space-y-2">
-      <div className="flex gap-2">
-        <Input
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              void add();
-            }
-          }}
-          placeholder="Add manual tags (comma separated)"
-          className="flex-1"
-        />
-        <Button onClick={add} disabled={adding}>
-          Add
-        </Button>
-      </div>
-      <div className="flex gap-2">
-        <Button
-          variant="primary"
-          onClick={ai}
-          disabled={submitting || Boolean(jobId)}
-          title={
-            jobId
-              ? "AI tagging already in progress"
-              : "Run AI tagging for this image"
-          }
-        >
-          {submitting || jobId ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <Sparkles size={16} />
+    <Section
+      title="Tags"
+      right={
+        <div className="flex items-center gap-3">
+          {/* While it runs, the status line below says so. */}
+          {!busy && (
+            <button
+              type="button"
+              onClick={() => void start([id])}
+              className={HEADER_ACTION}
+              title="Tag this image with the AI tagger"
+            >
+              <Sparkles size={12} /> Tag with AI
+            </button>
           )}
-          {submitting ? "Starting…" : (jobLabel ?? "Run AI tagging")}
-        </Button>
-        {canCancel && (
-          <Button
-            variant="dangerSoft"
-            onClick={() => void cancel()}
+          {hasTags && (
+            <button
+              type="button"
+              onClick={onCopyAll}
+              className={HEADER_ACTION}
+              title="Copy all tags as prompt text"
+            >
+              <Copy size={12} /> Copy all
+            </button>
+          )}
+        </div>
+      }
+    >
+      {(busy || modelView) && (
+        <AiTagStatus
+          label={modelView?.title ?? jobLabel ?? "Tagging…"}
+          pct={modelView?.pct ?? null}
+          onCancel={canCancel ? () => void cancel() : undefined}
+          cancelling={cancelling || job?.status === "cancelling"}
+        />
+      )}
+      {hasTags ? children : <div className="text-xs text-faint">No tags yet.</div>}
+      <AddTags id={id} onAdded={onChange} />
+    </Section>
+  );
+}
+
+/** One line for this image's AI tagging: the shared model's download or
+ * load, else the job's own state. */
+function AiTagStatus({
+  label,
+  pct,
+  onCancel,
+  cancelling,
+}: {
+  label: string;
+  pct: number | null;
+  onCancel?: () => void;
+  cancelling: boolean;
+}) {
+  return (
+    <div role="status" className="rounded-lg bg-raised/50 px-3 py-2 space-y-2">
+      <div className="flex items-center gap-2 text-xs">
+        <Loader2 size={12} className="shrink-0 animate-spin text-brand-300" />
+        <span className="min-w-0 flex-1 truncate text-neutral-200">{label}</span>
+        {pct != null && <span className="tabular-nums text-faint">{pct}%</span>}
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
             disabled={cancelling}
-            title="Cancel the in-progress AI tagging job"
+            className="-mr-1 rounded p-0.5 text-muted hover:bg-line hover:text-neutral-100 disabled:opacity-50"
+            title="Cancel AI tagging"
+            aria-label="Cancel AI tagging"
           >
-            {cancelling ? "Cancelling…" : "Cancel"}
-          </Button>
+            <X size={12} />
+          </button>
         )}
       </div>
-
-      {modelView && (
-        <div role="status" className="space-y-1 text-xs text-muted">
-          <div className="flex items-center gap-1.5">
-            <Loader2 size={12} className="animate-spin text-brand-300" />
-            {modelView.title}
-            {modelView.pct != null && <span className="ml-auto tabular-nums text-faint">{modelView.pct}%</span>}
-          </div>
-          <ProgressBar
-            value={modelView.pct ?? 0}
-            className={modelView.pct == null ? "animate-pulse" : undefined}
-            aria-label={modelView.title}
-          />
-        </div>
-      )}
-
-      <Link
-        to="/ai-tagging"
-        className="inline-block text-xs text-faint hover:text-neutral-200"
-        title="See AI tagging coverage, jobs, and their progress"
-      >
-        View AI tagging jobs
-      </Link>
+      {pct != null && <ProgressBar value={pct} className="h-1" aria-label={label} />}
     </div>
+  );
+}
+
+/** Manual tags, typed comma separated. */
+function AddTags({ id, onAdded }: { id: string; onAdded: () => void }) {
+  const [val, setVal] = useState("");
+  const [adding, setAdding] = useState(false);
+  const tags = val
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const add = async () => {
+    if (adding || !tags.length) return;
+    setAdding(true);
+    try {
+      await applyTags(id, tags);
+      setVal("");
+      onAdded();
+    } finally {
+      setAdding(false);
+    }
+  };
+  return (
+    <form
+      className="relative"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void add();
+      }}
+    >
+      <Input
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        placeholder="Add tags, comma separated"
+        aria-label="Add tags"
+        className="w-full pr-9"
+      />
+      <button
+        type="submit"
+        disabled={adding || !tags.length}
+        className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted hover:bg-raised hover:text-neutral-100 disabled:opacity-40 disabled:pointer-events-none"
+        title="Add tags"
+        aria-label="Add tags"
+      >
+        {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+      </button>
+    </form>
   );
 }
 

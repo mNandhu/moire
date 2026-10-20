@@ -6,6 +6,7 @@ import {
   isActiveJob,
   jobAgo,
   jobStatusLabel,
+  jobThroughput,
   type AiJob,
   type AiJobError,
 } from "../../../lib/ai";
@@ -33,6 +34,11 @@ function JobErrors({ errors }: { errors: AiJobError[] }) {
   );
 }
 
+/** An image id's file name (`{library}:{path}`). */
+function fileNameOf(imageId: string) {
+  return imageId.split(/[\\/:]/).pop() || imageId;
+}
+
 function statusTone(status: string) {
   if (isActiveJob(status)) return "brand" as const;
   if (status === "error") return "danger" as const;
@@ -43,12 +49,14 @@ function statusTone(status: string) {
 export function ActiveJob({ job }: { job: AiJob }) {
   const { running, progressPct, cancelJob } = useSettings();
   const processed = job.done + job.failed;
+  const speed = jobThroughput(job);
+  const label =
+    job.status === "running" && job.phase === "model" ? "Waiting for model" : jobStatusLabel(job.status);
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="text-neutral-200 tabular-nums">
-          {jobStatusLabel(job.status)} · {processed.toLocaleString()} of{" "}
-          {job.total.toLocaleString()}
+          {label} · {processed.toLocaleString()} of {job.total.toLocaleString()}
           {job.failed > 0 && <span className="text-red-300"> · {job.failed} failed</span>}
         </span>
         <Button
@@ -60,9 +68,14 @@ export function ActiveJob({ job }: { job: AiJob }) {
         </Button>
       </div>
       <ProgressBar value={progressPct} aria-label="Tagging progress" />
-      {job.current && (
-        <div className="text-xs text-faint truncate" title={job.current}>
-          {job.current}
+      {(speed || job.current) && (
+        <div className="flex items-baseline gap-3 text-xs text-faint">
+          {speed && <span className="shrink-0 tabular-nums text-muted">{speed}</span>}
+          {job.current && (
+            <span className="min-w-0 flex-1 truncate text-right" title={job.current}>
+              {fileNameOf(job.current)}
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -89,6 +102,9 @@ export function RecentJobs() {
                   <span className="text-neutral-200 tabular-nums">
                     {j.total.toLocaleString()} {j.total === 1 ? "image" : "images"}
                   </span>
+                  {!isActiveJob(j.status) && !!j.rate && j.total > 1 && (
+                    <span className="text-faint text-xs tabular-nums">{jobThroughput(j)}</span>
+                  )}
                   {(j.skipped ?? 0) > 0 && (
                     <span className="text-faint text-xs">{j.skipped} skipped</span>
                   )}

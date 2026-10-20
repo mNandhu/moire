@@ -6,7 +6,11 @@ import {
   isActiveJob,
   isStatusBusy,
   coveragePct,
+  formatDuration,
+  formatRate,
   jobAgo,
+  jobThroughput,
+  libraryCoverageRows,
   jobStatusLabel,
   postAiJobCancel,
   postAiTag,
@@ -159,6 +163,14 @@ describe("AI commands", () => {
     });
   });
 
+  it("postTagUntagged names the library when given one", async () => {
+    const spy = mockFetch({ job_id: null, queued: 0 });
+    await postTagUntagged(50, "lib1");
+    expect(spy.mock.calls[0][1]).toMatchObject({
+      body: JSON.stringify({ limit: 50, library_id: "lib1" }),
+    });
+  });
+
   it("saveAiSettings round-trips the settings body", async () => {
     const spy = mockFetch({ model_repo: "r" });
     await saveAiSettings({ model_repo: "r" } as never);
@@ -224,5 +236,49 @@ describe("aiJobLabel", () => {
     expect(aiJobLabel({ status: "running", phase: "model" })).toBe("Waiting for model…");
     expect(aiJobLabel({ status: "running", phase: "tagging" })).toBe("Tagging…");
     expect(aiJobLabel({ status: "cancelling", phase: "model" })).toBe("Cancelling…");
+  });
+});
+
+describe("throughput", () => {
+  it("formats durations", () => {
+    expect(formatDuration(42.4)).toBe("42 s");
+    expect(formatDuration(170)).toBe("3 min");
+    expect(formatDuration(3600)).toBe("1 h");
+    expect(formatDuration(3900)).toBe("1 h 5 min");
+  });
+
+  it("formats rates per second, or per minute when slow", () => {
+    expect(formatRate(3.24)).toBe("3.2 images/s");
+    expect(formatRate(12.6)).toBe("13 images/s");
+    expect(formatRate(0.5)).toBe("30 images/min");
+    expect(formatRate(1 / 60)).toBe("1 image/min");
+  });
+
+  it("reads a running job with time left, an ended one with its span", () => {
+    expect(jobThroughput({})).toBeNull();
+    expect(jobThroughput({ rate: 2, eta_s: 120 })).toBe("2.0 images/s · 2 min left");
+    expect(jobThroughput({ rate: 2, eta_s: 0 })).toBe("2.0 images/s · almost done");
+    expect(jobThroughput({ rate: 2, elapsed_s: 45 })).toBe("2.0 images/s · 45 s");
+  });
+});
+
+describe("libraryCoverageRows", () => {
+  const names: Record<string, string> = { a: "Alpha", b: "Beta", c: "Gamma", d: "Delta" };
+  it("lists libraries with work left, most first, apart from finished ones", () => {
+    const { todo, done } = libraryCoverageRows(
+      [
+        { library_id: "a", total: 10, ai_tagged: 10 },
+        { library_id: "b", total: 100, ai_tagged: 90 },
+        { library_id: "c", total: 50, ai_tagged: 0 },
+        { library_id: "d", total: 5, ai_tagged: 5 },
+      ],
+      (id) => names[id],
+    );
+    expect(todo.map((r) => [r.name, r.untagged])).toEqual([
+      ["Gamma", 50],
+      ["Beta", 10],
+    ]);
+    expect(todo[1].pct).toBe(90);
+    expect(done.map((r) => r.name)).toEqual(["Alpha", "Delta"]);
   });
 });

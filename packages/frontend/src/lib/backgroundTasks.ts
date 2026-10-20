@@ -1,3 +1,5 @@
+import { formatDuration } from "./ai";
+
 /**
  * Background work as the activity indicator shows it. The server lists what
  * is running (`/api/v1/activity`); this words each item and works out its
@@ -29,6 +31,9 @@ export type BackgroundTask = {
   job_id?: string;
   /** A one-image AI job's image. */
   image_id?: string;
+  /** AI jobs: images a second, and seconds left at that rate. */
+  rate?: number;
+  eta_s?: number;
 };
 
 export type TaskView = {
@@ -48,6 +53,11 @@ function count(t: BackgroundTask, noun: string): string | null {
     return `${mb(t.done ?? 0)} of ${mb(t.total)} MB`;
   }
   return `${(t.done ?? 0).toLocaleString()} of ${t.total.toLocaleString()} ${noun}`;
+}
+
+function withEta(detail: string | null, eta?: number): string | null {
+  if (!detail || eta == null || eta < 1) return detail;
+  return `${detail} · ${formatDuration(eta)} left`;
 }
 
 export function taskPct(t: Pick<BackgroundTask, "done" | "total">): number | null {
@@ -86,7 +96,7 @@ export function describeTask(
     case "ai_job":
       if (t.phase === "model") return { title: "AI tagging", detail: "Waiting for the model", pct: null };
       if (t.status === "queued") return { title: "AI tagging", detail: "Queued", pct: null };
-      return { title: "AI tagging", detail: count(t, "images"), pct };
+      return { title: "AI tagging", detail: withEta(count(t, "images"), t.eta_s), pct };
     case "face_download":
       return { title: "Downloading the face model", detail: count(t, ""), pct };
     case "faces":

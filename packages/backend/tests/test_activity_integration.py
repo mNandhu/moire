@@ -111,3 +111,17 @@ def test_reprojecting_ids_never_moves_the_bar_back(monkeypatch):
         assert (task.done, task.total) == (1000, 1000)
     pcts = [d / t for d, t in seen]
     assert pcts == sorted(pcts) and all(t == 1000 for _, t in seen)
+
+
+def test_a_download_counts_the_files_already_sized():
+    from src.api.activity import _download
+
+    files = [
+        {"name": "model.onnx", "downloaded": 100, "total": 400},
+        {"name": "selected_tags.csv", "downloaded": 0, "total": None},
+    ]
+    item = _download("k", "model_download", {"status": "downloading", "files": files})
+    assert (item["done"], item["total"]) == (100, 400)
+    assert _download("k", "model_download", {"status": "done", "files": files}) is None
+    unsized = _download("k", "model_download", {"status": "downloading", "files": []})
+    assert "total" not in unsized

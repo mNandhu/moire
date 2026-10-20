@@ -59,7 +59,8 @@ export type SettingsController = {
   cancelModelLoad: () => Promise<void>;
   cancelModelDownload: () => Promise<void>;
   unloadModel: () => Promise<void>;
-  runUntagged: () => Promise<void>;
+  /** Tag up to `untaggedLimit` images without AI tags, in one library or all. */
+  runUntagged: (libraryId?: string) => Promise<void>;
   clearAllAiTags: () => Promise<void>;
   cancelJob: (jobId: string) => Promise<void>;
 };
@@ -181,9 +182,9 @@ function useSettingsController(): SettingsController {
       "Failed to unload model"
     );
 
-  const runUntagged = () =>
+  const runUntagged = (libraryId?: string) =>
     runCommand(
-      () => postTagUntagged(untaggedLimit),
+      () => postTagUntagged(untaggedLimit, libraryId),
       (r) =>
         r.queued
           ? [`Queued AI tagging for ${r.queued} images`, "success"]

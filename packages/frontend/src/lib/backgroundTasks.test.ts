@@ -29,6 +29,9 @@ describe("describeTask", () => {
     expect(describeTask({ key: "a", kind: "ai_job", phase: "tagging", status: "running", done: 1, total: 4 }).detail).toBe(
       "1 of 4 images",
     );
+    expect(describeTask({ key: "a", kind: "ai_job", status: "running", done: 10, total: 100, eta_s: 180 }).detail).toBe(
+      "10 of 100 images · 3 min left",
+    );
   });
 
   it("names an unknown library generically", () => {

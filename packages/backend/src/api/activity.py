@@ -26,13 +26,14 @@ router = APIRouter()
 
 
 def _download(key: str, kind: str, state: dict[str, Any]) -> dict[str, Any] | None:
-    """A model download in flight, as bytes of the files' known sizes."""
+    """A model download in flight, in bytes of the files whose size is known.
+    Files download one at a time and a file's size is known once it starts,
+    so the big model file counts while the small ones after it wait."""
     if state.get("status") != "downloading":
         return None
-    files = state.get("files") or []
-    sized = [f for f in files if f.get("total")]
+    sized = [f for f in state.get("files") or [] if f.get("total")]
     item: dict[str, Any] = {"key": key, "kind": kind, "unit": "bytes"}
-    if sized and len(sized) == len(files):
+    if sized:
         item["done"] = sum(int(f.get("downloaded") or 0) for f in sized)
         item["total"] = sum(int(f["total"]) for f in sized)
     return item
@@ -83,6 +84,7 @@ async def background_activity():
                 "phase": job.phase,
                 "done": job.done + job.failed,
                 "total": job.total,
+                **job.throughput(),
                 # A one-image job (an image's own "Run AI tagging") names it,
                 # so that image's panel, opened again mid-job, follows it.
                 **({"image_id": job.image_ids()[0]} if job.total == 1 else {}),

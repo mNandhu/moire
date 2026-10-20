@@ -37,6 +37,12 @@ export type AiJob = {
   /** Why the whole job failed (the model wouldn't load). */
   error?: string | null;
   errors?: AiJobError[];
+  /** Images a second since the first image; absent until one is through. */
+  rate?: number;
+  /** Seconds spent tagging (until now, or until the job ended). */
+  elapsed_s?: number;
+  /** Seconds left at the current rate; running jobs only. */
+  eta_s?: number;
 };
 
 export type AIStatus = {
@@ -157,6 +163,55 @@ export function aiJobLabel(job: Pick<AiJob, "status" | "phase"> | null | undefin
   return "Tagging…";
 }
 
+/** "45 s", "3 min", "1 h 5 min". */
+export function formatDuration(s: number): string {
+  const sec = Math.max(0, Math.round(s));
+  if (sec < 60) return `${sec} s`;
+  const m = Math.round(sec / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  return rest ? `${h} h ${rest} min` : `${h} h`;
+}
+
+/** "3.2 images/s", or per minute when slower than one a second. */
+export function formatRate(rate: number): string {
+  if (rate >= 1) return `${rate >= 10 ? Math.round(rate) : rate.toFixed(1)} images/s`;
+  const perMin = Math.round(rate * 60);
+  return `${perMin} ${perMin === 1 ? "image" : "images"}/min`;
+}
+
+/** A job's speed for a progress line: "3.2 images/s · 2 min left" while
+ * running, "3.2 images/s · 4 min" once ended; null before it's measurable. */
+export function jobThroughput(job: Pick<AiJob, "rate" | "eta_s" | "elapsed_s">): string | null {
+  if (!job.rate) return null;
+  const parts = [formatRate(job.rate)];
+  if (job.eta_s != null) parts.push(job.eta_s < 1 ? "almost done" : `${formatDuration(job.eta_s)} left`);
+  else if (job.elapsed_s != null) parts.push(formatDuration(job.elapsed_s));
+  return parts.join(" · ");
+}
+
+export type LibraryCoverageRow = AiLibraryCoverage & { name: string; untagged: number; pct: number };
+
+/** Per-library coverage for the AI Tagging page: the libraries with work
+ * left, most untagged first, and those already fully tagged. */
+export function libraryCoverageRows(
+  perLibrary: readonly AiLibraryCoverage[],
+  nameOf: (id: string) => string,
+): { todo: LibraryCoverageRow[]; done: LibraryCoverageRow[] } {
+  const rows = perLibrary.map((l) => ({
+    ...l,
+    name: nameOf(l.library_id),
+    untagged: Math.max(0, l.total - l.ai_tagged),
+    pct: coveragePct(l.ai_tagged, l.total),
+  }));
+  const byName = (a: LibraryCoverageRow, b: LibraryCoverageRow) => a.name.localeCompare(b.name);
+  return {
+    todo: rows.filter((r) => r.untagged > 0).sort((a, b) => b.untagged - a.untagged || byName(a, b)),
+    done: rows.filter((r) => r.untagged === 0).sort(byName),
+  };
+}
+
 /** Human status for a job row. */
 export function jobStatusLabel(status: string): string {
   switch (status) {
@@ -238,11 +293,12 @@ export function postModelUnload(): Promise<unknown> {
 
 /** Queue AI tagging for up to `limit` images that have no AI tags yet. */
 export function postTagUntagged(
-  limit: number
+  limit: number,
+  libraryId?: string
 ): Promise<{ job_id: string | null; queued: number }> {
   return postJson<{ job_id: string | null; queued: number }>(
     "/api/v1/ai/tag-untagged",
-    { limit }
+    libraryId ? { limit, library_id: libraryId } : { limit }
   );
 }
 
