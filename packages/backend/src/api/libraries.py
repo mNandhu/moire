@@ -11,7 +11,7 @@ from ..core.config import settings
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ..models.library import LibraryDiscoverIn, LibraryIn, LibraryUpdate
-from ..services import library_discover, library_nesting
+from ..services import activity, library_discover, library_nesting
 from ..services.scanner import cancel_scan, scan_library_async
 
 from ..services.storage_fs import delete_by_prefix
@@ -59,7 +59,8 @@ async def _rescan_libraries_around(path: str, *, exclude: str) -> None:
 async def list_libraries():
     async with async_conn() as conn:
         rows = (await conn.execute(sa.select(*_LIB_LIST_COLS))).fetchall()
-    return [dict(r._mapping) for r in rows]
+    deleting = activity.running("delete")
+    return [{**r._mapping, "deleting": r._id in deleting} for r in rows]
 
 
 @router.post("/discover")
@@ -122,40 +123,44 @@ async def add_library(body: LibraryIn):
 
 @router.delete("/{library_id}")
 async def remove_library(library_id: str):
-    # Cancel an in-flight scan first to avoid the scan recreating rows/files after deletion.
-    cancel_scan(library_id)
-    library_watch.stop_watch(library_id)
+    # Shown as deleting until it's gone: a big library takes a while.
+    with activity.track("delete", library_id=library_id):
+        # Cancel an in-flight scan first to avoid the scan recreating rows/files after deletion.
+        cancel_scan(library_id)
+        library_watch.stop_watch(library_id)
 
-    async with async_tx() as conn:
-        gone_path = (
+        async with async_tx() as conn:
+            gone_path = (
+                await conn.execute(
+                    sa.select(t.libraries.c.path).where(t.libraries.c._id == library_id)
+                )
+            ).scalar()
             await conn.execute(
-                sa.select(t.libraries.c.path).where(t.libraries.c._id == library_id)
+                sa.delete(t.libraries).where(t.libraries.c._id == library_id)
             )
-        ).scalar()
-        await conn.execute(
-            sa.delete(t.libraries).where(t.libraries.c._id == library_id)
-        )
-        # image_tags / image_gen_terms cascade via FK when images are deleted.
-        await conn.execute(
-            sa.delete(t.images).where(t.images.c.library_id == library_id)
-        )
-        await conn.execute(
-            sa.delete(t.image_gen_raw).where(t.image_gen_raw.c.library_id == library_id)
-        )
-    # Every image of this library is gone, so every tag count moved.
-    tag_index.invalidate()
-    library_nesting.invalidate()
-    # A library it sat inside takes its folder back.
-    if gone_path:
-        await _rescan_libraries_around(gone_path, exclude=library_id)
-    # remove thumbnail files for this library
-    try:
-        await anyio.to_thread.run_sync(lambda: delete_by_prefix(f"{library_id}/"))  # type: ignore[attr-defined]
-    except Exception:
-        # The library is already gone from the DB; leftover thumbs only waste space.
-        logger.warning(
-            "Failed to delete thumbnails for library %s", library_id, exc_info=True
-        )
+            # image_tags / image_gen_terms cascade via FK when images are deleted.
+            await conn.execute(
+                sa.delete(t.images).where(t.images.c.library_id == library_id)
+            )
+            await conn.execute(
+                sa.delete(t.image_gen_raw).where(
+                    t.image_gen_raw.c.library_id == library_id
+                )
+            )
+        # Every image of this library is gone, so every tag count moved.
+        tag_index.invalidate()
+        library_nesting.invalidate()
+        # A library it sat inside takes its folder back.
+        if gone_path:
+            await _rescan_libraries_around(gone_path, exclude=library_id)
+        # remove thumbnail files for this library
+        try:
+            await anyio.to_thread.run_sync(lambda: delete_by_prefix(f"{library_id}/"))  # type: ignore[attr-defined]
+        except Exception:
+            # The library is already gone from the DB; leftover thumbs only waste space.
+            logger.warning(
+                "Failed to delete thumbnails for library %s", library_id, exc_info=True
+            )
     return {"removed": library_id}
 
 

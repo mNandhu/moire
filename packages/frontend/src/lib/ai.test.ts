@@ -1,5 +1,6 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import {
+  aiJobLabel,
   fetchAiCoverage,
   isTerminalJob,
   isActiveJob,
@@ -213,5 +214,17 @@ describe("coveragePct", () => {
     [10, 10, 100],
   ])("%s of %s → %s", (part, whole, want) => {
     expect(coveragePct(part, whole)).toBe(want);
+  });
+});
+
+describe("aiJobLabel", () => {
+  it("walks through the model's download and load before tagging", () => {
+    expect(aiJobLabel(null, false)).toBeNull();
+    expect(aiJobLabel({ status: "queued" }, false)).toBe("Queued…");
+    expect(aiJobLabel({ status: "running", phase: "model" }, true)).toBe("Downloading model…");
+    expect(aiJobLabel({ status: "running", phase: "model" }, true, 42)).toBe("Downloading model 42%");
+    expect(aiJobLabel({ status: "running", phase: "model" }, false)).toBe("Loading model…");
+    expect(aiJobLabel({ status: "running", phase: "tagging" }, false)).toBe("Tagging…");
+    expect(aiJobLabel({ status: "cancelling", phase: "model" }, true)).toBe("Cancelling…");
   });
 });

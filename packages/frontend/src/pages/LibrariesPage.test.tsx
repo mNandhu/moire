@@ -106,4 +106,25 @@ describe("LibrariesPage › deleting several", () => {
 
     await waitFor(() => expect(deleted).toEqual(["outer", "inner"]));
   });
+
+  it("picks a library by clicking anywhere on its card, but not on its links", async () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ToastProvider>
+          <MemoryRouter>
+            <LibrariesPage />
+          </MemoryRouter>
+        </ToastProvider>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Select" }));
+    const box = screen.getByLabelText("Select Other") as HTMLInputElement;
+    fireEvent.click(screen.getByText("/photos")); // the path line: plain card
+    expect(box.checked).toBe(true);
+    fireEvent.click(screen.getByText("/photos"));
+    expect(box.checked).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Other" }));
+    expect(box.checked).toBe(false);
+  });
 });

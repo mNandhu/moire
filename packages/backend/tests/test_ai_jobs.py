@@ -68,7 +68,7 @@ def _job_manager(
         events.append(f"load-end:{image_id}")
         return Image.new("RGBA", (4, 4))
 
-    async def fake_tag_one(*, image_id: str, image, settings):
+    async def fake_tag_one(*, image_id: str, image, settings, model):
         events.append(f"tag-start:{image_id}")
         await asyncio.sleep(0.05)
         events.append(f"tag-end:{image_id}")
@@ -76,8 +76,12 @@ def _job_manager(
     async def fake_settings():
         return {}
 
+    async def model_ready(job, repo, cache_dir):
+        return True
+
     monkeypatch.setattr(mgr, "_load_image", fake_load)
     monkeypatch.setattr(mgr, "_tag_one", fake_tag_one)
+    monkeypatch.setattr(mgr, "_prepare_model", model_ready)
     monkeypatch.setattr(ai_jobs, "get_ai_settings", fake_settings)
     return mgr
 
@@ -164,3 +168,79 @@ async def test_cancelled_predict_holds_the_lock_until_inference_ends(monkeypatch
         acquired = time.monotonic()
     assert finished and acquired >= finished[0]
     assert task.cancelled()
+
+
+class _SlowLoader:
+    """A tagger whose model takes ``delay`` to arrive, or never does."""
+
+    def __init__(self, delay: float, error: str | None = None):
+        self.delay, self.error, self.loaded = delay, error, False
+        self.started = 0
+
+    def status(self):
+        return {"loaded": self.loaded, "repo": "r" if self.loaded else None}
+
+    def start_load(self, **_kw):
+        self.started += 1
+
+    async def ensure_loaded(self, **_kw):
+        await asyncio.sleep(self.delay)
+        if self.error:
+            raise RuntimeError(self.error)
+        self.loaded = True
+
+    def set_idle_unload_s(self, _s):
+        pass
+
+
+async def test_job_waits_on_the_model_in_its_own_phase(monkeypatch):
+    events: list[str] = []
+    mgr = _job_manager(monkeypatch, events)
+    monkeypatch.setattr(mgr, "_prepare_model", AIJobManager._prepare_model.__get__(mgr))
+    loader = _SlowLoader(0.2)
+    monkeypatch.setattr(ai_jobs, "get_tagger_manager", lambda: loader)
+    worker = asyncio.create_task(mgr._worker_loop())
+    job = await mgr.enqueue(ids=["a"])
+    try:
+        await asyncio.sleep(0.05)
+        assert (job.status, job.phase) == ("running", "model")
+        assert loader.started == 1  # through the shared load: it shows as progress
+        for _ in range(100):
+            if job.status == "done":
+                break
+            await asyncio.sleep(0.01)
+    finally:
+        worker.cancel()
+    assert (job.status, job.phase, job.done) == ("done", "tagging", 1)
+
+
+async def test_a_model_that_fails_to_load_fails_the_job_once(monkeypatch):
+    events: list[str] = []
+    mgr = _job_manager(monkeypatch, events)
+    monkeypatch.setattr(mgr, "_prepare_model", AIJobManager._prepare_model.__get__(mgr))
+    monkeypatch.setattr(
+        ai_jobs, "get_tagger_manager", lambda: _SlowLoader(0.01, "no network")
+    )
+    job = await _run(mgr, ["a", "b"])
+    assert (job.status, job.error, job.failed) == ("error", "no network", 2)
+    assert not events  # no image was read
+    assert not mgr._in_flight
+
+
+async def test_cancel_while_the_model_loads(monkeypatch):
+    events: list[str] = []
+    mgr = _job_manager(monkeypatch, events)
+    monkeypatch.setattr(mgr, "_prepare_model", AIJobManager._prepare_model.__get__(mgr))
+    monkeypatch.setattr(ai_jobs, "get_tagger_manager", lambda: _SlowLoader(5))
+    worker = asyncio.create_task(mgr._worker_loop())
+    job = await mgr.enqueue(ids=["a"])
+    try:
+        await asyncio.sleep(0.05)
+        await mgr.cancel(job.id)
+        for _ in range(200):
+            if job.status == "cancelled":
+                break
+            await asyncio.sleep(0.01)
+    finally:
+        worker.cancel()
+    assert job.status == "cancelled" and not events

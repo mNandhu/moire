@@ -23,7 +23,7 @@ import sqlalchemy as sa
 
 from ..database import schema as t
 from ..database.db import sync_conn, sync_tx
-from . import image_tags
+from . import activity, image_tags
 
 logger = logging.getLogger("moire.library_nesting")
 
@@ -211,6 +211,17 @@ def _adopt_from(outer: _Lib, inner_libs: list[_Lib]) -> int:
     if not plan:
         return 0
 
+    with activity.track("fold", library_id=outer.id, total=len(plan)) as task:
+        return _adopt_plan(outer, inner_libs, plan, task)
+
+
+def _adopt_plan(
+    outer: _Lib,
+    inner_libs: list[_Lib],
+    plan: list[tuple[str, str, str]],
+    task: activity.Task,
+) -> int:
+    im = t.images
     dropped: list[str] = []
     thumbs: list[str] = []
     settled = {i.id for i in inner_libs if i.settled}
@@ -260,6 +271,7 @@ def _adopt_from(outer: _Lib, inner_libs: list[_Lib]) -> int:
                     sa.delete(t.image_gen_raw).where(t.image_gen_raw.c._id.in_(gone))
                 )
                 dropped.extend(gone)
+            task.advance(len(chunk))
     if dropped:
         with sync_tx() as conn:
             count = conn.execute(

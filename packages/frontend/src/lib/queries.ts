@@ -30,6 +30,8 @@ export type Library = {
   watch_enabled?: boolean;
   last_event_at?: string | null;
   scanning?: boolean;
+  /** Being deleted: shown until it's gone. */
+  deleting?: boolean;
   /** Scan progress. Both stay 0 while the scan is queued or still listing files. */
   scan_total?: number;
   scan_done?: number;
@@ -62,7 +64,7 @@ export function useLibraries({ poll = true } = {}) {
     queryKey: LIBRARIES_KEY,
     queryFn: ({ signal }) => fetchLibraries(signal),
     refetchInterval: (q) =>
-      poll && q.state.data?.some((l) => l.scanning) ? 3000 : false,
+      poll && q.state.data?.some((l) => l.scanning || l.deleting) ? 3000 : false,
   });
 }
 

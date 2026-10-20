@@ -163,15 +163,32 @@ export default function LibrariesPage() {
       tone: "danger",
     });
     if (!ok) return;
+    markDeleting([id], true);
     try {
       await api(`/api/v1/libraries/${id}`, { method: "DELETE" });
     } catch (e: any) {
       push(e?.message || "Failed to delete library", "error");
       return;
+    } finally {
+      markDeleting([id], false);
     }
     refresh();
     invalidateImageFeed();
   };
+
+  // Libraries being deleted: shown greyed out until they're gone. The server
+  // says so too (`deleting`), for a delete started elsewhere or before a reload.
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const markDeleting = (ids: string[], on: boolean) =>
+    setDeletingIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  const isDeleting = (l: Library) => !!l.deleting || deletingIds.has(l._id);
 
   // Selection for deleting several at once. Ids of libraries gone since are
   // ignored rather than pruned.
@@ -206,15 +223,18 @@ export default function LibrariesPage() {
     // Outermost first: removing an inner library makes the one around it
     // rescan its folder, wasted work if that one is going too.
     const order = [...selected].sort((a, b) => a.path.length - b.path.length);
+    stopSelecting();
+    markDeleting(order.map((l) => l._id), true);
     let failed = 0;
     for (const l of order) {
       try {
         await api(`/api/v1/libraries/${l._id}`, { method: "DELETE" });
       } catch {
         failed += 1;
+      } finally {
+        markDeleting([l._id], false);
       }
     }
-    stopSelecting();
     refresh();
     invalidateImageFeed();
     if (failed) push(`Deleted ${n - failed} of ${n}. ${failed} failed.`, "error");
@@ -299,7 +319,8 @@ export default function LibrariesPage() {
   // `label` is its folder below the group it sits in, shown when the
   // library has no name of its own (the backend names it by its path).
   const renderCard = (l: Library, label: string) => {
-        const scanning = !!(progress[l._id]?.scanning || l.scanning);
+        const deleting = isDeleting(l);
+        const scanning = !deleting && !!(progress[l._id]?.scanning || l.scanning);
         const busy = scanning || rescanning.has(l._id);
         // One quiet line of facts instead of a row of same-weight badges.
         const facts = [
@@ -313,15 +334,29 @@ export default function LibrariesPage() {
         return (
           <Card
             key={l._id}
+            aria-busy={deleting || undefined}
             className={cn(
               "p-4",
               (l._id === focusId || (selecting && picked.has(l._id))) &&
                 "ring-1 ring-brand-400 border-brand-400",
+              selecting && !deleting && "cursor-pointer select-none",
+              deleting && "opacity-60",
             )}
+            // Selecting: the whole card picks it, not just the checkbox.
+            // Its links, buttons and menus still do their own thing.
+            onClick={
+              selecting && !deleting
+                ? (e) => {
+                    if ((e.target as Element).closest("a, button, input, label, [role=menu]")) return;
+                    setPickedMany([l._id], !picked.has(l._id));
+                  }
+                : undefined
+            }
           >
             <div className="flex items-center gap-4">
               {selecting && (
                 <Checkbox
+                  disabled={deleting}
                   checked={picked.has(l._id)}
                   onChange={(on) => setPickedMany([l._id], on)}
                   aria-label={`Select ${l.name || l.path}`}
@@ -344,6 +379,11 @@ export default function LibrariesPage() {
                 </div>
                 {/* Separators are a trailing dot on each fact, so a
                     wrapped line never starts with one. */}
+                {deleting ? (
+                  <div className="mt-1 text-xs text-muted inline-flex items-center gap-1.5">
+                    <Spinner className="h-3 w-3" /> Deleting…
+                  </div>
+                ) : (
                 <div className="mt-1 text-xs text-muted flex flex-wrap items-center gap-x-1.5">
                   {facts.map((f, i) => (
                     <span key={i} className="tabular-nums whitespace-nowrap">
@@ -361,8 +401,9 @@ export default function LibrariesPage() {
                     )}
                   </span>
                 </div>
+                )}
               </div>
-              <div className="flex items-center gap-1 shrink-0">
+              <div className={cn("flex items-center gap-1 shrink-0", deleting && "invisible")}>
                 <ButtonLink
                   size="sm"
                   variant="ghost"

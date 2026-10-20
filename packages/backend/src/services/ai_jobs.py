@@ -15,7 +15,9 @@ from ..database.db import async_conn
 from ..database import schema as t
 from . import image_tags
 from .ai_settings import DEFAULT_AI_SETTINGS, get_ai_settings, update_ai_settings
+from ..core.config import settings as app_settings
 from .ai_tagger import PreparedImage, decode_image, get_tagger_manager, prepare_image
+from .ai_tagger_download import model_target
 
 logger = logging.getLogger("moire.ai_jobs")
 
@@ -44,8 +46,14 @@ class AIJob:
     failed: int = 0
     skipped: int = 0
     current: str | None = None
+    # "model" while the tagger model downloads or loads, then "tagging".
+    phase: str | None = None
+    error: str | None = None
     errors: list[dict[str, Any]] = field(default_factory=list)
     cancel_requested: bool = False
+
+    def image_ids(self) -> list[str]:
+        return list(getattr(self, "_ids", []))
 
     def public(self) -> dict[str, Any]:
         """Serializable view for the API. Excludes private attributes (e.g. the
@@ -204,6 +212,19 @@ class AIJobManager:
                 get_tagger_manager().set_idle_unload_s(
                     int(settings.get("idle_unload_s", 0) or 0)
                 )
+                model = self._model_target(settings)
+                try:
+                    ready = await self._prepare_model(job, *model)
+                except Exception as e:
+                    logger.warning("AI tagging could not load the model: %s", e)
+                    job.status = "error"
+                    job.error = str(e)
+                    job.failed = len(ids)
+                    continue
+                if not ready:
+                    job.status = "cancelled"
+                    continue
+                job.phase = "tagging"
 
                 # Read + decode of the next image overlaps inference on the
                 # current one; `pending` is the load for ids[i].
@@ -225,7 +246,10 @@ class AIJobManager:
                         try:
                             img = await load
                             await self._tag_one(
-                                image_id=image_id, image=img, settings=settings
+                                image_id=image_id,
+                                image=img,
+                                settings=settings,
+                                model=model,
                             )
                             job.done += 1
                         except Exception as e:
@@ -243,6 +267,42 @@ class AIJobManager:
                 # Release in-flight ids
                 for image_id in ids:
                     self._in_flight.discard(image_id)
+
+    @staticmethod
+    def _model_target(settings: dict[str, Any]) -> tuple[str, str]:
+        """``(model_repo, cache_dir)`` as the status view spells them, so a
+        download this job starts shows up there."""
+        repo, cache_dir = model_target(
+            {
+                **settings,
+                "model_repo": settings.get("model_repo")
+                or DEFAULT_AI_SETTINGS["model_repo"],
+            }
+        )
+        return repo, str(app_settings.resolve_cache_dir(cache_dir))
+
+    async def _prepare_model(self, job: AIJob, repo: str, cache_dir: str) -> bool:
+        """Load the tagger model before the first image, through the shared
+        background load, so its download and load show as progress. Returns
+        False if the job was cancelled meanwhile; the load itself goes on."""
+        mgr = get_tagger_manager()
+        st = mgr.status()
+        if st["loaded"] and st["repo"] == repo:
+            return True
+        job.phase = "model"
+        mgr.start_load(model_repo=repo, cache_dir=cache_dir)
+        load = asyncio.ensure_future(
+            mgr.ensure_loaded(model_repo=repo, cache_dir=cache_dir)
+        )
+        while not load.done():
+            if job.cancel_requested:
+                # Not cancelled: it may be awaiting the shared load, which
+                # cancelling would cancel too.
+                load.add_done_callback(lambda f: f.cancelled() or f.exception())
+                return False
+            await asyncio.wait({load}, timeout=0.5)
+        load.result()
+        return True
 
     async def _load_image(self, image_id: str) -> PreparedImage:
         """Read, decode and (with the model loaded) resize an image's original
@@ -270,11 +330,9 @@ class AIJobManager:
         image_id: str,
         image: Image.Image | PreparedImage,
         settings: dict[str, Any],
+        model: tuple[str, str],
     ) -> None:
-        model_repo = str(
-            settings.get("model_repo") or DEFAULT_AI_SETTINGS["model_repo"]
-        )
-        cache_dir = str(settings.get("cache_dir") or DEFAULT_AI_SETTINGS["cache_dir"])
+        model_repo, cache_dir = model
 
         result = await get_tagger_manager().predict_image(
             image=image,

@@ -459,7 +459,7 @@ def test_full_reprojections_coalesce(monkeypatch):
     started, release, done = threading.Event(), threading.Event(), threading.Event()
     runs: list[int] = []
 
-    def fake_all() -> int:
+    def fake_all(**_kw) -> int:
         runs.append(1)
         started.set()
         release.wait(5)

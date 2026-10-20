@@ -21,6 +21,7 @@ import {
   ChevronRight,
   ChevronDown,
   Sparkles,
+  Loader2,
   Copy,
   Ban,
   Download,
@@ -34,6 +35,10 @@ import { ImageCharacters } from "../components/ImageCharacters";
 import { parseFilters, serializeFilters, fetchImage } from "../lib/imageFilter";
 import { useImageFeed } from "../hooks/useImageFeed";
 import { useAiTagging } from "../hooks/useAiTagging";
+import { useBackgroundTasks } from "../hooks/useBackgroundTasks";
+import { aiJobLabel } from "../lib/ai";
+import { taskPct } from "../lib/backgroundTasks";
+import { ProgressBar } from "../components/ui/ProgressBar";
 import { fetchWorkflow, workflowClipboardText } from "../lib/gen";
 import {
   applyTags,
@@ -851,7 +856,8 @@ export default function ImageView() {
                 ) : (
                   <div className="text-xs text-faint">No tags yet.</div>
                 )}
-                <TagEditor id={data._id} onChange={onTagsChanged} />
+                {/* Keyed: a job belongs to the image it was started on. */}
+                <TagEditor key={data._id} id={data._id} onChange={onTagsChanged} />
               </Section>
             </div>
           </>
@@ -864,8 +870,18 @@ export default function ImageView() {
 function TagEditor({ id, onChange }: { id: string; onChange: () => void }) {
   const [val, setVal] = useState("");
   const [adding, setAdding] = useState(false);
-  const { start, cancel, submitting, cancelling, jobId, job, canCancel } =
+  const { start, adopt, cancel, submitting, cancelling, jobId, job, canCancel } =
     useAiTagging(onChange);
+  const { data: tasks } = useBackgroundTasks();
+  // A job already tagging this image (started before the panel last closed).
+  const running = tasks?.find((t) => t.kind === "ai_job" && t.image_ids?.includes(id))?.job_id;
+  useEffect(() => {
+    if (running) adopt(running);
+  }, [running, adopt]);
+  // The model's download, when this job is the one waiting on it.
+  const download = job?.phase === "model" ? tasks?.find((t) => t.kind === "model_download") : undefined;
+  const downloadPct = download ? taskPct(download) : null;
+  const jobLabel = aiJobLabel(job ?? (jobId ? { status: "queued" } : null), !!download, downloadPct);
 
   const add = async () => {
     if (adding) return;
@@ -912,8 +928,12 @@ function TagEditor({ id, onChange }: { id: string; onChange: () => void }) {
               : "Run AI tagging for this image"
           }
         >
-          <Sparkles size={16} />
-          {submitting ? "Starting…" : jobId ? "AI tagging…" : "Run AI tagging"}
+          {submitting || jobId ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Sparkles size={16} />
+          )}
+          {submitting ? "Starting…" : (jobLabel ?? "Run AI tagging")}
         </Button>
         {canCancel && (
           <Button
@@ -927,20 +947,7 @@ function TagEditor({ id, onChange }: { id: string; onChange: () => void }) {
         )}
       </div>
 
-      {job && (
-        <div className="text-xs text-muted">
-          AI status: <span className="text-neutral-200">{job.status}</span>
-          {job.total ? (
-            <span>
-              {" "}
-              · {job.done + job.failed}/{job.total}
-              {job.failed ? (
-                <span className="text-red-300"> · {job.failed} failed</span>
-              ) : null}
-            </span>
-          ) : null}
-        </div>
-      )}
+      {downloadPct != null && <ProgressBar value={downloadPct} aria-label="Model download" />}
 
       <Link
         to="/ai-tagging"

@@ -14,6 +14,7 @@ import {
 import { NavLink } from "react-router-dom";
 import { cn } from "../lib/cn";
 import { MoireMark } from "./ui/Logo";
+import { ActivityIndicator } from "./ActivityIndicator";
 
 type Status = string;
 
@@ -153,9 +154,10 @@ export function Sidebar({
         ))}
       </nav>
 
-      {/* Footer. The backend only earns a line when something is wrong:
-          a permanent "Connected" is noise. */}
+      {/* Footer. The backend only earns a line when something is wrong
+          (a permanent "Connected" is noise), background work while it runs. */}
       <div className="px-3 py-3 border-t border-line space-y-1">
+        <ActivityIndicator collapsed={collapsed} />
         {status === "offline" && (
           <div
             className={cn(

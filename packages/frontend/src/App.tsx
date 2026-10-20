@@ -5,6 +5,7 @@ import { MobileNavContext } from "./components/ui/PageHeader";
 import { cn } from "./lib/cn";
 import { useOverlayOpen } from "./lib/backgroundLocation";
 import { restoreAmbient } from "./lib/ambient";
+import { useRefreshOnFinish } from "./hooks/useBackgroundTasks";
 
 export default function App() {
   const overlayOpen = useOverlayOpen();
@@ -16,6 +17,7 @@ export default function App() {
   const openMobileNav = useCallback(() => setMobileNavOpen(true), []);
   const loc = useLocation();
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  useRefreshOnFinish();
 
   // Navigating closes the mobile drawer.
   useEffect(() => {

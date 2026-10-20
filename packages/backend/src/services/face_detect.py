@@ -191,6 +191,8 @@ def detect(image_path: str, cache_dir: str):
 # --- The worker ----------------------------------------------------------------
 
 _pending: set[str] = set()
+# Images queued since the worker last went idle: the "of N" in its progress.
+_batch = 0
 _worker: asyncio.Task | None = None
 
 
@@ -247,11 +249,15 @@ async def _unchecked(image_ids: list[str]) -> list[str]:
 async def queue(image_ids: list[str]) -> None:
     """Find faces in these images in the background, skipping ones already
     looked at. Does nothing while detection is off or not downloaded."""
-    global _worker
+    global _worker, _batch
     ids = [i for i in dict.fromkeys(image_ids) if i and i not in _pending]
     if not ids or not await ready():
         return
-    _pending.update(await _unchecked(ids))
+    fresh = await _unchecked(ids)
+    if not _pending:
+        _batch = 0
+    _batch += len(set(fresh) - _pending)
+    _pending.update(fresh)
     if _pending and (_worker is None or _worker.done()):
         _worker = asyncio.create_task(_drain(), name="face-detect")
 
@@ -321,6 +327,22 @@ async def _detect_and_store(image_id: str, cache_dir: str) -> None:
                 index_elements=[t.image_faces.c.image_id], set_=values
             )
         )
+
+
+def progress() -> tuple[int, int]:
+    """``(done, total)`` of the images queued since the worker last went
+    idle; ``(0, 0)`` while it is."""
+    if not _pending:
+        return 0, 0
+    return _batch - len(_pending), _batch
+
+
+async def download_state() -> dict[str, Any]:
+    return (
+        get_download_manager()
+        .get_state(model_repo=MODEL, cache_dir=await _cache_dir())
+        .as_dict()
+    )
 
 
 async def idle() -> None:

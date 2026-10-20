@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { BACKGROUND_TASKS_KEY } from "./useBackgroundTasks";
 import { useToast } from "../components/Toasts";
 import {
   fetchAiJob,
@@ -21,6 +22,7 @@ const JOB_POLL_MS = 1500;
  */
 export function useAiTagging(onTagged?: () => void) {
   const { push } = useToast();
+  const qc = useQueryClient();
   const [jobId, setJobId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -42,43 +44,42 @@ export function useAiTagging(onTagged?: () => void) {
       push("AI tagging completed", "success");
       onTagged?.();
     } else if (status === "error") {
-      push("AI tagging finished with errors", "error");
+      push(job?.error ? `AI tagging failed: ${job.error}` : "AI tagging finished with errors", "error");
       onTagged?.();
     } else if (status === "cancelled") {
       push("AI tagging was cancelled", "info");
     }
     setJobId(null);
-  }, [jobId, status, push, onTagged]);
+  }, [jobId, status, job?.error, push, onTagged]);
 
   const start = useCallback(
     async (ids: string[]) => {
       if (submitting || jobId || !ids.length) return;
       setSubmitting(true);
       try {
-        // Heads-up if the model isn't ready yet (tagging will start when it is).
-        try {
-          const st = await fetch(`/api/v1/ai/status`).then((r) =>
-            r.ok ? r.json() : null,
-          );
-          if (st?.model_download?.status === "downloading") {
-            push("Model is downloading… tagging will start when ready", "info");
-          } else if (st?.model_load?.status === "loading") {
-            push("Model is loading… tagging will start when ready", "info");
-          }
-        } catch {
-          // ignore
-        }
         const { job_id } = await postAiTag(ids);
         handled.current = null;
+        // No toast: the button shows the job's progress. Its model download
+        // shows through the background-work poll, asked now, not in 5s.
         setJobId(job_id);
-        push("AI tagging queued", "success");
+        void qc.invalidateQueries({ queryKey: BACKGROUND_TASKS_KEY });
       } catch (e) {
         push(`Failed to start AI tagging: ${String(e)}`, "error");
       } finally {
         setSubmitting(false);
       }
     },
-    [submitting, jobId, push],
+    [submitting, jobId, push, qc],
+  );
+
+  /** Follow a job started elsewhere (this image's panel, opened again). */
+  const adopt = useCallback(
+    (id: string) => {
+      // Not one it already saw finish: the activity list can lag behind it.
+      if (jobId || submitting || handled.current === id) return;
+      setJobId(id);
+    },
+    [jobId, submitting],
   );
 
   const [cancelling, setCancelling] = useState(false);
@@ -100,6 +101,7 @@ export function useAiTagging(onTagged?: () => void) {
 
   return {
     start,
+    adopt,
     cancel,
     submitting,
     cancelling,

@@ -21,7 +21,7 @@ import sqlalchemy as sa
 
 from ..database.db import sync_conn, sync_tx
 from ..database import schema as t
-from . import extraction_settings, gen_metadata
+from . import activity, extraction_settings, gen_metadata
 from . import image_tags
 from . import tag_index
 from .image_tags import to_prompt
@@ -152,9 +152,12 @@ def _write_gens(conn, gens: list[tuple[str, dict]]) -> None:
             conn.execute(sa.insert(table), rows)
 
 
-def _reproject_where(where, *, force: bool = False) -> int:
+def _reproject_where(
+    where, *, force: bool = False, task: activity.Task | None = None
+) -> int:
     """Recompute ``gen.*`` for every raw row matching ``where``. Returns how
-    many were derived (written or already up to date)."""
+    many were derived (written or already up to date). ``task`` shows the
+    progress."""
     rulesets = _load_rulesets()
     positive_only = _prompt_positive_only()
     aliases = _load_aliases()
@@ -171,10 +174,14 @@ def _reproject_where(where, *, force: bool = False) -> int:
                 ).where(where)
             )
         ).fetchall()
+    if task is not None:
+        task.add_total(len(raws))
 
     updated = 0
     batch: list[tuple[str, dict]] = []
     for row in raws:
+        if task is not None:
+            task.advance()
         raw_doc = {
             "_id": row._id,
             "library_id": row.library_id,
@@ -204,13 +211,18 @@ def _reproject_where(where, *, force: bool = False) -> int:
     return updated
 
 
-def reproject_library(library_id: str, *, workflow_sig: str | None = None) -> int:
+def reproject_library(
+    library_id: str,
+    *,
+    workflow_sig: str | None = None,
+    task: activity.Task | None = None,
+) -> int:
     """Recompute ``gen.*`` for one library's images (optionally scoped to a single
     workflow signature)."""
     where = t.image_gen_raw.c.library_id == library_id
     if workflow_sig is not None:
         where = sa.and_(where, t.image_gen_raw.c.workflow_sig == workflow_sig)
-    return _reproject_where(where)
+    return _reproject_where(where, task=task)
 
 
 def reproject_image(image_id: str) -> int:
@@ -218,25 +230,34 @@ def reproject_image(image_id: str) -> int:
     return _reproject_where(t.image_gen_raw.c._id == image_id)
 
 
-def reproject_ids(image_ids: list[str]) -> int:
+def reproject_ids(image_ids: list[str], *, task: activity.Task | None = None) -> int:
     """Recompute ``gen.*`` for specific images (after a merge-rule change)."""
     updated = 0
     for i in range(0, len(image_ids), 500):
         chunk = image_ids[i : i + 500]
-        updated += _reproject_where(t.image_gen_raw.c._id.in_(chunk))
+        updated += _reproject_where(t.image_gen_raw.c._id.in_(chunk), task=task)
     return updated
 
 
-def reproject_all(*, force: bool = False) -> int:
+def reproject_all(*, force: bool = False, task: activity.Task | None = None) -> int:
     """Recompute ``gen.*`` for every image with captured generation data.
     ``force`` rewrites rows that come out unchanged too (migrations)."""
-    return _reproject_where(sa.true(), force=force)
+    return _reproject_where(sa.true(), force=force, task=task)
 
 
-def reproject_by_sig(workflow_sig: str) -> int:
+def reproject_by_sig(workflow_sig: str, *, task: activity.Task | None = None) -> int:
     """Recompute ``gen.*`` for every image of a signature across all libraries.
     Used when a ruleset is created/edited/deleted (rulesets are sig-global)."""
-    return _reproject_where(t.image_gen_raw.c.workflow_sig == workflow_sig)
+    return _reproject_where(t.image_gen_raw.c.workflow_sig == workflow_sig, task=task)
+
+
+def _tracked(work, *args, library_id: str | None = None, **kwargs) -> None:
+    """Run a reprojection as visible background work; a failure is logged."""
+    try:
+        with activity.track("reproject", library_id=library_id) as task:
+            work(*args, task=task, **kwargs)
+    except Exception:
+        logger.exception("Reprojection failed")
 
 
 def reproject_library_async(
@@ -244,9 +265,9 @@ def reproject_library_async(
 ) -> None:
     """Fire-and-forget reprojection in a daemon thread (manual endpoint)."""
     th = threading.Thread(
-        target=reproject_library,
-        args=(library_id,),
-        kwargs={"workflow_sig": workflow_sig},
+        target=_tracked,
+        args=(reproject_library, library_id),
+        kwargs={"workflow_sig": workflow_sig, "library_id": library_id},
         name=f"reproject-{library_id}",
         daemon=True,
     )
@@ -273,10 +294,7 @@ def reproject_all_async() -> None:
     def _run() -> None:
         global _all_running, _all_again
         while True:
-            try:
-                reproject_all()
-            except Exception:
-                logger.exception("Full reprojection failed")
+            _tracked(reproject_all)
             with _all_lock:
                 if not _all_again:
                     _all_running = False
@@ -307,15 +325,18 @@ def underived_ids(library_id: str) -> list[str]:
 
 def reproject_ids_async(image_ids: list[str]) -> None:
     threading.Thread(
-        target=reproject_ids, args=(image_ids,), name="reproject-ids", daemon=True
+        target=_tracked,
+        args=(reproject_ids, image_ids),
+        name="reproject-ids",
+        daemon=True,
     ).start()
 
 
 def reproject_by_sig_async(workflow_sig: str) -> None:
     """Fire-and-forget by-sig reprojection (triggered on ruleset save/delete)."""
     th = threading.Thread(
-        target=reproject_by_sig,
-        args=(workflow_sig,),
+        target=_tracked,
+        args=(reproject_by_sig, workflow_sig),
         name=f"reproject-sig-{workflow_sig[:8]}",
         daemon=True,
     )
