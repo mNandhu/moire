@@ -1,0 +1,548 @@
+{
+ "11": {
+  "_meta": {
+   "title": "CLIP Text Encode (Prompt)"
+  },
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "23",
+    1
+   ],
+   "text": [
+    "18",
+    0
+   ]
+  }
+ },
+ "111:0": {
+  "_meta": {
+   "title": "Working"
+  },
+  "class_type": "Text Multiline",
+  "inputs": {
+   "text": "text 12 of 111:0.text, 1girl, solo"
+  }
+ },
+ "111:1": {
+  "_meta": {
+   "title": "Text Concat (Mikey)"
+  },
+  "class_type": "TextConcat",
+  "inputs": {
+   "delimiter": "/",
+   "text1": [
+    "112:0",
+    0
+   ],
+   "text2": [
+    "111:0",
+    0
+   ],
+   "text3": "",
+   "text4": "",
+   "text5": ""
+  }
+ },
+ "112:0": {
+  "_meta": {
+   "title": "Save Directory"
+  },
+  "class_type": "Text Multiline",
+  "inputs": {
+   "text": "text 13 of 112:0.text, 1girl, solo"
+  }
+ },
+ "112:1": {
+  "_meta": {
+   "title": "Anything Everywhere?"
+  },
+  "class_type": "Anything Everywhere?",
+  "inputs": {
+   "anything": [
+    "112:0",
+    0
+   ],
+   "group_regex": ".*",
+   "input_regex": ".*",
+   "title_regex": "SubDir"
+  }
+ },
+ "116:0": {
+  "_meta": {
+   "title": "Working"
+  },
+  "class_type": "Text Multiline",
+  "inputs": {
+   "text": "text 11 of 116:0.text, 1girl, solo"
+  }
+ },
+ "116:1": {
+  "_meta": {
+   "title": "Text Concat (Mikey)"
+  },
+  "class_type": "TextConcat",
+  "inputs": {
+   "delimiter": "/",
+   "text1": [
+    "112:0",
+    0
+   ],
+   "text2": [
+    "116:0",
+    0
+   ],
+   "text3": "",
+   "text4": "",
+   "text5": ""
+  }
+ },
+ "12": {
+  "_meta": {
+   "title": "CLIP Text Encode (Prompt)"
+  },
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "23",
+    1
+   ],
+   "text": "text 2 of 12.text, 1girl, solo"
+  }
+ },
+ "13": {
+  "_meta": {
+   "title": "VAE Decode"
+  },
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "8",
+    0
+   ],
+   "vae": [
+    "9",
+    2
+   ]
+  }
+ },
+ "137": {
+  "_meta": {
+   "title": "\ud83e\ude9b Primitive string multiline"
+  },
+  "class_type": "Primitive string multiline [Crystools]",
+  "inputs": {
+   "string": "text 10 of 137.string, 1girl, solo"
+  }
+ },
+ "138": {
+  "_meta": {
+   "title": "Load LoRA"
+  },
+  "class_type": "LoraLoader",
+  "inputs": {
+   "clip": [
+    "9",
+    1
+   ],
+   "lora_name": "RD-MAnon-XLV1.1-000014.safetensors",
+   "model": [
+    "9",
+    0
+   ],
+   "strength_clip": 0.65,
+   "strength_model": 0.65
+  }
+ },
+ "14": {
+  "_meta": {
+   "title": "Save Image"
+  },
+  "class_type": "SaveImage",
+  "inputs": {
+   "filename_prefix": [
+    "111:1",
+    0
+   ],
+   "images": [
+    "13",
+    0
+   ]
+  }
+ },
+ "15": {
+  "_meta": {
+   "title": "VAE Encode"
+  },
+  "class_type": "VAEEncode",
+  "inputs": {
+   "pixels": [
+    "73",
+    0
+   ],
+   "vae": [
+    "9",
+    2
+   ]
+  }
+ },
+ "18": {
+  "_meta": {
+   "title": "Text Concat (Mikey)"
+  },
+  "class_type": "TextConcat",
+  "inputs": {
+   "delimiter": ",",
+   "text1": [
+    "50",
+    0
+   ],
+   "text2": [
+    "137",
+    0
+   ],
+   "text3": "",
+   "text4": "",
+   "text5": ""
+  }
+ },
+ "22": {
+  "_meta": {
+   "title": "Final Positive Prompt \ud83d\udc0d"
+  },
+  "class_type": "ShowText|pysssss",
+  "inputs": {
+   "text": [
+    "18",
+    0
+   ],
+   "text2": "text 3 of 22.text2, 1girl, solo"
+  }
+ },
+ "23": {
+  "_meta": {
+   "title": "Load LoRA"
+  },
+  "class_type": "LoraLoader",
+  "inputs": {
+   "clip": [
+    "48",
+    1
+   ],
+   "lora_name": "Expressive_H-000001.safetensors",
+   "model": [
+    "48",
+    0
+   ],
+   "strength_clip": 0.9,
+   "strength_model": 0.9
+  }
+ },
+ "29": {
+  "_meta": {
+   "title": "Preview Image"
+  },
+  "class_type": "PreviewImage",
+  "inputs": {
+   "images": [
+    "73",
+    0
+   ]
+  }
+ },
+ "30": {
+  "_meta": {
+   "title": "UltralyticsDetectorProvider"
+  },
+  "class_type": "UltralyticsDetectorProvider",
+  "inputs": {
+   "model_name": "bbox/face_yolov8s.pt"
+  }
+ },
+ "31": {
+  "_meta": {
+   "title": "SAMLoader (Impact)"
+  },
+  "class_type": "SAMLoader",
+  "inputs": {
+   "device_mode": "Prefer GPU",
+   "model_name": "sam_vit_b_01ec64.pth"
+  }
+ },
+ "4": {
+  "_meta": {
+   "title": "WD14 Tagger \ud83d\udc0d"
+  },
+  "class_type": "WD14Tagger|pysssss",
+  "inputs": {
+   "character_threshold": 0.65,
+   "exclude_tags": [
+    "76",
+    0
+   ],
+   "image": [
+    "73",
+    0
+   ],
+   "model": "wd-eva02-large-tagger-v3",
+   "replace_underscore": true,
+   "tags": "text 1 of 4.tags, 1girl, solo",
+   "threshold": 0.45,
+   "trailing_comma": true
+  }
+ },
+ "48": {
+  "_meta": {
+   "title": "Load LoRA"
+  },
+  "class_type": "LoraLoader",
+  "inputs": {
+   "clip": [
+    "49",
+    1
+   ],
+   "lora_name": "g0th1cPXL.safetensors",
+   "model": [
+    "49",
+    0
+   ],
+   "strength_clip": 0.45,
+   "strength_model": 0.45
+  }
+ },
+ "49": {
+  "_meta": {
+   "title": "Load LoRA"
+  },
+  "class_type": "LoraLoader",
+  "inputs": {
+   "clip": [
+    "80",
+    1
+   ],
+   "lora_name": "add-detail-xl.safetensors",
+   "model": [
+    "80",
+    0
+   ],
+   "strength_clip": 0.6,
+   "strength_model": 0.6
+  }
+ },
+ "50": {
+  "_meta": {
+   "title": "Your Positive Prompt"
+  },
+  "class_type": "Text Multiline",
+  "inputs": {
+   "text": "text 4 of 50.text, 1girl, solo"
+  }
+ },
+ "61": {
+  "_meta": {
+   "title": "Load Upscale Model"
+  },
+  "class_type": "UpscaleModelLoader",
+  "inputs": {
+   "model_name": "4x-AnimeSharp.pth"
+  }
+ },
+ "72": {
+  "_meta": {
+   "title": "Load Image"
+  },
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "input.png",
+   "upload": "image"
+  },
+  "is_changed": [
+   "d1edbc49cbf05fe5590d67dc9b4233b0dcc6343b1c558fa114fae43eb4ca61fb"
+  ]
+ },
+ "73": {
+  "_meta": {
+   "title": "Resize Image for SDXL (Mikey)"
+  },
+  "class_type": "Resize Image for SDXL",
+  "inputs": {
+   "crop": "disabled",
+   "image": [
+    "72",
+    0
+   ],
+   "upscale_method": "nearest-exact"
+  }
+ },
+ "76": {
+  "_meta": {
+   "title": "Tags to Exclude"
+  },
+  "class_type": "Text Multiline",
+  "inputs": {
+   "text": "text 6 of 76.text, 1girl, solo"
+  }
+ },
+ "77": {
+  "_meta": {
+   "title": "Denoising Level"
+  },
+  "class_type": "Primitive float [Crystools]",
+  "inputs": {
+   "float": 1.0
+  }
+ },
+ "78": {
+  "_meta": {
+   "title": "FaceDetailed | Denoise"
+  },
+  "class_type": "Primitive float [Crystools]",
+  "inputs": {
+   "float": 0.15
+  }
+ },
+ "8": {
+  "_meta": {
+   "title": "KSampler"
+  },
+  "class_type": "KSampler",
+  "inputs": {
+   "cfg": 2.0,
+   "denoise": [
+    "77",
+    0
+   ],
+   "latent_image": [
+    "15",
+    0
+   ],
+   "model": [
+    "23",
+    0
+   ],
+   "negative": [
+    "12",
+    0
+   ],
+   "positive": [
+    "11",
+    0
+   ],
+   "sampler_name": "dpmpp_2m_sde",
+   "scheduler": "sgm_uniform",
+   "seed": 74057555566211,
+   "steps": 6
+  }
+ },
+ "80": {
+  "_meta": {
+   "title": "Load LoRA"
+  },
+  "class_type": "LoraLoader",
+  "inputs": {
+   "clip": [
+    "88",
+    1
+   ],
+   "lora_name": "incase_style_v3-1_ponyxl_ilff.safetensors",
+   "model": [
+    "88",
+    0
+   ],
+   "strength_clip": 0.5,
+   "strength_model": 0.5
+  }
+ },
+ "83": {
+  "_meta": {
+   "title": "SystemNotification \ud83d\udc0d"
+  },
+  "class_type": "SystemNotification|pysssss",
+  "inputs": {
+   "any": [
+    "8",
+    0
+   ],
+   "message": "text 7 of 83.message, 1girl, solo",
+   "mode": "always"
+  },
+  "is_changed": NaN
+ },
+ "88": {
+  "_meta": {
+   "title": "Load LoRA"
+  },
+  "class_type": "LoraLoader",
+  "inputs": {
+   "clip": [
+    "96",
+    1
+   ],
+   "lora_name": "AliceInWonderlandXLPony_character-10V2.safetensors",
+   "model": [
+    "96",
+    0
+   ],
+   "strength_clip": 0.45,
+   "strength_model": 0.45
+  }
+ },
+ "89": {
+  "_meta": {
+   "title": "Text Multiline"
+  },
+  "class_type": "Text Multiline",
+  "inputs": {
+   "text": "text 8 of 89.text, 1girl, solo"
+  }
+ },
+ "9": {
+  "_meta": {
+   "title": "Load Checkpoint"
+  },
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "autismmixSDXL_autismmixLightning_4step.safetensors"
+  }
+ },
+ "90": {
+  "_meta": {
+   "title": "Face Detailer Prompt"
+  },
+  "class_type": "Text Multiline",
+  "inputs": {
+   "text": "text 9 of 90.text, 1girl, solo"
+  }
+ },
+ "96": {
+  "_meta": {
+   "title": "Load LoRA"
+  },
+  "class_type": "LoraLoader",
+  "inputs": {
+   "clip": [
+    "138",
+    1
+   ],
+   "lora_name": "princess_xl_v2.safetensors",
+   "model": [
+    "138",
+    0
+   ],
+   "strength_clip": 0.5,
+   "strength_model": 0.5
+  }
+ },
+ "97": {
+  "_meta": {
+   "title": "Image Size to Number"
+  },
+  "class_type": "Image Size to Number",
+  "inputs": {
+   "image": [
+    "73",
+    0
+   ]
+  }
+ }
+}

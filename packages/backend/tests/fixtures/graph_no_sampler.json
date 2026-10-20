@@ -1,0 +1,233 @@
+{
+ "12": {
+  "_meta": {
+   "title": "Queue on remote (start of chain)"
+  },
+  "class_type": "RemoteChainStart",
+  "inputs": {
+   "batch": 1,
+   "seed": 325936891392135,
+   "trigger": "on_change",
+   "workflow": [
+    "38",
+    0
+   ]
+  },
+  "is_changed": NaN
+ },
+ "13": {
+  "_meta": {
+   "title": "Queue on remote (worker)"
+  },
+  "class_type": "RemoteQueueWorker",
+  "inputs": {
+   "batch_override": 0,
+   "enabled": "true",
+   "outputs": "final_image",
+   "remote_chain": [
+    "12",
+    0
+   ],
+   "remote_url": "http://127.0.0.1:9999/"
+  }
+ },
+ "15": {
+  "_meta": {
+   "title": "Fetch from remote"
+  },
+  "class_type": "FetchRemote",
+  "inputs": {
+   "final_image": [
+    "16",
+    0
+   ],
+   "remote_info": [
+    "13",
+    1
+   ]
+  }
+ },
+ "16": {
+  "_meta": {
+   "title": "EmptyImage"
+  },
+  "class_type": "EmptyImage",
+  "inputs": {
+   "batch_size": 227,
+   "color": 0,
+   "height": 512,
+   "width": 512
+  }
+ },
+ "34": {
+  "_meta": {
+   "title": "Load workflow (disk)"
+  },
+  "class_type": "LoadDiskWorkflowJSON",
+  "inputs": {
+   "workflow": "remote_workflow.json"
+  },
+  "is_changed": [
+   "75e34349b757e09e6977863df7a288af69b91c008c8770ea98483fc70e64af44"
+  ]
+ },
+ "35": {
+  "_meta": {
+   "title": "JSON Generic Key Editor"
+  },
+  "class_type": "JSONKeyManipulatorNode",
+  "inputs": {
+   "key_path": "33.inputs.text",
+   "new_value_str": "text 1 of 35.new_value_str, 1girl, solo",
+   "value_type": "STRING",
+   "workflow": [
+    "47",
+    0
+   ]
+  },
+  "is_changed": NaN
+ },
+ "36": {
+  "_meta": {
+   "title": "JSON Generic Key Editor"
+  },
+  "class_type": "JSONKeyManipulatorNode",
+  "inputs": {
+   "key_path": "15.inputs.text",
+   "new_value_str": "text 2 of 36.new_value_str, 1girl, solo",
+   "value_type": "STRING",
+   "workflow": [
+    "35",
+    0
+   ]
+  },
+  "is_changed": NaN
+ },
+ "37": {
+  "_meta": {
+   "title": "Cipher"
+  },
+  "class_type": "JSONKeyManipulatorNode",
+  "inputs": {
+   "key_path": "22.inputs.passphrase",
+   "new_value_str": [
+    "40",
+    0
+   ],
+   "value_type": "STRING",
+   "workflow": [
+    "36",
+    0
+   ]
+  },
+  "is_changed": NaN
+ },
+ "38": {
+  "_meta": {
+   "title": "Encrypt"
+  },
+  "class_type": "JSONKeyManipulatorNode",
+  "inputs": {
+   "key_path": "36.inputs.public_key_pem",
+   "new_value_str": [
+    "44",
+    0
+   ],
+   "value_type": "STRING",
+   "workflow": [
+    "37",
+    0
+   ]
+  },
+  "is_changed": NaN
+ },
+ "39": {
+  "_meta": {
+   "title": "Decrypt Carrier Image to Image"
+  },
+  "class_type": "DecryptCarrierImageToImage_Crypto",
+  "inputs": {
+   "carrier_image_batch": [
+    "15",
+    0
+   ],
+   "private_key_password": [
+    "40",
+    0
+   ],
+   "private_key_pem": [
+    "44",
+    1
+   ]
+  }
+ },
+ "40": {
+  "_meta": {
+   "title": "Generate UUID"
+  },
+  "class_type": "GenerateUUID_mNand",
+  "inputs": {
+   "seed": 155301978380432
+  },
+  "is_changed": NaN
+ },
+ "42": {
+  "_meta": {
+   "title": "ImageMagick Decipher"
+  },
+  "class_type": "ImageMagick Decipher",
+  "inputs": {
+   "image": [
+    "39",
+    0
+   ],
+   "passphrase": [
+    "40",
+    0
+   ]
+  }
+ },
+ "43": {
+  "_meta": {
+   "title": "Save Image"
+  },
+  "class_type": "SaveImage",
+  "inputs": {
+   "filename_prefix": "remote/out",
+   "images": [
+    "42",
+    0
+   ]
+  }
+ },
+ "44": {
+  "_meta": {
+   "title": "Generate RSA Keys"
+  },
+  "class_type": "GenerateRSAKeys_Crypto",
+  "inputs": {
+   "key_size": 4096,
+   "private_key_password": [
+    "40",
+    0
+   ],
+   "public_exponent": 65537
+  }
+ },
+ "47": {
+  "_meta": {
+   "title": "Workflow Save"
+  },
+  "class_type": "JSONKeyManipulatorNode",
+  "inputs": {
+   "key_path": "29.inputs.include_workflow",
+   "new_value_str": "True",
+   "value_type": "BOOLEAN",
+   "workflow": [
+    "34",
+    0
+   ]
+  },
+  "is_changed": NaN
+ }
+}

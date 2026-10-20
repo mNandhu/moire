@@ -5,13 +5,16 @@ out_index]}}}``. A Generator pairs a graph with *slots*: where Moiré writes
 each per-request value. A slot path is ``[node_id, input_name]`` and must point
 at a literal input (not a link).
 
-Slots (phase 1; discovery for custom graphs comes with phase 3):
+Slots (found for a custom graph by :mod:`services.generator_discovery`):
 
-- ``positive`` / ``negative``: path (required)
+- ``positive`` / ``negative``: path (required); ``replace_links`` lists the
+  ones whose path is a link Moiré overwrites (a prompt joined at run time)
 - ``seeds``: list of paths, all set to the request's seed
 - ``width`` / ``height``: path or None
 - ``batch_size``: path or None (None: the count is in requests, see
-  :func:`split_requests`)
+  :func:`split_requests`); ``per_request`` the images each request makes
+  (a custom Generator's; the built-in's is a setting)
+- ``sampler`` / ``scheduler`` / ``steps`` / ``cfg``: path or None
 - ``checkpoint``: path or None
 - ``lora_model`` / ``lora_clip``: ``[node_id, out_index]`` where Moiré's LoRA
   chain starts (the "Model from" / "CLIP from" picks). ``lora_clip`` None
@@ -61,14 +64,16 @@ def _is_link(value: Any) -> bool:
     return isinstance(value, list) and len(value) == 2 and isinstance(value[0], str)
 
 
-def _write(graph: Graph, path: list[Any] | None, value: Any) -> None:
+def _write(
+    graph: Graph, path: list[Any] | None, value: Any, *, over_link: bool = False
+) -> None:
     if not path:
         return
     node_id, name = str(path[0]), path[1]
     node = graph.get(node_id)
     if node is None:
         raise GraphError(f"node {node_id} not in graph")
-    if _is_link(node["inputs"].get(name)):
+    if not over_link and _is_link(node["inputs"].get(name)):
         raise GraphError(f"node {node_id} input {name} is a link, not a value")
     node["inputs"][name] = value
 
@@ -230,8 +235,15 @@ def build_prompt(graph: Graph, slots: dict[str, Any], values: dict[str, Any]) ->
     steps, cfg, loras (list of
     :class:`LoraPick`, already merged by precedence). Never mutates ``graph``."""
     g = copy.deepcopy(graph)
-    _write(g, slots.get("positive"), values["positive"])
-    _write(g, slots.get("negative"), values.get("negative", ""))
+    # A prompt built at run time (a join) is replaced only when setup said so.
+    over = set(slots.get("replace_links") or [])
+    _write(g, slots.get("positive"), values["positive"], over_link="positive" in over)
+    _write(
+        g,
+        slots.get("negative"),
+        values.get("negative", ""),
+        over_link="negative" in over,
+    )
     for path in slots.get("seeds") or []:
         _write(g, path, values["seed"])
     for key in ("width", "height", "checkpoint", *SAMPLING):
