@@ -24,8 +24,15 @@ async def run(pid, graph):
     await asyncio.sleep(0.5)
     pending.remove(pid); running.append(pid)
     await asyncio.sleep(0.5)
-    lat = next(v for v in graph.values() if v["class_type"] == "EmptyLatentImage")["inputs"]
-    save = next(v for v in graph.values() if v["class_type"] == "SaveImage")["inputs"]["filename_prefix"]
+    # Any graph: the first node with a literal size, else a small square; any saver.
+    lat = next(
+        (v["inputs"] for v in graph.values() if isinstance(v["inputs"].get("width"), int)),
+        {"width": 512, "height": 512, "batch_size": 1},
+    )
+    lat = {**lat, "batch_size": lat.get("batch_size") if isinstance(lat.get("batch_size"), int) else 1}
+    saver = next(v for v in graph.values() if "save" in v["class_type"].lower() and "preview" not in v["class_type"].lower())
+    save = saver["inputs"].get("filename_prefix")
+    save = save if isinstance(save, str) else "fake/out"
     sub, _, stem = save.rpartition("/")
     os.makedirs(os.path.join(OUT, sub), exist_ok=True)
     files = []

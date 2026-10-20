@@ -540,6 +540,41 @@ running prompt only after a fresh `/queue` shows it is ours and running.
 - Generations page: a grid of batch covers (one image fills it, two split,
   more make a mosaic with "+N"); status shows only when not done.
 
+**As built (phase 3, 2026-10-20, in progress).** UI name "workflow".
+- Discovery (`generator_discovery.py`, pure): base sampler = the one whose
+  latent no other sampler made; prompt write targets (a runtime join offered
+  as a link overwrite, `replace_links`, never chosen for the user); a ruleset
+  pin fills a prompt the walk missed; seeds grouped by value (a linked seed
+  written on its seed node); latent size / batch size; sampling; LoRA
+  insertion point after the graph's own LoRAs; checkpoint offered (checkpoint
+  loaders only); outputs (custom savers count); input images flagged.
+- Setup API: discover (image or Export (API) upload; editor files refused),
+  create, edit (slots locked while a batch has requests to send; new slots
+  reset the test gate), delete. Snapshot graph never edited.
+- Old workflows on a changed ComfyUI (found on the user's library): the
+  workflow's own LoRAs are listed with whether ComfyUI has them and can be
+  left out (`drop_loras`, bypassed at build time, the insertion point moves
+  with them); missing ones are left out by default and a missing checkpoint
+  proposes the checkpoint slot. Node classes ComfyUI lacks are dropped where
+  no image output needs them (`/object_info` read once per connection).
+- Frontend: workflow picker on Generate (Set up a workflow first, Manage
+  workflows at the foot), read-only run-bar values with the app's Tooltip,
+  Style layer off without an insertion point; setup page
+  `/generate/workflows/new|:id` with the node picker, Remove from the prompt,
+  own LoRAs with Leave out, checklist, test run (Waiting for scan / Run
+  again); Use / Open in Generate from Rules and the viewer, In Generate
+  badges (Rules family, gallery filter); Settings lists set-up workflows.
+- The user's library: most families are RemoteQueue / RQ-Img (the sampler
+  runs on a remote ComfyUI, prompts go through JSON key nodes) or prompt
+  generators (TIPO, regex): setup needs a hand-picked positive there.
+- The connected ComfyUI is public: no NSFW graphs to it (every text node
+  travels). Tests run against the fake only.
+- Still to do: send the editor workflow with each prompt so outputs stay in
+  their family; update from latest; Remix from the viewer (undrawn); the
+  manager doesn't retry a failed connect at startup (stayed unconfigured
+  until Test once); clear cached display text (Show Text `text_0`) before
+  submitting, so stale prompts don't travel.
+
 ### Testing
 
 - Backend unit: `generator_graph` (fixtures: built-in graph, one real
