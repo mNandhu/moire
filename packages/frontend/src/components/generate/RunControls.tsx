@@ -454,25 +454,21 @@ export function CountStepper({
 }
 
 /**
- * The batch name, beside the Queue button: what this run will be called. A
- * box as tall as the button; clicking it renames, and editing stops the auto
- * name.
+ * The batch name, heading the run card: what this run will be called. The
+ * name is the button that renames it; editing stops the auto name.
  */
 export function BatchName({
   auto,
   custom,
   onChange,
-  className,
 }: {
   auto: string;
   custom: string | null;
   onChange: (name: string | null) => void;
-  className?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const name = custom ?? auto;
-  const box = "flex h-11 min-w-0 items-center gap-2 rounded-lg border border-line bg-canvas px-3 text-sm";
   if (editing) {
     const commit = () => {
       const t = draft.trim();
@@ -480,8 +476,7 @@ export function BatchName({
       setEditing(false);
     };
     return (
-      <div className={cn(box, "border-brand-500/70", className)}>
-        <span className="shrink-0 text-xs text-faint">Batch</span>
+      <div className="flex h-7 min-w-0 items-center gap-2">
         <input
           autoFocus
           aria-label="Batch name"
@@ -492,7 +487,7 @@ export function BatchName({
             if (e.key === "Enter") commit();
             if (e.key === "Escape") setEditing(false);
           }}
-          className="min-w-0 flex-1 bg-transparent text-neutral-100 outline-none"
+          className="h-full w-64 min-w-0 rounded-md border border-brand-500/70 bg-canvas px-2 text-sm font-medium text-neutral-100 outline-none"
         />
         {custom && (
           <button
@@ -502,10 +497,9 @@ export function BatchName({
               onChange(null);
               setEditing(false);
             }}
-            title="Use the auto name"
             className="shrink-0 text-xs text-muted hover:text-neutral-100"
           >
-            Auto
+            Use auto name
           </button>
         )}
       </div>
@@ -520,10 +514,9 @@ export function BatchName({
         setDraft(name);
         setEditing(true);
       }}
-      className={cn(box, "group text-left hover:border-line-strong", className)}
+      className="group -mx-1 flex h-7 min-w-0 max-w-full items-center gap-2 rounded-md px-1 text-left hover:bg-raised/60"
     >
-      <span className="shrink-0 text-xs text-faint">Batch</span>
-      <span className="min-w-0 flex-1 truncate text-neutral-100">{name}</span>
+      <span className="truncate text-sm font-medium text-neutral-100">{name}</span>
       <Pencil size={13} className="shrink-0 text-faint group-hover:text-neutral-100" />
     </button>
   );
