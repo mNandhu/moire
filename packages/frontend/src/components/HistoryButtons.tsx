@@ -8,7 +8,7 @@ import { cn } from "../lib/cn";
 // the forward button needs a hover to appear.
 const POINTER_ONLY = "hidden [@media(hover:hover)_and_(pointer:fine)]:inline-flex";
 
-type Spot = { top: number; left: number; gap: number };
+type Spot = { top: number; left: number; gap: number; width: number; height: number };
 
 /**
  * The sidebar's back button. Hovering it shows a forward button floating
@@ -32,7 +32,15 @@ export function BackButton({ className, label }: { className?: string; label?: s
     const edge = btn.closest("aside")?.getBoundingClientRect().right ?? r.right;
     // Starts right at the back button so the pointer never crosses a gap
     // on its way over; the padding carries it out past the sidebar.
-    setSpot({ top: r.top + r.height / 2, left: r.right, gap: edge - r.right + 6 });
+    // Same box as the back button (square when it carries a label), so the
+    // pair reads as one control.
+    setSpot({
+      top: r.top + r.height / 2,
+      left: r.right,
+      gap: edge - r.right + 6,
+      width: label ? r.height : r.width,
+      height: r.height,
+    });
   };
   const hide = () => {
     window.clearTimeout(hideTimer.current);
@@ -80,7 +88,8 @@ export function BackButton({ className, label }: { className?: string; label?: s
               }}
               title="Go forward"
               aria-label="Go forward"
-              className="p-1.5 rounded-lg bg-raised border border-line text-muted hover:text-neutral-100 hover:border-line-strong shadow-lg animate-fade-in"
+              style={{ width: spot.width, height: spot.height }}
+              className="flex items-center justify-center rounded-lg bg-raised border border-line text-muted hover:text-neutral-100 hover:border-line-strong shadow-lg animate-fade-in"
             >
               <ArrowRight size={18} />
             </button>

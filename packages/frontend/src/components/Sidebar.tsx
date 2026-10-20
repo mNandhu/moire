@@ -157,7 +157,8 @@ export function Sidebar({
         ))}
         {/* Under the last page (Rules), apart from them; hovering it floats a
             forward button past the sidebar's edge. */}
-        <div className={cn("hidden border-t border-line pt-3 [@media(hover:hover)_and_(pointer:fine)]:block", collapsed && "mx-2")}>
+        <div className="hidden [@media(hover:hover)_and_(pointer:fine)]:block">
+          <div className={cn("mb-3 border-t border-line", collapsed && "mx-2")} />
           <BackButton label={collapsed ? undefined : "Back"} className={collapsed ? "w-full justify-center py-2.5" : undefined} />
         </div>
       </nav>
