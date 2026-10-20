@@ -186,34 +186,44 @@ async def names_of(base: str) -> tuple[str, list[str], bool]:
 # settings.
 
 
-async def _made(conn, present: set[str]) -> list[dict]:
-    rows = (
-        await conn.execute(
-            sa.select(t.characters).where(t.characters.c.kind == "character")
-        )
-    ).mappings()
-    return [dict(r) for r in rows if r["tag"] not in present]
+async def _made(conn, present: set[str], tag: str | None = None) -> list[dict]:
+    """Hand-made character rows (one, with ``tag``) whose tag is not among
+    ``present`` (the library's tags, compared without case)."""
+    c = t.characters
+    q = sa.select(c).where(c.c.kind == "character")
+    if tag is not None:
+        q = q.where(c.c.tag == tag)
+    lowered = {p.lower() for p in present}
+    rows = (await conn.execute(q)).mappings()
+    return [dict(r) for r in rows if r["tag"].lower() not in lowered]
 
 
-async def made_tags() -> set[str]:
-    """Tags of characters made by hand that no image carries yet."""
-    rows = await tag_index.browse("all")
+async def is_made(key: str, rows: list[dict]) -> bool:
+    """Whether ``key`` is a hand-made character no image carries; ``rows``
+    are the library's tag rows (from :func:`_named`)."""
     async with async_conn() as conn:
-        return {r["tag"] for r in await _made(conn, {r["tag"] for r in rows})}
+        return bool(await _made(conn, {r["tag"] for r in rows}, key))
 
 
 async def create(tag: str, patch: dict) -> dict:
-    """Make a character by hand (or mark an existing tag one), with the
-    settings in ``patch``; returns the stored row."""
+    """Make a character by hand, with the settings in ``patch``; returns the
+    stored row. Refused when the tag already is a character, or the tagger's
+    full name of a bare name the library has as one (``furina``)."""
     if not tag:
         raise CharacterError("tag is required")
+    key, names, key_of, rows = await _named(tag)
+    vocab = await tag_categories.load()
+    bare = [b for b, cand in vocab.candidates.items() if cand.full == key.lower()]
+    if key in key_of or await is_made(key, rows) or any(b in key_of for b in bare):
+        raise Taken("Already a character")
     return await update(tag, {**patch, "kind": "character"})
 
 
 async def remove_made(tag: str) -> bool:
     """Forget a hand-made character and its recipe, only while no image
     carries it (a library character is turned off with kind instead)."""
-    if tag not in await made_tags():
+    _, _, _, rows = await _named(tag)
+    if not await is_made(tag, rows):
         return False
     async with async_tx() as conn:
         for table in (t.characters, t.recipe_edits, t.recipe_additions):
@@ -444,9 +454,8 @@ async def page(base: str) -> dict | None:
     detail = await tag_index.detail(key, "all", aliases=tuple(names[1:]))
     if detail is None:
         async with async_conn() as conn:
-            made = await _made(conn, {r["tag"] for r in rows})
-        row = next((r for r in made if r["tag"] == key), None)
-        return made_page(row) if row else None
+            made = await _made(conn, {r["tag"] for r in rows}, key)
+        return made_page(made[0]) if made else None
     n = detail["count"]
     ids = tag_index.image_ids(names)
     im, it = t.images, t.image_tags
@@ -578,6 +587,10 @@ _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 class CharacterError(ValueError):
     """An invalid character setting (HTTP 422)."""
+
+
+class Taken(CharacterError):
+    """Making a character that already is one (HTTP 409)."""
 
 
 def clean(patch: dict) -> dict:

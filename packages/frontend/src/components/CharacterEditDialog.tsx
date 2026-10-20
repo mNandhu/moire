@@ -13,6 +13,8 @@ import { deleteCharacter, updateCharacter } from "../lib/imageMutations";
 import { TAGS_KEY } from "../lib/queries";
 import { useComfyModels, useRecipe } from "../lib/generate";
 import { RecipeEditor } from "./generate/CharacterBlock";
+import { useConfirm } from "./ConfirmDialog";
+import { loadDraft, saveDraft } from "../lib/generateForm";
 import {
   SWATCHES,
   characterColours,
@@ -55,10 +57,21 @@ export function CharacterEditDialog({
   const { data: recipe } = useRecipe(c.tag);
   const { data: models } = useComfyModels();
 
+  const confirm = useConfirm();
   const remove = async () => {
+    const ok = await confirm({
+      title: `Delete ${name || fromTag.name}?`,
+      message: "Their identity tags and LoRA go too.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       await deleteCharacter(c.tag);
+      // Not left picked in the composer.
+      const draft = loadDraft();
+      if (draft.characters.includes(c.tag)) saveDraft({ ...draft, characters: draft.characters.filter((t) => t !== c.tag) });
       await qc.invalidateQueries({ queryKey: TAGS_KEY });
       onClose();
       navigate("/tags");

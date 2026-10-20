@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 /**
  * The ambient wash behind the app takes its colours from the images in view
  * (see `ambientPalette` in ./blurhash). The gallery sets them; every other
@@ -49,6 +51,12 @@ export function restoreAmbient() {
  * open: returns the undo, which puts the previous palette back. Nothing is
  * stored, so leaving the page leaves the gallery's palette as it was.
  */
+/** Light the page with `colours` while mounted (none: leave it as it is). */
+export function useAmbientTint(colours: readonly string[]): void {
+  const key = colours.join("|");
+  useEffect(() => tintAmbient(key ? key.split("|") : []), [key]);
+}
+
 export function tintAmbient(colors: readonly string[]): () => void {
   // Nothing to light with (still loading): touch nothing, so the undo can't
   // put back a palette read before the app restored the stored one.

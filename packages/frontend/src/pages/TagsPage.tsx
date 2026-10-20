@@ -115,7 +115,6 @@ export default function TagsPage() {
       ),
     [tags, q, sort, showBoilerplate, isBoilerplate],
   );
-  const shownCount = characters.length + general.length;
 
   // Escape closes the panel (the rename dialog handles its own Escape first),
   // but not while an image is open over the page: that Escape is the viewer's.
@@ -182,7 +181,7 @@ export default function TagsPage() {
   const madeRows: BrowseTag[] = useMemo(
     () =>
       filterTags(
-        made.map((tag) => ({
+        (source === "all" ? made : []).map((tag) => ({
           tag,
           count: 0,
           category: "character" as const,
@@ -193,9 +192,10 @@ export default function TagsPage() {
         q,
         null,
       ),
-    [made, q],
+    [made, q, source],
   );
   const shelf = useMemo(() => [...characters, ...madeRows], [characters, madeRows]);
+  const shownCount = shelf.length + general.length;
   const [creating, setCreating] = useState(false);
   const onSelect = (tag: string) => (made.includes(tag) ? navigate(characterHref(tag)) : setSelected(tag));
   const sectionProps = { view, source, selected, onSelect, epoch: tags };

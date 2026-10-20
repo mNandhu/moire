@@ -15,6 +15,7 @@ import { toggleDropped } from "../../lib/recipe";
 import { FieldLabel, stemOf } from "./RunControls";
 import { bareTagPool } from "./ChipInput";
 import { ExpandButton } from "./Layers";
+import { MAX_CHARACTERS, replaceCharacter } from "../../lib/generateForm";
 import { NewCharacterDialog } from "../NewCharacterDialog";
 import { TagSuggestList, useTagMatches } from "../TagSuggestList";
 import { useTagAggregate } from "../../lib/queries";
@@ -35,9 +36,9 @@ function characterOptions(list: readonly CharacterEntry[]): PickerOption[] {
   });
 }
 
-/** The character picker: avatars, search over every name, image counts. */
 const NEW_CHARACTER = "\u0000new";
 
+/** The character picker: avatars, search over every name, image counts. */
 function CharacterPicker({
   value,
   onChange,
@@ -447,6 +448,7 @@ function CharacterRow({
         <CharacterBlock value={value} onChange={onChange} installedLoras={installedLoras} rejectedLoras={rejectedLoras} />
         <div className="mt-2 flex justify-end">
           <ExpandButton open onToggle={() => setExpanded(false)} />
+          {adder}
         </div>
       </Card>
     );
@@ -550,13 +552,11 @@ export function CharacterLayer({
         <CharacterRow
           key={tag}
           value={tag}
-          onChange={(t) =>
-            onChange(t ? value.map((x, j) => (j === i ? t : x)).filter((x, j, all) => all.indexOf(x) === j) : value.filter((_, j) => j !== i))
-          }
+          onChange={(t) => onChange(replaceCharacter(value, i, t))}
           installedLoras={installedLoras}
           rejectedLoras={rejectedLoras}
           adder={
-            i === value.length - 1 ? (
+            i === value.length - 1 && value.length < MAX_CHARACTERS ? (
               <CharacterPicker
                 value={null}
                 onChange={add}

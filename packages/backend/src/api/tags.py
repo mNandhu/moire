@@ -14,7 +14,6 @@ from ..services import (
     characters,
     face_detect,
     image_tags,
-    tag_categories,
     tag_index,
     tag_rename,
     tag_settings,
@@ -150,13 +149,13 @@ async def create_character(body: dict):
     raw = str(body.get("tag") or "").strip()
     if not raw:
         raise HTTPException(status_code=422, detail="tag is required")
-    tag = tag_index.pin_key(validate_tags([raw])[0])
-    # The tagger's spelling when it knows the character, so its images match.
-    if tag.lower() in (await tag_categories.load()).names:
-        tag = tag.lower()
+    # Lower case, as the tagger writes characters, so images match it.
+    tag = tag_index.pin_key(validate_tags([raw])[0]).lower()
     patch = {k: body[k] for k in ("name", "series", "color") if k in body}
     try:
         return await characters.create(tag, patch)
+    except characters.Taken as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except characters.CharacterError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
 
@@ -164,7 +163,9 @@ async def create_character(body: dict):
 @router.delete("/character")
 async def delete_character(tag: str):
     """Forget a character made by hand, while no image has its tag."""
-    if not await characters.remove_made(tag_index.pin_key(validate_tags([tag])[0])):
+    if not await characters.remove_made(
+        tag_index.pin_key(validate_tags([tag])[0]).lower()
+    ):
         raise HTTPException(
             status_code=409, detail="Only a character with no images can be deleted"
         )

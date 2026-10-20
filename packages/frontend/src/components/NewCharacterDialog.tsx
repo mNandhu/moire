@@ -57,7 +57,8 @@ export function NewCharacterDialog({
     return (names ?? []).filter((n) => !have.has(n)).map((_id) => ({ _id, count: 0 }));
   }, [names, everyone]);
   const matches = useTagMatches(suggest ? tag : "", pool);
-  const existing = (everyone ?? []).find((c) => c.tag === asTag(tag).toLowerCase() || c.tag === asTag(tag));
+  const wanted = asTag(tag).toLowerCase();
+  const existing = (everyone ?? []).find((c) => c.tag.toLowerCase() === wanted || c.aliases.some((a) => a.toLowerCase() === wanted));
   const offered = (words ?? []).map((w) => w.word).filter((w) => !identity.includes(asTag(w)));
   const fromTag = characterName(asTag(tag) || "character");
 
@@ -71,21 +72,29 @@ export function NewCharacterDialog({
   };
 
   const create = async () => {
+    // A tag typed but not yet added with Enter still counts.
+    const tags = typed.trim() && !identity.includes(asTag(typed)) ? [...identity, asTag(typed)] : identity;
     setSaving(true);
+    let made: { tag: string };
     try {
-      const made = await createCharacter({ tag: asTag(tag), ...(name.trim() ? { name: name.trim() } : {}) });
-      if (identity.length || lora) {
-        await putRecipe(made.tag, { ...(identity.length ? { added: identity } : {}), ...(lora ? { lora } : {}) });
-      }
-      await qc.invalidateQueries({ queryKey: TAGS_KEY });
-      onClose();
-      if (onCreated) onCreated(made.tag);
-      else navigate(characterHref(made.tag));
+      made = await createCharacter({ tag: asTag(tag), ...(name.trim() ? { name: name.trim() } : {}) });
     } catch (e) {
       push(`Couldn't make the character: ${String(e)}`, "error");
-    } finally {
       setSaving(false);
+      return;
     }
+    try {
+      if (tags.length || lora) {
+        await putRecipe(made.tag, { ...(tags.length ? { added: tags } : {}), ...(lora ? { lora } : {}) });
+      }
+    } catch (e) {
+      push(`Made the character, but couldn't save its tags and LoRA: ${String(e)}`, "error");
+    }
+    await qc.invalidateQueries({ queryKey: TAGS_KEY });
+    setSaving(false);
+    onClose();
+    if (onCreated) onCreated(made.tag);
+    else navigate(characterHref(made.tag));
   };
 
   return (

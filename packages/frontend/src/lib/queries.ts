@@ -99,8 +99,6 @@ export function useTagBrowse(source: TagSource, { enabled = true } = {}) {
   });
 }
 
-/** A character page, by any of the character's names. Under TAGS_KEY, so
- * every tag write (a new cover, a setting) refreshes it. */
 /** A character page's query, for one (useCharacterPage) or several. */
 export const characterPageQuery = (tag: string) => ({
   queryKey: [...TAGS_KEY, "character", tag],
@@ -109,6 +107,8 @@ export const characterPageQuery = (tag: string) => ({
   retry: false,
 });
 
+/** A character page, by any of the character's names. Under TAGS_KEY, so
+ * every tag write (a new cover, a setting) refreshes it. */
 export function useCharacterPage(tag: string) {
   return useQuery(characterPageQuery(tag));
 }

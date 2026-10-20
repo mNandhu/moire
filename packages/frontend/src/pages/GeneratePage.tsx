@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, FlaskConical, Loader2, Lock, Wand2 } from "lucide-react";
 import { Button, ButtonLink, Card, EmptyState, PageBody, PageHeader, Badge } from "../components/ui";
 import { bareTagPool } from "../components/generate/ChipInput";
@@ -58,7 +58,7 @@ import { PromptInput } from "../components/generate/PromptInput";
 import { AddLayer, EmbeddingLayer, LayerRow, NegativeLayer, PresetControl, TextLayer } from "../components/generate/Layers";
 import { characterPageQuery, useTagAggregate } from "../lib/queries";
 import { characterColours, displayName, mixColours } from "../lib/character";
-import { tintAmbient } from "../lib/ambient";
+import { useAmbientTint } from "../lib/ambient";
 import { characterInput, characterTags } from "../lib/recipe";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
@@ -208,10 +208,18 @@ export default function GeneratePage() {
     character: labels.length ? labels.join(" & ") : null,
   });
 
-  // The page takes the picked characters' colours, one from each.
-  const pages = useQueries({ queries: form.characters.map(characterPageQuery) });
-  const colourKey = mixColours(pages.map((q) => (q.data ? characterColours(q.data) : []))).join("|");
-  useEffect(() => tintAmbient(colourKey ? colourKey.split("|") : []), [colourKey]);
+  // The page takes the picked characters' colours: one character's own
+  // three, else one from each (their colour in the character list).
+  const one = form.characters.length === 1 ? form.characters[0] : "";
+  const { data: onePage } = useQuery({ ...characterPageQuery(one), enabled: !!one });
+  useAmbientTint(
+    onePage && one
+      ? characterColours(onePage)
+      : mixColours(form.characters.map((tag) => {
+          const c = everyone?.find((e) => e.tag === tag)?.color;
+          return c ? [c] : [];
+        })),
+  );
   const perRequest = settings?.builtin_per_request ?? 1;
   const connected = !!status?.connected;
 

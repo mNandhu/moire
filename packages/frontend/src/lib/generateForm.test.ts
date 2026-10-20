@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  replaceCharacter,
   DEFAULT_BLOCKS,
   DEFAULT_FORM,
   formFromBatch,
@@ -107,6 +108,13 @@ describe("style LoRAs", () => {
   it("keeps a draft's presets", () => {
     expect(draft({ loras: form.loras }).loras).toEqual(form.loras);
   });
+});
+
+it("replaceCharacter changes, removes, and never shows a tag twice", () => {
+  expect(replaceCharacter(["a", "b", "c"], 1, "x")).toEqual(["a", "x", "c"]);
+  expect(replaceCharacter(["a", "b", "c"], 1, null)).toEqual(["a", "c"]);
+  // Picking "a" on row 2 moves it there.
+  expect(replaceCharacter(["a", "b", "c"], 2, "a")).toEqual(["b", "a"]);
 });
 
 describe("loadDraft", () => {

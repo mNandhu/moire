@@ -14,7 +14,7 @@ import { CharacterAvatar } from "../components/CharacterAvatar";
 import { useComfyModels, useRecipe } from "../lib/generate";
 import { loadDraft, saveDraft } from "../lib/generateForm";
 import { cn } from "../lib/cn";
-import { tintAmbient } from "../lib/ambient";
+import { useAmbientTint } from "../lib/ambient";
 import { fetchSignatures } from "../lib/gen";
 import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
 import { useBoilerplate, useCharacterPage } from "../lib/queries";
@@ -58,8 +58,7 @@ export default function CharacterPage() {
   }, [c, tag, navigate]);
 
   const colours = useMemo(() => (c ? characterColours(c) : []), [c]);
-  const colourKey = colours.join("|");
-  useEffect(() => tintAmbient(colourKey ? colourKey.split("|") : []), [colourKey]);
+  useAmbientTint(colours);
 
   const { name, series } = displayName(c ?? { tag });
 

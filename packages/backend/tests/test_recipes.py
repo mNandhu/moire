@@ -107,7 +107,7 @@ def test_edits_win_over_the_computed_recipe():
 
 def test_character_lora_wins_and_each_file_goes_in_once():
     picks = merge_loras(
-        {"name": "chars/hu_tao_v2.safetensors", "strength": 0.8},
+        [{"name": "chars/hu_tao_v2.safetensors", "strength": 0.8}],
         [
             {"name": "hu_tao_v2", "strength": 0.3},
             {"name": "styles/flat_color_xl.safetensors", "strength": 0.5},

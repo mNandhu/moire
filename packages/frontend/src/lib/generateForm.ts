@@ -63,6 +63,16 @@ export const DEFAULT_FORM: GenerateForm = {
   name: null,
 };
 
+/** As many characters as one prompt takes (the backend keeps this many). */
+export const MAX_CHARACTERS = 8;
+
+/** The characters with row `i` changed to `tag` (null removes it); a tag
+ * already picked elsewhere moves here instead of showing twice. Pure. */
+export function replaceCharacter(tags: readonly string[], i: number, tag: string | null): string[] {
+  if (tag === null) return tags.filter((_, j) => j !== i);
+  return tags.map((x, j) => (j === i ? tag : x)).filter((x, j) => x !== tag || j === i);
+}
+
 let nextId = 0;
 const newId = () => `b${Date.now().toString(36)}${(nextId++).toString(36)}`;
 
@@ -290,7 +300,7 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     if (!("prompt" in d) && ("base" in d || "extra" in d)) Object.assign(out, migrated(d));
     if (isStr(d.checkpoint) || d.checkpoint === null) out.checkpoint = d.checkpoint;
     // Drafts from before several characters keep their one.
-    if (Array.isArray(d.characters)) out.characters = [...new Set<string>(d.characters.filter(isStr))];
+    if (Array.isArray(d.characters)) out.characters = [...new Set<string>(d.characters.filter(isStr))].slice(0, MAX_CHARACTERS);
     else if (isStr(d.character)) out.characters = [d.character];
     if (isStr(d.name) || d.name === null) out.name = d.name;
     for (const k of ["width", "height", "count"] as const) if (typeof d[k] === "number") out[k] = d[k];
