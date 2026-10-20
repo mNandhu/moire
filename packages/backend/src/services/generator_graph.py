@@ -334,6 +334,44 @@ def editor_workflow(source: dict[str, Any] | None) -> dict[str, Any] | None:
     }
 
 
+_WIDGET_DEFAULTS = {"INT": 0, "FLOAT": 0.0, "STRING": "", "BOOLEAN": False}
+
+
+def _widget_default(spec: Any) -> Any:
+    """What ComfyUI's editor would put in a widget input it finds missing:
+    the input's default, else a combo's first choice. None for a link input
+    (MODEL, IMAGE, ...)."""
+    if not isinstance(spec, (list, tuple)) or not spec:
+        return None
+    kind, opts = spec[0], spec[1] if len(spec) > 1 and isinstance(spec[1], dict) else {}
+    if isinstance(kind, list):  # an old-style combo: the choices themselves
+        return opts.get("default", kind[0] if kind else None)
+    if kind == "COMBO":
+        choices = opts.get("options") or []
+        return opts.get("default", choices[0] if choices else None)
+    if kind in _WIDGET_DEFAULTS:
+        return opts.get("default", _WIDGET_DEFAULTS[kind])
+    return None
+
+
+def fill_defaults(graph: Graph, info: dict[str, Any]) -> list[list[str]]:
+    """Give required widget inputs a graph doesn't have their default, as
+    ComfyUI's editor does when it loads an older workflow (a node that gained
+    an input since). ``info``: ComfyUI's ``/object_info``. Returns the
+    ``[node, input]`` filled. Mutates."""
+    filled = []
+    for nid, node in graph.items():
+        spec = (info.get(node.get("class_type")) or {}).get("input") or {}
+        for name, s in (spec.get("required") or {}).items():
+            if name in node.get("inputs", {}):
+                continue
+            value = _widget_default(s)
+            if value is not None:
+                node.setdefault("inputs", {})[name] = value
+                filled.append([nid, name])
+    return filled
+
+
 def build_prompt(graph: Graph, slots: dict[str, Any], values: dict[str, Any]) -> Graph:
     """The graph for one request. ``values``: positive, negative, seed, and
     optionally width, height, batch_size, checkpoint, sampler, scheduler,

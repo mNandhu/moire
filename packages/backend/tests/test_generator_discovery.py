@@ -328,3 +328,44 @@ def test_left_out_loras_are_bypassed_and_the_insertion_point_follows(hires):
     assert check_slots(hires, {**slots, "drop_loras": ["16"]}) == [
         "Node 16 isn't a LoRA loader"
     ]
+
+
+def test_fill_defaults_like_the_editor_does():
+    from src.services.generator_graph import fill_defaults
+
+    g = {
+        "1": {
+            "class_type": "UltimateSDUpscale",
+            "inputs": {"steps": 20, "image": ["2", 0]},
+        },
+        "2": {"class_type": "Unknown", "inputs": {}},
+    }
+    info = {
+        "UltimateSDUpscale": {
+            "input": {
+                "required": {
+                    "steps": ["INT", {"default": 20}],
+                    "batch_size": ["INT", {"default": 1, "min": 1}],
+                    "mode_type": [["Linear", "Chess"]],
+                    "seam": ["COMBO", {"options": ["None", "Band"]}],
+                    "tiled": ["BOOLEAN", {}],
+                    "image": ["IMAGE"],
+                    "upscale_model": ["UPSCALE_MODEL"],
+                }
+            }
+        }
+    }
+    assert fill_defaults(g, info) == [
+        ["1", "batch_size"],
+        ["1", "mode_type"],
+        ["1", "seam"],
+        ["1", "tiled"],
+    ]
+    assert g["1"]["inputs"] == {
+        "steps": 20,
+        "image": ["2", 0],
+        "batch_size": 1,
+        "mode_type": "Linear",
+        "seam": "None",
+        "tiled": False,
+    }

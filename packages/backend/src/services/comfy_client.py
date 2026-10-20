@@ -151,10 +151,10 @@ class ComfyClient:
     async def object_info(self, class_type: str) -> dict[str, Any]:
         return (await self._json("GET", f"/object_info/{class_type}")) or {}
 
-    async def node_classes(self) -> set[str]:
-        """Every node class ComfyUI has (``GET /object_info``, all of it: the
-        one-class route can't take a name with a slash in it)."""
-        return set((await self._json("GET", "/object_info")) or {})
+    async def node_info(self) -> dict[str, Any]:
+        """Every node class ComfyUI has with its inputs (``GET /object_info``,
+        all of it: the one-class route can't take a name with a slash)."""
+        return (await self._json("GET", "/object_info")) or {}
 
     async def lora_metadata(self, name: str) -> dict[str, Any] | None:
         """A LoRA file's safetensors metadata (``GET /view_metadata/loras``);
@@ -198,7 +198,14 @@ class ComfyClient:
             message = (
                 err.get("message")
                 if isinstance(err, dict)
-                else (err or f"HTTP {r.status_code}")
+                else (
+                    err
+                    or (
+                        "ComfyUI refused the workflow"
+                        if body.get("node_errors")
+                        else f"HTTP {r.status_code}"
+                    )
+                )
             )
             raise ComfyRejected(str(message), flatten_node_errors(body))
         return str(body["prompt_id"])

@@ -44,6 +44,7 @@ from .generator_graph import (
     clear_display_text,
     drop_missing,
     editor_workflow,
+    fill_defaults,
     merge_loras,
     seeds_for,
     split_requests,
@@ -395,7 +396,7 @@ class GenerationManager:
         # Tests swap in an httpx.MockTransport / fake websocket connect.
         self.transport: httpx.AsyncBaseTransport | None = None
         self.ws_connect: Any = None
-        self._classes: set[str] | None = None
+        self._classes: dict[str, Any] | None = None
         self._setup_failed = False
         self.connected = False
         self.error: str | None = None
@@ -844,9 +845,12 @@ class GenerationManager:
         # A graph saved before setup cleaned it may still hold NaN.
         graph = gen_metadata.sanitize_json(graph)
         if gen["kind"] != "builtin":
-            classes = await self._node_classes()
-            if classes:
-                drop_missing(graph, {n["class_type"] for n in graph.values()} - classes)
+            info = await self._node_info()
+            if info:
+                drop_missing(
+                    graph, {n["class_type"] for n in graph.values()} - set(info)
+                )
+                fill_defaults(graph, info)
             clear_display_text(graph)
             workflow = editor_workflow(gen.get("source"))
         try:
@@ -864,15 +868,15 @@ class GenerationManager:
 
     # -- actions ---------------------------------------------------------------
 
-    async def _node_classes(self) -> set[str]:
-        """ComfyUI's node classes, read once per connection; empty when it
-        won't say (then nothing is dropped)."""
+    async def _node_info(self) -> dict[str, Any]:
+        """ComfyUI's node classes and their inputs, read once per connection;
+        empty when it won't say (then nothing is dropped or filled)."""
         if self._classes is None:
             assert self.client is not None
             try:
-                self._classes = await self.client.node_classes()
+                self._classes = await self.client.node_info()
             except (ComfyError, ComfyUnreachable):
-                return set()
+                return {}
         return self._classes
 
     async def _require_connection(self) -> dict[str, Any]:
