@@ -562,6 +562,16 @@ export default function ImageView() {
     }
   }, [data?.tags, push]);
 
+  const copyPath = useCallback(async () => {
+    if (!data?.path) return;
+    try {
+      await navigator.clipboard.writeText(data.path);
+      push("Path copied to clipboard", "success");
+    } catch (e) {
+      push(`Copy failed: ${String(e)}`, "error");
+    }
+  }, [data?.path, push]);
+
   useDocumentTitle(data?.path ? data.path.split(/[\\/]/).pop() : null);
   const { data: libraries } = useLibraries({ poll: false });
   const library = libraries?.find((l) => l._id === data?.library_id);
@@ -740,6 +750,15 @@ export default function ImageView() {
                     <span className="truncate">{library.name || library.path}</span>
                   </Link>
                 )}
+                <button
+                  type="button"
+                  onClick={() => void copyPath()}
+                  title="Copy path"
+                  className="group mt-1 flex items-start gap-1 text-left text-xs text-faint hover:text-neutral-200"
+                >
+                  <span className="break-all">{data.path}</span>
+                  <Copy size={11} className="mt-0.5 shrink-0 opacity-0 group-hover:opacity-100" />
+                </button>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <a
