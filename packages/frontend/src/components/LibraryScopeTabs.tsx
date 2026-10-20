@@ -1,5 +1,5 @@
 import { cn } from "../lib/cn";
-import type { Library } from "../lib/queries";
+import { scanLabel, type Library } from "../lib/queries";
 
 /**
  * Which libraries the gallery shows: all of them (the default, newest first)
@@ -18,11 +18,12 @@ export function LibraryScopeTabs({
 }) {
   if (libraries.length < 2) return null;
   const tabs = [
-    { id: undefined, label: "All libraries", count: undefined },
+    { id: undefined, label: "All libraries", count: undefined, scan: undefined },
     ...libraries.map((l) => ({
       id: l._id as string | undefined,
       label: l.name || l.path,
       count: l.indexed_count,
+      scan: l.scanning ? scanLabel(l) : undefined,
     })),
   ];
   return (
@@ -47,7 +48,9 @@ export function LibraryScopeTabs({
             )}
           >
             <span className="truncate">{tab.label}</span>
-            {tab.count != null && (
+            {tab.scan ? (
+              <span className="text-xs text-brand-300 whitespace-nowrap">{tab.scan}</span>
+            ) : tab.count != null && (
               <span className="text-xs text-faint tabular-nums">
                 {tab.count.toLocaleString()}
               </span>

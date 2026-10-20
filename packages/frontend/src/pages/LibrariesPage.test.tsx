@@ -1,3 +1,4 @@
+import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -38,7 +39,9 @@ describe("LibrariesPage › delete invalidates the gallery", () => {
     render(
       <QueryClientProvider client={qc}>
         <ToastProvider>
-          <LibrariesPage />
+          <MemoryRouter>
+            <LibrariesPage />
+          </MemoryRouter>
         </ToastProvider>
       </QueryClientProvider>,
     );

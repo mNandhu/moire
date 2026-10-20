@@ -102,9 +102,10 @@ async def browse_tags(source: str = "all"):
 @router.get("/characters")
 async def list_characters():
     """The characters in the library, most images first, each with its other
-    names and cover: what the image view shows as the people in a picture."""
+    names and cover: what the image view shows as the people in a picture.
+    ``thumb_image_id`` lets it tell whether the open image is the avatar."""
     return [
-        {**r, "thumb_url": thumb_url(r.pop("thumb_image_id"))}
+        {**r, "thumb_url": thumb_url(r["thumb_image_id"])}
         for r in await characters.listing()
     ]
 

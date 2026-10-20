@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Link, useSearchParams } from "react-router-dom";
 import {
+  ChevronRight,
+  Folder,
   FolderOpen,
+  Images,
   Plus,
   RotateCw,
   Pencil,
@@ -18,12 +22,27 @@ import { Card } from "../components/ui/Card";
 import { Dialog } from "../components/ui/Dialog";
 import { AddLibraryDialog } from "../components/AddLibraryDialog";
 import { useConfirm } from "../components/ConfirmDialog";
-import { Button } from "../components/ui/Button";
+import { Button, ButtonLink } from "../components/ui/Button";
 import { Input, Field } from "../components/ui/Input";
 import { Skeleton, Spinner } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
 import { api } from "../lib/api";
-import { LIBRARIES_KEY, useLibraries, type Library } from "../lib/queries";
+import {
+  LIBRARIES_KEY,
+  libraryGalleryHref,
+  useLibraries,
+  type Library,
+} from "../lib/queries";
+import { cn } from "../lib/cn";
+import {
+  buildLibraryTree,
+  countLibraries,
+  pathToLibrary,
+  type LibraryTreeNode,
+} from "../lib/libraryTree";
+
+const COLLAPSED_KEY = "libraries:collapsedFolders";
+const libraryName = (l: Library) => l.name || l.path;
 
 export default function LibrariesPage() {
   const { push } = useToast();
@@ -167,6 +186,55 @@ export default function LibrariesPage() {
     }
   };
 
+  // Libraries grouped by the folders they share. Collapsed folders are a
+  // view preference, so localStorage is enough (and may be unavailable).
+  const tree = useMemo(() => buildLibraryTree(libs, libraryName), [libs]);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "[]") as string[]);
+    } catch {
+      return new Set();
+    }
+  });
+  const setFolderCollapsed = useCallback((keys: string[], value: boolean) => {
+    setCollapsed((prev) => {
+      if (keys.every((k) => prev.has(k) === value)) return prev;
+      const next = new Set(prev);
+      for (const k of keys) {
+        if (value) next.add(k);
+        else next.delete(k);
+      }
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+      } catch {
+        // Storage blocked: the preference just won't survive a reload.
+      }
+      return next;
+    });
+  }, []);
+
+  // ?library=<id> (the image view links here): open its folders, scroll to it.
+  const [searchParams] = useSearchParams();
+  const focusId = searchParams.get("library");
+  const focusRef = useRef<HTMLDivElement | null>(null);
+  // Each once per link: polling rebuilds the tree every few seconds, and the
+  // user may collapse the folder again afterwards.
+  const expandedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusId || expandedFor.current === focusId) return;
+    const folders = pathToLibrary(tree, (l) => l._id === focusId);
+    if (!folders) return; // not loaded yet
+    expandedFor.current = focusId;
+    setFolderCollapsed(folders, false);
+  }, [focusId, tree, setFolderCollapsed]);
+  // Runs after the render that opened its folders, once the card exists.
+  const scrolledFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusId || scrolledFor.current === focusId || !focusRef.current) return;
+    scrolledFor.current = focusId;
+    focusRef.current.scrollIntoView({ block: "center" });
+  });
+
   const toggleWatch = async (l: Library) => {
     try {
       await updateLibrary(l._id, { watch_enabled: !l.watch_enabled });
@@ -174,6 +242,179 @@ export default function LibrariesPage() {
     } catch (e) {
       push((e as Error)?.message || "Failed to update watching", "error");
     }
+  };
+
+  // `label` is its folder below the group it sits in, shown when the
+  // library has no name of its own (the backend names it by its path).
+  const renderCard = (l: Library, label: string) => {
+        const scanning = !!(progress[l._id]?.scanning || l.scanning);
+        const busy = scanning || rescanning.has(l._id);
+        // One quiet line of facts instead of a row of same-weight badges.
+        const facts = [
+          !scanning && typeof l.indexed_count === "number"
+            ? `${l.indexed_count.toLocaleString()} ${l.indexed_count === 1 ? "image" : "images"}`
+            : null,
+          l.last_scanned
+            ? `Scanned ${new Date(l.last_scanned).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`
+            : null,
+        ].filter(Boolean);
+        return (
+          <Card
+            key={l._id}
+            className={cn("p-4", l._id === focusId && "ring-1 ring-brand-400 border-brand-400")}
+          >
+            <div className="flex items-center gap-4">
+              <span className="hidden sm:inline-flex items-center justify-center w-10 h-10 rounded-lg shrink-0 text-brand-300 bg-brand-500/10">
+                <FolderOpen size={18} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <Link
+                  to={libraryGalleryHref(l._id)}
+                  className="block font-semibold text-neutral-100 truncate hover:text-brand-200"
+                  title="Show its images in the gallery"
+                >
+                  {l.name && l.name !== l.path ? l.name : label}
+                </Link>
+                <div className="text-xs text-faint truncate" title={l.path}>
+                  {l.path}
+                </div>
+                {/* Separators are a trailing dot on each fact, so a
+                    wrapped line never starts with one. */}
+                <div className="mt-1 text-xs text-muted flex flex-wrap items-center gap-x-1.5">
+                  {facts.map((f, i) => (
+                    <span key={i} className="tabular-nums whitespace-nowrap">
+                      {f}
+                      <span className="text-faint ml-1.5">·</span>
+                    </span>
+                  ))}
+                  <span className="whitespace-nowrap">
+                    {l.watch_enabled ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Eye size={12} className="text-brand-300" /> Watching
+                      </span>
+                    ) : (
+                      <span className="text-faint">Not watching</span>
+                    )}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <ButtonLink
+                  size="sm"
+                  variant="ghost"
+                  to={libraryGalleryHref(l._id)}
+                  aria-label="Show images"
+                  title="Show its images in the gallery"
+                >
+                  <Images size={14} />
+                  <span className="hidden sm:inline">Images</span>
+                </ButtonLink>
+                <Button
+                  size="sm"
+                  onClick={() => void rescan(l)}
+                  disabled={busy}
+                  aria-label="Rescan"
+                  title="Rescan this folder"
+                >
+                  <RotateCw size={14} className={busy ? "animate-spin" : undefined} />
+                  <span className="hidden sm:inline">
+                    {scanning ? "Scanning…" : rescanning.has(l._id) ? "Rescanning…" : "Rescan"}
+                  </span>
+                </Button>
+                <DropdownMenu
+                  aria-label={`More actions for ${l.name || l.path}`}
+                  icon={<MoreHorizontal size={16} />}
+                  size="sm"
+                  items={[
+                    {
+                      label: l.watch_enabled ? "Stop watching" : "Watch for changes",
+                      icon: l.watch_enabled ? <EyeOff size={15} /> : <Eye size={15} />,
+                      onClick: () => void toggleWatch(l),
+                    },
+                    {
+                      label: "Edit",
+                      icon: <Pencil size={15} />,
+                      onClick: () => {
+                        setEditId(l._id);
+                        setEditName(l.name || "");
+                        setEditPath(l.path);
+                      },
+                    },
+                    {
+                      label: "Delete",
+                      icon: <Trash2 size={15} />,
+                      variant: "danger",
+                      onClick: () => void deleteLibrary(l._id),
+                    },
+                  ]}
+                />
+              </div>
+            </div>
+
+            {progress[l._id]?.scanning && (
+              <div className="mt-3">
+                <ProgressBar
+                  value={Math.max(0, progress[l._id]?.scan_done || 0)}
+                  max={Math.max(1, progress[l._id]?.scan_total || 1)}
+                  aria-label="Scanning progress"
+                />
+                <div className="mt-1 text-xs text-muted tabular-nums">
+                  {(progress[l._id]?.scan_done || 0).toLocaleString()} /{" "}
+                  {(progress[l._id]?.scan_total || 0).toLocaleString()}
+                </div>
+              </div>
+            )}
+          </Card>
+        );
+  };
+
+  /** A library (and any library inside its folder), or a folder of them. */
+  const renderNode = (node: LibraryTreeNode<Library>): ReactNode => {
+    const open = !collapsed.has(node.key);
+    const kids = node.children.length > 0 && (
+      <div className="ml-2 sm:ml-5 pl-3 border-l border-line grid grid-cols-[minmax(0,1fr)] gap-3">
+        {node.children.map((c) => renderNode(c))}
+      </div>
+    );
+    if (node.library) {
+      return (
+        <div
+          key={node.key}
+          ref={node.library._id === focusId ? focusRef : undefined}
+          className="grid grid-cols-[minmax(0,1fr)] gap-3"
+        >
+          {renderCard(node.library, node.label)}
+          {kids}
+        </div>
+      );
+    }
+    const n = countLibraries(node);
+    const listId = `folder-${node.key}`;
+    return (
+      <div key={node.key} className="grid grid-cols-[minmax(0,1fr)] gap-2">
+        <button
+          type="button"
+          onClick={() => setFolderCollapsed([node.key], open)}
+          aria-expanded={open}
+          aria-controls={listId}
+          title={node.key}
+          className="flex items-center gap-2 min-w-0 px-1 py-1 rounded-lg text-left hover:bg-raised"
+        >
+          <ChevronRight
+            size={14}
+            className={cn("shrink-0 text-faint transition-transform", open && "rotate-90")}
+          />
+          <Folder size={15} className="shrink-0 text-muted" />
+          <span className="truncate text-sm font-medium text-neutral-200">{node.label}</span>
+          <span className="shrink-0 text-xs text-faint tabular-nums">
+            {n} {n === 1 ? "library" : "libraries"}
+          </span>
+        </button>
+        <div id={listId} hidden={!open}>
+          {kids}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -221,7 +462,7 @@ export default function LibrariesPage() {
         </div>
       )}
 
-      <div className="grid gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
         {/* Initial loading skeletons */}
         {initialLoading && (
           <>
@@ -258,112 +499,8 @@ export default function LibrariesPage() {
           />
         )}
 
-        {/* Libraries list */}
-        {!initialLoading &&
-          libs.map((l) => {
-            const scanning = !!(progress[l._id]?.scanning || l.scanning);
-            const busy = scanning || rescanning.has(l._id);
-            // One quiet line of facts instead of a row of same-weight badges.
-            const facts = [
-              !scanning && typeof l.indexed_count === "number"
-                ? `${l.indexed_count.toLocaleString()} ${l.indexed_count === 1 ? "image" : "images"}`
-                : null,
-              l.last_scanned
-                ? `Scanned ${new Date(l.last_scanned).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`
-                : null,
-            ].filter(Boolean);
-            return (
-              <Card key={l._id} className="p-4">
-                <div className="flex items-center gap-4">
-                  <span className="hidden sm:inline-flex items-center justify-center w-10 h-10 rounded-lg shrink-0 text-brand-300 bg-brand-500/10">
-                    <FolderOpen size={18} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-neutral-100 truncate">
-                      {l.name || l.path}
-                    </div>
-                    <div className="text-xs text-faint truncate" title={l.path}>
-                      {l.path}
-                    </div>
-                    {/* Separators are a trailing dot on each fact, so a
-                        wrapped line never starts with one. */}
-                    <div className="mt-1 text-xs text-muted flex flex-wrap items-center gap-x-1.5">
-                      {facts.map((f, i) => (
-                        <span key={i} className="tabular-nums whitespace-nowrap">
-                          {f}
-                          <span className="text-faint ml-1.5">·</span>
-                        </span>
-                      ))}
-                      <span className="whitespace-nowrap">
-                        {l.watch_enabled ? (
-                          <span className="inline-flex items-center gap-1">
-                            <Eye size={12} className="text-brand-300" /> Watching
-                          </span>
-                        ) : (
-                          <span className="text-faint">Not watching</span>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      size="sm"
-                      onClick={() => void rescan(l)}
-                      disabled={busy}
-                      aria-label="Rescan"
-                      title="Rescan this folder"
-                    >
-                      <RotateCw size={14} className={busy ? "animate-spin" : undefined} />
-                      <span className="hidden sm:inline">
-                        {scanning ? "Scanning…" : rescanning.has(l._id) ? "Rescanning…" : "Rescan"}
-                      </span>
-                    </Button>
-                    <DropdownMenu
-                      aria-label={`More actions for ${l.name || l.path}`}
-                      icon={<MoreHorizontal size={16} />}
-                      size="sm"
-                      items={[
-                        {
-                          label: l.watch_enabled ? "Stop watching" : "Watch for changes",
-                          icon: l.watch_enabled ? <EyeOff size={15} /> : <Eye size={15} />,
-                          onClick: () => void toggleWatch(l),
-                        },
-                        {
-                          label: "Edit",
-                          icon: <Pencil size={15} />,
-                          onClick: () => {
-                            setEditId(l._id);
-                            setEditName(l.name || "");
-                            setEditPath(l.path);
-                          },
-                        },
-                        {
-                          label: "Delete",
-                          icon: <Trash2 size={15} />,
-                          variant: "danger",
-                          onClick: () => void deleteLibrary(l._id),
-                        },
-                      ]}
-                    />
-                  </div>
-                </div>
-
-                {progress[l._id]?.scanning && (
-                  <div className="mt-3">
-                    <ProgressBar
-                      value={Math.max(0, progress[l._id]?.scan_done || 0)}
-                      max={Math.max(1, progress[l._id]?.scan_total || 1)}
-                      aria-label="Scanning progress"
-                    />
-                    <div className="mt-1 text-xs text-muted tabular-nums">
-                      {(progress[l._id]?.scan_done || 0).toLocaleString()} /{" "}
-                      {(progress[l._id]?.scan_total || 0).toLocaleString()}
-                    </div>
-                  </div>
-                )}
-              </Card>
-            );
-          })}
+        {/* Libraries list, as a folder tree */}
+        {!initialLoading && tree.map((node) => renderNode(node))}
       </div>
 
       <Dialog

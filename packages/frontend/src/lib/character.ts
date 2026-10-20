@@ -42,6 +42,8 @@ export type CharacterEntry = {
   aliases: string[];
   count: number;
   thumb_url: string;
+  /** The avatar image: the pinned one, else the one Moiré picked. */
+  thumb_image_id: string | null;
   name: string | null;
   series: string | null;
   /** Their colour: the user's, else the strongest hair or eye colour. */

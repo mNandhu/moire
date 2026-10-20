@@ -30,7 +30,23 @@ export type Library = {
   watch_enabled?: boolean;
   last_event_at?: string | null;
   scanning?: boolean;
+  /** Scan progress. Both stay 0 while the scan is queued or still listing files. */
+  scan_total?: number;
+  scan_done?: number;
 };
+
+/** "Scanning", with a percentage once the scan knows how many files it has. */
+export function scanLabel(l: Library): string {
+  if (!l.scan_total) return "Scanning…";
+  const pct = Math.floor(((l.scan_done ?? 0) / l.scan_total) * 100);
+  return `Scanning ${Math.min(pct, 99)}%`;
+}
+
+/** The gallery showing one library. */
+export const libraryGalleryHref = (id: string) => `/?${new URLSearchParams({ library_id: id })}`;
+
+/** The Libraries page with one library picked out (scrolled to, its folders open). */
+export const libraryPageHref = (id: string) => `/libraries?${new URLSearchParams({ library: id })}`;
 
 export const LIBRARIES_KEY = ["libraries"] as const;
 
@@ -38,13 +54,15 @@ export function fetchLibraries(signal?: AbortSignal): Promise<Library[]> {
   return api<Library[]>("/api/v1/libraries", { signal });
 }
 
-/** All libraries; polls while any of them is scanning so counts stay live. */
-export function useLibraries() {
+/** All libraries; polls while any of them is scanning so counts stay live.
+ * `poll: false` for a reader that only needs names (the gallery underneath
+ * already keeps the list fresh). */
+export function useLibraries({ poll = true } = {}) {
   return useQuery({
     queryKey: LIBRARIES_KEY,
     queryFn: ({ signal }) => fetchLibraries(signal),
     refetchInterval: (q) =>
-      q.state.data?.some((l) => l.scanning) ? 3000 : false,
+      poll && q.state.data?.some((l) => l.scanning) ? 3000 : false,
   });
 }
 

@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   Tags,
   X,
+  FolderSearch,
 } from "lucide-react";
 import {
   DEFAULT_FILTERS,
@@ -86,6 +87,9 @@ import {
 const NO_TAGS: TagSuggestion[] = [];
 const NO_MODELS: { model: string; count: number }[] = [];
 const NO_LORAS: { name: string; count: number }[] = [];
+/** `f` without its library scope (a tab, not a filter). */
+const withoutLibrary = (f: Filters): Filters => ({ ...f, libraryId: undefined });
+
 const LOGIC_OPTIONS = {
   tags: [
     { value: "and", label: "Match all tags (AND)" },
@@ -158,6 +162,25 @@ export default function AllImagesPage() {
       ).filter((chip) => chip.key !== "library" || !scopeInTabs),
     [filters, libs, workflowFamilies, scopeInTabs],
   );
+
+  // An empty feed while its library is still scanning (or queued) is not
+  // "no images": say so. Only with no filter set, where empty means the
+  // library itself has nothing yet.
+  const emptyScan = useMemo(() => {
+    if (hasActiveFilter(withoutLibrary(filters))) return null;
+    const scanning = libs.filter(
+      (l) => l.scanning && (!filters.libraryId || l._id === filters.libraryId),
+    );
+    if (!scanning.length) return null;
+    const one = scanning.length === 1 ? scanning[0] : null;
+    return {
+      title: one ? `Scanning ${one.name || one.path}` : "Scanning your libraries",
+      progress:
+        one?.scan_total
+          ? `${(one.scan_done ?? 0).toLocaleString()} of ${one.scan_total.toLocaleString()} files read. `
+          : "",
+    };
+  }, [filters, libs]);
 
   // Known tags (with image counts) powering the search autocomplete.
   // merge_sources collapses the three sources of each tag (AI / manual /
@@ -1175,7 +1198,15 @@ export default function AllImagesPage() {
         <GallerySkeleton density={density.density} />
       )}
 
-      {!activeFeed.isLoading && items.length === 0 && (
+      {!activeFeed.isLoading && items.length === 0 && emptyScan && (
+        <EmptyState
+          icon={FolderSearch}
+          title={emptyScan.title}
+          description={`${emptyScan.progress}Images show up here as they're found.`}
+        />
+      )}
+
+      {!activeFeed.isLoading && items.length === 0 && !emptyScan && (
         <EmptyState
           icon={ImageOff}
           title="No images found"

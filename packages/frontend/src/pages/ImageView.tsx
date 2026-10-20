@@ -24,6 +24,7 @@ import {
   Copy,
   Ban,
   Download,
+  FolderOpen,
   PanelRight,
   Workflow,
 } from "lucide-react";
@@ -50,7 +51,7 @@ import {
   type TagKind,
 } from "../lib/tags";
 import { splitBoilerplate } from "../lib/boilerplate";
-import { useBoilerplate } from "../lib/queries";
+import { libraryPageHref, useBoilerplate, useLibraries } from "../lib/queries";
 import { isFormField } from "../lib/dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { Button } from "../components/ui/Button";
@@ -562,6 +563,8 @@ export default function ImageView() {
   }, [data?.tags, push]);
 
   useDocumentTitle(data?.path ? data.path.split(/[\\/]/).pop() : null);
+  const { data: libraries } = useLibraries({ poll: false });
+  const library = libraries?.find((l) => l._id === data?.library_id);
 
   if (!id) return null;
 
@@ -727,6 +730,16 @@ export default function ImageView() {
                   {data.width}×{data.height} ·{" "}
                   {Math.round((data.size || 0) / 1024)} KB
                 </div>
+                {library && (
+                  <Link
+                    to={libraryPageHref(library._id)}
+                    title={`${library.path}\nShow in Libraries`}
+                    className="mt-0.5 flex items-center gap-1 min-w-0 text-xs text-muted hover:text-white"
+                  >
+                    <FolderOpen size={12} className="shrink-0" />
+                    <span className="truncate">{library.name || library.path}</span>
+                  </Link>
+                )}
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <a
@@ -757,7 +770,7 @@ export default function ImageView() {
                 so boxing each section again read as cards inside a card. */}
             <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-line">
               {/* Who is in it, first, like a photo app's people */}
-              <ImageCharacters tags={data.tags} />
+              <ImageCharacters imageId={data._id} tags={data.tags} quarantined={!!data.quarantined} />
 
               {/* Curation (Moiré-specific) */}
               <Section title="Curation">
