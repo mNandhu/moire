@@ -528,17 +528,21 @@ function SpineCard({
       aria-label={`${formatTag(t.tag)}: ${t.count.toLocaleString()} images`}
       className={cn(CARD, "flex", cardState(selected))}
     >
-      <span
-        className={cn(
-          "w-8 shrink-0 flex items-center justify-between py-2.5 [writing-mode:vertical-rl] rotate-180",
-          "text-xs font-bold uppercase tracking-[0.08em]",
-          inkOn(colour) === "dark" ? "text-canvas" : "text-white",
-        )}
-        style={{ background: colour }}
-      >
-        <span className="truncate max-h-[75%]">{name}</span>
-        <span className="font-mono font-medium text-2xs tracking-normal opacity-75 tabular-nums">
-          {t.count.toLocaleString()}
+      {/* The spine takes the portrait's height and never sets it: in flow, a
+          long name grew the card taller than 3:4 and stretched the portrait,
+          whose crop is worked out for exactly 3:4. */}
+      <span className="relative w-8 shrink-0" style={{ background: colour }}>
+        <span
+          className={cn(
+            "absolute inset-0 flex items-center justify-between gap-2 py-2.5 [writing-mode:vertical-rl] rotate-180",
+            "text-xs font-bold uppercase tracking-[0.08em]",
+            inkOn(colour) === "dark" ? "text-canvas" : "text-white",
+          )}
+        >
+          <span className="truncate min-h-0">{name}</span>
+          <span className="shrink-0 font-mono font-medium text-2xs tracking-normal opacity-75 tabular-nums">
+            {t.count.toLocaleString()}
+          </span>
         </span>
       </span>
       <FaceCrop
