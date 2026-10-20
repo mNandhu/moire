@@ -17,6 +17,7 @@ from ..services import (
     comfy_models,
     comfy_settings,
     generation_batches,
+    generation_estimate,
     library_watch,
     lora_presets,
     prompt_presets,
@@ -229,7 +230,12 @@ async def put_lora_choice(body: LoraChoice):
 async def status():
     """Connection, global busy, and the queue card's active batches."""
     m = get_generation_manager()
-    return {**m.status(), "active": await generation_batches.active_summary(m)}
+    queue = await generation_estimate.queue_plan(m.started)
+    active = await generation_batches.active_summary(m)
+    for a in active:
+        # Seconds left on the batch; None when some request can't be told.
+        a["eta"] = queue["batches"].get(a["_id"])
+    return {**m.status(), "active": active, "eta": queue["total"]}
 
 
 # -- Generators -------------------------------------------------------------------
@@ -389,6 +395,17 @@ async def queue_batch(body: BatchIn):
     except Rejected as e:
         return _rejected(e)
     return await generation_batches.get_batch(batch_id, m)
+
+
+@router.post("/estimate")
+async def estimate(body: BatchIn):
+    """How long a batch would take if queued now, from past runs: its own
+    seconds, the share of that spent loading its checkpoint, and the seconds
+    of work queued ahead of it. ``None`` where there's no history to go on."""
+    m = get_generation_manager()
+    return await generation_estimate.for_new(
+        body.model_dump(), await comfy_settings.get_settings(), m.started
+    )
 
 
 @router.get("/batches")

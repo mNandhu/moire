@@ -594,3 +594,54 @@ async def test_outputs_are_found_when_the_output_library_comes_back(client, tmp_
     # Re-pointing Generate at the folder lands on the same library too.
     await client.put("/generate/comfyui", json={"output_path": str(out)})
     assert (await comfy_settings.get_settings())["output_library_id"] == lib
+
+
+async def test_estimate_learns_from_runs_and_counts_checkpoint_loads(
+    client, comfy, seed
+):
+    await make_ready(client, comfy, seed)
+    body = {
+        "base": "x",
+        "checkpoint": "a.safetensors",
+        "width": 832,
+        "height": 1216,
+        "count": 3,
+    }
+    # No history yet: no number.
+    first = (await client.post("/generate/estimate", json=body)).json()
+    assert first["seconds"] is None and first["ahead"] == 0
+
+    await client.post("/generate/batches", json=body)
+    # The first run loads the checkpoint (its loader, node 4, isn't cached).
+    for cached, seconds in ((["9"], 30), (["4"], 10), (["4"], 10)):
+        pid = comfy.order[-1]
+        scanned(seed, comfy.finish(pid, seconds=seconds, cached=cached))
+        await tick()
+
+    same = (await client.post("/generate/estimate", json=body)).json()
+    assert same == {
+        "seconds": 30,
+        "load": None,
+        "ahead": 0,
+        "basis": "exact",
+        "samples": 2,
+    }
+    other = (
+        await client.post(
+            "/generate/estimate", json={**body, "checkpoint": "b.safetensors"}
+        )
+    ).json()
+    # Scaled from the Generator's other checkpoint, plus one load (30 - 10).
+    assert other["basis"] == "generator"
+    assert other["seconds"] == pytest.approx(50)
+    assert other["load"] == pytest.approx(20)
+
+    # Queued work shows up as time left, and ahead of a new batch.
+    b = (await client.post("/generate/batches", json={**body, "count": 2})).json()
+    status = (await client.get("/generate/status")).json()
+    assert status["eta"] == pytest.approx(20, abs=1)
+    assert status["active"][0]["eta"] == pytest.approx(20, abs=1)
+    got = (await client.get(f"/generate/batches/{b['_id']}")).json()
+    assert [q["expected"] for q in got["requests"]] == [10, 10]
+    ahead = (await client.post("/generate/estimate", json=body)).json()["ahead"]
+    assert ahead == pytest.approx(20, abs=1)
