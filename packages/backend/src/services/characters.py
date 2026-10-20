@@ -230,9 +230,12 @@ def signature(
 
 
 GENDERS = {
-    "girl": ("1girl", "multiple_girls"),
-    "boy": ("1boy", "multiple_boys"),
-    "other": ("1other",),
+    kind: (
+        f"1{kind}",
+        *(f"{n}{kind}s" for n in ("2", "3", "4", "5", "6+")),
+        *((f"multiple_{kind}s",) if kind != "other" else ()),
+    )
+    for kind in ("girl", "boy", "other")
 }
 
 

@@ -55,7 +55,7 @@ import {
   updateBlock,
   type GenerateForm,
 } from "../lib/generateForm";
-import { checkCountTags, fixCountTags } from "../lib/countTags";
+import { checkCountTags, fixCountTags, type Kind } from "../lib/countTags";
 import { cn } from "../lib/cn";
 import type { CountMode } from "../lib/requests";
 import { PromptInput } from "../components/generate/PromptInput";
@@ -260,6 +260,15 @@ export default function GeneratePage() {
     onSuccess: (m) => qc.setQueryData(MODELS_KEY, m),
   });
 
+  // Count tags (1girl, solo...) in the main prompt against the cast, once
+  // every picked character's recipe is in.
+  const genders =
+    recipes.length && recipes.every(Boolean) ? JSON.stringify(recipes.map((r) => r!.gender)) : null;
+  const counts = useMemo(
+    () => (genders ? checkCountTags(form.prompt, JSON.parse(genders) as (Kind | null)[]) : null),
+    [form.prompt, genders],
+  );
+
   if (status && !status.configured) {
     return (
       <>
@@ -281,12 +290,6 @@ export default function GeneratePage() {
     recipes.flatMap((r) => (r ? [characterTags(r)] : [])),
   );
   const negative = previewText(parts.negative, []);
-  // Count tags (1girl, solo...) in the main prompt against the cast, once
-  // every picked character's recipe is in.
-  const counts =
-    recipes.length && recipes.every(Boolean)
-      ? checkCountTags(form.prompt, recipes.map((r) => r!.gender))
-      : null;
   const countFix = counts?.expected?.length
     ? {
         label: `Use ${counts.expected.join(", ")}`,

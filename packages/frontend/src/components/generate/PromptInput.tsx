@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { caretOffset } from "../../lib/caret";
 import { cn } from "../../lib/cn";
 import { useTagBrowse } from "../../lib/queries";
@@ -100,10 +100,30 @@ export function PromptInput({
     const c = el.selectionStart;
     return marks.findIndex((m) => c >= m.start && c <= m.end);
   };
+  // Any change to the marks closes the bubble: its index and place are stale.
+  const marksKey = marks.map((m) => `${m.start}:${m.end}:${m.reason}`).join("|");
   useEffect(() => {
     markRefs.current = markRefs.current.slice(0, marks.length);
-    setShown((i) => (i != null && i < marks.length ? i : null));
-  }, [marks]);
+    setShown(null);
+  }, [marksKey, marks.length]);
+  // The copy behind wraps at the textarea's content width (a scrollbar
+  // narrows it) and follows its scroll.
+  const syncBack = useCallback(() => {
+    const el = ref.current;
+    const back = backRef.current;
+    if (!el || !back) return;
+    back.style.width = `${el.clientWidth}px`;
+    back.style.height = `${el.clientHeight}px`;
+    back.scrollTop = el.scrollTop;
+  }, []);
+  useLayoutEffect(syncBack, [syncBack, value, marksKey]);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !marks.length) return;
+    const ro = new ResizeObserver(syncBack);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [syncBack, marks.length]);
 
   const look = () => {
     const el = ref.current;
@@ -146,7 +166,7 @@ export function PromptInput({
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Escape" && shown != null) {
+    if (e.key === "Escape" && shown != null && !open) {
       e.stopPropagation();
       setShown(null);
       return;
@@ -173,7 +193,7 @@ export function PromptInput({
           ref={backRef}
           aria-hidden
           className={cn(
-            "pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words text-transparent",
+            "pointer-events-none absolute left-0 top-0 overflow-hidden whitespace-pre-wrap break-words text-transparent",
             className,
           )}
         >
@@ -211,8 +231,8 @@ export function PromptInput({
           look();
           markAt(markAtCaret());
         }}
-        onScroll={(e) => {
-          if (backRef.current) backRef.current.scrollTop = e.currentTarget.scrollTop;
+        onScroll={() => {
+          syncBack();
           setShown(null);
         }}
         onMouseMove={(e) => {
