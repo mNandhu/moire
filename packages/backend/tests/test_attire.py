@@ -195,3 +195,62 @@ def test_load_vocab_keeps_general_tags_only(tmp_path):
         encoding="utf-8",
     )
     assert build_script.load_vocab(csv_path) == {"blue_eyes"}
+
+
+def test_facets(listed):
+    assert attire.facet_of("serafuku") == "outfit"
+    assert attire.facet_of("necktie") == "outfit"
+    assert attire.facet_of("blue_eyes") == "look"
+    assert attire.facet_of("blue eyes") == "look"  # spelling canonicalised
+    assert attire.facet_of("adjusting_scarf") is None  # not worn, not a pose group
+    assert attire.facet_of("pointy_ears") == "look"  # unlisted, named as a body part
+    assert attire.facet_of("1girl") is None
+    assert attire.facets() == {
+        "serafuku": "outfit",
+        "thighhighs": "outfit",
+        "necktie": "outfit",
+        "anklet": "outfit",
+        "blue_eyes": "look",
+    }
+
+
+def test_facets_from_groups(tmp_path, monkeypatch):
+    path = tmp_path / "tag_groups.json"
+    path.write_text(
+        json.dumps(
+            {
+                "tags": {
+                    "sitting": {"category": "body", "group": "posture"},
+                    "holding_umbrella": {
+                        "category": "objects",
+                        "group": "holding_tags",
+                        "also": ["more/water"],
+                    },
+                    "night_sky": {
+                        "category": "image_composition_and_style",
+                        "group": "backgrounds",
+                    },
+                    "cowboy_shot": {
+                        "category": "image_composition_and_style",
+                        "group": "image_composition",
+                    },
+                    "rain": {
+                        "category": "more",
+                        "group": "theme",
+                        "also": ["more/water"],
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(attire, "TAG_GROUPS_PATH", path)
+    attire._load.cache_clear()
+    try:
+        assert attire.facet_of("sitting") == "pose"
+        assert attire.facet_of("holding_umbrella") == "pose"  # primary group first
+        assert attire.facet_of("night_sky") == "scene"
+        assert attire.facet_of("cowboy_shot") == "framing"
+        assert attire.facet_of("rain") == "scene"  # through its other place
+    finally:
+        attire._load.cache_clear()

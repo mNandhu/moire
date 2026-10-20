@@ -20,6 +20,7 @@ import { fetchSignatures } from "../lib/gen";
 import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
 import { useBoilerplate, useCharacterPage } from "../lib/queries";
 import { formatTag, toPromptText } from "../lib/tags";
+import { chipBorderStyle } from "../lib/tagColour";
 import { tagWorkflows } from "../lib/tagBrowse";
 import { formatUsedRange, groupWorkflows } from "../lib/workflows";
 import { withBackgroundLocation } from "../lib/backgroundLocation";
@@ -197,6 +198,7 @@ function Profile({ c, accent, person }: { c: Character; accent?: string; person:
                       `On ${s.count.toLocaleString()} of ${c.count.toLocaleString()} images. Opens those tagged ${formatTag(c.tag)}.`
                     : `On ${s.count.toLocaleString()} of ${c.count.toLocaleString()} images`
                 }
+                style={chipBorderStyle(s.tag)}
                 className="inline-flex items-center h-6 px-2 rounded-full bg-raised/80 border border-line text-xs text-neutral-200 hover:border-line-strong"
               >
                 {formatTag(s.tag)}
@@ -361,7 +363,11 @@ function Recipe({ c, onEdit }: { c: Character; onEdit: () => void }) {
       <div className="flex flex-wrap gap-1.5">
         {kept.length ? (
           kept.map((x) => (
-            <span key={x.tag} className="inline-flex h-6 items-center rounded-full border border-line bg-raised/80 px-2 text-xs text-neutral-200">
+            <span
+              key={x.tag}
+              style={chipBorderStyle(x.tag)}
+              className="inline-flex h-6 items-center rounded-full border border-line bg-raised/80 px-2 text-xs text-neutral-200"
+            >
               {formatTag(x.tag)}
             </span>
           ))

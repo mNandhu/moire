@@ -20,6 +20,7 @@ import { api } from "./api";
 import { fetchAiCoverage } from "./ai";
 import type { BrowseTag, TagDetail, TagSource } from "./tagBrowse";
 import type { CharacterPage } from "./character";
+import type { Facet } from "./tagColour";
 
 export type Library = {
   _id: string;
@@ -162,6 +163,18 @@ export function useImageStats() {
           `&tz_offset=${-new Date().getTimezoneOffset()}`,
         { signal },
       ),
+  });
+}
+
+export const TAG_FACETS_KEY = ["tag-facets"] as const;
+
+/** `tag -> facet` from the shipped tag-group list: fixed per build, so fetched once. */
+export function useTagFacets() {
+  return useQuery({
+    queryKey: TAG_FACETS_KEY,
+    queryFn: ({ signal }) => api<Record<string, Facet>>("/api/v1/tags/facets", { signal }),
+    staleTime: Infinity,
+    gcTime: Infinity,
   });
 }
 
