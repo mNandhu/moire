@@ -159,7 +159,11 @@ belongs in this file.
 - **Attire tag**: a general tag naming something worn (`serafuku`,
   `thighhighs`), from a list built from Danbooru's attire tag groups and
   limited to the tagger's vocabulary. Each carries its group (headwear,
-  legwear, ...).
+  legwear, ...). The list is a slice of the **tag-group list**
+  (`data/tag_groups.json`, built from the whole `tag_groups` wiki hub by
+  `scripts/build_tag_groups.py`): every tag keeps its category (body, sex,
+  ...), its most specific group and its other places. Attire is a set of
+  groups, not one category. (`services/attire.py`)
 - **Outfit**: a named set of attire tags saved from an image (that image is
   its thumbnail), for the character it was saved under, or shared with all
   characters. User-made; suggested groupings come later.

@@ -1,0 +1,137 @@
+"""The attire list: which general tags name something worn.
+
+The WD tagger has no clothing category, so Moiré ships a tag-group list built
+from Danbooru's ``tag_groups`` wiki hub (``scripts/build_tag_groups.py``),
+limited to the tagger's vocabulary and committed as ``data/tag_groups.json``.
+Each tag keeps its top-level category (body, sex, ...) and the group it came
+from (headwear, legwear, ...), plus ``also``: its other places, since Danbooru
+lists a tag in several pages. Attire is a set of groups (``ATTIRE_GROUPS``),
+not one category, because the clothing category also holds nudity and makeup
+tags and neckwear sits under body. The file is hand-editable; the loader
+reads it once and caches it.
+
+Pure and dependency-free. Takes bare tag names (no ``manual:`` / ``prompt:``
+prefix); spelling goes through :func:`tag_names.canonical_name`, lowercased,
+since the list is stored in the tagger's own lowercase underscore form.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from functools import lru_cache
+from pathlib import Path
+
+from .tag_names import canonical_name
+
+TAG_GROUPS_PATH = Path(__file__).resolve().parents[2] / "data" / "tag_groups.json"
+# Groups whose tags are things worn. A tag is attire when any of its places is
+# one of these.
+ATTIRE_GROUPS = frozenset(
+    {
+        "accessories",
+        "attire",
+        "eyewear",
+        "fashion_style",
+        "handwear",
+        "headwear",
+        "legwear",
+        "neck_and_neckwear",
+        "sexual_attire",
+        "sleeves",
+    }
+)
+
+# Poses and actions that the attire groups list because they involve clothing
+# (`adjusting_scarf`, `towel_around_neck`, `hand_on_headwear`), not garments.
+_NOT_WORN = re.compile(
+    r"^(adjusting|holding|kissing)_|_around_neck$|_grab$|^hands?_(on|in)_"
+    r"|^(long_neck|hand_fan|hand_tattoo)$"
+)
+
+
+def _key(tag: str) -> str:
+    return canonical_name(tag).lower()
+
+
+def parse(doc: object) -> dict[str, tuple[str, str, tuple[str, ...]]]:
+    """The ``tag -> (category, group, also)`` map of a tag-group document, keys
+    normalised. Malformed input yields an empty map (or skips the entry)
+    rather than raising: a broken hand edit must not take the app down."""
+    tags = doc.get("tags") if isinstance(doc, dict) else None
+    if not isinstance(tags, dict):
+        return {}
+    out: dict[str, tuple[str, str, tuple[str, ...]]] = {}
+    for name, info in tags.items():
+        if not (isinstance(name, str) and name.strip() and isinstance(info, dict)):
+            continue
+        category, group, also = (
+            info.get("category"),
+            info.get("group"),
+            info.get("also", []),
+        )
+        if not (isinstance(category, str) and isinstance(group, str)):
+            continue
+        if not (isinstance(also, list) and all(isinstance(a, str) for a in also)):
+            also = []
+        out[_key(name)] = (category, group, tuple(also))
+    return out
+
+
+@lru_cache(maxsize=1)
+def _load() -> dict[str, tuple[str, str, tuple[str, ...]]]:
+    try:
+        return parse(json.loads(TAG_GROUPS_PATH.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return {}
+
+
+def _groups(entry: tuple[str, str, tuple[str, ...]]) -> set[str]:
+    return {entry[1], *(a.rpartition("/")[2] for a in entry[2])}
+
+
+def _attire_group(tag: str, entry: tuple[str, str, tuple[str, ...]]) -> str | None:
+    groups = _groups(entry) & ATTIRE_GROUPS
+    if not groups or _NOT_WORN.search(tag):
+        return None
+    return entry[1] if entry[1] in groups else min(groups)
+
+
+def is_attire(tag: str) -> bool:
+    key = _key(tag)
+    entry = _load().get(key)
+    return entry is not None and _attire_group(key, entry) is not None
+
+
+def group_of(tag: str) -> str | None:
+    """The group of a listed tag, ``None`` when it is unlisted. An attire tag
+    answers with its attire group (``bikini`` is attire, not ``water``);
+    others with their most specific group."""
+    key = _key(tag)
+    entry = _load().get(key)
+    if entry is None:
+        return None
+    return _attire_group(key, entry) or entry[1]
+
+
+def category_of(tag: str) -> str | None:
+    """The primary top-level category (body, sex, ...) of a listed tag."""
+    entry = _load().get(_key(tag))
+    return entry[0] if entry else None
+
+
+def all_tags(category: str | None = None) -> dict[str, str]:
+    """``tag -> group`` for every listed tag, or only one primary category's."""
+    return {
+        t: group_of(t) or e[1] for t, e in _load().items() if category in (None, e[0])
+    }
+
+
+def attire_tags() -> dict[str, str]:
+    """``tag -> attire group`` for every attire tag."""
+    out: dict[str, str] = {}
+    for tag, entry in _load().items():
+        group = _attire_group(tag, entry)
+        if group:
+            out[tag] = group
+    return out

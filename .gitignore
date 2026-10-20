@@ -34,3 +34,6 @@ packages/**/.env
 # Misc
 *.swp
 *.swo
+
+# Attire list build cache (scripts/build_attire_list.py)
+/packages/backend/.tag-groups-cache/
