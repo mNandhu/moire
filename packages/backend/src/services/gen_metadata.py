@@ -160,11 +160,16 @@ def gen_raw_from_embedded(info: Any, user_comment: Any = None) -> dict | None:
         # Lenient parse per chunk: a malformed `prompt` must not also discard an
         # intact `workflow` (and vice versa), and the common control-char/trailing
         # -byte malformations are recovered rather than dropped.
-        return {
+        doc = {
             "source": "comfyui",
             "prompt": loads_lenient(info.get("prompt")),
             "workflow": loads_lenient(info.get("workflow")),
         }
+        # Moire's own chunk on images it queued: the family they belong to.
+        moire = loads_lenient(info.get("moire"))
+        if isinstance(moire, dict):
+            doc["moire"] = moire
+        return doc
 
     # Automatic1111 PNG: a single `parameters` text chunk.
     params = info.get("parameters")

@@ -337,9 +337,8 @@ async def generator_setup_view(generator_id: str, image: str | None = None):
     except SetupError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     new = {**new, "defaults": source.get("defaults")}
-    proposed = (await generator_setup.setup_view(graph, new))["proposed"]
     return await generator_setup.setup_view(
-        graph, new, generator_setup.carry_slots(gen["slots"], graph, proposed)
+        graph, new, carry_from=(gen["slots"], gen["graph"])
     )
 
 

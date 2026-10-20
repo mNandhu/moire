@@ -101,6 +101,9 @@ async def image_source(image_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
             raise SetupError("This image has no ComfyUI workflow to run")
         workflow = raw.get("workflow") if isinstance(raw.get("workflow"), dict) else {}
         family = workflow.get("id") if isinstance(workflow.get("id"), str) else None
+        moire = raw.get("moire") if isinstance(raw.get("moire"), dict) else {}
+        if not family and isinstance(moire.get("family"), str):
+            family = moire["family"]
         name = None
         if family:
             name = (
@@ -145,13 +148,6 @@ async def image_source(image_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
         "family_name": name,
         "file_name": file_name,
         "workflow_sig": row.workflow_sig,
-        # The editor graph's node ids and types, without widget values: sent
-        # with each prompt so outputs join this family (and match its file).
-        "editor_nodes": [
-            {"id": n.get("id"), "type": n.get("type")}
-            for n in (workflow.get("nodes") or [])
-            if isinstance(n, dict)
-        ],
         "pins": (pins or {}).get("fields") if isinstance(pins, dict) else None,
     }
     return parse_upload(graph), source
@@ -203,7 +199,10 @@ def _text_at(
 
 
 async def setup_view(
-    graph: dict[str, Any], source: dict[str, Any], slots: dict[str, Any] | None = None
+    graph: dict[str, Any],
+    source: dict[str, Any],
+    slots: dict[str, Any] | None = None,
+    carry_from: tuple[dict[str, Any], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Everything the setup page shows: discovery, the slots (``slots`` when
     editing a saved Generator, else the proposal), the default Base and
@@ -233,7 +232,13 @@ async def setup_view(
     missing = [lo["node"] for lo in d["found"]["loras"] if lo["installed"] is False]
     if missing:
         proposed["drop_loras"] = missing
-    chosen = slots if slots is not None else proposed
+    chosen = (
+        slots
+        if slots is not None
+        else carry_slots(carry_from[0], carry_from[1], graph, proposed)
+        if carry_from
+        else proposed
+    )
     saved = source.get("defaults") if isinstance(source.get("defaults"), dict) else None
     base = (
         saved["base"]
@@ -343,9 +348,7 @@ def clean_defaults(raw: Any) -> dict[str, str]:
 
 def public_source(source: dict[str, Any]) -> dict[str, Any]:
     """A source as the client sees it: no ruleset pins, defaults or editor nodes."""
-    return {
-        k: v for k, v in source.items() if k not in ("pins", "defaults", "editor_nodes")
-    }
+    return {k: v for k, v in source.items() if k not in ("pins", "defaults")}
 
 
 async def has_work(gen_id: str) -> bool:
@@ -397,77 +400,112 @@ async def create(
 
 
 async def newer_version(gen: dict[str, Any]) -> dict[str, Any] | None:
-    """The family's newest image when it was made with another version than
-    the one this workflow was set up from: ``{image_id, workflow_sig,
-    version, versions}`` (versions counted oldest first), else None."""
+    """A newer version of the workflow in the library: the family's newest
+    version (by when it was first used, counting only images Moire didn't
+    make: its own outputs carry the family but a graph it edited) when it is
+    newer than the one this workflow was set up from. ``{image_id,
+    workflow_sig, version, versions}``, else None."""
     src = gen.get("source") or {}
     if src.get("kind") != "image" or not src.get("family"):
         return None
-    images = t.images
+    images, outs = t.images, t.generation_outputs
+    made_here = sa.select(outs.c.image_id).where(outs.c.image_id.isnot(None))
     async with async_conn() as conn:
         sigs = await workflow_family.family_sigs(conn, src["family"])
         if not sigs:
             return None
-        newest = (
+        firsts = (
             await conn.execute(
-                sa.select(images.c._id, images.c.gen_workflow_sig)
-                .where(images.c.gen_workflow_sig.in_(sigs))
+                sa.select(images.c.gen_workflow_sig, sa.func.min(images.c.mtime))
+                .where(
+                    images.c.gen_workflow_sig.in_(sigs),
+                    images.c._id.not_in(made_here),
+                )
+                .group_by(images.c.gen_workflow_sig)
+            )
+        ).fetchall()
+        order = [r[0] for r in sorted(firsts, key=lambda r: (r[1] or 0, r[0]))]
+        if not order or order[-1] == src.get("workflow_sig"):
+            return None
+        if src.get("workflow_sig") in order and order.index(
+            src["workflow_sig"]
+        ) > order.index(order[-1]):
+            return None
+        image_id = (
+            await conn.execute(
+                sa.select(images.c._id)
+                .where(
+                    images.c.gen_workflow_sig == order[-1],
+                    images.c._id.not_in(made_here),
+                )
                 .order_by(
                     sa.func.coalesce(images.c.mtime, 0).desc(), images.c._id.desc()
                 )
                 .limit(1)
             )
-        ).first()
-        firsts = (
-            await conn.execute(
-                sa.select(images.c.gen_workflow_sig, sa.func.min(images.c.mtime))
-                .where(images.c.gen_workflow_sig.in_(sigs))
-                .group_by(images.c.gen_workflow_sig)
-            )
-        ).fetchall()
-    if newest is None or newest.gen_workflow_sig == src.get("workflow_sig"):
-        return None
-    order = [r[0] for r in sorted(firsts, key=lambda r: (r[1] or 0, r[0]))]
+        ).scalar()
     return {
-        "image_id": newest._id,
-        "workflow_sig": newest.gen_workflow_sig,
-        "version": order.index(newest.gen_workflow_sig) + 1,
+        "image_id": image_id,
+        "workflow_sig": order[-1],
+        "version": len(order),
         "versions": len(order),
     }
 
 
 def carry_slots(
-    old: dict[str, Any], graph: dict[str, Any], proposed: dict[str, Any]
+    old: dict[str, Any],
+    old_graph: dict[str, Any],
+    graph: dict[str, Any],
+    proposed: dict[str, Any],
 ) -> dict[str, Any]:
     """A workflow's slots moved onto a newer version of its graph: each one
-    that still points at the same kind of input there is kept (node ids
-    survive edits in ComfyUI), the rest come from the new proposal. Pure."""
+    kept where its node id still names the same kind of node there (ComfyUI
+    keeps ids across edits) and the input still fits; the rest come from the
+    new proposal. Pure."""
+
+    def same_node(ref: Any) -> bool:
+        nid = str(ref[0])
+        return nid in graph and (old_graph.get(nid) or {}).get("class_type") == graph[
+            nid
+        ].get("class_type")
+
     out = dict(proposed)
+    links = set(proposed.get("replace_links") or [])
     for key, value in old.items():
-        if value is None or key in ("seeds", "drop_loras", "replace_links"):
+        if value is None or key in (
+            "seeds",
+            "drop_loras",
+            "replace_links",
+            "per_request",
+        ):
             continue
-        trial = {**proposed, key: value}
+        if isinstance(value, list) and value and not same_node(value):
+            continue
+        trial = {**out, key: value}
         if key in ("positive", "negative"):
-            trial["replace_links"] = [
-                k for k in old.get("replace_links") or [] if k == key
-            ]
-        if not set(check_slots(graph, trial)) - set(check_slots(graph, proposed)):
+            want = key in (old.get("replace_links") or [])
+            trial["replace_links"] = sorted(
+                (links - {key}) | ({key} if want else set())
+            )
+        if not set(check_slots(graph, trial)) - set(check_slots(graph, out)):
             out[key] = value
             if key in ("positive", "negative"):
-                links = set(out.get("replace_links") or []) - {key}
-                out["replace_links"] = sorted(links | set(trial["replace_links"]))
+                links = set(trial["replace_links"])
+    out["replace_links"] = sorted(links)
+    if old.get("per_request") and out.get("batch_size") == old.get("batch_size"):
+        out["per_request"] = old["per_request"]
     seeds = [
         p
         for p in old.get("seeds") or []
-        if not check_slots(graph, {**proposed, "seeds": [p]})
+        if same_node(p) and not check_slots(graph, {**out, "seeds": [p]})
     ]
     if seeds:
         out["seeds"] = seeds
     drops = [
         n
         for n in old.get("drop_loras") or []
-        if (graph.get(str(n)) or {}).get("class_type")
-        in ("LoraLoader", "LoraLoaderModelOnly")
+        if same_node([n])
+        and graph[str(n)].get("class_type") in ("LoraLoader", "LoraLoaderModelOnly")
     ]
     out["drop_loras"] = sorted(set(drops) | set(proposed.get("drop_loras") or []))
     return out
@@ -481,6 +519,8 @@ async def update(gen: dict[str, Any], patch: dict[str, Any]) -> None:
         values["name"] = patch["name"].strip()
     graph = gen["graph"]
     if isinstance(patch.get("source"), dict) and patch["source"].get("image_id"):
+        if "slots" not in patch:
+            raise SetupError("A new version needs its slots")
         graph, source = await image_source(str(patch["source"]["image_id"]))
         if await has_work(gen["_id"]):
             raise SetupError("Wait for its batches to finish or cancel them first")

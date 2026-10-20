@@ -43,7 +43,7 @@ from .generator_graph import (
     build_prompt,
     clear_display_text,
     drop_missing,
-    editor_workflow,
+    family_pnginfo,
     fill_defaults,
     merge_loras,
     seeds_for,
@@ -51,6 +51,10 @@ from .generator_graph import (
 )
 
 log = logging.getLogger("moire.generate")
+
+# Seconds between attempts to set up a connection that failed to (a missing
+# certificate file, say): often enough to recover soon, not a log line a tick.
+SETUP_RETRY = 60.0
 
 UNFINISHED = ("pending", "queued", "running")
 IN_COMFY = ("queued", "running")
@@ -398,6 +402,7 @@ class GenerationManager:
         self.ws_connect: Any = None
         self._classes: dict[str, Any] | None = None
         self._setup_failed = False
+        self._setup_retry_at = 0.0
         self.connected = False
         self.error: str | None = None
         self.queue_remaining = 0
@@ -491,8 +496,13 @@ class GenerationManager:
             await self.configure()
             self._setup_failed = False
         except Exception as e:
-            log.exception("ComfyUI configure failed")
+            # The whole traceback once; a retry that fails again is one line.
+            if self._setup_failed:
+                log.warning("ComfyUI configure failed again: %s", e)
+            else:
+                log.exception("ComfyUI configure failed")
             self._setup_failed = True
+            self._setup_retry_at = time.monotonic() + SETUP_RETRY
             self.error = f"Couldn't set up the connection: {e}"
 
     async def _run(self) -> None:
@@ -560,9 +570,13 @@ class GenerationManager:
     async def tick(self) -> bool:
         """One pass: sync request states with ComfyUI, submit the next
         request of idle batches. Returns whether anything is in flight."""
-        if self.client is None and self._setup_failed:
-            await self._set_up()
         async with self._tick_lock:
+            if (
+                self.client is None
+                and self._setup_failed
+                and time.monotonic() >= self._setup_retry_at
+            ):
+                await self._set_up()
             if self.client is None:
                 return False
             if not self.connected or not self._models_loaded:
@@ -841,7 +855,7 @@ class GenerationManager:
             graph = build_prompt(gen["graph"], gen["slots"], values)
         except GraphError as e:
             raise ComfyRejected(str(e), []) from e
-        workflow = None
+        pnginfo = None
         # A graph saved before setup cleaned it may still hold NaN.
         graph = gen_metadata.sanitize_json(graph)
         if gen["kind"] != "builtin":
@@ -852,9 +866,9 @@ class GenerationManager:
                 )
                 fill_defaults(graph, info)
             clear_display_text(graph)
-            workflow = editor_workflow(gen.get("source"))
+            pnginfo = family_pnginfo(gen.get("source"))
         try:
-            pid = await self.client.queue_prompt(graph, workflow)
+            pid = await self.client.queue_prompt(graph, pnginfo)
         except ComfyRejected as e:
             e.node_errors = annotate_node_errors(e.node_errors, gen, graph)
             raise

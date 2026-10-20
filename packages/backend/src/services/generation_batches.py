@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import comfy_models, generation_estimate
+from . import comfy_models, generation_estimate, generator_setup
 from .generation_jobs import GenerationManager, Invalid, Unavailable, load_generator
 from .generator_discovery import fixed_values
 from .generator_graph import sampling_defaults
@@ -303,12 +303,7 @@ async def generator_view(
         "ready": bool(gen["ready"]),
         "slots": gen["slots"],
         # Where a custom one came from, and its default Base / negative.
-        "source": {
-            k: v
-            for k, v in source.items()
-            if k not in ("defaults", "pins", "editor_nodes")
-        }
-        or None,
+        "source": generator_setup.public_source(source) or None,
         "defaults": source.get("defaults"),
         # What each exposed sampling setting is when left alone.
         "sampling": sampling_defaults(gen["graph"], gen["slots"]),

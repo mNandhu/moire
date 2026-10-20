@@ -302,36 +302,38 @@ def bypass_loras(
     return refs
 
 
-def _is_display(class_type: Any) -> bool:
-    ct = str(class_type or "").lower()
-    return "show" in ct or "display" in ct or ("preview" in ct and "image" not in ct)
+# Text display nodes whose string inputs are only the editor's cache of what
+# they showed last run (pysssss Show Text and kin). Named, not guessed: other
+# "preview" / "show" nodes keep state in string widgets (a mask-edited file).
+_DISPLAY_TEXT = {
+    "showtext",
+    "showtext|pysssss",
+    "displaytext",
+    "previewany",
+    "showanything",
+}
 
 
 def clear_display_text(graph: Graph) -> Graph:
-    """Empty the text display nodes (Show Text and kin) cached from the last
-    run in the editor: it would travel with every prompt and is shown again
-    once this run ends anyway. Mutates."""
+    """Empty the text display nodes' cached text from the last editor run:
+    it would travel with every prompt and is shown again once this run ends
+    anyway. Mutates."""
     for node in graph.values():
-        if _is_display(node.get("class_type")):
+        if str(node.get("class_type", "")).lower().replace(" ", "") in _DISPLAY_TEXT:
             for name, v in node.get("inputs", {}).items():
                 if isinstance(v, str):
                     node["inputs"][name] = ""
     return graph
 
 
-def editor_workflow(source: dict[str, Any] | None) -> dict[str, Any] | None:
-    """The editor workflow sent with a prompt so its images join the family
-    they were set up from: the family id and node types, no widget values
-    (no old prompts). None for an upload or an image without one."""
-    src = source or {}
-    if not src.get("family"):
-        return None
-    return {
-        "id": src["family"],
-        "nodes": [n for n in src.get("editor_nodes") or [] if n.get("type")],
-        "links": [],
-        "version": 0.4,
-    }
+def family_pnginfo(source: dict[str, Any] | None) -> dict[str, Any] | None:
+    """What a prompt adds to its images so they join the family they were set
+    up from: a ``moire`` chunk with the family id (the scanner reads it when
+    the image has no editor workflow). Not an editor workflow: ComfyUI loads
+    that ahead of the prompt, so a partial one would break reopening the
+    image there. None for an upload or an image without a family."""
+    family = (source or {}).get("family")
+    return {"moire": {"family": family}} if family else None
 
 
 _WIDGET_DEFAULTS = {"INT": 0, "FLOAT": 0.0, "STRING": "", "BOOLEAN": False}
@@ -344,13 +346,15 @@ def _widget_default(spec: Any) -> Any:
     if not isinstance(spec, (list, tuple)) or not spec:
         return None
     kind, opts = spec[0], spec[1] if len(spec) > 1 and isinstance(spec[1], dict) else {}
+    if opts.get("forceInput"):
+        return None  # a link-only input: missing is ComfyUI's error to report
     if isinstance(kind, list):  # an old-style combo: the choices themselves
         return opts.get("default", kind[0] if kind else None)
     if kind == "COMBO":
         choices = opts.get("options") or []
         return opts.get("default", choices[0] if choices else None)
     if kind in _WIDGET_DEFAULTS:
-        return opts.get("default", _WIDGET_DEFAULTS[kind])
+        return opts.get("default", opts.get("min", _WIDGET_DEFAULTS[kind]))
     return None
 
 

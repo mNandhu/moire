@@ -17,8 +17,12 @@ from ..database import schema as t
 # newest by id. One image stands for the whole signature everywhere.
 SAMPLE_ID = sa.func.max(t.images.c._id)
 
-# A raw generation document's editor-graph id (the family key).
-WORKFLOW_ID = sa.func.json_extract(t.image_gen_raw.c.raw, "$.workflow.id")
+# A raw generation document's editor-graph id (the family key); an image
+# Moire queued carries it in its own chunk instead (no editor workflow).
+WORKFLOW_ID = sa.func.coalesce(
+    sa.func.json_extract(t.image_gen_raw.c.raw, "$.workflow.id"),
+    sa.func.json_extract(t.image_gen_raw.c.raw, "$.moire.family"),
+)
 
 
 async def family_sigs(conn: AsyncConnection, workflow_id: str) -> tuple[str, ...]:

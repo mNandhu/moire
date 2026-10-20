@@ -674,6 +674,10 @@ async def test_a_failed_setup_at_startup_is_retried(temp_db, monkeypatch):
     await m._set_up()
     assert m.status()["configured"] is False
     assert "Couldn't set up the connection" in m.status()["error"]
+    # Not every tick: after the wait.
+    await m.tick()
+    assert calls["n"] == 1
+    m._setup_retry_at = 0.0
     await m.tick()
     assert m.status()["configured"] is True and m.status()["connected"] is True
     await m.stop()

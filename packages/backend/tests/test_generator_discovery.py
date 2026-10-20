@@ -369,3 +369,74 @@ def test_fill_defaults_like_the_editor_does():
         "seam": "None",
         "tiled": False,
     }
+
+
+def test_carry_slots_needs_the_same_kind_of_node(hires):
+    from src.services.generator_setup import carry_slots
+
+    old = {
+        **discover(hires)["slots"],
+        "seeds": [["16", "seed"]],
+        "width": ["25", "batch_size"],
+    }
+    new = {k: dict(v) for k, v in hires.items()}
+    # Node 16 is now a different sampler class with a seed; 14 stays.
+    new["16"] = {**new["16"], "class_type": "KSamplerAdvanced"}
+    proposed = discover(new)["slots"]
+    out = carry_slots(old, hires, new, proposed)
+    assert out["positive"] == ["14", "text"]
+    assert out["seeds"] == proposed["seeds"]  # the old seed node changed kind
+
+
+def test_carry_slots_keeps_the_other_prompts_join(runtime):
+    from src.services.generator_setup import carry_slots
+
+    proposed = {
+        **discover(runtime)["slots"],
+        "positive": ["11", "text"],
+        "replace_links": ["positive"],
+    }
+    old = {"negative": ["12", "text"], "replace_links": []}
+    out = carry_slots(old, runtime, runtime, proposed)
+    assert out["negative"] == ["12", "text"] and out["replace_links"] == ["positive"]
+
+
+def test_fill_defaults_skips_link_only_inputs_and_respects_min():
+    from src.services.generator_graph import fill_defaults
+
+    g = {"1": {"class_type": "X", "inputs": {}}}
+    info = {
+        "X": {
+            "input": {
+                "required": {
+                    "text": ["STRING", {"forceInput": True}],
+                    "n": ["INT", {"min": 1}],
+                }
+            }
+        }
+    }
+    assert fill_defaults(g, info) == [["1", "n"]] and g["1"]["inputs"] == {"n": 1}
+
+
+def test_only_text_displays_are_cleared():
+    from src.services.generator_graph import clear_display_text
+
+    g = {
+        "1": {
+            "class_type": "ShowText|pysssss",
+            "inputs": {"text": ["2", 0], "text2": "old"},
+        },
+        "2": {"class_type": "PreviewBridge", "inputs": {"image": "clipspace/mask.png"}},
+    }
+    clear_display_text(g)
+    assert (
+        g["1"]["inputs"]["text2"] == ""
+        and g["2"]["inputs"]["image"] == "clipspace/mask.png"
+    )
+
+
+def test_family_pnginfo():
+    from src.services.generator_graph import family_pnginfo
+
+    assert family_pnginfo({"family": "f"}) == {"moire": {"family": "f"}}
+    assert family_pnginfo({"kind": "upload"}) is None

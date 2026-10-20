@@ -162,3 +162,10 @@ def test_read_gen_raw_tolerates_an_object_with_no_exif():
             raise OSError("no exif block")
 
     assert gen_metadata.read_gen_raw(NoExif())["parameters"] == _A1111
+
+
+def test_moires_family_chunk_is_kept():
+    from src.services.gen_metadata import gen_raw_from_embedded
+
+    doc = gen_raw_from_embedded({"prompt": '{"1": {}}', "moire": '{"family": "f"}'})
+    assert doc["moire"] == {"family": "f"} and doc["workflow"] is None

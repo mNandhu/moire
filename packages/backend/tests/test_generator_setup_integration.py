@@ -344,7 +344,6 @@ async def test_prompts_carry_the_family_and_no_cached_text(client, comfy, seed):
             "/generate/generators/discover", json={"image_id": "L1:a.png"}
         )
     ).json()
-    assert "editor_nodes" not in d["source"]
     slots = {**d["slots"], "positive": ["11", "text"], "replace_links": ["positive"]}
     gen = (
         await client.post(
@@ -354,10 +353,9 @@ async def test_prompts_carry_the_family_and_no_cached_text(client, comfy, seed):
     ).json()
     await client.post(f"/generate/generators/{gen['_id']}/test", json={})
     pid = comfy.order[-1]
-    wf = comfy.extras[pid]["extra_pnginfo"]["workflow"]
-    assert wf["id"] == "fam-1"
-    # Node types for the family's file match; no widget values, no old prompt.
-    assert wf["nodes"] == [{"id": 11, "type": "CLIPTextEncode"}]
+    # Its family in Moire's own chunk; no editor workflow (ComfyUI would
+    # load that ahead of the prompt), so no old widget text either.
+    assert comfy.extras[pid]["extra_pnginfo"] == {"moire": {"family": "fam-1"}}
     # The display node's cached text from the editor doesn't travel.
     assert comfy.prompts[pid]["22"]["inputs"]["text2"] == ""
 
@@ -434,3 +432,104 @@ async def test_update_from_a_newer_version(client, seed):
     assert (await client.get(f"/generate/generators/{gen['_id']}/latest")).json() == {
         "newer": None
     }
+
+
+async def test_newer_version_ignores_moires_own_outputs_and_older_ones(client, seed):
+    old = _graph("graph_hires_detailer.json")
+    _version(seed, "L1:a.png", old, "sig-1", 1.0)
+    _version(
+        seed,
+        "L1:b.png",
+        {**old, "99": {"class_type": "Note", "inputs": {}}},
+        "sig-2",
+        2.0,
+    )
+    d = (
+        await client.post(
+            "/generate/generators/discover", json={"image_id": "L1:b.png"}
+        )
+    ).json()
+    gen = (
+        await client.post(
+            "/generate/generators",
+            json={"source": {"image_id": "L1:b.png"}, "name": "P", "slots": d["slots"]},
+        )
+    ).json()
+    # An older version used later isn't "newer".
+    _version(seed, "L1:a2.png", old, "sig-1", 3.0)
+    assert (await client.get(f"/generate/generators/{gen['_id']}/latest")).json() == {
+        "newer": None
+    }
+    # Moire's own output (a graph it edited, a new signature) isn't either.
+    _version(
+        seed,
+        "OUT:x.png",
+        {**old, "98": {"class_type": "Note", "inputs": {}}},
+        "sig-3",
+        4.0,
+    )
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.insert(t.generation_batches).values(
+                _id=900, name="b", generator_id=gen["_id"], inputs={}, state="done"
+            )
+        )
+        conn.execute(
+            sa.insert(t.generation_requests).values(
+                _id=900, batch_id=900, idx=0, state="done", seed=1
+            )
+        )
+        conn.execute(
+            sa.insert(t.generation_outputs).values(
+                request_id=900,
+                idx=0,
+                filename="x.png",
+                subfolder="",
+                image_id="OUT:x.png",
+            )
+        )
+    assert (await client.get(f"/generate/generators/{gen['_id']}/latest")).json() == {
+        "newer": None
+    }
+
+
+async def test_a_new_version_needs_its_slots(client, seed):
+    old = _graph("graph_hires_detailer.json")
+    _version(seed, "L1:a.png", old, "sig-1", 1.0)
+    d = (
+        await client.post(
+            "/generate/generators/discover", json={"image_id": "L1:a.png"}
+        )
+    ).json()
+    gen = (
+        await client.post(
+            "/generate/generators",
+            json={"source": {"image_id": "L1:a.png"}, "name": "P", "slots": d["slots"]},
+        )
+    ).json()
+    r = await client.put(
+        f"/generate/generators/{gen['_id']}", json={"source": {"image_id": "L1:a.png"}}
+    )
+    assert r.status_code == 400
+
+
+async def test_an_image_moire_made_joins_its_family(temp_db, seed):
+    from src.database.db import async_conn
+    from src.services import workflow_family
+
+    _version(seed, "L1:a.png", _graph("graph_hires_detailer.json"), "sig-1", 1.0)
+    seed("OUT:x.png", gen={"workflow_sig": "sig-9"}, mtime=2.0)
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.insert(t.image_gen_raw).values(
+                _id="OUT:x.png",
+                library_id="OUT",
+                workflow_sig="sig-9",
+                raw={"prompt": {}, "workflow": None, "moire": {"family": "fam-1"}},
+            )
+        )
+    async with async_conn() as conn:
+        assert sorted(await workflow_family.family_sigs(conn, "fam-1")) == [
+            "sig-1",
+            "sig-9",
+        ]
