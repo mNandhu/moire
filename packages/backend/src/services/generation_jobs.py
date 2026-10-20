@@ -156,7 +156,10 @@ def batch_shape(
         "count": max(1, min(500, int(body.get("count") or 1))),
         "per_request": per_request,
         "per_request_asked": asked,
-        "checkpoint": body.get("checkpoint") or None,
+        # Only where the graph lets Moiré set it (a custom one keeps its own).
+        "checkpoint": (body.get("checkpoint") or None)
+        if gen["slots"].get("checkpoint")
+        else None,
         "sampling": _sampling_input(body.get("sampling"), gen["slots"]),
         "width": body.get("width"),
         "height": body.get("height"),

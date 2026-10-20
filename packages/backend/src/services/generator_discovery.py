@@ -112,6 +112,43 @@ def _text_source(
     return None
 
 
+def _cond_inputs(graph: Graph, ref: Any) -> list[Any]:
+    """The conditioning links a conditioning output comes from. A node with
+    both a positive and a negative input (ControlNet Apply Advanced) passes
+    them through as outputs 0 and 1: only the matching one counts."""
+    inp = _inputs(graph, ref[0])
+    if _is_link(inp.get("positive")) and _is_link(inp.get("negative")):
+        return [inp["negative"] if int(ref[1]) == 1 else inp["positive"]]
+    return [
+        v for k, v in sorted(inp.items()) if _CONDITIONING.search(k) and _is_link(v)
+    ]
+
+
+def _prompt_upstream(graph: Graph, ref: Any) -> set[str]:
+    """Every node one side of the sampler's conditioning depends on: like
+    :func:`_upstream`, but through a positive / negative pass-through node
+    only along its own side."""
+    seen: set[str] = set()
+    todo = [ref]
+    while todo:
+        r = todo.pop()
+        nid = str(r[0])
+        if nid in seen or nid not in graph:
+            continue
+        inp = _inputs(graph, nid)
+        if _is_link(inp.get("positive")) and _is_link(inp.get("negative")):
+            seen.add(nid)
+            others = [
+                v
+                for k, v in inp.items()
+                if _is_link(v) and k not in ("positive", "negative")
+            ]
+            todo.extend([*_cond_inputs(graph, r), *others])
+        else:
+            seen |= _upstream(graph, r)
+    return seen
+
+
 def _encoder(graph: Graph, ref: Any) -> str | None:
     """The text encoder a conditioning link starts from, through combine /
     ControlNet nodes (first conditioning input each time)."""
@@ -124,14 +161,7 @@ def _encoder(graph: Graph, ref: Any) -> str | None:
         inp = _inputs(graph, nid)
         if any(k in inp for k in ("text", "text_g", "text_l")):
             return nid
-        ref = next(
-            (
-                v
-                for k, v in sorted(inp.items())
-                if _CONDITIONING.search(k) and _is_link(v)
-            ),
-            None,
-        )
+        ref = next(iter(_cond_inputs(graph, ref)), None)
     return None
 
 
@@ -173,12 +203,12 @@ def text_inputs(graph: Graph, sampler: str | None) -> list[dict[str, Any]]:
     if sampler is not None:
         s_inp = _inputs(graph, sampler)
         pos = (
-            _upstream(graph, s_inp.get("positive"))
+            _prompt_upstream(graph, s_inp.get("positive"))
             if _is_link(s_inp.get("positive"))
             else set()
         )
         neg = (
-            _upstream(graph, s_inp.get("negative"))
+            _prompt_upstream(graph, s_inp.get("negative"))
             if _is_link(s_inp.get("negative"))
             else set()
         )

@@ -169,7 +169,8 @@ async def setup_view(
 ) -> dict[str, Any]:
     """Everything the setup page shows: discovery, the slots (``slots`` when
     editing a saved Generator, else the proposal), the default Base and
-    negative with the Remove-from-Base offer, and what still blocks saving."""
+    negative (a saved Generator's own, from ``source``) with the
+    Remove-from-Base offer, and what still blocks saving."""
     d = discover(graph)
     proposed = dict(d["slots"])
     for side, field in (("positive", "prompt"), ("negative", "negative")):
@@ -178,7 +179,17 @@ async def setup_view(
             proposed[side] = pin
             d["found"][side] = {"path": pin, "replaces_link": False, "from": "rule"}
     chosen = slots if slots is not None else proposed
-    base = _text_at(graph, chosen.get("positive"), d["found"].get("positive"))
+    saved = source.get("defaults") if isinstance(source.get("defaults"), dict) else None
+    base = (
+        saved["base"]
+        if saved
+        else _text_at(graph, chosen.get("positive"), d["found"].get("positive"))
+    )
+    negative = (
+        saved["negative"]
+        if saved
+        else _text_at(graph, chosen.get("negative"), d["found"].get("negative"))
+    )
     vocab = await tag_categories.load()
     offer = _offer(base, vocab)
     drop = {canonical_name(x) for x in offer}
@@ -186,46 +197,102 @@ async def setup_view(
         **d,
         "proposed": proposed,
         "slots": chosen,
-        "source": {k: v for k, v in source.items() if k != "pins"},
-        "defaults": {
-            "base": base,
-            "negative": _text_at(
-                graph, chosen.get("negative"), d["found"].get("negative")
-            ),
-        },
+        "source": public_source(source),
+        "defaults": {"base": base, "negative": negative},
         "offer": offer,
         "base_without": without_terms(base, drop, canonical_name) if offer else base,
         "problems": check_slots(graph, chosen),
     }
 
 
+def _path(value: Any) -> list[Any] | None:
+    """``[node id, input name]``, or None when it isn't one."""
+    if (
+        isinstance(value, list)
+        and len(value) == 2
+        and isinstance(value[0], (str, int))
+        and isinstance(value[1], str)
+    ):
+        return [str(value[0]), value[1]]
+    return None
+
+
+def _ref(value: Any) -> list[Any] | None:
+    """``[node id, output index]``, or None when it isn't one."""
+    if (
+        isinstance(value, list)
+        and len(value) == 2
+        and isinstance(value[0], (str, int))
+        and isinstance(value[1], int)
+        and not isinstance(value[1], bool)
+    ):
+        return [str(value[0]), value[1]]
+    return None
+
+
 def clean_slots(raw: Any) -> dict[str, Any]:
+    """A client's slots, shape checked. Raises SetupError on a bad one."""
     if not isinstance(raw, dict):
         raise SetupError("Slots must be an object")
-    out = {k: raw[k] for k in _SLOT_KEYS if raw.get(k) is not None}
+    out: dict[str, Any] = {}
     for key in ("positive", "negative", "width", "height", "batch_size", *SAMPLING):
-        path = out.get(key)
-        if path is not None and not (
-            isinstance(path, list) and len(path) == 2 and isinstance(path[1], str)
-        ):
+        if raw.get(key) is None:
+            continue
+        path = _path(raw[key])
+        if path is None:
             raise SetupError(f"Bad path for {key}")
-        if path is not None:
-            out[key] = [str(path[0]), path[1]]
-    out["seeds"] = [
-        [str(p[0]), p[1]]
-        for p in out.get("seeds") or []
-        if isinstance(p, list) and len(p) == 2
-    ]
+        out[key] = path
+    seeds = raw.get("seeds") or []
+    if not isinstance(seeds, list) or any(_path(p) is None for p in seeds):
+        raise SetupError("Bad seed inputs")
+    out["seeds"] = [_path(p) for p in seeds]
+    links = raw.get("replace_links") or []
     out["replace_links"] = [
-        k for k in out.get("replace_links") or [] if k in ("positive", "negative")
+        k
+        for k in (links if isinstance(links, list) else [])
+        if k in ("positive", "negative")
     ]
-    if out.get("per_request") is not None:
-        out["per_request"] = max(1, min(64, int(out["per_request"])))
+    if raw.get("per_request") is not None:
+        n = raw["per_request"]
+        if not isinstance(n, int) or isinstance(n, bool):
+            raise SetupError("Images per request must be a whole number")
+        out["per_request"] = max(1, min(64, n))
     for key in ("lora_model", "lora_clip"):
-        ref = out.get(key)
-        if ref is not None:
-            out[key] = [str(ref[0]), int(ref[1])]
+        if raw.get(key) is None:
+            continue
+        ref = _ref(raw[key])
+        if ref is None:
+            raise SetupError("Bad LoRA insertion point")
+        out[key] = ref
+    if out.get("lora_clip") and not out.get("lora_model"):
+        raise SetupError("A CLIP insertion point needs a model one")
     return out
+
+
+def clean_defaults(raw: Any) -> dict[str, str]:
+    d = raw if isinstance(raw, dict) else {}
+    return {"base": str(d.get("base") or ""), "negative": str(d.get("negative") or "")}
+
+
+def public_source(source: dict[str, Any]) -> dict[str, Any]:
+    """A source as the client sees it: no ruleset pins, no defaults."""
+    return {k: v for k, v in source.items() if k not in ("pins", "defaults")}
+
+
+async def has_work(gen_id: str) -> bool:
+    """Whether a batch on this Generator still has requests to send: their
+    graph is built from its slots at submit time."""
+    async with async_conn() as conn:
+        return (
+            await conn.execute(
+                sa.select(t.generation_batches.c._id)
+                .where(
+                    t.generation_batches.c.generator_id == gen_id,
+                    t.generation_batches.c.state == "active",
+                )
+                .limit(1)
+            )
+        ).first() is not None
 
 
 async def create(
@@ -247,10 +314,8 @@ async def create(
                 _id=gen_id,
                 name=name.strip() or "Workflow",
                 kind="custom",
-                source={
-                    **{k: v for k, v in source.items() if k != "pins"},
-                    "defaults": defaults,
-                },
+                # Pins kept: editing later proposes what the ruleset said.
+                source={**source, "defaults": clean_defaults(defaults)},
                 graph=graph,
                 slots=slots,
                 ready=False,
@@ -273,15 +338,13 @@ async def update(gen: dict[str, Any], patch: dict[str, Any]) -> None:
         if problems:
             raise SetupError(problems[0])
         if slots != gen["slots"]:
+            if await has_work(gen["_id"]):
+                raise SetupError("Wait for its batches to finish or cancel them first")
             values.update(slots=slots, ready=False, test=None)
     if isinstance(patch.get("defaults"), dict):
-        d = patch["defaults"]
         values["source"] = {
             **(gen.get("source") or {}),
-            "defaults": {
-                "base": str(d.get("base") or ""),
-                "negative": str(d.get("negative") or ""),
-            },
+            "defaults": clean_defaults(patch["defaults"]),
         }
     async with async_tx() as conn:
         await conn.execute(
@@ -292,6 +355,8 @@ async def update(gen: dict[str, Any], patch: dict[str, Any]) -> None:
 
 
 async def delete(gen_id: str) -> bool:
+    if await has_work(gen_id):
+        raise SetupError("Wait for its batches to finish or cancel them first")
     async with async_tx() as conn:
         res = await conn.execute(
             sa.delete(t.generators).where(

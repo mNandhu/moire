@@ -192,3 +192,23 @@ def test_check_slots_problems(hires):
     ]
     no_save = {k: v for k, v in hires.items() if v["class_type"] != "SaveImage"}
     assert check_slots(no_save, s)[-1].startswith("Add a Save Image node")
+
+
+def test_controlnet_advanced_keeps_the_sides_apart():
+    g = builtin_generator.graph()
+    g["20"] = {
+        "class_type": "ControlNetApplyAdvanced",
+        "inputs": {
+            "positive": ["6", 0],
+            "negative": ["7", 0],
+            "control_net": ["21", 0],
+        },
+    }
+    g["21"] = {"class_type": "ControlNetLoader", "inputs": {"control_net_name": "a"}}
+    g["3"]["inputs"]["positive"] = ["20", 0]
+    g["3"]["inputs"]["negative"] = ["20", 1]
+    d = discover(g)
+    assert d["slots"]["positive"] == ["6", "text"]
+    assert d["slots"]["negative"] == ["7", "text"]
+    reach = {tuple(t["path"]): t["reaches"] for t in d["text_inputs"]}
+    assert reach[("6", "text")] == "positive" and reach[("7", "text")] == "negative"

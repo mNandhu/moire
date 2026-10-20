@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from . import comfy_models, generation_estimate
-from .generation_jobs import GenerationManager, Invalid, load_generator
+from .generation_jobs import GenerationManager, Invalid, Unavailable, load_generator
 from .generator_graph import sampling_defaults
 
 _b, _r, _o, _i = (
@@ -225,7 +225,8 @@ async def start_test(
     if gen is None:
         raise Invalid("Unknown generator")
     # Connecting loads the model index the first time; read it after.
-    await manager.check()
+    if not await manager.check():
+        raise Unavailable("Can't reach ComfyUI")
     installed = await comfy_models.installed()
     # Only where Moiré can splice one in: a graph without an insertion point
     # takes no LoRAs at all.

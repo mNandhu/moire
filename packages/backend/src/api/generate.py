@@ -323,15 +323,12 @@ async def _custom(generator_id: str) -> dict[str, Any]:
 
 @router.get("/generators/{generator_id}/setup")
 async def generator_setup_view(generator_id: str):
-    """The setup page for a saved Generator: its slots over a fresh discovery."""
+    """The setup page for a saved Generator: its slots and defaults over a
+    fresh discovery."""
     gen = await _custom(generator_id)
-    view = await generator_setup.setup_view(
+    return await generator_setup.setup_view(
         gen["graph"], gen.get("source") or {}, gen["slots"]
     )
-    defaults = (gen.get("source") or {}).get("defaults")
-    if defaults:
-        view["defaults"] = defaults
-    return view
 
 
 @router.put("/generators/{generator_id}")
@@ -349,7 +346,10 @@ async def put_generator(generator_id: str, body: GeneratorPatch):
 @router.delete("/generators/{generator_id}")
 async def delete_generator(generator_id: str):
     await _custom(generator_id)
-    await generator_setup.delete(generator_id)
+    try:
+        await generator_setup.delete(generator_id)
+    except SetupError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     return {"ok": True}
 
 

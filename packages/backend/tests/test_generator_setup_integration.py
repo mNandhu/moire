@@ -219,3 +219,59 @@ async def test_builtin_cannot_be_edited_custom_can_be_deleted(client, comfy, see
     assert [g["_id"] for g in (await client.get("/generate/generators")).json()] == [
         "builtin"
     ]
+
+
+async def test_bad_slots_are_a_400_not_a_crash(client, seed):
+    _with_raw(seed, "L1:a.png", _graph("graph_hires_detailer.json"))
+    d = (
+        await client.post(
+            "/generate/generators/discover", json={"image_id": "L1:a.png"}
+        )
+    ).json()
+    for bad in (
+        {"per_request": "abc"},
+        {"lora_model": 5},
+        {"lora_model": ["x"]},
+        {"seeds": [["3", ["seed"]]]},
+    ):
+        r = await client.post(
+            "/generate/generators",
+            json={
+                "source": {"image_id": "L1:a.png"},
+                "name": "X",
+                "slots": {**d["slots"], **bad},
+            },
+        )
+        assert r.status_code == 400, (bad, r.text)
+
+
+async def test_saved_defaults_drive_the_edit_view(client, comfy, seed):  # noqa: F811
+    gen = await _create(client, seed)
+    await client.put(
+        f"/generate/generators/{gen['_id']}",
+        json={"defaults": {"base": "my base", "negative": "my neg", "junk": "x"}},
+    )
+    setup = (await client.get(f"/generate/generators/{gen['_id']}/setup")).json()
+    assert setup["defaults"] == {"base": "my base", "negative": "my neg"}
+    assert setup["base_without"] == "my base"
+    assert "pins" not in setup["source"] and "defaults" not in setup["source"]
+
+
+async def test_slots_locked_while_a_batch_runs(client, comfy, seed):  # noqa: F811
+    gen = await _create(client, seed)
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.update(t.generators)
+            .where(t.generators.c._id == gen["_id"])
+            .values(ready=True)
+        )
+    r = await client.post(
+        "/generate/batches", json={"generator_id": gen["_id"], "base": "x", "count": 8}
+    )
+    assert r.status_code == 200, r.text
+    slots = {**gen["slots"], "seeds": [["16", "seed"]]}
+    r = await client.put(f"/generate/generators/{gen['_id']}", json={"slots": slots})
+    assert r.status_code == 400 and "batches" in r.json()["detail"]
+    assert (
+        await client.delete(f"/generate/generators/{gen['_id']}")
+    ).status_code == 409

@@ -122,12 +122,13 @@ def without_terms(text: str, drop: set[str], canon: Callable[[str], str]) -> str
     ``drop`` taken out, separators and the rest kept as written. A weighted
     group goes only when everything in it goes."""
     kept: list[str] = []
-    dropped_last = False
+    dropped = False
     for piece, sep in _top_level_pieces(text):
         tags = [p.text for p in parse_prompt(piece) if p.kind == "tag"]
-        dropped_last = bool(tags) and all(canon(t) in drop for t in tags)
-        if not dropped_last:
+        if tags and all(canon(t) in drop for t in tags):
+            dropped = True
+        else:
             kept.append(piece + sep)
     out = "".join(kept)
-    # A dropped last piece leaves the separator before it dangling.
-    return out.rstrip(", \n") if dropped_last else out
+    # A dropped first or last piece leaves a separator dangling at that end.
+    return re.sub(r"^[\s,]+|[\s,]+$", "", out) if dropped else out

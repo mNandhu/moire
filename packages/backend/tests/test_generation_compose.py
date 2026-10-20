@@ -78,3 +78,19 @@ def test_without_terms_keeps_the_rest_as_written():
     # A group goes only when all of it goes.
     assert without_terms("(a, b:1.2), c", {"a"}, canonical_name) == "(a, b:1.2), c"
     assert without_terms("", {"a"}, canonical_name) == ""
+
+
+def test_without_terms_trims_both_ends():
+    from src.services.generation_compose import without_terms
+    from src.services.tag_names import canonical_name
+
+    assert (
+        without_terms("hatsune_miku, 1girl", {"hatsune_miku"}, canonical_name)
+        == "1girl"
+    )
+    assert (
+        without_terms("1girl, hatsune_miku,", {"hatsune_miku"}, canonical_name)
+        == "1girl"
+    )
+    # Untouched text keeps its own ends.
+    assert without_terms(" 1girl,", {"x"}, canonical_name) == " 1girl,"
