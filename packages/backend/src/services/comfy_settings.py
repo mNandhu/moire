@@ -21,6 +21,9 @@ DEFAULT_COMFY_SETTINGS: dict[str, Any] = {
     "headers": {},
     "output_library_id": None,
     "builtin_per_request": 1,
+    # Fetch finished images over /view when they aren't in the output folder:
+    # for a ComfyUI on another machine, whose output folder isn't shared here.
+    "download_outputs": True,
     # PEM file to verify an HTTPS ComfyUI with a self-signed certificate.
     "ca_cert": "",
 }
@@ -47,6 +50,8 @@ def clean_patch(patch: dict[str, Any], current: dict[str, Any]) -> dict[str, Any
             )
         except (TypeError, ValueError):
             pass
+    if "download_outputs" in patch:
+        clean["download_outputs"] = bool(patch["download_outputs"])
     if "ca_cert" in patch:
         clean["ca_cert"] = str(patch["ca_cert"] or "").strip()
     if "output_library_id" in patch:

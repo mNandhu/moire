@@ -16,6 +16,8 @@ export type ComfySettings = {
   builtin_per_request: number;
   /** PEM file verifying an HTTPS ComfyUI with a self-signed certificate. */
   ca_cert: string;
+  /** Fetch finished images from ComfyUI when they aren't in the output folder. */
+  download_outputs: boolean;
 };
 
 export const HEADER_MASK = "••••";

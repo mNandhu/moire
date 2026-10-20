@@ -28,6 +28,7 @@ class ComfyPatch(BaseModel):
     address: str | None = None
     headers: dict[str, str] | None = None
     builtin_per_request: int | None = None
+    download_outputs: bool | None = None
     #: PEM certificate for an HTTPS ComfyUI with a self-signed certificate.
     ca_cert: str | None = None
     #: Folder ComfyUI saves into; registered as (or matched to) a library.

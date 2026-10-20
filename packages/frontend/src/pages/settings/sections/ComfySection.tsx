@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, RefreshCw, X } from "lucide-react";
 import { Section } from "../../../components/ui/Card";
-import { Badge, Button, Input, Picker } from "../../../components/ui";
+import { Badge, Button, Checkbox, Input, Picker } from "../../../components/ui";
 import { ComfyStatusLine } from "../../../components/generate/ComfyStatusLine";
 import {
   GEN_KEY,
@@ -210,6 +210,17 @@ export function ComfySection() {
           >
             Save
           </Button>
+        </div>
+        <div
+          className="mt-4"
+          title="For a ComfyUI on another machine, whose output folder isn't shared with this one: Moiré copies each finished image here. Images already in the folder are left alone."
+        >
+          <Checkbox
+            checked={settings?.download_outputs ?? true}
+            onChange={(v) => save.mutate({ download_outputs: v })}
+            label="Download images from ComfyUI"
+            disabled={save.isPending}
+          />
         </div>
       </Section>
 

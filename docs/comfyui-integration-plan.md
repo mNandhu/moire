@@ -588,6 +588,7 @@ copies can be wiped.
   forward with a self-signed certificate (TLS certificate setting), auth via
   the comfyui-login Bearer token in the request headers. Its output folder
   is on another machine, so finished outputs are downloaded over `/view`
+  ("Download images from ComfyUI", on by default)
   into the local output library (skipped when the file is already there, as
   with a local ComfyUI); the watcher indexes them with their metadata. The
   tunnel's TLS handshake can take 8s, hence 15s connect / 60s timeouts.

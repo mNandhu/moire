@@ -439,7 +439,7 @@ class GenerationManager:
                 )
             )
         self.progress.pop(prompt_id, None)
-        if files and lib:
+        if files and lib and s.get("download_outputs", True):
             await self._fetch_missing(lib, files)
 
     async def _fetch_missing(

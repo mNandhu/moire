@@ -432,3 +432,19 @@ async def test_outputs_ComfyUI_wrote_elsewhere_are_downloaded(
 async def test_bad_certificate_path_is_refused(client, comfy):
     r = await client.put("/generate/comfyui", json={"ca_cert": "/nope/cert.pem"})
     assert r.status_code == 400
+
+
+async def test_download_can_be_turned_off(client, comfy, seed, tmp_path):
+    import sqlalchemy as sa
+    from src.database import db
+    from src.database import schema as t
+
+    out = tmp_path / "out"
+    out.mkdir()
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.insert(t.libraries).values(_id=OUT, path=str(out), name="ComfyUI output")
+        )
+    await client.put("/generate/comfyui", json={"download_outputs": False})
+    await make_ready(client, comfy, seed)
+    assert not any(out.rglob("*.png"))
