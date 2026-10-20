@@ -122,16 +122,29 @@ def reset_for_tests() -> None:
 
 
 _HASH_MUL, _HASH_MOD = 2654435761, 4294967291
+# The seed reads this many leading characters of the name (plus its length).
+_SEED_CHARS, _SEED_MOD = 32, 1000003
 
 
 def _seed(base: str) -> int:
-    """A tag's shuffle seed. Mirrored in SQL by :func:`_seed_sql`, so the list
-    can pick the same cover the mosaic leads with."""
-    return len(base) * 7919 + ord(base[0]) * 104729 if base else 0
+    """A tag's shuffle offset, spread over the whole hash range. Mirrored in
+    SQL by :func:`_seed_sql`, so the list can pick the same cover the mosaic
+    leads with. A small offset (a function of the length and first letter
+    only) barely rotated the shuffle, so every tag sharing images led with
+    the same one."""
+    h = len(base)
+    for i in range(_SEED_CHARS):
+        h = (h * 31 + (ord(base[i]) if i < len(base) else 0)) % _SEED_MOD
+    return h * _HASH_MUL % _HASH_MOD
 
 
 def _seed_sql(base_col):
-    return sa.func.length(base_col) * 7919 + sa.func.unicode(base_col) * 104729
+    """:func:`_seed` in SQL. Run it once per tag, not per tagged image."""
+    h = sa.func.length(base_col)
+    for i in range(_SEED_CHARS):
+        ch = sa.func.coalesce(sa.func.unicode(sa.func.substr(base_col, i + 1, 1)), 0)
+        h = (h * 31 + ch) % _SEED_MOD
+    return h * _HASH_MUL % _HASH_MOD
 
 
 def _shuffle_key(seed):
@@ -387,15 +400,14 @@ async def browse(source: str = "all") -> list[dict]:
         .cte("vis")
         .prefix_with("MATERIALIZED")
     )
-    # The cover, by the mosaic's own rule (samples_for_tag): the pinned image
-    # if it is visible and carries the tag, else the first of the shuffle.
-    # The shuffle key is never negative, so a pin's -1 always wins.
-    key = sa.case(
-        (vis.c._id == tm.c.thumb_image_id, -1),
-        else_=(vis.c.rid * _HASH_MUL + _seed_sql(it.c.base)) % _HASH_MOD,
-    )
     rows_cte = (
-        sa.select(it.c.base, it.c.image_id, vis.c.mtime.label("mtime"), key.label("k"))
+        sa.select(
+            it.c.base,
+            it.c.image_id,
+            vis.c.mtime.label("mtime"),
+            vis.c.rid,
+            (vis.c._id == tm.c.thumb_image_id).label("pinned"),
+        )
         .select_from(
             it.join(vis, vis.c._id == it.c.image_id).outerjoin(
                 tm, tm.c.tag == it.c.base
@@ -413,12 +425,28 @@ async def browse(source: str = "all") -> list[dict]:
             sa.func.max(rc.mtime).label("last_used"),
         )
         .group_by(rc.base)
-        .subquery()
+        .cte("agg")
+        .prefix_with("MATERIALIZED")
+    )
+    # Each tag's shuffle offset, worked out once per tag from the small
+    # per-tag table rather than once per tagged image.
+    seeds = (
+        sa.select(agg.c.base, _seed_sql(agg.c.base).label("seed"))
+        .cte("seeds")
+        .prefix_with("MATERIALIZED")
+    )
+    # The cover, by the mosaic's own rule (samples_for_tag): the pinned image
+    # if it is visible and carries the tag, else the first of the shuffle.
+    # The shuffle key is never negative, so a pin's -1 always wins.
+    key = sa.case(
+        (rc.pinned == sa.true(), -1),
+        else_=(rc.rid * _HASH_MUL + seeds.c.seed) % _HASH_MOD,
     )
     # SQLite takes a bare column (image_id) from the row holding min() of the
     # group: the cover without a window sorting every row.
     cov = (
-        sa.select(rc.base, rc.image_id.label("cover"), sa.func.min(rc.k))
+        sa.select(rc.base, rc.image_id.label("cover"), sa.func.min(key))
+        .select_from(rows_cte.join(seeds, seeds.c.base == rc.base))
         .group_by(rc.base)
         .subquery()
     )

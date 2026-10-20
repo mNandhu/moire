@@ -218,3 +218,18 @@ async def test_quarantined_images_dont_back_a_bare_name(client, seed, monkeypatc
     seed("L1:c", tags=("prompt:furina", "prompt:genshin_impact"), quarantined=True)
     cats = {r["tag"]: r["category"] for r in (await client.get("/tags/browse")).json()}
     assert cats["furina"] == "general"
+
+
+async def test_tags_sharing_images_get_different_covers(client, seed):
+    names = [f"tag_{c}" for c in "abcdefghijklmnop"]
+    for i in range(40):
+        seed(f"L1:{i:02}", tags=tuple(names))
+
+    covers = {
+        r["tag"]: r["thumb_image_id"] for r in (await client.get("/tags/browse")).json()
+    }
+    # One shared cover for every tag was the bug; a fair shuffle spreads them.
+    assert len(set(covers.values())) >= 8
+    for name in names[:4]:
+        got = (await client.get(f"/tags/samples?tags=any:{name}&per=4")).json()
+        assert got[f"any:{name}"][0]["_id"] == covers[name]
