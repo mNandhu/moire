@@ -73,6 +73,22 @@ def _write(graph: Graph, path: list[Any] | None, value: Any) -> None:
     node["inputs"][name] = value
 
 
+#: Sampler settings a Generator may expose as slots; left out, the graph's own stay.
+SAMPLING = ("sampler", "scheduler", "steps", "cfg")
+
+
+def sampling_defaults(graph: Graph, slots: dict[str, Any]) -> dict[str, Any]:
+    """What the graph has at each sampling slot it exposes."""
+    out = {}
+    for key in SAMPLING:
+        path = slots.get(key)
+        if path:
+            value = (graph.get(str(path[0])) or {}).get("inputs", {}).get(path[1])
+            if value is not None and not _is_link(value):
+                out[key] = value
+    return out
+
+
 def _next_ids(graph: Graph):
     nums = [int(k) for k in graph if k.isdigit()]
     n = max(nums, default=0)
@@ -210,14 +226,15 @@ def splice_loras(
 
 def build_prompt(graph: Graph, slots: dict[str, Any], values: dict[str, Any]) -> Graph:
     """The graph for one request. ``values``: positive, negative, seed, and
-    optionally width, height, batch_size, checkpoint, loras (list of
+    optionally width, height, batch_size, checkpoint, sampler, scheduler,
+    steps, cfg, loras (list of
     :class:`LoraPick`, already merged by precedence). Never mutates ``graph``."""
     g = copy.deepcopy(graph)
     _write(g, slots.get("positive"), values["positive"])
     _write(g, slots.get("negative"), values.get("negative", ""))
     for path in slots.get("seeds") or []:
         _write(g, path, values["seed"])
-    for key in ("width", "height", "checkpoint"):
+    for key in ("width", "height", "checkpoint", *SAMPLING):
         if values.get(key) is not None:
             _write(g, slots.get(key), values[key])
     if values.get("batch_size") is not None and slots.get("batch_size"):

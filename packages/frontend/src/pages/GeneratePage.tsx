@@ -7,6 +7,7 @@ import { bareTagPool } from "../components/generate/ChipInput";
 import {
   BatchName,
   CheckpointPicker,
+  SamplingControl,
   CountStepper,
   QueueCard,
   SeedControl,
@@ -186,6 +187,7 @@ export default function GeneratePage() {
   useEffect(() => saveDraft(form), [form]);
 
   const gen = generators?.[0];
+  const hasSampling = Object.keys(gen?.sampling ?? {}).length > 0;
   const checkpoints = models?.checkpoints ?? NO_STRINGS;
   // The first installed checkpoint until the user picks one.
   useEffect(() => {
@@ -412,13 +414,30 @@ export default function GeneratePage() {
             <div className="sticky bottom-0 z-[5] -mx-2 bg-gradient-to-t from-canvas from-80% to-transparent px-2 pb-4 pt-3">
               <Card className="space-y-3 p-4 shadow-panel">
                 {gen && !ready && <TestRunCard checkpoint={form.checkpoint} disabled={!connected} />}
-                <div className="grid grid-cols-2 items-start gap-3 md:grid-cols-3 2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.9fr)_auto_minmax(0,0.9fr)]">
+                <div
+                  className={cn(
+                    "grid grid-cols-2 items-start gap-3 md:grid-cols-3",
+                    hasSampling
+                      ? "2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.9fr)_auto_minmax(0,0.9fr)]"
+                      : "2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.9fr)_auto_minmax(0,0.9fr)]",
+                  )}
+                >
                   <CheckpointPicker
                     value={form.checkpoint}
                     options={checkpoints}
                     onChange={(v) => set("checkpoint", v)}
                     invalid={flagged.checkpoint ? "Not in ComfyUI's checkpoint list" : null}
                   />
+                  {gen && hasSampling && (
+                    <SamplingControl
+                      value={form.sampling}
+                      defaults={gen.sampling}
+                      samplers={models?.samplers ?? NO_STRINGS}
+                      schedulers={models?.schedulers ?? NO_STRINGS}
+                      onChange={(v) => set("sampling", v)}
+                      invalid={flagged.sampling ? "ComfyUI refused these sampler settings" : null}
+                    />
+                  )}
                   <SizePicker value={{ width: form.width, height: form.height }} onChange={(sz) => setForm((f) => ({ ...f, ...sz }))} />
                   <SeedControl value={form.seed} onChange={(v) => set("seed", v)} />
                   <CountStepper value={form.count} onChange={(v) => set("count", v)} mode={{ kind: "images", perRequest }} />

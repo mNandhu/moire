@@ -8,6 +8,8 @@ import {
   loadDraft,
   previewText,
   rejectedFields,
+  samplingLabel,
+  samplingOf,
   removeBlock,
   toParts,
   toQueueBody,
@@ -150,6 +152,25 @@ describe("loadDraft", () => {
     expect(d.negative).toBe("lowres");
     expect(d.prefix).toBeNull();
     expect(d.blocks).toEqual(DEFAULT_BLOCKS);
+  });
+});
+
+describe("sampling", () => {
+  it("labels a sampler as people write it", () => {
+    expect(samplingLabel({ sampler: "euler_ancestral", scheduler: "normal", steps: 28, cfg: 6 })).toBe("euler a · 28 steps · CFG 6");
+    expect(samplingLabel({ sampler: "dpmpp_2m", scheduler: "karras" })).toBe("dpmpp 2m karras");
+    expect(samplingLabel({ steps: 20 })).toBe("20 steps");
+    expect(samplingLabel({ sampler: "euler", steps: 28, cfg: 6.5 }, true)).toBe("euler · 28 · 6.5");
+  });
+  it("round-trips through the queue body, a batch and the draft", () => {
+    const form = { ...DEFAULT_FORM, sampling: { sampler: "dpmpp_2m", steps: 20 } };
+    const sent = toQueueBody(form, "builtin", [], presets);
+    expect(sent.sampling).toEqual({ sampler: "dpmpp_2m", steps: 20 });
+    const f = formFromBatch({ ...({} as BatchInputs), ...sent, seed: sent.seed } as BatchInputs, null);
+    expect(f.sampling).toEqual({ sampler: "dpmpp_2m", steps: 20 });
+    expect(draft({ sampling: { steps: 20, cfg: "x", junk: 1 } }).sampling).toEqual({ steps: 20 });
+    expect(draft({}).sampling).toEqual({});
+    expect(samplingOf(null)).toEqual({});
   });
 });
 

@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Dices, Minus, Pencil, Plus } from "lucide-react";
+import { ChevronDown, Dices, Minus, Pencil, Plus, RotateCcw } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { countLabel, randomSeed, type CountMode } from "../../lib/requests";
 import { ShapeIcon, SIZE_GROUP, useSizePresets } from "../SizeFilter";
 import { Input, Picker, ProgressBar, type PickerOption } from "../ui";
-import type { ActiveBatch } from "../../lib/generate";
+import type { ActiveBatch, Sampling } from "../../lib/generate";
+import { samplerLabel, samplingLabel } from "../../lib/generateForm";
 
 export function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
   return (
@@ -51,6 +52,179 @@ export function CheckpointPicker({
           side="up"
         />
       </div>
+    </div>
+  );
+}
+
+/** A number field with − / + either side. */
+function NumberStepper({
+  label,
+  value,
+  onChange,
+  step,
+  min,
+  max,
+}: {
+  label: string;
+  value: number | undefined;
+  onChange: (n: number) => void;
+  step: number;
+  min: number;
+  max: number;
+}) {
+  const [typed, setTyped] = useState<string | null>(null);
+  const set = (n: number) => {
+    const v = Math.max(min, Math.min(max, n));
+    onChange(step >= 1 ? Math.round(v) : Math.round(v * 100) / 100);
+  };
+  return (
+    <div>
+      <FieldLabel>{label}</FieldLabel>
+      <div className="flex items-center rounded-lg border border-line">
+        <button type="button" aria-label={`Less ${label}`} onClick={() => set((value ?? min) - step)} className="p-2 text-muted hover:text-neutral-100">
+          <Minus size={14} />
+        </button>
+        <input
+          type="number"
+          aria-label={label}
+          value={typed ?? value ?? ""}
+          step={step}
+          min={min}
+          max={max}
+          onChange={(e) => setTyped(e.target.value)}
+          onBlur={() => {
+            if (typed !== null && typed.trim() !== "" && Number.isFinite(Number(typed))) set(Number(typed));
+            setTyped(null);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          className="w-full min-w-0 bg-transparent text-center tabular-nums text-sm outline-none"
+        />
+        <button type="button" aria-label={`More ${label}`} onClick={() => set((value ?? min) + step)} className="p-2 text-muted hover:text-neutral-100">
+          <Plus size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sampler, scheduler, steps and CFG behind one field that shows them in a
+ * line. `value` holds only what the user changed; `defaults` is the
+ * Generator's graph, shown for the rest.
+ */
+export function SamplingControl({
+  value,
+  defaults,
+  samplers,
+  schedulers,
+  onChange,
+  invalid,
+}: {
+  value: Sampling;
+  defaults: Sampling;
+  samplers: readonly string[];
+  schedulers: readonly string[];
+  onChange: (s: Sampling) => void;
+  invalid?: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const shown = { ...defaults, ...value };
+  const changed = Object.keys(value).length > 0;
+  const patch = (p: Sampling) => {
+    const next = { ...value, ...p };
+    // Back at the Generator's own value: no longer a change.
+    for (const k of Object.keys(p) as (keyof Sampling)[]) if (next[k] === defaults[k]) delete next[k];
+    onChange(next);
+  };
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+  const options = (names: readonly string[], current: string | undefined, label: (n: string) => string): PickerOption[] => {
+    const list = current && !names.includes(current) ? [current, ...names] : names;
+    return list.map((n) => ({ value: n, label: label(n), detail: label(n) !== n ? n : undefined }));
+  };
+  return (
+    <div
+      ref={wrapRef}
+      className="relative"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) {
+          e.stopPropagation();
+          setOpen(false);
+        }
+      }}
+    >
+      <FieldLabel>Sampling</FieldLabel>
+      <button
+        type="button"
+        aria-label="Sampling"
+        aria-expanded={open}
+        title={invalid ?? samplingLabel(shown)}
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          "flex h-9 w-full items-center gap-2 rounded-lg border border-line bg-canvas px-3 text-left text-sm hover:border-line-strong",
+          invalid && "ring-1 ring-red-700",
+        )}
+      >
+        <span className={cn("flex-1 truncate", changed ? "text-neutral-100" : "text-muted")}>{samplingLabel(shown, true)}</span>
+        <ChevronDown size={16} className={cn("shrink-0 text-faint transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="absolute bottom-full left-0 z-50 mb-1 w-80 max-w-[90vw] space-y-3 rounded-lg border border-line-strong bg-raised p-3 shadow-panel">
+          {"sampler" in defaults && (
+            <div>
+              <FieldLabel>Sampler</FieldLabel>
+              <Picker
+                aria-label="Sampler"
+                value={shown.sampler ?? ""}
+                options={options(samplers, shown.sampler, (n) => samplerLabel(n))}
+                onChange={(v) => patch({ sampler: v })}
+                searchable
+                className="w-full"
+                side="up"
+              />
+            </div>
+          )}
+          {"scheduler" in defaults && (
+            <div>
+              <FieldLabel>Scheduler</FieldLabel>
+              <Picker
+                aria-label="Scheduler"
+                value={shown.scheduler ?? ""}
+                options={options(schedulers, shown.scheduler, (n) => n.replace(/_/g, " "))}
+                onChange={(v) => patch({ scheduler: v })}
+                className="w-full"
+                side="up"
+              />
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            {"steps" in defaults && (
+              <NumberStepper label="Steps" value={shown.steps} onChange={(n) => patch({ steps: n })} step={1} min={1} max={200} />
+            )}
+            {"cfg" in defaults && (
+              <NumberStepper label="CFG" value={shown.cfg} onChange={(n) => patch({ cfg: n })} step={0.5} min={0} max={30} />
+            )}
+          </div>
+          {changed && (
+            <button
+              type="button"
+              onClick={() => onChange({})}
+              title={samplingLabel(defaults)}
+              className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-neutral-100"
+            >
+              <RotateCcw size={12} />
+              Generator's settings
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

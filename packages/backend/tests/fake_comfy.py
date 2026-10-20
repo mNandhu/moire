@@ -72,6 +72,22 @@ class FakeComfy:
                     "LoraLoader": {"input": {"required": {"lora_name": [self.loras]}}}
                 },
             )
+        if path == "/object_info/KSampler":
+            return httpx.Response(
+                200,
+                json={
+                    "KSampler": {
+                        "input": {
+                            "required": {
+                                "sampler_name": [
+                                    ["euler", "euler_ancestral", "dpmpp_2m"]
+                                ],
+                                "scheduler": [["normal", "karras"]],
+                            }
+                        }
+                    }
+                },
+            )
         if path == "/embeddings":
             return httpx.Response(200, json=self.embedding_names)
         if path == "/prompt" and request.method == "POST":

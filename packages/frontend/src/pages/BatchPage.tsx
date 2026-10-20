@@ -16,7 +16,7 @@ import {
   useBatch,
   type Batch,
 } from "../lib/generate";
-import { formFromBatch, saveDraft } from "../lib/generateForm";
+import { formFromBatch, samplingLabel, saveDraft } from "../lib/generateForm";
 import { stemOf } from "../components/generate/RunControls";
 import { BatchResults } from "../components/generate/BatchResults";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -43,6 +43,7 @@ function PromptPanel({ b }: { b: Batch }) {
       <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
         {row("Generator", b.generator.name ?? b.generator._id)}
         {i.checkpoint && row("Checkpoint", <span className="font-mono">{stemOf(i.checkpoint)}</span>)}
+        {i.sampling && Object.keys(i.sampling).length > 0 && row("Sampling", samplingLabel(i.sampling))}
         {cast.map((c) => (
           <div key={c.tag} className="contents">
             {row(

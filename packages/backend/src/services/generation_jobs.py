@@ -32,6 +32,7 @@ from . import builtin_generator, comfy_models, comfy_settings
 from .comfy_client import ComfyClient, ComfyError, ComfyRejected, ComfyUnreachable
 from .generation_compose import auto_name, compose, compose_parts, prompt_terms
 from .generator_graph import (
+    SAMPLING,
     GraphError,
     build_prompt,
     merge_loras,
@@ -185,6 +186,13 @@ def _characters_input(body: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
+def _sampling_input(raw: Any, slots: dict[str, Any]) -> dict[str, Any]:
+    """The sampler settings asked for, for the slots this Generator has."""
+    if not isinstance(raw, dict):
+        return {}
+    return {k: raw[k] for k in SAMPLING if raw.get(k) is not None and slots.get(k)}
+
+
 def _character_input(c: dict[str, Any] | None) -> dict[str, Any] | None:
     """The Character block as the batch keeps it: tag, display label, the tags
     sent, and its LoRA (an installed file name) if any."""
@@ -220,6 +228,8 @@ def annotate_node_errors(
         cls = (graph.get(node) or {}).get("class_type")
         if node and node == slot_node("checkpoint"):
             extra["field"] = "checkpoint"
+        elif node and any(node == slot_node(k) for k in SAMPLING):
+            extra["field"] = "sampling"
         elif cls in ("LoraLoader", "LoraLoaderModelOnly"):
             extra = {
                 "field": "lora",
@@ -243,7 +253,12 @@ async def load_generator(generator_id: str) -> dict[str, Any] | None:
             )
         ).first()
     if row is not None:
-        return dict(row._mapping)
+        gen = dict(row._mapping)
+        if gen["kind"] == "builtin":
+            # Moiré's own graph: the stored copy may predate a new slot.
+            gen["graph"] = builtin_generator.graph()
+            gen["slots"] = builtin_generator.slots()
+        return gen
     if generator_id != builtin_generator.BUILTIN_ID:
         return None
     now = time.time()
@@ -630,6 +645,7 @@ class GenerationManager:
             "height": inputs.get("height"),
             "batch_size": req.images,
             "checkpoint": inputs.get("checkpoint"),
+            **(inputs.get("sampling") or {}),
             "loras": merge_loras(
                 [c.get("lora") for c in characters_of(inputs)], inputs.get("loras")
             ),
@@ -701,6 +717,7 @@ class GenerationManager:
             "negative_base": body.get("negative_base") or "",
             "negative_extra": list(body.get("negative_extra") or []),
             "checkpoint": body.get("checkpoint") or None,
+            "sampling": _sampling_input(body.get("sampling"), gen["slots"]),
             "loras": [
                 {"name": lo["name"], "strength": float(lo.get("strength", 1.0))}
                 for lo in body.get("loras") or []
@@ -843,6 +860,7 @@ class GenerationManager:
                     "negative_base",
                     "negative_extra",
                     "checkpoint",
+                    "sampling",
                     "loras",
                     "character",
                     "characters",

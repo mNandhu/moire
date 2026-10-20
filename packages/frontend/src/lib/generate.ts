@@ -50,6 +50,9 @@ export type ComfyModels = {
   checkpoints: string[];
   loras: string[];
   embeddings: string[];
+  /** ComfyUI's samplers and schedulers, in its order. */
+  samplers: string[];
+  schedulers: string[];
   matching: LoraMatch[];
 };
 
@@ -68,8 +71,13 @@ export type Generator = {
   kind: "builtin" | "custom";
   ready: boolean;
   slots: Record<string, unknown>;
+  /** The graph's own value for each sampling setting it exposes. */
+  sampling: Sampling;
   test: GeneratorTest | null;
 };
+
+/** Sampler settings; one left out stays as the Generator's graph has it. */
+export type Sampling = Partial<{ sampler: string; scheduler: string; steps: number; cfg: number }>;
 
 export type RequestState =
   | "pending"
@@ -166,6 +174,7 @@ export type BatchInputs = {
   negative_base: string;
   negative_extra: string[];
   checkpoint: string | null;
+  sampling?: Sampling | null;
   loras: LoraPick[];
   character?: CharacterInput | null;
   /** Every character, in prompt order (`character` is the first). */
@@ -218,7 +227,7 @@ export type NodeError = {
   message: string;
   details: string;
   input: string | null;
-  field: "checkpoint" | "lora" | "positive" | "negative" | null;
+  field: "checkpoint" | "sampling" | "lora" | "positive" | "negative" | null;
   lora_name?: string;
   added?: boolean;
 };
@@ -226,6 +235,7 @@ export type NodeError = {
 export type QueueBody = {
   generator_id: string;
   checkpoint: string | null;
+  sampling: Sampling;
   loras: LoraPick[];
   characters: CharacterInput[];
   positive: PromptPart[];

@@ -14,6 +14,7 @@ from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from . import comfy_models
 from .generation_jobs import GenerationManager, load_generator
+from .generator_graph import sampling_defaults
 
 _b, _r, _o, _i = (
     t.generation_batches,
@@ -261,6 +262,8 @@ async def generator_view(
         "kind": gen["kind"],
         "ready": bool(gen["ready"]),
         "slots": gen["slots"],
+        # What each exposed sampling setting is when left alone.
+        "sampling": sampling_defaults(gen["graph"], gen["slots"]),
         "test": test,
     }
 

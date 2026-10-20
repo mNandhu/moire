@@ -34,11 +34,17 @@ async def refresh(client: ComfyClient) -> dict[str, int]:
         "ckpt_name",
     )
     loras = _combo(await client.object_info("LoraLoader"), "LoraLoader", "lora_name")
+    sampler_info = await client.object_info("KSampler")
+    samplers = _combo(sampler_info, "KSampler", "sampler_name")
+    schedulers = _combo(sampler_info, "KSampler", "scheduler")
     embeddings = await client.embeddings()
     rows = (
         [{"kind": "checkpoint", "name": n, "stem": lora_stem(n)} for n in checkpoints]
         + [{"kind": "lora", "name": n, "stem": lora_stem(n)} for n in loras]
         + [{"kind": "embedding", "name": n, "stem": lora_stem(n)} for n in embeddings]
+        # Kept in ComfyUI's order (the common ones first), not sorted.
+        + [{"kind": "sampler", "name": n, "stem": n} for n in samplers]
+        + [{"kind": "scheduler", "name": n, "stem": n} for n in schedulers]
     )
     async with async_tx() as conn:
         await conn.execute(sa.delete(t.comfy_models))
@@ -48,6 +54,7 @@ async def refresh(client: ComfyClient) -> dict[str, int]:
         "checkpoints": len(checkpoints),
         "loras": len(loras),
         "embeddings": len(embeddings),
+        "samplers": len(samplers),
     }
 
 
@@ -63,6 +70,22 @@ async def installed() -> dict[str, list[str]]:
     out: dict[str, list[str]] = {"checkpoint": [], "lora": [], "embedding": []}
     for r in rows:
         out.setdefault(r.kind, []).append(r.name)
+    return out
+
+
+async def sampling() -> dict[str, list[str]]:
+    """Installed samplers and schedulers, in the order ComfyUI lists them."""
+    async with async_conn() as conn:
+        rows = (
+            await conn.execute(
+                sa.select(t.comfy_models.c.kind, t.comfy_models.c.name)
+                .where(t.comfy_models.c.kind.in_(("sampler", "scheduler")))
+                .order_by(sa.text("rowid"))
+            )
+        ).fetchall()
+    out: dict[str, list[str]] = {"sampler": [], "scheduler": []}
+    for r in rows:
+        out[r.kind].append(r.name)
     return out
 
 

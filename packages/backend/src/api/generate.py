@@ -77,6 +77,15 @@ class PartIn(BaseModel):
     name: str = ""
 
 
+class SamplingIn(BaseModel):
+    """Left out, a setting stays as the Generator's graph has it."""
+
+    sampler: str | None = Field(None, max_length=200)
+    scheduler: str | None = Field(None, max_length=200)
+    steps: int | None = Field(None, ge=1, le=200)
+    cfg: float | None = Field(None, ge=0, le=30)
+
+
 class BatchIn(BaseModel):
     generator_id: str = "builtin"
     base: str = ""
@@ -84,6 +93,7 @@ class BatchIn(BaseModel):
     negative_base: str = ""
     negative_extra: list[str] = Field(default_factory=list)
     checkpoint: str | None = None
+    sampling: SamplingIn | None = None
     loras: list[LoraIn] = Field(default_factory=list)
     character: CharacterIn | None = None
     #: Several characters, in prompt order (``character`` is one, for older clients).
@@ -202,6 +212,7 @@ async def get_models():
         "checkpoints": installed["checkpoint"],
         "loras": installed["lora"],
         "embeddings": installed["embedding"],
+        **{f"{k}s": v for k, v in (await comfy_models.sampling()).items()},
         "matching": await comfy_models.matching(),
     }
 

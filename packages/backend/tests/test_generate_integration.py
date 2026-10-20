@@ -58,6 +58,9 @@ async def test_connection_and_models(client, comfy):
     assert models["checkpoints"] == sorted(comfy.checkpoints, key=str.lower)
     assert "styles/flat_color_xl.safetensors" in models["loras"]
     assert models["embeddings"] == ["easynegative", "pos/aesthetic"]
+    # ComfyUI's own order, not sorted.
+    assert models["samplers"] == ["euler", "euler_ancestral", "dpmpp_2m"]
+    assert models["schedulers"] == ["normal", "karras"]
 
 
 async def test_headers_are_masked_and_kept(client, comfy):
@@ -448,3 +451,37 @@ async def test_download_can_be_turned_off(client, comfy, seed, tmp_path):
     await client.put("/generate/comfyui", json={"download_outputs": False})
     await make_ready(client, comfy, seed)
     assert not any(out.rglob("*.png"))
+
+
+async def test_sampling_reaches_the_sampler_and_requeue_keeps_it(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    g = (await client.get("/generate/generators/builtin")).json()
+    assert g["sampling"] == {
+        "sampler": "euler_ancestral",
+        "scheduler": "normal",
+        "steps": 28,
+        "cfg": 6.0,
+    }
+    # Only what was set changes; the rest stays as the graph has it.
+    b = (
+        await client.post(
+            "/generate/batches",
+            json={"base": "x", "sampling": {"sampler": "dpmpp_2m", "steps": 20}},
+        )
+    ).json()
+    ks = comfy.prompts[comfy.order[-1]]["3"]["inputs"]
+    assert (ks["sampler_name"], ks["steps"], ks["cfg"], ks["scheduler"]) == (
+        "dpmpp_2m",
+        20,
+        6.0,
+        "normal",
+    )
+    scanned(seed, comfy.finish(comfy.order[-1]))
+    await tick()
+    await client.post(f"/generate/batches/{b['_id']}/requeue")
+    ks = comfy.prompts[comfy.order[-1]]["3"]["inputs"]
+    assert (ks["sampler_name"], ks["steps"]) == ("dpmpp_2m", 20)
+    bad = await client.post(
+        "/generate/batches", json={"base": "x", "sampling": {"steps": 0}}
+    )
+    assert bad.status_code == 422

@@ -52,6 +52,10 @@ _SLOTS: dict[str, Any] = {
     "height": ["5", "height"],
     "batch_size": ["5", "batch_size"],
     "checkpoint": ["4", "ckpt_name"],
+    "sampler": ["3", "sampler_name"],
+    "scheduler": ["3", "scheduler"],
+    "steps": ["3", "steps"],
+    "cfg": ["3", "cfg"],
     "lora_model": ["4", 0],
     "lora_clip": ["4", 1],
 }

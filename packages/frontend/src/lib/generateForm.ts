@@ -9,7 +9,17 @@
  * still sends what it said.
  */
 import { compose, composeParts, promptTerms } from "./compose";
-import type { BatchInputs, CharacterInput, LoraPreset, NodeError, Preset, PromptPart, QueueBody, StyleLora } from "./generate";
+import type {
+  BatchInputs,
+  CharacterInput,
+  LoraPreset,
+  NodeError,
+  Preset,
+  PromptPart,
+  QueueBody,
+  Sampling,
+  StyleLora,
+} from "./generate";
 
 export type PresetRef = { id: string; text: string } | null;
 
@@ -32,6 +42,8 @@ export type GenerateForm = {
   negativePreset: PresetRef;
   negative: string;
   checkpoint: string | null;
+  /** Only what the user changed; the rest is the Generator's. */
+  sampling: Sampling;
   /** Style LoRAs, each with its activation preset. */
   loras: StyleLora[];
   /** The picked characters' page keys, in prompt order; each one's block
@@ -54,6 +66,7 @@ export const DEFAULT_FORM: GenerateForm = {
   negativePreset: null,
   negative: "",
   checkpoint: null,
+  sampling: {},
   loras: [],
   characters: [],
   width: 832,
@@ -166,6 +179,7 @@ export function toQueueBody(
   return {
     generator_id: generatorId,
     checkpoint: f.checkpoint,
+    sampling: f.sampling,
     loras: f.loras.map(({ name, strength }) => ({ name, strength })),
     characters,
     positive,
@@ -275,6 +289,7 @@ export function formFromBatch(i: BatchInputs, name: string | null): GenerateForm
       negative: compose(i.negative_base ?? "", i.negative_extra ?? []),
     }),
     checkpoint: i.checkpoint,
+    sampling: { ...i.sampling },
     loras: i.loras.map((l) => ({ ...l, preset: loraPresetOf(i.composer, l.name) })),
     characters: (i.characters ?? (i.character ? [i.character] : [])).map((c) => c.tag),
     width: i.width ?? DEFAULT_FORM.width,
@@ -299,6 +314,7 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     const out: GenerateForm = { ...DEFAULT_FORM, ...composerFrom(d) };
     if (!("prompt" in d) && ("base" in d || "extra" in d)) Object.assign(out, migrated(d));
     if (isStr(d.checkpoint) || d.checkpoint === null) out.checkpoint = d.checkpoint;
+    out.sampling = samplingOf(d.sampling);
     // Drafts from before several characters keep their one.
     if (Array.isArray(d.characters)) out.characters = [...new Set<string>(d.characters.filter(isStr))].slice(0, MAX_CHARACTERS);
     else if (isStr(d.character)) out.characters = [d.character];
@@ -338,10 +354,41 @@ function safeStorage(): Storage | null {
   }
 }
 
-/** What a rejection flags: the checkpoint, and which LoRA names. */
-export function rejectedFields(errors: readonly NodeError[]): { checkpoint: boolean; loras: Set<string> } {
+/** The sampling settings a stored value holds, the rest dropped. Pure. */
+export function samplingOf(v: unknown): Sampling {
+  if (!v || typeof v !== "object") return {};
+  const d = v as Record<string, unknown>;
+  const out: Sampling = {};
+  if (isStr(d.sampler)) out.sampler = d.sampler;
+  if (isStr(d.scheduler)) out.scheduler = d.scheduler;
+  if (typeof d.steps === "number") out.steps = d.steps;
+  if (typeof d.cfg === "number") out.cfg = d.cfg;
+  return out;
+}
+
+/** A sampler as people write it: "euler a", "dpmpp 2m karras". Pure. */
+export function samplerLabel(sampler: string, scheduler?: string): string {
+  const name = sampler.replace(/_ancestral$/, " a").replace(/_/g, " ");
+  return scheduler && scheduler !== "normal" ? `${name} ${scheduler.replace(/_/g, " ")}` : name;
+}
+
+/** "euler a · 28 steps · CFG 6" (`short`: "euler a · 28 · 6"), from
+ * whichever settings are given. Pure. */
+export function samplingLabel(s: Sampling, short = false): string {
+  return [
+    s.sampler ? samplerLabel(s.sampler, s.scheduler) : s.scheduler,
+    s.steps != null && (short ? `${s.steps}` : `${s.steps} steps`),
+    s.cfg != null && (short ? `${s.cfg}` : `CFG ${s.cfg}`),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** What a rejection flags: the checkpoint, sampling, and which LoRA names. */
+export function rejectedFields(errors: readonly NodeError[]): { checkpoint: boolean; sampling: boolean; loras: Set<string> } {
   return {
     checkpoint: errors.some((e) => e.field === "checkpoint"),
+    sampling: errors.some((e) => e.field === "sampling"),
     loras: new Set(errors.filter((e) => e.field === "lora" && e.lora_name).map((e) => e.lora_name!)),
   };
 }
