@@ -74,5 +74,9 @@ describe("fixCountTags", () => {
   it("leaves weighted groups whole", () => {
     expect(flagged("(1girl, smile:1.2), park", ["girl", "girl"])).toEqual([]);
     expect(fixCountTags("(1girl, smile:1.2), solo", ["2girls"])).toBe("(1girl, smile:1.2), 2girls");
+    // The middle of a group too, not just its ends.
+    expect(flagged("(1girl, solo, smile:1.2), park", ["girl", "girl"])).toEqual([]);
+    expect(fixCountTags("(smile, solo, rain:1.2), 1girl", ["2girls"])).toBe("(smile, solo, rain:1.2), 2girls");
+    expect(flagged("[a, (b, solo), c], 1girl", ["girl", "girl"])).toEqual(["1girl"]);
   });
 });

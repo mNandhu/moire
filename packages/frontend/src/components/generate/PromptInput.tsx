@@ -258,6 +258,8 @@ export function PromptInput({
             </span>
           ))}
           {value.slice(marks[marks.length - 1].end)}
+          {/* A trailing newline only takes up a line with something after it. */}
+          {"\u200b"}
         </div>
       )}
       <textarea
