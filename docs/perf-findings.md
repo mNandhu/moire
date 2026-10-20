@@ -24,7 +24,7 @@ Effort: S (hours) · M (a day or so) · L (more)
 | A5 | AI tagging | ORT `intra_op_num_threads` untuned | Unclear (contention artifact?) | S | open |
 | S1 | Scan | Rescan re-processes every unchanged file; 15-min reconcile triggers it per watched library, plus full reproject | Unchanged rescan 6.8s -> 0.16s / 297 imgs (~40x) | S | done (`2d5e32a`) |
 | S2 | Scan | Thumbs 1080px webp; 640px enough | Scan ~1.7-2x faster, thumbs ~45% smaller | S (+ regen) | open |
-| S3 | Prompt extraction | Reproject reruns needlessly; `parse_prompt` ~22 calls/img uncached | Gate on change (S1); lru_cache ~25% of reproject | S | open |
+| S3 | Prompt extraction | Reproject reruns needlessly; `parse_prompt` ~22 calls/img uncached | Gate on change (S1); lru_cache 20.1 -> 14.5s real library (-28%) | S | done (a, b); c open |
 | S4 | Scan | Thread pool + GIL bound past ~4 workers; process pool | Maybe 1.3-2x, unproven | M | open |
 | S5 | Scan | Serial walk + stat over 9P (~7 ms/file) | Needed once S1 lands: 10k stats 70s -> ~10s | S | done (`2d5e32a`, stat on the pool) |
 | D1 | API / DB | Rare tag/term filter walks all images in sort order, probing EXISTS per row | Rare filter 128 -> 5 ms @30k; threshold 3000 regresses mid filters 3-7x | S-M | measured: keep, `_RARE` ~300 |
