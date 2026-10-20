@@ -570,9 +570,10 @@ running prompt only after a fresh `/queue` shows it is ours and running.
 - The connected ComfyUI is public: no NSFW graphs to it (every text node
   travels). Tests run against the fake only.
 - Later the same night: a failed connection setup at startup is shown and
-  retried on idle ticks (it stayed unconfigured until Test before); prompts
-  carry an editor workflow with the family id and node types only (outputs
-  join their family, no old widget text travels); Show Text caches are
+  retried once a minute (it stayed unconfigured until Test before); prompts
+  carry a `moire` PNG chunk with the family id, which the scanner keeps and
+  the family key falls back to (an editor workflow would be loaded by
+  ComfyUI ahead of the prompt, so a partial one would break reopening); Show Text caches are
   emptied; stored graphs keep class_type / inputs / _meta only (no NaN);
   required widget inputs a node gained since the workflow was made get
   ComfyUI's default (UltimateSDUpscale's batch_size); update from a newer
