@@ -29,21 +29,24 @@ export function NewCharacterDialog({
   open,
   onClose,
   onCreated,
+  initialTag = "",
 }: {
   open: boolean;
+  /** Starts the tag field (what was typed in a search), its matches shown. */
+  initialTag?: string;
   onClose: () => void;
   onCreated?: (tag: string) => void;
 }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { push } = useToast();
-  const [tag, setTag] = useState("");
+  const [tag, setTag] = useState(initialTag);
   const [name, setName] = useState("");
   const [lora, setLora] = useState("");
   const [identity, setIdentity] = useState<string[]>([]);
   const [typed, setTyped] = useState("");
   const [active, setActive] = useState(0);
-  const [suggest, setSuggest] = useState(false);
+  const [suggest, setSuggest] = useState(!!initialTag);
   const [saving, setSaving] = useState(false);
   const { data: names } = useCharacterNames();
   const { data: everyone } = useCharacters();

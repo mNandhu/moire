@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftRight, Ban, Check, Pencil, RotateCcw, Undo2, UserRound, X } from "lucide-react";
+import { ArrowLeftRight, Ban, Check, Pencil, Plus, RotateCcw, Undo2, UserRound, X } from "lucide-react";
 import { Badge, Card } from "../ui";
 import { Picker, type PickerOption } from "../ui/Picker";
 import { Dialog } from "../ui/Dialog";
@@ -59,12 +59,25 @@ function CharacterPicker({
 }) {
   const { data } = useCharacters();
   const [creating, setCreating] = useState(false);
-  const opts = useMemo(
-    () => [
-      ...characterOptions((data ?? []).filter((c) => c.tag === value || !taken?.includes(c.tag))),
-      { value: NEW_CHARACTER, label: "New character" },
-    ],
-    [data, taken, value],
+  const [initialTag, setInitialTag] = useState("");
+  // The chosen one first, then everyone not already in the prompt.
+  const opts = useMemo(() => {
+    const list = data ?? [];
+    const chosen = list.filter((c) => c.tag === value);
+    return characterOptions([...chosen, ...list.filter((c) => c.tag !== value && !taken?.includes(c.tag))]);
+  }, [data, taken, value]);
+  const pinned = useCallback(
+    (q: string): PickerOption => ({
+      // Carries the search, which starts the new character's tag.
+      value: NEW_CHARACTER + q,
+      label: q ? `Create "${q}"` : "New character",
+      icon: (
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong text-muted">
+          <Plus size={13} />
+        </span>
+      ),
+    }),
+    [],
   );
   return (
     <>
@@ -72,7 +85,13 @@ function CharacterPicker({
         aria-label="Character"
         value={value ?? ""}
         options={opts}
-        onChange={(v) => (v === NEW_CHARACTER ? setCreating(true) : onChange(v))}
+        onChange={(v) => {
+          if (!v.startsWith(NEW_CHARACTER)) return onChange(v);
+          setInitialTag(v.slice(NEW_CHARACTER.length));
+          setCreating(true);
+        }}
+        pinned={pinned}
+        checks={false}
         placeholder="Pick a character"
         searchable
         trigger={trigger}
@@ -81,7 +100,7 @@ function CharacterPicker({
         align={align ?? (trigger ? "right" : "left")}
         className={trigger ? undefined : "w-full"}
       />
-      {creating && <NewCharacterDialog open onClose={() => setCreating(false)} onCreated={onChange} />}
+      {creating && <NewCharacterDialog open initialTag={initialTag} onClose={() => setCreating(false)} onCreated={onChange} />}
     </>
   );
 }

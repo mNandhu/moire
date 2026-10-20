@@ -50,6 +50,8 @@ export function Picker({
   disabled,
   defaultOpen = false,
   onClose,
+  pinned,
+  checks = true,
 }: {
   value: string | readonly string[];
   options: readonly PickerOption[];
@@ -69,6 +71,10 @@ export function Picker({
   defaultOpen?: boolean;
   /** Called when the list closes, picked or not. */
   onClose?: () => void;
+  /** An option kept at the top whatever the search ("Create …"); given the search text. */
+  pinned?: (query: string) => PickerOption;
+  /** Tick the chosen option; without, it is only highlighted. */
+  checks?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const wasOpen = useRef(open);
@@ -89,9 +95,11 @@ export function Picker({
 
   const shown = useMemo(() => {
     const q = query.trim();
-    if (!q) return options;
-    return fuzzyRank(q, options, (o) => (o.keywords ? `${o.label} ${o.keywords}` : o.label), options.length);
-  }, [options, query]);
+    const ranked = q
+      ? fuzzyRank(q, options, (o) => (o.keywords ? `${o.label} ${o.keywords}` : o.label), options.length)
+      : options;
+    return pinned ? [pinned(q), ...ranked] : ranked;
+  }, [options, query, pinned]);
   const multiple = typeof value !== "string";
   const isOn = (o: PickerOption) => (multiple ? value.includes(o.value) : o.value === value);
   const chosenLabel = multiple
@@ -111,7 +119,9 @@ export function Picker({
   // Opening starts on the chosen option; typing starts on the best match.
   useEffect(() => {
     if (!open) return;
-    const i = query ? 0 : Math.max(0, shown.findIndex(isOn));
+    // A pinned option leads the list but a search still lands on its best match.
+    const first = pinned && shown.length > 1 ? 1 : 0;
+    const i = query ? first : Math.max(0, shown.findIndex(isOn));
     setActive(i);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, query]);
@@ -208,7 +218,7 @@ export function Picker({
                 aria-label="Search options"
                 aria-controls={listId}
                 aria-activedescendant={shown[active] ? `${listId}-${active}` : undefined}
-                className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-faint"
+                className="flex-1 min-w-0 bg-transparent text-sm outline-none focus-visible:shadow-none placeholder:text-faint"
               />
             </div>
           )}
@@ -220,7 +230,7 @@ export function Picker({
             aria-label={ariaLabel}
             aria-multiselectable={multiple || undefined}
             aria-activedescendant={!withSearch && shown[active] ? `${listId}-${active}` : undefined}
-            className="max-h-72 overflow-auto py-1 outline-none"
+            className="max-h-72 overflow-auto py-1 outline-none focus-visible:shadow-none"
           >
             {shown.length === 0 && <li className="px-3 py-2 text-sm text-faint">No matches</li>}
             {shown.map((o, i) => {
@@ -246,11 +256,11 @@ export function Picker({
                     className={cn(
                       "flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer",
                       o.indent && !query && "pl-7",
-                      i === active ? "bg-brand-900/40" : "",
+                      i === active ? "bg-brand-900/40" : !checks && isOn(o) && "bg-white/[0.06]",
                       o.dim && "opacity-45",
                     )}
                   >
-                    <span className="w-4 shrink-0 text-brand-300">{isOn(o) && <Check size={14} />}</span>
+                    {checks && <span className="w-4 shrink-0 text-brand-300">{isOn(o) && <Check size={14} />}</span>}
                     {o.icon}
                     <span className="flex-1 min-w-0 truncate text-neutral-100">
                       {o.label}
