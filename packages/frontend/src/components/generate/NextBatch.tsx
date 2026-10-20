@@ -16,13 +16,16 @@ export function useNextEstimate(body: EstimateBody | null, { busy }: { busy: boo
     const timer = setTimeout(() => setSettled(json), 400);
     return () => clearTimeout(timer);
   }, [json]);
-  return useQuery({
+  const { data } = useQuery({
     queryKey: [...GEN_KEY, "estimate", settled],
     queryFn: ({ signal }) => estimateBatch(JSON.parse(settled!) as EstimateBody, signal),
     enabled: !!settled,
+    // The last number stays while an edit settles, not once there's no
+    // batch to estimate (ComfyUI down, the Generator not tested).
     placeholderData: keepPreviousData,
     refetchInterval: busy ? 5000 : false,
-  }).data;
+  });
+  return json && settled ? data : undefined;
 }
 
 /**

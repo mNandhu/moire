@@ -56,9 +56,9 @@ function count(t: BackgroundTask, noun: string): string | null {
   return `${(t.done ?? 0).toLocaleString()} of ${t.total.toLocaleString()} ${noun}`;
 }
 
-function withEta(detail: string | null, eta?: number): string | null {
+function withEta(detail: string | null, eta?: number, format: (s: number) => string = formatDuration): string | null {
   if (!detail || eta == null || eta < 1) return detail;
-  return `${detail} · ${formatDuration(eta)} left`;
+  return `${detail} · ${format(eta)} left`;
 }
 
 export function taskPct(t: Pick<BackgroundTask, "done" | "total">): number | null {
@@ -105,10 +105,8 @@ export function describeTask(
     case "generate":
       return {
         title: "Generating",
-        detail:
-          [t.total ? `${t.total} in the ComfyUI queue` : null, t.eta_s != null && t.eta_s >= 1 ? `${etaLabel(t.eta_s)} left` : null]
-            .filter(Boolean)
-            .join(" · ") || null,
+        // A generation estimate is rounded and said as "about" (lib/eta.ts).
+        detail: withEta(t.total ? `${t.total} in the ComfyUI queue` : null, t.eta_s, etaLabel),
         pct: null,
       };
     default:

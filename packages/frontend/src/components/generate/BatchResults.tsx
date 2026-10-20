@@ -7,7 +7,7 @@ import { cancelRequest, retryRequest, thumbUrl, type Batch, type GenRequest, typ
 import { setQuarantine, setScore } from "../../lib/imageMutations";
 import { withBackgroundLocation } from "../../lib/backgroundLocation";
 import { cn } from "../../lib/cn";
-import { developing, etaLabel } from "../../lib/eta";
+import { developing, leftLabel } from "../../lib/eta";
 import { useToast } from "../Toasts";
 
 export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; onChanged: () => void }) {
@@ -97,16 +97,16 @@ function cellTitle(s: ResultSlot): string {
 /** The first cell's line: time left (or an overrun) when there's an
  * estimate, else ComfyUI's step count, or where it waits. */
 function waitingLabel(req: GenRequest, dev: ReturnType<typeof developing>): string {
-  if (dev) {
-    if (dev.over) return "Taking longer than usual";
-    return `${etaLabel(Math.max(0, (req.expected ?? 0) - (req.elapsed ?? 0)))} left`;
-  }
-  if (req.state === "running") {
-    if (!req.progress) return "Running";
-    const steps = `${req.progress.value} / ${req.progress.max}`;
-    return req.progress.node ? `${req.progress.node} ${steps}` : steps;
-  }
+  if (dev) return leftLabel({ seconds: Math.max(0, (req.expected ?? 0) - (req.elapsed ?? 0)), over: dev.over });
+  if (req.state === "running") return stepsLabel(req) ?? "Running";
   return req.state === "queued" ? "Queued" : "Waiting";
+}
+
+/** ComfyUI's own progress: "3 12 / 28" (node, then step of steps). */
+function stepsLabel(req: GenRequest): string | null {
+  if (!req.progress) return null;
+  const steps = `${req.progress.value} / ${req.progress.max}`;
+  return req.progress.node ? `${req.progress.node} ${steps}` : steps;
 }
 
 function WaitingCell({
@@ -153,7 +153,10 @@ function WaitingCell({
       {first && (
         <div className="relative space-y-1.5">
           <div className="flex items-center gap-1.5 text-xs">
-            <span className={cn("leading-tight", running ? "text-neutral-100" : "text-muted")}>
+            <span
+              className={cn("leading-tight", running ? "text-neutral-100" : "text-muted")}
+              title={dev ? (stepsLabel(req) ?? undefined) : undefined}
+            >
               {waitingLabel(req, dev)}
             </span>
             <span className="flex-1" />

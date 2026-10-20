@@ -72,9 +72,11 @@ export function batchLeft(
   return { seconds, over };
 }
 
-/** What a time-left reads: "about 2m left", or "taking longer than usual". */
+/** What a time-left reads: "about 2m left"; near the end "Almost done",
+ * which turns to "Taking longer than usual" once it overruns. */
 export function leftLabel(left: { seconds: number; over: boolean }): string {
-  return left.over && left.seconds < 5 ? "Taking longer than usual" : `${etaLabel(left.seconds)} left`;
+  if (left.seconds >= 3) return `${etaLabel(left.seconds)} left`;
+  return left.over ? "Taking longer than usual" : "Almost done";
 }
 
 /** An estimate for a batch not queued yet, as the server gives it. */
