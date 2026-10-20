@@ -429,8 +429,8 @@ export default function GeneratePage() {
                     "grid grid-cols-2 items-start gap-3",
                     ownBatchSize ? "md:grid-cols-4" : "md:grid-cols-3",
                     hasSampling
-                      ? "2xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,1.6fr)_auto_minmax(0,0.9fr)]"
-                      : "2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.6fr)_auto_minmax(0,0.9fr)]",
+                      ? "2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,1.5fr)_auto]"
+                      : "2xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,1.5fr)_auto]",
                   )}
                 >
                   <CheckpointPicker
@@ -460,7 +460,6 @@ export default function GeneratePage() {
                       ownBatchSize ? { value: form.perRequest, default: defaultPerRequest, onChange: (n) => set("perRequest", n) } : null
                     }
                   />
-                  <BatchName auto={autoName} custom={form.name} onChange={(v) => set("name", v)} />
                 </div>
                 {rejected && (
                   <RejectedBox
@@ -470,26 +469,30 @@ export default function GeneratePage() {
                     refreshing={refresh.isPending}
                   />
                 )}
-                {blocked ? (
-                  <Button
-                    className="w-full h-11 text-[15px]"
-                    disabled
-                    title={!ready && connected ? "Use Test run above: one image proves the checkpoint and the output folder" : undefined}
-                  >
-                    {blocked === "Run the test first" ? <FlaskConical size={16} /> : <Lock size={16} />}
-                    {blocked}
-                  </Button>
-                ) : (
-                  <Button
-                    variant="primary"
-                    className="w-full h-11 text-[15px]"
-                    disabled={!canQueue}
-                    onClick={() => queue.mutate()}
-                  >
-                    {queue.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                    Queue {form.count} {form.count === 1 ? "image" : "images"}
-                  </Button>
-                )}
+                {/* The run's name sits with the button that queues it. */}
+                <div className="flex items-center gap-3">
+                  <BatchName auto={autoName} custom={form.name} onChange={(v) => set("name", v)} className="w-56 max-w-[40%] shrink-0" />
+                  {blocked ? (
+                    <Button
+                      className="h-11 flex-1 text-[15px]"
+                      disabled
+                      title={!ready && connected ? "Use Test run above: one image proves the checkpoint and the output folder" : undefined}
+                    >
+                      {blocked === "Run the test first" ? <FlaskConical size={16} /> : <Lock size={16} />}
+                      {blocked}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="primary"
+                      className="h-11 flex-1 text-[15px]"
+                      disabled={!canQueue}
+                      onClick={() => queue.mutate()}
+                    >
+                      {queue.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                      Queue {form.count} {form.count === 1 ? "image" : "images"}
+                    </Button>
+                  )}
+                </div>
               </Card>
             </div>
           </div>
