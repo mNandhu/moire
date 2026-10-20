@@ -187,7 +187,7 @@ describe("activeFilterChips", () => {
   it("only shows OR mode when it changes the result", () => {
     expect(activeFilterChips(f({ logic: "or", tags: ["a"] }))).toEqual([]);
     const [chip] = activeFilterChips(f({ logic: "or", tags: ["a", "b"] }));
-    expect(chip.label).toBe("Any tag");
+    expect(chip.label).toBe("Match any of 2 tags");
     expect(chip.without.logic).toBe("and");
     expect(chip.without.tags).toEqual(["a", "b"]);
   });

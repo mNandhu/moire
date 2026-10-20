@@ -6,6 +6,8 @@
 
 export type ImageDoc = {
   _id: string;
+  /** Only on the single-image fetch; the feed leaves it out. */
+  library_id?: string;
   path: string;
   width?: number;
   height?: number;
@@ -351,7 +353,9 @@ export function activeFilterChips(
   if (f.libraryId) {
     add("library", `Library: ${libraryName(f.libraryId) ?? f.libraryId}`, { libraryId: undefined });
   }
-  if (f.logic === "or" && f.tags.length > 1) add("logic", "Any tag", { logic: "and" });
+  if (f.logic === "or" && f.tags.length > 1) {
+    add("logic", `Match any of ${f.tags.length} tags`, { logic: "and" });
+  }
   if (f.noTags) add("noTags", "Untagged", { noTags: false });
   if (f.noAiTags) add("noAiTags", "No AI tags", { noAiTags: false });
   if (f.quarantined) add("quarantined", "Quarantined", { quarantined: false });
@@ -361,7 +365,9 @@ export function activeFilterChips(
     });
   }
   if (f.promptLogic === "or" && f.promptTerms.length > 1) {
-    add("promptLogic", "Any prompt term", { promptLogic: "and" });
+    add("promptLogic", `Match any of ${f.promptTerms.length} prompt terms`, {
+      promptLogic: "and",
+    });
   }
   if (f.workflow || f.workflowSig) {
     const name = workflowName({ workflow: f.workflow, workflowSig: f.workflowSig });
