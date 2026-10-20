@@ -378,7 +378,7 @@ function Recipe({ c, onEdit }: { c: Character; onEdit: () => void }) {
   );
 }
 
-/** Who they appear with, what they were made with, when, and how rated. */
+/** Who they appear with (for a tag: which characters carry it), what they were made with, when, and how rated. */
 function Sidebar({ c, accent, onEdit, person }: { c: Character; accent?: string; onEdit: () => void; person: boolean }) {
   const { data: everyone } = useCharacters();
   const { data: signatures } = useQuery({
@@ -399,7 +399,9 @@ function Sidebar({ c, accent, onEdit, person }: { c: Character; accent?: string;
       {person && <Recipe c={c} onEdit={onEdit} />}
       {c.with.length > 0 && (
         <section>
-          <h2 className="text-2xs uppercase tracking-wider text-faint mb-2">Appears with</h2>
+          <h2 className="text-2xs uppercase tracking-wider text-faint mb-2">
+            {person ? "Appears with" : "Characters with this tag"}
+          </h2>
           <div className="flex flex-wrap gap-x-3 gap-y-3">
             {c.with.map((w) => {
               const other = byTag.get(w.tag);
@@ -407,7 +409,7 @@ function Sidebar({ c, accent, onEdit, person }: { c: Character; accent?: string;
                 <Link
                   key={w.tag}
                   to={characterHref(w.tag)}
-                  title={`${w.count.toLocaleString()} ${w.count === 1 ? "image" : "images"} together`}
+                  title={`${w.count.toLocaleString()} ${w.count === 1 ? "image" : "images"} ${person ? "together" : "with this tag"}`}
                   className="group flex w-16 flex-col items-center gap-1 text-center"
                 >
                   <CharacterAvatar
