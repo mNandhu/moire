@@ -12,6 +12,7 @@ import {
   samplingOf,
   removeBlock,
   toParts,
+  toEstimateBody,
   toQueueBody,
   validBlocks,
   type GenerateForm,
@@ -221,5 +222,20 @@ describe("formFromBatch", () => {
     const sent = toQueueBody({ ...DEFAULT_FORM, prompt: "swing", prefix: { id: "q", text: "t" } }, "builtin", [], presets);
     const f = formFromBatch({ ...base, composer: sent.composer }, "Mine");
     expect(f).toMatchObject({ prompt: "swing", prefix: { id: "q", text: "t" }, name: "Mine" });
+  });
+});
+
+describe("toEstimateBody", () => {
+  it("keeps only what decides how long a batch takes", () => {
+    const f = { ...DEFAULT_FORM, prompt: "1girl", count: 6, perRequest: 2, checkpoint: "a.safetensors" };
+    expect(toEstimateBody(f, "builtin")).toEqual({
+      generator_id: "builtin",
+      checkpoint: "a.safetensors",
+      sampling: DEFAULT_FORM.sampling,
+      width: DEFAULT_FORM.width,
+      height: DEFAULT_FORM.height,
+      count: 6,
+      per_request: 2,
+    });
   });
 });

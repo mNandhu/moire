@@ -17,7 +17,7 @@ from fastapi import APIRouter
 
 from ..database import schema as t
 from ..database.db import async_conn
-from ..services import activity, face_detect, scanner
+from ..services import activity, face_detect, generation_estimate, scanner
 from ..services.ai_jobs import get_ai_job_manager, get_ai_settings
 from ..services.ai_tagger import model_status_view, resolved_model_target
 from ..services.generation_jobs import get_generation_manager
@@ -102,10 +102,19 @@ async def background_activity():
     if total:
         items.append({"key": "faces", "kind": "faces", "done": done, "total": total})
 
-    gen = get_generation_manager().status()
+    manager = get_generation_manager()
+    gen = manager.status()
     if gen.get("busy"):
+        eta = (await generation_estimate.queue_plan(manager.started))["total"]
         items.append(
-            {"key": "generate", "kind": "generate", "total": gen["queue_remaining"]}
+            {
+                "key": "generate",
+                "kind": "generate",
+                "total": gen["queue_remaining"],
+                # Seconds left on our queue, from past runs; absent when
+                # some of it can't be told.
+                **({"eta_s": eta} if eta else {}),
+            }
         )
 
     ended = {

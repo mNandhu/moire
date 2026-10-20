@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, Dices, Minus, Pencil, Plus, RotateCcw } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { etaLabel } from "../../lib/eta";
 import { countHint, countLabel, randomSeed, type CountMode } from "../../lib/requests";
 import { ShapeIcon, SIZE_GROUP, useSizePresets } from "../SizeFilter";
 import { Input, Picker, ProgressBar, type PickerOption } from "../ui";
@@ -275,6 +276,9 @@ export function QueueCard({ active, connected }: { active: ActiveBatch[]; connec
         <span className="tabular-nums text-xs text-muted">
           {head.finished} / {head.requests}
         </span>
+        {head.eta != null && head.eta >= 1 && (
+          <span className="whitespace-nowrap tabular-nums text-xs text-muted">{etaLabel(head.eta)} left</span>
+        )}
         {!connected && <span className="text-xs text-muted">Paused</span>}
       </div>
       <ProgressBar value={pct} className="mt-2" />

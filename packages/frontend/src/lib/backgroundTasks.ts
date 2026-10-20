@@ -1,4 +1,5 @@
 import { formatDuration } from "./ai";
+import { etaLabel } from "./eta";
 
 /**
  * Background work as the activity indicator shows it. The server lists what
@@ -104,7 +105,10 @@ export function describeTask(
     case "generate":
       return {
         title: "Generating",
-        detail: t.total ? `${t.total} in the ComfyUI queue` : null,
+        detail:
+          [t.total ? `${t.total} in the ComfyUI queue` : null, t.eta_s != null && t.eta_s >= 1 ? `${etaLabel(t.eta_s)} left` : null]
+            .filter(Boolean)
+            .join(" · ") || null,
         pct: null,
       };
     default:

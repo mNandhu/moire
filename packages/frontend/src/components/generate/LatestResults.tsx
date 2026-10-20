@@ -4,6 +4,7 @@ import { Card } from "../ui";
 import { BATCHES_KEY, STATUS_KEY, batchKey, useBatch, useBatches, type Batch } from "../../lib/generate";
 import { BatchResults } from "./BatchResults";
 import { batchRunTime, durationLabel } from "../../lib/batches";
+import { batchLeft, leftLabel } from "../../lib/eta";
 
 function Latest({ id }: { id: number }) {
   const qc = useQueryClient();
@@ -17,6 +18,7 @@ function Latest({ id }: { id: number }) {
   };
   const done = b.requests.filter((q) => !["pending", "queued", "running"].includes(q.state)).length;
   const took = batchRunTime(b.requests);
+  const left = batchLeft(b.requests);
   return (
     <Card className="p-3.5">
       <div className="mb-2.5 flex items-center gap-2 text-sm">
@@ -28,7 +30,9 @@ function Latest({ id }: { id: number }) {
             {done} / {b.requests.length}
           </span>
         )}
-        {took && (
+        {left ? (
+          <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted">{leftLabel(left)}</span>
+        ) : took && (
           <span
             className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted"
             title={took.perImage != null && took.images > 1 ? `${durationLabel(took.perImage)} per image` : undefined}
