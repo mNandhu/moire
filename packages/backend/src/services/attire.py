@@ -118,6 +118,23 @@ def _attire_group(tag: str, entry: tuple[str, str, tuple[str, ...]]) -> str | No
     return entry[1] if entry[1] in groups else min(groups)
 
 
+# Eye tags that say what the eyes are doing, not what they're like.
+EYE_STATES = frozenset(
+    {
+        "closed_eyes",
+        "half-closed_eyes",
+        "one_eye_closed",
+        "narrowed_eyes",
+        "wide-eyed",
+        "rolling_eyes",
+        "sparkling_eyes",
+        "empty_eyes",
+        "crazy_eyes",
+        "tearing_up",
+    }
+)
+
+
 def is_attire(tag: str) -> bool:
     key = _key(tag)
     entry = _load().get(key)
@@ -133,6 +150,10 @@ def is_identity(tag: str) -> bool:
     if entry is None:
         return bool(_BODY_WORDS.search(key))
     if _attire_group(key, entry) is not None or key.startswith("looking_"):
+        return False
+    # An expression, though also listed with eyes (`@_@`, `closed_eyes`),
+    # or a passing eye state: how they look in one picture, not who they are.
+    if entry[1] == "face_tags" or key in EYE_STATES:
         return False
     groups = _groups(entry) & IDENTITY_GROUPS
     if groups == {"breasts_tags"}:
@@ -218,6 +239,8 @@ def _facet(key: str, entry: tuple[str, str, tuple[str, ...]] | None) -> str | No
         return "look" if _BODY_WORDS.search(key) else None
     if _attire_group(key, entry) is not None:
         return "outfit"
+    if key in EYE_STATES:
+        return "pose"
     if is_identity(key):
         return "look"
     groups = _groups(entry)

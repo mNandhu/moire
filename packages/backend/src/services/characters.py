@@ -23,7 +23,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import face_detect, image_tags, tag_categories, tag_index
+from . import attire, face_detect, image_tags, tag_categories, tag_index
 
 # Colour words in hair / eye tags, as (hue, saturation %, lightness %).
 COLOURS: dict[str, tuple[int, int, int]] = {
@@ -228,6 +228,9 @@ def signature(
     found.sort(key=lambda r: (-r["count"], r["tag"]))
     return one_colour_per_slot(found)[:limit]
 
+
+# The facets (attire.FACETS) a character page's look keeps.
+LOOK_FACETS = frozenset({"look", "outfit"})
 
 GENDERS = {
     kind: (
@@ -705,14 +708,21 @@ async def page(base: str) -> dict | None:
         **(await _avatars([cover])).get(cover or "", _NO_AVATAR),
         "palette": solo_palette([tuple(r) for r in hair_eyes], n, crowded),
         "cover_blurhash": cover_hash,
-        "signature": signature(
-            tags_here,
-            sig_images,
-            library,
-            total,
-            skip=set(key_of) | set(names),
-            visual=vocab.general,
-        ),
+        # Their look: how they're drawn and dressed. Scene, framing, pose
+        # and expression shared by a few images from one set aren't it.
+        "signature": [
+            s
+            for s in signature(
+                tags_here,
+                sig_images,
+                library,
+                total,
+                skip=set(key_of) | set(names),
+                visual=vocab.general,
+                limit=len(tags_here),
+            )
+            if attire.facet_of(s["tag"]) in LOOK_FACETS
+        ][:30],
         # The images the signature was read from: few means it's a guess.
         "signature_images": sig_images,
         "with": with_others[:12],
