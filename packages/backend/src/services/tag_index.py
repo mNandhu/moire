@@ -375,39 +375,61 @@ async def browse(source: str = "all") -> list[dict]:
 
     gen = current_generation()
     it, im, tm = t.image_tags, t.images, t.tag_meta
-    joined = it.join(im, im.c._id == it.c.image_id)
-    where = (_source_clause(source), it.c.base != "", image_tags.not_quarantined())
-    stmt = (
-        sa.select(
-            it.c.base,
-            sa.func.count(sa.distinct(it.c.image_id)).label("count"),
-            sa.func.max(im.c.mtime).label("last_used"),
-        )
-        .select_from(joined)
-        .where(*where)
-        .group_by(it.c.base)
-        .order_by(sa.text("count DESC"), it.c.base)
+    # One pass over the tag rows, feeding both aggregates. The visible images
+    # are materialized first (a few thousand rows), so each of the ~50 tag
+    # rows an image has joins against that small set instead of looking the
+    # image up by its long `_id` again; filtering the tag rows before the
+    # join keeps one source's pass from visiting the others' rows. Twice the
+    # per-row lookups and a plan that scanned every source cost 2-15x more.
+    vis = (
+        sa.select(im.c._id, im.c.mtime, sa.literal_column("rowid").label("rid"))
+        .where(image_tags.not_quarantined())
+        .cte("vis")
+        .prefix_with("MATERIALIZED")
     )
     # The cover, by the mosaic's own rule (samples_for_tag): the pinned image
     # if it is visible and carries the tag, else the first of the shuffle.
-    # One grouped pass: SQLite takes a bare column (image_id) from the row
-    # holding min() of the group, so this picks the lowest key without a
-    # window sorting every image_tags row. The shuffle key is never negative,
-    # so a pin's -1 always wins.
+    # The shuffle key is never negative, so a pin's -1 always wins.
     key = sa.case(
-        (im.c._id == tm.c.thumb_image_id, -1),
-        else_=_shuffle_key(_seed_sql(it.c.base)),
+        (vis.c._id == tm.c.thumb_image_id, -1),
+        else_=(vis.c.rid * _HASH_MUL + _seed_sql(it.c.base)) % _HASH_MOD,
     )
-    covers_stmt = (
-        sa.select(it.c.base, it.c.image_id, sa.func.min(key))
-        .select_from(joined.outerjoin(tm, tm.c.tag == it.c.base))
-        .where(*where)
-        .group_by(it.c.base)
+    rows_cte = (
+        sa.select(it.c.base, it.c.image_id, vis.c.mtime.label("mtime"), key.label("k"))
+        .select_from(
+            it.join(vis, vis.c._id == it.c.image_id).outerjoin(
+                tm, tm.c.tag == it.c.base
+            )
+        )
+        .where(_source_clause(source), it.c.base != "")
+        .cte("r")
+        .prefix_with("MATERIALIZED")
+    )
+    rc = rows_cte.c
+    agg = (
+        sa.select(
+            rc.base,
+            sa.func.count(sa.distinct(rc.image_id)).label("count"),
+            sa.func.max(rc.mtime).label("last_used"),
+        )
+        .group_by(rc.base)
+        .subquery()
+    )
+    # SQLite takes a bare column (image_id) from the row holding min() of the
+    # group: the cover without a window sorting every row.
+    cov = (
+        sa.select(rc.base, rc.image_id.label("cover"), sa.func.min(rc.k))
+        .group_by(rc.base)
+        .subquery()
+    )
+    stmt = (
+        sa.select(agg.c.base, agg.c.count, agg.c.last_used, cov.c.cover)
+        .select_from(agg.join(cov, cov.c.base == agg.c.base))
+        .order_by(agg.c.count.desc(), agg.c.base)
     )
     vocab = await tag_categories.load()  # a file read: before taking a connection
     async with async_conn() as conn:
         rows = (await conn.execute(stmt)).fetchall()
-        covers = {r[0]: r[1] for r in (await conn.execute(covers_stmt)).fetchall()}
         characters = await _characters(conn, vocab, {r.base for r in rows})
 
     result = [
@@ -416,7 +438,7 @@ async def browse(source: str = "all") -> list[dict]:
             "count": r.count,
             "category": tag_categories.category(r.base, characters),
             "last_used": r.last_used,
-            "thumb_image_id": covers.get(r.base),
+            "thumb_image_id": r.cover,
         }
         for r in rows
     ]
