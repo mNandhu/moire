@@ -18,7 +18,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from pathlib import PurePath
+import os
+from pathlib import Path, PurePath
 from typing import Any
 
 import httpx
@@ -58,6 +59,14 @@ class Rejected(Exception):
         super().__init__(message)
         self.message = message
         self.node_errors = node_errors
+
+
+def _write_atomic(dest: Path, data: bytes) -> None:
+    # Dot-prefixed staging name: the library watcher ignores it until the rename.
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_name(f".{dest.name}.part")
+    tmp.write_bytes(data)
+    os.replace(tmp, dest)
 
 
 def output_image_id(library_id: str, subfolder: str, filename: str) -> str:
@@ -222,7 +231,10 @@ class GenerationManager:
         if not s.get("address"):
             return
         self.client = ComfyClient(
-            s["address"], s.get("headers") or {}, transport=self.transport
+            s["address"],
+            s.get("headers") or {},
+            ca_cert=s.get("ca_cert") or None,
+            transport=self.transport,
         )
         if self._loop_task is not None:
             self._ws_task = asyncio.create_task(self._ws_loop(self.client))
@@ -427,6 +439,35 @@ class GenerationManager:
                 )
             )
         self.progress.pop(prompt_id, None)
+        if files and lib:
+            await self._fetch_missing(lib, files)
+
+    async def _fetch_missing(
+        self, library_id: str, files: list[tuple[str, str]]
+    ) -> None:
+        """Download outputs this machine can't see (ComfyUI on another host)
+        into the output library, where the watcher picks them up. A local
+        ComfyUI already wrote them there, so nothing is fetched."""
+        assert self.client is not None
+        async with async_conn() as conn:
+            root = (
+                await conn.execute(
+                    sa.select(t.libraries.c.path).where(t.libraries.c._id == library_id)
+                )
+            ).scalar()
+        if not root:
+            return
+        base = Path(root).resolve()
+        for sub, name in files:
+            dest = (base / sub / name).resolve()
+            if not dest.is_relative_to(base) or dest.exists():
+                continue
+            try:
+                data = await self.client.view(sub, name)
+            except (ComfyUnreachable, ComfyError) as e:
+                log.warning("Could not fetch %s/%s from ComfyUI: %s", sub, name, e)
+                continue
+            await asyncio.to_thread(_write_atomic, dest, data)
 
     async def _close_finished_batches(self) -> None:
         b, r = t.generation_batches, t.generation_requests

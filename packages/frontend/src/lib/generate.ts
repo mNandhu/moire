@@ -14,6 +14,8 @@ export type ComfySettings = {
   output_library_id: string | null;
   output_path: string | null;
   builtin_per_request: number;
+  /** PEM file verifying an HTTPS ComfyUI with a self-signed certificate. */
+  ca_cert: string;
 };
 
 export const HEADER_MASK = "••••";

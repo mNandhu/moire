@@ -105,6 +105,9 @@ class FakeComfy:
             self.deleted.extend(ids)
             self.pending = [p for p in self.pending if p not in ids]
             return httpx.Response(200)
+        if path == "/view":
+            name = request.url.params.get("filename", "")
+            return httpx.Response(200, content=b"PNG:" + name.encode())
         if path == "/interrupt":
             self.interrupted.append(
                 json.loads(request.content or b"{}").get("prompt_id")

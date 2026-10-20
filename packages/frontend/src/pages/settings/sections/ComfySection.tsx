@@ -58,6 +58,7 @@ export function ComfySection() {
   const { data: settings } = useComfySettings();
   const { data: models } = useComfyModels();
   const [address, setAddress] = useState("");
+  const [caCert, setCaCert] = useState("");
   const [headers, setHeaders] = useState<HeaderRow[]>([]);
   const [outputPath, setOutputPath] = useState("");
   const [perRequest, setPerRequest] = useState(1);
@@ -65,6 +66,7 @@ export function ComfySection() {
   useEffect(() => {
     if (!settings) return;
     setAddress(settings.address);
+    setCaCert(settings.ca_cert ?? "");
     setHeaders(Object.entries(settings.headers).map(([name, value]) => ({ name, value })));
     setOutputPath(settings.output_path ?? "");
     setPerRequest(settings.builtin_per_request);
@@ -82,6 +84,7 @@ export function ComfySection() {
     mutationFn: async () => {
       await putSettings({
         address,
+        ca_cert: caCert,
         headers: Object.fromEntries(headers.filter((h) => h.name.trim()).map((h) => [h.name.trim(), h.value])),
       });
       return testConnection();
@@ -126,6 +129,22 @@ export function ComfySection() {
               </Button>
             </div>
           </div>
+          {address.trim().startsWith("https://") && (
+            <div>
+              <label htmlFor="comfy-cert" className="mb-1.5 block text-xs font-medium text-muted">
+                <span title="For a self-signed certificate: the PEM file to trust for this server">
+                  TLS certificate (optional)
+                </span>
+              </label>
+              <Input
+                id="comfy-cert"
+                value={caCert}
+                placeholder="/path/to/comfy.crt"
+                onChange={(e) => setCaCert(e.target.value)}
+                className="font-mono"
+              />
+            </div>
+          )}
           <div>
             <div className="mb-1.5 text-xs font-medium text-muted">
               <span title="Sent with every request to ComfyUI, for a proxied or secured server. Kept on this machine.">

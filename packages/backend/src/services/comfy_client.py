@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import ssl
 import uuid
 from typing import Any, AsyncIterator, Callable
 
@@ -24,7 +25,9 @@ logging.getLogger("websockets.client").setLevel(logging.WARNING)
 # the client_id the prompt was queued with.
 CLIENT_ID = uuid.uuid4().hex
 
-_TIMEOUT = httpx.Timeout(10.0, connect=3.0)
+# Generous: a tunnelled or proxied ComfyUI can take several seconds just for
+# the TLS handshake. Connections are pooled, so later calls are fast.
+_TIMEOUT = httpx.Timeout(60.0, connect=15.0)
 
 
 class ComfyUnreachable(Exception):
@@ -89,15 +92,20 @@ class ComfyClient:
         address: str,
         headers: dict[str, str] | None = None,
         *,
+        ca_cert: str | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ):
         self.base_url = normalize_address(address)
         self.headers = dict(headers or {})
+        # A self-signed ComfyUI (HTTPS behind a tunnel) is verified against its
+        # own certificate rather than not verified at all.
+        self._ssl = ssl.create_default_context(cafile=ca_cert) if ca_cert else None
         self._http = httpx.AsyncClient(
             base_url=self.base_url,
             headers=self.headers,
             timeout=_TIMEOUT,
             transport=transport,
+            verify=self._ssl if self._ssl is not None else True,
         )
 
     async def aclose(self) -> None:
@@ -113,11 +121,29 @@ class ComfyClient:
 
     async def _json(self, method: str, path: str, **kw: Any) -> Any:
         r = await self._request(method, path, **kw)
+        if r.status_code in (401, 403):
+            raise ComfyError(
+                f"ComfyUI refused the request headers (HTTP {r.status_code})",
+                r.status_code,
+            )
         if r.status_code >= 400:
             raise ComfyError(f"{method} {path}: HTTP {r.status_code}", r.status_code)
         if not r.content:
             return None
         return r.json()
+
+    async def view(self, subfolder: str, filename: str) -> bytes:
+        """An output image's original bytes (``GET /view``), for a ComfyUI
+        whose output folder this machine can't see."""
+        r = await self._request(
+            "GET",
+            "/view",
+            params={"filename": filename, "subfolder": subfolder, "type": "output"},
+            timeout=httpx.Timeout(120.0, connect=5.0),
+        )
+        if r.status_code >= 400:
+            raise ComfyError(f"GET /view: HTTP {r.status_code}", r.status_code)
+        return r.content
 
     async def system_stats(self) -> dict[str, Any]:
         return await self._json("GET", "/system_stats")
@@ -191,8 +217,9 @@ class ComfyClient:
             connect = ws_connect
         from websockets.exceptions import ConnectionClosed
 
+        extra: dict[str, Any] = {"ssl": self._ssl} if self._ssl is not None else {}
         async for ws in connect(
-            ws_url(self.base_url), additional_headers=self.headers or None
+            ws_url(self.base_url), additional_headers=self.headers or None, **extra
         ):
             if on_state:
                 on_state(True)

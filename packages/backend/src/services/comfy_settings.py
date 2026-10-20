@@ -21,6 +21,8 @@ DEFAULT_COMFY_SETTINGS: dict[str, Any] = {
     "headers": {},
     "output_library_id": None,
     "builtin_per_request": 1,
+    # PEM file to verify an HTTPS ComfyUI with a self-signed certificate.
+    "ca_cert": "",
 }
 
 
@@ -45,6 +47,8 @@ def clean_patch(patch: dict[str, Any], current: dict[str, Any]) -> dict[str, Any
             )
         except (TypeError, ValueError):
             pass
+    if "ca_cert" in patch:
+        clean["ca_cert"] = str(patch["ca_cert"] or "").strip()
     if "output_library_id" in patch:
         clean["output_library_id"] = patch["output_library_id"] or None
     return clean

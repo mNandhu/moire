@@ -28,6 +28,8 @@ class ComfyPatch(BaseModel):
     address: str | None = None
     headers: dict[str, str] | None = None
     builtin_per_request: int | None = None
+    #: PEM certificate for an HTTPS ComfyUI with a self-signed certificate.
+    ca_cert: str | None = None
     #: Folder ComfyUI saves into; registered as (or matched to) a library.
     output_path: str | None = None
 
@@ -125,11 +127,18 @@ async def put_comfyui(body: ComfyPatch):
             if not library_watch.is_watching(lib["_id"]):
                 await update_library(lib["_id"], LibraryUpdate(watch_enabled=True))
             patch["output_library_id"] = lib["_id"]
+    if patch.get("ca_cert"):
+        import ssl
+
+        try:
+            ssl.create_default_context(cafile=patch["ca_cert"].strip())
+        except (OSError, ssl.SSLError) as e:
+            raise HTTPException(
+                status_code=400, detail=f"Can't read the certificate: {e}"
+            ) from e
     before = await comfy_settings.get_settings()
     after = await comfy_settings.update_settings(patch)
-    if before.get("address") != after.get("address") or before.get(
-        "headers"
-    ) != after.get("headers"):
+    if any(before.get(k) != after.get(k) for k in ("address", "headers", "ca_cert")):
         await get_generation_manager().configure()
     return await _settings_view()
 

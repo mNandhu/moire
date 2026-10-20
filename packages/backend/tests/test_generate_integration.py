@@ -397,3 +397,38 @@ async def test_cancel_one_request_leaves_the_rest(client, comfy, seed):
     await tick()
     reqs = (await client.get(f"/generate/batches/{b['_id']}")).json()["requests"]
     assert [q["state"] for q in reqs] == ["done", "cancelled", "queued"]
+
+
+async def test_outputs_ComfyUI_wrote_elsewhere_are_downloaded(
+    client, comfy, seed, tmp_path
+):
+    """A remote ComfyUI: the output folder here starts empty, so each output
+    is fetched over /view into it; one already there is left alone."""
+    import sqlalchemy as sa
+    from src.database import db
+    from src.database import schema as t
+
+    out = tmp_path / "out"
+    out.mkdir()
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.insert(t.libraries).values(_id=OUT, path=str(out), name="ComfyUI output")
+        )
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x"})).json()
+    pid = comfy.order[-1]
+    (out / "moire").mkdir(exist_ok=True)
+    (out / "moire" / f"gen_{pid}_00000_.png").write_bytes(b"local")
+    comfy.finish(pid, images=2)
+    await tick()
+    assert (out / "moire" / f"gen_{pid}_00000_.png").read_bytes() == b"local"
+    assert (
+        out / "moire" / f"gen_{pid}_00001_.png"
+    ).read_bytes() == f"PNG:gen_{pid}_00001_.png".encode()
+    assert not [p for p in (out / "moire").iterdir() if p.name.startswith(".")]
+    assert b["_id"]
+
+
+async def test_bad_certificate_path_is_refused(client, comfy):
+    r = await client.put("/generate/comfyui", json={"ca_cert": "/nope/cert.pem"})
+    assert r.status_code == 400

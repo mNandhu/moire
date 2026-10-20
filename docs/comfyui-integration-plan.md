@@ -584,8 +584,14 @@ copies can be wiped.
   image-id filter), the queue card outside /generate, phone width.
 - Phase 0 runs in parallel in a separate session (worktree
   `../Tagify-attire`, branch `feat/attire-list`).
-- No ComfyUI reachable from the dev box yet: phase 1 is tested against the
-  fake ComfyUI only; the real end-to-end check is the user's.
+- Checked against a real remote ComfyUI (2026-10-20): HTTPS through a port
+  forward with a self-signed certificate (TLS certificate setting), auth via
+  the comfyui-login Bearer token in the request headers. Its output folder
+  is on another machine, so finished outputs are downloaded over `/view`
+  into the local output library (skipped when the file is already there, as
+  with a local ComfyUI); the watcher indexes them with their metadata. The
+  tunnel's TLS handshake can take 8s, hence 15s connect / 60s timeouts.
+  Test run, 4 images at 2 per request, and a style LoRA batch all worked.
 - Canvas comments: replies from the auto-reply bot are sometimes wrong
   (offered options for things already decided); read each thread and correct
   it rather than trusting the bot's reply.
