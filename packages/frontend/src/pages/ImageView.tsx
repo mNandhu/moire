@@ -53,10 +53,12 @@ import { pickRating, ratingBadgeClass } from "../lib/rating";
 import {
   partitionTags,
   tagFlow,
+  tagName,
   toPromptText,
   type FlowTag,
   type TagKind,
 } from "../lib/tags";
+import { characterHref, tagHref } from "../lib/character";
 import { splitBoilerplate } from "../lib/boilerplate";
 import { libraryPageHref, useBoilerplate, useLibraries } from "../lib/queries";
 import { isFormField } from "../lib/dom";
@@ -65,8 +67,9 @@ import { Button } from "../components/ui/Button";
 import { MARKER_DIGIT } from "../components/ui/ScoreMark";
 import { Input } from "../components/ui/Input";
 
-/** The gallery filtered to one tag. */
-const tagHref = (tagRaw: string) => `/?tags=${encodeURIComponent(tagRaw)}`;
+/** A tag's own page: the character page for a character, else the tag page. */
+const tagPageHref = (t: FlowTag) =>
+  (t.kind === "character" ? characterHref : tagHref)(tagName(t.raw));
 
 // Round controls floating over the image stage (back, details, prev/next).
 const OVERLAY_BTN =
@@ -1118,8 +1121,8 @@ const KIND_LABEL: Record<TagKind, string> = {
 /**
  * An image's tags as one comma-separated run, like a prompt: dense, easy to
  * read top to bottom and to copy. Kind shows as text colour (legend below);
- * a less confident AI tag is fainter. Each tag links to the gallery filtered
- * by it. A tag's cover is picked on the Tags page.
+ * a less confident AI tag is fainter. Each tag opens its tag page (a
+ * character's, its character page), where its cover is framed too.
  */
 function TagFlow({ tags }: { tags: FlowTag[] }) {
   // Boilerplate (Settings) folds into one quiet toggle at the end, so the
@@ -1142,7 +1145,7 @@ function TagFlow({ tags }: { tags: FlowTag[] }) {
           <React.Fragment key={t.raw}>
             <span className={i >= firstBoilerplate ? "opacity-50" : undefined}>
               <Link
-                to={tagHref(t.raw)}
+                to={tagPageHref(t)}
                 className={`rounded px-0.5 -mx-0.5 hover:bg-raised hover:underline ${KIND_TEXT[t.kind]}`}
                 style={
                   t.confidence != null
@@ -1151,8 +1154,8 @@ function TagFlow({ tags }: { tags: FlowTag[] }) {
                 }
                 title={
                   t.confidence != null
-                    ? `Filter by ${t.label} · ${Math.round(t.confidence * 100)}% confidence`
-                    : `Filter by ${t.label} (${KIND_LABEL[t.kind]})`
+                    ? `Open ${t.label} · ${Math.round(t.confidence * 100)}% confidence`
+                    : `Open ${t.label} (${KIND_LABEL[t.kind]})`
                 }
               >
                 {t.label}
