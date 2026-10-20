@@ -100,7 +100,9 @@ Deferred: reference images (ControlNet / IPAdapter, face crops).
 - **Snapshot**: frozen at creation; "update from latest" is explicit.
 - **v1 slots**: positive, negative (required), seed, width/height, images
   per request (`batch_size`), LoRA insertion point, checkpoint (built-in
-  only). Sampler/steps/CFG stay as the graph has them.
+  only). Sampler / scheduler / steps / CFG are slots too: the built-in has
+  them (added 2026-10-20, phase 2); a custom Generator keeps the graph's own
+  unless setup maps them.
 - **Positive / negative slot** = where Moiré writes the composed text each
   job. The text the source image had there becomes the Generator's **default
   Base**; recognised character and attire tags are offered for removal
@@ -467,6 +469,55 @@ running prompt only after a fresh `/queue` shows it is ours and running.
   loads today's recipe, not the tags that batch recorded (Requeue replays
   the recorded ones).
 
+**As built (phase 2, later rounds, 2026-10-20).**
+- Generate layout "A2": layers on the left with the run bar pinned to the
+  bottom of that column (Checkpoint, Sampling, Size, Seed, Images, Batch
+  name, Queue); the right column holds other active batches, the newest
+  batch's images and Recent batches. Size / Checkpoint / Sampling open
+  upward.
+- Style LoRAs are a layer. Each LoRA can carry an **activation preset**
+  (`lora_presets`: stem, name, text, optional strength) whose words go
+  where the Style layer sits. Suggested words (`GET /generate/lora-words`):
+  the file's trigger phrase and frequent training tags (ComfyUI
+  `/view_metadata/loras`), minus words common in library prompts made
+  without that LoRA; plus library words with lift (counted per distinct
+  prompt, at least 3 prompts). `describe=1` keeps common words (identity
+  tags for a new character).
+- Prompt autocomplete opens under the caret, shows tag covers, and offers
+  characters the tagger knows that the library doesn't (no cover).
+- **Hand-made characters**: a `characters` row with `kind='character'`
+  for a tag no image carries (Fern before any Fern image exists). Made from
+  "New character" (Tags page, the character picker; the picker's search
+  becomes `Create "<query>"`): tag (autocompleted from the tagger's
+  names), name, character LoRA, identity tags offered from the LoRA. It
+  gets a character page with Generate in place of images; it can be
+  deleted only while no image carries it. The recipe (identity tags, LoRA)
+  is also editable in the Characters Edit dialog.
+- **Several characters per prompt** (up to 8): `characters` list in the
+  body and batch inputs (`character` kept as the first, for old readers);
+  each gets its own block; each one's LoRA joins the style list. Auto name
+  joins their names with " & ". Characters are added from the "+" layer
+  menu; the card swaps character from its name, toggles on click.
+- The page takes the picked characters' colours (several mixed).
+- **Sampling**: built-in slots for sampler, scheduler, steps, CFG; the
+  stored built-in row's graph and slots are replaced by the code's on load.
+  Lists from ComfyUI's `KSampler` object info (kept in its order in
+  `comfy_models` kinds `sampler` / `scheduler`). The form keeps only what
+  the user changed; the batch stores that (`inputs.sampling`), requeue
+  replays it, the batch page shows it.
+- **Batch size** per batch (built-in only; custom Generators in phase 3,
+  where it would also change what count means): beside Images, which stays
+  the total. Only a size the user chose is stored apart
+  (`inputs.per_request_asked`) and replayed by requeue and Edit and queue,
+  so a changed setting still applies to batches that used it.
+- **Time taken**: ComfyUI's history `execution_start` to its end message,
+  per request (`generation_run_times`); the output panel shows the batch
+  total, the batch page the total and per image. Batches from before have
+  none.
+- Wide images stack in the output column (two: one above the other).
+- Generations page: a grid of batch covers (one image fills it, two split,
+  more make a mosaic with "+N"); status shows only when not done.
+
 ### Testing
 
 - Backend unit: `generator_graph` (fixtures: built-in graph, one real
@@ -638,29 +689,18 @@ copies can be wiped.
   (offered options for things already decided); read each thread and correct
   it rather than trusting the bot's reply.
 
-### Next session (from 2026-10-20 evening; branch `feat/comfyui-phase2`, not merged)
+### Next session (from 2026-10-20 night; phase 2 merged to main)
 
-On the branch, in order: phase 2 recipes; Queue says why it's blocked,
-unused character LoRA marked, ComfyUI settings "Unsaved changes" + Save and
-test; one result grid per batch (few images stay big) + Generate button on
-the batch page; newest batch's images under Queue on /generate; the layered
-composer (Prefix preset, Character one-liner, Prompt main field with
-autocomplete, "+" layers Text / Preset / Embedding, Negative preset + text,
-`prompt_presets`); Prefix / Prompt rows on the batch page; identity tags can
-be added (`recipe_additions`) and the recipe is editable on the character
-page (Recipe section + Generate button).
-
-Open / to check:
-- Everything is committed (last: `6c404e9` identity tags + character page
-  Recipe, full backend suite passed before it).
-- The user hasn't clicked through the layered composer yet; expect feedback.
-  Not verified in a browser: the preset dialog (New / Edit / Delete), the
-  Embedding layer, Negative "More", a running cell's progress in the grid.
-- Fern still isn't a character: the user should run AI Tagging on the
-  ComfyUI output library (the tagger knows `fern_(sousou_no_frieren)`).
-- Merge `feat/comfyui-phase2` to main once the user is happy (they like a
-  linear history: rebase, then fast-forward).
-- Then phase 3 (custom Generators). Undrawn: Remix entry in the viewer.
+Phase 2 is done and fast-forwarded to main. Open:
+- Not clicked through in a browser yet: preset dialog New / Edit / Delete,
+  the Embedding layer, Negative expand, a running cell's progress in the
+  result grid, LoRA file-word suggestions in describe mode against a real
+  LoRA (ComfyUI was unreachable at the end of the session), a real batch
+  with changed sampling, the output column with a real landscape batch.
+- Phase 1 leftovers, kept for last: "Open these in Gallery" from a batch
+  (needs an image-id filter); phone width for Generate and the batch page.
+- Weak-recipe warning: still deferred.
+- Next: phase 3 (custom Generators). Undrawn: Remix entry in the viewer.
+  Setup should offer the sampling slots (found from the sampler walk).
 - Dev helpers (fake ComfyUI, headless screenshots, sandbox ports):
   `docs/dev-tools/README.md`.
-
