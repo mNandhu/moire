@@ -160,8 +160,9 @@ belongs in this file.
   `thighhighs`), from a list built from Danbooru's attire tag groups and
   limited to the tagger's vocabulary. Each carries its group (headwear,
   legwear, ...).
-- **Outfit**: a named set of attire tags saved for one character, from an
-  image's attire tags. User-made; suggested groupings come later.
+- **Outfit**: a named set of attire tags saved from an image (that image is
+  its thumbnail), for the character it was saved under, or shared with all
+  characters. User-made; suggested groupings come later.
 - **Character recipe**: what picking a character puts in a prompt: the
   character tag (full name), its **identity tags** (signature tags that are
   not attire tags), a default outfit (its attire signature tags, swappable
@@ -174,9 +175,13 @@ belongs in this file.
 - **Prompt blocks**: how the composer holds a prompt: Base (the Generator's
   own text), Character (a recipe), Outfit, and Extra (free tags), joined in
   that order when queued. Swapping a character or outfit swaps only its block.
-  The negative has Base and Extra.
+  The negative has Base and Extra. LoRAs sit beside the blocks, not in the
+  text: the **character LoRA** belongs to the recipe and swaps with it;
+  **style LoRAs** are picked by the user and stay when the character changes.
 - **Generator**: what Moiré queues on ComfyUI: a ComfyUI graph plus slots
-  (positive, negative, seed, ...) naming where each value is written. Either
+  (positive, negative, seed, LoRA insertion point, ...) naming where each
+  value is written. Its default Base is the positive text of the image it was
+  made from, minus character and outfit tags. Either
   the built-in one or made from a workflow family. A family-made Generator is a
   snapshot: it never follows newer images of the family on its own, only when
   the user updates it. A Generator is **ready** only after a test run whose
@@ -191,7 +196,8 @@ belongs in this file.
   Kept permanently and re-queueable. Its images join the library like any
   other; reviewing them is keep (the default), reject (quarantine) or score.
   Records what was *asked*, which an image's own metadata can't (the picked
-  character, outfit, recipe).
+  character, outfit, recipe). Named "Character, Outfit" (or "Generator, first
+  Extra tags" without a character) until the user names it.
 
 ## Frontend
 
