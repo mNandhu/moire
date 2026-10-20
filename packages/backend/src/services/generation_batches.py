@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from . import comfy_models, generation_estimate
-from .generation_jobs import GenerationManager, load_generator
+from .generation_jobs import GenerationManager, Invalid, load_generator
 from .generator_graph import sampling_defaults
 
 _b, _r, _o, _i = (
@@ -221,14 +221,26 @@ async def start_test(
 ) -> int:
     """Queue the Generator's test run: one image, with one installed LoRA
     chained at strength 0 so a bad insertion point fails here."""
+    gen = await load_generator(generator_id)
+    if gen is None:
+        raise Invalid("Unknown generator")
+    # Connecting loads the model index the first time; read it after.
+    await manager.check()
     installed = await comfy_models.installed()
+    # Only where Moiré can splice one in: a graph without an insertion point
+    # takes no LoRAs at all.
     loras = (
-        [{"name": installed["lora"][0], "strength": 0.0}] if installed["lora"] else []
+        [{"name": installed["lora"][0], "strength": 0.0}]
+        if installed["lora"] and gen["slots"].get("lora_model")
+        else []
     )
+    defaults = (gen.get("source") or {}).get("defaults") or {}
     batch_id = await manager.queue_batch(
         {
             "generator_id": generator_id,
-            "base": "1girl, solo, simple background",
+            # A custom Generator's own prompt: the test runs what it will run.
+            "base": defaults.get("base") or "1girl, solo, simple background",
+            "negative_base": defaults.get("negative") or "",
             "checkpoint": checkpoint
             or (installed["checkpoint"][0] if installed["checkpoint"] else None),
             "loras": loras,
@@ -281,12 +293,17 @@ async def generator_view(
                         .values(ready=True)
                     )
                 gen["ready"] = True
+    source = gen.get("source") or {}
     return {
         "_id": gen["_id"],
         "name": gen["name"],
         "kind": gen["kind"],
         "ready": bool(gen["ready"]),
         "slots": gen["slots"],
+        # Where a custom one came from, and its default Base / negative.
+        "source": {k: v for k, v in source.items() if k not in ("defaults", "pins")}
+        or None,
+        "defaults": source.get("defaults"),
         # What each exposed sampling setting is when left alone.
         "sampling": sampling_defaults(gen["graph"], gen["slots"]),
         "test": test,

@@ -131,10 +131,9 @@ def batch_shape(
     queue_batch keeps them (the run-time estimate reads the same):
 
     - ``count``, clamped;
-    - ``per_request``: images per request, the body's choice (built-in only:
-      for a custom Generator it would also turn count from requests into
-      images), else the setting; ``None`` when the Generator has no batch
-      size (count is then in requests);
+    - ``per_request``: images per request, the body's choice, else the
+      setting (built-in) or the Generator's; ``None`` when the Generator has
+      no batch size (count is then in requests);
     - ``per_request_asked``: what the body chose, apart from the setting;
     - ``checkpoint``, ``sampling`` (only slots the Generator has), ``width``,
       ``height``."""
@@ -142,7 +141,7 @@ def batch_shape(
     builtin = gen["kind"] == "builtin"
     asked = (
         max(1, min(64, int(body["per_request"])))
-        if builtin and has_batch and body.get("per_request")
+        if has_batch and body.get("per_request")
         else None
     )
     if not has_batch:

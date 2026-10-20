@@ -18,6 +18,7 @@ from ..services import (
     comfy_settings,
     generation_batches,
     generation_estimate,
+    generator_setup,
     library_watch,
     lora_presets,
     prompt_presets,
@@ -29,7 +30,9 @@ from ..services.generation_jobs import (
     Rejected,
     Unavailable,
     get_generation_manager,
+    load_generator,
 )
+from ..services.generator_setup import SetupError
 
 router = APIRouter()
 
@@ -122,6 +125,28 @@ class RetryIn(BaseModel):
 
 class TestIn(BaseModel):
     checkpoint: str | None = None
+
+
+class SourceIn(BaseModel):
+    """Where a custom Generator's graph comes from: a library image, or an
+    uploaded Export (API) file's contents."""
+
+    image_id: str | None = None
+    graph: dict[str, Any] | None = None
+    filename: str | None = Field(None, max_length=300)
+
+
+class GeneratorIn(BaseModel):
+    source: SourceIn
+    name: str = Field(..., min_length=1, max_length=200)
+    slots: dict[str, Any]
+    defaults: dict[str, str] = {}
+
+
+class GeneratorPatch(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=200)
+    slots: dict[str, Any] | None = None
+    defaults: dict[str, str] | None = None
 
 
 def _rejected(e: Rejected) -> JSONResponse:
@@ -243,10 +268,89 @@ async def status():
 
 @router.get("/generators")
 async def list_generators():
+    """The built-in first, then custom Generators oldest first."""
     m = get_generation_manager()
-    # Phase 1 has the built-in only; custom Generators come with setup.
-    view = await generation_batches.generator_view(m, "builtin")
-    return [view] if view else []
+    out = []
+    for gid in ["builtin", *await generator_setup.custom_ids()]:
+        view = await generation_batches.generator_view(m, gid)
+        if view:
+            out.append(view)
+    return out
+
+
+async def _source(body: SourceIn) -> tuple[dict[str, Any], dict[str, Any]]:
+    if body.image_id:
+        return await generator_setup.image_source(body.image_id)
+    if body.graph is not None:
+        name = (body.filename or "").rsplit("/", 1)[-1]
+        return generator_setup.parse_upload(body.graph), {
+            "kind": "upload",
+            "filename": name or None,
+        }
+    raise SetupError("Choose an image or a workflow file")
+
+
+@router.post("/generators/discover")
+async def discover_generator(body: SourceIn):
+    """What setup finds in a source, before anything is saved."""
+    try:
+        graph, source = await _source(body)
+        return await generator_setup.setup_view(graph, source)
+    except SetupError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/generators")
+async def create_generator(body: GeneratorIn):
+    try:
+        graph, source = await _source(body.source)
+        gen_id = await generator_setup.create(
+            graph, source, body.name, body.slots, body.defaults
+        )
+    except SetupError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return await generation_batches.generator_view(get_generation_manager(), gen_id)
+
+
+async def _custom(generator_id: str) -> dict[str, Any]:
+    gen = await load_generator(generator_id)
+    if gen is None:
+        raise HTTPException(status_code=404, detail="Generator not found")
+    if gen["kind"] != "custom":
+        raise HTTPException(status_code=400, detail="The built-in can't be changed")
+    return gen
+
+
+@router.get("/generators/{generator_id}/setup")
+async def generator_setup_view(generator_id: str):
+    """The setup page for a saved Generator: its slots over a fresh discovery."""
+    gen = await _custom(generator_id)
+    view = await generator_setup.setup_view(
+        gen["graph"], gen.get("source") or {}, gen["slots"]
+    )
+    defaults = (gen.get("source") or {}).get("defaults")
+    if defaults:
+        view["defaults"] = defaults
+    return view
+
+
+@router.put("/generators/{generator_id}")
+async def put_generator(generator_id: str, body: GeneratorPatch):
+    gen = await _custom(generator_id)
+    try:
+        await generator_setup.update(gen, body.model_dump(exclude_none=True))
+    except SetupError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return await generation_batches.generator_view(
+        get_generation_manager(), generator_id
+    )
+
+
+@router.delete("/generators/{generator_id}")
+async def delete_generator(generator_id: str):
+    await _custom(generator_id)
+    await generator_setup.delete(generator_id)
+    return {"ok": True}
 
 
 @router.get("/generators/{generator_id}")

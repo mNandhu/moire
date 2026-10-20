@@ -9,7 +9,9 @@ previews the same text) and ``lib/tags.ts`` ``toPromptText`` escaping.
 from __future__ import annotations
 
 import re
-from typing import Iterable
+from typing import Callable, Iterable
+
+from .prompt_parse import parse_prompt
 
 EMBEDDING_PREFIX = "embedding:"
 _PAREN = re.compile(r"([()])")
@@ -96,3 +98,36 @@ def auto_name(
     if words:
         return ", ".join([generator, *words])
     return f"Batch {number}"
+
+
+def _top_level_pieces(text: str) -> list[tuple[str, str]]:
+    """``text`` cut at commas and newlines outside brackets, each piece with the
+    separator after it (``""`` for the last)."""
+    out: list[tuple[str, str]] = []
+    depth, start = 0, 0
+    for i, ch in enumerate(text):
+        if ch in "([" and (i == 0 or text[i - 1] != "\\"):
+            depth += 1
+        elif ch in ")]" and (i == 0 or text[i - 1] != "\\"):
+            depth = max(0, depth - 1)
+        elif ch in ",\n" and depth == 0:
+            out.append((text[start:i], ch))
+            start = i + 1
+    out.append((text[start:], ""))
+    return out
+
+
+def without_terms(text: str, drop: set[str], canon: Callable[[str], str]) -> str:
+    """``text`` with every piece whose tags all canonicalize (``canon``) into
+    ``drop`` taken out, separators and the rest kept as written. A weighted
+    group goes only when everything in it goes."""
+    kept: list[str] = []
+    dropped_last = False
+    for piece, sep in _top_level_pieces(text):
+        tags = [p.text for p in parse_prompt(piece) if p.kind == "tag"]
+        dropped_last = bool(tags) and all(canon(t) in drop for t in tags)
+        if not dropped_last:
+            kept.append(piece + sep)
+    out = "".join(kept)
+    # A dropped last piece leaves the separator before it dangling.
+    return out.rstrip(", \n") if dropped_last else out

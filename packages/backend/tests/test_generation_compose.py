@@ -62,3 +62,19 @@ def test_prompt_terms_for_the_auto_name():
         "sitting on swing",
     ]
     assert prompt_terms("") == []
+
+
+def test_without_terms_keeps_the_rest_as_written():
+    from src.services.generation_compose import without_terms
+    from src.services.tag_names import canonical_name
+
+    text = (
+        "masterpiece, hu tao \\(genshin impact\\), brown hair,\n(twintails:1.2), smile"
+    )
+    drop = {"hu_tao_(genshin_impact)", "brown_hair", "twintails"}
+    assert without_terms(text, drop, canonical_name) == "masterpiece,\n smile"
+    # A dropped last piece takes the separator before it.
+    assert without_terms("a, b, c", {"c"}, canonical_name) == "a, b"
+    # A group goes only when all of it goes.
+    assert without_terms("(a, b:1.2), c", {"a"}, canonical_name) == "(a, b:1.2), c"
+    assert without_terms("", {"a"}, canonical_name) == ""
