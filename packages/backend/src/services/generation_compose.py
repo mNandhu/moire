@@ -1,0 +1,68 @@
+"""Prompt blocks -> ComfyUI prompt text, and the batch auto-name. Pure.
+
+Positive = Base + Character + Outfit + Extra; negative = Base + Extra. Base is
+free text written as-is; the chip blocks hold canonical tag names (underscores)
+or ``embedding:name`` words. Mirrors the frontend's ``lib/compose.ts`` (which
+previews the same text) and ``lib/tags.ts`` ``toPromptText`` escaping.
+"""
+
+from __future__ import annotations
+
+import re
+from typing import Iterable
+
+EMBEDDING_PREFIX = "embedding:"
+_PAREN = re.compile(r"([()])")
+
+
+def is_embedding(word: str) -> bool:
+    return word.startswith(EMBEDDING_PREFIX)
+
+
+def _chip_text(word: str) -> str:
+    # Embedding names are file names, sent untouched; tag parentheses are
+    # escaped so ComfyUI doesn't read them as weights.
+    return word if is_embedding(word) else _PAREN.sub(r"\\\1", word)
+
+
+def compose(base: str, *chip_blocks: Iterable[str]) -> str:
+    """Base text, then each chip block in order, comma-joined. A chip already
+    written (in an earlier block) is written once."""
+    parts: list[str] = []
+    text = (base or "").strip().rstrip(",").strip()
+    if text:
+        parts.append(text)
+    seen: set[str] = set()
+    for block in chip_blocks:
+        for word in block:
+            word = word.strip()
+            if not word or word in seen:
+                continue
+            seen.add(word)
+            parts.append(_chip_text(word))
+    return ", ".join(parts)
+
+
+def display(word: str) -> str:
+    """Tag display form for names: underscores read as spaces."""
+    if is_embedding(word):
+        return word[len(EMBEDDING_PREFIX) :]
+    return word.replace("_", " ")
+
+
+def auto_name(
+    *,
+    number: int,
+    generator: str,
+    extra: Iterable[str] = (),
+    character: str | None = None,
+    outfit: str | None = None,
+) -> str:
+    """ "Character, Outfit"; without a character, "Generator, first two Extra
+    tags"; else "Batch <n>". Built from the picks, never parsed from text."""
+    if character:
+        return ", ".join(p for p in (display(character), outfit) if p)
+    words = [display(w) for w in extra if w.strip() and not is_embedding(w)][:2]
+    if words:
+        return ", ".join([generator, *words])
+    return f"Batch {number}"

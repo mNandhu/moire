@@ -1,0 +1,279 @@
+{
+ "17": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "64",
+    0
+   ],
+   "text": [
+    "45",
+    0
+   ]
+  }
+ },
+ "31": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "64",
+    0
+   ],
+   "text": "text"
+  }
+ },
+ "38": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "filename_prefix": [
+    "57",
+    0
+   ],
+   "images": [
+    "9",
+    0
+   ]
+  }
+ },
+ "42": {
+  "class_type": "KSampler",
+  "inputs": {
+   "cfg": 2.0,
+   "denoise": 1.0,
+   "latent_image": [
+    "54",
+    0
+   ],
+   "model": [
+    "74",
+    0
+   ],
+   "negative": [
+    "31",
+    0
+   ],
+   "positive": [
+    "17",
+    0
+   ],
+   "sampler_name": "dpmpp_sde",
+   "scheduler": "sgm_uniform",
+   "seed": 1047586949127021,
+   "steps": [
+    "71",
+    0
+   ]
+  }
+ },
+ "45": {
+  "class_type": "TextConcat",
+  "inputs": {
+   "delimiter": "text",
+   "text1": [
+    "52",
+    0
+   ],
+   "text2": [
+    "61",
+    0
+   ],
+   "text3": "text",
+   "text4": "text",
+   "text5": "text"
+  }
+ },
+ "46": {
+  "class_type": "Primitive string multiline [Crystools]",
+  "inputs": {
+   "string": "text"
+  }
+ },
+ "50": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "ponyDiffusionV6XL_v6TurboMerge.safetensors"
+  }
+ },
+ "52": {
+  "class_type": "Text Multiline",
+  "inputs": {
+   "text": "text"
+  }
+ },
+ "54": {
+  "class_type": "EmptyLatentImage",
+  "inputs": {
+   "batch_size": 1,
+   "height": [
+    "56",
+    0
+   ],
+   "width": [
+    "55",
+    0
+   ]
+  }
+ },
+ "55": {
+  "class_type": "Primitive integer [Crystools]",
+  "inputs": {
+   "int": 512
+  }
+ },
+ "56": {
+  "class_type": "Primitive integer [Crystools]",
+  "inputs": {
+   "int": 768
+  }
+ },
+ "57": {
+  "class_type": "Primitive string [Crystools]",
+  "inputs": {
+   "string": "text"
+  }
+ },
+ "59": {
+  "class_type": "Regex Text Chopper /noEmbryo",
+  "inputs": {
+   "regex": "text",
+   "text": [
+    "46",
+    0
+   ]
+  }
+ },
+ "61": {
+  "class_type": "Text Find and Replace",
+  "inputs": {
+   "find": "text",
+   "replace": "text",
+   "text": [
+    "59",
+    4
+   ]
+  }
+ },
+ "64": {
+  "class_type": "CLIPSetLastLayer",
+  "inputs": {
+   "clip": [
+    "69",
+    1
+   ],
+   "stop_at_clip_layer": -2
+  }
+ },
+ "65": {
+  "class_type": "LoraLoader",
+  "inputs": {
+   "clip": [
+    "67",
+    1
+   ],
+   "lora_name": "incase_style_v3-1_ponyxl_ilff.safetensors",
+   "model": [
+    "67",
+    0
+   ],
+   "strength_clip": 0.3,
+   "strength_model": 0.3
+  }
+ },
+ "66": {
+  "class_type": "LoraLoader",
+  "inputs": {
+   "clip": [
+    "50",
+    1
+   ],
+   "lora_name": "Concept Art Twilight Style SDXL_LoRA_Pony Diffusion V6 XL.safetensors",
+   "model": [
+    "50",
+    0
+   ],
+   "strength_clip": 0.5,
+   "strength_model": 0.5
+  }
+ },
+ "67": {
+  "class_type": "LoraLoader",
+  "inputs": {
+   "clip": [
+    "68",
+    1
+   ],
+   "lora_name": "Expressive_H-000001.safetensors",
+   "model": [
+    "68",
+    0
+   ],
+   "strength_clip": 0.5,
+   "strength_model": 0.5
+  }
+ },
+ "68": {
+  "class_type": "LoraLoader",
+  "inputs": {
+   "clip": [
+    "66",
+    1
+   ],
+   "lora_name": "AliceInWonderlandXLPony_character-10V2.safetensors",
+   "model": [
+    "66",
+    0
+   ],
+   "strength_clip": 0.4,
+   "strength_model": 0.4
+  }
+ },
+ "69": {
+  "class_type": "LoraLoader",
+  "inputs": {
+   "clip": [
+    "65",
+    1
+   ],
+   "lora_name": "princess_xl_v2.safetensors",
+   "model": [
+    "65",
+    0
+   ],
+   "strength_clip": 0.6,
+   "strength_model": 0.6
+  }
+ },
+ "71": {
+  "class_type": "Primitive integer [Crystools]",
+  "inputs": {
+   "int": 6
+  }
+ },
+ "74": {
+  "class_type": "ApplyFBCacheOnModel",
+  "inputs": {
+   "end": 1.0,
+   "max_consecutive_cache_hits": -1,
+   "model": [
+    "69",
+    0
+   ],
+   "object_to_patch": "diffusion_model",
+   "residual_diff_threshold": 0.2,
+   "start": 0.0
+  }
+ },
+ "9": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "42",
+    0
+   ],
+   "vae": [
+    "50",
+    2
+   ]
+  }
+ }
+}
