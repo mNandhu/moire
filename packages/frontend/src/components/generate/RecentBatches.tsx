@@ -4,7 +4,9 @@ import { Badge } from "../ui";
 
 /** The last few batches under the run panel. */
 export function RecentBatches({ onOpen }: { onOpen: (id: number) => void }) {
-  const { data } = useBatches(5);
+  // The newest one is shown above, with its images.
+  const { data: all } = useBatches(6);
+  const data = all?.slice(1);
   if (!data?.length) return null;
   return (
     <section aria-label="Recent batches">

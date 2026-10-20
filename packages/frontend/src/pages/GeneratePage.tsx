@@ -18,6 +18,7 @@ import {
 import { CharacterBlock } from "../components/generate/CharacterBlock";
 import { ComfyStatusLine } from "../components/generate/ComfyStatusLine";
 import { useCharacters } from "../components/ImageCharacters";
+import { LatestResults } from "../components/generate/LatestResults";
 import { RecentBatches } from "../components/generate/RecentBatches";
 import { autoBatchName } from "../lib/batchName";
 import { compose } from "../lib/compose";
@@ -33,6 +34,7 @@ import {
   useComfyModels,
   useComfySettings,
   useComfyStatus,
+  useBatches,
   useGenerators,
   useRecipe,
   type NodeError,
@@ -178,6 +180,7 @@ export default function GeneratePage() {
   const { data: settings } = useComfySettings();
   const { data: models } = useComfyModels();
   const { data: generators } = useGenerators();
+  const { data: newest } = useBatches(1);
   const { data: tagAgg } = useTagAggregate({ includePrompt: true });
   const [form, setForm] = useState<GenerateForm>(() => loadDraft());
   const [rejected, setRejected] = useState<NodeError[] | null>(null);
@@ -330,7 +333,10 @@ export default function GeneratePage() {
           </div>
 
           <aside className="space-y-4" aria-label="Run">
-            {status && <QueueCard active={status.active} connected={connected} />}
+            {status && (
+              // The newest batch shows under Queue with its images; this card covers the rest.
+              <QueueCard active={status.active.filter((a) => a._id !== newest?.[0]?._id)} connected={connected} />
+            )}
             {gen && !ready && <TestRunCard checkpoint={form.checkpoint} disabled={!connected} />}
             <Card className="p-4 space-y-4">
               <CheckpointPicker
@@ -379,6 +385,7 @@ export default function GeneratePage() {
                 </Button>
               )}
             </Card>
+            <LatestResults />
             <RecentBatches onOpen={(id) => navigate(`/generations/${id}`)} />
             <div className="text-right">
               <Link to="/generations" className="text-xs text-muted hover:text-neutral-100">
