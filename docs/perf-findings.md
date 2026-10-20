@@ -15,8 +15,8 @@ Effort: S (hours) · M (a day or so) · L (more)
 | G1 | Gallery | Next page fetched only when sentinel is on screen | Removes multi-second stalls on fast scroll | S | done (`426b0ae`) |
 | G2 | Gallery | BlurHash decoded at 64x64 on main thread, every mount | 4-20x less decode CPU | S | done (`426b0ae`, 32px) |
 | G3 | Gallery | Thumbnails ~700x1024 vs ~250px displayed | 2-4x smaller downloads + decode | M | done (`eb4e869`, 768px) |
-| G4 | Gallery | Grid setState every scroll frame | Small | S | open |
-| G5 | Gallery | `openTile` identity changes per page append | Small | S | open |
+| G4 | Gallery | Grid setState every scroll frame | Small | S | done (`f16bf28`, 128px scroll steps) |
+| G5 | Gallery | `openTile` identity changes per page append | Small | S | done (`f16bf28`, stable onOpen) |
 | A1 | AI tagging | CPU-only ONNX; CUDA works on GTX 1650 | ~9x inference | M | done (`8e29af7`, `gpu` group; 134 ms/img on GTX 1650) |
 | A2 | AI tagging | Decode + inference run on the event loop | API p50 during job 1.2-1.5s -> 12ms | S-M | done (merged) |
 | A3 | AI tagging | Tag from local thumbnail instead of original on /mnt/g | ~45 ms/img, no 9P reads | S | dropped (measured: no gain behind the A2 prefetch; tags drift at 768px) |
@@ -24,7 +24,7 @@ Effort: S (hours) · M (a day or so) · L (more)
 | A5 | AI tagging | ORT `intra_op_num_threads` untuned | Unclear (contention artifact?) | S | open |
 | S1 | Scan | Rescan re-processes every unchanged file; 15-min reconcile triggers it per watched library, plus full reproject | Unchanged rescan 6.8s -> 0.16s / 297 imgs (~40x) | S | done (`2d5e32a`) |
 | S2 | Scan | Thumbs 1080px webp; 640px enough | Scan ~1.7-2x faster, thumbs ~45% smaller | S (+ regen) | done (`eb4e869`, 768px after visual check; 512 too soft for avatars) |
-| S3 | Prompt extraction | Reproject reruns needlessly; `parse_prompt` ~22 calls/img uncached | Gate on change (S1); lru_cache 20.1 -> 14.5s real library (-28%) | S | done (a, b); c open |
+| S3 | Prompt extraction | Reproject reruns needlessly; `parse_prompt` ~22 calls/img uncached | Gate on change (S1); lru_cache 20.1 -> 14.5s real library (-28%) | S | done (a, b; c `a6f5e64`: skip unchanged + bulk writes, full re-run 17.6 -> 5.1 s) |
 | S4 | Scan | Thread pool + GIL bound past ~4 workers; process pool | Maybe 1.3-2x, unproven | M | open |
 | S5 | Scan | Serial walk + stat over 9P (~7 ms/file) | Needed once S1 lands: 10k stats 70s -> ~10s | S | done (`2d5e32a`, stat on the pool) |
 | D1 | API / DB | Rare tag/term filter walks all images in sort order, probing EXISTS per row | Rare filter 128 -> 5 ms @30k; threshold 3000 regresses mid filters 3-7x | S-M | done (`aa9a4e6`, `_RARE`=300) |
@@ -37,11 +37,12 @@ Effort: S (hours) · M (a day or so) · L (more)
 
 Done 2026-10-20: A2, S1 + S5, G1, G2, S2 + G3 (768px), S3b, A1, D1-D5, plus the medium code review of the cache and skip work (`dd642d0`). A4 (`2907b74`) and a high code review of all of it (`f02ba49`: failed-file retry, resuming cut-off reprojections, coalesced full reprojections, lock held through cancelled inference, gzip wrapper, sentinel viewport fallback).
 
-Still open, roughly by value:
-1. S3c: batch the reproject flush (executemany).
-2. G4/G5: grid re-renders per scroll frame; `openTile` identity churn. Small.
-3. S4 process pool, A5 ORT threads: unproven, low priority.
-4. Tags browse is still 5-9 s cold at 30k (per-row work); profile if the Tags page feels slow.
+Done after that (2026-10-20):
+- S3c (`a6f5e64`): reprojection skips unchanged rows and writes in bulk, results byte-identical. 18.2 -> 12.1 s after a settings flip, 17.6 -> 5.1 s with nothing changed. Migrations use `force=True`.
+- G4/G5 (`f16bf28`).
+- Tags browse (`df95782`): one pass, materialized visible images. Byte-identical; cold all 565 -> 350 ms, prompt 1040 -> 395, ai 408 -> 33.
+
+Still open (unproven, low priority): S4 process pool for scans, A5 ORT thread count.
 
 Review findings left as is (`dd642d0` review):
 - The rare-filter id list and the page query run as separate statements (separate snapshots). An image tagged in the milliseconds between them can miss one page; plain EXISTS paging has the same exposure across pages.
