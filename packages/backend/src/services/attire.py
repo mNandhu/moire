@@ -238,15 +238,16 @@ def facet_of(tag: str) -> str | None:
     return _facet(key, _load().get(key))
 
 
-_facets_cache: tuple[int, dict[str, str]] | None = None
+_facets_cache: tuple[dict, dict[str, str]] | None = None
 
 
 def facets() -> dict[str, str]:
-    """``tag -> facet`` for every listed tag that has one. Rebuilt whenever
-    the list itself is reloaded."""
+    """``tag -> facet`` for every *listed* tag that has one (an unlisted tag
+    that only :func:`facet_of`'s body-word rule would place is left out).
+    Rebuilt whenever the list itself is reloaded."""
     global _facets_cache
     listed = _load()
-    if _facets_cache is None or _facets_cache[0] != id(listed):
+    if _facets_cache is None or _facets_cache[0] is not listed:
         out = {t: f for t, e in listed.items() if (f := _facet(t, e))}
-        _facets_cache = (id(listed), out)
+        _facets_cache = (listed, out)
     return _facets_cache[1]

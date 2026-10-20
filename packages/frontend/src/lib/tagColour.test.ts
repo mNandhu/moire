@@ -45,13 +45,13 @@ describe("tagMarkStyle", () => {
 
   it("rings a coloured tag and tints by facet", () => {
     expect(tagMarkStyle("red_hair", "look", ground)).toEqual({
-      backgroundColor: "rgb(251 113 133 / 0.10)",
+      "--tag-tint": "rgb(251 113 133 / 0.10)",
       boxShadow: "inset 0 0 0 1px hsl(355 70% 52%)",
     });
   });
 
   it("tints alone when there is no colour, nothing when neither", () => {
-    expect(tagMarkStyle("serafuku", "outfit", ground)).toEqual({ backgroundColor: "rgb(252 211 77 / 0.08)" });
+    expect(tagMarkStyle("serafuku", "outfit", ground)).toEqual({ "--tag-tint": "rgb(252 211 77 / 0.08)" });
     expect(tagMarkStyle("1girl", null, ground)).toBeUndefined();
   });
 

@@ -120,7 +120,8 @@ const RAINBOW =
   "conic-gradient(from 90deg, hsl(355 70% 55%), hsl(45 80% 55%), hsl(130 50% 50%), hsl(200 70% 60%), hsl(275 55% 62%), hsl(330 75% 62%), hsl(355 70% 55%))";
 
 /**
- * Inline style that marks a tag: its facet's tint, and an outline in its
+ * Inline style that marks a tag: its facet's tint (painted by
+ * {@link TAG_TINT_CLASS}), and an outline in its
  * colour (a 1px ring for one colour, a rainbow border for a multicolour tag).
  * `ground` is the opaque colour behind the tag: the rainbow is a border-box
  * gradient, so the fill (ground, then tint) is painted over it inside.
@@ -141,11 +142,16 @@ export function tagMarkStyle(
   }
   const colour = tagColour(raw);
   if (!colour && !tint) return undefined;
+  // The tint goes through a custom property, not `backgroundColor`, so a
+  // class can paint it and a hover class can still override it.
   return {
-    ...(tint ? { backgroundColor: tint } : {}),
+    ...(tint ? ({ "--tag-tint": tint } as CSSProperties) : {}),
     ...(colour ? { boxShadow: `inset 0 0 0 1px ${colour}` } : {}),
   };
 }
+
+/** The class that paints {@link tagMarkStyle}'s tint; put hover classes after it. */
+export const TAG_TINT_CLASS = "bg-[color:var(--tag-tint)]";
 
 /** Tailwind `raised`: the fill of tag chips. */
 export const CHIP_GROUND = "#1e1c26";

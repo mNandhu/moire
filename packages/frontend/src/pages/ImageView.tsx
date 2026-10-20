@@ -61,7 +61,7 @@ import {
 import { characterHref, tagHref } from "../lib/character";
 import { splitBoilerplate } from "../lib/boilerplate";
 import { libraryPageHref, useBoilerplate, useLibraries, useTagFacets } from "../lib/queries";
-import { FACET_LABEL, FACET_TINT, tagMarkStyle, type Facet } from "../lib/tagColour";
+import { FACET_LABEL, FACET_TINT, TAG_TINT_CLASS, tagMarkStyle, type Facet } from "../lib/tagColour";
 import { isFormField } from "../lib/dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { Button } from "../components/ui/Button";
@@ -1158,7 +1158,7 @@ function TagFlow({ tags }: { tags: FlowTag[] }) {
             <span className={i >= firstBoilerplate ? "opacity-50" : undefined}>
               <Link
                 to={tagPageHref(t)}
-                className={`rounded px-0.5 -mx-0.5 hover:bg-raised hover:underline ${KIND_TEXT[t.kind]}`}
+                className={`rounded px-0.5 -mx-0.5 ${TAG_TINT_CLASS} hover:bg-raised hover:underline ${KIND_TEXT[t.kind]}`}
                 style={{
                   ...tagMarkStyle(t.raw, facetOf(t.raw), PANEL_GROUND),
                   ...(t.confidence != null ? { opacity: 0.45 + 0.55 * t.confidence } : {}),
