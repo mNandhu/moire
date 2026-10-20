@@ -74,22 +74,33 @@ export function resourceLabel(id: string): { kind: string; name: string } | null
 
 /**
  * The tag autocomplete dropdown: each row a tag with its kind and image
- * count. Positioned under its input by the caller's `relative` wrapper.
+ * count, and its cover when `thumbOf` gives one. Positioned under its input
+ * by the caller's `relative` wrapper, or wherever `className`/`style` put it.
  */
 export function TagSuggestList({
   matches,
   active,
   onActive,
   onPick,
+  thumbOf,
+  className,
+  style,
 }: {
   matches: readonly TagSuggestion[];
   active: number;
   onActive: (i: number) => void;
   onPick: (s: TagSuggestion) => void;
+  thumbOf?: (id: string) => string | null;
+  className?: string;
+  style?: React.CSSProperties;
 }) {
   return (
     <ul
-      className="absolute z-20 mt-1 w-full max-h-72 overflow-auto rounded-lg border border-neutral-800 bg-neutral-900 shadow-xl shadow-black/40 py-1"
+      className={cn(
+        "absolute z-20 mt-1 w-full max-h-72 overflow-auto rounded-lg border border-neutral-800 bg-neutral-900 shadow-xl shadow-black/40 py-1",
+        className,
+      )}
+      style={style}
       role="listbox"
     >
       {matches.map((s, i) => (
@@ -108,6 +119,7 @@ export function TagSuggestList({
             )}
           >
             <span className="flex items-center gap-2 min-w-0">
+              {thumbOf && <Thumb url={thumbOf(s._id)} />}
               <span className="truncate text-neutral-100">
                 {resourceLabel(s._id)?.name ?? formatSearchTag(s._id)}
               </span>
@@ -134,5 +146,14 @@ export function TagSuggestList({
         </li>
       ))}
     </ul>
+  );
+}
+
+/** A tag's cover in the list, or an empty square to keep rows aligned. */
+function Thumb({ url }: { url: string | null }) {
+  return url ? (
+    <img src={url} alt="" loading="lazy" className="h-8 w-8 shrink-0 rounded object-cover bg-raised" />
+  ) : (
+    <span className="h-8 w-8 shrink-0 rounded bg-raised/60" />
   );
 }

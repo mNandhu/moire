@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { caretOffset } from "../../lib/caret";
 import { cn } from "../../lib/cn";
+import { useTagBrowse } from "../../lib/queries";
 import { replaceTerm, termAt, type Term } from "../../lib/promptEdit";
 import { toPromptText } from "../../lib/tags";
 import { TagSuggestList, useTagMatches, type TagSuggestion } from "../TagSuggestList";
 
+const LIST_W = 320;
+
 /**
  * Free-text prompt with tag and embedding suggestions for the term at the
- * caret. Tab takes the highlighted one; Enter only once the list has been
+ * caret, opened right under the word being typed, with each tag's cover. Tab takes the highlighted one; Enter only once the list has been
  * moved into with the arrow keys, so a typed word (a LoRA trigger) is never
  * swapped for a near match.
  */
@@ -36,6 +40,10 @@ export function PromptInput({
   const [term, setTerm] = useState<Term | null>(null);
   const [active, setActive] = useState(0);
   const [moved, setMoved] = useState(false);
+  const [at, setAt] = useState<{ left: number; top: number } | null>(null);
+  const { data: browse } = useTagBrowse("all");
+  const thumbs = useMemo(() => new Map((browse ?? []).map((b) => [b.tag, b.thumb_url])), [browse]);
+  const thumbOf = useCallback((id: string) => thumbs.get(id) ?? null, [thumbs]);
   const resources = useMemo(() => embeddings.map((n) => ({ _id: `embedding:${n}`, count: 0 })), [embeddings]);
   const matches = useTagMatches(term?.query ?? "", suggestions, resources);
   const open = !!term && matches.length > 0;
@@ -43,7 +51,15 @@ export function PromptInput({
   const look = () => {
     const el = ref.current;
     if (!el) return;
-    setTerm(el.selectionStart === el.selectionEnd ? termAt(el.value, el.selectionStart) : null);
+    const t = el.selectionStart === el.selectionEnd ? termAt(el.value, el.selectionStart) : null;
+    setTerm(t);
+    if (t) {
+      // Under the start of the word, kept inside the field's width.
+      const lead = el.value.slice(t.start, t.end).length - el.value.slice(t.start, t.end).trimStart().length;
+      const c = caretOffset(el, t.start + lead);
+      const room = (wrapRef.current?.clientWidth ?? el.clientWidth) - LIST_W;
+      setAt({ left: Math.max(0, Math.min(c.left, room)), top: el.offsetTop + c.top + c.height + 2 });
+    }
     setActive(0);
     setMoved(false);
   };
@@ -111,7 +127,17 @@ export function PromptInput({
           className,
         )}
       />
-      {open && <TagSuggestList matches={matches} active={active} onActive={setActive} onPick={pick} />}
+      {open && (
+        <TagSuggestList
+          matches={matches}
+          active={active}
+          onActive={setActive}
+          onPick={pick}
+          thumbOf={thumbOf}
+          className="mt-0 w-80"
+          style={at ? { left: at.left, top: at.top } : undefined}
+        />
+      )}
     </div>
   );
 }
