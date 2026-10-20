@@ -71,9 +71,12 @@ export function resultSlots(b: Pick<Batch, "requests">): ResultSlot[] {
 
 /** Columns and rows for `n` cells: a few images stay big (one row fills the
  * view); more wrap at four across. In the output column, up to four are two
- * across and more are four across, so eight still fit in two rows. Pure. */
-export function resultGrid(n: number, variant: "page" | "panel"): { cols: number; rows: number } {
+ * across and more are four across, so eight still fit in two rows; wide
+ * images (`ratio` above 1) stack there instead, one across for two, two
+ * across up to eight, then three. Pure. */
+export function resultGrid(n: number, variant: "page" | "panel", ratio = 2 / 3): { cols: number; rows: number } {
   const m = Math.max(n, 1);
-  const cols = variant === "panel" ? (m <= 2 ? m : m <= 4 ? 2 : 4) : Math.min(m, 4);
+  const panel = ratio > 1 ? (m <= 2 ? 1 : m <= 8 ? 2 : 3) : m <= 2 ? m : m <= 4 ? 2 : 4;
+  const cols = variant === "panel" ? panel : Math.min(m, 4);
   return { cols, rows: Math.max(1, Math.ceil(n / cols)) };
 }

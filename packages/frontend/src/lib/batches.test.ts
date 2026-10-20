@@ -41,4 +41,15 @@ describe("result grid", () => {
     expect(resultGrid(3, "panel")).toEqual({ cols: 2, rows: 2 });
     expect(resultGrid(8, "panel")).toEqual({ cols: 4, rows: 2 });
   });
+
+  it("stacks wide images in the output column", () => {
+    const wide = 1216 / 832;
+    expect(resultGrid(2, "panel", wide)).toEqual({ cols: 1, rows: 2 });
+    expect(resultGrid(1, "panel", wide)).toEqual({ cols: 1, rows: 1 });
+    expect(resultGrid(4, "panel", wide)).toEqual({ cols: 2, rows: 2 });
+    expect(resultGrid(12, "panel", wide)).toEqual({ cols: 3, rows: 4 });
+    // Square stays as portrait; the page is wide enough either way.
+    expect(resultGrid(2, "panel", 1)).toEqual({ cols: 2, rows: 1 });
+    expect(resultGrid(2, "page", wide)).toEqual({ cols: 2, rows: 1 });
+  });
 });

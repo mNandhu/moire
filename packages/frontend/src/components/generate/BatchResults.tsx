@@ -237,7 +237,7 @@ export function BatchResults({
 }) {
   const ratio = batch.inputs.width && batch.inputs.height ? batch.inputs.width / batch.inputs.height : 2 / 3;
   const slots = resultSlots(batch);
-  const { cols, rows } = resultGrid(slots.length, variant);
+  const { cols, rows } = resultGrid(slots.length, variant, ratio);
   // Size cells so the rows fit the view's height; the output column also
   // leaves room for its header and the recent batches under it.
   const cell =
