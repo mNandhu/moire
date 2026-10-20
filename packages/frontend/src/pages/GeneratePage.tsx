@@ -299,9 +299,20 @@ export default function GeneratePage() {
 
   return (
     <>
-      {/* One status on the right: ComfyUI's state and the Generator's test
-          run folded into a single word. */}
-      <PageHeader title="Generate" width="wide" actions={<ComfyStatusLine ready={gen ? ready : undefined} />} />
+      {/* On the right: which Generator this page runs, then one status, with
+          ComfyUI's state and the Generator's test run folded into a word. */}
+      <PageHeader
+        title="Generate"
+        width="wide"
+        actions={
+          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm">
+            <span className="text-muted">
+              Generator <span className="font-medium text-neutral-100">{gen?.name ?? "Built-in"}</span>
+            </span>
+            <ComfyStatusLine ready={gen ? ready : undefined} />
+          </div>
+        }
+      />
       <PageBody width="wide" className="pb-0">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_30rem] lg:items-start">
           {/* The run bar pins to the bottom of the view; long layers scroll above it. */}
