@@ -20,17 +20,30 @@ export function splitRequests(count: number, perRequest: number | null): (number
   return [...Array(full).fill(perRequest), ...(rest ? [rest] : [])];
 }
 
-/** The short label under the count: "4 × 2", "4 × 2 + 1", "8 × 4 = 32 images", "8 × ?". */
+const runs = (n: number) => `${n} ${n === 1 ? "run" : "runs"}`;
+
+/** The short label by the count: "2 runs of 2", "3 runs of up to 3",
+ * "8 × 4 = 32 images", "8 × ?". */
 export function countLabel(count: number, mode: CountMode): string {
   if (mode.kind === "unknown") return `${count} × ?`;
   if (mode.kind === "requests") return `${count} × ${mode.literal} = ${count * mode.literal} images`;
   const sizes = splitRequests(count, mode.perRequest) as number[];
-  if (mode.perRequest <= 1) return `${count} × 1`;
-  const full = sizes.filter((n) => n === mode.perRequest).length;
-  const rest = sizes.length > full ? sizes[sizes.length - 1] : 0;
-  // Fewer images than one request takes: a single smaller request.
-  if (!full) return `1 × ${rest}`;
-  return rest ? `${full} × ${mode.perRequest} + ${rest}` : `${full} × ${mode.perRequest}`;
+  if (mode.perRequest <= 1) return runs(count);
+  // One smaller run when fewer images are asked than a run makes.
+  if (sizes.length === 1) return `${runs(1)} of ${sizes[0]}`;
+  return sizes.every((n) => n === mode.perRequest)
+    ? `${runs(sizes.length)} of ${mode.perRequest}`
+    : `${runs(sizes.length)} of up to ${mode.perRequest}`;
+}
+
+/** The label's tooltip: what the count and batch size mean together. */
+export function countHint(count: number, mode: CountMode): string | undefined {
+  if (mode.kind !== "images") return undefined;
+  const sizes = splitRequests(count, mode.perRequest) as number[];
+  return (
+    `${count} ${count === 1 ? "image" : "images"} in total. ComfyUI makes up to ${mode.perRequest} at a time ` +
+    `(the batch size), so this is ${runs(sizes.length)}: ${sizes.join(", ")}.`
+  );
 }
 
 /** Fixed seeds count up per request, as the backend sends them. */

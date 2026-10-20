@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, Dices, Minus, Pencil, Plus, RotateCcw } from "lucide-react";
 import { cn } from "../../lib/cn";
-import { countLabel, randomSeed, type CountMode } from "../../lib/requests";
+import { countHint, countLabel, randomSeed, type CountMode } from "../../lib/requests";
 import { ShapeIcon, SIZE_GROUP, useSizePresets } from "../SizeFilter";
 import { Input, Picker, ProgressBar, type PickerOption } from "../ui";
 import type { ActiveBatch, Sampling } from "../../lib/generate";
@@ -124,7 +124,6 @@ export function SamplingControl({
   samplers,
   schedulers,
   onChange,
-  batchSize,
   invalid,
 }: {
   value: Sampling;
@@ -132,14 +131,12 @@ export function SamplingControl({
   samplers: readonly string[];
   schedulers: readonly string[];
   onChange: (s: Sampling) => void;
-  /** Images per request, when the Generator takes it: null is its default. */
-  batchSize?: { value: number | null; default: number; onChange: (n: number | null) => void } | null;
   invalid?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const shown = { ...defaults, ...value };
-  const changed = Object.keys(value).length > 0 || batchSize?.value != null;
+  const changed = Object.keys(value).length > 0;
   const patch = (p: Sampling) => {
     const next = { ...value, ...p };
     // Back at the Generator's own value: no longer a change.
@@ -181,13 +178,11 @@ export function SamplingControl({
           invalid && "ring-1 ring-red-700",
         )}
       >
-        <span className={cn("flex-1 truncate", changed ? "text-neutral-100" : "text-muted")}>{samplingLabel(shown, true)}
-          {batchSize?.value != null && ` · ×${batchSize.value}`}
-        </span>
+        <span className={cn("flex-1 truncate", changed ? "text-neutral-100" : "text-muted")}>{samplingLabel(shown, true)}</span>
         <ChevronDown size={16} className={cn("shrink-0 text-faint transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="absolute bottom-full left-0 z-50 mb-1 w-[26rem] max-w-[90vw] space-y-3 rounded-lg border border-line-strong bg-raised p-3 shadow-panel">
+        <div className="absolute bottom-full left-0 z-50 mb-1 w-80 max-w-[90vw] space-y-3 rounded-lg border border-line-strong bg-raised p-3 shadow-panel">
           {"sampler" in defaults && (
             <div>
               <FieldLabel>Sampler</FieldLabel>
@@ -215,31 +210,19 @@ export function SamplingControl({
               />
             </div>
           )}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {"steps" in defaults && (
               <NumberStepper label="Steps" value={shown.steps} onChange={(n) => patch({ steps: n })} step={1} min={1} max={200} />
             )}
             {"cfg" in defaults && (
               <NumberStepper label="CFG" value={shown.cfg} onChange={(n) => patch({ cfg: n })} step={0.5} min={0} max={30} />
             )}
-            {batchSize && (
-              <NumberStepper
-                label="Batch size"
-                value={batchSize.value ?? batchSize.default}
-                onChange={(n) => batchSize.onChange(n === batchSize.default ? null : n)}
-                step={1}
-                min={1}
-                max={64}
-              />
-            )}
+
           </div>
           {changed && (
             <button
               type="button"
-              onClick={() => {
-                onChange({});
-                batchSize?.onChange(null);
-              }}
+              onClick={() => onChange({})}
               title={samplingLabel(defaults)}
               className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-neutral-100"
             >
@@ -376,39 +359,56 @@ export function CountStepper({
   value,
   onChange,
   mode,
+  batchSize,
+  className,
 }: {
   value: number;
   onChange: (n: number) => void;
   mode: CountMode;
+  /** Images per run, set here when the Generator takes it; null is the setting's. */
+  batchSize?: { value: number | null; default: number; onChange: (n: number | null) => void } | null;
+  className?: string;
 }) {
   const set = (n: number) => onChange(Math.max(1, Math.min(500, n)));
+  const label = mode.kind === "images" ? "Images" : "Requests";
   return (
-    <div>
-      <FieldLabel>{mode.kind === "images" ? "Images" : "Requests"}</FieldLabel>
-      <div className="flex items-center gap-3">
-        <div className="inline-flex items-center rounded-lg border border-line">
-          <button type="button" aria-label="Fewer" onClick={() => set(value - 1)} className="p-2 text-muted hover:text-neutral-100">
-            <Minus size={14} />
-          </button>
-          <input
-            type="number"
-            aria-label={mode.kind === "images" ? "Images" : "Requests"}
-            value={value}
-            min={1}
-            max={500}
-            onChange={(e) => set(Number(e.target.value) || 1)}
-            className="w-12 bg-transparent text-center tabular-nums text-sm outline-none"
-          />
-          <button type="button" aria-label="More" onClick={() => set(value + 1)} className="p-2 text-muted hover:text-neutral-100">
-            <Plus size={14} />
-          </button>
+    <div className={className}>
+      <div className="flex items-start gap-2">
+        <div>
+          <FieldLabel>{label}</FieldLabel>
+          <div className="inline-flex items-center rounded-lg border border-line">
+            <button type="button" aria-label="Fewer" onClick={() => set(value - 1)} className="p-2 text-muted hover:text-neutral-100">
+              <Minus size={14} />
+            </button>
+            <input
+              type="number"
+              aria-label={label}
+              value={value}
+              min={1}
+              max={500}
+              onChange={(e) => set(Number(e.target.value) || 1)}
+              className="w-10 bg-transparent text-center tabular-nums text-sm outline-none"
+            />
+            <button type="button" aria-label="More" onClick={() => set(value + 1)} className="p-2 text-muted hover:text-neutral-100">
+              <Plus size={14} />
+            </button>
+          </div>
         </div>
-        <span
-          className="text-xs tabular-nums text-muted"
-          title={mode.kind === "images" ? "Requests × images per request" : undefined}
-        >
-          {countLabel(value, mode)}
-        </span>
+        {batchSize && (
+          <div className="w-[7.5rem] shrink-0">
+            <NumberStepper
+              label="Batch size"
+              value={batchSize.value ?? batchSize.default}
+              onChange={(n) => batchSize.onChange(n === batchSize.default ? null : n)}
+              step={1}
+              min={1}
+              max={64}
+            />
+          </div>
+        )}
+      </div>
+      <div className="mt-1 w-fit whitespace-nowrap text-xs tabular-nums text-muted" title={countHint(value, mode)}>
+        {countLabel(value, mode)}
       </div>
     </div>
   );

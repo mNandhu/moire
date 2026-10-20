@@ -419,7 +419,8 @@ export default function GeneratePage() {
                 {gen && !ready && <TestRunCard checkpoint={form.checkpoint} disabled={!connected} />}
                 <div
                   className={cn(
-                    "grid grid-cols-2 items-start gap-3 md:grid-cols-3",
+                    "grid grid-cols-2 items-start gap-3",
+                    ownBatchSize ? "md:grid-cols-4" : "md:grid-cols-3",
                     hasSampling
                       ? "2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.9fr)_auto_minmax(0,0.9fr)]"
                       : "2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.9fr)_auto_minmax(0,0.9fr)]",
@@ -438,17 +439,20 @@ export default function GeneratePage() {
                       samplers={models?.samplers ?? NO_STRINGS}
                       schedulers={models?.schedulers ?? NO_STRINGS}
                       onChange={(v) => set("sampling", v)}
-                      batchSize={
-                        ownBatchSize
-                          ? { value: form.perRequest, default: defaultPerRequest, onChange: (n) => set("perRequest", n) }
-                          : null
-                      }
                       invalid={flagged.sampling ? "ComfyUI refused these sampler settings" : null}
                     />
                   )}
                   <SizePicker value={{ width: form.width, height: form.height }} onChange={(sz) => setForm((f) => ({ ...f, ...sz }))} />
                   <SeedControl value={form.seed} onChange={(v) => set("seed", v)} />
-                  <CountStepper value={form.count} onChange={(v) => set("count", v)} mode={{ kind: "images", perRequest }} />
+                  <CountStepper
+                    value={form.count}
+                    onChange={(v) => set("count", v)}
+                    mode={{ kind: "images", perRequest }}
+                    className={ownBatchSize ? "col-span-2 2xl:col-span-1" : undefined}
+                    batchSize={
+                      ownBatchSize ? { value: form.perRequest, default: defaultPerRequest, onChange: (n) => set("perRequest", n) } : null
+                    }
+                  />
                   <BatchName auto={autoName} custom={form.name} onChange={(v) => set("name", v)} />
                 </div>
                 {rejected && (
