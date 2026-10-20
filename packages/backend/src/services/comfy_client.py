@@ -16,6 +16,9 @@ from typing import Any, AsyncIterator, Callable
 import httpx
 
 log = logging.getLogger(__name__)
+# The websocket client logs every reconnect attempt at INFO; a ComfyUI that is
+# off would fill the log. Moiré reports the connection state itself.
+logging.getLogger("websockets.client").setLevel(logging.WARNING)
 
 # One id for this Moiré process: ComfyUI routes per-prompt websocket events to
 # the client_id the prompt was queued with.

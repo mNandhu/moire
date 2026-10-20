@@ -8,6 +8,8 @@ import {
   Settings,
   Sparkles,
   PanelLeftClose,
+  Wand2,
+  History,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "../lib/cn";
@@ -23,6 +25,13 @@ const NAV = [
       { label: "Overview", path: "/overview", icon: Home },
       { label: "All Images", path: "/", icon: Images },
       { label: "Tags", path: "/tags", icon: TagsIcon },
+    ],
+  },
+  {
+    section: "Create",
+    items: [
+      { label: "Generate", path: "/generate", icon: Wand2 },
+      { label: "Generations", path: "/generations", icon: History },
     ],
   },
   {

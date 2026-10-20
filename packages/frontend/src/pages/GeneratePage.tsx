@@ -1,0 +1,339 @@
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { CircleAlert, Loader2, Wand2 } from "lucide-react";
+import { Button, ButtonLink, Card, EmptyState, PageBody, PageHeader, Badge } from "../components/ui";
+import { ChipInput, bareTagPool } from "../components/generate/ChipInput";
+import {
+  BatchName,
+  CheckpointPicker,
+  CountStepper,
+  FieldLabel,
+  QueueCard,
+  SeedControl,
+  SizePicker,
+  StyleLoras,
+} from "../components/generate/RunControls";
+import { ComfyStatusLine } from "../components/generate/ComfyStatusLine";
+import { RecentBatches } from "../components/generate/RecentBatches";
+import { autoBatchName } from "../lib/batchName";
+import { compose } from "../lib/compose";
+import {
+  BATCHES_KEY,
+  GENERATORS_KEY,
+  MODELS_KEY,
+  RejectedError,
+  STATUS_KEY,
+  queueBatch,
+  refreshModels,
+  startTest,
+  useComfyModels,
+  useComfySettings,
+  useComfyStatus,
+  useGenerators,
+  type NodeError,
+} from "../lib/generate";
+import { loadDraft, rejectedFields, saveDraft, toQueueBody, type GenerateForm } from "../lib/generateForm";
+import { useTagAggregate } from "../lib/queries";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useToast } from "../components/Toasts";
+
+const NO_STRINGS: string[] = [];
+
+function TextBlock({
+  label,
+  title,
+  value,
+  onChange,
+}: {
+  label: string;
+  title?: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <FieldLabel>
+        <span title={title}>{label}</span>
+      </FieldLabel>
+      <textarea
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={3}
+        className="w-full resize-y rounded-lg border border-neutral-800 bg-neutral-950/70 px-3 py-2 text-sm text-neutral-100 placeholder:text-faint outline-none focus:border-brand-600/60"
+      />
+    </div>
+  );
+}
+
+/** ComfyUI's rejection: the node errors, with Refresh models / Dismiss. */
+function RejectedBox({
+  errors,
+  onRefresh,
+  onDismiss,
+  refreshing,
+}: {
+  errors: NodeError[];
+  onRefresh: () => void;
+  onDismiss: () => void;
+  refreshing: boolean;
+}) {
+  return (
+    <div role="alert" className="rounded-lg border border-red-800/70 bg-red-950/30 px-3.5 py-3 text-sm">
+      <div className="flex items-start gap-2 text-red-200">
+        <CircleAlert size={16} className="mt-0.5 shrink-0" />
+        <span>Nothing was queued</span>
+      </div>
+      <dl className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-xs">
+        {errors.map((e, i) => (
+          <div key={i} className="contents">
+            <dt className="truncate text-red-200">
+              {e.class_type ?? "Node"}{" "}
+              <span className="font-mono text-2xs text-red-300/80">{e.added ? "added by Moiré" : `node ${e.node}`}</span>
+            </dt>
+            <dd className="font-mono text-red-300" title={e.details || undefined}>
+              {e.input ? `${e.input}: ` : ""}
+              {e.message}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <div className="mt-3 flex gap-2">
+        <Button size="sm" onClick={onRefresh} disabled={refreshing}>
+          Refresh models
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onDismiss}>
+          Dismiss
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** The test-run gate: one image proves the output folder and the checkpoint. */
+function TestRunCard({ checkpoint, disabled }: { checkpoint: string | null; disabled: boolean }) {
+  const qc = useQueryClient();
+  const { data: generators } = useGenerators();
+  const gen = generators?.[0];
+  const [errors, setErrors] = useState<NodeError[] | null>(null);
+  const run = useMutation({
+    mutationFn: () => startTest("builtin", checkpoint),
+    onMutate: () => setErrors(null),
+    onError: (e) => {
+      if (e instanceof RejectedError) setErrors(e.nodeErrors);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: GENERATORS_KEY }),
+  });
+  const t = gen?.test;
+  const running = !!t && ["pending", "queued", "running"].includes(t.state);
+  const waiting = !!t && t.state === "done" && !t.image_id;
+  const failed = t && ["failed", "lost", "cancelled"].includes(t.state);
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-sm text-neutral-100">Test run</div>
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={() => run.mutate()}
+          disabled={disabled || running || waiting || run.isPending}
+          title={disabled ? "Waiting for connection" : "One image at the chosen checkpoint"}
+        >
+          {(running || waiting || run.isPending) && <Loader2 size={14} className="animate-spin" />}
+          {running ? "Running" : waiting ? "Waiting for scan" : "Test run"}
+        </Button>
+      </div>
+      {failed && t?.error && (
+        <div className="mt-2 font-mono text-xs text-red-300">
+          {t.error.class_type} {t.error.node && `node ${t.error.node}`}: {t.error.message}
+        </div>
+      )}
+      {failed && !t?.error && <div className="mt-2 text-xs text-red-300">{t?.state === "lost" ? "Lost" : "Cancelled"}</div>}
+      {waiting && t.outputs === 0 && <div className="mt-2 text-xs text-red-300">Returned 0 images</div>}
+      {run.error && !(run.error instanceof RejectedError) && (
+        <div className="mt-2 text-xs text-red-300">{run.error.message}</div>
+      )}
+      {errors && (
+        <div className="mt-3">
+          <RejectedBox errors={errors} onRefresh={() => refreshModels()} onDismiss={() => setErrors(null)} refreshing={false} />
+        </div>
+      )}
+    </Card>
+  );
+}
+
+export default function GeneratePage() {
+  useDocumentTitle("Generate");
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { data: status } = useComfyStatus();
+  const { data: settings } = useComfySettings();
+  const { data: models } = useComfyModels();
+  const { data: generators } = useGenerators();
+  const { data: tagAgg } = useTagAggregate({ includePrompt: true });
+  const [form, setForm] = useState<GenerateForm>(() => loadDraft());
+  const [rejected, setRejected] = useState<NodeError[] | null>(null);
+  const set = <K extends keyof GenerateForm>(k: K, v: GenerateForm[K]) => setForm((f) => ({ ...f, [k]: v }));
+
+  useEffect(() => saveDraft(form), [form]);
+
+  const gen = generators?.[0];
+  const checkpoints = models?.checkpoints ?? NO_STRINGS;
+  // The first installed checkpoint until the user picks one.
+  useEffect(() => {
+    if (!form.checkpoint && checkpoints.length) set("checkpoint", checkpoints[0]);
+  }, [checkpoints, form.checkpoint]);
+
+  const pool = useMemo(() => bareTagPool(tagAgg ?? []), [tagAgg]);
+  const usage = useMemo(() => new Map((models?.matching ?? []).map((m) => [m.stem, m.images])), [models]);
+  const flagged = useMemo(() => rejectedFields(rejected ?? []), [rejected]);
+  const autoName = autoBatchName({ number: null, generator: gen?.name ?? "Built-in", extra: form.extra });
+  const perRequest = settings?.builtin_per_request ?? 1;
+  const connected = !!status?.connected;
+
+  const queue = useMutation({
+    mutationFn: () => queueBatch(toQueueBody(form, gen?._id ?? "builtin")),
+    onMutate: () => setRejected(null),
+    onSuccess: (b) => {
+      toast.push(`Queued ${b.name}`, "success");
+      set("name", null);
+      void qc.invalidateQueries({ queryKey: STATUS_KEY });
+      void qc.invalidateQueries({ queryKey: BATCHES_KEY });
+    },
+    onError: (e) => {
+      if (e instanceof RejectedError) setRejected(e.nodeErrors);
+      else toast.push(e.message, "error");
+    },
+  });
+  const refresh = useMutation({
+    mutationFn: refreshModels,
+    onSuccess: (m) => qc.setQueryData(MODELS_KEY, m),
+  });
+
+  if (status && !status.configured) {
+    return (
+      <>
+        <PageHeader title="Generate" />
+        <PageBody>
+          <EmptyState
+            icon={Wand2}
+            title="Connect ComfyUI"
+            actions={<ButtonLink to="/settings?section=comfyui" variant="primary">ComfyUI settings</ButtonLink>}
+          />
+        </PageBody>
+      </>
+    );
+  }
+
+  const positive = compose(form.base, form.extra);
+  const negative = compose(form.negativeBase, form.negativeExtra);
+  const ready = !!gen?.ready;
+  const canQueue = connected && ready && !!settings?.output_library_id && !queue.isPending;
+
+  return (
+    <>
+      <PageHeader title="Generate" width="wide">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          <span className="text-muted">
+            Generator <span className="text-neutral-100">{gen?.name ?? "Built-in"}</span>
+          </span>
+          {gen && (ready ? <Badge tone="success">Ready</Badge> : <Badge tone="warning">Needs a test run</Badge>)}
+          <ComfyStatusLine />
+        </div>
+      </PageHeader>
+      <PageBody width="wide">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="space-y-5 min-w-0">
+            <Card className="p-4 space-y-4">
+              <div className="text-sm font-medium text-neutral-100">Positive</div>
+              <TextBlock label="Base" title="Prepended to every prompt" value={form.base} onChange={(v) => set("base", v)} />
+              <div>
+                <FieldLabel>Extra</FieldLabel>
+                <ChipInput
+                  label="Extra positive tags"
+                  value={form.extra}
+                  onChange={(v) => set("extra", v)}
+                  suggestions={pool}
+                  embeddings={models?.embeddings ?? NO_STRINGS}
+                  invalid={rejected?.some((e) => e.field === "positive")}
+                />
+              </div>
+            </Card>
+            <Card className="p-4 space-y-4">
+              <div className="text-sm font-medium text-neutral-100">Negative</div>
+              <TextBlock label="Base" title="Prepended to every negative prompt" value={form.negativeBase} onChange={(v) => set("negativeBase", v)} />
+              <div>
+                <FieldLabel>Extra</FieldLabel>
+                <ChipInput
+                  label="Extra negative tags"
+                  value={form.negativeExtra}
+                  onChange={(v) => set("negativeExtra", v)}
+                  suggestions={pool}
+                  embeddings={models?.embeddings ?? NO_STRINGS}
+                  invalid={rejected?.some((e) => e.field === "negative")}
+                />
+              </div>
+            </Card>
+            <details className="rounded-lg border border-line bg-neutral-950/40 px-4 py-2.5 text-sm">
+              <summary className="cursor-pointer text-muted">Prompt as sent</summary>
+              <div className="mt-2 space-y-2 font-mono text-xs text-neutral-300 break-words">
+                <p>{positive || "(empty)"}</p>
+                <p className="text-faint">{negative || "(no negative)"}</p>
+              </div>
+            </details>
+          </div>
+
+          <aside className="space-y-4" aria-label="Run">
+            {status && <QueueCard active={status.active} connected={connected} />}
+            {gen && !ready && <TestRunCard checkpoint={form.checkpoint} disabled={!connected} />}
+            <Card className="p-4 space-y-4">
+              <CheckpointPicker
+                value={form.checkpoint}
+                options={checkpoints}
+                onChange={(v) => set("checkpoint", v)}
+                invalid={flagged.checkpoint ? "Not in ComfyUI's checkpoint list" : null}
+              />
+              <StyleLoras
+                value={form.loras}
+                onChange={(v) => set("loras", v)}
+                installed={models?.loras ?? NO_STRINGS}
+                usage={usage}
+                invalid={flagged.loras}
+              />
+              <SizePicker value={{ width: form.width, height: form.height }} onChange={(s) => setForm((f) => ({ ...f, ...s }))} />
+              <SeedControl value={form.seed} onChange={(v) => set("seed", v)} />
+              <CountStepper value={form.count} onChange={(v) => set("count", v)} mode={{ kind: "images", perRequest }} />
+              <BatchName auto={autoName} custom={form.name} onChange={(v) => set("name", v)} />
+              {rejected && (
+                <RejectedBox
+                  errors={rejected}
+                  onRefresh={() => refresh.mutate()}
+                  onDismiss={() => setRejected(null)}
+                  refreshing={refresh.isPending}
+                />
+              )}
+              <Button
+                variant="primary"
+                className="w-full h-11 text-[15px]"
+                disabled={!canQueue}
+                title={!connected ? "Waiting for connection" : !ready ? "Run the test first" : undefined}
+                onClick={() => queue.mutate()}
+              >
+                {queue.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                Queue {form.count} {form.count === 1 ? "image" : "images"}
+              </Button>
+            </Card>
+            <RecentBatches onOpen={(id) => navigate(`/generations/${id}`)} />
+            <div className="text-right">
+              <Link to="/generations" className="text-xs text-muted hover:text-neutral-100">
+                All generations
+              </Link>
+            </div>
+          </aside>
+        </div>
+      </PageBody>
+    </>
+  );
+}

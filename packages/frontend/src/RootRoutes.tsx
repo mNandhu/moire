@@ -10,6 +10,9 @@ import SettingsPage from "./pages/SettingsPage";
 import AITaggingPage from "./pages/AITaggingPage";
 import RulesPage from "./pages/RulesPage";
 import ImageView from "./pages/ImageView";
+import GeneratePage from "./pages/GeneratePage";
+import GenerationsPage from "./pages/GenerationsPage";
+import BatchPage from "./pages/BatchPage";
 
 // ImageView opens over the gallery rather than replacing it: opening a thumbnail
 // pushes `/image/:id` with `state.backgroundLocation` set to the gallery location
@@ -35,6 +38,9 @@ export default function RootRoutes() {
           <Route path="ai-tagging" element={<AITaggingPage />} />
           <Route path="rules" element={<RulesPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="generate" element={<GeneratePage />} />
+          <Route path="generations" element={<GenerationsPage />} />
+          <Route path="generations/:id" element={<BatchPage />} />
         </Route>
         <Route path="/image/:id" element={<ImageView />} />
       </Routes>

@@ -1,10 +1,11 @@
 import type { LucideIcon } from "lucide-react";
-import { Tags, FileText, EyeOff, Wand2, UserRound } from "lucide-react";
+import { Tags, FileText, EyeOff, Wand2, UserRound, Plug } from "lucide-react";
 import { TaggingSection } from "./sections/TaggingSection";
 import { PromptTagsSection } from "./sections/PromptTagsSection";
 import { BoilerplateSection } from "./sections/BoilerplateSection";
 import { PromptGuessSection } from "./sections/PromptGuessSection";
 import { CharactersSection } from "./sections/CharactersSection";
+import { ComfySection } from "./sections/ComfySection";
 
 /**
  * One settings page section: a left-nav entry + the panel it renders.
@@ -66,6 +67,17 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         icon: UserRound,
         description: "How character avatars are framed.",
         Component: CharactersSection,
+      },
+    ],
+  },
+  {
+    title: "Generation",
+    items: [
+      {
+        id: "comfyui",
+        label: "ComfyUI",
+        icon: Plug,
+        Component: ComfySection,
       },
     ],
   },

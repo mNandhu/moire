@@ -5,7 +5,7 @@ import type { Filters } from "../lib/imageFilter";
 import { Input, Picker, type PickerOption } from "./ui";
 
 /** A size preset and how many images have its shape (`GET /images/sizes`). */
-type SizePreset = {
+export type SizePreset = {
   shape: string;
   width: number;
   height: number;
@@ -14,11 +14,20 @@ type SizePreset = {
 };
 
 const NO_SIZES: SizePreset[] = [];
+
+/** The size presets with library counts; shared with the Generate size picker. */
+export function useSizePresets(): SizePreset[] {
+  const { data = NO_SIZES } = useQuery({
+    queryKey: ["image-sizes"],
+    queryFn: ({ signal }) => api<SizePreset[]>(`/api/v1/images/sizes`, { signal }),
+  });
+  return data;
+}
 const CUSTOM = "custom";
-const GROUP = { portrait: "Portrait", square: "Square", landscape: "Landscape" } as const;
+export const SIZE_GROUP = { portrait: "Portrait", square: "Square", landscape: "Landscape" } as const;
 
 /** A small outline of the preset's shape, its long side `size` px. */
-function ShapeIcon({ width, height, size = 14 }: { width: number; height: number; size?: number }) {
+export function ShapeIcon({ width, height, size = 14 }: { width: number; height: number; size?: number }) {
   const k = width / height;
   return (
     <span
@@ -37,7 +46,7 @@ function sizeOptions(presets: readonly SizePreset[]): PickerOption[] {
       detail: `${p.width}×${p.height}`,
       hint: p.count ? p.count.toLocaleString() : undefined,
       icon: <ShapeIcon width={p.width} height={p.height} />,
-      group: GROUP[p.orientation],
+      group: SIZE_GROUP[p.orientation],
       keywords: `${p.width}x${p.height} ${p.orientation}`,
       dim: p.count === 0,
     })),
@@ -88,10 +97,7 @@ function Bounds({
  * apply on top of any presets. Renders grid cells for the filter panel.
  */
 export function SizeFilter({ filters, setFilters }: { filters: Filters; setFilters: (f: Filters) => void }) {
-  const { data: presets = NO_SIZES } = useQuery({
-    queryKey: ["image-sizes"],
-    queryFn: ({ signal }) => api<SizePreset[]>(`/api/v1/images/sizes`, { signal }),
-  });
+  const presets = useSizePresets();
   const hasBounds = filters.minW != null || filters.maxW != null || filters.minH != null || filters.maxH != null;
   // Custom stays open while its boxes are empty; bounds alone (an old link) open it too.
   const [customOpen, setCustomOpen] = useState(false);

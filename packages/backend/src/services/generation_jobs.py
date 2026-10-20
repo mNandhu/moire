@@ -536,7 +536,7 @@ class GenerationManager:
         if self.client is None:
             raise Unavailable("ComfyUI isn't set up")
         if not await self.check():
-            raise Unavailable(self.error or "ComfyUI unreachable")
+            raise Unavailable("Can't reach ComfyUI")
         if not s.get("output_library_id"):
             raise Invalid("Set ComfyUI's output folder first")
         return s
