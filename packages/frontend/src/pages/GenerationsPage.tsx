@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { History, Search } from "lucide-react";
+import { History, ImageOff, Loader2, Search } from "lucide-react";
 import { Badge, EmptyState, Input, PageBody, PageHeader } from "../components/ui";
 import { batchLine, dayLabel, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
 import { thumbUrl, useBatches, type BatchSummary } from "../lib/generate";
@@ -9,32 +9,74 @@ import { fuzzyRank } from "../lib/fuzzy";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 type Show = "all" | "running" | "failed";
-const STRIP_H = 56;
 
-/** Thumbnails at the batch's own ratio, cropped to the row. */
-function Strip({ b }: { b: BatchSummary }) {
-  const ratio = b.width && b.height ? b.width / b.height : 2 / 3;
-  const w = Math.round(STRIP_H * ratio);
-  if (!b.thumbs.length) {
+/**
+ * A batch's images as one cover: one fills it, two sit side by side, more
+ * make a mosaic with the rest counted on the last tile.
+ */
+function Cover({ b }: { b: BatchSummary }) {
+  const ids = b.thumbs.slice(0, 4);
+  const more = b.kept - ids.length;
+  if (!ids.length) {
     return (
-      <div className="w-64 shrink-0">
-        <div className="rounded-md bg-raised" style={{ width: w, height: STRIP_H }} />
+      <div className="flex h-full flex-col items-center justify-center gap-1.5 text-xs text-faint">
+        {b.state === "running" || b.state === "paused" ? (
+          <Loader2 size={20} className="animate-spin" />
+        ) : (
+          <>
+            <ImageOff size={20} />
+            {b.images > 0 && "All rejected"}
+          </>
+        )}
       </div>
     );
   }
-  return (
-    <div className="flex w-64 shrink-0 gap-1 overflow-hidden">
-      {b.thumbs.slice(0, 6).map((id) => (
-        <img
-          key={id}
-          src={thumbUrl(id)}
-          alt=""
-          loading="lazy"
-          className="shrink-0 rounded-md object-cover bg-raised"
-          style={{ width: w, height: STRIP_H }}
-        />
-      ))}
+  const tile = (id: string, i: number, className?: string) => (
+    <div key={id} className={cn("relative overflow-hidden bg-raised", className)}>
+      <img src={thumbUrl(id)} alt="" loading="lazy" className="h-full w-full object-cover" />
+      {i === ids.length - 1 && more > 0 && (
+        <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-sm font-medium text-white">+{more}</span>
+      )}
     </div>
+  );
+  if (ids.length === 1) return tile(ids[0], 0, "h-full");
+  if (ids.length === 2) return <div className="grid h-full grid-cols-2 gap-0.5">{ids.map((id, i) => tile(id, i))}</div>;
+  if (ids.length === 3) {
+    return (
+      <div className="grid h-full grid-cols-2 grid-rows-2 gap-0.5">
+        {tile(ids[0], 0, "row-span-2")}
+        {tile(ids[1], 1)}
+        {tile(ids[2], 2)}
+      </div>
+    );
+  }
+  return <div className="grid h-full grid-cols-2 grid-rows-2 gap-0.5">{ids.map((id, i) => tile(id, i))}</div>;
+}
+
+function BatchCard({ b }: { b: BatchSummary }) {
+  return (
+    <Link
+      to={`/generations/${b._id}`}
+      className="group block overflow-hidden rounded-xl border border-line bg-surface transition-colors hover:border-line-strong"
+    >
+      <div className="relative aspect-[3/4] bg-canvas">
+        <Cover b={b} />
+        {b.state !== "done" && (
+          <Badge tone={stateTone(b.state)} className="absolute left-2 top-2 shadow-panel">
+            {STATE_LABEL[b.state]}
+          </Badge>
+        )}
+      </div>
+      <div className="px-3 py-2">
+        <div className="flex items-baseline gap-2">
+          <span className="min-w-0 flex-1 truncate text-sm text-neutral-100 group-hover:text-white">{b.name}</span>
+          <span className="shrink-0 text-xs tabular-nums text-faint">{whenLabel(b.created_at)}</span>
+        </div>
+        <div className="truncate text-xs text-faint" title={b.generator ?? undefined}>
+          {batchLine(b)}
+        </div>
+      </div>
+    </Link>
   );
 }
 
@@ -65,8 +107,8 @@ export default function GenerationsPage() {
 
   return (
     <>
-      <PageHeader title="Generations" count={data?.length} countLabel="batches" />
-      <PageBody>
+      <PageHeader title="Generations" count={data?.length} countLabel="batches" width="wide" />
+      <PageBody width="wide">
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <div className="relative w-64 max-w-full">
             <Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
@@ -97,19 +139,10 @@ export default function GenerationsPage() {
             {groups.map((g) => (
               <section key={g.day}>
                 <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">{g.day}</h2>
-                <ul className="divide-y divide-line rounded-xl border border-line">
+                <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
                   {g.items.map((b) => (
                     <li key={b._id}>
-                      <Link to={`/generations/${b._id}`} className="flex items-center gap-4 px-4 py-3 hover:bg-raised/60">
-                        <Strip b={b} />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm text-neutral-100">{b.name}</div>
-                          <div className="truncate text-xs text-faint">
-                            {batchLine(b)} · {b.generator ?? "Generator"} · {whenLabel(b.created_at)}
-                          </div>
-                        </div>
-                        <Badge tone={stateTone(b.state)}>{STATE_LABEL[b.state]}</Badge>
-                      </Link>
+                      <BatchCard b={b} />
                     </li>
                   ))}
                 </ul>
