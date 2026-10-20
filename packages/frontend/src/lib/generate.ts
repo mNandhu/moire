@@ -142,6 +142,8 @@ export type Recipe = {
   identity: { tag: string; dropped: boolean; added: boolean }[];
   /** The images identity was read from (solo ones when there are enough). */
   identity_images: number;
+  /** From the count tags on their images; null when it can't be told. */
+  gender: "girl" | "boy" | "other" | null;
   /** Attire signature tags: the default outfit (shown in phase 4). */
   outfit: string[];
   /** `file` is the installed file the stem resolves to; null when not installed. */

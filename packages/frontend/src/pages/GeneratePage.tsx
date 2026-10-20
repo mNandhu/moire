@@ -55,6 +55,7 @@ import {
   updateBlock,
   type GenerateForm,
 } from "../lib/generateForm";
+import { checkCountTags, fixCountTags } from "../lib/countTags";
 import { cn } from "../lib/cn";
 import type { CountMode } from "../lib/requests";
 import { PromptInput } from "../components/generate/PromptInput";
@@ -280,6 +281,18 @@ export default function GeneratePage() {
     recipes.flatMap((r) => (r ? [characterTags(r)] : [])),
   );
   const negative = previewText(parts.negative, []);
+  // Count tags (1girl, solo...) in the main prompt against the cast, once
+  // every picked character's recipe is in.
+  const counts =
+    recipes.length && recipes.every(Boolean)
+      ? checkCountTags(form.prompt, recipes.map((r) => r!.gender))
+      : null;
+  const countFix = counts?.expected?.length
+    ? {
+        label: `Use ${counts.expected.join(", ")}`,
+        apply: () => set("prompt", fixCountTags(form.prompt, counts.expected!)),
+      }
+    : null;
   // As the backend merges them: characters' LoRAs first, each file once.
   const sentLoras = [...(characters ?? []).flatMap((c) => (c.lora ? [c.lora] : [])), ...form.loras].filter(
     (l, i, all) => all.findIndex((x) => stemOf(x.name) === stemOf(l.name)) === i,
@@ -353,6 +366,8 @@ export default function GeneratePage() {
                         rows={6}
                         placeholder="Scene, pose, lighting"
                         className="text-[15px] leading-relaxed"
+                        marks={counts?.marks}
+                        fix={countFix}
                       />
                     </Card>
                   ) : blk.kind === "style" ? (

@@ -229,6 +229,29 @@ def signature(
     return one_colour_per_slot(found)[:limit]
 
 
+GENDERS = {
+    "girl": ("1girl", "multiple_girls"),
+    "boy": ("1boy", "multiple_boys"),
+    "other": ("1other",),
+}
+
+
+def gender(counts: dict[str, int], images: int) -> str | None:
+    """``girl``, ``boy`` or ``other`` from the count tags on a character's
+    images (:func:`signature_counts`), else ``None``: the kind must be on at
+    least half the images and twice as common as the next. A character who
+    is always drawn beside someone of the other kind (``1girl`` and ``1boy``
+    on every image) stays ``None``. Pure."""
+    if images <= 0:
+        return None
+    score = {k: max(counts.get(t, 0) for t in tags) for k, tags in GENDERS.items()}
+    ranked = sorted(score.items(), key=lambda kv: -kv[1])
+    (top, n), (_, runner) = ranked[0], ranked[1]
+    if n * 2 >= images and n >= 2 * runner:
+        return top
+    return None
+
+
 async def signature_counts(
     conn, ids, others: list[str], images: int
 ) -> tuple[dict[str, int], int]:

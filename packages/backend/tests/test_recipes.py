@@ -128,7 +128,7 @@ def _loras(rows):
 
 
 def _library(seed):
-    look = ("red_eyes", "twintails", "porkpie_hat")
+    look = ("red_eyes", "twintails", "porkpie_hat", "1girl")
     who = "hu_tao_(genshin_impact)"
     for i in range(4):
         seed(f"L1:h{i}", tags=(who, f"prompt:{who}", *look), score=4 if i == 0 else 0)
@@ -155,6 +155,8 @@ async def test_recipe_edit_and_queue(client, comfy, seed, monkeypatch):  # noqa:
     assert r["tag"] == "hu_tao_(genshin_impact)"
     assert [c["tag"] for c in r["identity"]] == ["red_eyes", "twintails"]
     assert r["outfit"] == ["porkpie_hat"]
+    assert r["gender"] == "girl"
+    assert r["identity_images"] == 5
     # The style LoRA on every image loses; the stem resolves to its file.
     assert r["lora"] == {
         "stem": "hu_tao_v2",

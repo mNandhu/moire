@@ -350,3 +350,13 @@ async def test_signature_reads_solo_images_once_there_are_enough(
     assert page["signature_images"] == 3
     assert "top_hat" not in {s["tag"] for s in page["signature"]}
     assert {"green_eyes", "white_hair"} <= {s["tag"] for s in page["signature"]}
+
+
+def test_gender_comes_from_the_count_tags():
+    assert characters.gender({"1girl": 9, "solo": 8}, 10) == "girl"
+    assert characters.gender({"1boy": 5, "1girl": 1}, 6) == "boy"
+    assert characters.gender({"multiple_girls": 4, "1girl": 2}, 6) == "girl"
+    # always drawn with someone of the other kind: can't tell
+    assert characters.gender({"1girl": 6, "1boy": 6}, 6) is None
+    assert characters.gender({"1girl": 2}, 6) is None
+    assert characters.gender({}, 0) is None
