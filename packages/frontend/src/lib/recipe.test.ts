@@ -7,6 +7,7 @@ const recipe: Recipe = {
   aliases: ["hu_tao"],
   count: 12,
   identity_images: 12,
+  gender: "girl",
   identity: [
     { tag: "red_eyes", dropped: false, added: false },
     { tag: "smile", dropped: true, added: false },

@@ -228,9 +228,10 @@ async def _uses(names: list[str]) -> list[LoraUse]:
 
 async def _signature(
     names: list[str], key_of: dict, rows: list
-) -> tuple[int, int, list[str]]:
+) -> tuple[int, int, list[str], str | None]:
     """How many images the character is in, how many the signature was read
-    from (:func:`characters.signature_counts`), and their signature tags."""
+    from (:func:`characters.signature_counts`), their signature tags, and
+    their :func:`characters.gender`."""
     it = t.image_tags
     ids = tag_index.image_ids(names)
     vocab = await tag_categories.load()
@@ -261,7 +262,7 @@ async def _signature(
         # many scene tags at the top and would crowd out hair and eyes.
         limit=10_000,
     )
-    return n, counted, [s["tag"] for s in sig]
+    return n, counted, [s["tag"] for s in sig], characters.gender(here, counted)
 
 
 async def recipe(tag: str) -> dict | None:
@@ -270,7 +271,7 @@ async def recipe(tag: str) -> dict | None:
     key, names, key_of, rows = await characters._named(tag)
     if key not in key_of and not await characters.is_made(key, rows):
         return None
-    count, sig_images, sig = await _signature(names, key_of, rows)
+    count, sig_images, sig, gender = await _signature(names, key_of, rows)
     identity, outfit = split_signature(sig)
     total = await _visible_count()
     candidates = lora_candidates(
@@ -289,6 +290,8 @@ async def recipe(tag: str) -> dict | None:
         "identity": chips,
         # The images identity was read from: few means it's a guess.
         "identity_images": sig_images,
+        # girl / boy / other from their images' count tags; None when unclear.
+        "gender": gender,
         "outfit": outfit,
         "lora": None
         if stem is None

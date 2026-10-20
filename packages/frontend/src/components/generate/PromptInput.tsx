@@ -9,6 +9,9 @@ import { TagSuggestList, useTagMatches, type TagSuggestion } from "../TagSuggest
 
 const LIST_W = 320;
 
+export type PromptMark = { start: number; end: number; reason: string };
+const NO_MARKS: readonly PromptMark[] = [];
+
 /**
  * Free-text prompt with tag and embedding suggestions for the term at the
  * caret, opened right under the word being typed, with each tag's cover. Tab takes the highlighted one; Enter only once the list has been
@@ -25,6 +28,8 @@ export function PromptInput({
   invalid,
   className,
   placeholder,
+  marks = NO_MARKS,
+  fix,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -35,6 +40,10 @@ export function PromptInput({
   invalid?: boolean;
   className?: string;
   placeholder?: string;
+  /** Terms to outline in amber, each with why; hovering one (or putting the
+   * caret in it) opens a bubble with the reason and `fix`. */
+  marks?: readonly PromptMark[];
+  fix?: { label: string; apply: () => void } | null;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -60,6 +69,41 @@ export function PromptInput({
   const noteOf = useCallback((id: string) => (unseen.has(id) ? "not in library" : null), [unseen]);
   const matches = useTagMatches(term?.query ?? "", pool, resources);
   const open = !!term && matches.length > 0;
+
+  // Marked terms: drawn on a copy of the text behind the (transparent)
+  // textarea, so they wrap and scroll with it.
+  const backRef = useRef<HTMLDivElement>(null);
+  const markRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const [shown, setShown] = useState<number | null>(null);
+  const [bubbleAt, setBubbleAt] = useState<{ left: number; top: number } | null>(null);
+  const markAt = (i: number | null) => {
+    const span = i == null ? null : markRefs.current[i];
+    const el = ref.current;
+    if (i == null || !span || !el) {
+      setShown(null);
+      return;
+    }
+    setShown(i);
+    const room = (wrapRef.current?.clientWidth ?? el.clientWidth) - 288;
+    setBubbleAt({
+      left: Math.max(0, Math.min(span.offsetLeft, room)),
+      top: el.offsetTop + span.offsetTop - el.scrollTop + span.offsetHeight + 4,
+    });
+  };
+  const markUnder = (x: number, y: number) =>
+    markRefs.current.findIndex((m) =>
+      m ? [...m.getClientRects()].some((r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) : false,
+    );
+  const markAtCaret = () => {
+    const el = ref.current;
+    if (!el || el.selectionStart !== el.selectionEnd) return -1;
+    const c = el.selectionStart;
+    return marks.findIndex((m) => c >= m.start && c <= m.end);
+  };
+  useEffect(() => {
+    markRefs.current = markRefs.current.slice(0, marks.length);
+    setShown((i) => (i != null && i < marks.length ? i : null));
+  }, [marks]);
 
   const look = () => {
     const el = ref.current;
@@ -102,6 +146,11 @@ export function PromptInput({
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Escape" && shown != null) {
+      e.stopPropagation();
+      setShown(null);
+      return;
+    }
     if (!open) return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
@@ -116,8 +165,34 @@ export function PromptInput({
     }
   };
 
+  const mark = shown != null && !open ? marks[shown] : null;
   return (
-    <div ref={wrapRef} className="relative">
+    <div ref={wrapRef} className="relative" onMouseLeave={() => setShown(null)}>
+      {marks.length > 0 && (
+        <div
+          ref={backRef}
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words text-transparent",
+            className,
+          )}
+        >
+          {marks.map((m, i) => (
+            <span key={`${m.start}:${m.end}`}>
+              {value.slice(i ? marks[i - 1].end : 0, m.start)}
+              <span
+                ref={(el) => {
+                  markRefs.current[i] = el;
+                }}
+                className="rounded-sm bg-amber-400/10 shadow-[0_0_0_1px_rgb(251_191_36/0.8)]"
+              >
+                {value.slice(m.start, m.end)}
+              </span>
+            </span>
+          ))}
+          {value.slice(marks[marks.length - 1].end)}
+        </div>
+      )}
       <textarea
         ref={ref}
         aria-label={label}
@@ -129,14 +204,29 @@ export function PromptInput({
           requestAnimationFrame(look);
         }}
         onKeyDown={onKeyDown}
-        onClick={look}
+        onKeyUp={(e) => {
+          if (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") markAt(markAtCaret());
+        }}
+        onClick={() => {
+          look();
+          markAt(markAtCaret());
+        }}
+        onScroll={(e) => {
+          if (backRef.current) backRef.current.scrollTop = e.currentTarget.scrollTop;
+          setShown(null);
+        }}
+        onMouseMove={(e) => {
+          if (!marks.length) return;
+          const i = markUnder(e.clientX, e.clientY);
+          if (i >= 0 && i !== shown) markAt(i);
+        }}
         onBlur={() => setTimeout(() => setTerm(null), 150)}
         title="Tab completes a suggested tag"
         role="combobox"
         aria-expanded={open}
         aria-autocomplete="list"
         className={cn(
-          "w-full resize-y bg-transparent text-neutral-100 placeholder:text-faint outline-none",
+          "relative w-full resize-y bg-transparent text-neutral-100 placeholder:text-faint outline-none",
           invalid && "text-red-200",
           className,
         )}
@@ -152,6 +242,28 @@ export function PromptInput({
           className="mt-0 w-80"
           style={at ? { left: at.left, top: at.top } : undefined}
         />
+      )}
+      {mark && bubbleAt && (
+        <div
+          role="note"
+          className="absolute z-30 w-72 rounded-lg border border-amber-700/60 bg-raised p-2.5 text-xs text-neutral-200 shadow-panel"
+          style={{ left: bubbleAt.left, top: bubbleAt.top }}
+        >
+          <p>{mark.reason}</p>
+          {fix && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                fix.apply();
+                setShown(null);
+              }}
+              className="mt-2 rounded-md border border-amber-700/70 bg-amber-900/30 px-2 py-1 text-amber-100 hover:bg-amber-900/50"
+            >
+              {fix.label}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
