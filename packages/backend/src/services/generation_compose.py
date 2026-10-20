@@ -25,22 +25,51 @@ def _chip_text(word: str) -> str:
     return word if is_embedding(word) else _PAREN.sub(r"\\\1", word)
 
 
-def compose(base: str, *chip_blocks: Iterable[str]) -> str:
-    """Base text, then each chip block in order, comma-joined. A chip already
-    written (in an earlier block) is written once."""
+def compose_parts(items: Iterable[str | Iterable[str]]) -> str:
+    """Layers in order, comma-joined: a string is free text written as is
+    (trailing comma dropped), any other iterable a chip block (tags escaped, a
+    chip already written in an earlier block written once)."""
     parts: list[str] = []
-    text = (base or "").strip().rstrip(",").strip()
-    if text:
-        parts.append(text)
     seen: set[str] = set()
-    for block in chip_blocks:
-        for word in block:
+    for item in items:
+        if isinstance(item, str):
+            text = item.strip().rstrip(",").strip()
+            if text:
+                parts.append(text)
+            continue
+        for word in item:
             word = word.strip()
             if not word or word in seen:
                 continue
             seen.add(word)
             parts.append(_chip_text(word))
     return ", ".join(parts)
+
+
+def compose(base: str, *chip_blocks: Iterable[str]) -> str:
+    """Base text, then each chip block in order (batches from before the
+    layered composer)."""
+    return compose_parts([base or "", *chip_blocks])
+
+
+_WEIGHT = re.compile(r"^[(\[]+|[)\]]+$|:\s*[\d.]+\s*[)\]]*$")
+
+
+def prompt_terms(text: str, limit: int = 2) -> list[str]:
+    """The first comma-separated terms of a prompt, for a batch's auto name:
+    weights and brackets dropped, embeddings and LoRA tags skipped."""
+    out: list[str] = []
+    for raw in (text or "").replace("\n", ",").split(","):
+        term = raw.strip()
+        if not term or is_embedding(term) or term.startswith("<"):
+            continue
+        term = _WEIGHT.sub("", term).strip()
+        term = _WEIGHT.sub("", term).strip().replace("\\", "")
+        if term:
+            out.append(term.replace("_", " "))
+        if len(out) == limit:
+            break
+    return out
 
 
 def display(word: str) -> str:
@@ -59,7 +88,8 @@ def auto_name(
     outfit: str | None = None,
 ) -> str:
     """ "Character, Outfit"; without a character, "Generator, first two Extra
-    tags"; else "Batch <n>". Built from the picks, never parsed from text."""
+    tags" (the layered composer passes the Prompt's first terms,
+    :func:`prompt_terms`); else "Batch <n>"."""
     if character:
         return ", ".join(p for p in (display(character), outfit) if p)
     words = [display(w) for w in extra if w.strip() and not is_embedding(w)][:2]

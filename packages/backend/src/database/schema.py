@@ -294,6 +294,19 @@ recipe_edits = sa.Table(
     sa.Column("updated_at", sa.Float),
 )
 
+# Saved prompt snippets for the composer's Prefix (kind "positive") and
+# Negative (kind "negative") layers. String ids; a batch records the text it
+# sent, so editing or deleting a preset never changes an old batch.
+prompt_presets = sa.Table(
+    "prompt_presets",
+    metadata,
+    sa.Column("_id", sa.Text, primary_key=True),
+    sa.Column("name", sa.Text, nullable=False),
+    sa.Column("kind", sa.Text, nullable=False),
+    sa.Column("text", sa.Text, nullable=False, server_default=""),
+    sa.Column("updated_at", sa.Float),
+)
+
 # A ComfyUI API-format graph plus slots (slot -> path into the graph). `ready`
 # flips once a test run's image is found in the library.
 generators = sa.Table(

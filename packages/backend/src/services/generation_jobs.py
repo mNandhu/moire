@@ -16,6 +16,7 @@ ComfyUI rejects it, nothing is kept and the caller gets the node errors.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 import os
@@ -29,7 +30,7 @@ from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from . import builtin_generator, comfy_models, comfy_settings
 from .comfy_client import ComfyClient, ComfyError, ComfyRejected, ComfyUnreachable
-from .generation_compose import auto_name, compose
+from .generation_compose import auto_name, compose, compose_parts, prompt_terms
 from .generator_graph import (
     GraphError,
     build_prompt,
@@ -117,6 +118,48 @@ def history_result(entry: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
             "message": "ComfyUI reported an error",
         }
     return "done", None
+
+
+_PART_KINDS = ("text", "character", "embedding")
+
+
+def _parts(raw: Any) -> list[dict[str, Any]] | None:
+    """The composer's ordered prompt parts: text (``role`` says which layer:
+    prefix, prompt, text, preset), the character's tags, an embedding.
+    ``None`` when the body has none (an old-style batch)."""
+    if not isinstance(raw, list):
+        return None
+    out = []
+    for p in raw[:64]:
+        if not isinstance(p, dict) or p.get("kind") not in _PART_KINDS:
+            continue
+        out.append(
+            {
+                "kind": p["kind"],
+                "role": str(p.get("role") or "")[:20],
+                "label": str(p.get("label") or "")[:120],
+                "text": str(p.get("text") or "")[:8000],
+                "name": str(p.get("name") or "")[:400],
+            }
+        )
+    return out
+
+
+def _resolve(
+    parts: list[dict[str, Any]], character: dict[str, Any] | None
+) -> list[str | list[str]]:
+    """Parts as :func:`compose_parts` items: text raw, the character's tags as
+    a chip block (nothing when no character is picked), embeddings as words."""
+    items: list[str | list[str]] = []
+    for p in parts:
+        if p["kind"] == "text":
+            items.append(p["text"])
+        elif p["kind"] == "character":
+            if character:
+                items.append(character["tags"])
+        elif p["name"]:
+            items.append(f"embedding:{p['name']}")
+    return items
 
 
 def _character_input(c: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -650,15 +693,36 @@ class GenerationManager:
             "per_request": per_request,
             "test": test,
         }
-        inputs["positive_text"] = compose(
-            inputs["base"], character["tags"] if character else [], extra
-        )
-        inputs["negative_text"] = compose(
-            inputs["negative_base"], inputs["negative_extra"]
-        )
+        positive = _parts(body.get("positive"))
+        if positive is not None:
+            # The layered composer: ordered parts, and its own state for
+            # "Edit and queue" (opaque here).
+            negative = _parts(body.get("negative")) or []
+            inputs["positive"] = positive
+            inputs["negative"] = negative
+            composer = body.get("composer")
+            inputs["composer"] = (
+                composer
+                if isinstance(composer, dict) and len(json.dumps(composer)) < 50_000
+                else None
+            )
+            inputs["positive_text"] = compose_parts(_resolve(positive, character))
+            inputs["negative_text"] = compose_parts(_resolve(negative, None))
+            extra = prompt_terms(
+                " , ".join(p["text"] for p in positive if p.get("role") == "prompt")
+            )
+        else:
+            inputs["positive_text"] = compose(
+                inputs["base"], character["tags"] if character else [], extra
+            )
+            inputs["negative_text"] = compose(
+                inputs["negative_base"], inputs["negative_extra"]
+            )
 
         async with self._tick_lock:
-            batch_id = await self._insert_and_submit(gen, inputs, sizes, seeds, body)
+            batch_id = await self._insert_and_submit(
+                gen, inputs, sizes, seeds, body, extra
+            )
         self._wake.set()
         return batch_id
 
@@ -669,11 +733,11 @@ class GenerationManager:
         sizes: list[int | None],
         seeds: list[int],
         body: dict[str, Any],
+        name_words: list[str],
     ) -> int:
         """Caller holds ``_tick_lock``, so the loop can't see the new pending
         rows (and submit them too) or a stale queue snapshot (and call the new
         prompt lost)."""
-        extra = inputs["extra"]
         b, r = t.generation_batches, t.generation_requests
         now = time.time()
         async with async_tx() as conn:
@@ -693,7 +757,7 @@ class GenerationManager:
             name = given or auto_name(
                 number=batch_id,
                 generator=gen["name"],
-                extra=extra,
+                extra=name_words,
                 character=character and (character["label"] or character["tag"]),
             )
             await conn.execute(
@@ -756,6 +820,9 @@ class GenerationManager:
                     "checkpoint",
                     "loras",
                     "character",
+                    "positive",
+                    "negative",
+                    "composer",
                     "width",
                     "height",
                     "count",

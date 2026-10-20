@@ -3,25 +3,23 @@ import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, FlaskConical, Loader2, Lock, Wand2 } from "lucide-react";
 import { Button, ButtonLink, Card, EmptyState, PageBody, PageHeader, Badge } from "../components/ui";
-import { ChipInput, bareTagPool } from "../components/generate/ChipInput";
+import { bareTagPool } from "../components/generate/ChipInput";
 import {
   BatchName,
   CheckpointPicker,
   CountStepper,
-  FieldLabel,
   QueueCard,
   SeedControl,
   SizePicker,
   StyleLoras,
   stemOf,
 } from "../components/generate/RunControls";
-import { CharacterBlock } from "../components/generate/CharacterBlock";
+import { CharacterLayer } from "../components/generate/CharacterBlock";
 import { ComfyStatusLine } from "../components/generate/ComfyStatusLine";
 import { useCharacters } from "../components/ImageCharacters";
 import { LatestResults } from "../components/generate/LatestResults";
 import { RecentBatches } from "../components/generate/RecentBatches";
 import { autoBatchName } from "../lib/batchName";
-import { compose } from "../lib/compose";
 import {
   BATCHES_KEY,
   GENERATORS_KEY,
@@ -36,10 +34,26 @@ import {
   useComfyStatus,
   useBatches,
   useGenerators,
+  usePresets,
   useRecipe,
   type NodeError,
 } from "../lib/generate";
-import { loadDraft, rejectedFields, saveDraft, toQueueBody, type GenerateForm } from "../lib/generateForm";
+import {
+  insertBlock,
+  loadDraft,
+  nameWords,
+  previewText,
+  rejectedFields,
+  removeBlock,
+  saveDraft,
+  toParts,
+  toQueueBody,
+  updateBlock,
+  type GenerateForm,
+} from "../lib/generateForm";
+import { cn } from "../lib/cn";
+import { PromptInput } from "../components/generate/PromptInput";
+import { AddLayer, EmbeddingLayer, LayerRow, NegativeLayer, PresetControl, TextLayer } from "../components/generate/Layers";
 import { useTagAggregate } from "../lib/queries";
 import { displayName } from "../lib/character";
 import { characterInput, characterTags } from "../lib/recipe";
@@ -47,33 +61,6 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
 
 const NO_STRINGS: string[] = [];
-
-function TextBlock({
-  label,
-  title,
-  value,
-  onChange,
-}: {
-  label: string;
-  title?: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div>
-      <FieldLabel>
-        <span title={title}>{label}</span>
-      </FieldLabel>
-      <textarea
-        aria-label={label}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={3}
-        className="w-full resize-y rounded-lg border border-neutral-800 bg-neutral-950/70 px-3 py-2 text-sm text-neutral-100 placeholder:text-faint outline-none focus:border-brand-600/60"
-      />
-    </div>
-  );
-}
 
 /** ComfyUI's rejection: the node errors, with Refresh models / Dismiss. */
 function RejectedBox({
@@ -181,6 +168,7 @@ export default function GeneratePage() {
   const { data: models } = useComfyModels();
   const { data: generators } = useGenerators();
   const { data: newest } = useBatches(1);
+  const { data: presets } = usePresets();
   const { data: tagAgg } = useTagAggregate({ includePrompt: true });
   const [form, setForm] = useState<GenerateForm>(() => loadDraft());
   const [rejected, setRejected] = useState<NodeError[] | null>(null);
@@ -207,14 +195,14 @@ export default function GeneratePage() {
   const autoName = autoBatchName({
     number: null,
     generator: gen?.name ?? "Built-in",
-    extra: form.extra,
+    extra: nameWords(form),
     character: charLabel,
   });
   const perRequest = settings?.builtin_per_request ?? 1;
   const connected = !!status?.connected;
 
   const queue = useMutation({
-    mutationFn: () => queueBatch(toQueueBody(form, gen?._id ?? "builtin", character)),
+    mutationFn: () => queueBatch(toQueueBody(form, gen?._id ?? "builtin", character, presets)),
     onMutate: () => setRejected(null),
     onSuccess: (b) => {
       toast.push(`Queued ${b.name}`, "success");
@@ -247,8 +235,9 @@ export default function GeneratePage() {
     );
   }
 
-  const positive = compose(form.base, recipe && character ? characterTags(recipe) : [], form.extra);
-  const negative = compose(form.negativeBase, form.negativeExtra);
+  const parts = toParts(form, presets);
+  const positive = previewText(parts.positive, recipe && character ? characterTags(recipe) : []);
+  const negative = previewText(parts.negative, []);
   const sentLoras = [
     ...(character?.lora ? [character.lora] : []),
     ...form.loras.filter((l) => !character?.lora || stemOf(l.name) !== stemOf(character.lora.name)),
@@ -280,44 +269,86 @@ export default function GeneratePage() {
       <PageBody width="wide">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="space-y-5 min-w-0">
-            <Card className="p-4 space-y-4">
-              <div className="text-sm font-medium text-neutral-100">Positive</div>
-              <TextBlock label="Base" title="Prepended to every prompt" value={form.base} onChange={(v) => set("base", v)} />
-              <div className="border-t border-line pt-4">
-                <CharacterBlock
-                  value={form.character}
-                  onChange={(v) => set("character", v)}
-                  installedLoras={models?.loras ?? NO_STRINGS}
-                  rejectedLoras={flagged.loras}
-                />
-              </div>
-              <div className="border-t border-line pt-4">
-                <FieldLabel>Extra</FieldLabel>
-                <ChipInput
-                  label="Extra positive tags"
-                  value={form.extra}
-                  onChange={(v) => set("extra", v)}
+            <div className="flex flex-col" aria-label="Positive prompt">
+              {form.blocks.map((blk, i) => (
+                <div key={"id" in blk ? blk.id : blk.kind}>
+                  {i > 0 && <AddLayer onAdd={(k) => set("blocks", insertBlock(form.blocks, i, k))} />}
+                  {blk.kind === "prefix" ? (
+                    <LayerRow label="Prefix">
+                      <PresetControl kind="positive" value={form.prefix} onChange={(v) => set("prefix", v)} presets={presets} label="Prefix preset" />
+                    </LayerRow>
+                  ) : blk.kind === "character" ? (
+                    <CharacterLayer
+                      value={form.character}
+                      onChange={(v) => set("character", v)}
+                      installedLoras={models?.loras ?? NO_STRINGS}
+                      rejectedLoras={flagged.loras}
+                    />
+                  ) : blk.kind === "prompt" ? (
+                    <Card
+                      className={cn(
+                        "px-4 pb-3 pt-3.5 ring-1 ring-brand-700/70 shadow-[0_0_0_3px_rgb(110_82_214/0.15)]",
+                        rejected?.some((e) => e.field === "positive") && "ring-red-700",
+                      )}
+                    >
+                      <div className="mb-1.5 text-sm font-semibold text-neutral-50">Prompt</div>
+                      <PromptInput
+                        label="Prompt"
+                        value={form.prompt}
+                        onChange={(v) => set("prompt", v)}
+                        suggestions={pool}
+                        embeddings={models?.embeddings ?? NO_STRINGS}
+                        rows={6}
+                        placeholder="Scene, pose, lighting"
+                        className="text-[15px] leading-relaxed"
+                      />
+                    </Card>
+                  ) : blk.kind === "text" ? (
+                    <TextLayer
+                      value={blk.text}
+                      onChange={(text) => set("blocks", updateBlock(form.blocks, blk.id, { text }))}
+                      onRemove={() => set("blocks", removeBlock(form.blocks, blk.id))}
+                    />
+                  ) : blk.kind === "preset" ? (
+                    <LayerRow label="Preset" onRemove={() => set("blocks", removeBlock(form.blocks, blk.id))}>
+                      <PresetControl
+                        kind="positive"
+                        value={blk.preset}
+                        onChange={(preset) => set("blocks", updateBlock(form.blocks, blk.id, { preset }))}
+                        presets={presets}
+                        label="Preset"
+                      />
+                    </LayerRow>
+                  ) : (
+                    <EmbeddingLayer
+                      value={blk.name}
+                      onChange={(name) => set("blocks", updateBlock(form.blocks, blk.id, { name }))}
+                      onRemove={() => set("blocks", removeBlock(form.blocks, blk.id))}
+                      embeddings={models?.embeddings ?? NO_STRINGS}
+                    />
+                  )}
+                </div>
+              ))}
+              <AddLayer onAdd={(k) => set("blocks", insertBlock(form.blocks, form.blocks.length, k))} />
+              <NegativeLayer
+                preset={form.negativePreset}
+                onPreset={(v) => set("negativePreset", v)}
+                presets={presets}
+                hasText={!!form.negative.trim()}
+              >
+                <PromptInput
+                  label="Negative prompt"
+                  value={form.negative}
+                  onChange={(v) => set("negative", v)}
                   suggestions={pool}
                   embeddings={models?.embeddings ?? NO_STRINGS}
-                  invalid={rejected?.some((e) => e.field === "positive")}
-                />
-              </div>
-            </Card>
-            <Card className="p-4 space-y-4">
-              <div className="text-sm font-medium text-neutral-100">Negative</div>
-              <TextBlock label="Base" title="Prepended to every negative prompt" value={form.negativeBase} onChange={(v) => set("negativeBase", v)} />
-              <div>
-                <FieldLabel>Extra</FieldLabel>
-                <ChipInput
-                  label="Extra negative tags"
-                  value={form.negativeExtra}
-                  onChange={(v) => set("negativeExtra", v)}
-                  suggestions={pool}
-                  embeddings={models?.embeddings ?? NO_STRINGS}
+                  rows={2}
+                  placeholder="More to avoid"
                   invalid={rejected?.some((e) => e.field === "negative")}
+                  className="text-sm"
                 />
-              </div>
-            </Card>
+              </NegativeLayer>
+            </div>
             <details className="rounded-lg border border-line bg-neutral-950/40 px-4 py-2.5 text-sm">
               <summary className="cursor-pointer text-muted">Prompt as sent</summary>
               <div className="mt-2 space-y-2 font-mono text-xs text-neutral-300 break-words">

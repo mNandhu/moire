@@ -1,46 +1,115 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_FORM, formFromBatch, loadDraft, rejectedFields, toQueueBody } from "./generateForm";
-import type { BatchInputs, NodeError } from "./generate";
+import {
+  DEFAULT_BLOCKS,
+  DEFAULT_FORM,
+  formFromBatch,
+  insertBlock,
+  loadDraft,
+  previewText,
+  rejectedFields,
+  removeBlock,
+  toParts,
+  toQueueBody,
+  validBlocks,
+  type GenerateForm,
+} from "./generateForm";
+import type { BatchInputs, NodeError, Preset } from "./generate";
+
+const presets: Preset[] = [
+  { _id: "q", name: "Quality", kind: "positive", text: "masterpiece, best quality", updated_at: 0 },
+  { _id: "n", name: "Neg", kind: "negative", text: "lowres", updated_at: 0 },
+];
+
+const draft = (d: unknown) => loadDraft({ getItem: () => JSON.stringify(d) });
 
 describe("toQueueBody", () => {
   it("sends a fixed seed only when it has a value", () => {
-    const body = toQueueBody({ ...DEFAULT_FORM, seed: { mode: "fixed", value: null } }, "builtin");
+    const body = toQueueBody({ ...DEFAULT_FORM, seed: { mode: "fixed", value: null } }, "builtin", null, presets);
     expect(body.seed).toEqual({ mode: "random", value: null });
-    expect(toQueueBody({ ...DEFAULT_FORM, seed: { mode: "fixed", value: 7 } }, "builtin").seed).toEqual({
+    expect(toQueueBody({ ...DEFAULT_FORM, seed: { mode: "fixed", value: 7 } }, "builtin", null, presets).seed).toEqual({
       mode: "fixed",
       value: 7,
     });
   });
 });
 
+describe("layers", () => {
+  const form: GenerateForm = {
+    ...DEFAULT_FORM,
+    prefix: { id: "q", text: "old text" },
+    prompt: "(smile:1.2), swing",
+    negativePreset: { id: "gone", text: "bad hands" },
+    negative: "blurry",
+  };
+
+  it("sends parts in layer order, presets at their current text", () => {
+    let blocks = insertBlock(form.blocks, 2, "embedding");
+    const emb = blocks[2] as { id: string };
+    blocks = blocks.map((b) => ("id" in b && b.id === emb.id ? { ...b, name: "pos/aesthetic" } : b));
+    const { positive, negative } = toParts({ ...form, blocks }, presets);
+    expect(positive).toEqual([
+      { kind: "text", role: "prefix", label: "Quality", text: "masterpiece, best quality" },
+      { kind: "character" },
+      { kind: "embedding", name: "pos/aesthetic" },
+      { kind: "text", role: "prompt", text: "(smile:1.2), swing" },
+    ]);
+    // A deleted preset still sends the text it had when picked.
+    expect(negative[0]).toMatchObject({ text: "bad hands" });
+    expect(previewText(positive, ["hu_tao_(genshin_impact)"])).toBe(
+      "masterpiece, best quality, hu_tao_\\(genshin_impact\\), embedding:pos/aesthetic, (smile:1.2), swing",
+    );
+    expect(removeBlock(blocks, emb.id)).toEqual(DEFAULT_BLOCKS);
+  });
+
+  it("rejects malformed stored layers", () => {
+    expect(validBlocks([{ kind: "prompt" }])).toEqual(DEFAULT_BLOCKS);
+    expect(validBlocks([...DEFAULT_BLOCKS, { kind: "text" }])).toEqual(DEFAULT_BLOCKS);
+    expect(validBlocks("x")).toEqual(DEFAULT_BLOCKS);
+    const ok = [...DEFAULT_BLOCKS, { kind: "text", id: "a", text: "t" }];
+    expect(validBlocks(ok)).toEqual(ok);
+  });
+});
+
 describe("loadDraft", () => {
   it("falls back to defaults on bad storage", () => {
     expect(loadDraft({ getItem: () => "not json" })).toEqual(DEFAULT_FORM);
-    expect(loadDraft({ getItem: () => { throw new Error("blocked"); } })).toEqual(DEFAULT_FORM);
+    expect(
+      loadDraft({
+        getItem: () => {
+          throw new Error("blocked");
+        },
+      }),
+    ).toEqual(DEFAULT_FORM);
     expect(loadDraft(null)).toEqual(DEFAULT_FORM);
   });
+
   it("keeps known fields of the right type", () => {
-    const d = loadDraft({ getItem: () => JSON.stringify({ base: "x", count: "9", checkpoint: "a.safetensors", junk: 1 }) });
-    expect(d.base).toBe("x");
+    const d = draft({ prompt: "x", count: "9", checkpoint: "a.safetensors", prefix: { id: "q", text: "t" }, junk: 1 });
+    expect(d.prompt).toBe("x");
     expect(d.count).toBe(DEFAULT_FORM.count);
     expect(d.checkpoint).toBe("a.safetensors");
+    expect(d.prefix).toEqual({ id: "q", text: "t" });
     expect("junk" in d).toBe(false);
+  });
+
+  it("moves the old composer's Base and Extra into the Prompt", () => {
+    const d = draft({ base: "sitting on a swing, garden", extra: ["red_dress"], negativeBase: "lowres", negativeExtra: [] });
+    expect(d.prompt).toBe("sitting on a swing, garden, red_dress");
+    expect(d.negative).toBe("lowres");
+    expect(d.prefix).toBeNull();
+    expect(d.blocks).toEqual(DEFAULT_BLOCKS);
   });
 });
 
 it("rejectedFields picks the checkpoint and LoRA names", () => {
-  const errs = [
-    { field: "checkpoint" },
-    { field: "lora", lora_name: "x.safetensors" },
-    { field: null },
-  ] as NodeError[];
+  const errs = [{ field: "checkpoint" }, { field: "lora", lora_name: "x.safetensors" }, { field: null }] as NodeError[];
   const r = rejectedFields(errs);
   expect(r.checkpoint).toBe(true);
   expect([...r.loras]).toEqual(["x.safetensors"]);
 });
 
-it("formFromBatch round-trips a batch into the composer", () => {
-  const inputs = {
+describe("formFromBatch", () => {
+  const base = {
     base: "b",
     extra: ["x"],
     negative_base: "n",
@@ -55,6 +124,15 @@ it("formFromBatch round-trips a batch into the composer", () => {
     positive_text: "b, x",
     negative_text: "n",
   } as BatchInputs;
-  const f = formFromBatch(inputs, null);
-  expect(toQueueBody(f, "builtin")).toMatchObject({ base: "b", extra: ["x"], count: 8, seed: { mode: "fixed", value: 5 }, name: null });
+
+  it("brings an old batch's text back as the Prompt", () => {
+    const f = formFromBatch(base, null);
+    expect(f).toMatchObject({ prompt: "b, x", negative: "n", count: 8, seed: { mode: "fixed", value: 5 }, name: null });
+  });
+
+  it("restores a layered batch's composer", () => {
+    const sent = toQueueBody({ ...DEFAULT_FORM, prompt: "swing", prefix: { id: "q", text: "t" } }, "builtin", null, presets);
+    const f = formFromBatch({ ...base, composer: sent.composer }, "Mine");
+    expect(f).toMatchObject({ prompt: "swing", prefix: { id: "q", text: "t" }, name: "Mine" });
+  });
 });

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, ChevronDown, RotateCcw, Undo2, UserRound, X } from "lucide-react";
-import { Badge } from "../ui";
+import { Ban, Check, ChevronDown, ChevronUp, RotateCcw, Undo2, UserRound, X } from "lucide-react";
+import { Badge, Card } from "../ui";
 import { Picker, type PickerOption } from "../ui/Picker";
 import { CharacterAvatar } from "../CharacterAvatar";
 import { useCharacters } from "../ImageCharacters";
@@ -309,5 +309,107 @@ export function CharacterBlock({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * The Character layer: one line (avatar, name, the identity tags it adds, its
+ * LoRA) that expands into the full {@link CharacterBlock}. With no character,
+ * just the picker.
+ */
+export function CharacterLayer({
+  value,
+  onChange,
+  installedLoras,
+  rejectedLoras,
+}: {
+  value: string | null;
+  onChange: (tag: string | null) => void;
+  installedLoras: readonly string[];
+  rejectedLoras: ReadonlySet<string>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const { data: everyone } = useCharacters();
+  const entry = useMemo(() => everyone?.find((c) => c.tag === value) ?? null, [everyone, value]);
+  const { data: recipe } = useRecipe(value);
+  const label = <span className="w-[4.5rem] shrink-0 text-xs font-medium text-muted">Character</span>;
+
+  if (!value) {
+    return (
+      <Card className="flex min-h-[3.25rem] items-center gap-3 px-3.5 py-2">
+        {label}
+        <div className="w-72 max-w-full">
+          <CharacterPicker value={null} onChange={onChange} />
+        </div>
+      </Card>
+    );
+  }
+  if (expanded) {
+    return (
+      <Card className="p-4">
+        <CharacterBlock value={value} onChange={onChange} installedLoras={installedLoras} rejectedLoras={rejectedLoras} />
+        <div className="mt-2 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-muted hover:bg-line hover:text-neutral-100"
+            aria-expanded
+          >
+            <ChevronUp size={14} /> Less
+          </button>
+        </div>
+      </Card>
+    );
+  }
+  const { name } = displayName(entry ?? { tag: value });
+  const kept = recipe?.identity.filter((c) => !c.dropped).map((c) => displayWord(c.tag)) ?? [];
+  const lora = recipe?.lora;
+  return (
+    <Card className="flex min-h-[3.25rem] items-center gap-3 px-3.5 py-2">
+      {label}
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        {entry ? (
+          <CharacterAvatar src={entry.thumb_url} face={entry.face} focus={entry.focus} aspect={entry.aspect} className="h-7 w-7 ring-1 ring-line" />
+        ) : (
+          <UserRound size={18} className="text-faint" />
+        )}
+        <span className="shrink-0 font-semibold text-neutral-50">{name}</span>
+        <span className="min-w-0 flex-1 truncate text-xs text-faint" title={kept.join(", ")}>
+          {kept.join(", ")}
+        </span>
+        {lora &&
+          (lora.file ? (
+            <span className="shrink-0 font-mono text-xs text-neutral-300" title="Character LoRA">
+              {lora.stem} {lora.strength.toFixed(2)}
+            </span>
+          ) : (
+            <span
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-dashed border-amber-700/70 bg-amber-950/20 px-1.5 py-0.5 text-xs text-amber-200"
+              title="This ComfyUI doesn't have this LoRA, so it is left out of the prompt"
+            >
+              <Ban size={12} />
+              <span className="font-mono line-through">{lora.stem}</span>
+              not used
+            </span>
+          ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        aria-expanded={false}
+        className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-xs text-muted hover:bg-line hover:text-neutral-100"
+      >
+        <ChevronDown size={14} /> More
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(null)}
+        aria-label="Remove character"
+        title="Remove character"
+        className="rounded p-1 text-muted hover:bg-line hover:text-neutral-100"
+      >
+        <X size={14} />
+      </button>
+    </Card>
   );
 }

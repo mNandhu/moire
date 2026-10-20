@@ -18,6 +18,7 @@ from ..services import (
     comfy_settings,
     generation_batches,
     library_watch,
+    prompt_presets,
     recipes,
 )
 from ..services.generation_jobs import (
@@ -66,6 +67,14 @@ class CharacterIn(BaseModel):
     lora: LoraIn | None = None
 
 
+class PartIn(BaseModel):
+    kind: str
+    role: str = ""
+    label: str = ""
+    text: str = ""
+    name: str = ""
+
+
 class BatchIn(BaseModel):
     generator_id: str = "builtin"
     base: str = ""
@@ -75,6 +84,10 @@ class BatchIn(BaseModel):
     checkpoint: str | None = None
     loras: list[LoraIn] = Field(default_factory=list)
     character: CharacterIn | None = None
+    #: The layered composer: ordered parts; base / extra are for old batches.
+    positive: list[PartIn] | None = None
+    negative: list[PartIn] | None = None
+    composer: dict[str, Any] | None = None
     width: int | None = None
     height: int | None = None
     seed: SeedIn = Field(default_factory=SeedIn)
@@ -257,6 +270,40 @@ async def put_recipe(tag: str, patch: dict[str, Any]):
     if r is None:
         raise HTTPException(status_code=404, detail="Character not found")
     return r
+
+
+# -- Prompt presets --------------------------------------------------------------
+
+
+@router.get("/presets")
+async def list_presets():
+    return await prompt_presets.listing()
+
+
+@router.post("/presets")
+async def create_preset(body: dict[str, Any]):
+    try:
+        return await prompt_presets.create(body)
+    except prompt_presets.PresetError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.put("/presets/{preset_id}")
+async def update_preset(preset_id: str, body: dict[str, Any]):
+    try:
+        row = await prompt_presets.update(preset_id, body)
+    except prompt_presets.PresetError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if row is None:
+        raise HTTPException(status_code=404, detail="Preset not found")
+    return row
+
+
+@router.delete("/presets/{preset_id}")
+async def delete_preset(preset_id: str):
+    if not await prompt_presets.delete(preset_id):
+        raise HTTPException(status_code=404, detail="Preset not found")
+    return {"ok": True}
 
 
 # -- Batches ----------------------------------------------------------------------

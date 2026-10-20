@@ -1,4 +1,9 @@
-from src.services.generation_compose import auto_name, compose
+from src.services.generation_compose import (
+    auto_name,
+    compose,
+    compose_parts,
+    prompt_terms,
+)
 
 
 def test_compose_base_then_blocks_escaped_and_deduped():
@@ -31,3 +36,29 @@ def test_auto_name_rules():
         extra=["embedding:x", "red_dress", "night", "rain"],
     ) == ("Built-in, red dress, night")
     assert auto_name(number=3, generator="Built-in") == "Batch 3"
+
+
+def test_compose_parts_keeps_text_raw_and_chips_escaped():
+    got = compose_parts(
+        [
+            "masterpiece, best quality,",
+            ["hu_tao_(genshin_impact)", "red_eyes"],
+            "embedding:pos/aesthetic",
+            "(smile:1.2), sitting on a swing, red_eyes",
+            [],
+        ]
+    )
+    assert got == (
+        "masterpiece, best quality, hu_tao_\\(genshin_impact\\), red_eyes, "
+        "embedding:pos/aesthetic, (smile:1.2), sitting on a swing, red_eyes"
+    )
+
+
+def test_prompt_terms_for_the_auto_name():
+    assert prompt_terms(
+        "(smile:1.2), embedding:x, <lora:a:1>, sitting_on_swing, garden"
+    ) == [
+        "smile",
+        "sitting on swing",
+    ]
+    assert prompt_terms("") == []

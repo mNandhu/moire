@@ -1,14 +1,35 @@
 /**
  * The Generate composer's state, its request body, and the per-viewer draft
  * kept in localStorage so a half-written prompt survives navigation.
+ *
+ * The positive prompt is an ordered list of layers: Prefix (a preset),
+ * Character, Prompt (the main text) and any the user adds with "+" (free
+ * text, another preset, an embedding). The negative is a preset plus text.
+ * A preset is referenced with a snapshot of its text, so a deleted preset
+ * still sends what it said.
  */
-import type { BatchInputs, CharacterInput, LoraPick, NodeError, QueueBody } from "./generate";
+import { compose, composeParts, promptTerms } from "./compose";
+import type { BatchInputs, CharacterInput, LoraPick, NodeError, Preset, PromptPart, QueueBody } from "./generate";
+
+export type PresetRef = { id: string; text: string } | null;
+
+export type Block =
+  | { kind: "prefix" }
+  | { kind: "character" }
+  | { kind: "prompt" }
+  | { kind: "text"; id: string; text: string }
+  | { kind: "preset"; id: string; preset: PresetRef }
+  | { kind: "embedding"; id: string; name: string };
+
+export type AddedKind = "text" | "preset" | "embedding";
 
 export type GenerateForm = {
-  base: string;
-  extra: string[];
-  negativeBase: string;
-  negativeExtra: string[];
+  prefix: PresetRef;
+  blocks: Block[];
+  /** The main text: scene, pose, everything that isn't boilerplate. */
+  prompt: string;
+  negativePreset: PresetRef;
+  negative: string;
   checkpoint: string | null;
   loras: LoraPick[];
   /** The picked character's page key; its block comes from the recipe. */
@@ -21,11 +42,14 @@ export type GenerateForm = {
   name: string | null;
 };
 
+export const DEFAULT_BLOCKS: Block[] = [{ kind: "prefix" }, { kind: "character" }, { kind: "prompt" }];
+
 export const DEFAULT_FORM: GenerateForm = {
-  base: "",
-  extra: [],
-  negativeBase: "",
-  negativeExtra: [],
+  prefix: null,
+  blocks: DEFAULT_BLOCKS,
+  prompt: "",
+  negativePreset: null,
+  negative: "",
   checkpoint: null,
   loras: [],
   character: null,
@@ -36,16 +60,84 @@ export const DEFAULT_FORM: GenerateForm = {
   name: null,
 };
 
-export function toQueueBody(f: GenerateForm, generatorId: string, character: CharacterInput | null = null): QueueBody {
+let nextId = 0;
+const newId = () => `b${Date.now().toString(36)}${(nextId++).toString(36)}`;
+
+/** A new layer of `kind` inserted before position `at`. */
+export function insertBlock(blocks: readonly Block[], at: number, kind: AddedKind): Block[] {
+  const b: Block =
+    kind === "text"
+      ? { kind, id: newId(), text: "" }
+      : kind === "preset"
+        ? { kind, id: newId(), preset: null }
+        : { kind, id: newId(), name: "" };
+  return [...blocks.slice(0, at), b, ...blocks.slice(at)];
+}
+
+export function updateBlock(blocks: readonly Block[], id: string, patch: Partial<Block>): Block[] {
+  return blocks.map((b) => ("id" in b && b.id === id ? ({ ...b, ...patch } as Block) : b));
+}
+
+export function removeBlock(blocks: readonly Block[], id: string): Block[] {
+  return blocks.filter((b) => !("id" in b && b.id === id));
+}
+
+/** A preset's current text, else the snapshot taken when it was picked. */
+export function presetText(ref: PresetRef, presets: readonly Preset[] | undefined): string {
+  if (!ref) return "";
+  return presets?.find((p) => p._id === ref.id)?.text ?? ref.text;
+}
+
+/** The ordered parts the backend composes (and the batch records). */
+export function toParts(f: GenerateForm, presets: readonly Preset[] | undefined): { positive: PromptPart[]; negative: PromptPart[] } {
+  const name = (ref: PresetRef) => presets?.find((p) => p._id === ref?.id)?.name ?? "";
+  const positive: PromptPart[] = [];
+  for (const b of f.blocks) {
+    if (b.kind === "prefix") positive.push({ kind: "text", role: "prefix", label: name(f.prefix), text: presetText(f.prefix, presets) });
+    else if (b.kind === "character") positive.push({ kind: "character" });
+    else if (b.kind === "prompt") positive.push({ kind: "text", role: "prompt", text: f.prompt });
+    else if (b.kind === "text") positive.push({ kind: "text", role: "text", text: b.text });
+    else if (b.kind === "preset") positive.push({ kind: "text", role: "preset", label: name(b.preset), text: presetText(b.preset, presets) });
+    else if (b.name) positive.push({ kind: "embedding", name: b.name });
+  }
+  return {
+    positive,
+    negative: [
+      { kind: "text", role: "prefix", label: name(f.negativePreset), text: presetText(f.negativePreset, presets) },
+      { kind: "text", role: "prompt", text: f.negative },
+    ],
+  };
+}
+
+/** What the backend will send, for the "Prompt as sent" preview. */
+export function previewText(parts: readonly PromptPart[], characterTags: readonly string[]): string {
+  return composeParts(
+    parts.map((p) =>
+      p.kind === "text" ? (p.text ?? "") : p.kind === "character" ? characterTags : p.name ? `embedding:${p.name}` : "",
+    ),
+  );
+}
+
+/** Words for the auto batch name when no character is picked. */
+export function nameWords(f: Pick<GenerateForm, "prompt">): string[] {
+  return promptTerms(f.prompt);
+}
+
+export function toQueueBody(
+  f: GenerateForm,
+  generatorId: string,
+  character: CharacterInput | null,
+  presets: readonly Preset[] | undefined,
+): QueueBody {
+  const { positive, negative } = toParts(f, presets);
   return {
     generator_id: generatorId,
-    base: f.base,
-    extra: f.extra,
-    negative_base: f.negativeBase,
-    negative_extra: f.negativeExtra,
     checkpoint: f.checkpoint,
     loras: f.loras,
     character,
+    positive,
+    negative,
+    composer: composerState(f),
     width: f.width,
     height: f.height,
     seed: f.seed.mode === "fixed" && f.seed.value != null ? f.seed : { mode: "random", value: null },
@@ -54,14 +146,85 @@ export function toQueueBody(f: GenerateForm, generatorId: string, character: Cha
   };
 }
 
+const COMPOSER_KEYS = ["prefix", "blocks", "prompt", "negativePreset", "negative"] as const;
+
+function composerState(f: GenerateForm): Record<string, unknown> {
+  return { v: 2, ...Object.fromEntries(COMPOSER_KEYS.map((k) => [k, f[k]])) };
+}
+
+// -- Validation (drafts and batches are stored data: never trust their shape) --
+
+const isStr = (v: unknown): v is string => typeof v === "string";
+
+function presetRef(v: unknown): PresetRef | undefined {
+  if (v === null) return null;
+  if (v && typeof v === "object" && isStr((v as { id: unknown }).id) && isStr((v as { text: unknown }).text)) {
+    const r = v as { id: string; text: string };
+    return { id: r.id, text: r.text };
+  }
+  return undefined;
+}
+
+function block(v: unknown): Block | null {
+  if (!v || typeof v !== "object") return null;
+  const b = v as Record<string, unknown>;
+  if (b.kind === "prefix" || b.kind === "character" || b.kind === "prompt") return { kind: b.kind };
+  if (!isStr(b.id)) return null;
+  if (b.kind === "text" && isStr(b.text)) return { kind: "text", id: b.id, text: b.text };
+  if (b.kind === "embedding" && isStr(b.name)) return { kind: "embedding", id: b.id, name: b.name };
+  if (b.kind === "preset") {
+    const p = presetRef(b.preset);
+    return p === undefined ? null : { kind: "preset", id: b.id, preset: p };
+  }
+  return null;
+}
+
+/** Stored layers, or the defaults when they're malformed: every layer valid
+ * and Prefix, Character and Prompt each there once. */
+export function validBlocks(v: unknown): Block[] {
+  if (!Array.isArray(v)) return DEFAULT_BLOCKS;
+  const out = v.map(block);
+  if (out.some((b) => b === null)) return DEFAULT_BLOCKS;
+  const blocks = out as Block[];
+  for (const k of ["prefix", "character", "prompt"] as const) {
+    if (blocks.filter((b) => b.kind === k).length !== 1) return DEFAULT_BLOCKS;
+  }
+  return blocks;
+}
+
+/** The composer fields from a stored record, falling back field by field. */
+function composerFrom(d: Record<string, unknown>): Pick<GenerateForm, (typeof COMPOSER_KEYS)[number]> {
+  const prefix = presetRef(d.prefix);
+  const negativePreset = presetRef(d.negativePreset);
+  return {
+    prefix: prefix === undefined ? null : prefix,
+    blocks: validBlocks(d.blocks),
+    prompt: isStr(d.prompt) ? d.prompt : "",
+    negativePreset: negativePreset === undefined ? null : negativePreset,
+    negative: isStr(d.negative) ? d.negative : "",
+  };
+}
+
+/** The old Base + Extra composer's text: it held the user's whole prompt, so
+ * it becomes the Prompt (not the Prefix). */
+function migrated(d: Record<string, unknown>): Partial<GenerateForm> {
+  const tags = (v: unknown) => (Array.isArray(v) ? v.filter(isStr) : []);
+  return {
+    prompt: compose(isStr(d.base) ? d.base : "", tags(d.extra)),
+    negative: compose(isStr(d.negativeBase) ? d.negativeBase : "", tags(d.negativeExtra)),
+  };
+}
+
 /** A batch's inputs back in the composer ("Edit and queue"). A typed name
  * stays; an auto name is picked again. */
 export function formFromBatch(i: BatchInputs, name: string | null): GenerateForm {
+  const c = i.composer && (i.composer as { v?: unknown }).v === 2 ? composerFrom(i.composer) : null;
   return {
-    base: i.base,
-    extra: [...i.extra],
-    negativeBase: i.negative_base,
-    negativeExtra: [...i.negative_extra],
+    ...DEFAULT_FORM,
+    ...(c ?? {
+      prompt: compose(i.base ?? "", i.extra ?? []),
+      negative: compose(i.negative_base ?? "", i.negative_extra ?? []),
+    }),
     checkpoint: i.checkpoint,
     loras: i.loras.map((l) => ({ ...l })),
     character: i.character?.tag ?? null,
@@ -76,21 +239,29 @@ export function formFromBatch(i: BatchInputs, name: string | null): GenerateForm
 const DRAFT_KEY = "moire.generate.draft";
 
 /** The saved draft merged over defaults; defaults when storage is empty,
- * blocked or holds something else. */
+ * blocked or holds something else. A draft from the old composer has its
+ * Base + Extra moved into the Prompt. */
 export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage()): GenerateForm {
   try {
     const raw = storage?.getItem(DRAFT_KEY);
     if (!raw) return DEFAULT_FORM;
     const d = JSON.parse(raw);
-    if (!d || typeof d !== "object") return DEFAULT_FORM;
-    const out = { ...DEFAULT_FORM };
-    for (const k of Object.keys(DEFAULT_FORM) as (keyof GenerateForm)[]) {
-      if (!(k in d)) continue;
-      // Nullable fields take a string or null; the rest must keep their type.
-      const ok = DEFAULT_FORM[k] === null ? d[k] === null || typeof d[k] === "string" : typeof d[k] === typeof DEFAULT_FORM[k];
-      if (ok) {
-        (out as Record<string, unknown>)[k] = d[k];
-      }
+    if (!d || typeof d !== "object" || Array.isArray(d)) return DEFAULT_FORM;
+    const out: GenerateForm = { ...DEFAULT_FORM, ...composerFrom(d) };
+    if (!("prompt" in d) && ("base" in d || "extra" in d)) Object.assign(out, migrated(d));
+    if (isStr(d.checkpoint) || d.checkpoint === null) out.checkpoint = d.checkpoint;
+    if (isStr(d.character) || d.character === null) out.character = d.character;
+    if (isStr(d.name) || d.name === null) out.name = d.name;
+    for (const k of ["width", "height", "count"] as const) if (typeof d[k] === "number") out[k] = d[k];
+    if (Array.isArray(d.loras)) {
+      out.loras = d.loras.filter(
+        (l: unknown): l is LoraPick =>
+          !!l && typeof l === "object" && isStr((l as LoraPick).name) && typeof (l as LoraPick).strength === "number",
+      );
+    }
+    const seed = d.seed;
+    if (seed && (seed.mode === "random" || seed.mode === "fixed") && (seed.value === null || typeof seed.value === "number")) {
+      out.seed = { mode: seed.mode, value: seed.value };
     }
     return out;
   } catch {

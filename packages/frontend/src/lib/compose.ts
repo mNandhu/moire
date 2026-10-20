@@ -20,15 +20,19 @@ function chipText(word: string): string {
   return isEmbedding(word) ? word : word.replace(/([()])/g, "\\$1");
 }
 
-/** Base text, then each chip block in order, comma-joined; a chip already
- * written in an earlier block is written once. */
-export function compose(base: string, ...blocks: readonly (readonly string[])[]): string {
+/** Layers in order, comma-joined: a string is free text written as is
+ * (trailing comma dropped), an array a chip block (tags escaped, a chip
+ * already written in an earlier block written once). */
+export function composeParts(items: readonly (string | readonly string[])[]): string {
   const parts: string[] = [];
-  const text = (base ?? "").trim().replace(/,\s*$/, "").trim();
-  if (text) parts.push(text);
   const seen = new Set<string>();
-  for (const block of blocks) {
-    for (const raw of block) {
+  for (const item of items) {
+    if (typeof item === "string") {
+      const text = item.trim().replace(/,\s*$/, "").trim();
+      if (text) parts.push(text);
+      continue;
+    }
+    for (const raw of item) {
       const word = raw.trim();
       if (!word || seen.has(word)) continue;
       seen.add(word);
@@ -36,6 +40,27 @@ export function compose(base: string, ...blocks: readonly (readonly string[])[])
     }
   }
   return parts.join(", ");
+}
+
+/** Base text, then each chip block in order (batches from before the layered composer). */
+export function compose(base: string, ...blocks: readonly (readonly string[])[]): string {
+  return composeParts([base ?? "", ...blocks]);
+}
+
+const WEIGHT = /^[([]+|[)\]]+$|:\s*[\d.]+\s*[)\]]*$/g;
+
+/** The first comma-separated terms of a prompt, for a batch's auto name:
+ * weights and brackets dropped, embeddings and LoRA tags skipped. */
+export function promptTerms(text: string, limit = 2): string[] {
+  const out: string[] = [];
+  for (const raw of (text ?? "").replace(/\n/g, ",").split(",")) {
+    let term = raw.trim();
+    if (!term || isEmbedding(term) || term.startsWith("<")) continue;
+    term = term.replace(WEIGHT, "").trim().replace(WEIGHT, "").trim().replace(/\\/g, "");
+    if (term) out.push(term.replace(/_/g, " "));
+    if (out.length === limit) break;
+  }
+  return out;
 }
 
 /** Chip / name display: underscores read as spaces, embeddings by name. */

@@ -160,6 +160,23 @@ Deferred: reference images (ControlNet / IPAdapter, face crops).
 
 ### Composer: prompt blocks
 
+**Superseded 2026-10-20 (composer rework, option A on the canvas board
+"Generate: composer rework options").** Base turned out to hold the whole
+prompt, so: the positive prompt is an ordered list of layers, Prefix (a
+saved preset, not a text box) + Character (one line, expands to the full
+block) + Prompt (the big main field, free text with tag / embedding
+autocomplete: Tab takes a suggestion, Enter only after arrowing into the
+list) + any the user adds with the "+" between layers (Text, Preset,
+Embedding). Negative = a preset + text. Presets live in `prompt_presets`
+(defaults added once); a layer keeps a snapshot of the preset's text, and the
+batch records the text sent, so editing or deleting a preset never changes
+an old batch. The batch auto name without a character takes the Prompt's
+first two terms (`prompt_terms`). Results of the newest batch show under
+Queue (below it, so the button never moves); Base / Extra survive only for
+batches queued before the rework (requeue and Edit and queue still read
+them). The text below is the original design.
+
+
 - Positive = **Base** (Generator's text, editable) + **Character** (recipe
   chips) + **Outfit** (chips) + **Extra** (free tags, autocomplete), joined
   in that order on queue. Negative = Base + Extra.
@@ -180,7 +197,7 @@ Deferred: reference images (ControlNet / IPAdapter, face crops).
 - **Generation batch**: one press of Queue; kept permanently with its slot
   values, picked character / outfit / recipe / style LoRAs; re-queueable.
 - **Batch name**: auto "Character, Outfit", or "Generator, first two Extra
-  tags" without a character, else "Batch <n>". Built from the structured
+  tags" (since the composer rework: the Prompt's first two terms) without a character, else "Batch <n>". Built from the structured
   picks, never parsed from prompt text. Not unique (batches are identified by
   number + time). Editable above Queue (typing stops the auto name) and
   renamable on the batch page; no naming-template setting.

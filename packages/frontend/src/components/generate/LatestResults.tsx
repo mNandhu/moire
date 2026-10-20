@@ -22,7 +22,7 @@ function Latest({ id }: { id: number }) {
           {b.name}
         </span>
         {done < b.requests.length && (
-          <span className="font-mono text-xs text-muted">
+          <span className="shrink-0 whitespace-nowrap font-mono text-xs text-muted">
             {done} / {b.requests.length}
           </span>
         )}

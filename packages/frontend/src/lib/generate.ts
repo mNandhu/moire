@@ -134,6 +134,18 @@ export type Recipe = {
   candidates: { stem: string; file: string | null; images: number; strength: number | null }[];
 };
 
+export type Preset = { _id: string; name: string; kind: "positive" | "negative"; text: string; updated_at: number };
+
+/** One ordered part of a prompt as queued: free text (role says which layer),
+ * the character's tags, or an embedding. */
+export type PromptPart = {
+  kind: "text" | "character" | "embedding";
+  role?: "prefix" | "prompt" | "text" | "preset";
+  label?: string;
+  text?: string;
+  name?: string;
+};
+
 /** A recipe edit: dropped tags; lora a stem / file, "" none, null computed; strength or null. */
 export type RecipePatch = Partial<{ dropped: string[]; lora: string | null; strength: number | null }>;
 
@@ -145,6 +157,10 @@ export type BatchInputs = {
   checkpoint: string | null;
   loras: LoraPick[];
   character?: CharacterInput | null;
+  /** Layered composer batches: the parts sent and the composer's own state. */
+  positive?: PromptPart[] | null;
+  negative?: PromptPart[] | null;
+  composer?: Record<string, unknown> | null;
   width: number | null;
   height: number | null;
   seed: { mode: "random" | "fixed"; value: number | null };
@@ -196,13 +212,12 @@ export type NodeError = {
 
 export type QueueBody = {
   generator_id: string;
-  base: string;
-  extra: string[];
-  negative_base: string;
-  negative_extra: string[];
   checkpoint: string | null;
   loras: LoraPick[];
   character: CharacterInput | null;
+  positive: PromptPart[];
+  negative: PromptPart[];
+  composer: Record<string, unknown>;
   width: number | null;
   height: number | null;
   seed: { mode: "random" | "fixed"; value: number | null };
@@ -250,6 +265,7 @@ export const SETTINGS_KEY = [...GEN_KEY, "settings"] as const;
 export const GENERATORS_KEY = [...GEN_KEY, "generators"] as const;
 export const BATCHES_KEY = [...GEN_KEY, "batches"] as const;
 export const batchKey = (id: number) => [...GEN_KEY, "batch", id] as const;
+export const PRESETS_KEY = [...GEN_KEY, "presets"] as const;
 export const recipeKey = (tag: string) => [...GEN_KEY, "recipe", tag] as const;
 
 export const getSettings = () => api<ComfySettings>(`${BASE}/comfyui`);
@@ -263,6 +279,10 @@ export const startTest = (generatorId: string, checkpoint: string | null) =>
   send<{ batch_id: number }>(`/generators/${generatorId}/test`, "POST", { checkpoint });
 export const putRecipe = (tag: string, patch: RecipePatch) =>
   send<Recipe>(`/recipes/${encodeURIComponent(tag)}`, "PUT", patch);
+export const createPreset = (p: Pick<Preset, "name" | "kind" | "text">) => send<Preset>("/presets", "POST", p);
+export const updatePreset = (id: string, p: Partial<Pick<Preset, "name" | "text">>) =>
+  send<Preset>(`/presets/${encodeURIComponent(id)}`, "PUT", p);
+export const deletePreset = (id: string) => send<{ ok: boolean }>(`/presets/${encodeURIComponent(id)}`, "DELETE");
 export const queueBatch = (body: QueueBody) => send<Batch>("/batches", "POST", body);
 export const renameBatch = (id: number, name: string) => send<Batch>(`/batches/${id}`, "PATCH", { name });
 export const requeueBatch = (id: number) => send<Batch>(`/batches/${id}/requeue`, "POST");
@@ -303,6 +323,10 @@ export function useGenerators() {
         ? 1000
         : false,
   });
+}
+
+export function usePresets() {
+  return useQuery({ queryKey: PRESETS_KEY, queryFn: ({ signal }) => api<Preset[]>(`${BASE}/presets`, { signal }) });
 }
 
 export function useRecipe(tag: string | null) {
