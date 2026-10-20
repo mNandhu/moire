@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Maximize2, Pencil, UserRound, X } from "lucide-react";
+import { ExternalLink, Pencil, Tag as TagIcon, UserRound, X } from "lucide-react";
 import { Badge } from "./ui/Badge";
 import { Button, ButtonLink } from "./ui/Button";
 import { Skeleton } from "./ui/Skeleton";
@@ -151,9 +151,9 @@ export function TagPanel({
 
       {/* A character's avatar heads the panel; a tag shows a collage. */}
       {detail?.category !== "character" && (
-        <div className="rounded-lg overflow-hidden">
+        <Link to={tagHref(tag)} title="Open the tag's page" className="block rounded-lg overflow-hidden hover:opacity-90">
           <Mosaic samples={samples} cover={detail?.thumb_url ?? null} focus={detail?.focus} focusImage={detail?.cover_image_id} className="aspect-[16/10]" />
-        </div>
+        </Link>
       )}
 
       <div className="flex flex-wrap gap-2">
@@ -167,8 +167,8 @@ export function TagPanel({
         ) : (
           detail && (
             <>
-            <ButtonLink size="sm" to={tagHref(tag)} title="Centre its cover, pick a new one">
-              <Maximize2 size={14} /> Tag page
+            <ButtonLink size="sm" to={tagHref(tag)} title="Its images, cover and what it was made with">
+              <TagIcon size={14} /> Tag page
             </ButtonLink>
             <Button size="sm" onClick={() => void markCharacter()} title="Give this tag a character page">
               <UserRound size={14} /> Mark as character

@@ -155,6 +155,11 @@ export function Sidebar({
             ))}
           </div>
         ))}
+        {/* Under the last page (Rules), apart from them; hovering it floats a
+            forward button past the sidebar's edge. */}
+        <div className={cn("hidden border-t border-line pt-3 [@media(hover:hover)_and_(pointer:fine)]:block", collapsed && "mx-2")}>
+          <BackButton label={collapsed ? undefined : "Back"} className={collapsed ? "w-full justify-center py-2.5" : undefined} />
+        </div>
       </nav>
 
       {/* Footer. The backend only earns a line when something is wrong
@@ -175,9 +180,6 @@ export function Sidebar({
           </div>
         )}
         <NavButton label="Settings" path="/settings" icon={Settings} />
-        {/* Last, so it sits by the thumb; hovering it floats a forward
-            button past the sidebar's edge. */}
-        <BackButton label={collapsed ? undefined : "Back"} className={collapsed ? "w-full justify-center py-2.5" : undefined} />
       </div>
     </aside>
   );
