@@ -68,6 +68,11 @@ describe("layers", () => {
     const ok = [...DEFAULT_BLOCKS, { kind: "text", id: "a", text: "t" }];
     expect(validBlocks(ok)).toEqual(ok);
   });
+
+  it("adds Style after the Prompt to layers saved before it existed", () => {
+    const old = [{ kind: "prefix" }, { kind: "prompt" }, { kind: "text", id: "a", text: "t" }, { kind: "character" }];
+    expect(validBlocks(old).map((b) => b.kind)).toEqual(["prefix", "prompt", "style", "text", "character"]);
+  });
 });
 
 describe("loadDraft", () => {

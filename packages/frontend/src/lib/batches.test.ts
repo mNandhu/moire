@@ -37,6 +37,8 @@ describe("result grid", () => {
     expect(resultGrid(1, "page")).toEqual({ cols: 1, rows: 1 });
     expect(resultGrid(2, "page")).toEqual({ cols: 2, rows: 1 });
     expect(resultGrid(8, "page")).toEqual({ cols: 4, rows: 2 });
+    expect(resultGrid(1, "panel")).toEqual({ cols: 1, rows: 1 });
     expect(resultGrid(3, "panel")).toEqual({ cols: 2, rows: 2 });
+    expect(resultGrid(8, "panel")).toEqual({ cols: 4, rows: 2 });
   });
 });

@@ -3,8 +3,8 @@
  * kept in localStorage so a half-written prompt survives navigation.
  *
  * The positive prompt is an ordered list of layers: Prefix (a preset),
- * Character, Prompt (the main text) and any the user adds with "+" (free
- * text, another preset, an embedding). The negative is a preset plus text.
+ * Character, Prompt (the main text), Style (the style LoRAs) and any the user
+ * adds with "+" (free text, another preset, an embedding). The negative is a preset plus text.
  * A preset is referenced with a snapshot of its text, so a deleted preset
  * still sends what it said.
  */
@@ -17,6 +17,7 @@ export type Block =
   | { kind: "prefix" }
   | { kind: "character" }
   | { kind: "prompt" }
+  | { kind: "style" }
   | { kind: "text"; id: string; text: string }
   | { kind: "preset"; id: string; preset: PresetRef }
   | { kind: "embedding"; id: string; name: string };
@@ -42,7 +43,7 @@ export type GenerateForm = {
   name: string | null;
 };
 
-export const DEFAULT_BLOCKS: Block[] = [{ kind: "prefix" }, { kind: "character" }, { kind: "prompt" }];
+export const DEFAULT_BLOCKS: Block[] = [{ kind: "prefix" }, { kind: "character" }, { kind: "prompt" }, { kind: "style" }];
 
 export const DEFAULT_FORM: GenerateForm = {
   prefix: null,
@@ -96,6 +97,7 @@ export function toParts(f: GenerateForm, presets: readonly Preset[] | undefined)
     if (b.kind === "prefix") positive.push({ kind: "text", role: "prefix", label: name(f.prefix), text: presetText(f.prefix, presets) });
     else if (b.kind === "character") positive.push({ kind: "character" });
     else if (b.kind === "prompt") positive.push({ kind: "text", role: "prompt", text: f.prompt });
+    else if (b.kind === "style") continue;
     else if (b.kind === "text") positive.push({ kind: "text", role: "text", text: b.text });
     else if (b.kind === "preset") positive.push({ kind: "text", role: "preset", label: name(b.preset), text: presetText(b.preset, presets) });
     else if (b.name) positive.push({ kind: "embedding", name: b.name });
@@ -168,7 +170,7 @@ function presetRef(v: unknown): PresetRef | undefined {
 function block(v: unknown): Block | null {
   if (!v || typeof v !== "object") return null;
   const b = v as Record<string, unknown>;
-  if (b.kind === "prefix" || b.kind === "character" || b.kind === "prompt") return { kind: b.kind };
+  if (b.kind === "prefix" || b.kind === "character" || b.kind === "prompt" || b.kind === "style") return { kind: b.kind };
   if (!isStr(b.id)) return null;
   if (b.kind === "text" && isStr(b.text)) return { kind: "text", id: b.id, text: b.text };
   if (b.kind === "embedding" && isStr(b.name)) return { kind: "embedding", id: b.id, name: b.name };
@@ -180,13 +182,18 @@ function block(v: unknown): Block | null {
 }
 
 /** Stored layers, or the defaults when they're malformed: every layer valid
- * and Prefix, Character and Prompt each there once. */
+ * and Prefix, Character, Prompt and Style each there once. Layers saved
+ * before Style existed get it after the Prompt. */
 export function validBlocks(v: unknown): Block[] {
   if (!Array.isArray(v)) return DEFAULT_BLOCKS;
   const out = v.map(block);
   if (out.some((b) => b === null)) return DEFAULT_BLOCKS;
-  const blocks = out as Block[];
-  for (const k of ["prefix", "character", "prompt"] as const) {
+  let blocks = out as Block[];
+  if (!blocks.some((b) => b.kind === "style")) {
+    const at = blocks.findIndex((b) => b.kind === "prompt") + 1;
+    blocks = [...blocks.slice(0, at), { kind: "style" }, ...blocks.slice(at)];
+  }
+  for (const k of ["prefix", "character", "prompt", "style"] as const) {
     if (blocks.filter((b) => b.kind === k).length !== 1) return DEFAULT_BLOCKS;
   }
   return blocks;

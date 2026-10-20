@@ -1,4 +1,4 @@
-import asyncio, base64, json, sys, urllib.request
+import asyncio, base64, json, os, sys, urllib.request
 import websockets
 
 async def main(url, draft, out, clicks):
@@ -12,7 +12,7 @@ async def main(url, draft, out, clicks):
             while True:
                 m = json.loads(await ws.recv())
                 if m.get("id") == my: return m.get("result")
-        await call("Emulation.setDeviceMetricsOverride", width=1440, height=1300, deviceScaleFactor=1, mobile=False)
+        await call("Emulation.setDeviceMetricsOverride", width=int(os.environ.get("SHOT_W", 1440)), height=int(os.environ.get("SHOT_H", 1300)), deviceScaleFactor=1, mobile=False)
         await call("Page.navigate", url=url)
         await asyncio.sleep(3)
         await call("Runtime.evaluate", expression=f"localStorage.setItem('moire.generate.draft', {json.dumps(draft)})")

@@ -55,6 +55,22 @@ const ADD: { kind: AddedKind; label: string; icon: React.ReactNode; title: strin
   { kind: "embedding", label: "Embedding", icon: <Sparkles size={14} />, title: "An installed embedding" },
 ];
 
+/** The chevron that folds a layer open or shut. */
+export function ExpandButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      aria-label={open ? "Less" : "More"}
+      title={open ? "Less" : "More"}
+      className="shrink-0 rounded p-1 text-muted hover:bg-line hover:text-neutral-100"
+    >
+      {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+    </button>
+  );
+}
+
 /** The "+" between two layers: adds a Text, Preset or Embedding layer there. */
 export function AddLayer({ onAdd }: { onAdd: (kind: AddedKind) => void }) {
   const [open, setOpen] = useState(false);
@@ -334,15 +350,7 @@ export function NegativeLayer({
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <PresetControl kind="negative" value={preset} onChange={onPreset} presets={presets} label="Negative preset" />
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-muted hover:bg-line hover:text-neutral-100"
-        >
-          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          {open ? "Less" : "More"}
-        </button>
+        <ExpandButton open={open} onToggle={() => setOpen((v) => !v)} />
       </div>
       {open && <div className="mt-2 border-t border-line pt-2">{children}</div>}
     </Card>

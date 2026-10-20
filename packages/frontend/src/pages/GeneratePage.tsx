@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, FlaskConical, Loader2, Lock, Wand2 } from "lucide-react";
 import { Button, ButtonLink, Card, EmptyState, PageBody, PageHeader, Badge } from "../components/ui";
@@ -8,7 +8,6 @@ import {
   BatchName,
   CheckpointPicker,
   CountStepper,
-  QueueCard,
   SeedControl,
   SizePicker,
   StyleLoras,
@@ -32,7 +31,6 @@ import {
   useComfyModels,
   useComfySettings,
   useComfyStatus,
-  useBatches,
   useGenerators,
   usePresets,
   useRecipe,
@@ -167,7 +165,6 @@ export default function GeneratePage() {
   const { data: settings } = useComfySettings();
   const { data: models } = useComfyModels();
   const { data: generators } = useGenerators();
-  const { data: newest } = useBatches(1);
   const { data: presets } = usePresets();
   const { data: tagAgg } = useTagAggregate({ includePrompt: true });
   const [form, setForm] = useState<GenerateForm>(() => loadDraft());
@@ -266,9 +263,10 @@ export default function GeneratePage() {
           <ComfyStatusLine />
         </div>
       </PageHeader>
-      <PageBody width="wide">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="space-y-5 min-w-0">
+      <PageBody width="wide" className="pb-0">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_30rem] lg:items-start">
+          {/* The run bar pins to the bottom of the view; long layers scroll above it. */}
+          <div className="flex min-w-0 flex-col gap-4 lg:min-h-[calc(100dvh-5.5rem)]">
             <div className="flex flex-col" aria-label="Positive prompt">
               {form.blocks.map((blk, i) => (
                 <div key={"id" in blk ? blk.id : blk.kind}>
@@ -301,6 +299,16 @@ export default function GeneratePage() {
                         rows={6}
                         placeholder="Scene, pose, lighting"
                         className="text-[15px] leading-relaxed"
+                      />
+                    </Card>
+                  ) : blk.kind === "style" ? (
+                    <Card className="px-3.5 py-2.5">
+                      <StyleLoras
+                        value={form.loras}
+                        onChange={(v) => set("loras", v)}
+                        installed={models?.loras ?? NO_STRINGS}
+                        usage={usage}
+                        invalid={flagged.loras}
                       />
                     </Card>
                   ) : blk.kind === "text" ? (
@@ -361,68 +369,60 @@ export default function GeneratePage() {
                 )}
               </div>
             </details>
+            <div className="flex-1" />
+            <div className="sticky bottom-0 z-[5] -mx-2 bg-gradient-to-t from-canvas from-80% to-transparent px-2 pb-4 pt-3">
+              <Card className="space-y-3 p-4 shadow-panel">
+                {gen && !ready && <TestRunCard checkpoint={form.checkpoint} disabled={!connected} />}
+                <div className="grid grid-cols-2 items-start gap-3 md:grid-cols-3 2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.9fr)_auto_minmax(0,0.9fr)]">
+                  <CheckpointPicker
+                    value={form.checkpoint}
+                    options={checkpoints}
+                    onChange={(v) => set("checkpoint", v)}
+                    invalid={flagged.checkpoint ? "Not in ComfyUI's checkpoint list" : null}
+                  />
+                  <SizePicker value={{ width: form.width, height: form.height }} onChange={(sz) => setForm((f) => ({ ...f, ...sz }))} />
+                  <SeedControl value={form.seed} onChange={(v) => set("seed", v)} />
+                  <CountStepper value={form.count} onChange={(v) => set("count", v)} mode={{ kind: "images", perRequest }} />
+                  <BatchName auto={autoName} custom={form.name} onChange={(v) => set("name", v)} />
+                </div>
+                {rejected && (
+                  <RejectedBox
+                    errors={rejected}
+                    onRefresh={() => refresh.mutate()}
+                    onDismiss={() => setRejected(null)}
+                    refreshing={refresh.isPending}
+                  />
+                )}
+                {blocked ? (
+                  <Button
+                    className="w-full h-11 text-[15px]"
+                    disabled
+                    title={!ready && connected ? "Use Test run above: one image proves the checkpoint and the output folder" : undefined}
+                  >
+                    {blocked === "Run the test first" ? <FlaskConical size={16} /> : <Lock size={16} />}
+                    {blocked}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    className="w-full h-11 text-[15px]"
+                    disabled={!canQueue}
+                    onClick={() => queue.mutate()}
+                  >
+                    {queue.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                    Queue {form.count} {form.count === 1 ? "image" : "images"}
+                  </Button>
+                )}
+              </Card>
+            </div>
           </div>
 
-          <aside className="space-y-4" aria-label="Run">
-            {status && (
-              // The newest batch shows under Queue with its images; this card covers the rest.
-              <QueueCard active={status.active.filter((a) => a._id !== newest?.[0]?._id)} connected={connected} />
-            )}
-            {gen && !ready && <TestRunCard checkpoint={form.checkpoint} disabled={!connected} />}
-            <Card className="p-4 space-y-4">
-              <CheckpointPicker
-                value={form.checkpoint}
-                options={checkpoints}
-                onChange={(v) => set("checkpoint", v)}
-                invalid={flagged.checkpoint ? "Not in ComfyUI's checkpoint list" : null}
-              />
-              <StyleLoras
-                value={form.loras}
-                onChange={(v) => set("loras", v)}
-                installed={models?.loras ?? NO_STRINGS}
-                usage={usage}
-                invalid={flagged.loras}
-              />
-              <SizePicker value={{ width: form.width, height: form.height }} onChange={(s) => setForm((f) => ({ ...f, ...s }))} />
-              <SeedControl value={form.seed} onChange={(v) => set("seed", v)} />
-              <CountStepper value={form.count} onChange={(v) => set("count", v)} mode={{ kind: "images", perRequest }} />
-              <BatchName auto={autoName} custom={form.name} onChange={(v) => set("name", v)} />
-              {rejected && (
-                <RejectedBox
-                  errors={rejected}
-                  onRefresh={() => refresh.mutate()}
-                  onDismiss={() => setRejected(null)}
-                  refreshing={refresh.isPending}
-                />
-              )}
-              {blocked ? (
-                <Button
-                  className="w-full h-11 text-[15px]"
-                  disabled
-                  title={!ready && connected ? "Use Test run above: one image proves the checkpoint and the output folder" : undefined}
-                >
-                  {blocked === "Run the test first" ? <FlaskConical size={16} /> : <Lock size={16} />}
-                  {blocked}
-                </Button>
-              ) : (
-                <Button
-                  variant="primary"
-                  className="w-full h-11 text-[15px]"
-                  disabled={!canQueue}
-                  onClick={() => queue.mutate()}
-                >
-                  {queue.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                  Queue {form.count} {form.count === 1 ? "image" : "images"}
-                </Button>
-              )}
-            </Card>
+          <aside
+            className="space-y-4 pb-6 lg:sticky lg:top-[5.5rem] lg:max-h-[calc(100dvh-5.5rem)] lg:overflow-y-auto"
+            aria-label="Output"
+          >
             <LatestResults />
             <RecentBatches onOpen={(id) => navigate(`/generations/${id}`)} />
-            <div className="text-right">
-              <Link to="/generations" className="text-xs text-muted hover:text-neutral-100">
-                All generations
-              </Link>
-            </div>
           </aside>
         </div>
       </PageBody>

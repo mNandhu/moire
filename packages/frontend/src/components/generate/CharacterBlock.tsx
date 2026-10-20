@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, ChevronDown, ChevronUp, RotateCcw, Undo2, UserRound, X } from "lucide-react";
+import { Ban, Check, ChevronDown, Pencil, RotateCcw, Undo2, UserRound, X } from "lucide-react";
 import { Badge, Card } from "../ui";
 import { Picker, type PickerOption } from "../ui/Picker";
+import { Dialog } from "../ui/Dialog";
 import { CharacterAvatar } from "../CharacterAvatar";
 import { useCharacters } from "../ImageCharacters";
 import { cn } from "../../lib/cn";
@@ -13,6 +14,7 @@ import { putRecipe, recipeKey, useRecipe, type Recipe, type RecipePatch } from "
 import { toggleDropped } from "../../lib/recipe";
 import { FieldLabel, stemOf } from "./RunControls";
 import { bareTagPool } from "./ChipInput";
+import { ExpandButton } from "./Layers";
 import { TagSuggestList, useTagMatches } from "../TagSuggestList";
 import { useTagAggregate } from "../../lib/queries";
 
@@ -398,8 +400,8 @@ export function CharacterBlock({
 
 /**
  * The Character layer: one line (avatar, name, the identity tags it adds, its
- * LoRA) that expands into the full {@link CharacterBlock}. With no character,
- * just the picker.
+ * LoRA) that expands into the full {@link CharacterBlock}; the pencil opens
+ * just the recipe. With no character, just the picker.
  */
 export function CharacterLayer({
   value,
@@ -413,6 +415,7 @@ export function CharacterLayer({
   rejectedLoras: ReadonlySet<string>;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
   const { data: everyone } = useCharacters();
   const entry = useMemo(() => everyone?.find((c) => c.tag === value) ?? null, [everyone, value]);
   const { data: recipe } = useRecipe(value);
@@ -433,14 +436,7 @@ export function CharacterLayer({
       <Card className="p-4">
         <CharacterBlock value={value} onChange={onChange} installedLoras={installedLoras} rejectedLoras={rejectedLoras} />
         <div className="mt-2 flex justify-end">
-          <button
-            type="button"
-            onClick={() => setExpanded(false)}
-            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-muted hover:bg-line hover:text-neutral-100"
-            aria-expanded
-          >
-            <ChevronUp size={14} /> Less
-          </button>
+          <ExpandButton open onToggle={() => setExpanded(false)} />
         </div>
       </Card>
     );
@@ -479,12 +475,15 @@ export function CharacterLayer({
       </div>
       <button
         type="button"
-        onClick={() => setExpanded(true)}
-        aria-expanded={false}
-        className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-xs text-muted hover:bg-line hover:text-neutral-100"
+        onClick={() => setEditing(true)}
+        disabled={!recipe}
+        aria-label="Edit tags"
+        title="Edit tags"
+        className="shrink-0 rounded p-1 text-muted hover:bg-line hover:text-neutral-100 disabled:opacity-40"
       >
-        <ChevronDown size={14} /> More
+        <Pencil size={14} />
       </button>
+      <ExpandButton open={false} onToggle={() => setExpanded(true)} />
       <button
         type="button"
         onClick={() => onChange(null)}
@@ -494,6 +493,13 @@ export function CharacterLayer({
       >
         <X size={14} />
       </button>
+      {recipe && (
+        <Dialog open={editing} onClose={() => setEditing(false)} title={name}>
+          <div className="space-y-4">
+            <RecipeEditor recipe={recipe} label={name} installedLoras={installedLoras} rejectedLoras={rejectedLoras} />
+          </div>
+        </Dialog>
+      )}
     </Card>
   );
 }
