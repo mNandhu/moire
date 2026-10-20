@@ -22,6 +22,7 @@ import {
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
+import { Skeleton } from "../components/ui/Skeleton";
 import { useToast } from "../components/Toasts";
 import { useConfirm } from "../components/ConfirmDialog";
 import {
@@ -262,6 +263,9 @@ function GuessedFrom({
 export default function RulesPage() {
   const { push } = useToast();
   const [sigs, setSigs] = useState<SignatureRow[]>([]);
+  // False until the first fetch answers, so "none yet" never flashes first.
+  const [sigsLoaded, setSigsLoaded] = useState(false);
+  const [wfQuery, setWfQuery] = useState("");
   const [activeField, setActiveField] = useState<RuleField>("prompt");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -272,12 +276,31 @@ export default function RulesPage() {
   const loadSignatures = useCallback(() => {
     fetchSignatures()
       .then(setSigs)
-      .catch((e) => push(`Failed to load signatures: ${String(e)}`, "error"));
+      .catch((e) => push(`Failed to load signatures: ${String(e)}`, "error"))
+      .finally(() => setSigsLoaded(true));
   }, [push]);
 
   useEffect(() => loadSignatures(), [loadSignatures]);
 
   const families = useMemo(() => groupWorkflows(sigs), [sigs]);
+  const wfq = wfQuery.trim().toLowerCase();
+  // The picker's search: versions matching by title, note, file or signature;
+  // a workflow whose own name matches keeps all its versions.
+  const shownFamilies = useMemo(() => {
+    if (!wfq) return families;
+    return families
+      .map((f) =>
+        f.name.toLowerCase().includes(wfq)
+          ? f
+          : {
+              ...f,
+              versions: f.versions.filter((v) =>
+                [v.title, v.note, v.file, v.row.workflow_sig].some((x) => x?.toLowerCase().includes(wfq)),
+              ),
+            },
+      )
+      .filter((f) => f.versions.length);
+  }, [families, wfq]);
   // undefined = not editing; a family id = that family's name is open.
   const [editingFamily, setEditingFamily] = useState<string | null | undefined>();
   const [nameDraft, setNameDraft] = useState("");
@@ -407,6 +430,19 @@ export default function RulesPage() {
     void selectSig(row);
   }, [sigParam, sigs, selectSig]);
 
+  // Arriving with nothing chosen opens a workflow rather than a blank pane:
+  // the first one with unmapped images, else the first.
+  const autoPicked = useRef(false);
+  useEffect(() => {
+    if (autoPicked.current || sigParam || selected || !sigs.length) return;
+    autoPicked.current = true;
+    // Only beside the list: on a narrow screen the graph sits below it, and
+    // a pane opened unasked would just push the list away.
+    if (window.matchMedia && !window.matchMedia("(min-width: 1024px)").matches) return;
+    const rows = families.flatMap((f) => f.versions.map((v) => v.row));
+    void selectSig(rows.find((r) => r.needs_mapping > 0) ?? rows[0]);
+  }, [sigParam, sigs, families, selected, selectSig]);
+
   const pinPath = useCallback(
     (path: string) => {
       session.pinPath(activeField, path);
@@ -513,7 +549,16 @@ export default function RulesPage() {
       />
       <PageBody width="wide">
 
-      {sigs.length === 0 ? (
+      {!sigsLoaded ? (
+        <div className="grid grid-cols-12 gap-4" aria-busy="true" aria-label="Loading workflows">
+          <div className="col-span-12 lg:col-span-3 space-y-2">
+            {Array.from({ length: 6 }, (_, i) => (
+              <Skeleton key={i} className="h-14 w-full rounded-lg" />
+            ))}
+          </div>
+          <Skeleton className="hidden lg:block lg:col-span-9 h-96 rounded-xl" />
+        </div>
+      ) : sigs.length === 0 ? (
         <EmptyState
           icon={Workflow}
           title="No workflow signatures yet"
@@ -526,7 +571,7 @@ export default function RulesPage() {
               are any. Dropping .json files or a folder of them anywhere on it
               imports them. */}
           <div
-            className={`col-span-12 lg:col-span-3 space-y-4 rounded-xl transition-colors ${
+            className={`col-span-12 lg:col-span-3 space-y-4 rounded-xl transition-colors lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:pr-1 ${
               dragging ? "outline-dashed outline-2 outline-brand-500/60 outline-offset-4" : ""
             }`}
             onDragOver={(e) => {
@@ -595,9 +640,22 @@ export default function RulesPage() {
                 }}
               />
             </div>
-            {families.map((fam) => {
+            {(families.length > 3 || wfq) && (
+              <div className="relative">
+                <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
+                <Input
+                  className="h-8 pl-8 text-sm"
+                  value={wfQuery}
+                  placeholder="Find a workflow"
+                  aria-label="Find a workflow"
+                  onChange={(e) => setWfQuery(e.target.value)}
+                />
+              </div>
+            )}
+            {wfq && shownFamilies.length === 0 && <p className="px-1 text-sm text-faint">No match</p>}
+            {shownFamilies.map((fam) => {
               const famKey = fam.id ?? OTHER_FAMILY;
-              const open = !collapsed.has(famKey);
+              const open = !!wfq || !collapsed.has(famKey);
               const listId = `workflow-versions-${famKey}`;
               return (
               <div key={famKey} className="space-y-1.5">
@@ -735,13 +793,8 @@ export default function RulesPage() {
           </div>
 
           {!selected ? (
-            <div className="col-span-12 lg:col-span-9 rounded-xl border border-dashed border-line">
-              <EmptyState
-                compact
-                icon={MousePointerClick}
-                title="Pick a workflow"
-                description="Choose one on the left to see its graph. Click any value in it to say which field it is (say, the node that holds your positive prompt)."
-              />
+            <div className="hidden lg:flex col-span-9 items-center justify-center gap-2 py-16 text-sm text-faint">
+              <MousePointerClick size={16} /> Choose a workflow
             </div>
           ) : (
             <div className="col-span-12 lg:col-span-9 grid grid-cols-1 xl:grid-cols-2 gap-4">

@@ -88,3 +88,14 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Number fields that sit between their own - and + buttons: no native spinner. */
+.no-spin {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.no-spin::-webkit-inner-spin-button,
+.no-spin::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

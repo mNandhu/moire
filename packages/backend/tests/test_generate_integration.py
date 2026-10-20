@@ -544,3 +544,56 @@ async def test_requeue_replays_a_chosen_batch_size_not_the_setting(client, comfy
     # Queued at the old setting (1), requeued at today's (2).
     assert [q["images"] for q in got["requests"]] == [2]
     assert got["inputs"]["per_request_asked"] is None
+
+
+async def test_outputs_follow_the_output_library_when_it_comes_back(temp_db):
+    """A library removed and added again has a new id; its generations,
+    keyed by the old one, must not stay waiting for a scan."""
+    import sqlalchemy as sa
+
+    from src.database import schema as t
+    from src.database.db import async_conn, async_tx
+
+    async with async_tx() as conn:
+        await conn.execute(
+            sa.insert(t.libraries).values(
+                _id="new", path="/out", name="o", indexed_count=0
+            )
+        )
+        await conn.execute(
+            sa.insert(t.generation_batches).values(
+                _id=1,
+                generator_id="builtin",
+                name="b",
+                inputs={},
+                state="done",
+                created_at=0,
+            )
+        )
+        await conn.execute(
+            sa.insert(t.generation_requests).values(
+                _id=1, batch_id=1, idx=0, state="done"
+            )
+        )
+        await conn.execute(
+            sa.insert(t.generation_outputs).values(
+                request_id=1,
+                idx=0,
+                filename="a.png",
+                subfolder="s",
+                image_id="old:s/a.png",
+            )
+        )
+    await comfy_settings.update_settings(
+        {"output_library_id": "old", "output_path": "/out"}
+    )
+    assert await comfy_settings.removed_output_library("/out") == "old"
+    assert await comfy_settings.removed_output_library("/elsewhere") is None
+
+    await comfy_settings.adopt_output_library("new", "/out")
+
+    async with async_conn() as conn:
+        got = (await conn.execute(sa.select(t.generation_outputs.c.image_id))).scalar()
+    assert got == "new:s/a.png"
+    assert (await comfy_settings.get_settings())["output_library_id"] == "new"
+    assert await comfy_settings.removed_output_library("/out") is None

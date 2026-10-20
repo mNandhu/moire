@@ -68,6 +68,8 @@ export type CharacterPatch = Partial<{
   focus_y: number | "";
 }>;
 
+/** `/tags/x`: a plain tag's page. */
+export const tagHref = (tag: string) => `/tags/${encodeURIComponent(tag)}`;
 export const characterHref = (tag: string) => `/characters/${encodeURIComponent(tag)}`;
 
 /** "nahida (genshin impact)" as the name and the series it's from. */

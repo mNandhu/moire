@@ -133,6 +133,19 @@ tag_meta = sa.Table(
     sa.Column("updated_at", sa.Float),
 )
 
+# Where a non-character tag's cover is centred (0..1 from the left / top),
+# keyed like tag_meta, for one cover image: it applies only while that image is
+# the cover. Characters keep theirs on `characters`.
+tag_focus = sa.Table(
+    "tag_focus",
+    metadata,
+    sa.Column("tag", sa.Text, primary_key=True),
+    sa.Column("focus_x", sa.Float, nullable=False),
+    sa.Column("focus_y", sa.Float, nullable=False),
+    sa.Column("image_id", _BINARY, nullable=False),
+    sa.Column("updated_at", sa.Float),
+)
+
 # What the user set on a character page, keyed like tag_meta (the tag's base
 # name). Every column is an override; NULL keeps what Moiré works out. The
 # avatar image itself is the tag_meta cover pin; this only holds its framing.

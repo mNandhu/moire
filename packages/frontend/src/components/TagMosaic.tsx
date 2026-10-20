@@ -1,6 +1,7 @@
 import { Tag as TagIcon } from "lucide-react";
 import { Skeleton } from "./ui/Skeleton";
 import { cn } from "../lib/cn";
+import { focusPosition } from "../lib/character";
 
 /** One `/tags/samples` image. */
 export type Sample = { _id: string; thumb_url: string };
@@ -12,16 +13,26 @@ export function Mosaic({
   samples,
   cover,
   className = "aspect-square",
+  focus = null,
+  focusImage = null,
 }: {
   samples: Sample[] | undefined;
   cover: string | null;
   /** Its shape; a square by default. */
   className?: string;
+  /** Where the user centred the cover, for the image `focusImage`: it only
+   * applies where that image shows (a collage may lead with another). */
+  focus?: readonly [number, number] | null;
+  focusImage?: string | null;
 }) {
+  const at = (id?: string): React.CSSProperties | undefined =>
+    focus && (id === undefined || id === focusImage)
+      ? { objectPosition: focusPosition(focus) }
+      : undefined;
   if (samples === undefined) {
     return cover ? (
       <div className={cn("relative w-full bg-raised", className)}>
-        <img src={cover} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+        <img src={cover} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" style={at()} />
       </div>
     ) : (
       <Skeleton className={cn("w-full rounded-none", className)} />
@@ -53,6 +64,7 @@ export function Mosaic({
             alt=""
             loading="lazy"
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            style={at(s._id)}
           />
         </div>
       ))}

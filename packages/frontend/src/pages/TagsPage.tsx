@@ -43,7 +43,7 @@ import { Mosaic, type Sample } from "../components/TagMosaic";
 import { FaceCrop } from "../components/CharacterAvatar";
 import { useCharacterLookup, useCharacters } from "../components/ImageCharacters";
 import { NewCharacterDialog } from "../components/NewCharacterDialog";
-import { CARD_ZOOM, characterHref, displayName, inkOn, type CharacterEntry } from "../lib/character";
+import { CARD_ZOOM, characterHref, displayName, focusPosition, inkOn, type CharacterEntry } from "../lib/character";
 
 // A spine for a character with no colour of its own.
 const SPINE_NEUTRAL = "#8a8797";
@@ -616,7 +616,7 @@ function NumeralCard({
       aria-pressed={selected}
       className={cn(CARD, "bg-sheen", cardState(selected))}
     >
-      <Mosaic samples={samples} cover={t.thumb_url} className="aspect-[3/4]" />
+      <Mosaic samples={samples} cover={t.thumb_url} focus={t.focus} focusImage={t.thumb_image_id} className="aspect-[3/4]" />
       <div className="relative overflow-hidden px-3 pt-2.5 pb-3">
         <span
           aria-hidden="true"
@@ -656,7 +656,13 @@ function TagRow({
     >
       <span className="h-10 w-10 rounded-md overflow-hidden bg-raised">
         {tag.thumb_url && (
-          <img src={tag.thumb_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+          <img
+            src={tag.thumb_url}
+            alt=""
+            loading="lazy"
+            className="h-full w-full object-cover"
+            style={{ objectPosition: focusPosition(tag.focus ?? null) }}
+          />
         )}
       </span>
       <span className="text-sm font-medium truncate">{formatTag(tag.tag)}</span>
