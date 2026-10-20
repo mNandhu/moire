@@ -16,3 +16,9 @@ Sandbox (keeps the user's `pnpm dev` on 8000/5173 untouched):
 - vite: copy `vite.config.ts` to a temp config with port 5180 and proxy target 127.0.0.1:8010, run `vite --config <it>`, delete it afterwards.
 - PUT `/api/v1/generate/comfyui` with address `http://127.0.0.1:8190` and `output_path` = FAKE_COMFY_OUT, then POST the builtin test run.
 - Stop servers by port (`ss -ltnp`), never `pkill -f` (it kills its own shell).
+- Testing against a copy of the real DB: copy `data/moire.db` to scratch,
+  turn the watchers off in the copy, blank the comfyui headers/address (or
+  point it at the fake), and repoint the output library
+  (`2522d9a667e74e53b445210f9f9d6753`) to a scratch folder: downloaded
+  outputs are written there.
+- The fake accepts any API graph, including real library workflows.

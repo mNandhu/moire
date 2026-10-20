@@ -771,3 +771,34 @@ Phase 2 is done and fast-forwarded to main. Open:
   Setup should offer the sampling slots (found from the sampler walk).
 - Dev helpers (fake ComfyUI, headless screenshots, sandbox ports):
   `docs/dev-tools/README.md`.
+
+### Next session (from 2026-10-20 late; phase 3)
+
+Phase 3 is on `feat/comfyui-phase3` (main checkout, rebased on main),
+pushed once at 653c0ea; later commits not pushed. Built and reviewed three
+times: discovery, setup API and page, workflow picker, Rules / viewer
+entry points, leave-out of missing LoRAs and checkpoint, drop of missing
+node classes, fill of new widget inputs, update from a newer version,
+family via the `moire` PNG chunk, startup connect retry (once a minute).
+Real test passed on the user's ComfyUI (hires / FaceDetailer / USDU family,
+SFW checked).
+
+Left:
+- **Remix** (last phase 3 item). Board "Viewer: Remix" on the canvas
+  (https://claude.ai/artifact/9NuwckDfNaD4wXqGn46h8a) is approved. Placement:
+  the viewer's Generation data header (`GenPanel` in `ImageView.tsx`, next to
+  Edit rule / Use in Generate / Copy all), and a "Remixing an image" strip
+  at the top of the Generate composer. Open question for the user: make
+  Remix a text link like its neighbours and fold "Use in Generate" into its
+  menu.
+- After Remix: commit, `/code-review medium <shas>`, fix, then merge.
+- Ask the user: delete the never-ready SillyFlow workflow row
+  `g35528c7ad2` from the real DB; delete the test output
+  `VPS/hires_00001_.png` on the ComfyUI server.
+- Not checked with a real run: an output joining its family through the
+  `moire` chunk (tests cover it; the real test ran before that change).
+- Library survey: all 66 files in the user's ComfyUI workflows folder are
+  editor format, 26 without an id; most are RemoteQueue (no local sampler)
+  or TIPO / regex prompt builders that need the positive picked by hand.
+- Never queue NSFW on the connected ComfyUI (public). A graph carries every
+  text node; check them all before any real queue, else use the fake.
