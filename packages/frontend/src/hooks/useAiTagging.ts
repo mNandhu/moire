@@ -12,6 +12,10 @@ import {
 
 const JOB_POLL_MS = 1500;
 
+/** The job each image's own "Tag with AI" started, until the panel sees it
+ * end: an image left and opened again picks its job back up at once. */
+const jobOfImage = new Map<string, string>();
+
 /**
  * Encapsulates tagging a set of images with AI: queue the job, poll it until a
  * terminal state, toast the outcome, and invoke `onTagged` so the caller can
@@ -20,10 +24,12 @@ const JOB_POLL_MS = 1500;
  * This replaces the bespoke alive-flag/setTimeout/backoff poll loop that lived
  * inside ImageView's TagEditor.
  */
-export function useAiTagging(onTagged?: () => void) {
+export function useAiTagging(onTagged?: () => void, imageId?: string) {
   const { push } = useToast();
   const qc = useQueryClient();
-  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(
+    () => (imageId && jobOfImage.get(imageId)) || null,
+  );
   const [submitting, setSubmitting] = useState(false);
 
   const { data: job } = useQuery({
@@ -40,6 +46,7 @@ export function useAiTagging(onTagged?: () => void) {
   useEffect(() => {
     if (!jobId || !isTerminalJob(status) || handled.current === jobId) return;
     handled.current = jobId;
+    if (imageId && jobOfImage.get(imageId) === jobId) jobOfImage.delete(imageId);
     if (status === "done") {
       push("AI tagging completed", "success");
       onTagged?.();
@@ -50,7 +57,7 @@ export function useAiTagging(onTagged?: () => void) {
       push("AI tagging was cancelled", "info");
     }
     setJobId(null);
-  }, [jobId, status, job?.error, push, onTagged]);
+  }, [jobId, status, job?.error, push, onTagged, imageId]);
 
   const start = useCallback(
     async (ids: string[]) => {
@@ -59,6 +66,7 @@ export function useAiTagging(onTagged?: () => void) {
       try {
         const { job_id } = await postAiTag(ids);
         handled.current = null;
+        if (imageId && ids.length === 1 && ids[0] === imageId) jobOfImage.set(imageId, job_id);
         // No toast: the button shows the job's progress. Its model download
         // shows through the background-work poll, asked now, not in 5s.
         setJobId(job_id);
@@ -69,7 +77,7 @@ export function useAiTagging(onTagged?: () => void) {
         setSubmitting(false);
       }
     },
-    [submitting, jobId, push, qc],
+    [submitting, jobId, push, qc, imageId],
   );
 
   /** Follow a job started elsewhere (this image's panel, opened again). */

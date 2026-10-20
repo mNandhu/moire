@@ -871,10 +871,10 @@ function TagsSection({
   children: React.ReactNode;
 }) {
   const { start, adopt, cancel, submitting, cancelling, jobId, job, canCancel } =
-    useAiTagging(onChange);
+    useAiTagging(onChange, id);
   const { data: tasks } = useBackgroundTasks();
-  // A job tagging this image that the panel doesn't know (opened again
-  // mid-job, after a reload, or from another tab).
+  // A job tagging this image that the panel doesn't know (after a reload,
+  // or from another tab); one started here it picks up by itself.
   const running = tasks?.find((t) => t.kind === "ai_job" && t.image_id === id)?.job_id;
   useEffect(() => {
     if (running) adopt(running);

@@ -10,6 +10,7 @@ import SettingsPage from "./pages/SettingsPage";
 import AITaggingPage from "./pages/AITaggingPage";
 import RulesPage from "./pages/RulesPage";
 import ImageView from "./pages/ImageView";
+import { useRefreshOnFinish } from "./hooks/useBackgroundTasks";
 import GeneratePage from "./pages/GeneratePage";
 import GenerationsPage from "./pages/GenerationsPage";
 import BatchPage from "./pages/BatchPage";
@@ -25,6 +26,9 @@ import BatchPage from "./pages/BatchPage";
 export default function RootRoutes() {
   const location = useLocation();
   const backgroundLocation = getBackgroundLocation(location);
+  // Here, not in App: an image opened by link or after a reload renders
+  // without App, and its tags still refresh when its AI tagging ends.
+  useRefreshOnFinish();
 
   return (
     <OverlayOpenContext.Provider value={!!backgroundLocation}>
