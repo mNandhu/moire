@@ -1,5 +1,5 @@
 import logging
-import uuid
+import hashlib
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -11,7 +11,7 @@ from ..core.config import settings
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ..models.library import LibraryDiscoverIn, LibraryIn, LibraryUpdate
-from ..services import activity, comfy_settings, library_discover, library_nesting
+from ..services import activity, library_discover, library_nesting
 from ..services.scanner import cancel_scan, scan_library_async
 
 from ..services.storage_fs import delete_by_prefix
@@ -53,6 +53,14 @@ async def _rescan_libraries_around(path: str, *, exclude: str) -> None:
             and library_nesting.is_inside(key, library_nesting.path_key(r.path))
         ):
             scan_library_async(r._id, r.path)
+
+
+def library_id_for(path: str) -> str:
+    """A library's id, from its (normalized) folder: the same folder added
+    again gets the same id, so what points at its images by `_id` (a
+    generation's outputs, a pinned cover) finds them again after the rescan.
+    Libraries added before this keep their random ids."""
+    return hashlib.sha1(path.encode("utf-8")).hexdigest()[:32]
 
 
 @router.get("")
@@ -101,7 +109,7 @@ async def add_library(body: LibraryIn):
         )
     watch_enabled = settings.watch_enabled_default
     async with async_tx() as conn:
-        lib_id = uuid.uuid4().hex
+        lib_id = library_id_for(body.path)
         await conn.execute(
             sa.insert(t.libraries).values(
                 _id=lib_id,
@@ -113,10 +121,6 @@ async def add_library(body: LibraryIn):
             )
         )
     library_nesting.invalidate()
-    # The ComfyUI output folder coming back after a removal: its generations
-    # were waiting on the old id.
-    if await comfy_settings.removed_output_library(body.path):
-        await comfy_settings.adopt_output_library(lib_id, body.path)
     # trigger initial scan in background; when it finishes, any library this
     # one sits inside hands over its copies of these files.
     scan_library_async(lib_id, body.path)
@@ -151,14 +155,6 @@ async def remove_library(library_id: str):
                     t.image_gen_raw.c.library_id == library_id
                 )
             )
-        # Remember where ComfyUI's output folder was, to find it again if this
-        # library is added back (it returns under a new id).
-        if (
-            gone_path
-            and (await comfy_settings.get_settings()).get("output_library_id")
-            == library_id
-        ):
-            await comfy_settings.update_settings({"output_path": gone_path})
         # Every image of this library is gone, so every tag count moved.
         tag_index.invalidate()
         library_nesting.invalidate()

@@ -159,7 +159,6 @@ async def put_comfyui(body: ComfyPatch):
     if output_path is not None:
         if not output_path.strip():
             patch["output_library_id"] = None
-            patch["output_path"] = ""
         else:
             from ..api.libraries import add_library, update_library
             from ..models.library import LibraryUpdate
@@ -174,9 +173,7 @@ async def put_comfyui(body: ComfyPatch):
             # library with watching off gets it turned on.
             if not library_watch.is_watching(lib["_id"]):
                 await update_library(lib["_id"], LibraryUpdate(watch_enabled=True))
-            # Outputs follow only if this is the same folder coming back.
-            await comfy_settings.adopt_output_library(lib["_id"], lib["path"])
-            patch.pop("output_library_id", None)
+            patch["output_library_id"] = lib["_id"]
     if patch.get("ca_cert"):
         import ssl
 
