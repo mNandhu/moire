@@ -1,3 +1,5 @@
+import { canonicalName } from "./tags";
+
 /**
  * Count tags (`1girl`, `2girls`, `1boy`, `solo`, `multiple_girls`) against
  * the characters picked on the Generate page. The models learned Danbooru's
@@ -39,18 +41,22 @@ export type CountCheck = {
 const KINDS: readonly Kind[] = ["girl", "boy", "other"];
 const COUNT = /^(\d+|6\+)(girl|boy|other)s?$/;
 
-/** A prompt term as a tag: weight and brackets off, spaces as underscores,
- * `2 girls` and `2_girls` as `2girls`. */
+/** A prompt term as a tag: weight and brackets off, spelled as stored
+ * (`canonicalName`), `2 girls` and `2_girls` as `2girls`. A term with
+ * unbalanced brackets is one end of a weighted group (`(1girl, smile:1.2)`)
+ * and reads as nothing, so the group is never split. */
 function normalise(term: string): string {
-  let t = term.trim().toLowerCase();
+  const opens = (term.match(/[([{]/g) ?? []).length;
+  const closes = (term.match(/[)\]}]/g) ?? []).length;
+  if (opens !== closes) return "";
   // (1girl:1.2), [solo], {2girls}
-  t = t.replace(/^[([{]+|[)\]}]+$/g, "").replace(/:[\d.]+$/, "").trim();
-  t = t.replace(/\s+/g, "_");
-  return t.replace(/^(\d+\+?)_(girl|boy|other)/, "$1$2");
+  const t = term.toLowerCase().replace(/^\s*[([{]+|[)\]}]+\s*$/g, "").replace(/:[\d.]+$/, "");
+  return canonicalName(t).replace(/^(\d+\+?)_(girl|boy|other)/, "$1$2");
 }
 
 type Parsed =
-  | { kind: Kind; n: number }
+  /** `atLeast`: `6+girls`, six or more. */
+  | { kind: Kind; n: number; atLeast: boolean }
   | { multiple: "girl" | "boy" }
   | { solo: true };
 
@@ -60,7 +66,7 @@ function parse(tag: string): Parsed | null {
   if (tag === "multiple_boys") return { multiple: "boy" };
   const m = COUNT.exec(tag);
   if (!m) return null;
-  return { kind: m[2] as Kind, n: m[1] === "6+" ? 6 : Number(m[1]) };
+  return { kind: m[2] as Kind, n: m[1] === "6+" ? 6 : Number(m[1]), atLeast: m[1] === "6+" };
 }
 
 /** The comma-separated terms of `text` with their offsets, spaces trimmed. */
@@ -117,7 +123,7 @@ export function checkCountTags(prompt: string, kinds: readonly (Kind | null)[]):
       if (known && count(p.multiple) < 2) reason = `Only for 2 or more ${p.multiple}s; the cast is ${cast}.`;
     } else if (p.n > kinds.length) {
       reason = `Says ${people(p.n, p.kind)}, but only ${cast} ${kinds.length === 1 ? "is" : "are"} picked.`;
-    } else if (known && count(p.kind) !== p.n) {
+    } else if (known && (p.atLeast ? count(p.kind) < p.n : count(p.kind) !== p.n)) {
       reason = count(p.kind)
         ? `The cast has ${people(count(p.kind), p.kind)}, not ${p.n}.`
         : `No ${p.kind} is picked; the cast is ${cast}.`;
@@ -142,7 +148,11 @@ export function fixCountTags(prompt: string, expected: readonly string[]): strin
     const piece = parts[i];
     const sep = parts[i + 1] ?? "";
     if (piece.trim() && parse(normalise(piece))) {
-      if (placed || !words) continue;
+      // Dropped with its comma; a line break stays a line break.
+      if (placed || !words) {
+        if (sep === "\n") kept.push(sep);
+        continue;
+      }
       placed = true;
       kept.push(piece.match(/^\s*/)![0] + words + sep);
     } else {

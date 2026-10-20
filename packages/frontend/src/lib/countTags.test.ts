@@ -28,6 +28,9 @@ describe("checkCountTags", () => {
     expect(flagged("2girls, cafe", ["girl", "boy"])).toEqual(["2girls"]);
     expect(flagged("1girl, 1boy", ["girl", "girl"])).toEqual(["1girl", "1boy"]);
     expect(flagged("multiple_boys, 1boy", ["boy"])).toEqual(["multiple_boys"]);
+    // 6+ means six or more
+    expect(flagged("6+girls, multiple_girls", Array(7).fill("girl"))).toEqual([]);
+    expect(flagged("6+girls", Array(5).fill("girl"))).toEqual(["6+girls"]);
   });
 
   it("reads spaces, underscores and weights", () => {
@@ -65,5 +68,11 @@ describe("fixCountTags", () => {
 
   it("keeps lines and the rest of the text", () => {
     expect(fixCountTags("1girl, solo,\nsitting, rain", ["2girls"])).toBe("2girls,\nsitting, rain");
+    expect(fixCountTags("1girl, smile, solo\nrain", ["2girls"])).toBe("2girls, smile,\nrain");
+  });
+
+  it("leaves weighted groups whole", () => {
+    expect(flagged("(1girl, smile:1.2), park", ["girl", "girl"])).toEqual([]);
+    expect(fixCountTags("(1girl, smile:1.2), solo", ["2girls"])).toBe("(1girl, smile:1.2), 2girls");
   });
 });
