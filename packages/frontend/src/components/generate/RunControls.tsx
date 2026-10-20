@@ -103,7 +103,7 @@ function NumberStepper({
           }}
           onBlur={() => setTyped(null)}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-          className="w-full min-w-0 bg-transparent text-center tabular-nums text-sm outline-none"
+          className="no-spin w-full min-w-0 bg-transparent text-center tabular-nums text-sm outline-none"
         />
         <button type="button" aria-label={`More ${label}`} onClick={() => set((value ?? min) + step)} className="p-2 text-muted hover:text-neutral-100">
           <Plus size={14} />
@@ -335,7 +335,7 @@ export function SeedControl({ value, onChange }: { value: SeedValue; onChange: (
               title="Later requests count up from this seed"
               value={value.value ?? ""}
               onChange={(e) => onChange({ mode: "fixed", value: e.target.value ? Number(e.target.value) : null })}
-              className="tabular-nums"
+              className="tabular-nums no-spin"
             />
             <button
               type="button"
@@ -386,7 +386,7 @@ export function CountStepper({
               min={1}
               max={500}
               onChange={(e) => set(Number(e.target.value) || 1)}
-              className="w-10 bg-transparent text-center tabular-nums text-sm outline-none"
+              className="no-spin w-10 bg-transparent text-center tabular-nums text-sm outline-none"
             />
             <button type="button" aria-label="More" onClick={() => set(value + 1)} className="p-2 text-muted hover:text-neutral-100">
               <Plus size={14} />

@@ -16,7 +16,7 @@ type Spot = { top: number; left: number; gap: number };
  * The forward button sits in a portal: the sidebar clips its overflow and
  * its transformed wrapper would also capture `position: fixed`.
  */
-export function BackButton({ className }: { className?: string }) {
+export function BackButton({ className, label }: { className?: string; label?: string }) {
   const { canBack, canForward, back, forward } = useHistoryNav();
   const ref = useRef<HTMLButtonElement>(null);
   const hideTimer = useRef<number | undefined>(undefined);
@@ -53,6 +53,7 @@ export function BackButton({ className }: { className?: string }) {
         className={cn(
           POINTER_ONLY,
           "p-1.5 rounded-lg transition-colors",
+          label && "w-full items-center gap-3 px-3 py-2 text-sm",
           canBack
             ? "text-faint hover:text-neutral-100 hover:bg-raised/60"
             : "text-faint/40 cursor-default",
@@ -60,6 +61,7 @@ export function BackButton({ className }: { className?: string }) {
         )}
       >
         <ArrowLeft size={18} />
+        {label}
       </button>
       {spot &&
         canForward &&

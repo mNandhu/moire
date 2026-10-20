@@ -8,6 +8,7 @@ import { Field, Input } from "./ui/Input";
 import { Checkbox } from "./ui/Checkbox";
 import { useToast } from "./Toasts";
 import { CharacterAvatar } from "./CharacterAvatar";
+import { FocusPicker } from "./FocusPicker";
 import { cn } from "../lib/cn";
 import { deleteCharacter, updateCharacter } from "../lib/imageMutations";
 import { TAGS_KEY } from "../lib/queries";
@@ -149,38 +150,7 @@ export function CharacterEditDialog({
             }
           >
             <div className="flex items-center gap-4">
-              <button
-                type="button"
-                aria-label="Set the avatar's centre"
-                className="relative h-44 max-w-full rounded-lg overflow-hidden bg-raised cursor-crosshair"
-                style={{ aspectRatio: c.aspect ?? 1 }}
-                onClick={(e) => {
-                  const r = e.currentTarget.getBoundingClientRect();
-                  setFocus([
-                    Math.round(((e.clientX - r.left) / r.width) * 100) / 100,
-                    Math.round(((e.clientY - r.top) / r.height) * 100) / 100,
-                  ]);
-                }}
-              >
-                <img src={c.thumb_url} alt="" className="w-full h-full object-cover" />
-                {c.face && !focus && (
-                  <span
-                    className="absolute border border-dashed border-white/80 rounded"
-                    style={{
-                      left: `${(c.face[0] - c.face[2] / 2) * 100}%`,
-                      top: `${(c.face[1] - c.face[3] / 2) * 100}%`,
-                      width: `${c.face[2] * 100}%`,
-                      height: `${c.face[3] * 100}%`,
-                    }}
-                  />
-                )}
-                {focus && (
-                  <span
-                    className="absolute h-4 w-4 -ml-2 -mt-2 rounded-full border-2 border-white shadow"
-                    style={{ left: `${focus[0] * 100}%`, top: `${focus[1] * 100}%` }}
-                  />
-                )}
-              </button>
+              <FocusPicker src={c.thumb_url} aspect={c.aspect} face={c.face} focus={focus} onChange={setFocus} />
               <div className="flex flex-col items-center gap-2">
                 <CharacterAvatar
                   src={c.thumb_url}

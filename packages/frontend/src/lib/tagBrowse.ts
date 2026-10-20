@@ -20,6 +20,8 @@ export type BrowseTag = {
   last_used: number | null;
   thumb_image_id: string | null;
   thumb_url: string | null;
+  /** Where the user centred the cover, 0..1 from the left and top. */
+  focus?: [number, number] | null;
 };
 
 /** `/tags/detail`: what the side panel shows for one tag. */
@@ -41,6 +43,12 @@ export type TagDetail = {
   related: Array<{ tag: string; count: number }>;
   thumb_image_id: string | null;
   thumb_url: string | null;
+  /** The cover shown: the pinned image, else the mosaic's first. */
+  cover_image_id?: string | null;
+  cover_url?: string | null;
+  /** The cover image's width / height. */
+  aspect?: number | null;
+  focus?: [number, number] | null;
 };
 
 export const SOURCE_LABEL: Record<TagSource, string> = {

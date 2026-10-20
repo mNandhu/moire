@@ -14,6 +14,7 @@ from ..services import (
     characters,
     face_detect,
     image_tags,
+    tag_focus,
     tag_index,
     tag_rename,
     tag_settings,
@@ -91,10 +92,18 @@ def _source(source: str) -> str:
 @router.get("/browse")
 async def browse_tags(source: str = "all"):
     """The Tags page list: one entry per tag name, its sources merged."""
+    rows = await tag_index.browse(_source(source))
+    focus = await tag_focus.all_focus()
     return JSONResponse(
         [
-            {**row, "thumb_url": thumb_url(row["thumb_image_id"])}
-            for row in await tag_index.browse(_source(source))
+            {
+                **row,
+                "thumb_url": thumb_url(row["thumb_image_id"]),
+                "focus": tag_focus.for_cover(
+                    focus.get(row["tag"]), row["thumb_image_id"]
+                ),
+            }
+            for row in rows
         ]
     )
 
@@ -179,12 +188,41 @@ async def tag_detail(tag: str, source: str = "all"):
     got = await tag_index.detail(base, _source(source))
     if got is None:
         raise HTTPException(status_code=404, detail="No image has this tag")
+    cover = await _cover_of(base, got["thumb_image_id"])
     return {
         **got,
         "thumb_url": thumb_url(got["thumb_image_id"])
         if got["thumb_image_id"]
         else None,
+        "cover_image_id": cover,
+        "cover_url": thumb_url(cover) if cover else None,
+        "aspect": await tag_focus.aspect_of(cover),
+        "focus": await tag_focus.get(base, cover),
     }
+
+
+async def _cover_of(base: str, pinned: str | None) -> str | None:
+    """A tag's cover: the pin, else what its mosaic leads with."""
+    if pinned:
+        return pinned
+    lead = await tag_index.samples_for_tag(f"{image_tags.ANY_PREFIX}{base}", 1)
+    return lead[0]["_id"] if lead else None
+
+
+@router.put("/focus")
+async def set_tag_focus(tag: str, body: dict):
+    """Centre a tag's cover on a point (``focus_x``, ``focus_y``, 0..1);
+    empty values clear it. The point belongs to the cover it was set on."""
+    base = tag_index.pin_key(validate_tags([tag])[0])
+    try:
+        point = tag_focus.clean(body.get("focus_x"), body.get("focus_y"))
+    except tag_focus.FocusError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    got = await tag_index.detail(base, "all")
+    if got is None:
+        raise HTTPException(status_code=404, detail="No image has this tag")
+    cover = await _cover_of(base, got["thumb_image_id"])
+    return {"tag": base, "focus": await tag_focus.put(base, point, cover)}
 
 
 @router.post("/thumbnail/{tag:path}")

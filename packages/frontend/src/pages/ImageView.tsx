@@ -599,6 +599,8 @@ export default function ImageView() {
   // image the URL points at: either holding the previous frame while the next
   // one decodes (`pending`), or a fresh mount with nothing painted yet.
   const busy = pending || !imgLoaded;
+  const stageW = listItem?.width ?? data?.width;
+  const stageH = listItem?.height ?? data?.height;
 
   return (
     <div
@@ -612,7 +614,7 @@ export default function ImageView() {
       onTouchMove={handleTouchMove}
     >
       {/* Image stage */}
-      <div className="flex-1 h-full flex items-center justify-center relative overflow-hidden">
+      <div className="flex-1 h-full flex items-center justify-center relative overflow-hidden [container-type:size]">
         {/* Back icon (overlay) */}
         <button
           onClick={goBack}
@@ -637,7 +639,17 @@ export default function ImageView() {
             this <img> element mounted across navigations is what makes the
             browser hold the previous frame on screen until the next one has
             decoded, instead of flashing an empty stage. */}
-        <div className="relative flex items-center justify-center">
+        <div
+          className="relative flex items-center justify-center"
+          // Grows to the largest box of the image's shape the stage holds (up
+          // to 2x its pixels, so a small image doesn't turn to mush), instead
+          // of stopping at its natural size. Unknown size: natural, as before.
+          style={
+            stageW && stageH
+              ? { aspectRatio: `${stageW} / ${stageH}`, width: `min(100cqw, 100cqh * ${stageW / stageH}, ${stageW * 2}px)` }
+              : undefined
+          }
+        >
           {/* Ambient glow: a blurred accent panel matching the image box.
                 The blur spreads the primary colour outward from every edge, so
                 the whole image acts as the light source (not a centre point).
@@ -670,7 +682,7 @@ export default function ImageView() {
               width={listItem?.width ?? data?.width}
               height={listItem?.height ?? data?.height}
               onError={() => setThumbFailed(true)}
-              className={`max-w-full max-h-dvh w-auto h-auto object-contain blur-xl scale-105 transition-opacity duration-300 ${
+              className={`${stageW && stageH ? "w-full h-full" : "max-w-full max-h-dvh w-auto h-auto"} object-contain blur-xl scale-105 transition-opacity duration-300 ${
                 imgLoaded || thumbFailed ? "opacity-0" : "opacity-100"
               }`}
             />

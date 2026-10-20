@@ -33,6 +33,7 @@ def test_expected_tables_exist():
         "generation_requests",
         "generation_outputs",
         "generation_run_times",
+        "tag_focus",
     }
 
 

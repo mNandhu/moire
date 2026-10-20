@@ -85,6 +85,15 @@ export function updateCharacter(tag: string, patch: CharacterPatch): Promise<unk
   });
 }
 
+/** Centre a plain tag's cover on a point (0..1); null puts it back. */
+export function setTagFocus(tag: string, focus: readonly [number, number] | null): Promise<unknown> {
+  return api(`/api/v1/tags/focus?${new URLSearchParams({ tag })}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ focus_x: focus ? focus[0] : "", focus_y: focus ? focus[1] : "" }),
+  });
+}
+
 /** Make a character by hand; returns its stored settings (with its tag). */
 export function createCharacter(body: { tag: string; name?: string; series?: string; color?: string }) {
   return api<{ tag: string }>(`/api/v1/tags/characters`, {

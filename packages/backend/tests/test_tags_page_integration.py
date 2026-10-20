@@ -233,3 +233,44 @@ async def test_tags_sharing_images_get_different_covers(client, seed):
     for name in names[:4]:
         got = (await client.get(f"/tags/samples?tags=any:{name}&per=4")).json()
         assert got[f"any:{name}"][0]["_id"] == covers[name]
+
+
+async def test_a_tags_cover_can_be_centred(client, seed, monkeypatch):
+    monkeypatch.setattr(tag_categories, "load", _chars())
+    seed("L1:a", tags=("cat",), width=200, height=100)
+
+    detail = (await client.get("/tags/detail", params={"tag": "cat"})).json()
+    assert detail["focus"] is None
+    assert detail["cover_url"] and detail["aspect"] == 2
+
+    r = await client.put(
+        "/tags/focus", params={"tag": "cat"}, json={"focus_x": 0.25, "focus_y": 0.75}
+    )
+    assert r.json()["focus"] == [0.25, 0.75]
+    assert (await client.get("/tags/detail", params={"tag": "cat"})).json()[
+        "focus"
+    ] == [0.25, 0.75]
+    row = next(
+        x for x in (await client.get("/tags/browse")).json() if x["tag"] == "cat"
+    )
+    assert row["focus"] == [0.25, 0.75]
+
+    # Pinning another image drops the point: it was for the old cover.
+    seed("L1:b", tags=("cat",), width=100, height=100)
+    await client.post("/tags/thumbnail/cat", json={"image_id": "L1:b"})
+    assert (await client.get("/tags/detail", params={"tag": "cat"})).json()[
+        "focus"
+    ] is None
+    await client.delete("/tags/thumbnail/cat")
+
+    assert (
+        await client.put(
+            "/tags/focus", params={"tag": "cat"}, json={"focus_x": 2, "focus_y": 0}
+        )
+    ).status_code == 422
+    await client.put(
+        "/tags/focus", params={"tag": "cat"}, json={"focus_x": "", "focus_y": ""}
+    )
+    assert (await client.get("/tags/detail", params={"tag": "cat"})).json()[
+        "focus"
+    ] is None

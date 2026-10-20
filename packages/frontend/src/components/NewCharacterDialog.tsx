@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
 import { Dialog } from "./ui/Dialog";
@@ -10,7 +10,8 @@ import { useToast } from "./Toasts";
 import { useCharacters } from "./ImageCharacters";
 import { TagSuggestList, useTagMatches } from "./TagSuggestList";
 import { cn } from "../lib/cn";
-import { characterHref, characterName } from "../lib/character";
+import { fuzzyRank } from "../lib/fuzzy";
+import { characterHref, characterName, displayName } from "../lib/character";
 import { createCharacter } from "../lib/imageMutations";
 import { TAGS_KEY } from "../lib/queries";
 import { putRecipe, useCharacterNames, useComfyModels, useLoraWords } from "../lib/generate";
@@ -62,6 +63,17 @@ export function NewCharacterDialog({
   const matches = useTagMatches(suggest ? tag : "", pool);
   const wanted = asTag(tag).toLowerCase();
   const existing = (everyone ?? []).find((c) => c.tag.toLowerCase() === wanted || c.aliases.some((a) => a.toLowerCase() === wanted));
+  // Characters the library already has that the typed text finds. When the
+  // tagger offers nothing else, this is why: say so instead of showing nothing.
+  const alike = useMemo(() => {
+    const q = asTag(tag);
+    if (!suggest || !q || existing) return [];
+    const rows = (everyone ?? []).flatMap((c) => [c.tag, ...c.aliases].map((n) => ({ n, c })));
+    return fuzzyRank(q.replace(/_/g, " "), rows, (r) => r.n.replace(/_/g, " "), 20)
+      .map((r) => r.c)
+      .filter((c, i, xs) => xs.indexOf(c) === i)
+      .slice(0, 3);
+  }, [tag, suggest, existing, everyone]);
   const offered = (words ?? []).map((w) => w.word).filter((w) => !identity.includes(asTag(w)));
   const fromTag = characterName(asTag(tag) || "character");
 
@@ -147,6 +159,19 @@ export function NewCharacterDialog({
               <TagSuggestList matches={matches} active={active} onActive={setActive} onPick={(s) => pickTag(s._id)} />
             )}
           </div>
+          {!matches.length && alike.length > 0 && (
+            <p className="mt-1.5 text-sm text-amber-300">
+              Already a character:{" "}
+              {alike.map((c, i) => (
+                <span key={c.tag}>
+                  {i > 0 && ", "}
+                  <Link to={characterHref(c.tag)} onClick={onClose} className="underline hover:text-amber-200">
+                    {displayName(c).name}
+                  </Link>
+                </span>
+              ))}
+            </p>
+          )}
         </Field>
 
         <Field label="Name" htmlFor="new-character-name">

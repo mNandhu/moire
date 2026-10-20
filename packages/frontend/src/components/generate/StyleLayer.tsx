@@ -135,7 +135,7 @@ function LoraPresetDialog({
             placeholder="Keep"
             onChange={(e) => setStrength(e.target.value)}
             className={cn(
-              "w-20 rounded-md border bg-raised px-2 py-1 text-right tabular-nums text-xs text-neutral-100 placeholder:text-faint",
+              "no-spin w-20 rounded-md border bg-raised px-2 py-1 text-right tabular-nums text-xs text-neutral-100 placeholder:text-faint",
               badStrength ? "border-red-700" : "border-line",
             )}
           />
@@ -247,7 +247,7 @@ function LoraRow({
         value={lora.strength}
         aria-label={`${stemOf(lora.name)} strength value`}
         onChange={(e) => onChange({ ...lora, strength: Number(e.target.value) })}
-        className="w-14 shrink-0 rounded-md border border-line bg-raised px-1.5 py-0.5 text-right tabular-nums text-xs"
+        className="no-spin w-14 shrink-0 rounded-md border border-line bg-raised px-1.5 py-0.5 text-right tabular-nums text-xs"
       />
       <Button
         size="sm"

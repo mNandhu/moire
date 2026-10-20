@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Pencil, UserRound, X } from "lucide-react";
+import { ExternalLink, Maximize2, Pencil, UserRound, X } from "lucide-react";
 import { Badge } from "./ui/Badge";
 import { Button, ButtonLink } from "./ui/Button";
 import { Skeleton } from "./ui/Skeleton";
@@ -12,7 +12,7 @@ import { cn } from "../lib/cn";
 import { fetchSignatures } from "../lib/gen";
 import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
 import { updateCharacter } from "../lib/imageMutations";
-import { characterHref } from "../lib/character";
+import { characterHref, tagHref } from "../lib/character";
 import { CharacterAvatar } from "./CharacterAvatar";
 import { useCharacterLookup } from "./ImageCharacters";
 import { TAGS_KEY, useBoilerplate, useTagDetail } from "../lib/queries";
@@ -152,7 +152,7 @@ export function TagPanel({
       {/* A character's avatar heads the panel; a tag shows a collage. */}
       {detail?.category !== "character" && (
         <div className="rounded-lg overflow-hidden">
-          <Mosaic samples={samples} cover={detail?.thumb_url ?? null} className="aspect-[16/10]" />
+          <Mosaic samples={samples} cover={detail?.thumb_url ?? null} focus={detail?.focus} focusImage={detail?.cover_image_id} className="aspect-[16/10]" />
         </div>
       )}
 
@@ -166,9 +166,14 @@ export function TagPanel({
           </ButtonLink>
         ) : (
           detail && (
+            <>
+            <ButtonLink size="sm" to={tagHref(tag)} title="Centre its cover, pick a new one">
+              <Maximize2 size={14} /> Tag page
+            </ButtonLink>
             <Button size="sm" onClick={() => void markCharacter()} title="Give this tag a character page">
               <UserRound size={14} /> Mark as character
             </Button>
+            </>
           )
         )}
         {detail &&
@@ -346,7 +351,7 @@ export function Chip({ to, title, label, share }: { to: string; title: string; l
  * over the Tags page, paging through this tag's images; the pin on hover
  * makes it the tag's cover.
  */
-function TagImages({
+export function TagImages({
   tag,
   source,
   count,

@@ -133,9 +133,6 @@ export function Sidebar({
                   <PanelLeftClose size={18} />
                 </button>
               )}
-              {/* Last in the row, nearest the edge its forward button
-                  floats past. */}
-              <BackButton />
             </div>
           </>
         )}
@@ -143,11 +140,6 @@ export function Sidebar({
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
-        {collapsed && (
-          <div className="hidden [@media(hover:hover)_and_(pointer:fine)]:flex justify-center">
-            <BackButton />
-          </div>
-        )}
         {NAV.map((group, gi) => (
           <div key={gi} className="space-y-1">
             {group.section && !collapsed && (
@@ -183,6 +175,9 @@ export function Sidebar({
           </div>
         )}
         <NavButton label="Settings" path="/settings" icon={Settings} />
+        {/* Last, so it sits by the thumb; hovering it floats a forward
+            button past the sidebar's edge. */}
+        <BackButton label={collapsed ? undefined : "Back"} className={collapsed ? "w-full justify-center py-2.5" : undefined} />
       </div>
     </aside>
   );
