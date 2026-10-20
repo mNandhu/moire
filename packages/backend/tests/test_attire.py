@@ -273,3 +273,14 @@ def test_expressions_and_eye_states_are_not_identity():
     # What the eyes are like stays.
     for tag in ("red_eyes", "heart-shaped_pupils", "heterochromia"):
         assert attire.is_identity(tag), tag
+
+
+def test_animal_traits_are_a_look():
+    cats = ("creatures", "cats", ())
+    assert attire._facet("cat_girl", cats) == "look"
+    assert attire._facet("cat", cats) is None  # the animal itself
+    assert attire._facet("tail", ("body", "body_parts", ("sex/sex_acts",))) == "look"
+    # Unlisted kemonomimi.
+    assert attire._facet("fox_girl", None) == "look"
+    assert attire._facet("wolf_boy", None) == "look"
+    assert attire._facet("magical_girl", None) is None

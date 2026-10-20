@@ -72,8 +72,10 @@ belongs in this file.
   enough of them, trusted only when the share holds up for that many images (so a
   one-off tag on a 3-image character is dropped), and keeping one hair and
   one eye colour (two with `multicolored_hair` / `heterochromia`). The page
-  shows only the look and outfit ones: scene, framing, pose and expression
-  (`@_@`, `closed_eyes`) common to a few images of one set aren't a look.
+  shows only the look and outfit ones (body, animal traits like `cat_girl`
+  and `tail`, and what they wear): scene, framing, pose, expression
+  (`@_@`, `closed_eyes`), props and tags the groups can't place, common to a
+  few images of one set, aren't a look.
   Few images shows a "may be off" note. The avatar is the tag's cover pin; the
   `characters` table holds only overrides. (`services/characters.py`)
 - **Face detection**: an optional anime face model (YOLOv8 nano, ONNX,

@@ -366,16 +366,21 @@ async def test_page_look_is_how_they_are_drawn_and_dressed(client, seed, monkeyp
                 "beach",
                 "cowboy_shot",
                 "@_@",
+                "closed_mouth",
+                "disposable_cup",
+                "drinking_straw",
+                "tail",
             ),
         )
     for i in range(30):
         seed(f"L1:x{i}", tags=("1girl",))
     page = (await client.get("/tags/character", params={"tag": "arima_kana"})).json()
-    # A tag the groups don't place stays.
+    # Props and expressions the set shares go too; kemonomimi and tails stay.
     assert {s["tag"] for s in page["signature"]} == {
         "red_hair",
         "bikini",
         "cat_girl",
+        "tail",
     }
 
 
