@@ -139,6 +139,11 @@ export function PromptInput({
   // The copy behind must wrap exactly like the textarea, or an outline lands
   // on the wrong words: it takes the textarea's own box and text styles, and
   // its width less any scrollbar, and follows its scroll.
+  // Styles and size: on mount, restyle and resize. Scroll: as it scrolls
+  // and as text is typed.
+  const syncScroll = useCallback(() => {
+    if (ref.current && backRef.current) backRef.current.scrollTop = ref.current.scrollTop;
+  }, []);
   const syncBack = useCallback(() => {
     const el = ref.current;
     const back = backRef.current;
@@ -155,14 +160,17 @@ export function PromptInput({
     back.style.left = `${el.offsetLeft}px`;
     back.scrollTop = el.scrollTop;
   }, []);
-  useLayoutEffect(syncBack, [syncBack, value, marksKey]);
+  const hasMarks = marks.length > 0;
+  useLayoutEffect(syncBack, [syncBack, hasMarks, className]);
+  useLayoutEffect(syncScroll, [syncScroll, value, marksKey]);
   useEffect(() => {
     const el = ref.current;
-    if (!el || !marks.length) return;
+    if (!el || !hasMarks) return;
+    // Content box: a scrollbar coming or going resizes it too.
     const ro = new ResizeObserver(syncBack);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [syncBack, marks.length]);
+  }, [syncBack, hasMarks]);
 
   const look = () => {
     const el = ref.current;
@@ -271,7 +279,7 @@ export function PromptInput({
           markAt(markAtCaret());
         }}
         onScroll={() => {
-          syncBack();
+          syncScroll();
           setShown(null);
         }}
         onMouseMove={(e) => {

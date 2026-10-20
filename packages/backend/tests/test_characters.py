@@ -358,12 +358,25 @@ async def test_page_look_is_how_they_are_drawn_and_dressed(client, seed, monkeyp
     for i in range(7):
         seed(
             f"L1:k{i}",
-            tags=("arima_kana", "red_hair", "bikini", "beach", "cowboy_shot", "@_@"),
+            tags=(
+                "arima_kana",
+                "red_hair",
+                "bikini",
+                "cat_girl",
+                "beach",
+                "cowboy_shot",
+                "@_@",
+            ),
         )
     for i in range(30):
         seed(f"L1:x{i}", tags=("1girl",))
     page = (await client.get("/tags/character", params={"tag": "arima_kana"})).json()
-    assert {s["tag"] for s in page["signature"]} == {"red_hair", "bikini"}
+    # A tag the groups don't place stays.
+    assert {s["tag"] for s in page["signature"]} == {
+        "red_hair",
+        "bikini",
+        "cat_girl",
+    }
 
 
 def test_gender_comes_from_the_count_tags():

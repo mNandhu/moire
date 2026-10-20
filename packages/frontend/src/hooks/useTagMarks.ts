@@ -1,10 +1,11 @@
 import { useSyncExternalStore } from "react";
+import { chipBorderStyle } from "../lib/tagColour";
 
 /**
  * How tags are marked in tag lists (lib/tagColour.ts): hair and eye tags
  * outlined in their colour, and every tag tinted by its facet. A view
  * preference, kept on this device; changing it in Settings updates every
- * open list at once.
+ * open list at once, in other tabs too.
  */
 export type TagMarks = { outlines: boolean; tints: boolean };
 
@@ -39,6 +40,15 @@ export function setTagMarks(patch: Partial<TagMarks>) {
   listeners.forEach((l) => l());
 }
 
+// Another tab changed it.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key !== KEY) return;
+    current = read();
+    listeners.forEach((l) => l());
+  });
+}
+
 function subscribe(l: () => void) {
   listeners.add(l);
   return () => listeners.delete(l);
@@ -46,4 +56,10 @@ function subscribe(l: () => void) {
 
 export function useTagMarks(): TagMarks {
   return useSyncExternalStore(subscribe, () => current);
+}
+
+/** {@link chipBorderStyle} as Settings has it: nothing with outlines off. */
+export function useChipBorderStyle(): typeof chipBorderStyle {
+  const { outlines } = useTagMarks();
+  return outlines ? chipBorderStyle : () => undefined;
 }

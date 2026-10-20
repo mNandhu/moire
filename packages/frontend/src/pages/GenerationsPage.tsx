@@ -1,8 +1,8 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { History, ImageOff, Layers, Loader2, Search } from "lucide-react";
 import { Badge, EmptyState, Input, PageBody, PageHeader } from "../components/ui";
-import { batchLine, coverAspect, dayLabel, dealColumns, scrubIndex, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
+import { batchLine, coverAspect, dayLabel, scrubIndex, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
 import { thumbUrl, useBatches, type BatchSummary } from "../lib/generate";
 import { cn } from "../lib/cn";
 import { fuzzyRank } from "../lib/fuzzy";
@@ -10,44 +10,44 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 type Show = "all" | "running" | "failed";
 
-// Masonry columns: at least this wide, this far apart; a card adds its name
-// lines and its deck edges under and above its cover.
+// Masonry: columns at least this wide, this far apart. The grid's rows are
+// 1px, and each card spans as many as it is tall (measured), so cards of
+// different shapes pack without gaps while staying in reading order.
 const MIN_COL = 190;
 const GAP = 12;
-const CARD_EXTRA = 62;
 
-/** Cards in masonry columns, as many as fit the width, each card in the
- * shortest column so far. */
-function Masonry({ items }: { items: BatchSummary[] }) {
+/** One card in the masonry grid, spanning its own measured height. */
+function MasonryItem({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
+  const [span, setSpan] = useState<number | null>(null);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    setWidth(el.clientWidth);
-    const ro = new ResizeObserver(([e]) => setWidth(e.contentRect.width));
+    const measure = () => setSpan(Math.ceil(el.getBoundingClientRect().height) + GAP);
+    measure();
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const cols = Math.max(1, Math.floor((width + GAP) / (MIN_COL + GAP)));
-  const colWidth = (width - GAP * (cols - 1)) / cols;
-  const columns = useMemo(
-    () => dealColumns(items.map((b) => coverAspect(b.width, b.height)), cols, colWidth, CARD_EXTRA, GAP),
-    [items, cols, colWidth],
-  );
   return (
-    <div ref={ref} className="flex items-start" style={{ gap: GAP }}>
-      {width > 0 &&
-        columns.map((col, c) => (
-          <ul key={c} className="flex min-w-0 flex-1 flex-col" style={{ gap: GAP }}>
-            {col.map((i) => (
-              <li key={items[i]._id}>
-                <BatchCard b={items[i]} />
-              </li>
-            ))}
-          </ul>
-        ))}
-    </div>
+    <li style={span ? { gridRowEnd: `span ${span}` } : undefined}>
+      <div ref={ref}>{children}</div>
+    </li>
+  );
+}
+
+function Masonry({ items }: { items: BatchSummary[] }) {
+  return (
+    <ul
+      className="grid"
+      style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${MIN_COL}px, 1fr))`, gridAutoRows: 1, columnGap: GAP }}
+    >
+      {items.map((b) => (
+        <MasonryItem key={b._id}>
+          <BatchCard b={b} />
+        </MasonryItem>
+      ))}
+    </ul>
   );
 }
 

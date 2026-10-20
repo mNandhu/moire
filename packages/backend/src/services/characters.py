@@ -229,8 +229,8 @@ def signature(
     return one_colour_per_slot(found)[:limit]
 
 
-# The facets (attire.FACETS) a character page's look keeps.
-LOOK_FACETS = frozenset({"look", "outfit"})
+# The facets (attire.FACETS) a character page's look leaves out.
+NOT_LOOK = frozenset({"pose", "scene", "framing"})
 
 GENDERS = {
     kind: (
@@ -709,7 +709,8 @@ async def page(base: str) -> dict | None:
         "palette": solo_palette([tuple(r) for r in hair_eyes], n, crowded),
         "cover_blurhash": cover_hash,
         # Their look: how they're drawn and dressed. Scene, framing, pose
-        # and expression shared by a few images from one set aren't it.
+        # and expression shared by a few images from one set aren't it; a
+        # tag the groups don't place (`cat_girl`, `tail`) stays.
         "signature": [
             s
             for s in signature(
@@ -721,7 +722,7 @@ async def page(base: str) -> dict | None:
                 visual=vocab.general,
                 limit=len(tags_here),
             )
-            if attire.facet_of(s["tag"]) in LOOK_FACETS
+            if attire.facet_of(s["tag"]) not in NOT_LOOK
         ][:30],
         # The images the signature was read from: few means it's a guess.
         "signature_images": sig_images,

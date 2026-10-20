@@ -3,8 +3,7 @@ import { X } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { displayWord, isEmbedding } from "../../lib/compose";
 import { tagName } from "../../lib/tags";
-import { chipBorderStyle } from "../../lib/tagColour";
-import { useTagMarks } from "../../hooks/useTagMarks";
+import { useChipBorderStyle } from "../../hooks/useTagMarks";
 import { TagSuggestList, useTagMatches, type TagSuggestion } from "../TagSuggestList";
 
 /** Typed text as a chip: canonical underscores for tags; embeddings as typed. */
@@ -47,7 +46,7 @@ export function ChipInput({
   label: string;
   invalid?: boolean;
 }) {
-  const { outlines } = useTagMarks();
+  const chipBorderStyle = useChipBorderStyle();
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -117,7 +116,7 @@ export function ChipInput({
             <span
               key={chip}
               title={emb ? "Embedding" : undefined}
-              style={emb || !outlines ? undefined : chipBorderStyle(chip)}
+              style={emb ? undefined : chipBorderStyle(chip)}
               className={cn(
                 "inline-flex items-center gap-1 rounded-md border pl-2 pr-1 py-0.5",
                 emb ? "border-teal-700/70 bg-teal-900/30 text-teal-100" : "border-line bg-raised text-neutral-100",
