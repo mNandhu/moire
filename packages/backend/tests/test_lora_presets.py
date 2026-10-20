@@ -139,3 +139,14 @@ async def test_file_words_skip_tags_common_in_the_library(client, seed):
         ("looking at viewer", ["file"]),
         ("0__11Xx_illu", ["file", "library"]),
     ]
+
+
+async def test_character_names_come_from_the_tagger_vocab(client, monkeypatch):
+    from src.services import tag_categories
+
+    async def fake():
+        return tag_categories.vocab({"fern_(sousou_no_frieren)", "nahida"}, set())
+
+    monkeypatch.setattr(tag_categories, "load", fake)
+    r = await client.get("/generate/character-names")
+    assert r.json() == ["fern_(sousou_no_frieren)", "nahida"]

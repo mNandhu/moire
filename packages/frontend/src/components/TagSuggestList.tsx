@@ -83,6 +83,7 @@ export function TagSuggestList({
   onActive,
   onPick,
   thumbOf,
+  noteOf,
   className,
   style,
 }: {
@@ -91,6 +92,8 @@ export function TagSuggestList({
   onActive: (i: number) => void;
   onPick: (s: TagSuggestion) => void;
   thumbOf?: (id: string) => string | null;
+  /** A short label for a row (e.g. a character known only to the tagger). */
+  noteOf?: (id: string) => string | null;
   className?: string;
   style?: React.CSSProperties;
 }) {
@@ -133,15 +136,20 @@ export function TagSuggestList({
                   manual
                 </Badge>
               )}
+              {noteOf?.(s._id) && (
+                <Badge tone="neutral" className="text-2xs shrink-0">
+                  {noteOf(s._id)}
+                </Badge>
+              )}
               {isPrompt(s._id) && (
                 <Badge tone="info" className="text-2xs shrink-0">
                   prompt
                 </Badge>
               )}
             </span>
-            <span className="tabular-nums text-xs text-faint shrink-0">
-              {s.count.toLocaleString()}
-            </span>
+            {s.count > 0 && (
+              <span className="tabular-nums text-xs text-faint shrink-0">{s.count.toLocaleString()}</span>
+            )}
           </button>
         </li>
       ))}

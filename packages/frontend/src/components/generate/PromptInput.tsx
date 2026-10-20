@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { caretOffset } from "../../lib/caret";
 import { cn } from "../../lib/cn";
 import { useTagBrowse } from "../../lib/queries";
+import { useCharacterNames } from "../../lib/generate";
 import { replaceTerm, termAt, type Term } from "../../lib/promptEdit";
 import { toPromptText } from "../../lib/tags";
 import { TagSuggestList, useTagMatches, type TagSuggestion } from "../TagSuggestList";
@@ -45,7 +46,16 @@ export function PromptInput({
   const thumbs = useMemo(() => new Map((browse ?? []).map((b) => [b.tag, b.thumb_url])), [browse]);
   const thumbOf = useCallback((id: string) => thumbs.get(id) ?? null, [thumbs]);
   const resources = useMemo(() => embeddings.map((n) => ({ _id: `embedding:${n}`, count: 0 })), [embeddings]);
-  const matches = useTagMatches(term?.query ?? "", suggestions, resources);
+  // Characters the tagger knows that the library doesn't have yet, offered
+  // after the library's own tags (no count, no cover).
+  const { data: names } = useCharacterNames();
+  const unseen = useMemo(() => {
+    const have = new Set(suggestions.map((x) => x._id));
+    return new Set((names ?? []).filter((n) => !have.has(n)));
+  }, [names, suggestions]);
+  const pool = useMemo(() => [...suggestions, ...[...unseen].map((_id) => ({ _id, count: 0 }))], [suggestions, unseen]);
+  const noteOf = useCallback((id: string) => (unseen.has(id) ? "not in library" : null), [unseen]);
+  const matches = useTagMatches(term?.query ?? "", pool, resources);
   const open = !!term && matches.length > 0;
 
   const look = () => {
@@ -134,6 +144,7 @@ export function PromptInput({
           onActive={setActive}
           onPick={pick}
           thumbOf={thumbOf}
+          noteOf={noteOf}
           className="mt-0 w-80"
           style={at ? { left: at.left, top: at.top } : undefined}
         />

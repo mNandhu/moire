@@ -347,6 +347,15 @@ export function usePresets() {
   return useQuery({ queryKey: PRESETS_KEY, queryFn: ({ signal }) => api<Preset[]>(`${BASE}/presets`, { signal }) });
 }
 
+/** Every character the AI tagger knows by name, in the library or not. */
+export function useCharacterNames() {
+  return useQuery({
+    queryKey: [...GEN_KEY, "character-names"],
+    queryFn: ({ signal }) => api<string[]>(`${BASE}/character-names`, { signal }),
+    staleTime: Infinity,
+  });
+}
+
 export function useLoraPresets() {
   return useQuery({
     queryKey: LORA_PRESETS_KEY,

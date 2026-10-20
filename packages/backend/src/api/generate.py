@@ -21,6 +21,7 @@ from ..services import (
     lora_presets,
     prompt_presets,
     recipes,
+    tag_categories,
 )
 from ..services.generation_jobs import (
     Invalid,
@@ -252,6 +253,13 @@ async def test_generator(generator_id: str, body: TestIn):
 
 
 # -- Character recipes -----------------------------------------------------------
+
+
+@router.get("/character-names")
+async def character_names():
+    """Every character the AI tagger knows by name, in or out of the library:
+    for prompt autocomplete and making a character from scratch."""
+    return sorted((await tag_categories.load()).names)
 
 
 @router.get("/recipes/{tag}")
