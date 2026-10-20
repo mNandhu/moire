@@ -82,6 +82,8 @@ export type Generator = {
   source: GeneratorOrigin | null;
   /** A custom Generator's own prompt, from its source. */
   defaults: { base: string; negative: string } | null;
+  /** What the workflow sets itself where Moiré has no slot (shown read-only). */
+  fixed: { checkpoint: string | null; size: string | null };
   test: GeneratorTest | null;
 };
 

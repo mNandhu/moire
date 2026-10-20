@@ -390,6 +390,20 @@ def discover(graph: Graph) -> dict[str, Any]:
                 slots[key] = path
         loader = model_loader(graph, sampler)
         if loader is not None:
+            # Offered, never chosen: a workflow is often tied to its model.
+            ckpt = next(
+                (
+                    k
+                    for k in ("ckpt_name", "unet_name")
+                    if isinstance(_inputs(graph, loader).get(k), str)
+                ),
+                None,
+            )
+            if ckpt:
+                found["checkpoint"] = {
+                    "path": [loader, ckpt],
+                    "value": _inputs(graph, loader)[ckpt],
+                }
             model, clip = lora_insertion(graph, loader)
             slots["lora_model"] = model
             slots["lora_clip"] = clip
@@ -428,6 +442,32 @@ def discover(graph: Graph) -> dict[str, Any]:
             if "loadimage" in str(graph[nid].get("class_type", "")).lower()
         ],
     }
+
+
+def fixed_values(graph: Graph, slots: dict[str, Any]) -> dict[str, Any]:
+    """What the workflow sets itself where Moiré has no slot: the checkpoint
+    it loads and its image size (``WxH``, or a ratio node's choice), for the
+    run bar to show read-only. None where unknown or where a slot exists."""
+    sampler = base_sampler(graph)
+    out: dict[str, Any] = {"checkpoint": None, "size": None}
+    if sampler is None:
+        return out
+    loader = model_loader(graph, sampler)
+    if loader is not None and not slots.get("checkpoint"):
+        inp = _inputs(graph, loader)
+        out["checkpoint"] = next(
+            (inp[k] for k in ("ckpt_name", "unet_name") if isinstance(inp.get(k), str)),
+            None,
+        )
+    latent = _latent(graph, sampler)
+    if latent is not None and not slots.get("width"):
+        inp = _inputs(graph, latent)
+        w, h = inp.get("width"), inp.get("height")
+        if isinstance(w, int) and isinstance(h, int):
+            out["size"] = f"{w}x{h}"
+        elif isinstance(inp.get("ratio_selected"), str):
+            out["size"] = inp["ratio_selected"]
+    return out
 
 
 def outputs(graph: Graph) -> list[dict[str, Any]]:
@@ -470,7 +510,7 @@ def check_slots(graph: Graph, slots: dict[str, Any]) -> list[str]:
             problems.append(f"The {key} prompt's input is a link")
     if slots.get("positive") and slots.get("positive") == slots.get("negative"):
         problems.append("Positive and negative can't be the same input")
-    for key in ("width", "height", "batch_size", *SAMPLING):
+    for key in ("width", "height", "batch_size", "checkpoint", *SAMPLING):
         path = slots.get(key)
         if path and not _literal_input(graph, path):
             problems.append(

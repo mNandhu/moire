@@ -14,6 +14,7 @@ from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from . import comfy_models, generation_estimate
 from .generation_jobs import GenerationManager, Invalid, Unavailable, load_generator
+from .generator_discovery import fixed_values
 from .generator_graph import sampling_defaults
 
 _b, _r, _o, _i = (
@@ -307,6 +308,8 @@ async def generator_view(
         "defaults": source.get("defaults"),
         # What each exposed sampling setting is when left alone.
         "sampling": sampling_defaults(gen["graph"], gen["slots"]),
+        # What the workflow sets itself where there's no slot (shown read-only).
+        "fixed": fixed_values(gen["graph"], gen["slots"]),
         "test": test,
     }
 

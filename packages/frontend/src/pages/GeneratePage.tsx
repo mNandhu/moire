@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, FlaskConical, Loader2, Lock, Wand2 } from "lucide-react";
-import { Button, ButtonLink, Card, EmptyState, PageBody, PageHeader } from "../components/ui";
+import { Badge, Button, ButtonLink, Card, EmptyState, PageBody, PageHeader, Tooltip } from "../components/ui";
 import { bareTagPool } from "../components/generate/ChipInput";
 import {
   BatchName,
   CheckpointPicker,
+  FixedValue,
   SamplingControl,
   CountStepper,
   QueueCard,
@@ -17,6 +18,8 @@ import {
 import { CharacterLayer } from "../components/generate/CharacterBlock";
 import { StyleLayer } from "../components/generate/StyleLayer";
 import { ComfyStatusLine } from "../components/generate/ComfyStatusLine";
+import { WorkflowPicker } from "../components/generate/WorkflowPicker";
+import { countModeOf, defaultBatchSize, forWorkflow, runBarOf } from "../lib/workflow";
 import { useCharacters } from "../components/ImageCharacters";
 import { LatestResults } from "../components/generate/LatestResults";
 import { NextBatch, useNextEstimate } from "../components/generate/NextBatch";
@@ -40,6 +43,7 @@ import {
   usePresets,
   useRecipes,
   type CharacterInput,
+  type Generator,
   type NodeError,
 } from "../lib/generate";
 import {
@@ -117,13 +121,11 @@ function RejectedBox({
 }
 
 /** The test-run gate: one image proves the output folder and the checkpoint. */
-function TestRunCard({ checkpoint, disabled }: { checkpoint: string | null; disabled: boolean }) {
+function TestRunCard({ gen, checkpoint, disabled }: { gen: Generator; checkpoint: string | null; disabled: boolean }) {
   const qc = useQueryClient();
-  const { data: generators } = useGenerators();
-  const gen = generators?.[0];
   const [errors, setErrors] = useState<NodeError[] | null>(null);
   const run = useMutation({
-    mutationFn: () => startTest("builtin", checkpoint),
+    mutationFn: () => startTest(gen._id, checkpoint),
     onMutate: () => setErrors(null),
     onError: (e) => {
       if (e instanceof RejectedError) setErrors(e.nodeErrors);
@@ -191,8 +193,23 @@ export default function GeneratePage() {
 
   useEffect(() => saveDraft(form), [form]);
 
-  const gen = generators?.[0];
-  const hasSampling = Object.keys(gen?.sampling ?? {}).length > 0;
+  // The chosen workflow; one that is gone falls back to the built-in.
+  const gen = generators?.find((g) => g._id === form.workflow) ?? generators?.[0];
+  const bar = runBarOf(gen);
+  const hasSampling = bar.sampling;
+  /** Switching workflows: settings tied to the old graph go; an empty
+   * Prompt and Negative take the new one's own. */
+  const chooseWorkflow = (id: string) => {
+    const next = generators?.find((g) => g._id === id);
+    setForm((f) => ({
+      ...f,
+      workflow: id,
+      sampling: {},
+      perRequest: null,
+      prompt: !f.prompt.trim() && next?.defaults ? next.defaults.base : f.prompt,
+      negative: !f.negative.trim() && next?.defaults ? next.defaults.negative : f.negative,
+    }));
+  };
   const checkpoints = models?.checkpoints ?? NO_STRINGS;
   // The first installed checkpoint until the user picks one.
   useEffect(() => {
@@ -232,20 +249,16 @@ export default function GeneratePage() {
           return c ? [c] : [];
         })),
   );
-  const defaultPerRequest = settings?.builtin_per_request ?? 1;
-  // A size per batch only on the built-in for now (custom Generators: phase 3).
-  const ownBatchSize = gen?.kind === "builtin" && !!gen.slots.batch_size;
-  // How the backend will split the count, per Generator.
-  const genPerRequest = typeof gen?.slots.per_request === "number" ? gen.slots.per_request : null;
-  const countMode: CountMode = ownBatchSize
-    ? { kind: "images", perRequest: form.perRequest ?? defaultPerRequest }
-    : gen?.slots.batch_size && genPerRequest
-      ? { kind: "images", perRequest: genPerRequest }
-      : { kind: "unknown" };
+  const defaultPerRequest = defaultBatchSize(gen, settings?.builtin_per_request ?? 1);
+  const ownBatchSize = bar.batchSize;
+  // How the backend will split the count, per workflow.
+  const countMode: CountMode = countModeOf(gen, form.perRequest, settings?.builtin_per_request ?? 1);
+  const setupLink = gen?.kind === "custom" ? { text: "Open its setup", to: `/generate/workflows/${gen._id}` } : undefined;
   const connected = !!status?.connected;
 
   const queue = useMutation({
-    mutationFn: () => queueBatch(toQueueBody(form, gen?._id ?? "builtin", characters ?? [], presets, loraPresets)),
+    mutationFn: () =>
+      queueBatch(forWorkflow(toQueueBody(form, gen?._id ?? "builtin", characters ?? [], presets, loraPresets), bar)),
     onMutate: () => setRejected(null),
     onSuccess: (b) => {
       toast.push(`Queued ${b.name}`, "success");
@@ -332,9 +345,13 @@ export default function GeneratePage() {
         width="wide"
         actions={
           <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm">
-            <span className="text-muted">
-              Workflow <span className="font-medium text-neutral-100">{gen?.name ?? "Built-in"}</span>
-            </span>
+            {generators && generators.length > 0 ? (
+              <WorkflowPicker generators={generators} value={gen?._id ?? "builtin"} onChange={chooseWorkflow} />
+            ) : (
+              <span className="text-muted">
+                Workflow <span className="font-medium text-neutral-100">Built-in</span>
+              </span>
+            )}
             <ComfyStatusLine ready={gen ? ready : undefined} />
           </div>
         }
@@ -369,7 +386,19 @@ export default function GeneratePage() {
                         rejected?.some((e) => e.field === "positive") && "ring-red-700",
                       )}
                     >
-                      <div className="mb-1.5 text-sm font-semibold text-neutral-50">Prompt</div>
+                      <div className="mb-1.5 flex items-center gap-2">
+                        <span className="text-sm font-semibold text-neutral-50">Prompt</span>
+                        {gen?.defaults?.base && form.prompt.trim() !== gen.defaults.base.trim() && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="ml-auto"
+                            onClick={() => setForm((f) => ({ ...f, prompt: gen.defaults!.base, negative: gen.defaults!.negative }))}
+                          >
+                            Use {gen.name}'s prompt
+                          </Button>
+                        )}
+                      </div>
                       <PromptInput
                         label="Prompt"
                         value={form.prompt}
@@ -384,6 +413,26 @@ export default function GeneratePage() {
                         fix={countFix}
                       />
                     </Card>
+                  ) : blk.kind === "style" && !bar.loras ? (
+                    <LayerRow label="Style" className="opacity-60">
+                      <Tooltip
+                        content={
+                          <div className="space-y-1.5">
+                            <p>This workflow has no place for Moiré's LoRAs, so the Style layer and character LoRAs are off.</p>
+                            {setupLink && (
+                              <Link to={setupLink.to} className="text-brand-300 hover:text-brand-200">
+                                Map a LoRA insertion point in its setup
+                              </Link>
+                            )}
+                          </div>
+                        }
+                      >
+                        <Button size="sm" aria-disabled="true" className="cursor-default" tabIndex={0}>
+                          Add LoRA
+                        </Button>
+                      </Tooltip>
+                      <Badge>Off for this workflow</Badge>
+                    </LayerRow>
                   ) : blk.kind === "style" ? (
                     <StyleLayer
                       value={form.loras}
@@ -457,7 +506,9 @@ export default function GeneratePage() {
             <div className="flex-1" />
             <div className="sticky bottom-0 z-[5] -mx-2 bg-gradient-to-t from-canvas from-80% to-transparent px-2 pb-4 pt-3">
               <Card className="space-y-3 p-4 shadow-panel">
-                {gen && !ready && <TestRunCard checkpoint={form.checkpoint} disabled={!connected} />}
+                {gen && !ready && (
+                  <TestRunCard gen={gen} checkpoint={bar.checkpoint ? form.checkpoint : null} disabled={!connected} />
+                )}
                 <div
                   className={cn(
                     "grid grid-cols-2 items-start gap-3",
@@ -467,12 +518,21 @@ export default function GeneratePage() {
                       : "2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1.6fr)_auto_minmax(0,0.9fr)]",
                   )}
                 >
-                  <CheckpointPicker
-                    value={form.checkpoint}
-                    options={checkpoints}
-                    onChange={(v) => set("checkpoint", v)}
-                    invalid={flagged.checkpoint ? "Not in ComfyUI's checkpoint list" : null}
-                  />
+                  {bar.checkpoint ? (
+                    <CheckpointPicker
+                      value={form.checkpoint}
+                      options={checkpoints}
+                      onChange={(v) => set("checkpoint", v)}
+                      invalid={flagged.checkpoint ? "Not in ComfyUI's checkpoint list" : null}
+                    />
+                  ) : (
+                    <FixedValue
+                      label="Checkpoint"
+                      value={gen?.fixed.checkpoint ? stemOf(gen.fixed.checkpoint) : null}
+                      why={`${gen?.name ?? "This workflow"} loads its checkpoint itself. To choose one here, map its checkpoint in the workflow's setup.`}
+                      fix={setupLink}
+                    />
+                  )}
                   {gen && hasSampling && (
                     <SamplingControl
                       value={form.sampling}
@@ -483,7 +543,16 @@ export default function GeneratePage() {
                       invalid={flagged.sampling ? "ComfyUI refused these sampler settings" : null}
                     />
                   )}
-                  <SizePicker value={{ width: form.width, height: form.height }} onChange={(sz) => setForm((f) => ({ ...f, ...sz }))} />
+                  {bar.size ? (
+                    <SizePicker value={{ width: form.width, height: form.height }} onChange={(sz) => setForm((f) => ({ ...f, ...sz }))} />
+                  ) : (
+                    <FixedValue
+                      label="Size"
+                      value={gen?.fixed.size?.replace("x", "×")}
+                      why={`${gen?.name ?? "This workflow"} sets its own image size. To choose it here, map its width and height in the workflow's setup.`}
+                      fix={setupLink}
+                    />
+                  )}
                   <SeedControl value={form.seed} onChange={(v) => set("seed", v)} />
                   <CountStepper
                     value={form.count}

@@ -38,6 +38,7 @@ _SLOT_KEYS = (
     "height",
     "batch_size",
     "per_request",
+    "checkpoint",
     "sampler",
     "scheduler",
     "steps",
@@ -235,7 +236,15 @@ def clean_slots(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise SetupError("Slots must be an object")
     out: dict[str, Any] = {}
-    for key in ("positive", "negative", "width", "height", "batch_size", *SAMPLING):
+    for key in (
+        "positive",
+        "negative",
+        "width",
+        "height",
+        "batch_size",
+        "checkpoint",
+        *SAMPLING,
+    ):
         if raw.get(key) is None:
             continue
         path = _path(raw[key])

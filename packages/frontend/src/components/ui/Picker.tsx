@@ -52,6 +52,7 @@ export function Picker({
   onClose,
   pinned,
   checks = true,
+  footer,
 }: {
   value: string | readonly string[];
   options: readonly PickerOption[];
@@ -75,6 +76,8 @@ export function Picker({
   pinned?: (query: string) => PickerOption;
   /** Tick the chosen option; without, it is only highlighted. */
   checks?: boolean;
+  /** Under the list (an action like "Manage …"); clicking it is the caller's. */
+  footer?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const wasOpen = useRef(open);
@@ -272,6 +275,7 @@ export function Picker({
               );
             })}
           </ul>
+          {footer && <div className="border-t border-line p-1">{footer}</div>}
         </div>
       )}
     </div>

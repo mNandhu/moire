@@ -36,6 +36,8 @@ export type Block =
 export type AddedKind = "text" | "preset" | "embedding";
 
 export type GenerateForm = {
+  /** The workflow (Generator id) this page runs. */
+  workflow: string;
   prefix: PresetRef;
   blocks: Block[];
   /** The main text: scene, pose, everything that isn't boilerplate. */
@@ -63,6 +65,7 @@ export type GenerateForm = {
 export const DEFAULT_BLOCKS: Block[] = [{ kind: "prefix" }, { kind: "character" }, { kind: "prompt" }, { kind: "style" }];
 
 export const DEFAULT_FORM: GenerateForm = {
+  workflow: "builtin",
   prefix: null,
   blocks: DEFAULT_BLOCKS,
   prompt: "",
@@ -300,7 +303,7 @@ function loraPresetOf(composer: Record<string, unknown> | null | undefined, name
 
 /** A batch's inputs back in the composer ("Edit and queue"). A typed name
  * stays; an auto name is picked again. */
-export function formFromBatch(i: BatchInputs, name: string | null): GenerateForm {
+export function formFromBatch(i: BatchInputs, name: string | null, workflow = "builtin"): GenerateForm {
   const c = i.composer && (i.composer as { v?: unknown }).v === 2 ? composerFrom(i.composer) : null;
   return {
     ...DEFAULT_FORM,
@@ -318,6 +321,7 @@ export function formFromBatch(i: BatchInputs, name: string | null): GenerateForm
     count: i.count,
     perRequest: i.per_request_asked ?? null,
     name,
+    workflow,
   };
 }
 
@@ -340,6 +344,7 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     if (Array.isArray(d.characters)) out.characters = [...new Set<string>(d.characters.filter(isStr))].slice(0, MAX_CHARACTERS);
     else if (isStr(d.character)) out.characters = [d.character];
     if (isStr(d.name) || d.name === null) out.name = d.name;
+    if (isStr(d.workflow) && d.workflow) out.workflow = d.workflow;
     for (const k of ["width", "height", "count"] as const) if (typeof d[k] === "number") out[k] = d[k];
     if (Number.isInteger(d.perRequest) && d.perRequest >= 1 && d.perRequest <= 64) out.perRequest = d.perRequest;
     if (Array.isArray(d.loras)) {

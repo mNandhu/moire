@@ -212,3 +212,26 @@ def test_controlnet_advanced_keeps_the_sides_apart():
     assert d["slots"]["negative"] == ["7", "text"]
     reach = {tuple(t["path"]): t["reaches"] for t in d["text_inputs"]}
     assert reach[("6", "text")] == "positive" and reach[("7", "text")] == "negative"
+
+
+def test_checkpoint_is_offered_not_chosen_and_fixed_values(hires):
+    from src.services.generator_discovery import fixed_values
+
+    d = discover(hires)
+    assert d["found"]["checkpoint"] == {
+        "path": ["20", "ckpt_name"],
+        "value": "noobaiXLNAIXL_vPred10Version.safetensors",
+    }
+    assert "checkpoint" not in d["slots"]
+    assert fixed_values(hires, d["slots"]) == {
+        "checkpoint": "noobaiXLNAIXL_vPred10Version.safetensors",
+        "size": "2:3 [832x1216 portrait]",
+    }
+    slots = {**d["slots"], "checkpoint": ["20", "ckpt_name"]}
+    assert check_slots(hires, slots) == []
+    assert fixed_values(hires, slots)["checkpoint"] is None
+    built = builtin_generator.graph()
+    assert fixed_values(built, builtin_generator.slots()) == {
+        "checkpoint": None,
+        "size": None,
+    }

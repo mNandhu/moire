@@ -229,7 +229,7 @@ export default function BatchPage() {
             <Button
               size="sm"
               onClick={() => {
-                saveDraft(formFromBatch(b.inputs, b.auto_name ? null : b.name));
+                saveDraft(formFromBatch(b.inputs, b.auto_name ? null : b.name, b.generator._id));
                 navigate("/generate");
               }}
             >

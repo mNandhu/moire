@@ -13,3 +13,4 @@ export { StatCard } from "./StatCard";
 export { DropdownMenu } from "./DropdownMenu";
 export type { DropdownItem } from "./DropdownMenu";
 export { Picker, type PickerOption } from "./Picker";
+export { Tooltip } from "./Tooltip";

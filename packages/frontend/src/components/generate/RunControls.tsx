@@ -5,7 +5,7 @@ import { cn } from "../../lib/cn";
 import { etaLabel } from "../../lib/eta";
 import { countHint, countLabel, randomSeed, type CountMode } from "../../lib/requests";
 import { ShapeIcon, SIZE_GROUP, useSizePresets } from "../SizeFilter";
-import { Input, Picker, ProgressBar, type PickerOption } from "../ui";
+import { Input, Picker, ProgressBar, Tooltip, type PickerOption } from "../ui";
 import type { ActiveBatch, Sampling } from "../../lib/generate";
 import { samplerLabel, samplingLabel } from "../../lib/generateForm";
 
@@ -53,6 +53,47 @@ export function CheckpointPicker({
           side="up"
         />
       </div>
+    </div>
+  );
+}
+
+/** A value the workflow sets itself: shown, not editable, with a tip on why
+ * and where to change that. */
+export function FixedValue({
+  label,
+  value,
+  why,
+  fix,
+}: {
+  label: string;
+  value: React.ReactNode;
+  why: string;
+  /** Where to make it Moiré's: a link to the workflow's setup. */
+  fix?: { text: string; to: string };
+}) {
+  return (
+    <div className="min-w-0">
+      <FieldLabel>{label}</FieldLabel>
+      <Tooltip
+        className="w-full"
+        content={
+          <div className="space-y-1.5">
+            <p>{why}</p>
+            {fix && (
+              <Link to={fix.to} className="text-brand-300 hover:text-brand-200">
+                {fix.text}
+              </Link>
+            )}
+          </div>
+        }
+      >
+        <span
+          tabIndex={0}
+          className="flex h-9 w-full min-w-0 items-center truncate rounded-lg border border-dashed border-line-strong px-3 text-sm text-muted outline-none focus-visible:border-brand-500/70"
+        >
+          <span className="truncate">{value ?? "Set in the workflow"}</span>
+        </span>
+      </Tooltip>
     </div>
   );
 }
