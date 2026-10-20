@@ -637,3 +637,30 @@ copies can be wiped.
 - Canvas comments: replies from the auto-reply bot are sometimes wrong
   (offered options for things already decided); read each thread and correct
   it rather than trusting the bot's reply.
+
+### Next session (from 2026-10-20 evening; branch `feat/comfyui-phase2`, not merged)
+
+On the branch, in order: phase 2 recipes; Queue says why it's blocked,
+unused character LoRA marked, ComfyUI settings "Unsaved changes" + Save and
+test; one result grid per batch (few images stay big) + Generate button on
+the batch page; newest batch's images under Queue on /generate; the layered
+composer (Prefix preset, Character one-liner, Prompt main field with
+autocomplete, "+" layers Text / Preset / Embedding, Negative preset + text,
+`prompt_presets`); Prefix / Prompt rows on the batch page; identity tags can
+be added (`recipe_additions`) and the recipe is editable on the character
+page (Recipe section + Generate button).
+
+Open / to check:
+- Everything is committed (last: `6c404e9` identity tags + character page
+  Recipe, full backend suite passed before it).
+- The user hasn't clicked through the layered composer yet; expect feedback.
+  Not verified in a browser: the preset dialog (New / Edit / Delete), the
+  Embedding layer, Negative "More", a running cell's progress in the grid.
+- Fern still isn't a character: the user should run AI Tagging on the
+  ComfyUI output library (the tagger knows `fern_(sousou_no_frieren)`).
+- Merge `feat/comfyui-phase2` to main once the user is happy (they like a
+  linear history: rebase, then fast-forward).
+- Then phase 3 (custom Generators). Undrawn: Remix entry in the viewer.
+- Dev helpers (fake ComfyUI, headless screenshots, sandbox ports):
+  `docs/dev-tools/README.md`.
+
