@@ -8,6 +8,7 @@ import {
   BatchName,
   CheckpointPicker,
   CountStepper,
+  QueueCard,
   SeedControl,
   SizePicker,
   stemOf,
@@ -31,6 +32,7 @@ import {
   useComfyModels,
   useComfySettings,
   useComfyStatus,
+  useBatches,
   useGenerators,
   useLoraPresets,
   usePresets,
@@ -166,6 +168,7 @@ export default function GeneratePage() {
   const { data: settings } = useComfySettings();
   const { data: models } = useComfyModels();
   const { data: generators } = useGenerators();
+  const { data: newest } = useBatches(1);
   const { data: presets } = usePresets();
   const { data: loraPresets } = useLoraPresets();
   const { data: tagAgg } = useTagAggregate({ includePrompt: true });
@@ -422,6 +425,10 @@ export default function GeneratePage() {
             className="space-y-4 pb-6 lg:sticky lg:top-[5.5rem] lg:max-h-[calc(100dvh-5.5rem)] lg:overflow-y-auto"
             aria-label="Output"
           >
+            {status && (
+              // Other batches still running or waiting; the newest shows below with its images.
+              <QueueCard active={status.active.filter((x) => x._id !== newest?.[0]?._id)} connected={connected} />
+            )}
             <LatestResults />
             <RecentBatches onOpen={(id) => navigate(`/generations/${id}`)} />
           </aside>

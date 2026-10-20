@@ -158,7 +158,9 @@ function PresetDialog({
     if (!open) return;
     setName(preset?.name ?? "");
     setText(preset?.text ?? initialText);
-  }, [open, preset, initialText]);
+    // Seed once per opening: a refetch mustn't wipe what is being typed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   const done = (p: Preset | null) => {
     void qc.invalidateQueries({ queryKey: PRESETS_KEY });
     onSaved(p);

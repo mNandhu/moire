@@ -42,7 +42,10 @@ export function PromptInput({
   const [active, setActive] = useState(0);
   const [moved, setMoved] = useState(false);
   const [at, setAt] = useState<{ left: number; top: number } | null>(null);
-  const { data: browse } = useTagBrowse("all");
+  // Covers come from the Tags page list: a big one, so only fetched once
+  // suggestions have been shown.
+  const [wantCovers, setWantCovers] = useState(false);
+  const { data: browse } = useTagBrowse("all", { enabled: wantCovers });
   const thumbs = useMemo(() => new Map((browse ?? []).map((b) => [b.tag, b.thumb_url])), [browse]);
   const thumbOf = useCallback((id: string) => thumbs.get(id) ?? null, [thumbs]);
   const resources = useMemo(() => embeddings.map((n) => ({ _id: `embedding:${n}`, count: 0 })), [embeddings]);
@@ -64,6 +67,7 @@ export function PromptInput({
     const t = el.selectionStart === el.selectionEnd ? termAt(el.value, el.selectionStart) : null;
     setTerm(t);
     if (t) {
+      setWantCovers(true);
       // Under the start of the word, kept inside the field's width.
       const lead = el.value.slice(t.start, t.end).length - el.value.slice(t.start, t.end).trimStart().length;
       const c = caretOffset(el, t.start + lead);

@@ -72,6 +72,7 @@ def _library(seed):
 
 
 async def test_presets_crud_and_suggestions(client, seed):
+    lora_presets._total = None
     await asyncio.to_thread(_library, seed)
     made = (
         await client.post(
@@ -129,6 +130,7 @@ class _FakeClient:
 
 
 async def test_file_words_skip_tags_common_in_the_library(client, seed):
+    lora_presets._total = None
     await asyncio.to_thread(_library, seed)
     words = await lora_presets.suggestions("niji.safetensors", _FakeClient())
     # 1girl is in every prompt without the LoRA; the trigger is in every
@@ -150,3 +152,22 @@ async def test_character_names_come_from_the_tagger_vocab(client, monkeypatch):
     monkeypatch.setattr(tag_categories, "load", fake)
     r = await client.get("/generate/character-names")
     assert r.json() == ["fern_(sousou_no_frieren)", "nahida"]
+
+
+class _SpacedClient:
+    async def lora_metadata(self, name):
+        # The library spells it 0__11Xx_illu; a caption tag with a space
+        # would be the same word.
+        return {
+            "ss_tag_frequency": json.dumps({"a": {"1girl": 50, "0__11Xx illu": 40}})
+        }
+
+
+async def test_one_word_in_two_spellings_is_offered_once(client, seed):
+    lora_presets._total = None
+    await asyncio.to_thread(_library, seed)
+    words = await lora_presets.suggestions("niji.safetensors", _SpacedClient())
+    # 1girl leads the captions but is common: dropped though it comes first.
+    assert [(w["word"], w["sources"]) for w in words] == [
+        ("0__11Xx illu", ["file", "library"])
+    ]

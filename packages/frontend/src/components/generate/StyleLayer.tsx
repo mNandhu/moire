@@ -63,7 +63,9 @@ function LoraPresetDialog({
     setName(preset?.name ?? "");
     setText(preset?.text ?? initialText);
     setStrength(preset?.strength != null ? String(preset.strength) : "");
-  }, [open, preset, initialText]);
+    // Seed once per opening: a refetch mustn't wipe what is being typed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   const done = (p: LoraPreset | null) => {
     void qc.invalidateQueries({ queryKey: LORA_PRESETS_KEY });
     onSaved(p);

@@ -85,7 +85,7 @@ export function removeBlock(blocks: readonly Block[], id: string): Block[] {
 }
 
 /** A preset's current text, else the snapshot taken when it was picked. */
-export function presetText(ref: PresetRef, presets: readonly Preset[] | undefined): string {
+export function presetText(ref: PresetRef, presets: readonly { _id: string; text: string }[] | undefined): string {
   if (!ref) return "";
   return presets?.find((p) => p._id === ref.id)?.text ?? ref.text;
 }
@@ -93,8 +93,7 @@ export function presetText(ref: PresetRef, presets: readonly Preset[] | undefine
 /** A style LoRA's activation words: its preset's current text, else the
  * snapshot taken when it was picked. */
 export function loraWords(l: StyleLora, loraPresets: readonly LoraPreset[] | undefined): string {
-  if (!l.preset) return "";
-  return loraPresets?.find((p) => p._id === l.preset!.id)?.text ?? l.preset.text;
+  return presetText(l.preset ?? null, loraPresets);
 }
 
 /** The ordered parts the backend composes (and the batch records). */

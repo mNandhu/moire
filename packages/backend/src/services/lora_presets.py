@@ -177,6 +177,43 @@ def library_words(
     return [(w, c) for w, c, _ in picked[:limit]]
 
 
+_total: tuple[float, int] | None = None
+TOTAL_TTL = 60.0
+
+
+async def _prompt_total() -> int:
+    """Distinct prompts in the library, cached briefly: every suggestion
+    measures against it, and it is a scan of every prompt tag."""
+    global _total
+    now = time.monotonic()
+    if _total and now - _total[0] < TOTAL_TTL:
+        return _total[1]
+    it, im = t.image_tags, t.images
+    async with async_conn() as conn:
+        n = (
+            await conn.execute(
+                sa.select(
+                    sa.func.count(
+                        sa.distinct(sa.func.coalesce(im.c.gen_prompt, im.c._id))
+                    )
+                )
+                .select_from(it.join(im, im.c._id == it.c.image_id))
+                .where(
+                    it.c.tag.like(f"{image_tags.PROMPT_PREFIX}%"),
+                    image_tags.not_quarantined(),
+                )
+            )
+        ).scalar_one()
+    _total = (now, n)
+    return n
+
+
+def _key(word: str) -> str:
+    """One spelling for comparing words: training tags have spaces, library
+    words underscores."""
+    return image_tags.canonical_tag(word).lower()
+
+
 async def _library(stem: str) -> list[tuple[str, int]]:
     il, it, im = t.image_loras, t.image_tags, t.images
     prompt = it.c.tag.like(f"{image_tags.PROMPT_PREFIX}%")
@@ -222,13 +259,7 @@ async def _library(stem: str) -> list[tuple[str, int]]:
                 )
             ).fetchall()
         )
-        total = (
-            await conn.execute(
-                sa.select(sa.func.count(sa.distinct(key)))
-                .select_from(tagged)
-                .where(prompt, image_tags.not_quarantined())
-            )
-        ).scalar_one()
+    total = await _prompt_total()
     return library_words({w: here[w] for w in common}, n, everywhere, total)
 
 
@@ -246,16 +277,10 @@ async def _common(words: list[str], stem: str) -> set[str]:
     key = sa.func.coalesce(im.c.gen_prompt, im.c._id)
     tagged = it.join(im, im.c._id == it.c.image_id)
     bases = {image_tags.canonical_tag(w): w for w in words}
+    total = await _prompt_total()
+    if not total:
+        return set()
     async with async_conn() as conn:
-        total = (
-            await conn.execute(
-                sa.select(sa.func.count(sa.distinct(key)))
-                .select_from(tagged)
-                .where(prompt, image_tags.not_quarantined())
-            )
-        ).scalar_one()
-        if not total:
-            return set()
         rows = (
             await conn.execute(
                 sa.select(it.c.base, sa.func.count(sa.distinct(key)))
@@ -275,9 +300,15 @@ async def _file(client: ComfyClient | None, name: str) -> list[str]:
     except (ComfyError, ComfyUnreachable):
         return []
     words = file_words(meta, limit=4 * LIMIT)
-    # The first word (the stated trigger, else the tag in most captions) is
-    # kept even when common: it is what the LoRA was trained to answer to.
-    common = await _common(words[1:], lora_stem(name))
+    # A stated trigger phrase is kept even when common; caption tags are not
+    # (a style LoRA's most frequent one is usually 1girl).
+    stated = {
+        _key(w)
+        for w in file_words(
+            {"modelspec.trigger_phrase": (meta or {}).get("modelspec.trigger_phrase")}
+        )
+    }
+    common = await _common([w for w in words if _key(w) not in stated], lora_stem(name))
     return [w for w in words if w not in common][:LIMIT]
 
 
@@ -287,12 +318,12 @@ async def suggestions(name: str, client: ComfyClient | None) -> list[dict[str, A
     lib = await _library(lora_stem(name))
     out: dict[str, dict[str, Any]] = {}
     for w in await _file(client, name):
-        out[w.lower()] = {"word": w, "sources": ["file"], "prompts": 0}
+        out[_key(w)] = {"word": w, "sources": ["file"], "prompts": 0}
     for w, c in lib:
-        hit = out.get(w.lower())
+        hit = out.get(_key(w))
         if hit:
             hit["sources"].append("library")
             hit["prompts"] = c
         else:
-            out[w.lower()] = {"word": w, "sources": ["library"], "prompts": c}
+            out[_key(w)] = {"word": w, "sources": ["library"], "prompts": c}
     return list(out.values())

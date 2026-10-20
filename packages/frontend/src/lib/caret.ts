@@ -29,6 +29,12 @@ export function caretOffset(el: HTMLTextAreaElement, pos: number): { left: numbe
   const style = window.getComputedStyle(el);
   const copy = document.createElement("div");
   for (const k of COPIED) copy.style[k] = style[k];
+  // clientWidth leaves out the scrollbar, which narrows the wrap once the
+  // field scrolls.
+  copy.style.boxSizing = "content-box";
+  copy.style.borderStyle = "solid";
+  copy.style.borderColor = "transparent";
+  copy.style.width = `${el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)}px`;
   copy.style.position = "absolute";
   copy.style.visibility = "hidden";
   copy.style.top = "0";

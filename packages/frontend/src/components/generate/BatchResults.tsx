@@ -243,7 +243,7 @@ export function BatchResults({
   const cell =
     variant === "page"
       ? `calc((100vh - 12rem) / ${Math.min(rows, 2)} * ${ratio})`
-      : `calc((100dvh - 26rem) / ${rows} * ${ratio})`;
+      : `max(6rem, calc((100dvh - 26rem) / ${rows} * ${ratio}))`;
   return (
     <div className={cn("grid gap-2", variant === "panel" && "justify-center")} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, ${cell}))` }}>
       {slots.map((s) => (
