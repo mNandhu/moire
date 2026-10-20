@@ -11,7 +11,7 @@ from ..core.config import settings
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ..models.library import LibraryDiscoverIn, LibraryIn, LibraryUpdate
-from ..services import library_discover
+from ..services import library_discover, library_nesting
 from ..services.scanner import cancel_scan, scan_library_async
 
 from ..services.storage_fs import delete_by_prefix
@@ -36,6 +36,23 @@ _LIB_LIST_COLS = (
     t.libraries.c.watch_enabled,
     t.libraries.c.last_event_at,
 )
+
+
+async def _rescan_libraries_around(path: str, *, exclude: str) -> None:
+    """Rescan every library holding ``path``, so it indexes the files of a
+    library that was inside it and no longer is (removed, or moved away)."""
+    async with async_conn() as conn:
+        rows = (
+            await conn.execute(sa.select(t.libraries.c._id, t.libraries.c.path))
+        ).fetchall()
+    key = library_nesting.path_key(path)
+    for r in rows:
+        if (
+            r._id != exclude
+            and r.path
+            and library_nesting.is_inside(key, library_nesting.path_key(r.path))
+        ):
+            scan_library_async(r._id, r.path)
 
 
 @router.get("")
@@ -94,7 +111,9 @@ async def add_library(body: LibraryIn):
                 watch_enabled=watch_enabled,
             )
         )
-    # trigger initial scan in background
+    library_nesting.invalidate()
+    # trigger initial scan in background; when it finishes, any library this
+    # one sits inside hands over its copies of these files.
     scan_library_async(lib_id, body.path)
     if watch_enabled:
         library_watch.start_watch(lib_id, body.path)
@@ -108,6 +127,11 @@ async def remove_library(library_id: str):
     library_watch.stop_watch(library_id)
 
     async with async_tx() as conn:
+        gone_path = (
+            await conn.execute(
+                sa.select(t.libraries.c.path).where(t.libraries.c._id == library_id)
+            )
+        ).scalar()
         await conn.execute(
             sa.delete(t.libraries).where(t.libraries.c._id == library_id)
         )
@@ -120,6 +144,10 @@ async def remove_library(library_id: str):
         )
     # Every image of this library is gone, so every tag count moved.
     tag_index.invalidate()
+    library_nesting.invalidate()
+    # A library it sat inside takes its folder back.
+    if gone_path:
+        await _rescan_libraries_around(gone_path, exclude=library_id)
     # remove thumbnail files for this library
     try:
         await anyio.to_thread.run_sync(lambda: delete_by_prefix(f"{library_id}/"))  # type: ignore[attr-defined]
@@ -223,7 +251,10 @@ async def update_library(library_id: str, body: LibraryUpdate):
         "path"
     ] != library_discover.normalize_path(old._mapping.get("path") or "")
     if path_changed:
+        library_nesting.invalidate()
         scan_library_async(library_id, new_path)
+        # A library it was inside takes the old folder back.
+        await _rescan_libraries_around(old._mapping["path"], exclude=library_id)
     watch_enabled = update_doc.get("watch_enabled", old._mapping.get("watch_enabled"))
     if path_changed or "watch_enabled" in update_doc:
         if watch_enabled:

@@ -12,6 +12,7 @@ from . import image_tags
 from . import tag_index
 from . import gen_metadata
 from . import batch_pool
+from . import library_nesting
 from .scan_writer import ScanWriter
 from .storage_fs import put_thumb, thumb_path
 from .blurhash import blurhash_for_image
@@ -543,9 +544,12 @@ def scan_library_async(library_id: str, root: str) -> dict:
                 raise RuntimeError("cancelled")  # library deleted while queued
             root_path = Path(current)
 
-            # Discover image files
+            # Discover image files, leaving out the folders of libraries
+            # inside this one: their files are theirs (services/library_nesting).
+            nested = library_nesting.nested_roots(library_id, root_path)
             files: list[Path] = []
-            for dirpath, _, filenames in os.walk(root_path):
+            for dirpath, dirnames, filenames in os.walk(root_path):
+                dirnames[:] = library_nesting.skip_dirs(dirpath, dirnames, nested)
                 for fname in filenames:
                     p = Path(dirpath) / fname
                     if is_image(p):
@@ -676,14 +680,21 @@ def scan_library_async(library_id: str, root: str) -> dict:
 
             # Clean up stale images (images that exist in DB but weren't discovered in current scan)
             with sync_conn() as conn:
-                existing_docs = [
-                    {"_id": r._id, "thumb_key": r.thumb_key}
-                    for r in conn.execute(
-                        sa.select(t.images.c._id, t.images.c.thumb_key).where(
-                            t.images.c.library_id == library_id
-                        )
-                    ).fetchall()
-                ]
+                existing = conn.execute(
+                    sa.select(
+                        t.images.c._id, t.images.c.path, t.images.c.thumb_key
+                    ).where(t.images.c.library_id == library_id)
+                ).fetchall()
+            # Copies of a nested library's files aren't stale: adopt_nested_copies
+            # carries their tags over to that library's rows before dropping them.
+            nested_copies = library_nesting.under_nested(
+                {r._id: r.path for r in existing}, nested
+            )
+            existing_docs = [
+                {"_id": r._id, "thumb_key": r.thumb_key}
+                for r in existing
+                if r._id not in nested_copies
+            ]
 
             stale_image_ids, stale_thumb_keys = reconcile_stale(
                 discovered_image_ids, existing_docs
@@ -730,6 +741,14 @@ def scan_library_async(library_id: str, root: str) -> dict:
                     "scan_failed_samples": failed_samples,
                 },
             )
+
+            # Fold any outer library's copies of files into their innermost
+            # library: this one's own (now that it has indexed them and finished), or
+            # those of the libraries inside it. A no-op without nesting.
+            try:
+                library_nesting.adopt_nested_copies()
+            except Exception:
+                logger.warning("Folding nested library copies failed", exc_info=True)
 
             # Derive structured gen.* from the raw we just captured. Spawned in
             # its own thread so the scan slot frees immediately (a long reproject

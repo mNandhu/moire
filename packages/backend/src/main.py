@@ -13,7 +13,7 @@ from .core.logging_setup import setup_logging
 from .services.storage_fs import ensure_thumb_root
 from .services.ai_jobs import get_ai_job_manager, get_ai_settings
 from .services.ai_tagger import get_tagger_manager
-from .services import library_watch, tag_migrations
+from .services import library_nesting, library_watch, tag_migrations
 from .services.generation_jobs import get_generation_manager
 
 import logging
@@ -33,6 +33,12 @@ async def lifespan(app: FastAPI):
     # One-off data migrations (services/tag_migrations.py), before the AI
     # worker and the watchers can write tags in the new spelling alongside old.
     await anyio.to_thread.run_sync(tag_migrations.run_pending)  # type: ignore[attr-defined]
+    # Images an outer library indexed from a library inside it belong to the
+    # inner one; fold them in (a no-op without nested libraries).
+    try:
+        await anyio.to_thread.run_sync(library_nesting.adopt_nested_copies)  # type: ignore[attr-defined]
+    except Exception:
+        logger.exception("Failed to fold nested library copies during startup")
     # Ensure the thumbnail root dir exists (run off the event loop)
     await anyio.to_thread.run_sync(ensure_thumb_root)  # type: ignore[attr-defined]
 

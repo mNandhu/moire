@@ -551,7 +551,8 @@ def rewrite_tags_sync(
     extra: dict[str, Any] | None = None,
 ) -> None:
     """Persist a whole new tag array on a caller-owned sync transaction. For
-    one-off data migrations only (services/tag_migrations.py); like
+    one-off data migrations (services/tag_migrations.py) and folding a nested
+    library's copies (services/library_nesting.py); like
     :func:`replace_prompt_many_sync`, the caller invalidates the tag index."""
     statements, rows = _persist_statements(image_id, new_tags, extra)
     for stmt in statements:

@@ -26,7 +26,7 @@ from pathlib import Path
 from watchfiles import Change, watch
 
 from ..core.config import settings
-from . import scanner
+from . import library_nesting, scanner
 
 logger = logging.getLogger("moire.watch")
 
@@ -104,6 +104,9 @@ def _run_watch(w: _Watch) -> None:
                     continue
                 path = Path(raw_path)
                 if _is_ignored(path):
+                    continue
+                # A library inside this one watches its own folder.
+                if library_nesting.owned_by_nested(w.library_id, w.root, path):
                     continue
                 try:
                     if change == Change.deleted:
