@@ -177,11 +177,7 @@ class WDTagger:
         # Import locally so type checkers don't treat rt as Optional.
         import onnxruntime as ort
 
-        def _make_session():
-            # CPU first is the most portable; GPU provider can be added later.
-            return ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
-
-        session = await asyncio.to_thread(_make_session)
+        session = await asyncio.to_thread(_make_session, ort, onnx_path)
 
         # Input shape is typically (N, H, W, C)
         _, h, _, _ = session.get_inputs()[0].shape
@@ -240,6 +236,24 @@ class WDTagger:
             max_general=max_general,
             max_character=max_character,
         )
+
+
+def _make_session(ort, onnx_path: str):
+    """An inference session on the GPU when the optional ``gpu`` dependency
+    group is installed (onnxruntime-gpu plus the CUDA 12 pip wheels), else on
+    the CPU. CUDA falls back to CPU per op, so a GPU session never fails a run
+    a CPU one would pass."""
+    providers = ["CPUExecutionProvider"]
+    if "CUDAExecutionProvider" in ort.get_available_providers():
+        # The CUDA/cuDNN libraries come from the nvidia-* wheels, which the
+        # loader won't find on its own: without this, onnxruntime quietly
+        # falls back to the CPU.
+        if hasattr(ort, "preload_dlls"):
+            ort.preload_dlls()
+        providers.insert(0, "CUDAExecutionProvider")
+    session = ort.InferenceSession(onnx_path, providers=providers)
+    logger.info("Tagger session providers: %s", session.get_providers())
+    return session
 
 
 class TaggerManager:

@@ -13,7 +13,6 @@ dependencies = [
   "python-dotenv",
   "httpx",
   "numpy>=2.4.0,<3.0",
-  "onnxruntime>=1.23.0,<2.0",
   "pydantic-settings>=2.14.1",
   "watchfiles>=1.0",
   "tzdata>=2026.5",
@@ -35,6 +34,10 @@ testpaths = ["tests"]
 pythonpath = ["."]
 
 [tool.uv]
+# onnxruntime comes from one of two conflicting groups: `cpu` (default) or
+# `gpu` (CUDA). See README "GPU tagging".
+default-groups = ["dev", "cpu"]
+conflicts = [[{ group = "cpu" }, { group = "gpu" }]]
 environments = [
     "sys_platform == 'win32'",
     "sys_platform == 'linux' and platform_machine == 'x86_64'",
@@ -46,6 +49,19 @@ dev = [
     "pytest>=9.0.3",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.9.0",
+]
+cpu = ["onnxruntime>=1.23.0,<2.0"]
+# AI tagging on an NVIDIA GPU (CUDA 12 + cuDNN 9 from pip, ~2 GB). Swap in with
+# `UV_NO_GROUP=cpu uv sync --group gpu`; not available on macOS. Pinned to the
+# 1.23 line, the one verified with these CUDA 12 wheels.
+gpu = [
+    "onnxruntime-gpu>=1.23.2,<1.24; sys_platform != 'darwin'",
+    "nvidia-cudnn-cu12>=9,<10; sys_platform != 'darwin'",
+    "nvidia-cublas-cu12; sys_platform != 'darwin'",
+    "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
+    "nvidia-cufft-cu12; sys_platform != 'darwin'",
+    "nvidia-curand-cu12; sys_platform != 'darwin'",
+    "nvidia-cuda-nvrtc-cu12; sys_platform != 'darwin'",
 ]
 
 [tool.ruff.lint]

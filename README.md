@@ -152,7 +152,22 @@ Moiré ships with a **built-in** autotagger, a WD ONNX model that runs locally v
 - **Manual tags**: user-applied, `manual:` prefix.
 - **Prompt tags**: extracted from generation prompts by reprojection, `prompt:` prefix.
 
-Tuning knobs (model repo, general/character thresholds, idle-unload timeout, prompt-tag reprojection) live in AI Settings. The legacy `AI_TAGGING_URL` env var refers to an older external-service path and is not the primary tagging route.
+Tuning knobs (model repo, general/character thresholds, idle-unload timeout, prompt-tag reprojection) live in AI Settings.
+
+### GPU tagging (optional, NVIDIA)
+
+Tagging runs on the CPU by default (~0.9 s an image). With an NVIDIA GPU it is about 9x faster (~0.1 s an image, measured on a GTX 1650). The GPU build is an optional uv dependency group, `gpu`, which swaps `onnxruntime` for `onnxruntime-gpu` and pulls the CUDA 12 and cuDNN 9 runtime libraries from pip (about 2 GB). No system CUDA toolkit is needed, and a different system CUDA version (13, say) doesn't get in the way. Linux and Windows only.
+
+```bash
+# Tell uv to leave the CPU build out; keep this set in the shell you run Moiré
+# from, or a later `uv run` / `pnpm dev` reinstalls the CPU build.
+export UV_NO_GROUP=cpu
+uv --directory packages/backend sync --group gpu
+```
+
+On Windows PowerShell, use `$env:UV_NO_GROUP = "cpu"`. The NVIDIA driver must be installed; under WSL2 that's the Windows driver.
+
+When the model loads, the backend log says which device it got: `Tagger session providers: ['CUDAExecutionProvider', 'CPUExecutionProvider']`. If it shows only `CPUExecutionProvider`, the GPU wasn't usable and tagging carries on, on the CPU. To go back to the CPU build, unset `UV_NO_GROUP` and run `uv --directory packages/backend sync`. A warning about `/sys/class/drm/card0/device/vendor` under WSL2 is harmless. The legacy `AI_TAGGING_URL` env var refers to an older external-service path and is not the primary tagging route.
 
 ## 🧬 Generation Metadata & Extraction Rules
 

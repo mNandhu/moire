@@ -10,6 +10,10 @@ uv run uvicorn src.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 - Env: copy `.env.example` to `.env` and fill values.
+- AI tagging uses the CPU build of onnxruntime (the default `cpu` dependency
+  group). For an NVIDIA GPU, swap in the `gpu` group instead:
+  `UV_NO_GROUP=cpu uv sync --group gpu`, and keep `UV_NO_GROUP=cpu` set for
+  later `uv run`s. See "GPU tagging" in the root README.
 
 ## Build
 
