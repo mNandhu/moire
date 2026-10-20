@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { batchLine, dayLabel, whenLabel } from "./batches";
+import { batchLine, dayLabel, resultGrid, resultSlots, whenLabel } from "./batches";
 
 describe("batch display", () => {
   it("summarizes images, failures and rejections", () => {
@@ -14,5 +14,29 @@ describe("batch display", () => {
     expect(dayLabel(today, now)).toBe("Today");
     expect(whenLabel(yesterday, now)).toBe("Yesterday");
     expect(dayLabel(new Date(2026, 9, 1).getTime() / 1000, now)).not.toBe("Today");
+  });
+});
+
+describe("result grid", () => {
+  const req = (state: string, outputs: number, images: number | null = 1) =>
+    ({
+      _id: Math.random(),
+      state,
+      images,
+      outputs: Array.from({ length: outputs }, (_, i) => ({ idx: i })),
+    }) as never;
+
+  it("lays requests out as one flat list of cells", () => {
+    const slots = resultSlots({ requests: [req("done", 2), req("running", 0, 2), req("failed", 0, 2), req("pending", 0)] });
+    expect(slots.map((s) => s.kind)).toEqual(["image", "image", "waiting", "waiting", "failed", "waiting"]);
+    expect(slots.map((s) => s.number)).toEqual([1, 1, 2, 2, 3, 4]);
+    expect(slots.filter((s) => s.kind === "waiting").map((s) => (s as { first: boolean }).first)).toEqual([true, false, true]);
+  });
+
+  it("keeps a few images in one row and wraps more at four", () => {
+    expect(resultGrid(1, "page")).toEqual({ cols: 1, rows: 1 });
+    expect(resultGrid(2, "page")).toEqual({ cols: 2, rows: 1 });
+    expect(resultGrid(8, "page")).toEqual({ cols: 4, rows: 2 });
+    expect(resultGrid(3, "panel")).toEqual({ cols: 2, rows: 2 });
   });
 });
