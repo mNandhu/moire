@@ -39,11 +39,12 @@ export function countLabel(count: number, mode: CountMode): string {
 /** The label's tooltip: what the count and batch size mean together. */
 export function countHint(count: number, mode: CountMode): string | undefined {
   if (mode.kind !== "images") return undefined;
+  const total = `${count} ${count === 1 ? "image" : "images"} in total.`;
+  if (mode.perRequest <= 1) return `${total} ComfyUI makes one at a time (the batch size), so this is ${runs(count)}.`;
   const sizes = splitRequests(count, mode.perRequest) as number[];
-  return (
-    `${count} ${count === 1 ? "image" : "images"} in total. ComfyUI makes up to ${mode.perRequest} at a time ` +
-    `(the batch size), so this is ${runs(sizes.length)}: ${sizes.join(", ")}.`
-  );
+  // The sizes only while they are few enough to read.
+  const listed = sizes.length <= 6 ? `: ${sizes.join(", ")}` : "";
+  return `${total} ComfyUI makes up to ${mode.perRequest} at a time (the batch size), so this is ${runs(sizes.length)}${listed}.`;
 }
 
 /** Fixed seeds count up per request, as the backend sends them. */

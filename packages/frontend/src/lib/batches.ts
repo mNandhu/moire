@@ -91,14 +91,17 @@ export function durationLabel(seconds: number): string {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 }
 
-/** Time ComfyUI spent on a batch's finished requests, and per image they
- * returned; null before any has a time. Pure. */
+/** Time ComfyUI spent on a batch's finished requests (failed ones too),
+ * and per image over the runs that made images; null before any has a
+ * time. Pure. */
 export function batchRunTime(
-  requests: readonly Pick<GenRequest, "ran" | "outputs">[],
-): { total: number; perImage: number | null } | null {
+  requests: readonly Pick<GenRequest, "ran" | "outputs" | "state">[],
+): { total: number; perImage: number | null; images: number } | null {
   const timed = requests.filter((q) => q.ran != null);
   if (!timed.length) return null;
   const total = timed.reduce((a, q) => a + (q.ran ?? 0), 0);
-  const images = timed.reduce((a, q) => a + q.outputs.length, 0);
-  return { total, perImage: images ? total / images : null };
+  const made = timed.filter((q) => q.state === "done" && q.outputs.length);
+  const images = made.reduce((a, q) => a + q.outputs.length, 0);
+  const spent = made.reduce((a, q) => a + (q.ran ?? 0), 0);
+  return { total, perImage: images ? spent / images : null, images };
 }

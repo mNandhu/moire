@@ -56,6 +56,7 @@ import {
   type GenerateForm,
 } from "../lib/generateForm";
 import { cn } from "../lib/cn";
+import type { CountMode } from "../lib/requests";
 import { PromptInput } from "../components/generate/PromptInput";
 import { AddLayer, EmbeddingLayer, LayerRow, NegativeLayer, PresetControl, TextLayer } from "../components/generate/Layers";
 import { characterPageQuery, useTagAggregate } from "../lib/queries";
@@ -230,7 +231,13 @@ export default function GeneratePage() {
   const defaultPerRequest = settings?.builtin_per_request ?? 1;
   // A size per batch only on the built-in for now (custom Generators: phase 3).
   const ownBatchSize = gen?.kind === "builtin" && !!gen.slots.batch_size;
-  const perRequest = (ownBatchSize ? form.perRequest : null) ?? defaultPerRequest;
+  // How the backend will split the count, per Generator.
+  const genPerRequest = typeof gen?.slots.per_request === "number" ? gen.slots.per_request : null;
+  const countMode: CountMode = ownBatchSize
+    ? { kind: "images", perRequest: form.perRequest ?? defaultPerRequest }
+    : gen?.slots.batch_size && genPerRequest
+      ? { kind: "images", perRequest: genPerRequest }
+      : { kind: "unknown" };
   const connected = !!status?.connected;
 
   const queue = useMutation({
@@ -447,7 +454,7 @@ export default function GeneratePage() {
                   <CountStepper
                     value={form.count}
                     onChange={(v) => set("count", v)}
-                    mode={{ kind: "images", perRequest }}
+                    mode={countMode}
                     className={ownBatchSize ? "col-span-2 2xl:col-span-1" : undefined}
                     batchSize={
                       ownBatchSize ? { value: form.perRequest, default: defaultPerRequest, onChange: (n) => set("perRequest", n) } : null

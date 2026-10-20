@@ -20,6 +20,12 @@ describe("countLabel", () => {
     expect(countHint(7, { kind: "images", perRequest: 3 })).toBe(
       "7 images in total. ComfyUI makes up to 3 at a time (the batch size), so this is 3 runs: 3, 3, 1.",
     );
+    expect(countHint(500, { kind: "images", perRequest: 1 })).toBe(
+      "500 images in total. ComfyUI makes one at a time (the batch size), so this is 500 runs.",
+    );
+    expect(countHint(40, { kind: "images", perRequest: 4 })).toBe(
+      "40 images in total. ComfyUI makes up to 4 at a time (the batch size), so this is 10 runs.",
+    );
     expect(countLabel(8, { kind: "requests", literal: 4 })).toBe("8 × 4 = 32 images");
     expect(countLabel(8, { kind: "unknown" })).toBe("8 × ?");
   });

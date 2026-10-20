@@ -31,7 +31,7 @@ function Latest({ id }: { id: number }) {
         {took && (
           <span
             className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted"
-            title={took.perImage != null ? `${durationLabel(took.perImage)} per image` : undefined}
+            title={took.perImage != null && took.images > 1 ? `${durationLabel(took.perImage)} per image` : undefined}
           >
             {durationLabel(took.total)}
           </span>

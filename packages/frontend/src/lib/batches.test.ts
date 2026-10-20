@@ -63,11 +63,16 @@ describe("run time", () => {
   });
   it("adds up timed requests and divides by their images", () => {
     const out = { idx: 0 } as never;
-    expect(batchRunTime([{ ran: null, outputs: [] }])).toBeNull();
-    expect(batchRunTime([{ ran: 10, outputs: [out, out] }, { ran: 6, outputs: [out] }, { ran: null, outputs: [] }])).toEqual({
-      total: 16,
-      perImage: 16 / 3,
-    });
-    expect(batchRunTime([{ ran: 5, outputs: [] }])).toEqual({ total: 5, perImage: null });
+    const done = "done" as const;
+    expect(batchRunTime([{ ran: null, outputs: [], state: "pending" }])).toBeNull();
+    expect(
+      batchRunTime([
+        { ran: 10, outputs: [out, out], state: done },
+        { ran: 6, outputs: [out], state: done },
+        { ran: 30, outputs: [], state: "failed" },
+        { ran: null, outputs: [], state: "pending" },
+      ]),
+    ).toEqual({ total: 46, perImage: 16 / 3, images: 3 });
+    expect(batchRunTime([{ ran: 5, outputs: [], state: "failed" }])).toEqual({ total: 5, perImage: null, images: 0 });
   });
 });

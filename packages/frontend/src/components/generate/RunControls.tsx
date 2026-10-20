@@ -217,7 +217,6 @@ export function SamplingControl({
             {"cfg" in defaults && (
               <NumberStepper label="CFG" value={shown.cfg} onChange={(n) => patch({ cfg: n })} step={0.5} min={0} max={30} />
             )}
-
           </div>
           {changed && (
             <button

@@ -261,7 +261,7 @@ export default function BatchPage() {
           {took && (
             <span title="Time ComfyUI spent generating">
               Took {durationLabel(took.total)}
-              {took.perImage != null && outputs.length > 1 && `, ${durationLabel(took.perImage)} per image`}
+              {took.perImage != null && took.images > 1 && `, ${durationLabel(took.perImage)} per image`}
             </span>
           )}
           {inLibrary < outputs.length && <span>{inLibrary} in library</span>}

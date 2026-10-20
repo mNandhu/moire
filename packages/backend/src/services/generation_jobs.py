@@ -746,7 +746,9 @@ class GenerationManager:
         # also turn count from requests into images); else the setting.
         asked = (
             max(1, min(64, int(body["per_request"])))
-            if gen["kind"] == "builtin" and body.get("per_request")
+            if gen["kind"] == "builtin"
+            and gen["slots"].get("batch_size")
+            and body.get("per_request")
             else None
         )
         if not gen["slots"].get("batch_size"):
