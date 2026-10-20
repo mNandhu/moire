@@ -37,7 +37,7 @@ repo root, not the process working directory.
   - `WATCH_ENABLED_DEFAULT`, `WATCH_RECONCILE_INTERVAL_S` filesystem watching of new libraries
 
 - Thumbnails
-  - `THUMB_MAX_SIZE` longest edge in px (default: 1080), `THUMB_FORMAT` (default: `webp`)
+  - `THUMB_MAX_SIZE` longest edge in px (default: 768), `THUMB_FORMAT` (default: `webp`)
 
 - Logging
   - `LOG_LEVEL` (default: `INFO`)

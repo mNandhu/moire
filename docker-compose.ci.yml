@@ -15,7 +15,7 @@ services:
       THUMB_ROOT: /data/thumbs
       MODEL_CACHE_DIR: /data/models
       LOG_TO_FILE: "false"
-      THUMB_MAX_SIZE: ${THUMB_MAX_SIZE:-1080}
+      THUMB_MAX_SIZE: ${THUMB_MAX_SIZE:-768}
       SCANNER_MAX_WORKERS: ${SCANNER_MAX_WORKERS:-0}
       # CI adds a library and waits for one scan; no watcher needed.
       WATCH_ENABLED_DEFAULT: "false"

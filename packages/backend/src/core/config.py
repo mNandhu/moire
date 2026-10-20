@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     # process working directory.
     model_cache_dir: str = ".cache/moire/models"
 
-    thumb_max_size: int = 1080
+    thumb_max_size: int = 768
     thumb_format: str = "webp"
 
     log_slow_requests_ms: int = 1000

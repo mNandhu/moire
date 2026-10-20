@@ -21,7 +21,7 @@ services:
       # Containers log to stdout (`docker compose logs`); no rotating file.
       LOG_TO_FILE: "false"
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      THUMB_MAX_SIZE: ${THUMB_MAX_SIZE:-1080}
+      THUMB_MAX_SIZE: ${THUMB_MAX_SIZE:-768}
       SCANNER_MAX_WORKERS: ${SCANNER_MAX_WORKERS:-0}
       SCANNER_MAX_CONCURRENT_SCANS: ${SCANNER_MAX_CONCURRENT_SCANS:-2}
       # inotify doesn't see changes made on a Windows/macOS host through a bind
