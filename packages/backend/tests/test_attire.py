@@ -254,3 +254,19 @@ def test_facets_from_groups(tmp_path, monkeypatch):
         assert attire.facet_of("rain") == "scene"  # through its other place
     finally:
         attire._load.cache_clear()
+
+
+def test_expressions_and_eye_states_are_not_identity():
+    # Listed with eyes too, but an expression or a passing state.
+    for tag in (
+        "@_@",
+        "constricted_pupils",
+        "closed_eyes",
+        "half-closed_eyes",
+        "sparkling_eyes",
+    ):
+        assert not attire.is_identity(tag), tag
+        assert attire.facet_of(tag) == "pose", tag
+    # What the eyes are like stays.
+    for tag in ("red_eyes", "heart-shaped_pupils", "heterochromia"):
+        assert attire.is_identity(tag), tag

@@ -352,6 +352,20 @@ async def test_signature_reads_solo_images_once_there_are_enough(
     assert {"green_eyes", "white_hair"} <= {s["tag"] for s in page["signature"]}
 
 
+async def test_page_look_is_how_they_are_drawn_and_dressed(client, seed, monkeypatch):
+    monkeypatch.setattr(tag_categories, "load", _chars("arima_kana"))
+    # A beach set: the scene, the framing and the face are on every image.
+    for i in range(7):
+        seed(
+            f"L1:k{i}",
+            tags=("arima_kana", "red_hair", "bikini", "beach", "cowboy_shot", "@_@"),
+        )
+    for i in range(30):
+        seed(f"L1:x{i}", tags=("1girl",))
+    page = (await client.get("/tags/character", params={"tag": "arima_kana"})).json()
+    assert {s["tag"] for s in page["signature"]} == {"red_hair", "bikini"}
+
+
 def test_gender_comes_from_the_count_tags():
     assert characters.gender({"1girl": 9, "solo": 8}, 10) == "girl"
     assert characters.gender({"1boy": 5, "1girl": 1}, 6) == "boy"

@@ -71,8 +71,10 @@ belongs in this file.
   images and rare elsewhere, read from its solo images when there are
   enough of them, trusted only when the share holds up for that many images (so a
   one-off tag on a 3-image character is dropped), and keeping one hair and
-  one eye colour (two with `multicolored_hair` / `heterochromia`). Few images
-  shows a "may be off" note. The avatar is the tag's cover pin; the
+  one eye colour (two with `multicolored_hair` / `heterochromia`). The page
+  shows only the look and outfit ones: scene, framing, pose and expression
+  (`@_@`, `closed_eyes`) common to a few images of one set aren't a look.
+  Few images shows a "may be off" note. The avatar is the tag's cover pin; the
   `characters` table holds only overrides. (`services/characters.py`)
 - **Face detection**: an optional anime face model (YOLOv8 nano, ONNX,
   downloaded from Settings > Characters) that finds the face in each
@@ -173,7 +175,7 @@ belongs in this file.
   characters. User-made; suggested groupings come later.
 - **Character recipe**: what picking a character puts in a prompt: the
   character tag (full name), its **identity tags** (signature tags that are
-  not attire tags), a default outfit (its attire signature tags, swappable
+  body features, not attire, expressions or passing eye states), a default outfit (its attire signature tags, swappable
   for a saved Outfit), and a LoRA with strength (the one most used where the
   character was prompted *and* the tagger confirmed it, weighted by score).
   Computed from the library; the user's edits (drop a tag, force a LoRA) are
