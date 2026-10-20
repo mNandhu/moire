@@ -6,6 +6,7 @@ import {
   isActiveJob,
   jobAgo,
   jobStatusLabel,
+  imageFileName,
   jobThroughput,
   type AiJob,
   type AiJobError,
@@ -32,11 +33,6 @@ function JobErrors({ errors }: { errors: AiJobError[] }) {
       </div>
     </details>
   );
-}
-
-/** An image id's file name (`{library}:{path}`). */
-function fileNameOf(imageId: string) {
-  return imageId.split(/[\\/:]/).pop() || imageId;
 }
 
 function statusTone(status: string) {
@@ -73,7 +69,7 @@ export function ActiveJob({ job }: { job: AiJob }) {
           {speed && <span className="shrink-0 tabular-nums text-muted">{speed}</span>}
           {job.current && (
             <span className="min-w-0 flex-1 truncate text-right" title={job.current}>
-              {fileNameOf(job.current)}
+              {imageFileName(job.current)}
             </span>
           )}
         </div>
@@ -102,7 +98,7 @@ export function RecentJobs() {
                   <span className="text-neutral-200 tabular-nums">
                     {j.total.toLocaleString()} {j.total === 1 ? "image" : "images"}
                   </span>
-                  {!isActiveJob(j.status) && !!j.rate && j.total > 1 && (
+                  {!isActiveJob(j.status) && j.rate != null && j.total > 1 && (
                     <span className="text-faint text-xs tabular-nums">{jobThroughput(j)}</span>
                   )}
                   {(j.skipped ?? 0) > 0 && (

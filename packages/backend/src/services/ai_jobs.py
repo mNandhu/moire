@@ -74,8 +74,9 @@ class AIJob:
         if elapsed <= 0:
             return {}
         rate = processed / elapsed
-        out = {"rate": round(rate, 2), "elapsed_s": round(elapsed, 1)}
-        if self.finished_at is None:
+        out = {"rate": round(rate, 4), "elapsed_s": round(elapsed, 1)}
+        # No time left for a job that is stopping.
+        if self.finished_at is None and self.status == "running":
             out["eta_s"] = round(max(0, self.total - processed) / rate, 1)
         return out
 

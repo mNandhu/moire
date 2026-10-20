@@ -74,7 +74,7 @@ function TaggingPanel() {
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-3">
-                <Button variant="primary" onClick={() => void runUntagged()} disabled={running || !batch}>
+                <Button variant="primary" onClick={() => void runUntagged()} disabled={running || !(batch > 0)}>
                   <Sparkles size={16} />
                   Tag {batch.toLocaleString()} {batch === 1 ? "image" : "images"}
                 </Button>
@@ -165,7 +165,7 @@ function LibraryCoverage({
                 variant="ghost"
                 className="h-7 px-2"
                 onClick={() => void runUntagged(l.library_id)}
-                disabled={running}
+                disabled={running || !(untaggedLimit > 0)}
                 title={`Tag up to ${Math.min(l.untagged, untaggedLimit || 0).toLocaleString()} images in ${l.name}`}
               >
                 <Sparkles size={12} /> Tag

@@ -91,9 +91,11 @@ function useSettingsController(): SettingsController {
     if (status?.settings) setSettings((prev) => prev ?? status.settings);
   }, [status?.settings]);
 
+  // The job being worked on, else the newest: a job queued behind the
+  // running one mustn't take its place on the page.
   const latestJob = useMemo(() => {
-    const j = status?.jobs?.recent?.[0];
-    return j || null;
+    const recent = status?.jobs?.recent ?? [];
+    return recent.find((j) => j.status === "running" || j.status === "cancelling") ?? recent[0] ?? null;
   }, [status]);
 
   const progressPct = useMemo(() => {

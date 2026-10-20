@@ -274,12 +274,14 @@ async def test_active_jobs_lists_every_unfinished_job_oldest_first():
 
 
 def test_throughput_while_running_and_after():
-    job = ai_jobs.AIJob(id="j", created_at=0, total=10)
+    job = ai_jobs.AIJob(id="j", created_at=0, total=10, status="running")
     assert job.throughput(now=5) == {}  # not started
     job.started_at = 100
     assert job.throughput(now=104) == {}  # nothing through yet
     job.done, job.failed = 3, 1
     assert job.throughput(now=104) == {"rate": 1.0, "elapsed_s": 4.0, "eta_s": 6.0}
+    job.status = "cancelling"
+    assert "eta_s" not in job.throughput(now=104)
     job.done, job.finished_at = 9, 105
     assert job.throughput(now=999) == {"rate": 2.0, "elapsed_s": 5.0}
 

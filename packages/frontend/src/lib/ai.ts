@@ -178,13 +178,21 @@ export function formatDuration(s: number): string {
 export function formatRate(rate: number): string {
   if (rate >= 1) return `${rate >= 10 ? Math.round(rate) : rate.toFixed(1)} images/s`;
   const perMin = Math.round(rate * 60);
+  if (perMin < 1) return "under 1 image/min";
   return `${perMin} ${perMin === 1 ? "image" : "images"}/min`;
+}
+
+/** An image id's file name: the id is `{library_id}:{relative/path}`, and
+ * the path itself may hold colons. */
+export function imageFileName(imageId: string): string {
+  const path = imageId.slice(imageId.indexOf(":") + 1);
+  return path.split(/[\\/]/).pop() || path;
 }
 
 /** A job's speed for a progress line: "3.2 images/s · 2 min left" while
  * running, "3.2 images/s · 4 min" once ended; null before it's measurable. */
 export function jobThroughput(job: Pick<AiJob, "rate" | "eta_s" | "elapsed_s">): string | null {
-  if (!job.rate) return null;
+  if (job.rate == null) return null;
   const parts = [formatRate(job.rate)];
   if (job.eta_s != null) parts.push(job.eta_s < 1 ? "almost done" : `${formatDuration(job.eta_s)} left`);
   else if (job.elapsed_s != null) parts.push(formatDuration(job.elapsed_s));

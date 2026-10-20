@@ -884,6 +884,9 @@ function TagsSection({
   const model = tasks?.find((t) => t.kind === "model_download" || t.kind === "model_load");
   const modelView = model ? describeTask(model) : null;
   const busy = submitting || Boolean(jobId);
+  // This image's job, when it has one, names the line (its X cancels the
+  // job); the model's progress shows on it while the job waits for it.
+  const waitsForModel = !busy || job?.phase === "model";
   const jobLabel = submitting
     ? "Starting…"
     : aiJobLabel(job ?? (jobId ? { status: "queued" } : null));
@@ -919,8 +922,8 @@ function TagsSection({
     >
       {(busy || modelView) && (
         <AiTagStatus
-          label={modelView?.title ?? jobLabel ?? "Tagging…"}
-          pct={modelView?.pct ?? null}
+          label={(busy ? jobLabel : modelView?.title) ?? "Tagging…"}
+          pct={waitsForModel ? (modelView?.pct ?? null) : null}
           onCancel={canCancel ? () => void cancel() : undefined}
           cancelling={cancelling || job?.status === "cancelling"}
         />
@@ -948,7 +951,13 @@ function AiTagStatus({
     <div role="status" className="rounded-lg bg-raised/50 px-3 py-2 space-y-2">
       <div className="flex items-center gap-2 text-xs">
         <Loader2 size={12} className="shrink-0 animate-spin text-brand-300" />
-        <span className="min-w-0 flex-1 truncate text-neutral-200">{label}</span>
+        <Link
+          to="/ai-tagging"
+          className="min-w-0 flex-1 truncate text-neutral-200 hover:text-white"
+          title="AI tagging jobs"
+        >
+          {label}
+        </Link>
         {pct != null && <span className="tabular-nums text-faint">{pct}%</span>}
         {onCancel && (
           <button
@@ -970,6 +979,7 @@ function AiTagStatus({
 
 /** Manual tags, typed comma separated. */
 function AddTags({ id, onAdded }: { id: string; onAdded: () => void }) {
+  const { push } = useToast();
   const [val, setVal] = useState("");
   const [adding, setAdding] = useState(false);
   const tags = val
@@ -983,6 +993,8 @@ function AddTags({ id, onAdded }: { id: string; onAdded: () => void }) {
       await applyTags(id, tags);
       setVal("");
       onAdded();
+    } catch (e) {
+      push(`Couldn't add tags: ${String(e)}`, "error");
     } finally {
       setAdding(false);
     }

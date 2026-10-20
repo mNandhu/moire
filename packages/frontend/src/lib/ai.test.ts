@@ -10,6 +10,7 @@ import {
   formatRate,
   jobAgo,
   jobThroughput,
+  imageFileName,
   libraryCoverageRows,
   jobStatusLabel,
   postAiJobCancel,
@@ -252,6 +253,7 @@ describe("throughput", () => {
     expect(formatRate(12.6)).toBe("13 images/s");
     expect(formatRate(0.5)).toBe("30 images/min");
     expect(formatRate(1 / 60)).toBe("1 image/min");
+    expect(formatRate(0.004)).toBe("under 1 image/min");
   });
 
   it("reads a running job with time left, an ended one with its span", () => {
@@ -280,5 +282,13 @@ describe("libraryCoverageRows", () => {
     ]);
     expect(todo[1].pct).toBe(90);
     expect(done.map((r) => r.name)).toEqual(["Alpha", "Delta"]);
+  });
+});
+
+describe("imageFileName", () => {
+  it("keeps colons in the path, drops the library and folders", () => {
+    expect(imageFileName("lib1:renders/2024-01-01 12:30:45.png")).toBe("2024-01-01 12:30:45.png");
+    expect(imageFileName("lib1:a\\b\\c.png")).toBe("c.png");
+    expect(imageFileName("lib1:top.png")).toBe("top.png");
   });
 });
