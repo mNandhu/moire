@@ -85,6 +85,20 @@ export function updateCharacter(tag: string, patch: CharacterPatch): Promise<unk
   });
 }
 
+/** Make a character by hand; returns its stored settings (with its tag). */
+export function createCharacter(body: { tag: string; name?: string; series?: string; color?: string }) {
+  return api<{ tag: string }>(`/api/v1/tags/characters`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+/** Forget a character made by hand (only while no image has it). */
+export function deleteCharacter(tag: string): Promise<unknown> {
+  return api(`/api/v1/tags/character?${new URLSearchParams({ tag })}`, { method: "DELETE" });
+}
+
 /** Add/remove manual tags (bare names) on many images in one transaction. */
 export function bulkManualTags(
   ids: string[],

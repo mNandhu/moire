@@ -363,10 +363,13 @@ export function useLoraPresets() {
   });
 }
 
-export function useLoraWords(name: string | null) {
+/** Suggested words for a LoRA file. `describe` keeps the training tags that
+ * describe (purple hair), which a style preset leaves out as too common. */
+export function useLoraWords(name: string | null, { describe = false } = {}) {
   return useQuery({
-    queryKey: [...GEN_KEY, "lora-words", name ?? ""],
-    queryFn: ({ signal }) => api<LoraWord[]>(`${BASE}/lora-words?name=${encodeURIComponent(name!)}`, { signal }),
+    queryKey: [...GEN_KEY, "lora-words", name ?? "", describe],
+    queryFn: ({ signal }) =>
+      api<LoraWord[]>(`${BASE}/lora-words?name=${encodeURIComponent(name!)}${describe ? "&describe=1" : ""}`, { signal }),
     enabled: !!name,
     staleTime: 5 * 60_000,
   });

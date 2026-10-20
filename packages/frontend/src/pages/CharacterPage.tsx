@@ -11,7 +11,6 @@ import { Chip, ChipRow, MonthChart } from "../components/TagPanel";
 import { useCharacters } from "../components/ImageCharacters";
 import { CharacterEditDialog } from "../components/CharacterEditDialog";
 import { CharacterAvatar } from "../components/CharacterAvatar";
-import { RecipeEditor } from "../components/generate/CharacterBlock";
 import { useComfyModels, useRecipe } from "../lib/generate";
 import { loadDraft, saveDraft } from "../lib/generateForm";
 import { cn } from "../lib/cn";
@@ -90,9 +89,11 @@ export default function CharacterPage() {
               <Button size="sm" onClick={() => setEditing(true)}>
                 <Pencil size={14} /> Edit
               </Button>
-              <ButtonLink size="sm" variant="primary" to={`/?${serializeFilters(characterFilters(c.tag, c.aliases))}`}>
-                <ExternalLink size={14} /> Open in gallery
-              </ButtonLink>
+              {!c.made && (
+                <ButtonLink size="sm" variant="primary" to={`/?${serializeFilters(characterFilters(c.tag, c.aliases))}`}>
+                  <ExternalLink size={14} /> Open in gallery
+                </ButtonLink>
+              )}
             </>
           )
         }
@@ -112,9 +113,9 @@ export default function CharacterPage() {
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
               <div className="space-y-8 min-w-0">
                 {c.best.length > 0 && <BestOf c={c} />}
-                <Images c={c} />
+                {c.made ? <NoImagesYet c={c} /> : <Images c={c} />}
               </div>
-              <Sidebar c={c} accent={colours[0]} />
+              <Sidebar c={c} accent={colours[0]} onEdit={() => setEditing(true)} />
             </div>
             {editing && <CharacterEditDialog open onClose={() => setEditing(false)} c={c} />}
           </>
@@ -131,8 +132,9 @@ function Avatar({ c, size, accent }: { c: Character; size: string; accent?: stri
       face={c.face}
       focus={c.focus}
       aspect={c.aspect}
-      className={cn("ring-1 ring-line", size)}
+      className={cn("ring-1 ring-line text-4xl", size)}
       style={accent ? { boxShadow: `0 0 0 2px ${accent}` } : undefined}
+      letter={displayName(c).name}
     />
   );
 }
@@ -281,37 +283,84 @@ function Images({ c }: { c: Character }) {
   );
 }
 
-/** What the Generate composer writes for them: identity tags and LoRA,
- * editable here or in the composer (the same saved recipe). */
-function Recipe({ c }: { c: Character }) {
+/** Open the composer with this character picked. */
+function useGenerateWith() {
   const navigate = useNavigate();
+  return (tag: string) => {
+    saveDraft({ ...loadDraft(), character: tag });
+    navigate("/generate");
+  };
+}
+
+/** Where a character made by hand will have images: a way to make some. */
+function NoImagesYet({ c }: { c: Character }) {
+  const generate = useGenerateWith();
+  return (
+    <section>
+      <h2 className="text-2xs uppercase tracking-wider text-faint mb-2">Images · 0</h2>
+      <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-6 gap-1.5">
+        <button
+          type="button"
+          onClick={() => generate(c.tag)}
+          className="col-span-2 flex aspect-[2/1] flex-col items-center justify-center gap-2 rounded border border-dashed border-line-strong text-sm text-neutral-200 hover:border-brand-500 hover:text-white"
+        >
+          <Wand2 size={20} />
+          Generate
+        </button>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="aspect-square rounded border border-dashed border-line/60" aria-hidden />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** What the Generate composer writes for them, edited in the Edit dialog. */
+function Recipe({ c, onEdit }: { c: Character; onEdit: () => void }) {
+  const generate = useGenerateWith();
   const { data: recipe } = useRecipe(c.tag);
   const { data: models } = useComfyModels();
   if (!recipe) return null;
-  const { name } = displayName(c);
+  const kept = recipe.identity.filter((x) => !x.dropped);
+  const lora = recipe.lora;
+  const missing = !!lora && !lora.file && !!models;
   return (
-    <section className="space-y-3">
+    <section className="space-y-2.5">
       <div className="flex items-center justify-between">
         <h2 className="text-2xs uppercase tracking-wider text-faint" title="What Generate writes for this character">
           Recipe
         </h2>
-        <Button
-          size="sm"
-          onClick={() => {
-            saveDraft({ ...loadDraft(), character: c.tag });
-            navigate("/generate");
-          }}
-        >
-          <Wand2 size={13} /> Generate
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="ghost" onClick={onEdit} aria-label="Edit recipe" title="Edit recipe">
+            <Pencil size={13} />
+          </Button>
+          <Button size="sm" onClick={() => generate(c.tag)}>
+            <Wand2 size={13} /> Generate
+          </Button>
+        </div>
       </div>
-      <RecipeEditor recipe={recipe} label={name} installedLoras={models?.loras ?? []} />
+      <div className="flex flex-wrap gap-1.5">
+        {kept.length ? (
+          kept.map((x) => (
+            <span key={x.tag} className="inline-flex h-6 items-center rounded-full border border-line bg-raised/80 px-2 text-xs text-neutral-200">
+              {formatTag(x.tag)}
+            </span>
+          ))
+        ) : (
+          <span className="text-xs text-faint">No identity tags</span>
+        )}
+      </div>
+      {lora && (
+        <p className={cn("font-mono text-xs", missing ? "text-amber-200 line-through" : "text-muted")} title={missing ? "Not installed in ComfyUI" : undefined}>
+          {lora.stem} {lora.strength.toFixed(2)}
+        </p>
+      )}
     </section>
   );
 }
 
 /** Who they appear with, what they were made with, when, and how rated. */
-function Sidebar({ c, accent }: { c: Character; accent?: string }) {
+function Sidebar({ c, accent, onEdit }: { c: Character; accent?: string; onEdit: () => void }) {
   const { data: everyone } = useCharacters();
   const { data: signatures } = useQuery({
     queryKey: ["rules-signatures"],
@@ -328,7 +377,7 @@ function Sidebar({ c, accent }: { c: Character; accent?: string }) {
 
   return (
     <aside className="space-y-6">
-      <Recipe c={c} />
+      <Recipe c={c} onEdit={onEdit} />
       {c.with.length > 0 && (
         <section>
           <h2 className="text-2xs uppercase tracking-wider text-faint mb-2">Appears with</h2>

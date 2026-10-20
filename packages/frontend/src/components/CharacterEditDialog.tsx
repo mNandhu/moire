@@ -9,8 +9,10 @@ import { Checkbox } from "./ui/Checkbox";
 import { useToast } from "./Toasts";
 import { CharacterAvatar } from "./CharacterAvatar";
 import { cn } from "../lib/cn";
-import { updateCharacter } from "../lib/imageMutations";
+import { deleteCharacter, updateCharacter } from "../lib/imageMutations";
 import { TAGS_KEY } from "../lib/queries";
+import { useComfyModels, useRecipe } from "../lib/generate";
+import { RecipeEditor } from "./generate/CharacterBlock";
 import {
   SWATCHES,
   characterColours,
@@ -21,8 +23,11 @@ import {
 
 /**
  * What the user decides for a character: the name and series shown, the
- * colour their page is lit with, where their avatar is centred, and whether
- * the tag is a character at all (the tagger's list can be wrong).
+ * colour their page is lit with, where their avatar is centred, whether the
+ * tag is a character at all (the tagger's list can be wrong), and what
+ * Generate writes for them (identity tags and character LoRA, saved as they
+ * change). A character made by hand can be deleted here while no image has
+ * them.
  */
 export function CharacterEditDialog({
   open,
@@ -47,6 +52,21 @@ export function CharacterEditDialog({
   const [saving, setSaving] = useState(false);
 
   const auto = characterColours({ ...c, color: null })[0];
+  const { data: recipe } = useRecipe(c.tag);
+  const { data: models } = useComfyModels();
+
+  const remove = async () => {
+    setSaving(true);
+    try {
+      await deleteCharacter(c.tag);
+      await qc.invalidateQueries({ queryKey: TAGS_KEY });
+      onClose();
+      navigate("/tags");
+    } catch (e) {
+      push(`Couldn't delete: ${String(e)}`, "error");
+      setSaving(false);
+    }
+  };
 
   const save = async () => {
     const patch: CharacterPatch = {};
@@ -79,6 +99,11 @@ export function CharacterEditDialog({
       className="max-w-lg"
       footer={
         <>
+          {c.made && (
+            <Button variant="ghost" className="mr-auto text-red-300" onClick={() => void remove()} disabled={saving}>
+              Delete character
+            </Button>
+          )}
           <Button onClick={onClose}>Cancel</Button>
           <Button variant="primary" onClick={() => void save()} disabled={saving}>
             {saving ? "Saving…" : "Save"}
@@ -175,6 +200,16 @@ export function CharacterEditDialog({
           </div>
         </Field>
 
+        {recipe && (
+          <section className="space-y-4 rounded-lg border border-line p-4">
+            <h3 className="text-xs font-medium text-muted" title="What Generate writes for them. Saved as you change it.">
+              For Generate
+            </h3>
+            <RecipeEditor recipe={recipe} label={name || fromTag.name} installedLoras={models?.loras ?? []} />
+          </section>
+        )}
+
+        {!c.made && (
         <Checkbox
           id="character-not"
           checked={notCharacter}
@@ -182,6 +217,7 @@ export function CharacterEditDialog({
           label="Not a character"
           hint="Treat this tag as an ordinary tag: no character page, no avatar on images."
         />
+        )}
       </div>
     </Dialog>
   );

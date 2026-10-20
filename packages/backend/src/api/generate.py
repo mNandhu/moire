@@ -350,9 +350,13 @@ async def delete_lora_preset(preset_id: str):
 
 
 @router.get("/lora-words")
-async def lora_words(name: str):
-    """Suggested activation words for the installed LoRA file ``name``."""
-    return await lora_presets.suggestions(name, get_generation_manager().client)
+async def lora_words(name: str, describe: bool = False):
+    """Suggested activation words for the installed LoRA file ``name``;
+    ``describe`` keeps training tags common in the library (a character
+    LoRA's hair and eyes)."""
+    return await lora_presets.suggestions(
+        name, get_generation_manager().client, describe=describe
+    )
 
 
 # -- Batches ----------------------------------------------------------------------

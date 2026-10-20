@@ -8,6 +8,8 @@ type FaceCropProps = {
   aspect: number | null;
   className?: string;
   style?: React.CSSProperties;
+  /** Shown when there is no image yet (a character made by hand). */
+  letter?: string;
 };
 
 /**
@@ -24,10 +26,16 @@ export function FaceCrop({
   zoom = FACE_ZOOM,
   className,
   style,
+  letter,
 }: FaceCropProps & { frame?: number; zoom?: number }) {
   const crop = avatarCrop({ face, focus, aspect }, frame, zoom);
   return (
     <div className={cn("relative shrink-0 overflow-hidden bg-raised", className)} style={style}>
+      {!src && letter && (
+        <span className="absolute inset-0 grid place-items-center font-semibold uppercase text-muted">
+          {letter.slice(0, 1)}
+        </span>
+      )}
       {src && (
         <img
           src={src}

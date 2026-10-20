@@ -32,6 +32,8 @@ export type CharacterPage = Omit<TagDetail, "loras"> & {
   best: Array<{ image_id: string; score: number; thumb_url: string }>;
   scored: { count: number; average: number | null };
   ratings: Record<string, number>;
+  /** Made by hand and no image has them yet. */
+  made?: boolean;
   /** As the Tags panel's, plus the average score once enough are scored. */
   loras: Array<{ name: string; count: number; strength: number | null; score: number | null }>;
 };
@@ -41,7 +43,8 @@ export type CharacterEntry = {
   tag: string;
   aliases: string[];
   count: number;
-  thumb_url: string;
+  /** Null for a character made by hand that no image has yet. */
+  thumb_url: string | null;
   /** The avatar image: the pinned one, else the one Moiré picked. */
   thumb_image_id: string | null;
   name: string | null;

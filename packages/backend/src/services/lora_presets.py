@@ -292,7 +292,9 @@ async def _common(words: list[str], stem: str) -> set[str]:
     return {bases[b] for b, c in rows if b in bases and c / total >= COMMON}
 
 
-async def _file(client: ComfyClient | None, name: str) -> list[str]:
+async def _file(
+    client: ComfyClient | None, name: str, describe: bool = False
+) -> list[str]:
     if client is None or not name.lower().endswith(".safetensors"):
         return []
     try:
@@ -300,6 +302,8 @@ async def _file(client: ComfyClient | None, name: str) -> list[str]:
     except (ComfyError, ComfyUnreachable):
         return []
     words = file_words(meta, limit=4 * LIMIT)
+    if describe:
+        return words[:LIMIT]
     # A stated trigger phrase is kept even when common; caption tags are not
     # (a style LoRA's most frequent one is usually 1girl).
     stated = {
@@ -312,12 +316,14 @@ async def _file(client: ComfyClient | None, name: str) -> list[str]:
     return [w for w in words if w not in common][:LIMIT]
 
 
-async def suggestions(name: str, client: ComfyClient | None) -> list[dict[str, Any]]:
+async def suggestions(
+    name: str, client: ComfyClient | None, describe: bool = False
+) -> list[dict[str, Any]]:
     """Words to offer for the LoRA file ``name``: each with where it came
     from (``file``, ``library``) and, from the library, in how many prompts."""
     lib = await _library(lora_stem(name))
     out: dict[str, dict[str, Any]] = {}
-    for w in await _file(client, name):
+    for w in await _file(client, name, describe):
         out[_key(w)] = {"word": w, "sources": ["file"], "prompts": 0}
     for w, c in lib:
         hit = out.get(_key(w))

@@ -178,6 +178,98 @@ async def names_of(base: str) -> tuple[str, list[str], bool]:
     return key, names, base in key_of
 
 
+# -- Characters made by hand ----------------------------------------------------
+#
+# A character the library has no image of yet (Fern, before the first one is
+# made): a ``characters`` row with kind "character" whose tag no image
+# carries. Once one does, it is an ordinary character and the row is just its
+# settings.
+
+
+async def _made(conn, present: set[str]) -> list[dict]:
+    rows = (
+        await conn.execute(
+            sa.select(t.characters).where(t.characters.c.kind == "character")
+        )
+    ).mappings()
+    return [dict(r) for r in rows if r["tag"] not in present]
+
+
+async def made_tags() -> set[str]:
+    """Tags of characters made by hand that no image carries yet."""
+    rows = await tag_index.browse("all")
+    async with async_conn() as conn:
+        return {r["tag"] for r in await _made(conn, {r["tag"] for r in rows})}
+
+
+async def create(tag: str, patch: dict) -> dict:
+    """Make a character by hand (or mark an existing tag one), with the
+    settings in ``patch``; returns the stored row."""
+    if not tag:
+        raise CharacterError("tag is required")
+    return await update(tag, {**patch, "kind": "character"})
+
+
+async def remove_made(tag: str) -> bool:
+    """Forget a hand-made character and its recipe, only while no image
+    carries it (a library character is turned off with kind instead)."""
+    if tag not in await made_tags():
+        return False
+    async with async_tx() as conn:
+        for table in (t.characters, t.recipe_edits, t.recipe_additions):
+            await conn.execute(sa.delete(table).where(table.c.tag == tag))
+    tag_index.invalidate()
+    return True
+
+
+def _made_entry(row: dict) -> dict:
+    return {
+        "tag": row["tag"],
+        "aliases": [],
+        "count": 0,
+        "thumb_image_id": None,
+        "name": row.get("name"),
+        "series": row.get("series"),
+        "color": row.get("color"),
+        "focus": None,
+    }
+
+
+def made_page(row: dict) -> dict:
+    """The page of a character no image has yet: settings only. Pure."""
+    return {
+        "tag": row["tag"],
+        "count": 0,
+        "category": "character",
+        "first_used": None,
+        "last_used": None,
+        "sources": {"ai": 0, "prompt": 0, "manual": 0},
+        "months": [],
+        "loras": [],
+        "embeddings": [],
+        "workflows": [],
+        "related": [],
+        "thumb_image_id": None,
+        "cover": None,
+        "aliases": [],
+        "name": row.get("name"),
+        "series": row.get("series"),
+        "kind": row.get("kind"),
+        "color": row.get("color"),
+        "focus": None,
+        "face": None,
+        "aspect": None,
+        "palette": [],
+        "cover_blurhash": None,
+        "signature": [],
+        "with": [],
+        "best": [],
+        "scored": {"count": 0, "average": None},
+        "ratings": {},
+        "made": True,
+    }
+
+
 async def listing() -> list[dict]:
     """Every character, aliases folded in, most images first: what the image
     view shows as the people in a picture. Cached with the tag lists; the
@@ -229,6 +321,7 @@ async def _listing() -> list[dict]:
             ]
         meta = await _meta(conn, list(found))
         covers = await _covers(conn, found, by)
+        made = await _made(conn, set(by))
     keys_on: dict[str, set[str]] = {}
     for key, ids in images.items():
         for image_id in ids:
@@ -259,6 +352,7 @@ async def _listing() -> list[dict]:
         }
         for key, names in found.items()
     ]
+    out += [_made_entry(r) for r in made if r["tag"] not in found]
     out.sort(key=lambda r: (-r["count"], r["tag"]))
     return out
 
@@ -349,7 +443,10 @@ async def page(base: str) -> dict | None:
     key, names, key_of, rows = await _named(base)
     detail = await tag_index.detail(key, "all", aliases=tuple(names[1:]))
     if detail is None:
-        return None
+        async with async_conn() as conn:
+            made = await _made(conn, {r["tag"] for r in rows})
+        row = next((r for r in made if r["tag"] == key), None)
+        return made_page(row) if row else None
     n = detail["count"]
     ids = tag_index.image_ids(names)
     im, it = t.images, t.image_tags

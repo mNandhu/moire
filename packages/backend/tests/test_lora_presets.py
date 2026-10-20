@@ -171,3 +171,12 @@ async def test_one_word_in_two_spellings_is_offered_once(client, seed):
     assert [(w["word"], w["sources"]) for w in words] == [
         ("0__11Xx illu", ["file", "library"])
     ]
+
+
+async def test_describe_keeps_common_training_tags(client, seed):
+    lora_presets._total = None
+    await asyncio.to_thread(_library, seed)
+    words = await lora_presets.suggestions(
+        "niji.safetensors", _FakeClient(), describe=True
+    )
+    assert [w["word"] for w in words][:3] == ["0_11xx_b", "1girl", "looking at viewer"]

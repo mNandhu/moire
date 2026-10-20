@@ -273,7 +273,7 @@ async def recipe(tag: str) -> dict | None:
     """The Character block for ``tag`` (any of the character's names), or
     ``None`` when it isn't a character in the library."""
     key, names, key_of, rows = await characters._named(tag)
-    if key not in key_of:
+    if key not in key_of and key not in await characters.made_tags():
         return None
     count, sig = await _signature(names, key_of, rows)
     identity, outfit = split_signature(sig)
@@ -373,7 +373,7 @@ def clean(patch: dict) -> dict:
 
 async def update(tag: str, patch: dict) -> dict | None:
     key, _, key_of, _ = await characters._named(tag)
-    if key not in key_of:
+    if key not in key_of and key not in await characters.made_tags():
         return None
     values = clean(patch)
     added = values.pop("added", None)

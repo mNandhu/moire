@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { Tag as TagIcon, Slash, Search, GitMerge, Undo2, LayoutGrid, List } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Tag as TagIcon, Slash, Search, GitMerge, Undo2, LayoutGrid, List, UserPlus } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -41,8 +41,9 @@ import { RenameTagDialog } from "../components/RenameTagDialog";
 import { TagPanel } from "../components/TagPanel";
 import { Mosaic, type Sample } from "../components/TagMosaic";
 import { FaceCrop } from "../components/CharacterAvatar";
-import { useCharacterLookup } from "../components/ImageCharacters";
-import { CARD_ZOOM, displayName, inkOn, type CharacterEntry } from "../lib/character";
+import { useCharacterLookup, useCharacters } from "../components/ImageCharacters";
+import { NewCharacterDialog } from "../components/NewCharacterDialog";
+import { CARD_ZOOM, characterHref, displayName, inkOn, type CharacterEntry } from "../lib/character";
 
 // A spine for a character with no colour of its own.
 const SPINE_NEUTRAL = "#8a8797";
@@ -170,10 +171,47 @@ export default function TagsPage() {
 
   // `tags` keeps its identity until the list really changes (a pinned cover,
   // a rename), which is when the mosaics should be fetched again.
-  const sectionProps = { view, source, selected, onSelect: setSelected, epoch: tags };
+  // Characters made by hand have no images (so no Tags-page row); they join
+  // the shelf and open their page.
+  const navigate = useNavigate();
+  const { data: everyone } = useCharacters();
+  const made = useMemo(
+    () => (everyone ?? []).filter((c) => c.count === 0).map((c) => c.tag),
+    [everyone],
+  );
+  const madeRows: BrowseTag[] = useMemo(
+    () =>
+      filterTags(
+        made.map((tag) => ({
+          tag,
+          count: 0,
+          category: "character" as const,
+          last_used: null,
+          thumb_image_id: null,
+          thumb_url: null,
+        })),
+        q,
+        null,
+      ),
+    [made, q],
+  );
+  const shelf = useMemo(() => [...characters, ...madeRows], [characters, madeRows]);
+  const [creating, setCreating] = useState(false);
+  const onSelect = (tag: string) => (made.includes(tag) ? navigate(characterHref(tag)) : setSelected(tag));
+  const sectionProps = { view, source, selected, onSelect, epoch: tags };
   return (
     <>
-      <PageHeader title="Tags" count={tags?.length} width="wide" />
+      <PageHeader
+        title="Tags"
+        count={tags?.length}
+        width="wide"
+        actions={
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <UserPlus size={14} /> New character
+          </Button>
+        }
+      />
+      {creating && <NewCharacterDialog open onClose={() => setCreating(false)} />}
       <PageBody width="wide">
         <div className="flex flex-wrap items-center gap-2 mb-5">
           <div className="relative min-w-[12rem] max-w-md flex-1">
@@ -306,12 +344,12 @@ export default function TagsPage() {
               )
             ) : (
               <>
-                {characters.length > 0 && (
-                  <TagSection title="Characters" rows={characters} {...sectionProps} />
+                {shelf.length > 0 && (
+                  <TagSection title="Characters" rows={shelf} {...sectionProps} />
                 )}
                 {general.length > 0 && (
                   <TagSection
-                    title={characters.length > 0 ? "Tags" : null}
+                    title={shelf.length > 0 ? "Tags" : null}
                     rows={general}
                     {...sectionProps}
                   />
@@ -552,7 +590,8 @@ function SpineCard({
         aspect={c?.aspect ?? null}
         frame={3 / 4}
         zoom={CARD_ZOOM}
-        className="flex-1 aspect-[3/4]"
+        className="flex-1 aspect-[3/4] text-5xl"
+        letter={name}
       />
     </button>
   );

@@ -15,6 +15,7 @@ import { toggleDropped } from "../../lib/recipe";
 import { FieldLabel, stemOf } from "./RunControls";
 import { bareTagPool } from "./ChipInput";
 import { ExpandButton } from "./Layers";
+import { NewCharacterDialog } from "../NewCharacterDialog";
 import { TagSuggestList, useTagMatches } from "../TagSuggestList";
 import { useTagAggregate } from "../../lib/queries";
 
@@ -35,6 +36,8 @@ function characterOptions(list: readonly CharacterEntry[]): PickerOption[] {
 }
 
 /** The character picker: avatars, search over every name, image counts. */
+const NEW_CHARACTER = "\u0000new";
+
 function CharacterPicker({
   value,
   onChange,
@@ -45,19 +48,23 @@ function CharacterPicker({
   trigger?: (p: { open: boolean; label: string | null }) => React.ReactNode;
 }) {
   const { data } = useCharacters();
-  const opts = useMemo(() => characterOptions(data ?? []), [data]);
+  const [creating, setCreating] = useState(false);
+  const opts = useMemo(() => [...characterOptions(data ?? []), { value: NEW_CHARACTER, label: "New character" }], [data]);
   return (
-    <Picker
-      aria-label="Character"
-      value={value ?? ""}
-      options={opts}
-      onChange={onChange}
-      placeholder="Pick a character"
-      searchable
-      trigger={trigger}
-      align={trigger ? "right" : "left"}
-      className={trigger ? undefined : "w-full"}
-    />
+    <>
+      <Picker
+        aria-label="Character"
+        value={value ?? ""}
+        options={opts}
+        onChange={(v) => (v === NEW_CHARACTER ? setCreating(true) : onChange(v))}
+        placeholder="Pick a character"
+        searchable
+        trigger={trigger}
+        align={trigger ? "right" : "left"}
+        className={trigger ? undefined : "w-full"}
+      />
+      {creating && <NewCharacterDialog open onClose={() => setCreating(false)} onCreated={onChange} />}
+    </>
   );
 }
 

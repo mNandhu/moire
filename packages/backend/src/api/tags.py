@@ -14,6 +14,7 @@ from ..services import (
     characters,
     face_detect,
     image_tags,
+    tag_categories,
     tag_index,
     tag_rename,
     tag_settings,
@@ -105,7 +106,12 @@ async def list_characters():
     names and cover: what the image view shows as the people in a picture.
     ``thumb_image_id`` lets it tell whether the open image is the avatar."""
     return [
-        {**r, "thumb_url": thumb_url(r["thumb_image_id"])}
+        {
+            **r,
+            "thumb_url": thumb_url(r["thumb_image_id"])
+            if r["thumb_image_id"]
+            else None,
+        }
         for r in await characters.listing()
     ]
 
@@ -134,6 +140,35 @@ async def update_character(tag: str, patch: dict):
         return await characters.update(validate_tags([tag])[0], patch)
     except characters.CharacterError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+@router.post("/characters")
+async def create_character(body: dict):
+    """Make a character by hand: a tag (the tagger's name for them, or any),
+    with an optional name, series and colour. It has a page and a recipe
+    before any image has the tag."""
+    raw = str(body.get("tag") or "").strip()
+    if not raw:
+        raise HTTPException(status_code=422, detail="tag is required")
+    tag = tag_index.pin_key(validate_tags([raw])[0])
+    # The tagger's spelling when it knows the character, so its images match.
+    if tag.lower() in (await tag_categories.load()).names:
+        tag = tag.lower()
+    patch = {k: body[k] for k in ("name", "series", "color") if k in body}
+    try:
+        return await characters.create(tag, patch)
+    except characters.CharacterError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+@router.delete("/character")
+async def delete_character(tag: str):
+    """Forget a character made by hand, while no image has its tag."""
+    if not await characters.remove_made(tag_index.pin_key(validate_tags([tag])[0])):
+        raise HTTPException(
+            status_code=409, detail="Only a character with no images can be deleted"
+        )
+    return {"ok": True}
 
 
 @router.get("/detail")
