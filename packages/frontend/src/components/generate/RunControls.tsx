@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, Dices, Minus, Pencil, Plus, RotateCcw } from "lucide-react";
+import { ChevronDown, Dices, Minus, Plus, RotateCcw } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { countHint, countLabel, randomSeed, type CountMode } from "../../lib/requests";
 import { ShapeIcon, SIZE_GROUP, useSizePresets } from "../SizeFilter";
-import { Picker, ProgressBar, type PickerOption } from "../ui";
+import { Input, Picker, ProgressBar, type PickerOption } from "../ui";
 import type { ActiveBatch, Sampling } from "../../lib/generate";
 import { samplerLabel, samplingLabel } from "../../lib/generateForm";
 
@@ -82,7 +82,7 @@ function NumberStepper({
     <div>
       <FieldLabel>{label}</FieldLabel>
       <div className="flex h-9 items-center rounded-lg border border-line">
-        <button type="button" aria-label={`Less ${label}`} onClick={() => set((value ?? min) - step)} className="p-2 text-muted hover:text-neutral-100">
+        <button type="button" aria-label={`Less ${label}`} onClick={() => set((value ?? min) - step)} className="px-1.5 py-2 text-muted hover:text-neutral-100">
           <Minus size={14} />
         </button>
         <input
@@ -105,7 +105,7 @@ function NumberStepper({
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           className="no-spin w-full min-w-0 bg-transparent text-center tabular-nums text-sm outline-none"
         />
-        <button type="button" aria-label={`More ${label}`} onClick={() => set((value ?? min) + step)} className="p-2 text-muted hover:text-neutral-100">
+        <button type="button" aria-label={`More ${label}`} onClick={() => set((value ?? min) + step)} className="px-1.5 py-2 text-muted hover:text-neutral-100">
           <Plus size={14} />
         </button>
       </div>
@@ -346,7 +346,7 @@ export function SeedControl({ value, onChange }: { value: SeedValue; onChange: (
           title="A new seed for every request"
           onClick={() => onChange({ mode: "random", value: value.value })}
           className={cn(
-            "shrink-0 rounded-md px-2.5 text-xs",
+            "shrink-0 rounded-md px-2 text-xs",
             !fixed ? "bg-brand-600 text-white" : "text-muted hover:text-neutral-100",
           )}
         >
@@ -416,7 +416,7 @@ export function CountStepper({
         <div>
           <FieldLabel>{label}</FieldLabel>
           <div className="inline-flex h-9 items-center rounded-lg border border-line">
-            <button type="button" aria-label="Fewer" onClick={() => set(value - 1)} className="p-2 text-muted hover:text-neutral-100">
+            <button type="button" aria-label="Fewer" onClick={() => set(value - 1)} className="px-1.5 py-2 text-muted hover:text-neutral-100">
               <Minus size={14} />
             </button>
             <input
@@ -426,15 +426,15 @@ export function CountStepper({
               min={1}
               max={500}
               onChange={(e) => set(Number(e.target.value) || 1)}
-              className="no-spin w-10 bg-transparent text-center tabular-nums text-sm outline-none"
+              className="no-spin w-8 bg-transparent text-center tabular-nums text-sm outline-none"
             />
-            <button type="button" aria-label="More" onClick={() => set(value + 1)} className="p-2 text-muted hover:text-neutral-100">
+            <button type="button" aria-label="More" onClick={() => set(value + 1)} className="px-1.5 py-2 text-muted hover:text-neutral-100">
               <Plus size={14} />
             </button>
           </div>
         </div>
         {batchSize && (
-          <div className="w-[7.5rem] shrink-0">
+          <div className="w-[6.5rem] shrink-0">
             <NumberStepper
               label="Batch size"
               value={batchSize.value ?? batchSize.default}
@@ -454,8 +454,8 @@ export function CountStepper({
 }
 
 /**
- * The batch name, heading the run card: what this run will be called. The
- * name is the button that renames it; editing stops the auto name.
+ * The batch name: a plain field whose placeholder is the auto name. Typing
+ * names the batch; clearing it goes back to the auto name.
  */
 export function BatchName({
   auto,
@@ -466,59 +466,22 @@ export function BatchName({
   custom: string | null;
   onChange: (name: string | null) => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const name = custom ?? auto;
-  if (editing) {
-    const commit = () => {
-      const t = draft.trim();
-      onChange(t && t !== auto ? t : null);
-      setEditing(false);
-    };
-    return (
-      <div className="flex h-7 min-w-0 items-center gap-2">
-        <input
-          autoFocus
-          aria-label="Batch name"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commit();
-            if (e.key === "Escape") setEditing(false);
-          }}
-          className="h-full w-64 min-w-0 rounded-md border border-brand-500/70 bg-canvas px-2 text-sm font-medium text-neutral-100 outline-none"
-        />
-        {custom && (
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              onChange(null);
-              setEditing(false);
-            }}
-            className="shrink-0 text-xs text-muted hover:text-neutral-100"
-          >
-            Use auto name
-          </button>
-        )}
-      </div>
-    );
-  }
   return (
-    <button
-      type="button"
-      aria-label={`Batch name: ${name}. Rename`}
-      title="Rename this batch"
-      onClick={() => {
-        setDraft(name);
-        setEditing(true);
-      }}
-      className="group -mx-1 flex h-7 min-w-0 max-w-full items-center gap-2 rounded-md px-1 text-left hover:bg-raised/60"
-    >
-      <span className="truncate text-sm font-medium text-neutral-100">{name}</span>
-      <Pencil size={13} className="shrink-0 text-faint group-hover:text-neutral-100" />
-    </button>
+    <div>
+      <FieldLabel htmlFor="batch-name">Batch name</FieldLabel>
+      <Input
+        id="batch-name"
+        value={custom ?? ""}
+        placeholder={auto}
+        title="Shown on the Generations page. Leave empty for the auto name."
+        onChange={(e) => onChange(e.target.value.trim() ? e.target.value : null)}
+        onBlur={(e) => {
+          const t = e.target.value.trim();
+          onChange(t && t !== auto ? t : null);
+        }}
+        className="placeholder:text-muted"
+      />
+    </div>
   );
 }
 

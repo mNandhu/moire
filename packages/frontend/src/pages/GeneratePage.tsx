@@ -429,15 +429,13 @@ export default function GeneratePage() {
             <div className="sticky bottom-0 z-[5] -mx-2 bg-gradient-to-t from-canvas from-80% to-transparent px-2 pb-4 pt-3">
               <Card className="space-y-3 p-4 shadow-panel">
                 {gen && !ready && <TestRunCard checkpoint={form.checkpoint} disabled={!connected} />}
-                {/* The run card's heading: this batch's name, renamed in place. */}
-                <BatchName auto={autoName} custom={form.name} onChange={(v) => set("name", v)} />
                 <div
                   className={cn(
                     "grid grid-cols-2 items-start gap-3",
                     ownBatchSize ? "md:grid-cols-4" : "md:grid-cols-3",
                     hasSampling
-                      ? "2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,1.5fr)_auto]"
-                      : "2xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,1.5fr)_auto]",
+                      ? "2xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,0.7fr)_minmax(0,1.6fr)_auto_minmax(0,0.9fr)]"
+                      : "2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1.6fr)_auto_minmax(0,0.9fr)]",
                   )}
                 >
                   <CheckpointPicker
@@ -467,6 +465,7 @@ export default function GeneratePage() {
                       ownBatchSize ? { value: form.perRequest, default: defaultPerRequest, onChange: (n) => set("perRequest", n) } : null
                     }
                   />
+                  <BatchName auto={autoName} custom={form.name} onChange={(v) => set("name", v)} />
                 </div>
                 {rejected && (
                   <RejectedBox
