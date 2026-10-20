@@ -466,10 +466,12 @@ running prompt only after a fresh `/queue` shows it is ours and running.
 - Identity and outfit are capped at 12 each, after filtering (near-duplicate
   images can tie dozens of scene tags at the top of the signature).
 - Signature noise on small characters (2026-10-20): `characters.signature`
-  reads the images the character is alone in once there are 3
-  (`signature_counts`, as the palette does), so a co-star's hair and eyes
-  don't leak in; a tag's share must also clear a Wilson lower bound (z = 1)
-  of 0.25 (`confident`: 2 of 3 images, not 1 of 3); then
+  reads the images the character is alone in when there are at least 3 and
+  they're half the images or 10+ (`reads_solo`; the palette only asks for 3,
+  since a colour wants purity and a look wants numbers), so a co-star's hair
+  and eyes don't leak in; a tag must be on 2+ images and its share clear a
+  Wilson lower bound (z = 1) of 0.17 (`confident`: 2 of 3 images, not 1 of
+  3; from 6 images on the usual third is enough); then
   `one_colour_per_slot` keeps the most common hair colour and eye colour (a
   second when a multicolour tag is in the signature too). The page and
   recipe return how many images it read (`signature_images` /

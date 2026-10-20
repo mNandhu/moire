@@ -298,6 +298,8 @@ export function RecipeEditor({
     onSuccess: (r) => qc.setQueryData(recipeKey(r.tag), r),
   });
   const added = recipe.identity.filter((c) => c.added).map((c) => c.tag);
+  // Only about computed tags: the ones you added aren't a guess.
+  const note = recipe.identity.some((c) => !c.added) ? fewImagesNote(recipe.identity_images) : null;
   const taken = useMemo(() => new Set([recipe.tag, ...recipe.identity.map((c) => c.tag)]), [recipe]);
   return (
     <>
@@ -341,9 +343,7 @@ export function RecipeEditor({
           ))}
           <AddTagInput taken={taken} onAdd={(tag) => !taken.has(tag) && patch.mutate({ added: [...added, tag] })} />
         </div>
-        {fewImagesNote(recipe.identity_images) && (
-          <p className="mt-1.5 text-xs text-faint">{fewImagesNote(recipe.identity_images)}</p>
-        )}
+        {note && <p className="mt-1.5 text-xs text-faint">{note}</p>}
       </div>
       <LoraControl
         recipe={recipe}

@@ -285,10 +285,23 @@ def test_a_share_needs_enough_images_to_be_trusted():
     assert characters.confident(2, 3)
     assert not characters.confident(1, 2)
     assert characters.confident(2, 2)
-    # with many images a third is enough
+    assert characters.confident(1, 1)  # a one-image character has only that
+    assert not characters.confident(1, 5)
+    assert characters.confident(2, 6)
+    # with more images a third is enough
+    assert characters.confident(4, 12)
     assert characters.confident(17, 50)
     assert not characters.confident(0, 5)
     assert not characters.confident(1, 0)
+
+
+def test_signature_reads_solo_images_only_when_there_are_enough():
+    assert characters.reads_solo(5, 3)
+    assert not characters.reads_solo(5, 2)
+    # 3 of 100 alone is too few to judge a look on
+    assert not characters.reads_solo(100, 3)
+    assert characters.reads_solo(100, 10)
+    assert characters.reads_solo(10, 5)
 
 
 def test_signature_drops_one_off_tags_on_few_images():

@@ -167,6 +167,11 @@ function Profile({ c, accent, person }: { c: Character; accent?: string; person:
     [c.signature, isBoilerplate, person],
   );
   const range = formatUsedRange(c.first_used, c.last_used);
+  // The look is read from the images they're alone in when there are enough.
+  const lookShare = (n: number) =>
+    c.signature_images < c.count
+      ? `On ${n.toLocaleString()} of the ${c.signature_images.toLocaleString()} images they're alone in`
+      : `On ${n.toLocaleString()} of ${c.count.toLocaleString()} images`;
   const copyLook = async () => {
     try {
       await navigator.clipboard.writeText(toPromptText([c.tag, ...look.map((s) => s.tag)]));
@@ -194,10 +199,9 @@ function Profile({ c, accent, person }: { c: Character; accent?: string; person:
                 key={s.tag}
                 to={galleryHref({ ...characterFilters(c.tag, []), tags: [`any:${c.tag}`, `any:${s.tag}`] })}
                 title={
-                  c.aliases.length
-                    ? // The gallery can't AND a look onto "any of these names".
-                      `On ${s.count.toLocaleString()} of ${c.count.toLocaleString()} images. Opens those tagged ${formatTag(c.tag)}.`
-                    : `On ${s.count.toLocaleString()} of ${c.count.toLocaleString()} images`
+                  lookShare(s.count) +
+                  // The gallery can't AND a look onto "any of these names".
+                  (c.aliases.length ? `. Opens those tagged ${formatTag(c.tag)}.` : "")
                 }
                 style={chipBorderStyle(s.tag)}
                 className="inline-flex items-center h-6 px-2 rounded-full bg-raised/80 border border-line text-xs text-neutral-200 hover:border-line-strong"
