@@ -256,6 +256,102 @@ app_settings = sa.Table(
     sa.Column("doc", sa.JSON),
 )
 
+# --- Generation (ComfyUI) -----------------------------------------------------
+# All new state lives in new tables: `ensure_schema` is `create_all` only, so
+# columns added to existing tables would never reach old databases.
+
+# Models installed in ComfyUI, refreshed from /object_info and /embeddings on
+# connect and Refresh. `name` is ComfyUI's own value (folder + file, sent back
+# as-is); `stem` is the file name without folder or extension, the key that
+# matches `image_loras.name` / `gen.loras`.
+comfy_models = sa.Table(
+    "comfy_models",
+    metadata,
+    sa.Column("kind", sa.Text, primary_key=True),  # checkpoint / lora / embedding
+    sa.Column("name", sa.Text, primary_key=True),
+    sa.Column("stem", sa.Text, nullable=False),
+)
+
+# The file the user picked when two installed LoRAs share a stem.
+lora_choices = sa.Table(
+    "lora_choices",
+    metadata,
+    sa.Column("stem", sa.Text, primary_key=True),
+    sa.Column("name", sa.Text, nullable=False),
+)
+
+# A ComfyUI API-format graph plus slots (slot -> path into the graph). `ready`
+# flips once a test run's image is found in the library.
+generators = sa.Table(
+    "generators",
+    metadata,
+    sa.Column("_id", sa.Text, primary_key=True),
+    sa.Column("name", sa.Text, nullable=False),
+    sa.Column("kind", sa.Text, nullable=False),  # builtin / custom
+    sa.Column("source", sa.JSON),
+    sa.Column("graph", sa.JSON, nullable=False),
+    sa.Column("slots", sa.JSON, nullable=False),
+    sa.Column("ready", sa.Boolean, server_default=sa.text("0")),
+    sa.Column("test", sa.JSON),  # last test run: request state, error, image id
+    sa.Column("created_at", sa.Float),
+    sa.Column("updated_at", sa.Float),
+)
+
+# One press of Queue. `inputs` keeps everything needed to re-queue it (blocks,
+# checkpoint, style LoRAs, size, seed mode, count, per request).
+generation_batches = sa.Table(
+    "generation_batches",
+    metadata,
+    sa.Column("_id", sa.Integer, primary_key=True, autoincrement=True),
+    sa.Column("name", sa.Text, nullable=False),
+    sa.Column("auto_name", sa.Boolean, server_default=sa.text("1")),
+    sa.Column("generator_id", sa.Text, nullable=False),
+    sa.Column("inputs", sa.JSON, nullable=False),
+    sa.Column("state", sa.Text, nullable=False),
+    sa.Column("created_at", sa.Float),
+)
+
+# One ComfyUI prompt. state: pending / queued / running / done / failed /
+# cancelled / lost.
+generation_requests = sa.Table(
+    "generation_requests",
+    metadata,
+    sa.Column("_id", sa.Integer, primary_key=True, autoincrement=True),
+    sa.Column(
+        "batch_id",
+        sa.Integer,
+        sa.ForeignKey("generation_batches._id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("idx", sa.Integer, nullable=False),
+    sa.Column("prompt_id", sa.Text),
+    sa.Column("seed", sa.Integer),
+    sa.Column("images", sa.Integer),  # asked for; None when batch_size unknown
+    sa.Column("state", sa.Text, nullable=False),
+    sa.Column("error", sa.JSON),
+    sa.Column("progress", sa.JSON),
+    sa.Column("queued_at", sa.Float),
+    sa.Column("finished_at", sa.Float),
+)
+
+# Images a request returned, from /history. `image_id` is the expected
+# `{output_library_id}:{subfolder/filename}`; it is joined to `images` on read,
+# so "waiting for scan" is just "no row yet".
+generation_outputs = sa.Table(
+    "generation_outputs",
+    metadata,
+    sa.Column(
+        "request_id",
+        sa.Integer,
+        sa.ForeignKey("generation_requests._id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("idx", sa.Integer, primary_key=True),
+    sa.Column("filename", sa.Text, nullable=False),
+    sa.Column("subfolder", sa.Text, nullable=False, server_default=""),
+    sa.Column("image_id", _BINARY, nullable=False),
+)
+
 
 # --- Indexes ------------------------------------------------------------------
 # Feed orders (services/image_feed.SORTS). Each expression must match the
@@ -311,3 +407,9 @@ sa.Index("ix_image_embeddings_name", image_embeddings.c.name)
 sa.Index("ix_gen_raw_lib", image_gen_raw.c.library_id)
 sa.Index("ix_gen_raw_lib_sig", image_gen_raw.c.library_id, image_gen_raw.c.workflow_sig)
 sa.Index("ix_gen_raw_sig", image_gen_raw.c.workflow_sig)
+sa.Index(
+    "ix_generation_requests_batch",
+    generation_requests.c.batch_id,
+    generation_requests.c.idx,
+)
+sa.Index("ix_generation_requests_state", generation_requests.c.state)

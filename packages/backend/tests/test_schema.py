@@ -22,6 +22,12 @@ def test_expected_tables_exist():
         "workflow_names",
         "workflow_files",
         "app_settings",
+        "comfy_models",
+        "lora_choices",
+        "generators",
+        "generation_batches",
+        "generation_requests",
+        "generation_outputs",
     }
 
 

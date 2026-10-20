@@ -395,6 +395,7 @@ dependencies = [
     { name = "tzdata", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
     { name = "uvicorn", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
     { name = "watchfiles", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "websockets", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
 ]
 
 [package.dev-dependencies]
@@ -429,6 +430,7 @@ requires-dist = [
     { name = "tzdata", specifier = ">=2026.5" },
     { name = "uvicorn" },
     { name = "watchfiles", specifier = ">=1.0" },
+    { name = "websockets", specifier = ">=15" },
 ]
 
 [package.metadata.requires-dev]
