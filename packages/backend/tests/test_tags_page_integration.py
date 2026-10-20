@@ -254,6 +254,10 @@ async def test_a_tags_cover_can_be_centred(client, seed, monkeypatch):
         x for x in (await client.get("/tags/browse")).json() if x["tag"] == "cat"
     )
     assert row["focus"] == [0.25, 0.75]
+    # The tag page (served like a character page) frames its cover the same.
+    page = (await client.get("/tags/character", params={"tag": "cat"})).json()
+    assert page["category"] != "character"
+    assert page["focus"] == [0.25, 0.75]
 
     # Pinning another image drops the point: it was for the old cover.
     seed("L1:b", tags=("cat",), width=100, height=100)

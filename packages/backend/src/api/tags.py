@@ -126,12 +126,17 @@ async def list_characters():
 
 @router.get("/character")
 async def character_page(tag: str):
-    """A character page, by any of the character's names."""
+    """A character page, by any of the character's names. Any other tag gets
+    the same page (the tag page), its focus being the cover's framing."""
     base = tag_index.pin_key(validate_tags([tag])[0])
     got = await characters.page(base)
     if got is None:
         raise HTTPException(status_code=404, detail="No image has this tag")
     cover = got["cover"]
+    if got["category"] != "character" and not got.get("made"):
+        # A plain tag's page: its cover's framing lives in tag_focus, set
+        # for the image that is the cover.
+        got["focus"] = await tag_focus.get(got["tag"], cover)
     return {
         **got,
         "thumb_url": thumb_url(cover) if cover else None,

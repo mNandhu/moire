@@ -430,19 +430,6 @@ export default function RulesPage() {
     void selectSig(row);
   }, [sigParam, sigs, selectSig]);
 
-  // Arriving with nothing chosen opens a workflow rather than a blank pane:
-  // the first one with unmapped images, else the first.
-  const autoPicked = useRef(false);
-  useEffect(() => {
-    if (autoPicked.current || sigParam || selected || !sigs.length) return;
-    autoPicked.current = true;
-    // Only beside the list: on a narrow screen the graph sits below it, and
-    // a pane opened unasked would just push the list away.
-    if (window.matchMedia && !window.matchMedia("(min-width: 1024px)").matches) return;
-    const rows = families.flatMap((f) => f.versions.map((v) => v.row));
-    void selectSig(rows.find((r) => r.needs_mapping > 0) ?? rows[0]);
-  }, [sigParam, sigs, families, selected, selectSig]);
-
   const pinPath = useCallback(
     (path: string) => {
       session.pinPath(activeField, path);
@@ -793,8 +780,13 @@ export default function RulesPage() {
           </div>
 
           {!selected ? (
-            <div className="hidden lg:flex col-span-9 items-center justify-center gap-2 py-16 text-sm text-faint">
-              <MousePointerClick size={16} /> Choose a workflow
+            <div className="col-span-12 lg:col-span-9 rounded-xl border border-dashed border-line">
+              <EmptyState
+                compact
+                icon={MousePointerClick}
+                title="Pick a workflow"
+                description="Choose one on the left to see its graph. Click any value in it to say which field it is (say, the node that holds your positive prompt)."
+              />
             </div>
           ) : (
             <div className="col-span-12 lg:col-span-9 grid grid-cols-1 xl:grid-cols-2 gap-4">

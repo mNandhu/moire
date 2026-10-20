@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, ExternalLink, Pencil, UserRound, Wand2 } from "lucide-react";
+import { Copy, ExternalLink, Pencil, Tag as TagIcon, UserRound, Wand2 } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { Skeleton } from "../components/ui/Skeleton";
@@ -10,6 +10,7 @@ import { useToast } from "../components/Toasts";
 import { Chip, ChipRow, MonthChart } from "../components/TagPanel";
 import { useCharacters } from "../components/ImageCharacters";
 import { CharacterEditDialog } from "../components/CharacterEditDialog";
+import { TagEditDialog } from "../components/TagEditDialog";
 import { CharacterAvatar } from "../components/CharacterAvatar";
 import { useComfyModels, useRecipe } from "../lib/generate";
 import { loadDraft, saveDraft } from "../lib/generateForm";
@@ -30,6 +31,7 @@ import {
   characterFilters,
   characterHref,
   displayName,
+  tagHref,
   type CharacterPage as Character,
 } from "../lib/character";
 
@@ -40,35 +42,45 @@ const RATING_ORDER = ["general", "sensitive", "questionable", "explicit"];
 const galleryHref = (patch: Partial<Filters>) =>
   `/?${serializeFilters({ ...DEFAULT_FILTERS, ...patch })}`;
 
+/** A character's page; any other tag's page leaves out what only a person has. */
+const isCharacter = (c: Character) => !!c.made || c.category === "character";
+const pageHref = (c: Character) => (isCharacter(c) ? characterHref : tagHref)(c.tag);
+
 /**
  * One character: their images, their look, what they were made with and who
  * they appear with, lit in their own colours. Opened from a character's
  * avatar in the image view or from the Tags page panel; any of the
  * character's names leads here, and the page moves to the one it uses.
+ *
+ * Any other tag gets the same page at /tags/:tag (`route="tag"`): its cover,
+ * images, what it was made with, framed in the same Edit dialog, without the
+ * character's name, look, colour or recipe.
  */
-export default function CharacterPage() {
+export default function CharacterPage({ route = "character" }: { route?: "character" | "tag" }) {
   const { tag = "" } = useParams();
   const navigate = useNavigate();
   const { data: c, isError, isLoading } = useCharacterPage(tag);
   const [editing, setEditing] = useState(false);
+  const person = c ? isCharacter(c) : route === "character";
 
-  // A bare name (`furina`) answers with the full one: show that in the URL.
+  // A bare name (`furina`) answers with the full one, and a tag that is (or
+  // isn't) a character belongs on the other route: show that in the URL.
   useEffect(() => {
-    if (c && c.tag !== tag) navigate(characterHref(c.tag), { replace: true });
-  }, [c, tag, navigate]);
+    if (c && (c.tag !== tag || person !== (route === "character"))) navigate(pageHref(c), { replace: true });
+  }, [c, tag, person, route, navigate]);
 
-  const colours = useMemo(() => (c ? characterColours(c) : []), [c]);
+  const colours = useMemo(() => (c && person ? characterColours(c) : []), [c, person]);
   useAmbientTint(colours);
 
-  const { name, series } = displayName(c ?? { tag });
+  const { name, series } = person ? displayName(c ?? { tag }) : { name: formatTag(c?.tag ?? tag), series: null };
 
   if (isError) {
     return (
       <>
         <PageHeader title={formatTag(tag)} width="wide" />
         <EmptyState
-          icon={UserRound}
-          title="No images have this character"
+          icon={person ? UserRound : TagIcon}
+          title={person ? "No images have this character" : "No images have this tag"}
           description="It may have been renamed, or its images quarantined."
           actions={<ButtonLink to="/tags">Back to Tags</ButtonLink>}
         />
@@ -108,15 +120,20 @@ export default function CharacterPage() {
           </div>
         ) : (
           <>
-            <Profile c={c} accent={colours[0]} />
+            <Profile c={c} accent={colours[0]} person={person} />
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
               <div className="space-y-8 min-w-0">
                 {c.best.length > 0 && <BestOf c={c} />}
-                {c.made ? <NoImagesYet c={c} /> : <Images c={c} />}
+                {c.made ? <NoImagesYet c={c} /> : <Images c={c} person={person} />}
               </div>
-              <Sidebar c={c} accent={colours[0]} onEdit={() => setEditing(true)} />
+              <Sidebar c={c} accent={colours[0]} onEdit={() => setEditing(true)} person={person} />
             </div>
-            {editing && <CharacterEditDialog open onClose={() => setEditing(false)} c={c} />}
+            {editing &&
+              (person ? (
+                <CharacterEditDialog open onClose={() => setEditing(false)} c={c} />
+              ) : (
+                <TagEditDialog open onClose={() => setEditing(false)} c={c} />
+              ))}
           </>
         )}
       </div>
@@ -138,13 +155,14 @@ function Avatar({ c, size, accent }: { c: Character; size: string; accent?: stri
   );
 }
 
-/** The avatar, how much of the library they're in, other names, their look. */
-function Profile({ c, accent }: { c: Character; accent?: string }) {
+/** The avatar, how much of the library they're in, other names, their look
+ * (a character's only). */
+function Profile({ c, accent, person }: { c: Character; accent?: string; person: boolean }) {
   const isBoilerplate = useBoilerplate();
   const { push } = useToast();
   const look = useMemo(
-    () => c.signature.filter((s) => !isBoilerplate(s.tag)).slice(0, SIGNATURE),
-    [c.signature, isBoilerplate],
+    () => (person ? c.signature.filter((s) => !isBoilerplate(s.tag)).slice(0, SIGNATURE) : []),
+    [c.signature, isBoilerplate, person],
   );
   const range = formatUsedRange(c.first_used, c.last_used);
   const copyLook = async () => {
@@ -232,9 +250,11 @@ function BestOf({ c }: { c: Character }) {
   );
 }
 
-/** Every image of theirs, newest first; the pin makes one their avatar. */
-function Images({ c }: { c: Character }) {
-  const { pin, pending } = usePinCover("avatar");
+/** Every image of theirs, newest first; the pin makes one their avatar (a
+ * tag's cover). */
+function Images({ c, person }: { c: Character; person: boolean }) {
+  const noun = person ? "avatar" : "cover";
+  const { pin, pending } = usePinCover(noun);
   const filters = useMemo(() => characterFilters(c.tag, c.aliases), [c.tag, c.aliases]);
   const open = useOpenImage(filters);
   const { items, hasNextPage, fetchNextPage, isFetchingNextPage, isLoading } = useImageFeed(filters, PAGE);
@@ -266,7 +286,7 @@ function Images({ c }: { c: Character }) {
                 on={on}
                 pending={pending === img._id}
                 disabled={pending !== null}
-                noun="avatar"
+                noun={noun}
                 onClick={() => void pin(c.tag, img._id, { unpin: on })}
               />
             </div>
@@ -359,7 +379,7 @@ function Recipe({ c, onEdit }: { c: Character; onEdit: () => void }) {
 }
 
 /** Who they appear with, what they were made with, when, and how rated. */
-function Sidebar({ c, accent, onEdit }: { c: Character; accent?: string; onEdit: () => void }) {
+function Sidebar({ c, accent, onEdit, person }: { c: Character; accent?: string; onEdit: () => void; person: boolean }) {
   const { data: everyone } = useCharacters();
   const { data: signatures } = useQuery({
     queryKey: ["rules-signatures"],
@@ -376,7 +396,7 @@ function Sidebar({ c, accent, onEdit }: { c: Character; accent?: string; onEdit:
 
   return (
     <aside className="space-y-6">
-      <Recipe c={c} onEdit={onEdit} />
+      {person && <Recipe c={c} onEdit={onEdit} />}
       {c.with.length > 0 && (
         <section>
           <h2 className="text-2xs uppercase tracking-wider text-faint mb-2">Appears with</h2>
