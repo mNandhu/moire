@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 
 from .tag_names import KAOMOJIS
 
@@ -322,9 +323,17 @@ def parse_prompt(text: str | None) -> list[Piece]:
     """Every piece of ``text`` with its kind, in order. Never raises."""
     if not text:
         return []
+    return list(_parse_cached(text))
+
+
+# Reprojection parses the same texts many times over: prompt guessing scores
+# every candidate text in a workflow graph, and libraries reuse prompts. The
+# parse is pure and `Piece` is frozen, so the cached tuple is safe to share.
+@lru_cache(maxsize=4096)
+def _parse_cached(text: str) -> tuple[Piece, ...]:
     out: list[Piece] = []
     for raw, in_group in _scan(text):
         s = _clean(raw, in_group)
         if s or raw.strip():
             out.append(Piece(s, classify(s, raw)))
-    return out
+    return tuple(out)
