@@ -174,11 +174,17 @@ export function SamplingControl({
         title={invalid ?? samplingLabel(shown)}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "flex h-9 w-full items-center gap-2 rounded-lg border border-line bg-canvas px-3 text-left text-sm hover:border-line-strong",
+          "sampling-field flex h-9 w-full items-center gap-2 rounded-lg border border-line bg-canvas px-3 text-left text-sm hover:border-line-strong",
           invalid && "ring-1 ring-red-700",
         )}
       >
-        <span className={cn("flex-1 truncate", changed ? "text-neutral-100" : "text-muted")}>{samplingLabel(shown, true)}</span>
+        {/* The sampler gives way when space is short; steps and CFG keep
+            their own labelled chips, so the numbers never truncate. */}
+        <span className={cn("min-w-[3.5rem] flex-1 truncate", changed ? "text-neutral-100" : "text-muted")}>
+          {shown.sampler ? samplerLabel(shown.sampler) : samplingLabel({ scheduler: shown.scheduler }) || "Default"}
+        </span>
+        {shown.steps != null && <SamplingChip label="steps" value={shown.steps} />}
+        {shown.cfg != null && <SamplingChip label="CFG" value={shown.cfg} labelFirst />}
         <ChevronDown size={16} className={cn("shrink-0 text-faint transition-transform", open && "rotate-180")} />
       </button>
       {open && (
@@ -232,6 +238,17 @@ export function SamplingControl({
         </div>
       )}
     </div>
+  );
+}
+
+/** "30 steps" / "CFG 7" in the Sampling field: a value with its faint label. */
+function SamplingChip({ label, value, labelFirst = false }: { label: string; value: number; labelFirst?: boolean }) {
+  return (
+    <span title={`${value} ${label}`} className="shrink-0 whitespace-nowrap rounded bg-raised px-1.5 py-0.5 text-xs tabular-nums text-neutral-200">
+      {labelFirst && <span className="mr-1 text-faint">{label}</span>}
+      {value}
+      {!labelFirst && <span className="sampling-unit ml-1 text-faint">{label}</span>}
+    </span>
   );
 }
 

@@ -99,3 +99,14 @@ body {
   -webkit-appearance: none;
   margin: 0;
 }
+
+/* The Sampling field: when it is narrow, "30 steps" drops to "30" so the
+   sampler's name keeps its room. */
+.sampling-field {
+  container-type: inline-size;
+}
+@container (max-width: 15rem) {
+  .sampling-unit {
+    display: none;
+  }
+}

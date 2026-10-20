@@ -429,8 +429,8 @@ export default function GeneratePage() {
                     "grid grid-cols-2 items-start gap-3",
                     ownBatchSize ? "md:grid-cols-4" : "md:grid-cols-3",
                     hasSampling
-                      ? "2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.9fr)_auto_minmax(0,0.9fr)]"
-                      : "2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.9fr)_auto_minmax(0,0.9fr)]",
+                      ? "2xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,1.6fr)_auto_minmax(0,0.9fr)]"
+                      : "2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.6fr)_auto_minmax(0,0.9fr)]",
                   )}
                 >
                   <CheckpointPicker
