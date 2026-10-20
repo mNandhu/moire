@@ -172,3 +172,81 @@ def attire_tags() -> dict[str, str]:
         if group:
             out[tag] = group
     return out
+
+
+# -- Facets: the coarse kind of thing a tag describes -------------------------
+#
+# The image view tints each tag by its facet, so an image's tags read as
+# groups (how the character looks, what they wear, what they're doing, where,
+# how it's framed) without sorting them. Look and outfit are the identity and
+# attire tests above; the rest come from these tag groups. A tag in none of
+# them gets no facet and no tint.
+FACET_GROUPS: dict[str, frozenset[str]] = {
+    "pose": frozenset(
+        {
+            "dances",
+            "face_tags",
+            "gestures",
+            "hands",
+            "holding_tags",
+            "posture",
+            "verbs_and_gerunds",
+        }
+    ),
+    "scene": frozenset(
+        {
+            "backgrounds",
+            "fire",
+            "flowers",
+            "holidays_and_celebrations",
+            "lighting",
+            "locations",
+            "plants",
+            "real_world_locations",
+            "water",
+        }
+    ),
+    "framing": frozenset(
+        {"character_count", "focus_tags", "groups", "image_composition"}
+    ),
+}
+FACETS = ("look", "outfit", "pose", "scene", "framing")
+
+
+def _facet(key: str, entry: tuple[str, str, tuple[str, ...]] | None) -> str | None:
+    if entry is None:
+        return "look" if _BODY_WORDS.search(key) else None
+    if _attire_group(key, entry) is not None:
+        return "outfit"
+    if is_identity(key):
+        return "look"
+    groups = _groups(entry)
+    # The primary group decides first, so `holding_umbrella` (holding, also
+    # listed under rain) is a pose.
+    for facet, members in FACET_GROUPS.items():
+        if entry[1] in members:
+            return facet
+    for facet, members in FACET_GROUPS.items():
+        if groups & members:
+            return facet
+    return None
+
+
+def facet_of(tag: str) -> str | None:
+    """The facet (one of :data:`FACETS`) of a tag, or ``None``."""
+    key = _key(tag)
+    return _facet(key, _load().get(key))
+
+
+_facets_cache: tuple[int, dict[str, str]] | None = None
+
+
+def facets() -> dict[str, str]:
+    """``tag -> facet`` for every listed tag that has one. Rebuilt whenever
+    the list itself is reloaded."""
+    global _facets_cache
+    listed = _load()
+    if _facets_cache is None or _facets_cache[0] != id(listed):
+        out = {t: f for t, e in listed.items() if (f := _facet(t, e))}
+        _facets_cache = (id(listed), out)
+    return _facets_cache[1]

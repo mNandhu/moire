@@ -60,7 +60,8 @@ import {
 } from "../lib/tags";
 import { characterHref, tagHref } from "../lib/character";
 import { splitBoilerplate } from "../lib/boilerplate";
-import { libraryPageHref, useBoilerplate, useLibraries } from "../lib/queries";
+import { libraryPageHref, useBoilerplate, useLibraries, useTagFacets } from "../lib/queries";
+import { FACET_LABEL, FACET_TINT, tagMarkStyle, type Facet } from "../lib/tagColour";
 import { isFormField } from "../lib/dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { Button } from "../components/ui/Button";
@@ -1118,13 +1119,21 @@ const KIND_LABEL: Record<TagKind, string> = {
   prompt: "prompt",
 };
 
+// The side panel's background (tailwind `surface`): what a rainbow-outlined
+// tag paints inside its border.
+const PANEL_GROUND = "#15141c";
+
 /**
  * An image's tags as one comma-separated run, like a prompt: dense, easy to
  * read top to bottom and to copy. Kind shows as text colour (legend below);
- * a less confident AI tag is fainter. Each tag opens its tag page (a
- * character's, its character page), where its cover is framed too.
+ * a less confident AI tag is fainter. A faint tint groups tags by facet (look,
+ * outfit, pose...), and hair and eye tags are outlined in their colour
+ * (lib/tagColour.ts). Each tag opens its tag page (a character's, its
+ * character page), where its cover is framed too.
  */
 function TagFlow({ tags }: { tags: FlowTag[] }) {
+  const { data: facets } = useTagFacets();
+  const facetOf = (raw: string): Facet | null => facets?.[tagName(raw).toLowerCase()] ?? null;
   // Boilerplate (Settings) folds into one quiet toggle at the end, so the
   // tags that describe this image lead instead of "masterpiece, best quality".
   const isBoilerplate = useBoilerplate();
@@ -1138,6 +1147,9 @@ function TagFlow({ tags }: { tags: FlowTag[] }) {
     shown.some((t) => t.kind === k),
   );
   const firstBoilerplate = kept.length;
+  const shownFacets = (Object.keys(FACET_TINT) as Facet[]).filter((f) =>
+    shown.some((t) => facetOf(t.raw) === f),
+  );
   return (
     <div className="space-y-2">
       <p className="text-[13px] leading-7">
@@ -1147,11 +1159,10 @@ function TagFlow({ tags }: { tags: FlowTag[] }) {
               <Link
                 to={tagPageHref(t)}
                 className={`rounded px-0.5 -mx-0.5 hover:bg-raised hover:underline ${KIND_TEXT[t.kind]}`}
-                style={
-                  t.confidence != null
-                    ? { opacity: 0.45 + 0.55 * t.confidence }
-                    : undefined
-                }
+                style={{
+                  ...tagMarkStyle(t.raw, facetOf(t.raw), PANEL_GROUND),
+                  ...(t.confidence != null ? { opacity: 0.45 + 0.55 * t.confidence } : {}),
+                }}
                 title={
                   t.confidence != null
                     ? `Open ${t.label} · ${Math.round(t.confidence * 100)}% confidence`
@@ -1191,6 +1202,11 @@ function TagFlow({ tags }: { tags: FlowTag[] }) {
           </span>
         ))}
         {shown.some((t) => t.confidence != null) && <span>fainter = less confident</span>}
+        {shownFacets.map((f) => (
+          <span key={f} className="rounded px-1 text-muted" style={{ backgroundColor: FACET_TINT[f] }}>
+            {FACET_LABEL[f]}
+          </span>
+        ))}
       </div>
     </div>
   );

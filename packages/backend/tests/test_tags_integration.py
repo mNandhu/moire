@@ -149,3 +149,12 @@ async def test_bulk_manual_invalidates_tag_counts(client, seed):
     )
     resp = await client.get("/tags", params={"include_manual": True})
     assert {r["_id"]: r["count"] for r in resp.json()} == {"manual:fav": 2}
+
+
+async def test_tag_facets_route(client):
+    r = await client.get("/tags/facets")
+    assert r.status_code == 200
+    facets = r.json()
+    assert facets["blue_eyes"] == "look"
+    assert facets["serafuku"] == "outfit"
+    assert set(facets.values()) <= {"look", "outfit", "pose", "scene", "framing"}

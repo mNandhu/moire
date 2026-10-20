@@ -11,6 +11,7 @@ from ..database.db import async_tx
 from ..database import schema as t
 from ._utils import thumb_url, validate_tags
 from ..services import (
+    attire,
     characters,
     face_detect,
     image_tags,
@@ -45,6 +46,14 @@ async def list_tags(
 
 class TagSettingsPatch(BaseModel):
     boilerplate: list[str]
+
+
+@router.get("/facets")
+async def get_tag_facets():
+    """``tag -> facet`` (look, outfit, pose, scene, framing) for every listed
+    tag that has one: the image view tints tags by it. Static per build of the
+    tag-group list, so clients can cache it for the session."""
+    return JSONResponse(attire.facets())
 
 
 @router.get("/settings")
