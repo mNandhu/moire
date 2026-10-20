@@ -3,6 +3,7 @@ import {
   batchLine,
   batchRunTime,
   coverAspect,
+  dealColumns,
   dayLabel,
   durationLabel,
   resultGrid,
@@ -95,6 +96,14 @@ describe("batch covers", () => {
     expect(coverAspect(2048, 512)).toBe(3 / 2);
     expect(coverAspect(512, 2048)).toBe(2 / 3);
     expect(coverAspect(null, 1024)).toBe(3 / 4);
+  });
+  it("deal into the shortest column, keeping reading order", () => {
+    // Two landscape cards, then a portrait one: it goes under the first.
+    expect(dealColumns([1.5, 1.5, 2 / 3], 2, 150, 0)).toEqual([[0, 2], [1]]);
+    // A tall first card: the next two go beside it, one under the other.
+    expect(dealColumns([0.5, 2, 2], 2, 100, 0)).toEqual([[0], [1, 2]]);
+    expect(dealColumns([1, 1, 1], 3, 100, 20)).toEqual([[0], [1], [2]]);
+    expect(dealColumns([1], 0, 100, 0)).toEqual([[0]]);
   });
   it("scrub across their images in strips", () => {
     expect(scrubIndex(0, 200, 4)).toBe(0);
