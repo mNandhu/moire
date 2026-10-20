@@ -118,10 +118,10 @@ def solo_palette(
 
 
 # How sure a share must be before a tag joins the signature: the Wilson lower
-# bound (z = 1, roughly 68%) of its share must reach this. One image in three
-# is a third, but on three images it could easily be chance; on fifty it
-# isn't. See :func:`confident`.
-CONFIDENT_SHARE = 0.25
+# bound (z = 1, roughly 68%) of its share must reach this, and the tag must be
+# on two images. One image in three is a third, but on three images it could
+# easily be chance; on fifty it isn't. See :func:`confident`.
+CONFIDENT_SHARE = 0.17
 # Hair and eye tags that allow a second colour in their slot.
 MULTICOLOUR = {
     "hair": frozenset(
@@ -140,11 +140,13 @@ MULTICOLOUR = {
 
 
 def confident(n: int, images: int) -> bool:
-    """Whether ``n`` of ``images`` is a share the signature can trust: the
-    Wilson lower bound (z = 1) of ``n / images`` reaches
-    :data:`CONFIDENT_SHARE`. With 3 images that takes 2 of them; with 50,
-    the third :func:`signature` already asks for is plenty. Pure."""
-    if images <= 0 or n <= 0:
+    """Whether ``n`` of ``images`` is a share the signature can trust: on two
+    images at least (one image alone is enough only for a one-image
+    character), with a Wilson lower bound (z = 1) of ``n / images`` reaching
+    :data:`CONFIDENT_SHARE`. With 2 or 3 images that takes 2 of them, with 4
+    or 5 still 2 (half, then 40%); from 6 images on, the third
+    :func:`signature` already asks for is enough. Pure."""
+    if images <= 0 or n <= 0 or (n < 2 and images > 1):
         return False
     p = n / images
     denom = 1 + 1 / images
@@ -172,6 +174,20 @@ def one_colour_per_slot(found: list[dict]) -> list[dict]:
             room[part] -= 1
         out.append(r)
     return out
+
+
+# Solo images the signature reads instead of all, when they're also at least
+# half of all: see :func:`reads_solo`.
+SOLO_PLENTY = 10
+
+
+def reads_solo(images: int, solo: int) -> bool:
+    """Whether a signature reads only the ``solo`` images (of ``images``).
+    Not just :data:`SOLO_ENOUGH` as the palette asks: a colour wants purity,
+    but a signature wants numbers, and a character on 100 images, 97 of them
+    with someone else, shouldn't be judged on 3. So: enough solo images, and
+    either half of all or :data:`SOLO_PLENTY` of them. Pure."""
+    return solo >= SOLO_ENOUGH and (2 * solo >= images or solo >= SOLO_PLENTY)
 
 
 def signature(
@@ -218,10 +234,10 @@ async def signature_counts(
 ) -> tuple[dict[str, int], int]:
     """The tag counts a signature reads, and over how many images: ``ids``
     (a subquery of the character's images) without the ones another
-    character (``others``, their tag names) is in, once at least
-    :data:`SOLO_ENOUGH` are left; all of ``images`` before that. So a
-    character drawn beside someone else doesn't take on their hair and eyes,
-    as long as there are enough pictures of them alone."""
+    character (``others``, their tag names) is in, when :func:`reads_solo`
+    says those are enough; all of ``images`` otherwise. So a character drawn
+    beside someone else doesn't take on their hair and eyes, as long as there
+    are enough pictures of them alone."""
     it = t.image_tags
     shared = (
         sa.select(it.c.image_id).where(it.c.image_id.in_(ids), it.c.base.in_(others))
@@ -235,7 +251,7 @@ async def signature_counts(
         crowded = (
             await conn.execute(sa.select(sa.func.count(sa.distinct(sub.c.image_id))))
         ).scalar_one()
-        if images - crowded >= SOLO_ENOUGH:
+        if reads_solo(images, images - crowded):
             where.append(it.c.image_id.not_in(shared))
             counted = images - crowded
     counts = dict(
