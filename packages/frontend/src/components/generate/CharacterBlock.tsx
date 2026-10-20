@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronDown, RotateCcw, Undo2, UserRound, X } from "lucide-react";
+import { Ban, Check, ChevronDown, RotateCcw, Undo2, UserRound, X } from "lucide-react";
 import { Badge } from "../ui";
 import { Picker, type PickerOption } from "../ui/Picker";
 import { CharacterAvatar } from "../CharacterAvatar";
@@ -99,13 +99,26 @@ function LoraControl({
       ? "Picked by you"
       : undefined;
 
+  const unused = !!lora && !lora.file;
   return (
     <div>
       <FieldLabel>
         <span title="Changes with the character">Character LoRA</span>
       </FieldLabel>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div title={why} className={cn("min-w-[12rem] max-w-full", invalid && "rounded-lg ring-1 ring-red-700")}>
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-x-4 gap-y-2",
+          unused && "rounded-lg border border-dashed border-amber-700/70 bg-amber-950/20 px-2.5 py-2",
+        )}
+      >
+        <div
+          title={why}
+          className={cn(
+            "min-w-[12rem] max-w-full",
+            invalid && "rounded-lg ring-1 ring-red-700",
+            unused && "opacity-60 [&_button>span]:line-through",
+          )}
+        >
           <Picker
             aria-label="Character LoRA"
             value={value}
@@ -115,7 +128,7 @@ function LoraControl({
             className="w-full"
           />
         </div>
-        {lora && (
+        {lora && !unused && (
           <label className="flex items-center gap-2.5 text-xs text-muted">
             Strength
             <input
@@ -140,8 +153,12 @@ function LoraControl({
               Installed
             </Badge>
           ) : (
-            <span title="Left out until it's installed in ComfyUI">
-              <Badge tone="warning">Not installed</Badge>
+            <span
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-200"
+              title="This ComfyUI doesn't have this LoRA, so it is left out of the prompt. Install it, then Refresh models in Settings, or pick another."
+            >
+              <Ban size={14} />
+              Not installed, not used
             </span>
           ))}
         {(recipe.lora_edited || recipe.strength_edited) && (

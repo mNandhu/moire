@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CircleAlert, Loader2, Wand2 } from "lucide-react";
+import { CircleAlert, FlaskConical, Loader2, Lock, Wand2 } from "lucide-react";
 import { Button, ButtonLink, Card, EmptyState, PageBody, PageHeader, Badge } from "../components/ui";
 import { ChipInput, bareTagPool } from "../components/generate/ChipInput";
 import {
@@ -13,6 +13,7 @@ import {
   SeedControl,
   SizePicker,
   StyleLoras,
+  stemOf,
 } from "../components/generate/RunControls";
 import { CharacterBlock } from "../components/generate/CharacterBlock";
 import { ComfyStatusLine } from "../components/generate/ComfyStatusLine";
@@ -245,9 +246,22 @@ export default function GeneratePage() {
 
   const positive = compose(form.base, recipe && character ? characterTags(recipe) : [], form.extra);
   const negative = compose(form.negativeBase, form.negativeExtra);
+  const sentLoras = [
+    ...(character?.lora ? [character.lora] : []),
+    ...form.loras.filter((l) => !character?.lora || stemOf(l.name) !== stemOf(character.lora.name)),
+  ];
   const ready = !!gen?.ready;
-  const canQueue =
-    connected && ready && !!settings?.output_library_id && !queue.isPending && (!form.character || !!character);
+  // Why Queue can't run yet, said on the button itself.
+  const blocked = !connected
+    ? "Waiting for ComfyUI"
+    : !ready
+      ? "Run the test first"
+      : !settings?.output_library_id
+        ? "Set the output folder"
+        : form.character && !character
+          ? "Loading character"
+          : null;
+  const canQueue = !blocked && !queue.isPending;
 
   return (
     <>
@@ -306,6 +320,11 @@ export default function GeneratePage() {
               <div className="mt-2 space-y-2 font-mono text-xs text-neutral-300 break-words">
                 <p>{positive || "(empty)"}</p>
                 <p className="text-faint">{negative || "(no negative)"}</p>
+                {sentLoras.length > 0 && (
+                  <p className="text-muted">
+                    {sentLoras.map((l) => `<lora:${stemOf(l.name)}:${l.strength}>`).join(" ")}
+                  </p>
+                )}
               </div>
             </details>
           </div>
@@ -339,16 +358,26 @@ export default function GeneratePage() {
                   refreshing={refresh.isPending}
                 />
               )}
-              <Button
-                variant="primary"
-                className="w-full h-11 text-[15px]"
-                disabled={!canQueue}
-                title={!connected ? "Waiting for connection" : !ready ? "Run the test first" : undefined}
-                onClick={() => queue.mutate()}
-              >
-                {queue.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                Queue {form.count} {form.count === 1 ? "image" : "images"}
-              </Button>
+              {blocked ? (
+                <Button
+                  className="w-full h-11 text-[15px]"
+                  disabled
+                  title={!ready && connected ? "Use Test run above: one image proves the checkpoint and the output folder" : undefined}
+                >
+                  {blocked === "Run the test first" ? <FlaskConical size={16} /> : <Lock size={16} />}
+                  {blocked}
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  className="w-full h-11 text-[15px]"
+                  disabled={!canQueue}
+                  onClick={() => queue.mutate()}
+                >
+                  {queue.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                  Queue {form.count} {form.count === 1 ? "image" : "images"}
+                </Button>
+              )}
             </Card>
             <RecentBatches onOpen={(id) => navigate(`/generations/${id}`)} />
             <div className="text-right">

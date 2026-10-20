@@ -63,34 +63,47 @@ export function ComfySection() {
   const [outputPath, setOutputPath] = useState("");
   const [perRequest, setPerRequest] = useState(1);
 
+  const resetConnection = (s: ComfySettings) => {
+    setAddress(s.address);
+    setCaCert(s.ca_cert ?? "");
+    setHeaders(Object.entries(s.headers).map(([name, value]) => ({ name, value })));
+  };
   useEffect(() => {
     if (!settings) return;
-    setAddress(settings.address);
-    setCaCert(settings.ca_cert ?? "");
-    setHeaders(Object.entries(settings.headers).map(([name, value]) => ({ name, value })));
+    resetConnection(settings);
     setOutputPath(settings.output_path ?? "");
     setPerRequest(settings.builtin_per_request);
   }, [settings]);
+
+  const headerMap = () => Object.fromEntries(headers.filter((h) => h.name.trim()).map((h) => [h.name.trim(), h.value]));
+  // The connection fields are saved together, by Save and test.
+  const dirty =
+    !!settings &&
+    (address.trim() !== settings.address ||
+      caCert.trim() !== (settings.ca_cert ?? "") ||
+      JSON.stringify(headerMap()) !== JSON.stringify(settings.headers));
 
   const save = useMutation({
     mutationFn: (patch: Partial<ComfySettings> & { output_path?: string | null }) => putSettings(patch),
     onSuccess: (s) => {
       qc.setQueryData(SETTINGS_KEY, s);
       void qc.invalidateQueries({ queryKey: GEN_KEY });
+      toast.push("Saved", "success");
     },
     onError: (e) => toast.push(e.message, "error"),
   });
   const test = useMutation({
     mutationFn: async () => {
-      await putSettings({
-        address,
-        ca_cert: caCert,
-        headers: Object.fromEntries(headers.filter((h) => h.name.trim()).map((h) => [h.name.trim(), h.value])),
-      });
-      return testConnection();
+      const saved = dirty ? await putSettings({ address: address.trim(), ca_cert: caCert.trim(), headers: headerMap() }) : null;
+      return { saved, result: await testConnection() };
     },
-    onSuccess: (r) => {
-      toast.push(r.ok ? "Connected" : `Can't reach ComfyUI${r.error ? `: ${r.error}` : ""}`, r.ok ? "success" : "error");
+    onSuccess: ({ saved, result: r }) => {
+      if (saved) qc.setQueryData(SETTINGS_KEY, saved);
+      const prefix = saved ? "Saved. " : "";
+      toast.push(
+        r.ok ? `${prefix}Connected` : `${prefix}Can't reach ComfyUI${r.error ? `: ${r.error}` : ""}`,
+        r.ok ? "success" : "error",
+      );
       void qc.invalidateQueries({ queryKey: GEN_KEY });
     },
     onError: (e) => toast.push(e.message, "error"),
@@ -110,7 +123,10 @@ export function ComfySection() {
 
   return (
     <div className="space-y-5">
-      <Section title="Connection" actions={<ComfyStatusLine withActions={false} />}>
+      <Section
+        title="Connection"
+        actions={dirty ? <Badge tone="warning">Unsaved changes</Badge> : <ComfyStatusLine withActions={false} />}
+      >
         <div className="space-y-4">
           <div>
             <label htmlFor="comfy-address" className="mb-1.5 block text-xs font-medium text-muted">
@@ -124,8 +140,18 @@ export function ComfySection() {
                 onChange={(e) => setAddress(e.target.value)}
                 className="font-mono"
               />
-              <Button onClick={() => test.mutate()} disabled={!address.trim() || test.isPending}>
-                Test
+              {dirty && settings && (
+                <Button variant="ghost" onClick={() => resetConnection(settings)} disabled={test.isPending}>
+                  Discard
+                </Button>
+              )}
+              <Button
+                variant={dirty ? "primary" : "secondary"}
+                onClick={() => test.mutate()}
+                disabled={!address.trim() || test.isPending}
+                className="shrink-0"
+              >
+                {dirty ? "Save and test" : "Test"}
               </Button>
             </div>
           </div>
