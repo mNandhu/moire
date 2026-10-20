@@ -429,7 +429,7 @@ function Sidebar({ c, accent, onEdit, person }: { c: Character; accent?: string;
         </section>
       )}
 
-      {(c.loras.length > 0 || c.embeddings.length > 0 || workflows.length > 0) && (
+      {person && (c.loras.length > 0 || c.embeddings.length > 0 || workflows.length > 0) && (
         <section className="space-y-2">
           <h2 className="text-2xs uppercase tracking-wider text-faint">Made with</h2>
           {c.loras.length > 0 && (
