@@ -18,6 +18,9 @@ Medians, not means: one slow run (a cold start, ComfyUI busy with something
 else) shouldn't move it. Sampler and scheduler are left out of the key: they
 barely change the speed and would split the history into tiny groups.
 
+A batch that leaves checkpoint, size or steps to the Generator counts the
+graph's own value, so it matches runs that named the same one.
+
 Loading a checkpoint is counted apart. Runs where ComfyUI read the model from
 disk (cold) are left out of the steps above; their extra time over the warm
 estimate is the *load cost*, added when the work switches checkpoint from
@@ -35,7 +38,7 @@ import sqlalchemy as sa
 
 from ..database import schema as t
 from ..database.db import async_conn
-from .generator_graph import sampling_defaults, split_requests
+from .generator_graph import split_requests
 
 EXACT_RUNS = 10
 SCALED_RUNS = 20
@@ -44,16 +47,14 @@ HISTORY = 400
 
 
 @dataclass(frozen=True)
-class Run:
-    """One finished request, as the estimate sees it."""
+class Job:
+    """One request's work."""
 
     generator: str
     checkpoint: str | None
     pixels: int | None
     steps: int | None
     images: int
-    seconds: float
-    cold: bool | None = None
 
     @property
     def work(self) -> float | None:
@@ -63,20 +64,13 @@ class Run:
 
 
 @dataclass(frozen=True)
-class Job:
-    """One request to estimate."""
+class Run:
+    """One finished request: its work, how long it ran, and whether it loaded
+    its checkpoint (``None``: not known)."""
 
-    generator: str
-    checkpoint: str | None
-    pixels: int | None
-    steps: int | None
-    images: int
-
-    @property
-    def work(self) -> float | None:
-        if not self.pixels or not self.steps:
-            return None
-        return self.pixels * self.steps * self.images
+    job: Job
+    seconds: float
+    cold: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -87,55 +81,68 @@ class Estimate:
     samples: int
 
 
-def warm_estimate(runs: list[Run], job: Job) -> Estimate | None:
-    """The warm (model already loaded) seconds for ``job`` from ``runs``
-    (newest first), by the ladder in the module docstring. Pure."""
-    warm = [r for r in runs if r.cold is not True and r.generator == job.generator]
-    exact = [
-        r.seconds
-        for r in warm
-        if r.checkpoint == job.checkpoint
-        and r.pixels == job.pixels
-        and r.steps == job.steps
-        and r.images == job.images
-    ][:EXACT_RUNS]
+class _Memo:
+    """Warm estimates and load costs over one history, each worked out once:
+    a queue asks for the same ones many times."""
+
+    def __init__(self, runs: list[Run]) -> None:
+        self.runs = runs
+        self._warm: dict[Job, Estimate | None] = {}
+        self._extras: dict[str | None, list[float]] | None = None
+
+    def warm(self, job: Job) -> Estimate | None:
+        if job not in self._warm:
+            self._warm[job] = _warm(self.runs, job)
+        return self._warm[job]
+
+    def load(self, checkpoint: str | None) -> float | None:
+        if self._extras is None:
+            # What each cold run took beyond its warm estimate (cold runs are
+            # left out of that already).
+            self._extras = {}
+            for r in self.runs:
+                if r.cold is not True:
+                    continue
+                warm = self.warm(r.job)
+                if warm is not None:
+                    self._extras.setdefault(r.job.checkpoint, []).append(
+                        max(0.0, r.seconds - warm.seconds)
+                    )
+        pick = self._extras.get(checkpoint) or [
+            x for xs in self._extras.values() for x in xs
+        ]
+        return statistics.median(pick) if pick else None
+
+
+def _warm(runs: list[Run], job: Job) -> Estimate | None:
+    warm = [r for r in runs if r.cold is not True and r.job.generator == job.generator]
+    exact = [r.seconds for r in warm if r.job == job][:EXACT_RUNS]
     if exact:
         return Estimate(statistics.median(exact), "exact", len(exact))
     work = job.work
     if work is None:
         return None
     for basis, pool in (
-        ("checkpoint", [r for r in warm if r.checkpoint == job.checkpoint]),
+        ("checkpoint", [r for r in warm if r.job.checkpoint == job.checkpoint]),
         ("generator", warm),
     ):
-        rates = [r.seconds / r.work for r in pool if r.work][:SCALED_RUNS]
+        rates = [r.seconds / w for r in pool if (w := r.job.work)][:SCALED_RUNS]
         if rates:
             return Estimate(statistics.median(rates) * work, basis, len(rates))
     return None
+
+
+def warm_estimate(runs: list[Run], job: Job) -> Estimate | None:
+    """The warm (model already loaded) seconds for ``job`` from ``runs``
+    (newest first), by the ladder in the module docstring. Pure."""
+    return _warm(runs, job)
 
 
 def load_cost(runs: list[Run], checkpoint: str | None) -> float | None:
     """Seconds a checkpoint switch adds: the median of what cold runs took
     beyond their warm estimate, for ``checkpoint`` when it has cold runs,
     else for any. ``None`` with no cold run to go on. Pure."""
-    extra: dict[str | None, list[float]] = {}
-    for r in runs:
-        if r.cold is not True:
-            continue
-        # Cold runs are left out of the warm estimate already.
-        warm = warm_estimate(runs, _job_of(r))
-        if warm is not None:
-            extra.setdefault(r.checkpoint, []).append(
-                max(0.0, r.seconds - warm.seconds)
-            )
-    mine = extra.get(checkpoint)
-    every = [x for xs in extra.values() for x in xs]
-    pick = mine or every
-    return statistics.median(pick) if pick else None
-
-
-def _job_of(r: Run) -> Job:
-    return Job(r.generator, r.checkpoint, r.pixels, r.steps, r.images)
+    return _Memo(runs).load(checkpoint)
 
 
 def plan(runs: list[Run], jobs: list[Job], loaded: str | None) -> list[float | None]:
@@ -143,16 +150,17 @@ def plan(runs: list[Run], jobs: list[Job], loaded: str | None) -> list[float | N
     memory: the warm estimate, plus the load cost when a job's checkpoint
     differs from the one before it. ``None`` for a job with no estimate.
     Pure."""
+    memo = _Memo(runs)
     out: list[float | None] = []
     current = loaded
     for job in jobs:
-        warm = warm_estimate(runs, job)
+        warm = memo.warm(job)
         if warm is None:
             out.append(None)
         else:
             extra = 0.0
             if job.checkpoint and current and job.checkpoint != current:
-                extra = load_cost(runs, job.checkpoint) or 0.0
+                extra = memo.load(job.checkpoint) or 0.0
             out.append(warm.seconds + extra)
         current = job.checkpoint or current
     return out
@@ -161,26 +169,47 @@ def plan(runs: list[Run], jobs: list[Job], loaded: str | None) -> list[float | N
 # -- Reading the history ----------------------------------------------------------
 
 
-def _steps(inputs: dict[str, Any], gen: dict[str, Any] | None) -> int | None:
-    steps = (inputs.get("sampling") or {}).get("steps")
-    if steps is None and gen is not None:
-        steps = sampling_defaults(gen["graph"], gen["slots"]).get("steps")
+def _graph_value(gen: dict[str, Any] | None, key: str) -> Any:
+    """What the Generator's graph has at slot ``key`` (None for a link)."""
+    path = (gen or {}).get("slots", {}).get(key)
+    if not path:
+        return None
+    value = (gen["graph"].get(str(path[0])) or {}).get("inputs", {}).get(path[1])
+    return None if isinstance(value, list) else value
+
+
+def _int(value: Any) -> int | None:
     try:
-        return int(steps) if steps is not None else None
+        return int(value) if value is not None else None
     except (TypeError, ValueError):
         return None
 
 
-def _pixels(inputs: dict[str, Any]) -> int | None:
-    w, h = inputs.get("width"), inputs.get("height")
-    try:
-        return int(w) * int(h) if w and h else None
-    except (TypeError, ValueError):
-        return None
+def _job(
+    gen: dict[str, Any] | None,
+    generator_id: str,
+    inputs: dict[str, Any],
+    images: int | None,
+) -> Job:
+    """A request's work from its batch's inputs; what they leave unset is the
+    graph's own value."""
+
+    def pick(value: Any, key: str) -> Any:
+        return value if value is not None else _graph_value(gen, key)
+
+    w = _int(pick(inputs.get("width"), "width"))
+    h = _int(pick(inputs.get("height"), "height"))
+    return Job(
+        generator=generator_id,
+        checkpoint=pick(inputs.get("checkpoint") or None, "checkpoint"),
+        pixels=w * h if w and h else None,
+        steps=_int(pick((inputs.get("sampling") or {}).get("steps"), "steps")),
+        images=images or 1,
+    )
 
 
 class _Generators:
-    """Generators by id, each read once per estimate."""
+    """Generators by id, each read once."""
 
     def __init__(self) -> None:
         self._got: dict[str, dict[str, Any] | None] = {}
@@ -194,25 +223,36 @@ class _Generators:
 
 
 # The status poll asks for an estimate every few seconds; the history only
-# grows when a request finishes, so a short-lived copy serves those.
+# grows when a request finishes, so a short-lived copy serves those (with the
+# Generators read for it).
 _HISTORY_TTL = 10.0
-_cached: tuple[float, list[Run]] | None = None
+_cached: tuple[float, _Generators, list[Run]] | None = None
+# Bumped by forget(), so a read that began before it isn't kept.
+_epoch = 0
 
 
 def forget() -> None:
     """Drop the cached history (a run was recorded or removed)."""
-    global _cached
+    global _cached, _epoch
     _cached = None
+    _epoch += 1
 
 
-async def history(gens: _Generators | None = None) -> list[Run]:
-    """The latest finished runs with a recorded time, newest first."""
+async def _history() -> tuple[_Generators, list[Run]]:
     global _cached
     if _cached is not None and time.monotonic() - _cached[0] < _HISTORY_TTL:
-        return _cached[1]
-    runs = await _read_history(gens or _Generators())
-    _cached = (time.monotonic(), runs)
-    return runs
+        return _cached[1], _cached[2]
+    epoch = _epoch
+    gens = _Generators()
+    runs = await _read_history(gens)
+    if epoch == _epoch:
+        _cached = (time.monotonic(), gens, runs)
+    return gens, runs
+
+
+async def history() -> list[Run]:
+    """The latest finished runs with a recorded time, newest first."""
+    return (await _history())[1]
 
 
 async def _read_history(gens: _Generators) -> list[Run]:
@@ -243,61 +283,40 @@ async def _read_history(gens: _Generators) -> list[Run]:
         inputs = row.inputs or {}
         if inputs.get("test"):
             continue
-        out.append(
-            Run(
-                generator=row.generator_id,
-                checkpoint=inputs.get("checkpoint"),
-                pixels=_pixels(inputs),
-                steps=_steps(inputs, await gens.get(row.generator_id)),
-                images=row.images or 1,
-                seconds=row.seconds,
-                cold=row.cold,
-            )
-        )
+        gen = await gens.get(row.generator_id)
+        job = _job(gen, row.generator_id, inputs, row.images)
+        out.append(Run(job, row.seconds, row.cold))
     return out
 
 
-async def last_checkpoint() -> str | None:
-    """The checkpoint of the request ComfyUI ran last for us: the one most
-    likely still in memory."""
+async def _last_checkpoint(gens: _Generators) -> str | None:
+    """The checkpoint of the request ComfyUI ran last for us (a test run
+    too): the one most likely still in memory."""
     r, b = t.generation_requests, t.generation_batches
     async with async_conn() as conn:
-        inputs = (
+        row = (
             await conn.execute(
-                sa.select(b.c.inputs)
+                sa.select(b.c.generator_id, b.c.inputs)
                 .select_from(r.join(b, b.c._id == r.c.batch_id))
                 .where(r.c.finished_at.is_not(None), r.c.state == "done")
                 .order_by(r.c.finished_at.desc())
                 .limit(1)
             )
-        ).scalar()
-    return (inputs or {}).get("checkpoint")
+        ).first()
+    if row is None:
+        return None
+    gen = await gens.get(row.generator_id)
+    return _job(gen, row.generator_id, row.inputs or {}, 1).checkpoint
 
 
-async def _job(
-    gens: _Generators, generator_id: str, inputs: dict[str, Any], images: int | None
-) -> Job:
-    return Job(
-        generator=generator_id,
-        checkpoint=inputs.get("checkpoint"),
-        pixels=_pixels(inputs),
-        steps=_steps(inputs, await gens.get(generator_id)),
-        images=images or 1,
-    )
-
-
-async def queue_plan(
-    started: dict[str, float],
-    *,
-    gens: _Generators | None = None,
-    runs: list[Run] | None = None,
-) -> dict[str, Any]:
-    """Seconds left on the queue: per active batch, and the total. A running
-    request counts what's left of its estimate (``started`` is when ComfyUI
-    began each prompt). Each running or waiting request also gets its full
-    estimate (``expected``), for the tile that fills as it runs."""
-    gens = gens or _Generators()
-    runs = runs if runs is not None else await history(gens)
+async def queue_plan(started: dict[str, float]) -> dict[str, Any]:
+    """Seconds left on the queue: per active batch (``batches``), and the
+    total (``total``). A running request counts what's left of its estimate
+    (``started`` is when ComfyUI began each prompt). Each running or waiting
+    request also gets its full estimate (``requests``), for the tile that
+    fills as it runs, and ``last`` is the checkpoint loaded once the queue
+    is through."""
+    gens, runs = await _history()
     r, b = t.generation_requests, t.generation_batches
     async with async_conn() as conn:
         rows = (
@@ -316,7 +335,9 @@ async def queue_plan(
                 # Running first, then ComfyUI's queue, then ours, in order.
                 .order_by(
                     sa.case(
-                        (r.c.state == "running", 0), (r.c.state == "queued", 1), else_=2
+                        (r.c.state == "running", 0),
+                        (r.c.state == "queued", 1),
+                        else_=2,
                     ),
                     r.c.batch_id,
                     r.c.idx,
@@ -324,9 +345,18 @@ async def queue_plan(
             )
         ).fetchall()
     jobs = [
-        await _job(gens, row.generator_id, row.inputs or {}, row.images) for row in rows
+        _job(
+            await gens.get(row.generator_id),
+            row.generator_id,
+            row.inputs or {},
+            row.images,
+        )
+        for row in rows
     ]
-    seconds = plan(runs, jobs, await last_checkpoint())
+    loaded = await _last_checkpoint(gens)
+    seconds = plan(runs, jobs, loaded)
+    for job in jobs:
+        loaded = job.checkpoint or loaded
     now = time.time()
     per_batch: dict[int, float | None] = {}
     expected: dict[int, float | None] = {}
@@ -344,7 +374,7 @@ async def queue_plan(
             per_batch[row.batch_id] = per_batch.get(row.batch_id, 0.0) + left
         if total is not None:
             total += left
-    return {"batches": per_batch, "requests": expected, "total": total}
+    return {"batches": per_batch, "requests": expected, "total": total, "last": loaded}
 
 
 async def for_new(
@@ -354,35 +384,37 @@ async def for_new(
     takes it): its own seconds (``None`` when there's no history to go on),
     the part of that which is loading its checkpoint, and the seconds of
     queued work ahead of it (``None`` when some of that can't be told)."""
-    from .generation_jobs import per_request_for
+    from .builtin_generator import BUILTIN_ID
+    from .generation_jobs import batch_shape
 
-    gens = _Generators()
-    generator_id = body.get("generator_id") or "builtin"
+    gens, runs = await _history()
+    generator_id = body.get("generator_id") or BUILTIN_ID
     gen = await gens.get(generator_id)
-    empty = {"seconds": None, "load": None, "ahead": None, "basis": None, "samples": 0}
     if gen is None:
-        return empty
-    runs = await history(gens)
-    queue = await queue_plan(started, gens=gens, runs=runs)
-    count = max(1, min(500, int(body.get("count") or 1)))
-    sizes = split_requests(count, per_request_for(gen, body, settings))
-    inputs = {
-        "checkpoint": body.get("checkpoint"),
-        "width": body.get("width"),
-        "height": body.get("height"),
-        "sampling": body.get("sampling") or {},
-    }
-    jobs = [await _job(gens, generator_id, inputs, n) for n in sizes]
-    # Whatever ran or is queued last is what's loaded when this one starts.
-    ahead = await _last_queued_checkpoint()
-    loaded = ahead if ahead is not None else await last_checkpoint()
+        return {
+            "seconds": None,
+            "load": None,
+            "ahead": None,
+            "basis": None,
+            "samples": 0,
+        }
+    queue = await queue_plan(started)
+    # The same inputs queue_batch would keep, so the key matches the history.
+    shape = batch_shape(gen, body, settings)
+    sizes = split_requests(shape["count"], shape["per_request"])
+    jobs = [_job(gen, generator_id, shape, n) for n in sizes]
+    # Whatever the queue ends on is what's loaded when this one starts.
+    loaded = queue["last"]
+    memo = _Memo(runs)
     seconds = plan(runs, jobs, loaded)
-    known = None if any(s is None for s in seconds) or not seconds else sum(seconds)
-    load = None
-    checkpoint = inputs.get("checkpoint")
-    if known is not None and checkpoint and loaded and checkpoint != loaded:
-        load = load_cost(runs, checkpoint)
-    warm = warm_estimate(runs, jobs[0]) if jobs else None
+    known = None if any(s is None for s in seconds) else sum(seconds)
+    checkpoint = jobs[0].checkpoint
+    load = (
+        memo.load(checkpoint)
+        if known is not None and checkpoint and loaded and checkpoint != loaded
+        else None
+    )
+    warm = memo.warm(jobs[0])
     return {
         "seconds": known,
         "load": load,
@@ -390,18 +422,3 @@ async def for_new(
         "basis": warm.basis if warm else None,
         "samples": warm.samples if warm else 0,
     }
-
-
-async def _last_queued_checkpoint() -> str | None:
-    r, b = t.generation_requests, t.generation_batches
-    async with async_conn() as conn:
-        inputs = (
-            await conn.execute(
-                sa.select(b.c.inputs)
-                .select_from(r.join(b, b.c._id == r.c.batch_id))
-                .where(r.c.state.in_(("pending", "queued", "running")))
-                .order_by(r.c.batch_id.desc(), r.c.idx.desc())
-                .limit(1)
-            )
-        ).scalar()
-    return (inputs or {}).get("checkpoint") if inputs is not None else None

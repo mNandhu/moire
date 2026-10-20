@@ -12,13 +12,14 @@ from src.services.generation_estimate import (
     plan,
     warm_estimate,
 )
-from src.services.generation_jobs import model_loaded, per_request_for
+from src.services.generation_estimate import _job
+from src.services.generation_jobs import batch_shape, model_loaded
 
 PX = 832 * 1216
 
 
-def run(seconds, *, ckpt="a", pixels=PX, steps=28, images=1, cold=None, gen="g"):
-    return Run(gen, ckpt, pixels, steps, images, seconds, cold)
+def run(seconds, *, cold=None, **job_args):
+    return Run(job(**job_args), seconds, cold)
 
 
 def job(*, ckpt="a", pixels=PX, steps=28, images=1, gen="g"):
@@ -99,8 +100,35 @@ def test_a_checkpoint_loader_that_ran_is_a_cold_start():
 def test_images_per_request():
     builtin = {"kind": "builtin", "slots": {"batch_size": ["5", "batch_size"]}}
     custom = {"kind": "custom", "slots": {"batch_size": ["5", "x"], "per_request": 3}}
-    assert per_request_for(builtin, {"per_request": 4}, {}) == 4
-    assert per_request_for(builtin, {"per_request": 200}, {}) == 64
-    assert per_request_for(builtin, {}, {"builtin_per_request": 2}) == 2
-    assert per_request_for(custom, {"per_request": 4}, {}) == 3
-    assert per_request_for({"kind": "custom", "slots": {}}, {}, {}) is None
+
+    def per(gen, body, settings=None):
+        shape = batch_shape(gen, body, settings or {})
+        return shape["per_request"], shape["per_request_asked"]
+
+    assert per(builtin, {"per_request": 4}) == (4, 4)
+    assert per(builtin, {"per_request": 200}) == (64, 64)
+    assert per(builtin, {}, {"builtin_per_request": 2}) == (2, None)
+    assert per(custom, {"per_request": 4}) == (3, None)
+    assert per({"kind": "custom", "slots": {}}, {"per_request": 4}) == (None, None)
+
+
+def test_what_a_batch_leaves_unset_is_the_graphs_own():
+    gen = {
+        "graph": {
+            "4": {"inputs": {"ckpt_name": "base.safetensors"}},
+            "5": {"inputs": {"width": 1024, "height": 1024}},
+            "3": {"inputs": {"steps": 20}},
+        },
+        "slots": {
+            "checkpoint": ["4", "ckpt_name"],
+            "width": ["5", "width"],
+            "height": ["5", "height"],
+            "steps": ["3", "steps"],
+        },
+    }
+    assert _job(gen, "g", {}, None) == Job("g", "base.safetensors", 1024 * 1024, 20, 1)
+    asked = {"checkpoint": "x", "width": 832, "height": 1216, "sampling": {"steps": 28}}
+    assert _job(gen, "g", asked, 2) == Job("g", "x", PX, 28, 2)
+    # A link (another node's output) isn't a value.
+    gen["graph"]["3"]["inputs"]["steps"] = ["9", 0]
+    assert _job(gen, "g", {}, None).steps is None

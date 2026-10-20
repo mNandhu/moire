@@ -124,20 +124,44 @@ def history_result(entry: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
 _ENDS = ("execution_success", "execution_error", "execution_interrupted")
 
 
-def per_request_for(
+def batch_shape(
     gen: dict[str, Any], body: dict[str, Any], settings: dict[str, Any]
-) -> int | None:
-    """Images per request for a batch: what the body asks (built-in only:
-    for a custom Generator it would also turn count from requests into
-    images), else the setting; ``None`` when the Generator has no batch size
-    (the count is then in requests)."""
-    if not gen["slots"].get("batch_size"):
-        return None
-    if gen["kind"] == "builtin" and body.get("per_request"):
-        return max(1, min(64, int(body["per_request"])))
-    if gen["kind"] == "builtin":
-        return int(settings.get("builtin_per_request") or 1)
-    return gen["slots"].get("per_request")
+) -> dict[str, Any]:
+    """The parts of a batch's inputs that decide how much work it is, as
+    queue_batch keeps them (the run-time estimate reads the same):
+
+    - ``count``, clamped;
+    - ``per_request``: images per request, the body's choice (built-in only:
+      for a custom Generator it would also turn count from requests into
+      images), else the setting; ``None`` when the Generator has no batch
+      size (count is then in requests);
+    - ``per_request_asked``: what the body chose, apart from the setting;
+    - ``checkpoint``, ``sampling`` (only slots the Generator has), ``width``,
+      ``height``."""
+    has_batch = bool(gen["slots"].get("batch_size"))
+    builtin = gen["kind"] == "builtin"
+    asked = (
+        max(1, min(64, int(body["per_request"])))
+        if builtin and has_batch and body.get("per_request")
+        else None
+    )
+    if not has_batch:
+        per_request = None
+    elif asked:
+        per_request = asked
+    elif builtin:
+        per_request = int(settings.get("builtin_per_request") or 1)
+    else:
+        per_request = gen["slots"].get("per_request")
+    return {
+        "count": max(1, min(500, int(body.get("count") or 1))),
+        "per_request": per_request,
+        "per_request_asked": asked,
+        "checkpoint": body.get("checkpoint") or None,
+        "sampling": _sampling_input(body.get("sampling"), gen["slots"]),
+        "width": body.get("width"),
+        "height": body.get("height"),
+    }
 
 
 def model_loaded(entry: dict[str, Any], node_id: str | None) -> bool | None:
@@ -562,8 +586,14 @@ class GenerationManager:
             if entry is None:
                 await self._set_state(row._id, "lost", finished=True)
                 self.progress.pop(pid, None)
+                self.started.pop(pid, None)
                 continue
             await self._finalize(row._id, pid, entry)
+        # Start times of prompts that are neither ours nor still in ComfyUI
+        # (another client's, or one that ended without us finalizing it).
+        keep = running | pending | {row.prompt_id for row in rows}
+        for pid in [p for p in self.started if p not in keep]:
+            del self.started[pid]
         await self._close_finished_batches()
 
     async def _set_state(
@@ -821,18 +851,9 @@ class GenerationManager:
         if not gen["ready"] and not test:
             raise Invalid("Run the Generator's test first")
 
-        count = max(1, min(500, int(body.get("count") or 1)))
-        # What the user set (built-in only), apart from the setting it
-        # resolves to.
-        asked = (
-            max(1, min(64, int(body["per_request"])))
-            if gen["kind"] == "builtin"
-            and gen["slots"].get("batch_size")
-            and body.get("per_request")
-            else None
-        )
-        per_request = per_request_for(gen, body, s)
-        sizes = split_requests(count, per_request)
+        shape = batch_shape(gen, body, s)
+        count = shape["count"]
+        sizes = split_requests(count, shape["per_request"])
         seed = body.get("seed") or {}
         fixed = (
             int(seed["value"])
@@ -848,8 +869,8 @@ class GenerationManager:
             "extra": extra,
             "negative_base": body.get("negative_base") or "",
             "negative_extra": list(body.get("negative_extra") or []),
-            "checkpoint": body.get("checkpoint") or None,
-            "sampling": _sampling_input(body.get("sampling"), gen["slots"]),
+            "checkpoint": shape["checkpoint"],
+            "sampling": shape["sampling"],
             "loras": [
                 {"name": lo["name"], "strength": float(lo.get("strength", 1.0))}
                 for lo in body.get("loras") or []
@@ -857,16 +878,16 @@ class GenerationManager:
             "characters": characters,
             # The first, for readers of batches from before several.
             "character": characters[0] if characters else None,
-            "width": body.get("width"),
-            "height": body.get("height"),
+            "width": shape["width"],
+            "height": shape["height"],
             "seed": {
                 "mode": "fixed" if fixed is not None else "random",
                 "value": fixed,
             },
             "count": count,
-            "per_request": per_request,
+            "per_request": shape["per_request"],
             # What the user set, apart from the setting it resolved to.
-            "per_request_asked": asked,
+            "per_request_asked": shape["per_request_asked"],
             "test": test,
         }
         positive = _parts(body.get("positive"))
