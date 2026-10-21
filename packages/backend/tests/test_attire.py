@@ -319,3 +319,30 @@ def test_coloured_garments_count_as_their_garment():
     }
     assert attire.attire_tags(["red_bikini"])["red_bikini"] == "attire"
     assert attire.facets(["red_bikini"])["red_bikini"] == "outfit"
+
+
+def test_described_garments_count_as_their_garment():
+    # Against the shipped list: free-form prompt garments.
+    for tag, group in {
+        "oversized_baby_blue_cropped_hoodie": "attire",
+        "pastel_pink_dolphin_shorts": "attire",
+        "blue_cotton_panties": "sexual_attire",
+        "yellow_star_hair_clip": "accessories",
+        "bare_midriff": "exposure",
+    }.items():
+        assert attire.group_of(tag) == group, tag
+        assert attire.facet_of(tag) == "outfit", tag
+    # Not worn: body parts filed under neckwear, a carried umbrella, phrases,
+    # hair and bedding.
+    for tag in (
+        "collarbone",
+        "nape",
+        "umbrella",
+        "transparent_umbrella",
+        "hand_in_pocket",
+        "waist-length_sky_blue_hair",
+        "white_bed_sheet",
+        "red_midriff",
+    ):
+        assert not attire.is_attire(tag), tag
+    assert attire.is_identity("waist-length_sky_blue_hair")

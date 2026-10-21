@@ -70,10 +70,15 @@ _ANIMAL_PERSON = re.compile(
 )
 
 # Poses and actions that the attire groups list because they involve clothing
-# (`adjusting_scarf`, `towel_around_neck`, `hand_on_headwear`), not garments.
+# (`adjusting_scarf`, `towel_around_neck`, `hand_on_headwear`), not garments;
+# what isn't on (`unworn_hat`, `no_gloves`); body parts filed under neckwear
+# (`collarbone`, `nape`); carried things (`umbrella`, `shopping_bag`); and
+# endings that only look like a garment (`soul_gem`, `swim_ring`).
 _NOT_WORN = re.compile(
-    r"^(adjusting|holding|kissing)_|_around_neck$|_grab$|^hands?_(on|in)_"
-    r"|^(long_neck|hand_fan|hand_tattoo)$"
+    r"^(adjusting|holding|kissing|no|unworn|removing|carrying|drawing)_|_around_neck$"
+    r"|_grab$|^hands?_(on|in)_|(^|_)bag$"
+    r"|^(long_neck|hand_fan|hand_tattoo|collarbone|nape|strangling|umbrella"
+    r"|clitoral_hood|soul_gem|swim_ring|mobile_suit|sharp_fingernails)$"
 )
 
 
@@ -124,15 +129,14 @@ EXPOSURE_TAGS = frozenset(
 UNLISTED_ATTIRE = {"jewelry": "accessories", "strapless": "exposure"}
 
 # A colour or print in front of a garment (`red_bikini`, `white_shirt`,
-# `striped_thighhighs`): Danbooru tags these but the groups list only the
-# garment, so the tag counts as the garment's group. Hubs the groups leave
-# out (`black_footwear`) are named here.
+# `striped_thighhighs`): a coloured cut-out isn't a thing (`red_midriff`).
 _COLOURED = re.compile(
     r"^(?:(?:light|dark|pale)_)?"
     r"(red|blue|green|yellow|orange|purple|pink|black|white|grey|gray|brown|"
     r"aqua|beige|silver|gold|multicolored|two-tone|see-through|striped|plaid|"
     r"polka_dot|checkered|camouflage|floral_print|leopard_print|frilled)_(.+)$"
 )
+# Garment hubs the groups leave out (`black_footwear`).
 _GARMENT_HUBS = {
     "footwear": "attire",
     "headwear": "headwear",
@@ -140,32 +144,47 @@ _GARMENT_HUBS = {
     "neckwear": "neck_and_neckwear",
     "one-piece_swimsuit": "attire",
 }
+# A phrase about something else (`hand_in_pocket`, `girl_with_bag`): no
+# garment ending for it.
+_PHRASE = re.compile(r"_(with|in|on|under|over|from|and|of)_")
 
 
 def _key(tag: str) -> str:
     return canonical_name(tag).lower()
 
 
-def _coloured_group(key: str) -> str | None:
-    """The attire group of an unlisted coloured garment, else None."""
-    m = _COLOURED.match(key)
-    if not m:
+def _garment_group(key: str) -> str | None:
+    """The attire group of an unlisted tag that ends in a garment, whatever
+    comes in front (`red_bikini`, `oversized_cropped_hoodie`,
+    `blue_cotton_panties`, `bare_midriff`; `star_hair_clip` as `hairclip`).
+    The longest attire ending decides (`floral_print_kimono` is a `kimono`,
+    though `print_kimono` is listed as a print); `sky_blue_hair` has none."""
+    if _PHRASE.search(key) or _NOT_WORN.search(key):
         return None
-    garment = m.group(2)
-    entry = _load().get(garment)
-    if entry is None:
-        return _GARMENT_HUBS.get(garment) or UNLISTED_ATTIRE.get(garment)
-    group = _attire_group(garment, entry)
-    # A coloured exposure tag isn't a thing (`red_midriff`).
-    return group if group != EXPOSURE_GROUP else None
+    listed = _load()
+    words = key.split("_")
+    for i in range(1, len(words)):
+        tail = "_".join(words[i:])
+        for name in dict.fromkeys((tail, tail.replace("_", ""))):
+            entry = listed.get(name)
+            if entry is None:
+                if group := _GARMENT_HUBS.get(name) or UNLISTED_ATTIRE.get(name):
+                    return group
+                continue
+            group = _attire_group(name, entry)
+            if group == EXPOSURE_GROUP and _COLOURED.match(key):
+                return None
+            if group:
+                return group
+    return None
 
 
 def _unlisted_group(key: str) -> str | None:
-    """An attire tag the groups don't list: a hub, or a coloured garment.
-    Only beside a loaded list, like everything else here."""
+    """An attire tag the groups don't list: a hub, or a garment with words in
+    front. Only beside a loaded list, like everything else here."""
     if not _load():
         return None
-    return UNLISTED_ATTIRE.get(key) or _coloured_group(key)
+    return UNLISTED_ATTIRE.get(key) or _garment_group(key)
 
 
 def parse(doc: object) -> dict[str, tuple[str, str, tuple[str, ...]]]:
@@ -285,9 +304,9 @@ def all_tags(category: str | None = None) -> dict[str, str]:
 
 
 def coloured(names: Iterable[str]) -> dict[str, str]:
-    """``tag -> attire group`` for the unlisted coloured garments among
-    ``names`` (the tagger's vocabulary): the lists below can't enumerate
-    them from the groups alone."""
+    """``tag -> attire group`` for the unlisted garments among ``names`` (the
+    tagger's vocabulary): coloured or otherwise described, which the lists
+    below can't enumerate from the groups alone."""
     listed = _load()
     out: dict[str, str] = {}
     for name in names:
