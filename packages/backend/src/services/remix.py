@@ -1,8 +1,8 @@
 """Remix: what the Generate composer starts from when an image is remixed.
 
-One read per image, for the viewer's Workflow line and the Remix menu: the
-image's workflow (family, name, signature) so the page can tell whether it is
-set up, the prompt split into characters (those with a recipe) and the rest,
+A light read for the viewer's Workflow line and Remix menu (the image's
+workflow, so the page can tell whether it is set up), and a full one when
+Remix is clicked: the prompt split into characters (those with a recipe) and the rest,
 and the run settings checked against what the connected ComfyUI has. An image
 Moiré queued itself also returns the batch and request it came from, which
 replay it exactly.
@@ -18,9 +18,10 @@ import sqlalchemy as sa
 
 from ..database import schema as t
 from ..database.db import async_conn
-from . import comfy_models, gen_metadata, generator_setup, recipes, tag_categories
+from . import comfy_models, generator_setup, recipes, tag_categories
 from .generation_compose import without_terms
-from .generator_discovery import discover, fixed_values
+from .image_tags import find_image
+from .generator_discovery import _SAMPLING_INPUTS, base_sampler, fixed_values
 from .generator_graph import SAMPLING, lora_stem
 from .prompt_parse import parse_prompt
 from .tag_names import canonical_name
@@ -36,12 +37,17 @@ _A1111_SIZE = re.compile(r"\bSize:\s*(\d+)\s*x\s*(\d+)", re.IGNORECASE)
 
 
 def strip_networks(text: str) -> str:
-    """``text`` without A1111 extra-network tags, separators tidied. Pure."""
+    """``text`` without A1111 extra-network tags (each with the separator
+    after it); the rest of the prompt stays as written. Pure."""
     if not _NETWORK.search(text):
         return text
-    out = _NETWORK.sub("", text)
-    out = re.sub(r"(\s*,\s*){2,}", ", ", out)
-    return re.sub(r"^[\s,]+|[\s,]+$", "", out)
+    out: list[str] = []
+    pos = 0
+    for m in _NETWORK.finditer(text):
+        out.append(text[pos : m.start()])
+        pos = m.end() + re.match(r"[ \t]*,?[ \t]*", text[m.end() :]).end()
+    out.append(text[pos:])
+    return re.sub(r"^[\s,]+|[\s,]+$", "", "".join(out))
 
 
 def prompt_characters(text: str, names: Set[str]) -> list[str]:
@@ -62,26 +68,26 @@ def a1111_size(parameters: object) -> tuple[int, int] | None:
     return (int(m.group(1)), int(m.group(2))) if m else None
 
 
-def _at(graph: dict[str, Any], path: Any) -> Any:
-    if not isinstance(path, list) or len(path) != 2:
-        return None
-    return ((graph.get(str(path[0])) or {}).get("inputs") or {}).get(path[1])
-
-
 def graph_settings(graph: dict[str, Any]) -> dict[str, Any]:
     """The latent size and sampling the base sampler ran with, from the
     graph's literal inputs (an upscaled output's own size is not it). Pure."""
-    slots = discover(graph)["slots"]
+    sampler = base_sampler(graph)
+    if sampler is None:
+        return {"size": None, "sampling": {}}
     # The latent's literal size, or a ratio node's choice ("2:3 [832x1216
     # portrait]").
     m = _WXH.search(fixed_values(graph, {})["size"] or "")
-    size = (int(m.group(1)), int(m.group(2))) if m else None
+    inputs = (graph.get(sampler) or {}).get("inputs") or {}
     sampling = {}
     for key in SAMPLING:
-        v = _at(graph, slots.get(key))
-        if v is not None and not isinstance(v, bool):
+        v = inputs.get(_SAMPLING_INPUTS[key])
+        # A list is a link: the value is made at run time.
+        if v is not None and not isinstance(v, (bool, list)):
             sampling[key] = v
-    return {"size": size, "sampling": sampling}
+    return {
+        "size": (int(m.group(1)), int(m.group(2))) if m else None,
+        "sampling": sampling,
+    }
 
 
 def checked_sampling(
@@ -174,41 +180,40 @@ async def _batch_of(conn, image_id: str) -> dict[str, Any] | None:
     }
 
 
-async def remix_view(image_id: str) -> dict[str, Any] | None:
-    """What Remix starts from for ``image_id``; None when it has no
-    generation data."""
+async def _lora_table(stems: list[str], installed: list[str]) -> dict[str, str | None]:
+    """Stem -> the installed file Moiré sends, for these stems only."""
+    if not stems:
+        return {}
     async with async_conn() as conn:
-        img = (
+        rows = (
             await conn.execute(
-                sa.select(t.images.c.gen, t.images.c.width, t.images.c.height).where(
-                    t.images.c._id == image_id
+                sa.select(t.lora_choices.c.stem, t.lora_choices.c.name).where(
+                    t.lora_choices.c.stem.in_(stems)
                 )
             )
-        ).first()
-        if img is None or not isinstance(img.gen, dict) or not img.gen.get("source"):
-            return None
-        raw = (
-            await conn.execute(
-                sa.select(t.image_gen_raw.c.raw).where(
-                    t.image_gen_raw.c._id == image_id
-                )
-            )
-        ).scalar()
+        ).fetchall()
+    choices = {r.stem: r.name for r in rows}
+    table = comfy_models.match_table([(s, 0) for s in stems], installed, choices)
+    return {m["stem"]: m["name"] for m in table}
+
+
+async def remix_view(image_id: str, full: bool = True) -> dict[str, Any] | None:
+    """What Remix starts from for ``image_id``; None when it has no
+    generation data. Not ``full``: only what the viewer shows before Remix
+    is clicked (the workflow, the batch), none of the heavier reads."""
+    img = await find_image(image_id)
+    gen = img.get("gen") if img else None
+    if not isinstance(gen, dict) or not gen.get("source"):
+        return None
+    image_id = img["_id"]
+    async with async_conn() as conn:
         batch = await _batch_of(conn, image_id)
-    gen = img.gen
-    raw = raw if isinstance(raw, dict) else {}
 
     workflow = None
-    size = None
-    sampling: dict[str, Any] = {
-        k: gen.get(k) for k in ("sampler", "steps", "cfg") if gen.get(k) is not None
-    }
-    graph = raw.get("prompt")
-    if isinstance(graph, str):
-        graph = gen_metadata.loads_lenient(graph)
-    if gen.get("source") == "comfyui" and isinstance(graph, dict) and graph:
+    graph = None
+    if gen.get("source") == "comfyui":
         try:
-            _, source = await generator_setup.image_source(image_id)
+            graph, source = await generator_setup.image_source(image_id)
         except generator_setup.SetupError:
             source = None
         if source is not None:
@@ -216,15 +221,42 @@ async def remix_view(image_id: str) -> dict[str, Any] | None:
                 k: source.get(k)
                 for k in ("family", "family_name", "file_name", "workflow_sig")
             }
+    out: dict[str, Any] = {
+        "image_id": image_id,
+        "source": gen.get("source"),
+        "workflow": workflow,
+        "seed": gen.get("seed") if isinstance(gen.get("seed"), int) else None,
+        "batch": batch,
+    }
+    if not full:
+        return out
+
+    size = None
+    sampling: dict[str, Any] = {
+        k: gen.get(k) for k in ("sampler", "steps", "cfg") if gen.get(k) is not None
+    }
+    if graph is not None:
         found = graph_settings(graph)
         size = found["size"]
-        sampling = found["sampling"] or sampling
+        # The graph's literal values win; linked ones keep what the scan read.
+        sampling = {**sampling, **found["sampling"]}
     elif gen.get("source") == "a1111":
-        size = a1111_size(raw.get("parameters"))
+        async with async_conn() as conn:
+            raw = (
+                await conn.execute(
+                    sa.select(t.image_gen_raw.c.raw).where(
+                        t.image_gen_raw.c._id == image_id
+                    )
+                )
+            ).scalar()
+        size = a1111_size(raw.get("parameters") if isinstance(raw, dict) else None)
 
     have = await comfy_models.installed()
     have.update(await comfy_models.sampling())
-    table = {m["stem"]: m["name"] for m in await comfy_models.matching()}
+    used = [lo for lo in gen.get("loras") or [] if isinstance(lo.get("name"), str)]
+    table = await _lora_table(
+        list(dict.fromkeys(lora_stem(lo["name"]) for lo in used)), have["lora"]
+    )
 
     # Characters with a recipe move to Character blocks: their name and the
     # identity tags the block adds back leave the prompt. Worn things stay
@@ -258,17 +290,13 @@ async def remix_view(image_id: str) -> dict[str, Any] | None:
         )
 
     return {
-        "image_id": image_id,
-        "source": gen.get("source"),
-        "workflow": workflow,
+        **out,
         "prompt": prompt,
         "negative": strip_networks(gen.get("negative") or ""),
         "characters": characters,
-        "seed": gen.get("seed") if isinstance(gen.get("seed"), int) else None,
         "width": size[0] if size else None,
         "height": size[1] if size else None,
         "sampling": checked_sampling(sampling, have),
         "checkpoint": checkpoint,
-        "loras": matched_loras(gen.get("loras") or [], table),
-        "batch": batch,
+        "loras": matched_loras(used, table),
     }

@@ -68,7 +68,7 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { Button } from "../components/ui/Button";
 import { MARKER_DIGIT } from "../components/ui/ScoreMark";
 import { Input } from "../components/ui/Input";
-import { useRemix } from "../lib/generate";
+import { useRemix, type RemixInfo } from "../lib/generate";
 import { RemixButton, WorkflowLine } from "../components/generate/Remix";
 
 /** A tag's own page: the character page for a character, else the tag page. */
@@ -1341,6 +1341,18 @@ function GenPanel({
 }) {
   const { data: remix } = useRemix(imageId, !!gen?.source);
   if (!gen || !gen.source) return null;
+  // Until the read lands (or if it fails), what the image's own data says,
+  // so the header doesn't jump.
+  const info: RemixInfo = remix ?? {
+    image_id: imageId,
+    source: gen.source,
+    workflow:
+      gen.source === "comfyui" && gen.workflow_sig
+        ? { family: null, family_name: null, file_name: null, workflow_sig: gen.workflow_sig }
+        : null,
+    seed: gen.seed ?? null,
+    batch: null,
+  };
   const editRule = gen.workflow_sig && (
     <Link
       to={`/rules?sig=${encodeURIComponent(gen.workflow_sig)}`}
@@ -1355,7 +1367,7 @@ function GenPanel({
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Generation data</h2>
         <div className="flex items-center gap-3">
-          {!remix?.workflow && editRule}
+          {!info.workflow && editRule}
           <button
             type="button"
             onClick={onCopyAll}
@@ -1364,13 +1376,13 @@ function GenPanel({
           >
             <Copy size={12} /> Copy all
           </button>
-          {remix && <RemixButton doc={remix} />}
+          <RemixButton info={info} />
         </div>
       </div>
 
-      {remix?.workflow && (
+      {info.workflow && (
         <div className="space-y-1.5 border-y border-line py-2">
-          <WorkflowLine doc={remix} imageId={imageId} />
+          <WorkflowLine info={info} imageId={imageId} />
           {editRule}
         </div>
       )}

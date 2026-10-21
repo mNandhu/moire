@@ -385,7 +385,7 @@ export default function GeneratePage() {
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_30rem] lg:items-start">
           {/* The run bar pins to the bottom of the view; long layers scroll above it. */}
           <div className="flex min-w-0 flex-col gap-4 lg:min-h-[calc(100dvh-5.5rem)]">
-            {form.remix && <RemixStrip remix={form.remix} onClear={() => set("remix", null)} />}
+            {form.remix && <RemixStrip remix={form.remix} seed={form.seed} onClear={() => set("remix", null)} />}
             <div className="flex flex-col" aria-label="Positive prompt">
               {form.blocks.map((blk, i) => (
                 <div key={"id" in blk ? blk.id : blk.kind}>

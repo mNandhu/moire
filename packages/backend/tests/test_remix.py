@@ -18,6 +18,9 @@ def test_strip_networks():
     assert remix.strip_networks("1girl, <lora:flat:0.7>, smile") == "1girl, smile"
     assert remix.strip_networks("<lora:a:1> 1girl") == "1girl"
     assert remix.strip_networks("plain, text") == "plain, text"
+    assert remix.strip_networks("1girl <lora:flat:0.7> smile") == "1girl smile"
+    # Separators away from a network stay as written.
+    assert remix.strip_networks("a,\n\n, b, <lora:x:1>") == "a,\n\n, b"
 
 
 def test_prompt_characters_first_seen_first():
@@ -118,7 +121,7 @@ async def test_comfyui_image(client, seed, monkeypatch):
 
     monkeypatch.setattr(tag_categories, "load", vocab)
     monkeypatch.setattr(recipes, "recipe", recipe)
-    r = await client.get("/generate/remix/L1:a.png")
+    r = await client.get("/generate/remix/L1:a.png?full=1")
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["workflow"] == {
@@ -156,7 +159,7 @@ async def test_a1111_image(client, seed):
         },
         {"source": "a1111", "parameters": params},
     )
-    d = (await client.get("/generate/remix/L1:b.png")).json()
+    d = (await client.get("/generate/remix/L1:b.png?full=1")).json()
     assert d["workflow"] is None
     assert d["prompt"] == "1girl, smile"
     assert (d["width"], d["height"]) == (512, 768)
@@ -187,6 +190,34 @@ async def test_moire_output_names_its_batch(client, seed):
     d = (await client.get("/generate/remix/OUT:c.png")).json()
     assert d["batch"]["generator_id"] == "builtin"
     assert (d["batch"]["seed"], d["batch"]["images"], d["batch"]["index"]) == (9, 2, 1)
+
+
+async def test_light_read_and_backslash_ids(client, seed):
+    _image(seed, "L1:sub/e.png", {"source": "comfyui", "prompt": "x", "seed": 3}, {})
+    d = (await client.get("/generate/remix/L1:sub\\e.png")).json()
+    assert d["image_id"] == "L1:sub/e.png"
+    assert "prompt" not in d
+
+
+def test_linked_sampling_keeps_the_scanned_value():
+    g = {
+        "1": {
+            "class_type": "KSampler",
+            "inputs": {
+                "steps": 30,
+                "cfg": ["9", 0],
+                "sampler_name": "euler",
+                "scheduler": "normal",
+                "latent_image": ["2", 0],
+                "seed": 1,
+                "model": ["3", 0],
+                "positive": ["4", 0],
+                "negative": ["5", 0],
+                "denoise": 1,
+            },
+        },
+    }
+    assert "cfg" not in remix.graph_settings(g)["sampling"]
 
 
 async def test_no_generation_data(client, seed):

@@ -43,6 +43,12 @@ export function DropdownMenu({
       }
     }
     function onKeyDown(e: KeyboardEvent) {
+      // The open menu has the keys: a page's own shortcuts (the viewer
+      // closes on Escape, steps on arrows) must not act behind it.
+      if (e.key === "Escape" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        e.stopPropagation();
+      }
       if (e.key === "Escape") setOpen(false);
     }
     document.addEventListener("mousedown", onMouseDown);

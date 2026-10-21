@@ -400,9 +400,10 @@ async def test_generator(generator_id: str, body: TestIn):
 
 
 @router.get("/remix/{image_id:path}")
-async def get_remix(image_id: str):
-    """What Remix starts the composer from for this image."""
-    r = await remix.remix_view(image_id)
+async def get_remix(image_id: str, full: bool = False):
+    """The image's workflow for the viewer; with ``full``, what Remix starts
+    the composer from."""
+    r = await remix.remix_view(image_id, full)
     if r is None:
         raise HTTPException(status_code=404, detail="No generation data")
     return r

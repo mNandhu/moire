@@ -518,25 +518,14 @@ export function useGenerators() {
   });
 }
 
-/** What Remix starts the composer from (`GET /generate/remix/{id}`). */
-export type RemixDoc = {
+/** What the viewer knows about an image before Remix is clicked
+ * (`GET /generate/remix/{id}`). */
+export type RemixInfo = {
   image_id: string;
   source: string;
   /** The image's ComfyUI workflow; null for A1111 and images without one. */
   workflow: { family: string | null; family_name: string | null; file_name: string | null; workflow_sig: string | null } | null;
-  /** The prompt without the characters' names and identity tags. */
-  prompt: string;
-  negative: string;
-  /** Characters with a recipe, page keys in prompt order. */
-  characters: string[];
   seed: number | null;
-  /** The size the base sampler ran at (not an upscaled output's). */
-  width: number | null;
-  height: number | null;
-  sampling: Sampling;
-  /** The image's checkpoint when ComfyUI has it. */
-  checkpoint: string | null;
-  loras: (LoraPick & { installed: boolean })[];
   /** A Moiré output: the batch and request it came from. */
   batch: {
     id: number;
@@ -550,16 +539,39 @@ export type RemixDoc = {
   } | null;
 };
 
-export const remixKey = (imageId: string) => [...GEN_KEY, "remix", imageId] as const;
+/** What Remix starts the composer from (`?full=1`). */
+export type RemixDoc = RemixInfo & {
+  /** The prompt without the characters' names and identity tags. */
+  prompt: string;
+  negative: string;
+  /** Characters with a recipe, page keys in prompt order. */
+  characters: string[];
+  /** The size the base sampler ran at (not an upscaled output's). */
+  width: number | null;
+  height: number | null;
+  sampling: Sampling;
+  /** The image's checkpoint when ComfyUI has it. */
+  checkpoint: string | null;
+  loras: (LoraPick & { installed: boolean })[];
+};
 
+export const remixKey = (imageId: string, full = false) => [...GEN_KEY, "remix", imageId, full] as const;
+
+const remixUrl = (imageId: string, full: boolean) =>
+  `${BASE}/remix/${encodeURIComponent(imageId)}${full ? "?full=1" : ""}`;
+
+/** The viewer's light read: the workflow and batch, nothing heavier. */
 export function useRemix(imageId: string, enabled = true) {
   return useQuery({
     queryKey: remixKey(imageId),
-    queryFn: ({ signal }) => api<RemixDoc>(`${BASE}/remix/${encodeURIComponent(imageId)}`, { signal }),
+    queryFn: ({ signal }) => api<RemixInfo>(remixUrl(imageId, false), { signal }),
     enabled,
     staleTime: 30_000,
   });
 }
+
+/** The full read, when Remix is clicked. */
+export const fetchRemix = (imageId: string) => api<RemixDoc>(remixUrl(imageId, true));
 
 export function usePresets() {
   return useQuery({ queryKey: PRESETS_KEY, queryFn: ({ signal }) => api<Preset[]>(`${BASE}/presets`, { signal }) });

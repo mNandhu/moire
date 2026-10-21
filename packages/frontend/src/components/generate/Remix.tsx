@@ -1,11 +1,13 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { Shuffle, Wand2, X } from "lucide-react";
 import { Badge, Button, DropdownMenu } from "../ui";
 import { cn } from "../../lib/cn";
-import { thumbUrl, useGenerators, type Generator, type RemixDoc } from "../../lib/generate";
+import { fetchRemix, remixKey, thumbUrl, useGenerators, type Generator, type RemixInfo } from "../../lib/generate";
 import { formFromRemix, loadDraft, saveDraft, type GenerateForm, type SeedChoice } from "../../lib/generateForm";
 import { generatorFor, InGenerateBadge } from "./InGenerate";
+import { useToast } from "../Toasts";
 import { TestBadge } from "./WorkflowPicker";
 
 /** How Generate is told about a remix made while it is mounted (the viewer
@@ -13,20 +15,23 @@ import { TestBadge } from "./WorkflowPicker";
 export type RemixState = { remixForm: GenerateForm };
 
 /** The image's workflow as set up in Generate, if it is: for an image Moiré
- * queued, the workflow its batch ran. */
-export function useRemixWorkflow(doc: RemixDoc | undefined) {
+ * queued, the workflow its batch ran. `exact`: that workflow is the very
+ * version that made the image, so the same seed can repeat it (one set up
+ * from another version of the family only shares the name). */
+export function useRemixWorkflow(info: RemixInfo) {
   const { data: generators } = useGenerators();
-  const w = doc?.workflow;
-  const ran = doc?.batch ? generators?.find((g) => g._id === doc.batch!.generator_id) : undefined;
-  const gen = ran ?? (w ? generatorFor(generators, { sig: w.workflow_sig, family: w.family }) : undefined);
-  return { generators, gen };
+  const w = info.workflow;
+  const ran = info.batch ? generators?.find((g) => g._id === info.batch!.generator_id) : undefined;
+  const sameVersion = w?.workflow_sig ? generatorFor(generators, { sig: w.workflow_sig }) : undefined;
+  const gen = ran ?? sameVersion ?? (w?.family ? generatorFor(generators, { family: w.family }) : undefined);
+  return { generators, gen, exact: !!gen && (gen === ran || gen === sameVersion) };
 }
 
 /** The viewer's Workflow line: the workflow's name, In Generate, and Use /
  * Set up this workflow. */
-export function WorkflowLine({ doc, imageId }: { doc: RemixDoc; imageId: string }) {
-  const { generators, gen } = useRemixWorkflow(doc);
-  const w = doc.workflow!;
+export function WorkflowLine({ info, imageId }: { info: RemixInfo; imageId: string }) {
+  const { generators, gen } = useRemixWorkflow(info);
+  const w = info.workflow!;
   const name = gen?.name ?? w.family_name ?? w.file_name ?? "Unnamed workflow";
   return (
     <div className="flex items-center gap-2 text-sm">
@@ -73,19 +78,27 @@ function SeedSwitch({ value, onChange }: { value: SeedChoice; onChange: (v: Seed
 /**
  * Remix: start Generate from this image. With its workflow set up the menu
  * offers that one and Built-in, with Same / New seed; without, Built-in only.
- * An image without a ComfyUI workflow goes straight to Built-in.
+ * An image without a ComfyUI workflow goes straight to Built-in. The full
+ * read (prompt split, settings checked) happens on the click.
  */
-export function RemixButton({ doc }: { doc: RemixDoc }) {
+export function RemixButton({ info }: { info: RemixInfo }) {
   const navigate = useNavigate();
-  const { generators, gen } = useRemixWorkflow(doc);
-  // The same seed only repeats the image on its own workflow.
+  const qc = useQueryClient();
+  const toast = useToast();
+  const { generators, gen, exact } = useRemixWorkflow(info);
+  // The same seed only repeats the image on the workflow version that made it.
   const [seed, setSeed] = useState<SeedChoice | null>(null);
-  const seedChoice: SeedChoice = seed ?? (gen?.ready || doc.batch ? "same" : "new");
+  const seedChoice: SeedChoice = seed ?? (exact && gen?.ready ? "same" : "new");
   const builtin = generators?.find((g) => g.kind === "builtin");
-  const go = (target: Generator, s: SeedChoice) => {
-    const form = formFromRemix(doc, target, s, loadDraft());
-    saveDraft(form);
-    navigate("/generate", { state: { remixForm: form } satisfies RemixState });
+  const go = async (target: Generator, s: SeedChoice) => {
+    try {
+      const doc = await qc.fetchQuery({ queryKey: remixKey(info.image_id, true), queryFn: () => fetchRemix(info.image_id) });
+      const form = formFromRemix(doc, target, s, loadDraft());
+      saveDraft(form);
+      navigate("/generate", { state: { remixForm: form } satisfies RemixState });
+    } catch (e) {
+      toast.push(e instanceof Error ? e.message : "Couldn't read this image", "error");
+    }
   };
   if (!builtin) return null;
   const label = (
@@ -93,16 +106,18 @@ export function RemixButton({ doc }: { doc: RemixDoc }) {
       <Shuffle size={13} /> Remix
     </>
   );
-  if (!doc.workflow) {
+  if (!info.workflow) {
     return (
-      <Button size="sm" variant="primary" onClick={() => go(builtin, "new")}>
+      <Button size="sm" variant="primary" onClick={() => void go(builtin, "new")}>
         {label}
       </Button>
     );
   }
   const items = [
-    ...(gen && gen.kind !== "builtin" ? [{ label: `Remix with ${gen.name}`, hint: <TestBadge gen={gen} />, onClick: () => go(gen, seedChoice) }] : []),
-    { label: "Remix with Built-in", onClick: () => go(builtin, seedChoice) },
+    ...(gen && gen.kind !== "builtin"
+      ? [{ label: `Remix with ${gen.name}`, hint: <TestBadge gen={gen} />, onClick: () => void go(gen, seedChoice) }]
+      : []),
+    { label: "Remix with Built-in", onClick: () => void go(builtin, seedChoice) },
   ];
   return (
     <DropdownMenu
@@ -116,13 +131,25 @@ export function RemixButton({ doc }: { doc: RemixDoc }) {
 }
 
 /** Generate's "Remixing an image" strip, until cleared. */
-export function RemixStrip({ remix, onClear }: { remix: NonNullable<GenerateForm["remix"]>; onClear: () => void }) {
+export function RemixStrip({
+  remix,
+  seed,
+  onClear,
+}: {
+  remix: NonNullable<GenerateForm["remix"]>;
+  /** The form's seed now: the badge follows edits to it. */
+  seed: GenerateForm["seed"];
+  onClear: () => void;
+}) {
   const to = `/image/${encodeURIComponent(remix.image)}`;
+  const same = seed.mode === "fixed" && seed.value != null && seed.value === remix.seed;
   return (
     <div className="flex items-center gap-3 rounded-xl border border-brand-600/60 bg-surface px-3 py-2">
       <img src={thumbUrl(remix.image)} alt="" className="h-11 w-8 shrink-0 rounded-md object-cover" />
       <span className="text-sm text-neutral-50">Remixing an image</span>
-      <Badge tone="neutral">{remix.seed != null ? `Same seed ${remix.seed}` : "New seed"}</Badge>
+      <Badge tone="neutral">
+        {same ? `Same seed ${remix.seed}` : seed.mode === "fixed" && seed.value != null ? `Seed ${seed.value}` : "New seed"}
+      </Badge>
       <Link to={to} className="text-sm text-brand-300 hover:text-brand-200">
         Open it
       </Link>
