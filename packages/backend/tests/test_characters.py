@@ -199,12 +199,15 @@ async def test_the_list_reads_only_character_tags_and_agrees_with_tags(
     seed("L1:c", tags=("manual:Nahida", "prompt:my_oc", "cat"))
     seed("L1:d", tags=("nahida", "cat"))
     seed("L1:q", tags=("klee",), quarantined=True)
-    await client.patch(
-        "/tags/character", params={"tag": "my_oc"}, json={"kind": "character"}
-    )
+    seed("L1:e", tags=("manual:émilie",))
+    for tag in ("my_oc", "Émilie"):
+        await client.patch(
+            "/tags/character", params={"tag": tag}, json={"kind": "character"}
+        )
     await characters.create("fern", {})
 
-    rows = await tag_index.character_rows()
+    vocab = await tag_categories.load()
+    rows = await tag_index.character_rows(vocab)
     tags_page = await tag_index.browse("all")
     want = [r for r in tags_page if r["category"] == "character"]
     assert {r["tag"] for r in want} == {
@@ -213,9 +216,13 @@ async def test_the_list_reads_only_character_tags_and_agrees_with_tags(
         "Nahida",
         "nahida",
         "my_oc",
+        "émilie",
     }
     assert [r for r in rows if r["category"] == "character"] == want
     assert "cat" not in {r["tag"] for r in rows}
+    # With the Tags page cached, the same rows from it.
+    warm = await tag_index.character_rows(vocab)
+    assert [r for r in warm if r["category"] == "character"] == want
 
     listed = {c["tag"]: c for c in (await client.get("/tags/characters")).json()}
     assert set(listed) == {
@@ -223,6 +230,7 @@ async def test_the_list_reads_only_character_tags_and_agrees_with_tags(
         "Nahida",
         "nahida",
         "my_oc",
+        "émilie",
         "fern",
     }
     assert listed["furina_(genshin_impact)"]["aliases"] == ["furina"]

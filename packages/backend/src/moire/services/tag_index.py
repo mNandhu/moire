@@ -430,18 +430,16 @@ async def browse(source: str = "all") -> list[dict]:
     return result
 
 
-async def character_rows() -> list[dict]:
-    """:func:`browse` rows (every source) of the tags that may be characters:
-    the listed names, the bare-name candidates and the tags the user set a
-    kind for (or made by hand), whatever their case. The same counts and
-    covers, without aggregating the rest of the library. Not cached: the
-    caller caches what it builds from them."""
-    vocab = await tag_categories.load()
+async def character_rows(vocab: tag_categories.Vocab) -> list[dict]:
+    """:func:`browse` rows (every source) of the tags that may be characters
+    (:func:`_may_be_characters`): the same counts and covers, without
+    aggregating the rest of the library unless the Tags page already has.
+    Not cached: the caller caches what it builds from them."""
+    cached = _read(_tags_cache, "browse:all", _TAGS_TTL_SECONDS)
     async with async_conn() as conn:
-        set_by_user = (
-            await conn.execute(sa.select(sa.func.lower(t.characters.c.tag)))
-        ).scalars()
-        maybe = vocab.names | vocab.candidates.keys() | set(set_by_user)
+        maybe = await _may_be_characters(conn, vocab)
+        if cached is not None:
+            return [r for r in cached if r["tag"].lower() in maybe]
         # A walk of the base index, no image lookups: a few hundredths of a
         # second against most of a second for every tag's aggregate.
         bases = (
@@ -578,6 +576,16 @@ async def _characters(
             }
             names -= gone
     return frozenset(names)
+
+
+async def _may_be_characters(conn, vocab: tag_categories.Vocab) -> set[str]:
+    """Every name (lowercased) :func:`_characters` could call a character,
+    whatever the library holds: the listed names, the bare-name candidates
+    and the tags the user set a kind for (or made by hand). Narrows a query
+    before it, so it must grow with :func:`_characters`. Python's lower(),
+    like :func:`tag_categories.category`: SQLite's folds ASCII only."""
+    tags = (await conn.execute(sa.select(t.characters.c.tag))).scalars()
+    return set(vocab.names) | set(vocab.candidates) | {tag.lower() for tag in tags}
 
 
 async def _listed_characters(
