@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { useThumbUrl } from "../../lib/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { Shuffle, Wand2, X } from "lucide-react";
 import { Badge, Button, Picker, type PickerOption } from "../ui";
 import { cn } from "../../lib/cn";
-import { fetchRemix, remixKey, thumbUrl, useGenerators, type Generator, type RemixInfo } from "../../lib/generate";
+import { fetchRemix, remixKey, useGenerators, type Generator, type RemixInfo } from "../../lib/generate";
 import { formFromRemix, loadDraft, saveDraft, type GenerateForm, type SeedChoice } from "../../lib/generateForm";
 import { generatorFor, InGenerateBadge } from "./InGenerate";
 import { useToast } from "../Toasts";
@@ -159,10 +160,15 @@ export function RemixStrip({
   onClear: () => void;
 }) {
   const to = `/image/${encodeURIComponent(remix.image)}`;
+  const thumb = useThumbUrl(remix.image);
   const same = seed.mode === "fixed" && seed.value != null && seed.value === remix.seed;
   return (
     <div className="flex items-center gap-3 rounded-xl border border-brand-600/60 bg-surface px-3 py-2">
-      <img src={thumbUrl(remix.image)} alt="" className="h-11 w-8 shrink-0 rounded-md object-cover" />
+      {thumb ? (
+        <img src={thumb} alt="" className="h-11 w-8 shrink-0 rounded-md object-cover" />
+      ) : (
+        <span className="h-11 w-8 shrink-0 rounded-md bg-raised" />
+      )}
       <span className="text-sm text-neutral-50">Remixing an image</span>
       <Badge tone="neutral">
         {same ? `Same seed ${remix.seed}` : seed.mode === "fixed" && seed.value != null ? `Seed ${seed.value}` : "New seed"}

@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { ImageOff, Loader2, RotateCcw, Star, X } from "lucide-react";
 import { ProgressBar } from "../ui";
 import { resultGrid, resultSlots, type ResultSlot } from "../../lib/batches";
-import { cancelRequest, retryRequest, thumbUrl, type Batch, type GenRequest, type Output } from "../../lib/generate";
+import { cancelRequest, retryRequest, type Batch, type GenRequest, type Output } from "../../lib/generate";
 import { setQuarantine, setScore } from "../../lib/imageMutations";
 import { withBackgroundLocation } from "../../lib/backgroundLocation";
 import { cn } from "../../lib/cn";
@@ -59,7 +59,7 @@ export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; on
       style={{ aspectRatio: ratio }}
     >
       <Link to={`/image/${encodeURIComponent(out.image_id)}`} state={withBackgroundLocation(location)} tabIndex={-1}>
-        <img src={thumbUrl(out.image_id)} alt="" loading="lazy" className="h-full w-full object-cover" />
+        {out.thumb_url && <img src={out.thumb_url} alt="" loading="lazy" className="h-full w-full object-cover" />}
       </Link>
       {out.quarantined && (
         <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-black/60 px-2 py-1 text-xs">

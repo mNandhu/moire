@@ -12,3 +12,9 @@ describe("smallThumb", () => {
     expect(smallThumb(undefined)).toBeNull();
   });
 });
+
+describe("smallThumb on a versioned URL", () => {
+  it("keeps the version", () => {
+    expect(smallThumb("/api/v1/images/L1%3Aa/thumb?v=3d55dd6ddd37")).toBe("/api/v1/images/L1%3Aa/thumb?v=3d55dd6ddd37&size=small");
+  });
+});

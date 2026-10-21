@@ -33,7 +33,7 @@ function OutfitCard({ o }: { o: Outfit }) {
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-panel hover:border-line-strong">
       <div className="aspect-[4/3] overflow-hidden bg-raised">
-        <OutfitThumb imageId={o.image_id} className="h-full w-full rounded-none [&>svg]:h-6 [&>svg]:w-6" />
+        <OutfitThumb url={o.thumb_url} className="h-full w-full rounded-none [&>svg]:h-6 [&>svg]:w-6" />
       </div>
       <div className="flex flex-col gap-2 px-3.5 pb-3.5 pt-3">
         <div className="flex items-center gap-2">

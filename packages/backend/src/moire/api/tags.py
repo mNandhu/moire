@@ -9,7 +9,8 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from ._utils import thumb_url, validate_tags
+from ..services import thumb_version
+from ._utils import validate_tags
 from ..services import (
     attire,
     characters,
@@ -170,8 +171,9 @@ async def tag_samples(
     results = await asyncio.gather(
         *[tag_index.samples_for_tag(image_tags.canonical_tag(tag), per) for tag in tags]
     )
+    thumbs = await thumb_version.urls(row["_id"] for got in results for row in got)
     return {
-        tag: [{**row, "thumb_url": thumb_url(row["_id"])} for row in samples]
+        tag: [{**row, "thumb_url": thumbs[row["_id"]]} for row in samples]
         for tag, samples in zip(tags, results)
     }
 
@@ -187,11 +189,12 @@ async def browse_tags(source: str = "all"):
     """The Tags page list: one entry per tag name, its sources merged."""
     rows = await tag_index.browse(_source(source))
     focus = await tag_focus.all_focus()
+    thumbs = await thumb_version.urls(row["thumb_image_id"] for row in rows)
     return JSONResponse(
         [
             {
                 **row,
-                "thumb_url": thumb_url(row["thumb_image_id"]),
+                "thumb_url": thumbs.get(row["thumb_image_id"]),
                 "focus": tag_focus.for_cover(
                     focus.get(row["tag"]), row["thumb_image_id"]
                 ),
@@ -206,15 +209,9 @@ async def list_characters():
     """The characters in the library, most images first, each with its other
     names and cover: what the image view shows as the people in a picture.
     ``thumb_image_id`` lets it tell whether the open image is the avatar."""
-    return [
-        {
-            **r,
-            "thumb_url": thumb_url(r["thumb_image_id"])
-            if r["thumb_image_id"]
-            else None,
-        }
-        for r in await characters.listing()
-    ]
+    rows = await characters.listing()
+    thumbs = await thumb_version.urls(r["thumb_image_id"] for r in rows)
+    return [{**r, "thumb_url": thumbs.get(r["thumb_image_id"] or "")} for r in rows]
 
 
 @router.get("/character")
@@ -230,10 +227,11 @@ async def character_page(tag: str):
         # A plain tag's page: its cover's framing lives in tag_focus, set
         # for the image that is the cover.
         got["focus"] = await tag_focus.get(got["tag"], cover)
+    thumbs = await thumb_version.urls([cover, *(b["image_id"] for b in got["best"])])
     return {
         **got,
-        "thumb_url": thumb_url(cover) if cover else None,
-        "best": [{**b, "thumb_url": thumb_url(b["image_id"])} for b in got["best"]],
+        "thumb_url": thumbs.get(cover or ""),
+        "best": [{**b, "thumb_url": thumbs[b["image_id"]]} for b in got["best"]],
     }
 
 
@@ -287,13 +285,12 @@ async def tag_detail(tag: str, source: str = "all"):
     if got is None:
         raise HTTPException(status_code=404, detail="No image has this tag")
     cover = await _cover_of(base, got["thumb_image_id"])
+    thumbs = await thumb_version.urls([got["thumb_image_id"], cover])
     return {
         **got,
-        "thumb_url": thumb_url(got["thumb_image_id"])
-        if got["thumb_image_id"]
-        else None,
+        "thumb_url": thumbs.get(got["thumb_image_id"] or ""),
         "cover_image_id": cover,
-        "cover_url": thumb_url(cover) if cover else None,
+        "cover_url": thumbs.get(cover or ""),
         "aspect": await tag_focus.aspect_of(cover),
         "focus": await tag_focus.get(base, cover),
     }

@@ -17,9 +17,9 @@ from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ..services.storage_fs import delete_thumb, small_thumb_path, thumb_path
 from ..services import gen_metadata, image_shapes, image_tags, image_feed, tag_index
+from ..services import thumb_version
 from ..services.image_feed import FeedFilter, FeedFilterError
 from ..services.image_tags import find_image as _find_image_doc  # type: ignore
-from ._utils import thumb_url
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +43,11 @@ class PurgeBody(BaseModel):
     confirm: bool = False
 
 
-def _attach_thumb_url(it: dict) -> None:
-    """Replace the row's thumb_key with the streaming thumb route."""
-    it.pop("thumb_key", None)
-    it["thumb_url"] = thumb_url(it["_id"])
+async def _attach_thumb_urls(items: list[dict]) -> None:
+    """Replace each row's thumb_key with its versioned streaming thumb route."""
+    for it in items:
+        it.pop("thumb_key", None)
+    await thumb_version.urls_for_rows(items)
 
 
 def feed_filter(
@@ -130,8 +131,7 @@ async def list_images(
     # stays a plain list so other callers are unaffected.
     if next_cursor:
         headers["X-Next-Cursor"] = next_cursor
-    for it in items:
-        _attach_thumb_url(it)
+    await _attach_thumb_urls(items)
     # Rows are plain JSON values already: skip jsonable_encoder's walk, which
     # cost more than the query on a 1000-row page.
     return JSONResponse(items, headers=headers)
@@ -215,6 +215,17 @@ ThumbSize = Literal["small"]
 _SMALL_LIMIT = anyio.CapacityLimiter(4)
 
 _IMMUTABLE = {"Cache-Control": "public, max-age=31536000, immutable"}
+# A URL without its version (one built before URLs had one) is checked again
+# on every use: its file may have been rebuilt under it.
+_REVALIDATE = {"Cache-Control": "no-cache"}
+
+
+def _etag_matches(if_none_match: str | None, etag: str) -> bool:
+    """`If-None-Match` names this ETag (or `*`). Weak tags compare equal."""
+    if not if_none_match:
+        return False
+    tags = [x.strip().removeprefix("W/") for x in if_none_match.split(",")]
+    return "*" in tags or etag.removeprefix("W/") in tags
 
 
 def _media_type(path: str) -> str:
@@ -239,9 +250,16 @@ async def _thumb_file(key: str, size: ThumbSize | None) -> tuple[Path | None, bo
 
 
 @router.get("/{image_id:path}/thumb")
-async def get_image_thumb(image_id: str, size: ThumbSize | None = None):
+async def get_image_thumb(
+    image_id: str,
+    request: Request,
+    size: ThumbSize | None = None,
+    v: str | None = Query(default=None, max_length=64),
+):
     """The image's thumbnail; `size=small` for a copy ~256px on its short side
-    (made on first ask), for previews shown postage-stamp size."""
+    (made on first ask), for previews shown postage-stamp size. `v` is the
+    URL's version (`thumb_version`): with it the response is kept for a year,
+    without it the browser asks again (a 304 while the file is unchanged)."""
     img = await _find_image_doc(image_id, {"thumb_key": 1})
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
@@ -252,16 +270,28 @@ async def get_image_thumb(image_id: str, size: ThumbSize | None = None):
     path, cacheable = await _thumb_file(thumb_key, size)
     if path is None:
         raise HTTPException(status_code=404, detail="Thumbnail not found on disk")
-    # FileResponse handles ETag/Content-Length/sendfile natively.
-    return FileResponse(
-        path,
-        media_type=_media_type(path.name),
-        headers=_IMMUTABLE if cacheable else {"Cache-Control": "no-cache"},
+    cache = _IMMUTABLE if cacheable and v else _REVALIDATE
+    try:
+        st = await anyio.to_thread.run_sync(lambda: os.stat(path))
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Thumbnail not found on disk")
+    # FileResponse handles ETag/Content-Length/sendfile natively; given the
+    # stat, its ETag is there to answer a revalidation with.
+    resp = FileResponse(
+        path, media_type=_media_type(path.name), headers=cache, stat_result=st
     )
+    etag = resp.headers["etag"]
+    if _etag_matches(request.headers.get("if-none-match"), etag):
+        return Response(status_code=304, headers={"ETag": etag, **cache})
+    return resp
 
 
 @router.head("/{image_id:path}/thumb")
-async def head_image_thumb(image_id: str, size: ThumbSize | None = None):
+async def head_image_thumb(
+    image_id: str,
+    size: ThumbSize | None = None,
+    v: str | None = Query(default=None, max_length=64),
+):
     img = await _find_image_doc(image_id, {"thumb_key": 1})
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
@@ -273,6 +303,16 @@ async def head_image_thumb(image_id: str, size: ThumbSize | None = None):
     media_type = "image/webp" if size == "small" else _media_type(thumb_key)
     headers = {"Accept-Ranges": "bytes"}
     return Response(status_code=200, headers=headers, media_type=media_type)
+
+
+@router.get("/{image_id:path}/thumb-url")
+async def get_thumb_url(image_id: str):
+    """The image's versioned thumbnail URL, for a page holding only its id."""
+    img = await _find_image_doc(image_id, {"_id": 1})
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+    got = await thumb_version.urls([img["_id"]])
+    return {"thumb_url": got[img["_id"]]}
 
 
 @router.get("/models")
@@ -467,8 +507,7 @@ async def list_groups(
         raise HTTPException(status_code=422, detail=str(exc))
 
     out = await image_feed.list_groups(f, offset=offset, limit=limit)
-    for it in out:
-        _attach_thumb_url(it)
+    await _attach_thumb_urls(out)
     return out
 
 
@@ -516,6 +555,7 @@ async def get_image(image_id: str):
     img = await _find_image_doc(image_id)
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
+    await thumb_version.urls_for_rows([img])
     return img
 
 

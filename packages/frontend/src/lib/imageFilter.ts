@@ -13,7 +13,7 @@ export type ImageDoc = {
   height?: number;
   size?: number;
   // Ready-to-use thumbnail URL from the list payload: the API streaming route
-  // (`/api/v1/images/{id}/thumb`). Lets the grid render <img src> with no per-tile
+  // (`/api/v1/images/{id}/thumb?v=`, versioned). Lets the grid render <img src> with no per-tile
   // resolve request. See api/images.list_images.
   thumb_url?: string;
   // Compact blurred-preview hash; decoded to an instant placeholder so tiles

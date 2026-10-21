@@ -219,6 +219,8 @@ export type Output = {
   in_library: boolean;
   /** Not in the library yet, shortly after its request finished. */
   arriving: boolean;
+  /** Its versioned thumbnail; null until it is in the library. */
+  thumb_url: string | null;
   quarantined: boolean;
   score: number | null;
   width: number | null;
@@ -277,6 +279,7 @@ export type Outfit = {
   tags: OutfitTag[];
   /** Its thumbnail; null when the image is gone from the library. */
   image_id: string | null;
+  thumb_url: string | null;
   /** A shared one this character's list leaves out. */
   hidden: boolean;
   batches?: number;
@@ -294,7 +297,7 @@ export type Outfit = {
 };
 
 /** An image that could be an outfit's cover, with the outfit's tags it lacks. */
-export type CoverChoice = { image_id: string; missing: string[]; of: number };
+export type CoverChoice = { image_id: string; thumb_url: string; missing: string[]; of: number };
 
 /** An edit to a character's Default: name, struck computed tags, own tags,
  * cover (null: picked for you); `reset` clears name and tags. */
@@ -412,6 +415,7 @@ export type BatchSummary = {
   kept: number;
   /** Made, not in the library yet (downloading or waiting for the scan). */
   arriving: number;
+  /** Versioned thumbnail URLs of its first images in the library. */
   thumbs: string[];
 };
 
@@ -801,4 +805,3 @@ export function useBatch(id: number) {
   });
 }
 
-export const thumbUrl = (imageId: string) => `/api/v1/images/${encodeURIComponent(imageId)}/thumb`;

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { History, ImageOff, Layers, Loader2, Search } from "lucide-react";
 import { Badge, EmptyState, Input, PageBody, PageHeader } from "../components/ui";
 import { batchLine, coverAspect, dayLabel, scrubIndex, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
-import { thumbUrl, useBatches, type BatchSummary } from "../lib/generate";
+import { useBatches, type BatchSummary } from "../lib/generate";
 import { cn } from "../lib/cn";
 import { fuzzyRank } from "../lib/fuzzy";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -57,8 +57,8 @@ function Masonry({ items }: { items: BatchSummary[] }) {
  * images, a strip per image, with a thin bar showing where you are.
  */
 function Cover({ b, at, onAt, warm }: { b: BatchSummary; at: number; onAt: (i: number) => void; warm: boolean }) {
-  const ids = b.thumbs;
-  if (!ids.length) {
+  const urls = b.thumbs;
+  if (!urls.length) {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-2 text-center text-xs text-faint">
         {b.state === "running" || b.state === "paused" || b.arriving > 0 ? (
@@ -72,7 +72,7 @@ function Cover({ b, at, onAt, warm }: { b: BatchSummary; at: number; onAt: (i: n
       </div>
     );
   }
-  const n = ids.length;
+  const n = urls.length;
   return (
     <div
       className="absolute inset-0"
@@ -82,13 +82,13 @@ function Cover({ b, at, onAt, warm }: { b: BatchSummary; at: number; onAt: (i: n
       }}
       onPointerLeave={() => onAt(0)}
     >
-      {ids.map((id, i) =>
+      {urls.map((url, i) =>
         // The rest load once the card is hovered or focused: until then
         // only the front image is seen.
         warm || i === at ? (
           <img
             key={i}
-            src={thumbUrl(id)}
+            src={url}
             alt=""
             loading="lazy"
             className={cn("absolute inset-0 h-full w-full object-cover", i !== at && "opacity-0")}
@@ -105,7 +105,7 @@ function Cover({ b, at, onAt, warm }: { b: BatchSummary; at: number; onAt: (i: n
             aria-hidden
             className="absolute bottom-2 left-1.5 right-12 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
           >
-            {ids.map((_, i) => (
+            {urls.map((_, i) => (
               <span key={i} className={cn("h-0.5 flex-1 rounded-full", i === at ? "bg-white" : "bg-white/30")} />
             ))}
           </div>

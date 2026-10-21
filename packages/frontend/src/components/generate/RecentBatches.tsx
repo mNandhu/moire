@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { batchLine, stateTone, STATE_LABEL, whenLabel } from "../../lib/batches";
-import { thumbUrl, useBatches, type BatchSummary } from "../../lib/generate";
+import { useBatches, type BatchSummary } from "../../lib/generate";
 import { Badge } from "../ui";
 
 const THUMB_H = 36;
@@ -9,14 +9,14 @@ const THUMB_H = 36;
 function Thumbs({ b }: { b: BatchSummary }) {
   const ratio = b.width && b.height ? b.width / b.height : 2 / 3;
   const w = Math.round(THUMB_H * ratio);
-  const ids = b.thumbs.slice(0, 3);
+  const urls = b.thumbs.slice(0, 3);
   return (
     <span className="flex shrink-0 gap-1">
-      {ids.length ? (
-        ids.map((id) => (
+      {urls.length ? (
+        urls.map((url) => (
           <img
-            key={id}
-            src={thumbUrl(id)}
+            key={url}
+            src={url}
             alt=""
             loading="lazy"
             className="rounded object-cover bg-raised"

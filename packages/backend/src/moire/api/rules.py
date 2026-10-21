@@ -21,7 +21,7 @@ from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ..services import extraction_settings, gen_metadata, reproject, workflow_family
 from ..services.image_tags import id_candidates
-from ._utils import thumb_url
+from ..services import thumb_version
 
 router = APIRouter()
 
@@ -164,6 +164,7 @@ async def list_signatures():
         for r in rows
     }
     described = gen_metadata.describe_signatures(types_by_sig)
+    thumbs = await thumb_version.urls(r.sample_image_id for r in rows)
 
     def _family(image_id: str) -> dict:
         s = sample_by_id.get(image_id)
@@ -195,7 +196,7 @@ async def list_signatures():
             "has_ruleset": r.workflow_sig in mapped,
             "first_used": r.first_used,
             "last_used": r.last_used,
-            "sample_thumb_url": thumb_url(r.sample_image_id),
+            "sample_thumb_url": thumbs.get(r.sample_image_id),
             "model": (
                 sample_by_id[r.sample_image_id].gen_model
                 if r.sample_image_id in sample_by_id

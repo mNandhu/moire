@@ -203,7 +203,7 @@ async def test_an_avatar_pinned_under_an_alias_shows_everywhere(
     page = (await client.get("/tags/character", params={"tag": "furina"})).json()
     listed = (await client.get("/tags/characters")).json()[0]
     assert page["thumb_url"] == listed["thumb_url"]
-    assert listed["thumb_url"].endswith("/images/L1%3Ab/thumb")
+    assert "/images/L1%3Ab/thumb?v=" in listed["thumb_url"]
 
 
 async def test_any_name_edits_the_one_character(client, seed, monkeypatch):
@@ -224,7 +224,7 @@ async def test_any_name_edits_the_one_character(client, seed, monkeypatch):
     listed = (await client.get("/tags/characters")).json()[0]
     assert page["name"] == listed["name"] == "Furina"
     assert page["thumb_url"] == listed["thumb_url"]
-    assert listed["thumb_url"].endswith("/images/L1%3Ab/thumb")
+    assert "/images/L1%3Ab/thumb?v=" in listed["thumb_url"]
     await client.delete("/tags/thumbnail/furina")
     page = (await client.get("/tags/character", params={"tag": "furina"})).json()
     assert page["thumb_image_id"] is None
@@ -239,7 +239,7 @@ async def test_a_quarantined_avatar_falls_back_on_both_views(client, seed, monke
     page = (await client.get("/tags/character", params={"tag": "frieren"})).json()
     listed = (await client.get("/tags/characters")).json()[0]
     assert page["thumb_url"] == listed["thumb_url"]
-    assert page["thumb_url"].endswith("/images/L1%3Aa/thumb")
+    assert page["thumb_url"].split("?")[0].endswith("/images/L1%3Aa/thumb")
 
 
 async def test_renaming_carries_the_character_settings(client, seed, monkeypatch):

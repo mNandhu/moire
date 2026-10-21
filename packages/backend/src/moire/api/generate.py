@@ -27,6 +27,7 @@ from ..services import (
     recipes,
     remix,
     tag_categories,
+    thumb_version,
 )
 from ..services.generation_jobs import (
     Invalid,
@@ -467,11 +468,18 @@ class HiddenIn(BaseModel):
     hidden: bool
 
 
+async def _thumbs(found: Any) -> Any:
+    """An outfit (or a list of them, or cover choices) with its cover's
+    ``thumb_url``."""
+    await thumb_version.attach(found)
+    return found
+
+
 @router.get("/outfits")
 async def list_outfits(character: str | None = None):
     """Every saved outfit, or ``character``'s list (own and shared)."""
     try:
-        return await outfits.listing(character)
+        return await _thumbs(await outfits.listing(character))
     except outfits.OutfitError as e:
         raise HTTPException(status_code=404, detail="Character not found") from e
 
@@ -481,7 +489,7 @@ async def default_outfit(character: str):
     o = await outfits.default(character)
     if o is None:
         raise HTTPException(status_code=404, detail="Character not found")
-    return o
+    return await _thumbs(o)
 
 
 @router.put("/outfits/default")
@@ -494,7 +502,7 @@ async def put_default_outfit(character: str, body: dict[str, Any]):
         raise HTTPException(status_code=400, detail=str(e)) from e
     if o is None:
         raise HTTPException(status_code=404, detail="Character not found")
-    return o
+    return await _thumbs(o)
 
 
 @router.get("/outfits/tag-info")
@@ -515,7 +523,7 @@ async def outfit_covers(
     found = await outfits.covers(character, outfit or None, tags)
     if found is None:
         raise HTTPException(status_code=404, detail="Character or outfit not found")
-    return found
+    return await _thumbs(found)
 
 
 @router.get("/outfits/worn")
@@ -525,7 +533,7 @@ async def outfits_worn(image: str, characters: list[str] = Query(default_factory
     found = await outfits.worn(image, characters)
     if found is None:
         raise HTTPException(status_code=404, detail="Image not found")
-    return found
+    return await _thumbs(found)
 
 
 @router.get("/outfits/prefill")
@@ -540,7 +548,7 @@ async def outfit_prefill(image: str, character: str):
 @router.post("/outfits")
 async def create_outfit(body: dict[str, Any]):
     try:
-        return await outfits.create(body)
+        return await _thumbs(await outfits.create(body))
     except outfits.OutfitError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -553,7 +561,7 @@ async def update_outfit(outfit_id: str, body: dict[str, Any]):
         raise HTTPException(status_code=400, detail=str(e)) from e
     if o is None:
         raise HTTPException(status_code=404, detail="Outfit not found")
-    return o
+    return await _thumbs(o)
 
 
 @router.delete("/outfits/{outfit_id}")

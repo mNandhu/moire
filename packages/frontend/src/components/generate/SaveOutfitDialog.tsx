@@ -21,7 +21,7 @@ import {
   updateOutfit,
   type Outfit,
 } from "../../lib/generate";
-import { useAttireGroups } from "../../lib/queries";
+import { useAttireGroups, useThumbUrl } from "../../lib/queries";
 import { AttireTagInput, OutfitChip, OutfitThumb } from "./Outfit";
 import { CoverGrid } from "./OutfitCover";
 import { Image as ImageIcon } from "lucide-react";
@@ -91,6 +91,7 @@ export function SaveOutfitDialog({
   // A new outfit with no image (a character page's New outfit) starts from
   // their usual clothes and picks its thumbnail with Change.
   const blank = !outfit && !imageId;
+  const coverUrl = useThumbUrl(outfit || blank ? cover : imageId);
   const { data: usual, isError: noUsual } = useDefaultOutfit(open && blank ? character : null);
   useEffect(() => {
     if (!open) return setSeeded(false);
@@ -220,7 +221,7 @@ export function SaveOutfitDialog({
     >
       <div className="flex flex-wrap gap-5">
         <div className="relative h-[140px] w-24 shrink-0">
-          <OutfitThumb imageId={outfit || blank ? cover : imageId} className="h-full w-full rounded-lg border border-line-strong" />
+          <OutfitThumb url={coverUrl} className="h-full w-full rounded-lg border border-line-strong" />
           {(outfit || blank) && (
             <button
               type="button"

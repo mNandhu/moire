@@ -74,7 +74,7 @@ function Mini({ o, character }: { o: Outfit; character: string }) {
             <Plus size={22} />
           </span>
         ) : (
-          <OutfitThumb imageId={o.image_id} className="h-full w-full rounded-none" />
+          <OutfitThumb url={o.thumb_url} className="h-full w-full rounded-none" />
         )}
       </div>
       <span className="flex min-w-0 items-center gap-1.5 px-0.5 text-sm text-neutral-100">

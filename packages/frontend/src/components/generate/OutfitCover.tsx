@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useThumbUrl } from "../../lib/queries";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, Shirt } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -13,7 +14,6 @@ import {
   fetchOutfits,
   outfitsKey,
   putDefaultOutfit,
-  thumbUrl,
   updateOutfit,
   useCoverChoices,
   type CoverChoice,
@@ -49,13 +49,14 @@ export function CoverGrid({
 }) {
   const { data, isLoading } = useCoverChoices(character, outfit, tags);
   const [all, setAll] = useState(false);
-  if (isLoading) return <span className="text-sm text-faint">Loading…</span>;
   const listed = data ?? [];
   // The current cover first, even when it isn't among the best matches.
   const now = listed.find((c) => c.image_id === value);
+  const valueUrl = useThumbUrl(now ? null : value);
+  if (isLoading) return <span className="text-sm text-faint">Loading…</span>;
   const rest = listed.filter((c) => c.image_id !== value && (!all || !c.missing.length));
-  const choices: (CoverChoice | { image_id: string; missing: null })[] = value
-    ? [now ?? { image_id: value, missing: null }, ...rest]
+  const choices: (CoverChoice | { image_id: string; thumb_url: string | null; missing: null })[] = value
+    ? [now ?? { image_id: value, thumb_url: valueUrl, missing: null }, ...rest]
     : rest;
   return (
     <div className="flex flex-col gap-2.5">
@@ -95,7 +96,7 @@ export function CoverGrid({
                   on ? "border-transparent ring-2 ring-brand-400" : "border-line hover:border-line-strong",
                 )}
               >
-                <img src={thumbUrl(c.image_id)} alt="" loading="lazy" className="h-full w-full object-cover" />
+                {c.thumb_url && <img src={c.thumb_url} alt="" loading="lazy" className="h-full w-full object-cover" />}
                 {on && (
                   <span className="absolute left-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-brand-500 text-white">
                     <Check size={12} strokeWidth={3} />
@@ -179,7 +180,7 @@ export function OutfitMenu({
         group: one ? "Use as thumbnail" : `${name}: use as thumbnail`,
         icon: (
           <OutfitThumb
-            imageId={o.image_id}
+            url={o.thumb_url}
             className={cn("h-[30px] w-[22px]", o._id === DEFAULT_OUTFIT && "outline-dashed outline-1 outline-line-strong")}
           />
         ),

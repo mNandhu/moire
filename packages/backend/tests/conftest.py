@@ -18,7 +18,7 @@ import sqlalchemy as sa
 from moire.core.config import settings
 from moire.database import db
 from moire.database import schema as t
-from moire.services import image_tags, tag_index
+from moire.services import image_tags, tag_index, thumb_version
 
 
 @pytest.fixture(autouse=True)
@@ -26,8 +26,10 @@ def fresh_tag_index():
     """The tag index cache is module-global; drop it around every test so a
     cached aggregation can't leak across DB fixtures."""
     tag_index.reset_for_tests()
+    thumb_version.reset_for_tests()
     yield
     tag_index.reset_for_tests()
+    thumb_version.reset_for_tests()
 
 
 @pytest_asyncio.fixture

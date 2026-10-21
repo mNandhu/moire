@@ -7,7 +7,6 @@ import { displayWord } from "../../lib/compose";
 import { canonicalName } from "../../lib/tags";
 import {
   DEFAULT_OUTFIT,
-  thumbUrl,
   useDefaultOutfit,
   useOutfits,
   type Outfit,
@@ -20,9 +19,9 @@ import { TagSuggestList, useTagMatches } from "../TagSuggestList";
 const NO_OUTFIT = "\u0000none";
 
 /** An outfit's thumbnail; a quiet shirt where it has none. */
-export function OutfitThumb({ imageId, className }: { imageId: string | null; className?: string }) {
-  return imageId ? (
-    <img src={thumbUrl(imageId)} alt="" loading="lazy" className={cn("shrink-0 rounded object-cover", className)} />
+export function OutfitThumb({ url, className }: { url: string | null; className?: string }) {
+  return url ? (
+    <img src={url} alt="" loading="lazy" className={cn("shrink-0 rounded object-cover", className)} />
   ) : (
     <span className={cn("grid shrink-0 place-items-center rounded bg-raised text-faint", className)}>
       <Shirt size={12} />
@@ -54,7 +53,7 @@ function option(o: Outfit, group: string): PickerOption {
     group,
     hint: `${o.tags.length} ${o.tags.length === 1 ? "tag" : "tags"}`,
     keywords: o.tags.map((t) => t.tag).join(" "),
-    icon: <OutfitThumb imageId={o.image_id} className={cn("h-7 w-5", o._id === DEFAULT_OUTFIT && "outline-dashed outline-1 outline-line-strong")} />,
+    icon: <OutfitThumb url={o.thumb_url} className={cn("h-7 w-5", o._id === DEFAULT_OUTFIT && "outline-dashed outline-1 outline-line-strong")} />,
   };
 }
 
@@ -77,7 +76,7 @@ export function OutfitPicker({
     ...own.map((o) => option(o, "Their outfits")),
     ...shared.map((o) => option(o, "Shared")),
   ];
-  const thumb = value ? (all.find((o) => o._id === value.id)?.image_id ?? null) : null;
+  const thumb = value ? (all.find((o) => o._id === value.id)?.thumb_url ?? null) : null;
   return (
     <Picker
       value={value?.id ?? NO_OUTFIT}
@@ -105,7 +104,7 @@ export function OutfitPicker({
           <span className="flex w-7 shrink-0 justify-center">
             {value ? (
               <OutfitThumb
-                imageId={thumb}
+                url={thumb}
                 className={cn("h-7 w-5", value.id === DEFAULT_OUTFIT && "outline-dashed outline-1 outline-line-strong")}
               />
             ) : (

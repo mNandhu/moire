@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import comfy_models, generation_estimate, generator_setup
+from . import comfy_models, generation_estimate, generator_setup, thumb_version
 from .generation_jobs import GenerationManager, Invalid, Unavailable, load_generator
 from .generator_discovery import fixed_values
 from .generator_graph import sampling_defaults, slot_value
@@ -66,12 +66,14 @@ async def _outputs(conn, reqs: list[Any]) -> dict[int, list[dict[str, Any]]]:
                 _i.c.score,
                 _i.c.width,
                 _i.c.height,
+                _i.c.mtime,
             )
             .select_from(_o.outerjoin(_i, _i.c._id == _o.c.image_id))
             .where(_o.c.request_id.in_(request_ids))
             .order_by(_o.c.request_id, _o.c.idx)
         )
     ).fetchall()
+    stamps = await thumb_version.stamps()
     out: dict[int, list[dict[str, Any]]] = {}
     for row in rows:
         out.setdefault(row.request_id, []).append(
@@ -85,6 +87,9 @@ async def _outputs(conn, reqs: list[Any]) -> dict[int, list[dict[str, Any]]]:
                 "score": row.score,
                 "width": row.width,
                 "height": row.height,
+                "thumb_url": thumb_version.url(stamps, row.image_id, row.mtime)
+                if row.found is not None
+                else None,
             }
         )
     return out
@@ -211,7 +216,7 @@ async def list_batches(
                     1 for o in outs if o["in_library"] and not o["quarantined"]
                 ),
                 "arriving": sum(1 for o in outs if o["arriving"]),
-                "thumbs": [o["image_id"] for o in outs if o["in_library"]][:12],
+                "thumbs": [o["thumb_url"] for o in outs if o["in_library"]][:12],
             }
         )
     return out

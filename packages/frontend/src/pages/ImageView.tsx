@@ -289,8 +289,8 @@ export default function ImageView() {
   const thumbUrl = useMemo(() => {
     if (!id) return null;
     const item = list.find((x) => x._id === id);
-    return item?.thumb_url ?? `/api/v1/images/${encodeURIComponent(id)}/thumb`;
-  }, [id, list]);
+    return item?.thumb_url ?? (data?._id === id ? data.thumb_url : null) ?? null;
+  }, [id, list, data]);
   const listItem = useMemo(() => list.find((x) => x._id === id), [id, list]);
   const [thumbFailed, setThumbFailed] = useState(false);
   useEffect(() => {

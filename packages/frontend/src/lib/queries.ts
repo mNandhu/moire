@@ -60,6 +60,19 @@ export function fetchLibraries(signal?: AbortSignal): Promise<Library[]> {
 /** All libraries; polls while any of them is scanning so counts stay live.
  * `poll: false` for a reader that only needs names (the gallery underneath
  * already keeps the list fresh). */
+/** The versioned thumbnail URL of an image known only by id (a cover picked
+ * in a dialog, the image a remix came from); lists carry theirs. */
+export function useThumbUrl(imageId: string | null | undefined): string | null {
+  const { data } = useQuery({
+    queryKey: ["images", "thumb-url", imageId],
+    queryFn: ({ signal }) =>
+      api<{ thumb_url: string }>(`/api/v1/images/${encodeURIComponent(imageId!)}/thumb-url`, { signal }),
+    enabled: !!imageId,
+    staleTime: 60_000,
+  });
+  return imageId ? (data?.thumb_url ?? null) : null;
+}
+
 export function useLibraries({ poll = true } = {}) {
   return useQuery({
     queryKey: LIBRARIES_KEY,

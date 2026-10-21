@@ -34,7 +34,7 @@ async def test_browse_merges_sources_and_counts_images_once(client, seed, monkey
     assert by["cat"]["last_used"] == 300
     assert by["cat"]["category"] == "general"
     assert by["hu_tao"]["category"] == "character"
-    assert by["dog"]["thumb_url"].endswith("/images/L1%3Ac/thumb")
+    assert by["dog"]["thumb_url"].split("?")[0].endswith("/images/L1%3Ac/thumb")
 
     ai = {
         r["tag"]: r["count"]
@@ -162,7 +162,7 @@ async def test_characters_lists_only_characters(client, seed, monkeypatch):
     seed("L1:a", tags=("prompt:frieren", "prompt:cat"))
     got = (await client.get("/tags/characters")).json()
     assert [(c["tag"], c["count"]) for c in got] == [("frieren", 1)]
-    assert got[0]["thumb_url"].endswith("/images/L1%3Aa/thumb")
+    assert got[0]["thumb_url"].split("?")[0].endswith("/images/L1%3Aa/thumb")
 
 
 async def test_the_list_cover_is_the_mosaics_first_image(client, seed):

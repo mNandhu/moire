@@ -97,7 +97,7 @@ export function WornOutfits({
                   className="group/row flex w-full items-center gap-3 rounded-lg p-1.5 hover:bg-raised"
                 >
                   <OutfitThumb
-                    imageId={o.image_id}
+                    url={o.thumb_url}
                     className={cn("h-11 w-8 rounded-md", o._id === DEFAULT_OUTFIT && "outline-dashed outline-1 outline-line-strong")}
                   />
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -138,7 +138,7 @@ export function WornOutfits({
               {worn.slice(0, 3).map((o, i) => (
                 <OutfitThumb
                   key={i}
-                  imageId={o.image_id}
+                  url={o.thumb_url}
                   className={cn("h-[19px] w-3.5 rounded-[3px] ring-[1.5px] ring-raised", i > 0 && "-ml-1.5")}
                 />
               ))}
