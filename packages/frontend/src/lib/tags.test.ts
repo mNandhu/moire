@@ -112,12 +112,17 @@ describe("tagFlow", () => {
     expect(flow[0].confidence).toBe(0.93);
   });
 
-  it("lists a name that is both an AI and a prompt tag once, as the AI tag", () => {
-    const flow = tagFlow(["prompt:solo", "solo", "prompt:neon", "zhongli", "prompt:Zhongli"], ai);
-    expect(flow.map((t) => [t.raw, t.kind, t.inPrompt])).toEqual([
-      ["zhongli", "character", true],
-      ["solo", "ai", true],
-      ["prompt:neon", "prompt", undefined],
+  it("lists each name once, as its first kind, with the others in `also`", () => {
+    const flow = tagFlow(
+      ["prompt:solo", "solo", "manual:solo", "prompt:neon", "manual:neon", "manual:fav",
+        "zhongli", "prompt:Zhongli"],
+      ai,
+    );
+    expect(flow.map((t) => [t.raw, t.kind, t.also])).toEqual([
+      ["zhongli", "character", ["prompt"]],
+      ["solo", "ai", ["manual", "prompt"]],
+      ["manual:neon", "manual", ["prompt"]],
+      ["manual:fav", "manual", undefined],
     ]);
   });
 
