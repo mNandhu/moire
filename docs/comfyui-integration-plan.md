@@ -600,6 +600,42 @@ running prompt only after a fresh `/queue` shows it is ours and running.
   workflow". Clicked through on a copy of the real DB with the fake
   ComfyUI (images blurred in the screenshots).
 
+**As built (phase 4, 2026-10-21, `feat/comfyui-phase4`).**
+- Placement decided on the board "Generate: outfit with several
+  characters" (option B): each character card in the composer has a
+  "Wears" line, an outfit picker (No outfit, their usual clothes = Default,
+  their own, shared ones they don't hide; thumbnail in the closed button)
+  and the outfit's tags; unfolded, the chips (struck or added for this
+  batch only). No separate Outfit layer: an outfit belongs to a character,
+  and its tags are sent right after that character's.
+- Settings > Characters: "New characters wear" No outfit (default) or their
+  usual clothes (`new_character_outfit` in the ComfyUI settings). Applied
+  only when the user picks a character; a remix or a replayed batch brings
+  its own (a remix picks none: the image's clothes stay in its prompt).
+- Tables `outfits` (name, character it was made for, `shared`, tags,
+  image_id, times) and `outfit_hidden` (character, outfit). Plan said owner
+  NULL = shared; built as owner + `shared` so a shared card can say whose
+  it was ("From Furina, any character").
+- `services/outfits.py`, routes under `/generate/outfits`: list (all, or a
+  character's own + shared with `hidden`), `default?character=` (recipe
+  outfit; cover = best-scored image wearing most of it, never one tagged
+  nude), `prefill?image=&character=` (the image's attire from every tag
+  source, since most generated images carry only prompt tags, then the
+  usual ones it lacks), CRUD, `PUT /{id}/hidden`. Tags carry their attire
+  group and `checkable` (in the tagger's vocabulary).
+- A queue body's character carries `outfit` {id, name, tags}; the batch
+  records it as sent, so editing or deleting the outfit never changes the
+  batch. Requeue replays it; Edit and queue brings the recorded tags back.
+  One character's saved outfit joins the auto name ("Hu Tao, Night out").
+- Viewer: the Characters section has Save outfit (a menu by character when
+  the image has several). Outfits page (sidebar Create), character page
+  strip between Best of and Images, Open in gallery as a plain all-of tag
+  filter (checkable tags, plus the character from their page).
+- Clicked through on a copy of the real DB with the fake ComfyUI (images
+  blurred). Found: the library's Default outfits are thin (Hu Tao: hair
+  ornament, ring, hair flower), since most images are prompted rather than
+  tagged and the signature favours what sets a character apart.
+
 ### Testing
 
 - Backend unit: `generator_graph` (fixtures: built-in graph, one real
@@ -821,3 +857,9 @@ Left:
   or TIPO / regex prompt builders that need the positive picked by hand.
 - Never queue NSFW on the connected ComfyUI (public). A graph carries every
   text node; check them all before any real queue, else use the fake.
+
+### Next session (from 2026-10-21; phase 4)
+
+Phase 4 (outfits) is on `feat/comfyui-phase4`, off main after phase 3 was
+merged and pushed. Built, clicked through in the sandbox, code review
+pending at the time of writing. Not pushed.
