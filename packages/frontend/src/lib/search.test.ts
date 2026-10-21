@@ -51,6 +51,7 @@ const batch = (id: number, name: string): BatchSummary => ({
   failed: 0,
   images: 4,
   kept: 4,
+  arriving: 0,
   thumbs: ["/t.webp"],
 });
 

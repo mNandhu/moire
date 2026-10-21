@@ -27,6 +27,8 @@ _b, _r, _o, _i = (
 # Requests the UI shows: a request split by "Retry one at a time" is replaced
 # by its singles.
 _VISIBLE = _r.c.state != "replaced"
+# How long a finished request's missing output counts as still arriving.
+ARRIVING_SECONDS = 300
 
 
 def batch_state(states: list[str], connected: bool) -> str:
@@ -162,9 +164,13 @@ async def list_batches(
         reqs = (
             (
                 await conn.execute(
-                    sa.select(_r.c._id, _r.c.batch_id, _r.c.state, _r.c.images).where(
-                        _r.c.batch_id.in_(ids), _VISIBLE
-                    )
+                    sa.select(
+                        _r.c._id,
+                        _r.c.batch_id,
+                        _r.c.state,
+                        _r.c.images,
+                        _r.c.finished_at,
+                    ).where(_r.c.batch_id.in_(ids), _VISIBLE)
                 )
             ).fetchall()
             if ids
@@ -175,6 +181,7 @@ async def list_batches(
     for q in reqs:
         by_batch.setdefault(q.batch_id, []).append(q)
     names: dict[str, str | None] = {}
+    now = time.time()
     out = []
     for b in batches:
         if b.generator_id not in names:
@@ -182,6 +189,16 @@ async def list_batches(
             names[b.generator_id] = g["name"] if g else None
         rs = by_batch.get(b._id, [])
         outs = [o for q in rs for o in outputs.get(q._id, [])]
+        # Made but not in the library yet: still downloading or waiting for
+        # the scan (not rejected). Past the window, a missing one was deleted.
+        recent = now - ARRIVING_SECONDS
+        arriving = sum(
+            1
+            for q in rs
+            if (q.finished_at or 0) > recent
+            for o in outputs.get(q._id, [])
+            if not o["in_library"]
+        )
         out.append(
             {
                 "_id": b._id,
@@ -197,6 +214,7 @@ async def list_batches(
                 "kept": sum(
                     1 for o in outs if o["in_library"] and not o["quarantined"]
                 ),
+                "arriving": arriving,
                 "thumbs": [o["image_id"] for o in outs if o["in_library"]][:12],
             }
         )

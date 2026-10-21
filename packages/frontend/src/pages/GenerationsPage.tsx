@@ -61,7 +61,7 @@ function Cover({ b, at, onAt, warm }: { b: BatchSummary; at: number; onAt: (i: n
   if (!ids.length) {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-2 text-center text-xs text-faint">
-        {b.state === "running" || b.state === "paused" ? (
+        {b.state === "running" || b.state === "paused" || b.arriving > 0 ? (
           <Loader2 size={20} className="animate-spin" />
         ) : (
           <>

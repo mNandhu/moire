@@ -13,9 +13,11 @@ import {
 
 describe("batch display", () => {
   it("summarizes images, failures and rejections", () => {
-    expect(batchLine({ images: 8, kept: 8, failed: 0 })).toBe("8 images");
-    expect(batchLine({ images: 16, kept: 12, failed: 1 })).toBe("16 images, 1 failed, 4 rejected");
-    expect(batchLine({ images: 1, kept: 1, failed: 0 })).toBe("1 image");
+    expect(batchLine({ images: 8, kept: 8, failed: 0, arriving: 0 })).toBe("8 images");
+    expect(batchLine({ images: 16, kept: 12, failed: 1, arriving: 0 })).toBe("16 images, 1 failed, 4 rejected");
+    expect(batchLine({ images: 1, kept: 1, failed: 0, arriving: 0 })).toBe("1 image");
+    // Not in the library yet is arriving, not rejected.
+    expect(batchLine({ images: 1, kept: 0, failed: 0, arriving: 1 })).toBe("1 image");
   });
   it("labels days", () => {
     const now = new Date(2026, 9, 20, 15, 0);

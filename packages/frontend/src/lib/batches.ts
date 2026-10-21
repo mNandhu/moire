@@ -18,9 +18,9 @@ export function stateTone(s: BatchState): "brand" | "neutral" | "success" | "dan
 }
 
 /** "8 images, 1 failed · 4 rejected" style summary line. */
-export function batchLine(b: Pick<BatchSummary, "images" | "kept" | "failed">): string {
+export function batchLine(b: Pick<BatchSummary, "images" | "kept" | "failed" | "arriving">): string {
   const parts = [`${b.images} ${b.images === 1 ? "image" : "images"}`];
-  const rejected = b.images - b.kept;
+  const rejected = b.images - b.kept - b.arriving;
   if (b.failed) parts.push(`${b.failed} failed`);
   if (rejected > 0) parts.push(`${rejected} rejected`);
   return parts.join(", ");
