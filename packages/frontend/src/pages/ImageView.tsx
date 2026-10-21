@@ -29,7 +29,6 @@ import {
   PanelRight,
   Plus,
   Workflow,
-  Wand2,
   X,
 } from "lucide-react";
 import { resolveMediaUrl } from "../lib/media";
@@ -69,8 +68,8 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { Button } from "../components/ui/Button";
 import { MARKER_DIGIT } from "../components/ui/ScoreMark";
 import { Input } from "../components/ui/Input";
-import { useGenerators } from "../lib/generate";
-import { generatorFor } from "../components/generate/InGenerate";
+import { useRemix } from "../lib/generate";
+import { RemixButton, WorkflowLine } from "../components/generate/Remix";
 
 /** A tag's own page: the character page for a character, else the tag page. */
 const tagPageHref = (t: FlowTag) =>
@@ -1327,20 +1326,6 @@ function GuessedBadge() {
   );
 }
 
-/** Set this image's workflow up for Generate, or open the one already set up. */
-function UseInGenerate({ imageId, sig }: { imageId: string; sig: string }) {
-  const { data: generators } = useGenerators();
-  const gen = generatorFor(generators, { sig });
-  return (
-    <Link
-      to={gen ? `/generate?workflow=${encodeURIComponent(gen._id)}` : `/generate/workflows/new?image=${encodeURIComponent(imageId)}`}
-      className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
-    >
-      <Wand2 size={12} /> {gen ? "Open in Generate" : "Use in Generate"}
-    </Link>
-  );
-}
-
 function GenPanel({
   imageId,
   gen,
@@ -1354,22 +1339,23 @@ function GenPanel({
   height?: number;
   onCopyAll: () => void;
 }) {
+  const { data: remix } = useRemix(imageId, !!gen?.source);
   if (!gen || !gen.source) return null;
+  const editRule = gen.workflow_sig && (
+    <Link
+      to={`/rules?sig=${encodeURIComponent(gen.workflow_sig)}`}
+      className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
+      title="Edit this workflow's extraction rule"
+    >
+      <Workflow size={12} /> Edit rule
+    </Link>
+  );
   return (
     <section className="px-4 py-4 space-y-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Generation data</h2>
         <div className="flex items-center gap-3">
-          {gen.workflow_sig && (
-            <Link
-              to={`/rules?sig=${encodeURIComponent(gen.workflow_sig)}`}
-              className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
-              title="Edit this workflow's extraction rule"
-            >
-              <Workflow size={12} /> Edit rule
-            </Link>
-          )}
-          {gen.source === "comfyui" && gen.workflow_sig && <UseInGenerate imageId={imageId} sig={gen.workflow_sig} />}
+          {!remix?.workflow && editRule}
           <button
             type="button"
             onClick={onCopyAll}
@@ -1378,8 +1364,16 @@ function GenPanel({
           >
             <Copy size={12} /> Copy all
           </button>
+          {remix && <RemixButton doc={remix} />}
         </div>
       </div>
+
+      {remix?.workflow && (
+        <div className="space-y-1.5 border-y border-line py-2">
+          <WorkflowLine doc={remix} imageId={imageId} />
+          {editRule}
+        </div>
+      )}
 
       {(gen.model || !!gen.loras?.length || !!gen.embeddings?.length) && (
         <div className="space-y-2">

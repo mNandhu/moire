@@ -518,6 +518,49 @@ export function useGenerators() {
   });
 }
 
+/** What Remix starts the composer from (`GET /generate/remix/{id}`). */
+export type RemixDoc = {
+  image_id: string;
+  source: string;
+  /** The image's ComfyUI workflow; null for A1111 and images without one. */
+  workflow: { family: string | null; family_name: string | null; file_name: string | null; workflow_sig: string | null } | null;
+  /** The prompt without the characters' names and identity tags. */
+  prompt: string;
+  negative: string;
+  /** Characters with a recipe, page keys in prompt order. */
+  characters: string[];
+  seed: number | null;
+  /** The size the base sampler ran at (not an upscaled output's). */
+  width: number | null;
+  height: number | null;
+  sampling: Sampling;
+  /** The image's checkpoint when ComfyUI has it. */
+  checkpoint: string | null;
+  loras: (LoraPick & { installed: boolean })[];
+  /** A Moiré output: the batch and request it came from. */
+  batch: {
+    id: number;
+    name: string;
+    auto_name: boolean;
+    generator_id: string;
+    inputs: BatchInputs;
+    seed: number | null;
+    images: number | null;
+    index: number;
+  } | null;
+};
+
+export const remixKey = (imageId: string) => [...GEN_KEY, "remix", imageId] as const;
+
+export function useRemix(imageId: string, enabled = true) {
+  return useQuery({
+    queryKey: remixKey(imageId),
+    queryFn: ({ signal }) => api<RemixDoc>(`${BASE}/remix/${encodeURIComponent(imageId)}`, { signal }),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
 export function usePresets() {
   return useQuery({ queryKey: PRESETS_KEY, queryFn: ({ signal }) => api<Preset[]>(`${BASE}/presets`, { signal }) });
 }

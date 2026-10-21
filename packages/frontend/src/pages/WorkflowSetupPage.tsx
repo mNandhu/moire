@@ -525,7 +525,7 @@ function TestStep({ id }: { id: string }) {
         <div className="ml-auto flex gap-2">
           {state === "ready" ? (
             <Button variant="primary" size="sm" onClick={() => navigate(`/generate?workflow=${encodeURIComponent(id)}`)}>
-              <Wand2 size={14} /> Open in Generate
+              <Wand2 size={14} /> Use this workflow
             </Button>
           ) : (
             <Tooltip

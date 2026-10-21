@@ -13,11 +13,13 @@ import type {
   BatchInputs,
   CharacterInput,
   EstimateBody,
+  Generator,
   LoraPreset,
   NodeError,
   Preset,
   PromptPart,
   QueueBody,
+  RemixDoc,
   Sampling,
   StyleLora,
 } from "./generate";
@@ -60,6 +62,9 @@ export type GenerateForm = {
   perRequest: number | null;
   /** A typed batch name; null keeps the auto name. */
   name: string | null;
+  /** The image this draft remixes (shown above the layers until cleared);
+   * `seed` is the image's when the remix kept it. */
+  remix: { image: string; seed: number | null } | null;
 };
 
 export const DEFAULT_BLOCKS: Block[] = [{ kind: "prefix" }, { kind: "character" }, { kind: "prompt" }, { kind: "style" }];
@@ -81,6 +86,7 @@ export const DEFAULT_FORM: GenerateForm = {
   count: 4,
   perRequest: null,
   name: null,
+  remix: null,
 };
 
 /** As many characters as one prompt takes (the backend keeps this many). */
@@ -325,6 +331,53 @@ export function formFromBatch(i: BatchInputs, name: string | null, workflow = "b
   };
 }
 
+export type SeedChoice = "same" | "new";
+
+/** The composer for remixing an image with `target`. An image Moiré queued
+ * replays its batch when remixed with that batch's workflow (same seed: the
+ * whole request again, so the image is among its results). Otherwise the
+ * image's own values, each only where the workflow takes it: the built-in
+ * takes everything; a custom workflow keeps its graph's own LoRAs, and its
+ * checkpoint, size and sampling unless it has a slot. `current` gives what
+ * the image doesn't say (checkpoint, size). Pure. */
+export function formFromRemix(doc: RemixDoc, target: Generator, seed: SeedChoice, current: GenerateForm): GenerateForm {
+  const remix = { image: doc.image_id, seed: seed === "same" ? doc.seed : null };
+  const b = doc.batch;
+  if (b && !b.inputs.test && b.generator_id === target._id) {
+    const f = formFromBatch(b.inputs, null, target._id);
+    const same = seed === "same" && b.seed != null;
+    return {
+      ...f,
+      seed: same ? { mode: "fixed", value: b.seed } : { mode: "random", value: null },
+      count: same ? Math.max(1, b.images ?? 1) : 1,
+      remix: { image: doc.image_id, seed: same ? b.seed : null },
+    };
+  }
+  const builtin = target.kind === "builtin";
+  const slots = target.slots;
+  const sizeSlot = builtin || (!!slots.width && !!slots.height);
+  const sampling: Sampling = {};
+  const own = builtin ? null : Object.keys(target.sampling ?? {});
+  for (const [k, v] of Object.entries(doc.sampling) as [keyof Sampling, never][]) {
+    if (!own || own.includes(k)) sampling[k] = v;
+  }
+  return {
+    ...DEFAULT_FORM,
+    workflow: target._id,
+    prompt: doc.prompt,
+    negative: doc.negative,
+    characters: doc.characters.slice(0, MAX_CHARACTERS),
+    checkpoint: builtin || slots.checkpoint ? (doc.checkpoint ?? current.checkpoint) : current.checkpoint,
+    sampling,
+    loras: builtin ? doc.loras.map((l) => ({ name: l.name, strength: l.strength, preset: null })) : [],
+    width: sizeSlot && doc.width ? doc.width : current.width,
+    height: sizeSlot && doc.height ? doc.height : current.height,
+    seed: seed === "same" && doc.seed != null ? { mode: "fixed", value: doc.seed } : { mode: "random", value: null },
+    count: 1,
+    remix,
+  };
+}
+
 const DRAFT_KEY = "moire.generate.draft";
 
 /** The saved draft merged over defaults; defaults when storage is empty,
@@ -354,6 +407,10 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
             !!l && typeof l === "object" && isStr((l as StyleLora).name) && typeof (l as StyleLora).strength === "number",
         )
         .map((l: StyleLora) => ({ name: l.name, strength: l.strength, preset: presetRef(l.preset) ?? null }));
+    }
+    const rx = d.remix;
+    if (rx && typeof rx === "object" && isStr(rx.image) && (rx.seed === null || Number.isInteger(rx.seed))) {
+      out.remix = { image: rx.image, seed: rx.seed };
     }
     const seed = d.seed;
     if (seed && (seed.mode === "random" || seed.mode === "fixed") && (seed.value === null || typeof seed.value === "number")) {

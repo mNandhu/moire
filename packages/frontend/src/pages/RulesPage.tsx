@@ -847,14 +847,14 @@ export default function RulesPage() {
                     const gen = generatorFor(generators, { sig: selected.workflow_sig });
                     return gen ? (
                       <ButtonLink variant="ghost" to={`/generate?workflow=${encodeURIComponent(gen._id)}`}>
-                        <Wand2 size={14} /> Open in Generate
+                        <Wand2 size={14} /> Use this workflow
                       </ButtonLink>
                     ) : selected.sample_image_id ? (
                       <ButtonLink
                         variant="ghost"
                         to={`/generate/workflows/new?image=${encodeURIComponent(selected.sample_image_id)}`}
                       >
-                        <Wand2 size={14} /> Use in Generate
+                        <Wand2 size={14} /> Set up this workflow
                       </ButtonLink>
                     ) : null;
                   })()}

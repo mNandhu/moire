@@ -582,8 +582,23 @@ running prompt only after a fresh `/queue` shows it is ours and running.
 - Checked on the user's ComfyUI (SFW only): the hires / FaceDetailer / USDU
   workflow with its four missing LoRAs left out ran, its test passed, and
   the image joined its family.
-- Still to do: Remix from the viewer (board "Viewer: Remix" drawn
-  2026-10-20, awaiting the user's look).
+- Remix (2026-10-21): `GET /generate/remix/{image_id}` (`services/remix.py`)
+  returns the image's workflow (family, names, signature), the prompt with
+  characters that have a recipe moved out (name plus the identity tags the
+  block adds back; worn things stay until phase 4), the seed, the base
+  sampler's size (latent or ratio node, not an upscaled output's; A1111's
+  `Size:`), sampling checked against ComfyUI's lists, the checkpoint when
+  installed, LoRAs matched by stem, and for a Moiré output its batch and
+  request. `formFromRemix` (pure, tested): a Moiré output on its own
+  workflow replays the batch (same seed: the whole request again); else
+  the built-in takes everything, a custom workflow keeps its own LoRAs and
+  takes size / checkpoint / sampling only through its slots. Images 1.
+  The draft carries `remix` for the "Remixing an image" strip (Clear).
+  The viewer hands the form over in router state too, since Generate stays
+  mounted under the viewer overlay. Renamed everywhere: "Open in
+  Generate" is "Use this workflow", "Use in Generate" is "Set up this
+  workflow". Clicked through on a copy of the real DB with the fake
+  ComfyUI (images blurred in the screenshots).
 
 ### Testing
 
@@ -784,13 +799,17 @@ Real test passed on the user's ComfyUI (hires / FaceDetailer / USDU family,
 SFW checked).
 
 Left:
-- **Remix** (last phase 3 item). Board "Viewer: Remix" on the canvas
+- **Remix** (last phase 3 item, built 2026-10-21, see As built). Board "Viewer: Remix" on the canvas
   (https://claude.ai/artifact/9NuwckDfNaD4wXqGn46h8a) is approved. Placement:
   the viewer's Generation data header (`GenPanel` in `ImageView.tsx`, next to
   Edit rule / Use in Generate / Copy all), and a "Remixing an image" strip
-  at the top of the Generate composer. Open question for the user: make
-  Remix a text link like its neighbours and fold "Use in Generate" into its
-  menu.
+  at the top of the Generate composer. Placement decided 2026-10-21 (board
+  "Viewer: Remix button with Use this workflow", option C3): the header holds
+  Copy all and a violet Remix button (menu: Remix with <workflow> / Built-in,
+  Same / New seed); a "Workflow" line below names the workflow with its In
+  Generate badge and "Use this workflow" (was Open in Generate: switches the
+  workflow, keeps the draft) or "Set up this workflow"; Edit rule moves under
+  it. A1111 / no graph: Remix goes straight to Built-in.
 - After Remix: commit, `/code-review medium <shas>`, fix, then merge.
 - Ask the user: delete the never-ready SillyFlow workflow row
   `g35528c7ad2` from the real DB; delete the test output

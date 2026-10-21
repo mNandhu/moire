@@ -43,7 +43,7 @@ export function InGenerateBadge({
             {at >= 0 && versions ? `, from version ${at + 1} of ${versions.length}` : ""}.
           </p>
           <Link to={`/generate?workflow=${encodeURIComponent(gen._id)}`} className="text-brand-300 hover:text-brand-200">
-            Open in Generate
+            Use this workflow
           </Link>
         </div>
       }

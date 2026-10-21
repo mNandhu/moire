@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, FlaskConical, Loader2, Lock, Wand2 } from "lucide-react";
 import { Badge, Button, ButtonLink, Card, EmptyState, PageBody, PageHeader, Tooltip } from "../components/ui";
@@ -19,6 +19,7 @@ import { CharacterLayer } from "../components/generate/CharacterBlock";
 import { StyleLayer } from "../components/generate/StyleLayer";
 import { ComfyStatusLine } from "../components/generate/ComfyStatusLine";
 import { WorkflowPicker } from "../components/generate/WorkflowPicker";
+import { RemixStrip, type RemixState } from "../components/generate/Remix";
 import { canRunTest, countModeOf, defaultBatchSize, forWorkflow, runBarOf, testState } from "../lib/workflow";
 import { useCharacters } from "../components/ImageCharacters";
 import { LatestResults } from "../components/generate/LatestResults";
@@ -194,11 +195,20 @@ export default function GeneratePage() {
   const set = <K extends keyof GenerateForm>(k: K, v: GenerateForm[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   useEffect(() => saveDraft(form), [form]);
+  // A remix made from the viewer while this page sat under it: the page
+  // stayed mounted, so the draft it saved isn't read again.
+  const location = useLocation();
+  const remixed = (location.state as RemixState | null)?.remixForm;
+  useEffect(() => {
+    if (!remixed) return;
+    setForm(remixed);
+    navigate(".", { replace: true, state: null });
+  }, [remixed, navigate]);
 
   // The chosen workflow; one that is gone falls back to the built-in.
   const gen = generators?.find((g) => g._id === form.workflow) ?? generators?.[0];
   const bar = runBarOf(gen);
-  // ?workflow=<id> (Open in Generate): choose it once the list has it.
+  // ?workflow=<id> (Use this workflow): choose it once the list has it.
   const [params, setParams] = useSearchParams();
   const asked = params.get("workflow");
   const hasSampling = bar.sampling;
@@ -375,6 +385,7 @@ export default function GeneratePage() {
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_30rem] lg:items-start">
           {/* The run bar pins to the bottom of the view; long layers scroll above it. */}
           <div className="flex min-w-0 flex-col gap-4 lg:min-h-[calc(100dvh-5.5rem)]">
+            {form.remix && <RemixStrip remix={form.remix} onClear={() => set("remix", null)} />}
             <div className="flex flex-col" aria-label="Positive prompt">
               {form.blocks.map((blk, i) => (
                 <div key={"id" in blk ? blk.id : blk.kind}>

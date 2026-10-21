@@ -23,6 +23,7 @@ from ..services import (
     lora_presets,
     prompt_presets,
     recipes,
+    remix,
     tag_categories,
 )
 from ..services.generation_jobs import (
@@ -393,6 +394,18 @@ async def test_generator(generator_id: str, body: TestIn):
     except Rejected as e:
         return _rejected(e)
     return {"batch_id": batch_id}
+
+
+# -- Remix ---------------------------------------------------------------------
+
+
+@router.get("/remix/{image_id:path}")
+async def get_remix(image_id: str):
+    """What Remix starts the composer from for this image."""
+    r = await remix.remix_view(image_id)
+    if r is None:
+        raise HTTPException(status_code=404, detail="No generation data")
+    return r
 
 
 # -- Character recipes -----------------------------------------------------------
