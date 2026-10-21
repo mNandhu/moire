@@ -812,6 +812,13 @@ export default function AllImagesPage() {
     }
   }, [focusedIndex, getScrollContainer]);
 
+  // Grouped view, as both the desktop button and the phone menu show it.
+  // Inside one batch (groupId) the feed isn't grouped, so the toggle turns
+  // grouping on rather than off.
+  const grouped = filters.group && !filters.groupId;
+  const toggleGroup = () =>
+    setFilters({ ...filters, group: !grouped, groupId: undefined });
+
   return (
     <div ref={containerRef}>
       {/* One sticky band: title, search and every view control in a single
@@ -912,9 +919,8 @@ export default function AllImagesPage() {
                   group: "View",
                   label: "Group batches",
                   icon: <Layers size={15} />,
-                  hint: filters.group && !filters.groupId ? <Check size={15} /> : undefined,
-                  onClick: () =>
-                    setFilters({ ...filters, group: !filters.group, groupId: undefined }),
+                  hint: grouped ? <Check size={15} /> : undefined,
+                  onClick: toggleGroup,
                 },
                 {
                   group: "View",
@@ -933,15 +939,9 @@ export default function AllImagesPage() {
           <Button
             size="icon"
             variant="secondary"
-            active={filters.group && !filters.groupId}
-            onClick={() =>
-              setFilters({
-                ...filters,
-                group: !filters.group,
-                groupId: undefined,
-              })
-            }
-            aria-label={filters.group ? "Ungroup batches" : "Group batches"}
+            active={grouped}
+            onClick={toggleGroup}
+            aria-label={grouped ? "Ungroup batches" : "Group batches"}
             title="Group batches (same prompt + workflow)"
             className="xl:w-auto xl:px-3 xl:gap-2"
           >
@@ -972,7 +972,7 @@ export default function AllImagesPage() {
           >
             Done
           </Button>
-          {selectionMode && !(filters.group && !filters.groupId) && (
+          {!grouped && (
             <Button
               variant="secondary"
               onClick={() => (selectionActive ? clearSelection() : void selectAll())}
@@ -982,7 +982,7 @@ export default function AllImagesPage() {
               {selectingAll ? "Selecting…" : selectionActive ? "Select none" : "Select all"}
             </Button>
           )}
-          {selectionMode && selectionActive && (
+          {selectionActive && (
             <DropdownMenu
               label={<>{selection.size} selected</>}
               items={[

@@ -20,7 +20,7 @@ import {
 } from "./masonryLayout";
 
 describe("gridColumns", () => {
-  it("gives a phone one more column per zoom step", () => {
+  it("gives a phone one more column per zoom step, down to a thumb's width", () => {
     const counts = DENSITY_STEPS.map((_, d) => gridColumns(343, d));
     expect(counts).toEqual([1, 2, 3, 4, 5]);
     expect(gridColumns(343, PHONE_DEFAULT_DENSITY)).toBe(2);
@@ -28,6 +28,9 @@ describe("gridColumns", () => {
 
   it("never makes phone tiles narrower than a thumb", () => {
     expect(gridColumns(200, DENSITY_STEPS.length - 1)).toBe(3);
+    // Gutters count: two 56px tiles and an 8px gap need 120px.
+    expect(gridColumns(120, DENSITY_STEPS.length - 1)).toBe(2);
+    expect(gridColumns(119, DENSITY_STEPS.length - 1)).toBe(1);
   });
 
   it("derives columns from the target tile width", () => {

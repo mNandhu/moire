@@ -28,7 +28,7 @@ export const DEFAULT_DENSITY = 2;
 export const PHONE_MAX_WIDTH = 600;
 
 /** Narrowest tile a phone column count may produce. */
-const PHONE_MIN_TILE = 64;
+const PHONE_MIN_TILE = 56;
 
 /** Default density on a phone: two columns, like any phone gallery. */
 export const PHONE_DEFAULT_DENSITY = 1;
@@ -59,7 +59,9 @@ export function gridColumns(
   if (containerWidth <= 0) return MIN_COLUMNS;
   if (containerWidth < PHONE_MAX_WIDTH) {
     const i = Math.max(0, Math.min(DENSITY_STEPS.length - 1, Math.round(density)));
-    const fit = Math.floor(containerWidth / PHONE_MIN_TILE);
+    // n tiles and n-1 gutters must fit: n*tile + (n-1)*gap <= width.
+    const gap = gapForDensity(i);
+    const fit = Math.floor((containerWidth + gap) / (PHONE_MIN_TILE + gap));
     return Math.max(MIN_COLUMNS, Math.min(i + 1, fit));
   }
   const target = targetTileWidth(density);

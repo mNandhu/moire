@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DEFAULT_DENSITY,
   DENSITY_STEPS,
@@ -24,7 +24,7 @@ function readStored(): number {
     return Math.max(0, Math.min(DENSITY_STEPS.length - 1, Math.round(n)));
   } catch {
     // Private mode / storage disabled: fall back rather than crashing the grid.
-    return DEFAULT_DENSITY;
+    return fallback();
   }
 }
 
@@ -38,8 +38,13 @@ function readStored(): number {
  */
 export function useDensity() {
   const [density, setDensity] = useState<number>(readStored);
+  // Saved only once someone zooms: persisting the fallback on mount would pin
+  // a phone's default onto the same browser later opened wide, and the other
+  // way round.
+  const touched = useRef(false);
 
   useEffect(() => {
+    if (!touched.current) return;
     try {
       localStorage.setItem(KEY, String(density));
     } catch {
@@ -47,18 +52,17 @@ export function useDensity() {
     }
   }, [density]);
 
-  const zoomIn = useCallback(
-    () => setDensity((d) => Math.max(0, d - 1)),
-    [],
-  );
-  const zoomOut = useCallback(
-    () => setDensity((d) => Math.min(DENSITY_STEPS.length - 1, d + 1)),
-    [],
-  );
+  const zoomIn = useCallback(() => {
+    touched.current = true;
+    setDensity((d) => Math.max(0, d - 1));
+  }, []);
+  const zoomOut = useCallback(() => {
+    touched.current = true;
+    setDensity((d) => Math.min(DENSITY_STEPS.length - 1, d + 1));
+  }, []);
 
   return {
     density,
-    setDensity,
     zoomIn,
     zoomOut,
     /** True at the coarsest / densest end, for disabling the zoom buttons. */
