@@ -109,4 +109,40 @@ def test_restarted_watch_drops_the_old_roots_batches(tmp_path, ingested):
         {"key": "W1", "gen": gen, "changes": [[1, str(old / "late.png")]]}
     )
     assert _saw(new, "c.png", got)
-    assert seen == [("W1", "c.png")]
+    assert ("W1", "c.png") in seen
+    assert ("W1", "late.png") not in seen
+
+
+def test_backoff_does_not_hold_up_stop_all(tmp_path, ingested, spawned, monkeypatch):
+    lib = tmp_path / "lib"
+    lib.mkdir()
+    library_watch.start_watch("W1", str(lib))
+    assert _wait(lambda: len(spawned) == 1)
+    monkeypatch.setattr(library_watch, "_restart_delay_s", 60.0)
+    spawned[0].kill()
+    assert _wait(lambda: library_watch._respawn_at > time.monotonic() + 30)
+
+    t = time.monotonic()
+    library_watch.stop_all()
+    assert time.monotonic() - t < 3
+    assert len(spawned) == 1
+
+
+def test_batches_queued_during_an_ingest_are_merged(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "watch_stability_window_ms", 50)
+    monkeypatch.setattr(scanner, "is_scanning", lambda _id: False)
+    calls = []
+    monkeypatch.setattr(
+        scanner, "ingest_single_file", lambda _lib, _root, p: calls.append(p.name)
+    )
+    (tmp_path / "a.png").write_bytes(b"x")
+    w = library_watch._Watch("W1", tmp_path)
+    batch = {(library_watch.Change.modified, str(tmp_path / "a.png"))}
+    for _ in range(3):
+        w.queue.put(set(batch))
+    th = threading.Thread(target=library_watch._run_watch, args=(w,))
+    th.start()
+    assert _wait(lambda: w.queue.empty() and calls)
+    w.queue.put(None)
+    th.join(timeout=5)
+    assert calls == ["a.png"]

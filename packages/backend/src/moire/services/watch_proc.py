@@ -54,7 +54,7 @@ def _run(
                     "changes": [[int(c), p] for c, p in changes],
                 }
             )
-    except Exception:
+    except BaseException:  # a Rust panic arrives as a BaseException
         if not stop.is_set():
             _emit({"key": key, "gen": gen, "error": traceback.format_exc()})
 
