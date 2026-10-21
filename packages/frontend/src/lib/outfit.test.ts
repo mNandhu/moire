@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addWorn, keepPicked, outfitGalleryHref, outfitInput, pickFromInput, pickOf, toggleWorn, validOutfits, wornTags } from "./outfit";
-import { formFromBatch, loadDraft, previewText, withCharacter } from "./generateForm";
+import { formFromBatch, loadDraft, previewText, wearingOutfit, withCharacter } from "./generateForm";
 import type { BatchInputs } from "./generate";
 
 const funeral = pickOf({
@@ -107,5 +107,12 @@ describe("fresh characters", () => {
   it("keeps a draft's fresh marks only for its characters", () => {
     const store = { getItem: () => JSON.stringify({ characters: ["a"], fresh: ["a", "b", 3] }) };
     expect(loadDraft(store).fresh).toEqual(["a"]);
+  });
+});
+
+describe("wearingOutfit", () => {
+  it("puts the character in the draft wearing the outfit, settled", () => {
+    const f = wearingOutfit({ ...loadDraft(null), prompt: "cafe", fresh: ["x"] }, "kana", funeral);
+    expect([f.characters, f.outfits, f.fresh, f.prompt]).toEqual([["kana"], { kana: funeral }, [], "cafe"]);
   });
 });

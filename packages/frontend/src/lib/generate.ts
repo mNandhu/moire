@@ -277,10 +277,25 @@ export type Outfit = {
   images?: number;
   /** Default only: the cover was picked by the user (else computed). */
   cover_picked?: boolean;
+  /** Default only: every tag for the editor, computed ones struck or kept,
+   * then the user's own. */
+  chips?: (OutfitTag & { dropped: boolean; added: boolean })[];
+  /** Default only: renamed or its tags changed. */
+  edited?: boolean;
 };
 
-/** An image that could be an outfit's cover: it wears `matched` of its `of` tags. */
-export type CoverChoice = { image_id: string; matched: number; of: number };
+/** An image that could be an outfit's cover, with the outfit's tags it lacks. */
+export type CoverChoice = { image_id: string; missing: string[]; of: number };
+
+/** An edit to a character's Default: name, struck computed tags, own tags,
+ * cover (null: picked for you); `reset` clears name and tags. */
+export type DefaultOutfitPatch = Partial<{
+  name: string;
+  dropped: string[];
+  added: string[];
+  image_id: string | null;
+  reset: boolean;
+}>;
 
 export const DEFAULT_OUTFIT = "default";
 
@@ -517,8 +532,8 @@ export const fetchOutfitPrefill = (image: string, character: string, signal?: Ab
     `${BASE}/outfits/prefill?image=${encodeURIComponent(image)}&character=${encodeURIComponent(character)}`,
     { signal },
   );
-export const putDefaultCover = (character: string, imageId: string | null) =>
-  send<Outfit>("/outfits/default/cover", "PUT", { character, image_id: imageId });
+export const putDefaultOutfit = (character: string, patch: DefaultOutfitPatch) =>
+  send<Outfit>(`/outfits/default?character=${encodeURIComponent(character)}`, "PUT", patch);
 export const createOutfit = (body: OutfitBody) => send<Outfit>("/outfits", "POST", body);
 export const updateOutfit = (id: string, patch: Partial<OutfitBody>) =>
   send<Outfit>(`/outfits/${encodeURIComponent(id)}`, "PUT", patch);

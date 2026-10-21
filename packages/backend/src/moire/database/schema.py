@@ -361,13 +361,18 @@ outfits = sa.Table(
     sa.Column("updated_at", sa.Float),
 )
 
-# A character's Default outfit cover, when the user picked one (else the
-# best-scored image wearing most of it).
-outfit_default_covers = sa.Table(
-    "outfit_default_covers",
+# The user's edits to a character's computed Default outfit: a name (NULL:
+# "Default"), computed tags struck (`dropped`) and their own (`added`), JSON
+# lists, and a picked cover (NULL: the best-scored image wearing most of it).
+outfit_defaults = sa.Table(
+    "outfit_defaults",
     metadata,
     sa.Column("character", sa.Text, primary_key=True),
-    sa.Column("image_id", _BINARY, nullable=False),
+    sa.Column("name", sa.Text),
+    sa.Column("dropped", sa.JSON),
+    sa.Column("added", sa.JSON),
+    sa.Column("image_id", _BINARY),
+    sa.Column("updated_at", sa.Float),
 )
 
 # Shared outfits a character's list leaves out.

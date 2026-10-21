@@ -65,28 +65,40 @@ async def test_outfits_end_to_end(client, comfy, seed, monkeypatch):  # noqa: F8
     # The best-scored image wearing it (one of nobody dressed never is).
     assert d["image_id"] == "L1:h0"
 
-    assert d["cover_picked"] is False
-    # The cover picker's choices, most of the outfit first; a pick sticks.
+    assert d["cover_picked"] is False and d["edited"] is False
+    # The cover picker's choices, most of the outfit first, with what they lack.
     choices = (
         await client.get(
             "/generate/outfits/covers", params={"character": HU, "outfit": "default"}
         )
     ).json()
-    assert choices[0] == {"image_id": "L1:h0", "matched": 1, "of": 1}
+    assert choices[0] == {"image_id": "L1:h0", "missing": [], "of": 1}
     assert "L1:bare" not in {c["image_id"] for c in choices}
-    d = (
-        await client.put(
-            "/generate/outfits/default/cover",
-            json={"character": HU, "image_id": "L1:h2"},
-        )
-    ).json()
+    put = lambda body: client.put(  # noqa: E731
+        "/generate/outfits/default", params={"character": HU}, json=body
+    )
+    d = (await put({"image_id": "L1:h2"})).json()
     assert (d["image_id"], d["cover_picked"]) == ("L1:h2", True)
+    # Renamed, a computed tag struck and one added: what it sends follows.
     d = (
-        await client.put(
-            "/generate/outfits/default/cover", json={"character": HU, "image_id": None}
-        )
+        await put({"name": "Funeral", "dropped": ["porkpie_hat"], "added": ["coat"]})
     ).json()
+    assert d["name"] == "Funeral" and d["edited"] is True
+    assert [x["tag"] for x in d["tags"]] == ["coat"]
+    assert [(c["tag"], c["dropped"], c["added"]) for c in d["chips"]] == [
+        ("porkpie_hat", True, False),
+        ("coat", False, True),
+    ]
+    # Reset clears the edits, not the cover; a null cover goes back too.
+    d = (await put({"reset": True})).json()
+    assert (d["name"], d["edited"], d["image_id"]) == ("Default", False, "L1:h2")
+    d = (await put({"image_id": None})).json()
     assert (d["image_id"], d["cover_picked"]) == ("L1:h0", False)
+    assert (
+        await client.put(
+            "/generate/outfits/default", params={"character": "x"}, json={}
+        )
+    ).status_code == 404
 
     p = (
         await client.get(
@@ -206,3 +218,16 @@ def test_new_character_outfit_setting_takes_known_values():
         "new_character_outfit": "default"
     }
     assert clean_patch({"new_character_outfit": "all"}, {}) == {}
+
+
+def test_default_edits_strike_and_add():
+    tags, chips = outfits.apply_default_edits(
+        ["hat", "coat"], {"dropped": ["hat"], "added": ["coat", "scarf"]}
+    )
+    assert tags == ["coat", "scarf"]
+    assert [(c["tag"], c["dropped"], c["added"]) for c in chips] == [
+        ("hat", True, False),
+        ("coat", False, False),
+        ("scarf", False, True),
+    ]
+    assert outfits.clean_default_patch({"name": "Default"}) == {"name": None}

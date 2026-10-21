@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Image as ImageIcon, Images } from "lucide-react";
-import { Badge } from "../ui";
+import { Eye, EyeOff, Images, Pencil, Wand2 } from "lucide-react";
+import { Badge, DropdownMenu, type DropdownItem } from "../ui";
 import { useToast } from "../Toasts";
 import { cn } from "../../lib/cn";
+import { displayWord } from "../../lib/compose";
 import {
   DEFAULT_OUTFIT,
   OUTFITS_KEY,
@@ -13,111 +14,114 @@ import {
   useOutfits,
   type Outfit,
 } from "../../lib/generate";
-import { outfitGalleryHref } from "../../lib/outfit";
+import { loadDraft, saveDraft, wearingOutfit } from "../../lib/generateForm";
+import { outfitGalleryHref, pickOf } from "../../lib/outfit";
 import { OutfitThumb } from "./Outfit";
 import { SaveOutfitDialog } from "./SaveOutfitDialog";
-import { DefaultCoverDialog } from "./OutfitCover";
 
-function Mini({
-  o,
-  character,
-  onOpen,
-  onHide,
-  onCover,
-}: {
-  o: Outfit;
-  character: string;
-  onOpen?: () => void;
-  onHide?: () => void;
-  /** Default: pick its cover. */
-  onCover?: () => void;
-}) {
+/** What a click on an outfit card offers: edit it, wear it in Generate,
+ * see it in the gallery, and for a shared one, hide it for this character. */
+export function useOutfitActions(character: string, characterName: string) {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const hide = useMutation({
+    mutationFn: (o: Outfit) => hideOutfit(o._id, character, !o.hidden),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: OUTFITS_KEY }),
+    onError: (e) => toast.push(e.message, "error"),
+  });
+  return (o: Outfit, onEdit: () => void, { canHide = false } = {}): DropdownItem[] => [
+    { label: "Edit tags and thumbnail", icon: <Pencil size={14} />, onClick: onEdit },
+    {
+      label: "Use in Generate",
+      icon: <Wand2 size={14} />,
+      onClick: () => {
+        saveDraft(wearingOutfit(loadDraft(), character, pickOf(o)));
+        navigate("/generate");
+      },
+    },
+    { label: "Open in gallery", icon: <Images size={14} />, onClick: () => navigate(outfitGalleryHref(o, character)) },
+    ...(canHide
+      ? [
+          {
+            label: o.hidden ? `Show for ${characterName}` : `Hide for ${characterName}`,
+            icon: o.hidden ? <Eye size={14} /> : <EyeOff size={14} />,
+            divider: true,
+            onClick: () => hide.mutate(o),
+          },
+        ]
+      : []),
+  ];
+}
+
+function Mini({ o, character }: { o: Outfit; character: string }) {
   const isDefault = o._id === DEFAULT_OUTFIT;
   const foreign = o.shared && o.character !== character;
+  const shown = o.tags.slice(0, 3);
   return (
     <div
       className={cn(
-        "group flex w-[8.25rem] shrink-0 flex-col gap-1.5 rounded-xl border bg-surface p-1.5",
-        isDefault ? "border-dashed border-line-strong" : "border-line hover:border-line-strong",
-        onOpen && "cursor-pointer",
+        "flex w-[9.25rem] shrink-0 flex-col gap-1.5 rounded-xl border bg-surface p-1.5 hover:border-line-strong",
+        isDefault ? "border-dashed border-line-strong" : "border-line",
         o.hidden && "opacity-50",
       )}
-      onClick={(e) => {
-        if (onOpen && !(e.target as HTMLElement).closest("a, button")) onOpen();
-      }}
     >
-      <div className="relative h-[9.5rem] overflow-hidden rounded-md bg-raised">
+      <div className="h-[10.5rem] overflow-hidden rounded-md bg-raised">
         <OutfitThumb imageId={o.image_id} className="h-full w-full rounded-none" />
-        <Link
-          to={outfitGalleryHref(o, character)}
-          title="Open in gallery"
-          aria-label={`Open ${o.name} in gallery`}
-          className="absolute bottom-1.5 left-1.5 grid h-7 w-7 place-items-center rounded-lg border border-line-strong bg-surface/90 text-neutral-100 opacity-0 transition-opacity hover:bg-raised group-hover:opacity-100 focus-visible:opacity-100"
-        >
-          <Images size={13} />
-        </Link>
-        {onCover && (
-          <button
-            type="button"
-            onClick={onCover}
-            title="Change thumbnail"
-            aria-label={`Change ${o.name} thumbnail`}
-            className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-lg border border-line-strong bg-surface/90 text-neutral-100 opacity-0 transition-opacity hover:bg-raised group-hover:opacity-100 focus-visible:opacity-100"
-          >
-            <ImageIcon size={13} />
-          </button>
-        )}
-        {foreign && onHide && (
-          <button
-            type="button"
-            onClick={onHide}
-            title={o.hidden ? "Show in this character's list" : "Hide from this character's list"}
-            aria-label={o.hidden ? `Show ${o.name}` : `Hide ${o.name}`}
-            className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-lg border border-line-strong bg-surface/90 text-neutral-100 opacity-0 transition-opacity hover:bg-raised group-hover:opacity-100 focus-visible:opacity-100"
-          >
-            {o.hidden ? <Eye size={13} /> : <EyeOff size={13} />}
-          </button>
-        )}
       </div>
-      <span className="truncate px-0.5 text-sm text-neutral-100" title={o.name}>
-        {o.name}
-      </span>
-      <span className="px-0.5 text-xs text-muted">
-        {isDefault ? (
-          `usual clothes, from ${o.images?.toLocaleString() ?? 0} images`
-        ) : foreign ? (
-          <Badge tone="brand">Shared</Badge>
-        ) : (
-          `${o.tags.length} ${o.tags.length === 1 ? "tag" : "tags"}`
+      <span className="flex min-w-0 items-center gap-1.5 px-0.5 text-sm text-neutral-100">
+        <span className="truncate" title={o.name}>
+          {o.name}
+        </span>
+        {isDefault && (
+          <span className="shrink-0 rounded-full border border-line-strong px-1.5 text-[10.5px] text-muted">
+            {o.edited ? "usual, edited" : "usual"}
+          </span>
         )}
+        {foreign && <Badge tone="brand">Shared</Badge>}
+      </span>
+      <span className="flex flex-wrap gap-1 px-0.5">
+        {shown.map((t) => (
+          <span key={t.tag} className="rounded-full border border-line bg-raised px-1.5 py-px text-[11px] text-neutral-300">
+            {displayWord(t.tag)}
+          </span>
+        ))}
+        {o.tags.length > shown.length && (
+          <span className="rounded-full border border-line bg-raised px-1.5 py-px text-[11px] text-neutral-300">
+            +{o.tags.length - shown.length}
+          </span>
+        )}
+        {!o.tags.length && <span className="text-xs text-faint">No tags</span>}
       </span>
     </div>
   );
 }
 
 /**
- * The character page's Outfits strip: the computed Default first, the
- * character's own outfits, then shared ones (each hideable for this
- * character). A card opens the outfit to edit; "All outfits" goes to the
- * Outfits page filtered to them.
+ * The character page's Outfits strip: Default (their usual clothes, editable
+ * and renamable) first, the character's own outfits, then shared ones. A
+ * click on a card opens its actions; "All outfits" goes to the Outfits page
+ * filtered to them.
  */
 export function CharacterOutfits({ character, name }: { character: string; name: string }) {
-  const qc = useQueryClient();
-  const toast = useToast();
   const { data: def } = useDefaultOutfit(character);
   const { data: list } = useOutfits(character);
   const [editing, setEditing] = useState<Outfit | null>(null);
-  const [coverOpen, setCoverOpen] = useState(false);
-  const hide = useMutation({
-    mutationFn: (o: Outfit) => hideOutfit(o._id, character, !o.hidden),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: OUTFITS_KEY }),
-    onError: (e) => toast.push(e.message, "error"),
-  });
+  const actions = useOutfitActions(character, name);
   const own = (list ?? []).filter((o) => o.character === character);
   const shared = (list ?? []).filter((o) => o.character !== character);
-  const d = def && def.tags.length ? def : null;
+  // Default shows even when empty once edited: it may have been emptied by hand.
+  const d = def && (def.tags.length || def.edited) ? def : null;
   if (!d && !own.length && !shared.length) return null;
   const counts = [own.length && `${own.length} own`, shared.length && `${shared.length} shared`].filter(Boolean).join(", ");
+  const card = (o: Outfit, canHide = false) => (
+    <DropdownMenu
+      key={o._id}
+      aria-label={`${o.name} actions`}
+      trigger={<Mini o={o} character={character} />}
+      items={actions(o, () => setEditing(o), { canHide })}
+    />
+  );
   return (
     <section>
       <div className="mb-2 flex items-baseline gap-2.5">
@@ -127,24 +131,19 @@ export function CharacterOutfits({ character, name }: { character: string; name:
           All outfits
         </Link>
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-1">
-        {d && <Mini o={d} character={character} onCover={() => setCoverOpen(true)} />}
-        {own.map((o) => (
-          <Mini key={o._id} o={o} character={character} onOpen={() => setEditing(o)} />
-        ))}
-        {shared.map((o) => (
-          <Mini key={o._id} o={o} character={character} onOpen={() => setEditing(o)} onHide={() => hide.mutate(o)} />
-        ))}
+      <div className="flex flex-wrap gap-3 pb-1">
+        {d && card(d)}
+        {own.map((o) => card(o))}
+        {shared.map((o) => card(o, true))}
       </div>
-      {d && coverOpen && <DefaultCoverDialog open onClose={() => setCoverOpen(false)} outfit={d} characterName={name} />}
       {editing && (
         <SaveOutfitDialog
           open
           onClose={() => setEditing(null)}
-          character={editing.character}
-          characterName={editing.character === character ? name : editing.character}
+          character={editing._id === DEFAULT_OUTFIT ? character : editing.character}
+          characterName={editing.character === character ? name : displayWord(editing.character)}
           imageId={editing.image_id}
-          outfit={editing}
+          outfit={editing._id === DEFAULT_OUTFIT ? (def ?? editing) : editing}
         />
       )}
     </section>

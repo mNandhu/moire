@@ -189,80 +189,142 @@ async def _wearing(
         return [(r[0], r[1]) for r in rows]
 
 
-async def _picked_cover(key: str) -> str | None:
-    """The Default cover the user picked for ``key``, if it still exists."""
-    c = t.outfit_default_covers
+DEFAULT_NAME = "Default"
+
+
+def apply_default_edits(
+    computed: list[str], edit: dict[str, Any] | None
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """The Default's tags after the user's edits: the ones it sends, and every
+    tag for the editor (``dropped`` / ``added`` marked). Pure."""
+    dropped = set((edit or {}).get("dropped") or [])
+    added = [x for x in (edit or {}).get("added") or [] if x not in computed]
+    chips = [{"tag": x, "dropped": x in dropped, "added": False} for x in computed]
+    chips += [{"tag": x, "dropped": False, "added": True} for x in added]
+    return [c["tag"] for c in chips if not c["dropped"]], chips
+
+
+async def _default_edit(key: str) -> dict[str, Any] | None:
+    d = t.outfit_defaults
     async with async_conn() as conn:
-        image_id = (
-            await conn.execute(sa.select(c.c.image_id).where(c.c.character == key))
-        ).scalar()
-        if image_id and image_id in await _existing(conn, [image_id]):
-            return image_id
-    return None
+        row = (await conn.execute(sa.select(d).where(d.c.character == key))).first()
+    return dict(row._mapping) if row else None
 
 
 async def default(character: str) -> dict[str, Any] | None:
-    """The computed Default outfit for ``character``; None when it isn't a
-    character. ``image_id``: the cover the user picked, else the best-scored
-    image wearing most of it (``cover_picked`` says which)."""
+    """The Default outfit for ``character`` (their usual clothes, with the
+    user's edits on top); None when it isn't a character. ``image_id``: the
+    cover the user picked (``cover_picked``), else the best-scored image
+    wearing most of it. ``chips`` lists every tag for the editor."""
     r = await recipes.wardrobe(character)
     if r is None:
         return None
-    tags = list(r["outfit"])
-    picked = await _picked_cover(r["tag"])
+    edit = await _default_edit(r["tag"])
+    tags, chips = apply_default_edits(list(r["outfit"]), edit)
+    picked = (edit or {}).get("image_id")
+    if picked:
+        async with async_conn() as conn:
+            picked = picked if picked in await _existing(conn, [picked]) else None
     found = None if picked else await _wearing(r["names"], tags, 1)
     vocab = await tag_categories.load()
+    info = {x["tag"]: x for x in tag_info([c["tag"] for c in chips], vocab.general)}
     return {
         "_id": DEFAULT_ID,
-        "name": "Default",
+        "name": (edit or {}).get("name") or DEFAULT_NAME,
         "character": r["tag"],
         "shared": False,
-        "tags": tag_info(tags, vocab.general),
+        "tags": [info[x] for x in tags],
+        "chips": [{**info[c["tag"]], **c} for c in chips],
+        "edited": bool(
+            edit and (edit.get("name") or edit.get("dropped") or edit.get("added"))
+        ),
         "image_id": picked or (found[0][0] if found else None),
-        "cover_picked": picked is not None,
+        "cover_picked": bool(picked),
         "hidden": False,
         "images": r["count"],
     }
 
 
-async def set_default_cover(character: str, image_id: str | None) -> bool:
-    """Pick ``image_id`` as ``character``'s Default cover (None: back to the
-    computed one). False when ``character`` isn't one."""
+def clean_default_patch(patch: dict[str, Any]) -> dict[str, Any]:
+    """An edit to a Default from the API: name ("" or null: "Default"),
+    dropped / added tag lists, image_id (null: computed cover). Pure."""
+    out: dict[str, Any] = {}
+    if "name" in patch:
+        name = str(patch.get("name") or "").strip()
+        if len(name) > 80:
+            raise OutfitError("name must be at most 80 characters")
+        out["name"] = name if name and name != DEFAULT_NAME else None
+    for key in ("dropped", "added"):
+        if key in patch:
+            v = patch[key]
+            if not isinstance(v, list) or not all(isinstance(x, str) for x in v):
+                raise OutfitError(f"{key} must be a list of tags")
+            out[key] = clean_tags(v)
+    if "image_id" in patch:
+        image = patch["image_id"]
+        if image is not None and not isinstance(image, str):
+            raise OutfitError("image_id must be an image id or null")
+        out["image_id"] = image or None
+    return out
+
+
+async def update_default(
+    character: str, patch: dict[str, Any]
+) -> dict[str, Any] | None:
+    """Edit ``character``'s Default; ``reset`` clears the name and tag edits
+    (the cover stays). None when ``character`` isn't one."""
     key = await _key(character)
     if key is None:
-        return False
-    c = t.outfit_default_covers
-    async with async_tx() as conn:
-        if image_id:
+        return None
+    values = clean_default_patch(patch)
+    if patch.get("reset"):
+        values.update(name=None, dropped=None, added=None)
+    if values:
+        values["updated_at"] = time.time()
+        d = t.outfit_defaults
+        async with async_tx() as conn:
             await conn.execute(
-                sqlite_insert(c)
-                .values(character=key, image_id=image_id)
-                .on_conflict_do_update(
-                    index_elements=["character"], set_={"image_id": image_id}
-                )
+                sqlite_insert(d)
+                .values(character=key, **values)
+                .on_conflict_do_update(index_elements=["character"], set_=values)
             )
-        else:
-            await conn.execute(sa.delete(c).where(c.c.character == key))
-    return True
+    return await default(key)
 
 
 async def covers(character: str, outfit_id: str) -> list[dict[str, Any]] | None:
     """Images that could be ``outfit_id``'s cover ("default" for the
     character's Default): the character's images wearing most of its tags,
-    with ``matched`` of ``of``. None when the character or outfit is
-    unknown."""
+    each with the tags it lacks (``missing``). None when the character or
+    outfit is unknown."""
     r = await recipes.wardrobe(character)
     if r is None:
         return None
     if outfit_id == DEFAULT_ID:
-        tags = list(r["outfit"])
+        tags, _ = apply_default_edits(list(r["outfit"]), await _default_edit(r["tag"]))
     else:
         o = await get(outfit_id)
         if o is None:
             return None
         tags = [x["tag"] for x in o["tags"]]
     found = await _wearing(r["names"], tags, COVER_CHOICES)
-    return [{"image_id": i, "matched": n, "of": len(tags)} for i, n in found]
+    worn: dict[str, set[str]] = {}
+    if found:
+        it = t.image_tags
+        async with async_conn() as conn:
+            for image_id, base in await conn.execute(
+                sa.select(it.c.image_id, it.c.base).where(
+                    it.c.image_id.in_([i for i, _ in found]), it.c.base.in_(tags)
+                )
+            ):
+                worn.setdefault(image_id, set()).add(base)
+    return [
+        {
+            "image_id": i,
+            "missing": [x for x in tags if x not in worn.get(i, set())],
+            "of": len(tags),
+        }
+        for i, _ in found
+    ]
 
 
 async def listing(character: str | None = None) -> list[dict[str, Any]]:

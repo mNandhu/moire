@@ -23,7 +23,7 @@ import type {
   Sampling,
   StyleLora,
 } from "./generate";
-import { keepPicked, pickFromInput, validOutfits, type Outfits } from "./outfit";
+import { keepPicked, pickFromInput, validOutfits, type OutfitPick, type Outfits } from "./outfit";
 
 export type PresetRef = { id: string; text: string } | null;
 
@@ -497,4 +497,10 @@ export function rejectedFields(errors: readonly NodeError[]): { checkpoint: bool
  * says new characters wear (a character page's Generate). Pure. */
 export function withCharacter(f: GenerateForm, tag: string): GenerateForm {
   return { ...f, characters: [tag], outfits: {}, fresh: [tag] };
+}
+
+/** The draft with `tag` as its one character, wearing `pick` (an outfit's
+ * Use in Generate). Pure. */
+export function wearingOutfit(f: GenerateForm, tag: string, pick: OutfitPick): GenerateForm {
+  return { ...f, characters: [tag], outfits: { [tag]: pick }, fresh: [] };
 }

@@ -1041,7 +1041,7 @@ class GenerationManager:
             given = (body.get("name") or "").strip()
             chars = characters_of(inputs)
             who = [c["label"] or c["tag"] for c in chars]
-            # One character names its saved outfit too; Default isn't news.
+            # One character names their outfit too; plain "Default" isn't news.
             worn = chars[0].get("outfit") if len(chars) == 1 else None
             name = given or auto_name(
                 number=batch_id,
@@ -1049,7 +1049,7 @@ class GenerationManager:
                 extra=name_words,
                 character=" & ".join(who) if who else None,
                 outfit=worn["name"]
-                if isinstance(worn, dict) and worn.get("id") != "default"
+                if isinstance(worn, dict) and worn.get("name") not in ("", "Default")
                 else None,
             )
             await conn.execute(

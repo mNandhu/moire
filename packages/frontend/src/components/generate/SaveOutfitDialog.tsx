@@ -8,8 +8,11 @@ import { useConfirm } from "../ConfirmDialog";
 import { useToast } from "../Toasts";
 import { cn } from "../../lib/cn";
 import {
+  DEFAULT_OUTFIT,
   OUTFITS_KEY,
   createOutfit,
+  defaultOutfitKey,
+  putDefaultOutfit,
   deleteOutfit,
   fetchOutfitPrefill,
   updateOutfit,
@@ -17,12 +20,13 @@ import {
 } from "../../lib/generate";
 import { useTagFacets } from "../../lib/queries";
 import { AttireTagInput, OutfitChip, OutfitThumb } from "./Outfit";
-import { CoverStrip } from "./OutfitCover";
+import { CoverGrid } from "./OutfitCover";
 import { Image as ImageIcon } from "lucide-react";
 import { MAX_OUTFIT_TAGS } from "../../lib/outfit";
 
 type Source = "image" | "usual" | "added";
-type Row = { tag: string; group: string | null; checkable: boolean; source: Source };
+/** `struck`: a Default's computed tag left out (restorable). */
+type Row = { tag: string; group: string | null; checkable: boolean; source: Source; struck?: boolean };
 
 const SOURCE_STYLE: Record<Source, string> = {
   image: "",
@@ -41,9 +45,11 @@ function Key({ source, children }: { source: Source; children: React.ReactNode }
 
 /**
  * Save an image's attire as an outfit for a character (from the viewer), or
- * edit a saved one (`outfit`, from the Outfits page, with Delete). New: the
- * tags start as the image's attire plus the character's usual ones, each
- * marked by where it came from; the image is the thumbnail.
+ * edit one (`outfit`): a saved one (with Delete), or a character's Default
+ * (rename it, strike computed tags, add your own, Reset to computed). New:
+ * the tags start as the image's attire plus the character's usual ones, each
+ * marked by where it came from; the image is the thumbnail. Editing, Change
+ * opens a grid of the character's images wearing it.
  */
 export function SaveOutfitDialog({
   open,
@@ -76,15 +82,20 @@ export function SaveOutfitDialog({
   // Editing: the cover picked in the Change strip (shown open), saved with the rest.
   const [cover, setCover] = useState<string | null>(null);
   const [changing, setChanging] = useState(false);
+  const isDefault = outfit?._id === DEFAULT_OUTFIT;
   useEffect(() => {
     if (!open) return setSeeded(false);
     if (seeded) return;
     if (outfit) {
       setCover(outfit.image_id);
       setChanging(false);
-      setName(outfit.name);
+      setName(outfit._id === DEFAULT_OUTFIT && outfit.name === "Default" ? "" : outfit.name);
       setShared(outfit.shared);
-      setRows(outfit.tags.map((t) => ({ ...t, source: "image" })));
+      setRows(
+        outfit.chips
+          ? outfit.chips.map((c) => ({ ...c, source: c.added ? "added" : "image", struck: c.dropped }))
+          : outfit.tags.map((t) => ({ ...t, source: "image" })),
+      );
       setSeeded(true);
     } else if (prefill || noPrefill || !imageId) {
       // Without a prefill (the image or character is gone): start empty.
@@ -102,13 +113,30 @@ export function SaveOutfitDialog({
   };
   const save = useMutation({
     mutationFn: () => {
+      if (isDefault) {
+        return putDefaultOutfit(character, {
+          name: name.trim(),
+          dropped: rows.filter((r) => r.struck).map((r) => r.tag),
+          added: rows.filter((r) => r.source === "added").map((r) => r.tag),
+          ...(cover !== outfit!.image_id ? { image_id: cover } : {}),
+        });
+      }
       const body = { name: name.trim(), tags: rows.map((r) => r.tag), shared };
       return outfit
         ? updateOutfit(outfit._id, cover !== outfit.image_id ? { ...body, image_id: cover } : body)
         : createOutfit({ ...body, character, image_id: imageId });
     },
     onSuccess: (o) => {
+      if (isDefault) qc.setQueryData(defaultOutfitKey(character), o);
       toast.push(`Saved ${o.name}`, "success");
+      done();
+    },
+    onError: (e) => toast.push(e.message, "error"),
+  });
+  const reset = useMutation({
+    mutationFn: () => putDefaultOutfit(character, { reset: true }),
+    onSuccess: (o) => {
+      qc.setQueryData(defaultOutfitKey(character), o);
       done();
     },
     onError: (e) => toast.push(e.message, "error"),
@@ -119,7 +147,7 @@ export function SaveOutfitDialog({
     onError: (e) => toast.push(e.message, "error"),
   });
   const tooMany = rows.length > MAX_OUTFIT_TAGS;
-  const ready = !!name.trim() && rows.length > 0 && !tooMany && !save.isPending;
+  const ready = (isDefault || (!!name.trim() && rows.length > 0)) && !tooMany && !save.isPending;
 
   // On the body: the viewer's side panel is transformed, which would pin a
   // fixed overlay inside it.
@@ -128,16 +156,24 @@ export function SaveOutfitDialog({
       open={open}
       onClose={onClose}
       placement="top"
-      className="max-w-2xl"
+      className={changing ? "max-w-3xl" : "max-w-2xl"}
       title={
         <span className="flex items-baseline gap-3">
-          {outfit ? "Edit outfit" : "Save outfit"}
-          <span className="text-sm font-normal text-muted">for {characterName}</span>
+          {isDefault ? "Default outfit" : outfit ? "Edit outfit" : "Save outfit"}
+          <span className="text-sm font-normal text-muted">
+            {isDefault ? `${characterName}, read from ${outfit!.images ?? 0} images` : `for ${characterName}`}
+          </span>
         </span>
       }
       footer={
         <div className="flex w-full items-center gap-2.5">
-          {outfit ? (
+          {isDefault ? (
+            outfit!.edited && (
+              <Button variant="ghost" onClick={() => reset.mutate()} title="Back to the name and tags read from their images">
+                Reset to computed
+              </Button>
+            )
+          ) : outfit ? (
             <Button
               variant="ghost"
               className="text-red-300"
@@ -176,15 +212,15 @@ export function SaveOutfitDialog({
           )}
         </div>
         <div className="flex min-w-0 flex-[1_1_22rem] flex-col gap-4">
-          {outfit && changing && (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-muted">Thumbnail</span>
-              <CoverStrip character={character} outfit={outfit._id} value={cover} onChange={setCover} />
-            </div>
-          )}
           <label className="flex flex-col gap-2">
             <span className="text-xs font-medium text-muted">Name</span>
-            <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoFocus />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={80}
+              placeholder={isDefault ? "Default" : undefined}
+              autoFocus={!outfit}
+            />
           </label>
           <div className="flex flex-col gap-2.5">
             <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1.5">
@@ -206,9 +242,17 @@ export function SaveOutfitDialog({
                     key={r.tag}
                     tag={r.tag}
                     group={r.group}
-                    className={cn(SOURCE_STYLE[r.source], !r.checkable && "decoration-dotted")}
+                    struck={r.struck}
+                    className={cn(!r.struck && SOURCE_STYLE[r.source], !r.checkable && "decoration-dotted")}
                     title={r.checkable ? undefined : "The tagger can't check this one"}
-                    onToggle={() => setRows((x) => x.filter((y) => y.tag !== r.tag))}
+                    onToggle={() =>
+                      setRows((x) =>
+                        // A Default's computed tag is struck, not removed: it stays restorable.
+                        isDefault && r.source !== "added"
+                          ? x.map((y) => (y.tag === r.tag ? { ...y, struck: !y.struck } : y))
+                          : x.filter((y) => y.tag !== r.tag),
+                      )
+                    }
                   />
                 ))}
                 <AttireTagInput
@@ -224,15 +268,23 @@ export function SaveOutfitDialog({
               </div>
             )}
           </div>
-          <div className="rounded-lg border border-line bg-canvas px-3.5 py-3">
-            <Checkbox
-              checked={shared}
-              onChange={setShared}
-              label={<span title="Shows in every character's outfit list, marked shared">Available for all characters</span>}
-            />
-          </div>
+          {!isDefault && (
+            <div className="rounded-lg border border-line bg-canvas px-3.5 py-3">
+              <Checkbox
+                checked={shared}
+                onChange={setShared}
+                label={<span title="Shows in every character's outfit list, marked shared">Available for all characters</span>}
+              />
+            </div>
+          )}
         </div>
       </div>
+      {outfit && changing && (
+        <div className="mt-5 flex flex-col gap-2 border-t border-line pt-4">
+          <span className="text-xs font-medium text-muted">Thumbnail</span>
+          <CoverGrid character={character} outfit={outfit._id} value={cover} onChange={setCover} />
+        </div>
+      )}
     </Dialog>,
     document.body,
   );

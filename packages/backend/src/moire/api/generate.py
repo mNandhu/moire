@@ -476,17 +476,17 @@ async def default_outfit(character: str):
     return o
 
 
-class CoverIn(BaseModel):
-    character: str = Field(..., min_length=1)
-    #: null: back to the computed cover.
-    image_id: str | None = None
-
-
-@router.put("/outfits/default/cover")
-async def put_default_cover(body: CoverIn):
-    if not await outfits.set_default_cover(body.character, body.image_id):
+@router.put("/outfits/default")
+async def put_default_outfit(character: str, body: dict[str, Any]):
+    """Edit ``character``'s Default: name, dropped / added tags, image_id;
+    ``reset`` clears the name and tag edits."""
+    try:
+        o = await outfits.update_default(character, body)
+    except outfits.OutfitError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if o is None:
         raise HTTPException(status_code=404, detail="Character not found")
-    return await outfits.default(body.character)
+    return o
 
 
 @router.get("/outfits/covers")

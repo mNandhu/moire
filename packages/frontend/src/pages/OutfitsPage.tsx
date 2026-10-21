@@ -1,18 +1,18 @@
 import { useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { Images, Search, Shirt } from "lucide-react";
-import { Badge, EmptyState, Input, PageBody, PageHeader } from "../components/ui";
+import { useSearchParams } from "react-router-dom";
+import { Search, Shirt } from "lucide-react";
+import { Badge, DropdownMenu, EmptyState, Input, PageBody, PageHeader } from "../components/ui";
 import { Picker, type PickerOption } from "../components/ui/Picker";
 import { CharacterAvatar } from "../components/CharacterAvatar";
 import { useCharacterLookup } from "../components/ImageCharacters";
 import { OutfitThumb } from "../components/generate/Outfit";
 import { SaveOutfitDialog } from "../components/generate/SaveOutfitDialog";
+import { useOutfitActions } from "../components/generate/CharacterOutfits";
 import { cn } from "../lib/cn";
 import { displayName } from "../lib/character";
 import { displayWord } from "../lib/compose";
 import { fuzzyRank } from "../lib/fuzzy";
 import { useOutfits, type Outfit } from "../lib/generate";
-import { outfitGalleryHref } from "../lib/outfit";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 type Show = "all" | "shared" | "own";
@@ -25,26 +25,15 @@ function usedLine(o: Outfit): string {
   return o.used_by && o.used_by > 1 ? `${batches}, ${o.used_by} characters` : batches;
 }
 
-function OutfitCard({ o, onOpen }: { o: Outfit; onOpen: () => void }) {
+function OutfitCard({ o }: { o: Outfit }) {
   const lookup = useCharacterLookup();
   const who = lookup.get(o.character);
   const name = displayName(who ?? { tag: o.character }).name;
   const shown = o.tags.slice(0, 3);
   return (
-    <article
-      className="group flex cursor-pointer flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-panel hover:border-line-strong"
-      onClick={(e) => {
-        if (!(e.target as HTMLElement).closest("a")) onOpen();
-      }}
-    >
-      <div className="relative aspect-[4/3] overflow-hidden bg-raised">
+    <article className="flex h-full flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-panel hover:border-line-strong">
+      <div className="aspect-[4/3] overflow-hidden bg-raised">
         <OutfitThumb imageId={o.image_id} className="h-full w-full rounded-none [&>svg]:h-6 [&>svg]:w-6" />
-        <Link
-          to={outfitGalleryHref(o)}
-          className="absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface/90 px-2.5 py-1.5 text-xs text-neutral-100 opacity-0 transition-opacity hover:bg-raised group-hover:opacity-100 focus-visible:opacity-100"
-        >
-          <Images size={13} /> Open in gallery
-        </Link>
       </div>
       <div className="flex flex-col gap-2 px-3.5 pb-3.5 pt-3">
         <div className="flex items-center gap-2">
@@ -77,6 +66,14 @@ function OutfitCard({ o, onOpen }: { o: Outfit; onOpen: () => void }) {
       </div>
     </article>
   );
+}
+
+/** A card that opens its actions on click, worn by the character it was made for. */
+function OutfitCardMenu({ o, onEdit }: { o: Outfit; onEdit: () => void }) {
+  const lookup = useCharacterLookup();
+  const name = displayName(lookup.get(o.character) ?? { tag: o.character }).name;
+  const actions = useOutfitActions(o.character, name);
+  return <DropdownMenu aria-label={`${o.name} actions`} trigger={<OutfitCard o={o} />} items={actions(o, onEdit)} />;
 }
 
 /** Every saved outfit: search, a character filter, All / Shared / One
@@ -169,7 +166,7 @@ export default function OutfitsPage() {
         ) : (
           <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
             {shown.map((o) => (
-              <OutfitCard key={o._id} o={o} onOpen={() => setEditing(o)} />
+              <OutfitCardMenu key={o._id} o={o} onEdit={() => setEditing(o)} />
             ))}
           </div>
         )}

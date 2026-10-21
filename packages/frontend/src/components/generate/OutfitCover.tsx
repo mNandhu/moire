@@ -1,10 +1,8 @@
 import { useState } from "react";
-import { createPortal } from "react-dom";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, Shirt } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Button, DropdownMenu, type DropdownItem } from "../ui";
-import { Dialog } from "../ui/Dialog";
+import { DropdownMenu, type DropdownItem } from "../ui";
 import { useToast } from "../Toasts";
 import { cn } from "../../lib/cn";
 import { api } from "../../lib/api";
@@ -14,7 +12,7 @@ import {
   defaultOutfitKey,
   fetchDefaultOutfit,
   outfitsKey,
-  putDefaultCover,
+  putDefaultOutfit,
   thumbUrl,
   updateOutfit,
   useCoverChoices,
@@ -22,11 +20,20 @@ import {
   type Outfit,
 } from "../../lib/generate";
 import { displayName, type CharacterEntry } from "../../lib/character";
+import { displayWord } from "../../lib/compose";
 import { OutfitThumb } from "./Outfit";
 
-/** Images the character wears an outfit in, most of its tags first; the
- * chosen one ringed. Each shows how many of the outfit's tags it has. */
-export function CoverStrip({
+/** What a cover choice lacks of the outfit, as its caption. Pure. */
+export function coverCaption(missing: readonly string[]): string {
+  return missing.length ? `no ${missing.map(displayWord).join(", ")}` : "wears all";
+}
+
+/**
+ * The cover picker: the character's images wearing most of the outfit, in a
+ * grid, each captioned with the outfit tags it lacks; the current one first
+ * and ringed. "Wears all" keeps only complete matches.
+ */
+export function CoverGrid({
   character,
   outfit,
   value,
@@ -38,101 +45,75 @@ export function CoverStrip({
   onChange: (imageId: string) => void;
 }) {
   const { data, isLoading } = useCoverChoices(character, outfit);
+  const [all, setAll] = useState(false);
   if (isLoading) return <span className="text-sm text-faint">Loading…</span>;
-  // The current cover first, even when it isn't among the best matches.
   const listed = data ?? [];
+  // The current cover first, even when it isn't among the best matches.
   const now = listed.find((c) => c.image_id === value);
-  const choices: (CoverChoice | { image_id: string; matched: null; of: number })[] = value
-    ? [now ?? { image_id: value, matched: null, of: 0 }, ...listed.filter((c) => c.image_id !== value)]
-    : listed;
-  if (!choices.length) return <span className="text-sm text-faint">No images wear it</span>;
+  const rest = listed.filter((c) => c.image_id !== value && (!all || !c.missing.length));
+  const choices: (CoverChoice | { image_id: string; missing: null })[] = value
+    ? [now ?? { image_id: value, missing: null }, ...rest]
+    : rest;
   return (
-    <div className="flex gap-2 overflow-x-auto px-0.5 pb-1.5 pt-0.5">
-      {choices.map((c) => {
-        const on = c.image_id === value;
-        return (
-          <button
-            key={c.image_id}
-            type="button"
-            onClick={() => onChange(c.image_id)}
-            aria-pressed={on}
-            title={c.matched == null ? "Its thumbnail now" : `Wears ${c.matched} of its ${c.of} tags`}
-            className={cn(
-              "relative h-[6.5rem] w-[4.5rem] shrink-0 overflow-hidden rounded-md border bg-raised",
-              on ? "border-transparent ring-2 ring-brand-400" : "border-line hover:border-line-strong",
-            )}
-          >
-            <img src={thumbUrl(c.image_id)} alt="" loading="lazy" className="h-full w-full object-cover" />
-            {on && (
-              <span className="absolute left-1 top-1 grid h-[18px] w-[18px] place-items-center rounded-full bg-brand-500 text-white">
-                <Check size={11} strokeWidth={3} />
-              </span>
-            )}
-            {c.matched != null && (
-              <span className="absolute bottom-1 right-1 rounded bg-black/75 px-1 font-mono text-[10px] text-neutral-200">
-                {c.matched}/{c.of}
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Pick the cover of a character's Default outfit (their usual clothes), or
- * go back to the one picked for them. */
-export function DefaultCoverDialog({
-  open,
-  onClose,
-  outfit,
-  characterName,
-}: {
-  open: boolean;
-  onClose: () => void;
-  outfit: Outfit;
-  characterName: string;
-}) {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [pick, setPick] = useState<string | null>(outfit.image_id);
-  const save = async (imageId: string | null) => {
-    try {
-      qc.setQueryData(defaultOutfitKey(outfit.character), await putDefaultCover(outfit.character, imageId));
-      onClose();
-    } catch (e) {
-      toast.push(e instanceof Error ? e.message : "Couldn't save", "error");
-    }
-  };
-  return createPortal(
-    <Dialog
-      open={open}
-      onClose={onClose}
-      className="max-w-2xl"
-      title={
-        <span className="flex items-baseline gap-3">
-          Default thumbnail<span className="text-sm font-normal text-muted">for {characterName}</span>
-        </span>
-      }
-      footer={
-        <div className="flex w-full items-center gap-2.5">
-          {outfit.cover_picked && (
-            <Button variant="ghost" onClick={() => void save(null)} title="Let Moiré pick the best-scored image wearing it">
-              Pick automatically
-            </Button>
-          )}
-          <Button variant="ghost" className="ml-auto" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="primary" disabled={!pick || pick === outfit.image_id} onClick={() => void save(pick)}>
-            Save
-          </Button>
+    <div className="flex flex-col gap-2.5">
+      <div className="flex items-center gap-3">
+        <div role="radiogroup" aria-label="Show" className="inline-flex rounded-lg border border-line p-0.5">
+          {([false, true] as const).map((v) => (
+            <button
+              key={String(v)}
+              type="button"
+              role="radio"
+              aria-checked={all === v}
+              onClick={() => setAll(v)}
+              className={cn("rounded-md px-2.5 py-1 text-xs", all === v ? "bg-raised text-neutral-100" : "text-muted hover:text-neutral-100")}
+            >
+              {v ? "Wears all" : "Best matches"}
+            </button>
+          ))}
         </div>
-      }
-    >
-      <CoverStrip character={outfit.character} outfit={DEFAULT_OUTFIT} value={pick} onChange={setPick} />
-    </Dialog>,
-    document.body,
+        <span className="ml-auto text-xs text-muted">
+          {listed.length} {listed.length === 1 ? "image wears" : "images wear"} some of it
+        </span>
+      </div>
+      {!choices.length ? (
+        <span className="text-sm text-faint">No images wear all of it</span>
+      ) : (
+        <div className="grid max-h-[22rem] grid-cols-[repeat(auto-fill,minmax(5.75rem,1fr))] gap-2 overflow-y-auto p-0.5">
+          {choices.map((c) => {
+            const on = c.image_id === value;
+            return (
+              <button
+                key={c.image_id}
+                type="button"
+                onClick={() => onChange(c.image_id)}
+                aria-pressed={on}
+                className={cn(
+                  "relative aspect-[2/3] overflow-hidden rounded-md border bg-raised",
+                  on ? "border-transparent ring-2 ring-brand-400" : "border-line hover:border-line-strong",
+                )}
+              >
+                <img src={thumbUrl(c.image_id)} alt="" loading="lazy" className="h-full w-full object-cover" />
+                {on && (
+                  <span className="absolute left-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-brand-500 text-white">
+                    <Check size={12} strokeWidth={3} />
+                  </span>
+                )}
+                {c.missing && (
+                  <span
+                    className={cn(
+                      "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-1.5 pb-1 pt-4 text-left text-[10.5px] leading-tight",
+                      c.missing.length ? "text-neutral-200" : "text-emerald-200",
+                    )}
+                  >
+                    {coverCaption(c.missing)}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -168,10 +149,10 @@ export function OutfitMenu({
   });
   const setCover = async (c: CharacterEntry, o: Outfit) => {
     try {
-      if (o._id === DEFAULT_OUTFIT) qc.setQueryData(defaultOutfitKey(c.tag), await putDefaultCover(c.tag, imageId));
+      if (o._id === DEFAULT_OUTFIT) qc.setQueryData(defaultOutfitKey(c.tag), await putDefaultOutfit(c.tag, { image_id: imageId }));
       else await updateOutfit(o._id, { image_id: imageId });
       void qc.invalidateQueries({ queryKey: OUTFITS_KEY });
-      toast.push(`${o._id === DEFAULT_OUTFIT ? `${displayName(c).name}'s usual clothes` : o.name}: thumbnail changed`, "success");
+      toast.push(`${o.name}: thumbnail changed`, "success");
     } catch (e) {
       toast.push(e instanceof Error ? e.message : "Couldn't save", "error");
     }
@@ -187,7 +168,7 @@ export function OutfitMenu({
     return [
       { label: one ? "Save as a new outfit" : `New outfit for ${name}`, group: one ? undefined : name, onClick: () => onSave(c) },
       ...outfits.map((o) => ({
-        label: o._id === DEFAULT_OUTFIT ? "Default" : o.name,
+        label: o.name,
         group: one ? "Use as thumbnail" : `${name}: use as thumbnail`,
         icon: (
           <OutfitThumb
