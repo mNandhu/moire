@@ -861,6 +861,7 @@ export default function ImageView() {
                 key={data._id}
                 id={data._id}
                 hasTags={Boolean(aiTags.length || manualTagsRaw.length || promptTagsRaw.length)}
+                aiTagged={aiTags.length > 0}
                 onCopyAll={() => void copyAllTags()}
                 onChange={onTagsChanged}
               >
@@ -880,12 +881,15 @@ const HEADER_ACTION = "inline-flex items-center gap-1 text-xs text-brand-300 hov
 function TagsSection({
   id,
   hasTags,
+  aiTagged,
   onCopyAll,
   onChange,
   children,
 }: {
   id: string;
   hasTags: boolean;
+  /** The tagger has already run on it: no "Tag with AI" to offer. */
+  aiTagged: boolean;
   onCopyAll: () => void;
   onChange: () => void;
   children: React.ReactNode;
@@ -916,8 +920,9 @@ function TagsSection({
       title="Tags"
       right={
         <div className="flex items-center gap-3">
-          {/* While it runs, the status line below says so. */}
-          {!busy && (
+          {/* While it runs, the status line below says so. To re-tag a
+              tagged image, select it in the gallery and use AI tag. */}
+          {!busy && !aiTagged && (
             <button
               type="button"
               onClick={() => void start([id])}
