@@ -4,6 +4,7 @@
 import argparse
 import importlib.util
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -18,6 +19,52 @@ def _browser_host(host: str) -> str:
     if host in ("127.0.0.1", "0.0.0.0", "::", "::1", ""):
         return "localhost"
     return f"[{host}]" if ":" in host else host
+
+
+def _lan_ip() -> str | None:
+    """This machine's address on its default route. A UDP connect sends
+    nothing, it only picks a route."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        try:
+            s.connect(("10.255.255.255", 1))
+            return s.getsockname()[0]
+        except OSError:
+            return None
+
+
+_OSRELEASE = "/proc/sys/kernel/osrelease"
+
+
+def _behind_wsl_nat() -> bool:
+    """WSL 2 in its default NAT mode: the VM's address is private to the
+    Windows host, so other machines can't reach it (mirrored mode shares
+    Windows' addresses; WSL 1 has no VM)."""
+    try:
+        with open(_OSRELEASE) as f:
+            if "wsl2" not in f.read().lower():
+                return False
+    except OSError:
+        return False
+    try:
+        mode = subprocess.run(
+            ["wslinfo", "--networking-mode"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return True  # no wslinfo: older WSL, where NAT is the only mode
+    return mode != "mirrored"
+
+
+def _network_url(host: str, port: int) -> str | None:
+    """A URL other machines can open, or None when there's no honest one.
+    Only for an IPv4 wildcard bind: `::` is IPv6-only on Windows (and with
+    bindv6only on Linux), so an IPv4 address for it may refuse connections."""
+    if host != "0.0.0.0" or _behind_wsl_nat():
+        return None
+    ip = _lan_ip()
+    return f"http://{ip}:{port}" if ip else None
 
 
 def _port_free(host: str, port: int) -> bool:
@@ -57,6 +104,10 @@ def _run(args: argparse.Namespace) -> None:
             f'  `uv tool install "{DIST_NAME}[cpu]"` (or [gpu] for an NVIDIA GPU).'
         )
     print(f"  Open {url}  (Ctrl+C to stop)")
+    if network_url := _network_url(args.host, args.port):
+        print(f"  On your network: {network_url}")
+    # Before uvicorn's logs (stderr), also when stdout is a pipe.
+    sys.stdout.flush()
     log_level = "info" if args.verbose else "warning"
     if args.reload:  # dev: uvicorn's reloader owns the server process
         uvicorn.run(
