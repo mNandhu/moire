@@ -164,9 +164,10 @@ def offers(
 ) -> dict[str, list[list]]:
     """``section -> [[tag, posts], ...]``: what each section can suggest. The
     listed tags and ``names`` (the tagger's vocabulary), the most posted
-    first and capped at :data:`OFFER`, plus every library tag that lands
-    there. Characters, quality and unknown names are left out: the
-    Character layer and the boilerplate list have those."""
+    first and capped at :data:`OFFER`, plus every library tag the lists place
+    in a section (a stray prompt word in "other" is left out). Characters,
+    quality and unknown names are left out: the Character layer and the
+    boilerplate list have those."""
     out: dict[str, dict[str, int]] = {}
     pool = dict.fromkeys([*attire._load(), *(attire._key(n) for n in names)])
     for n in pool:
@@ -179,8 +180,10 @@ def offers(
     for n in library:
         key = attire._key(n)
         p = place(key, tags, characters)
+        # Only what the lists can place: not every stray prompt word.
         if (
             "alias_of" not in p
+            and p["section"] not in ("other", "unknown")
             and key not in characters
             and tags.tags.get(key, (None,))[0] not in (CHARACTER, COPYRIGHT)
         ):

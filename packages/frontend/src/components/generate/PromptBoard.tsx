@@ -1,12 +1,13 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { fuzzyRank } from "../../lib/fuzzy";
+import { api } from "../../lib/api";
 import { thumbUrl } from "../../lib/generate";
 import type { CharacterEntry } from "../../lib/character";
 import type { ImageDoc } from "../../lib/imageFilter";
-import { appendTag, promptTerms, removeSpan, replaceName, type PromptTerm } from "../../lib/promptOutline";
+import { appendPiece, appendTag, promptTerms, removeSpan, replaceName, type PromptTerm } from "../../lib/promptOutline";
 import {
   useBoardOffers,
   useBoilerplate,
@@ -68,6 +69,8 @@ export type BoardLayer = { label: string; text: string; character?: CharacterEnt
 type Placed = PromptTerm & { box: BoxKey; place?: TagPlace };
 
 const LIST_ROWS = 40;
+const NO_OPTIONS: TagSuggestion[] = [];
+const tagOf = (t: Placed) => t.place?.alias_of ?? t.name;
 const pretty = (g?: string) => (g ? g.replace(/_tags$/, "").replace(/_/g, " ") : "");
 const compact = (n: number) => (n >= 1_000_000 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
 
@@ -86,7 +89,7 @@ function TagPreview({ term, count, onSwap }: { term: Placed; count: number | und
   const tagged = term.kind === "tag";
   const { data, isPending } = useQuery({
     queryKey: ["images", "tag-preview", tag],
-    queryFn: ({ signal }) => fetch(`/api/v1/images?tags=${encodeURIComponent(`any:${tag}`)}&limit=4`, { signal }).then((r) => r.json() as Promise<ImageDoc[]>),
+    queryFn: ({ signal }) => api<ImageDoc[]>(`/api/v1/images?tags=${encodeURIComponent(`any:${tag}`)}&limit=4`, { signal }),
     enabled: tagged,
     staleTime: 60_000,
   });
@@ -115,7 +118,7 @@ function TagPreview({ term, count, onSwap }: { term: Placed; count: number | und
         <div className="grid h-[92px] grid-cols-4 gap-1">
           {isPending
             ? Array.from({ length: 4 }, (_, i) => <div key={i} className="animate-pulse rounded bg-surface" />)
-            : (data ?? []).map((img) => <img key={img._id} src={thumbUrl(img._id)} alt="" className="h-full w-full rounded object-cover" />)}
+            : (data ?? []).map((img) => <img key={img._id} src={img.thumb_url ?? thumbUrl(img._id)} alt="" className="h-full w-full rounded object-cover" />)}
           {!isPending && !data?.length && (
             <div className="col-span-4 grid place-items-center rounded border border-dashed border-line text-xs text-faint">No images with it yet</div>
           )}
@@ -166,11 +169,11 @@ function Chip({ term, counts, repeated, onRemove, onSwap }: { term: Placed; coun
 function Covers({ covers }: { covers: { layer: BoardLayer; terms: Placed[] }[] }) {
   return (
     <span className="ml-auto flex items-center gap-1">
-      {covers.map(({ layer, terms }) => {
+      {covers.map(({ layer, terms }, i) => {
         const what = terms.map((t) => t.written.replace(/_/g, " ")).join(", ");
         const c = layer.character;
         return (
-          <Tooltip key={layer.label} content={`${layer.label}: ${what}`} bubble>
+          <Tooltip key={`${i}:${layer.label}`} content={`${layer.label}: ${what}`} bubble>
             {c ? (
               <CharacterAvatar src={c.thumb_url} face={c.face} focus={c.focus} aspect={c.aspect} letter={layer.label} className="h-5 w-5 ring-1 ring-line" />
             ) : (
@@ -329,43 +332,58 @@ export function PromptBoard({
 }) {
   const boilerplate = useBoilerplate();
   const terms = useMemo(() => promptTerms(prompt), [prompt]);
-  const layerTerms = useMemo(() => layers.map((l) => ({ layer: l, terms: promptTerms(l.text) })), [layers]);
+  // The page rebuilds `layers` every render; parse them again only when
+  // what they say changes.
+  const layersKey = layers.map((l) => `${l.label}\u0000${l.text}\u0000${l.character?.tag ?? ""}`).join("\u0001");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const layerTerms = useMemo(() => layers.map((l) => ({ layer: l, terms: promptTerms(l.text) })), [layersKey]);
   const names = useMemo(
     () => [...terms, ...layerTerms.flatMap((l) => l.terms)].filter((t) => t.kind === "tag").map((t) => t.name),
     [terms, layerTerms],
   );
   const { data: places } = useTagPlaces(names);
-  const placed = (t: PromptTerm): Placed => {
-    const place = places?.names[t.name];
-    return { ...t, place, box: boxOf(t, place, boilerplate) };
-  };
-  const mine = terms.map(placed);
-  const theirs = layerTerms.map((l) => ({ layer: l.layer, terms: l.terms.map(placed) }));
-  const counts = useMemo(() => new Map(pool.map((t) => [t._id, t.count])), [pool]);
-  const tagOf = (t: Placed) => t.place?.alias_of ?? t.name;
-  const repeats = useMemo(() => {
+  const { mine, theirs, repeats } = useMemo(() => {
+    const placed = (t: PromptTerm): Placed => {
+      const place = places?.names[t.name];
+      return { ...t, place, box: boxOf(t, place, boilerplate) };
+    };
+    const mine = terms.map(placed);
+    const theirs = layerTerms.map((l) => ({ layer: l.layer, terms: l.terms.map(placed) }));
     const seen = new Map<string, number>();
     for (const t of [...mine, ...theirs.flatMap((l) => l.terms)]) seen.set(tagOf(t), (seen.get(tagOf(t)) ?? 0) + 1);
-    return new Set([...seen].filter(([, n]) => n > 1).map(([k]) => k));
-  }, [mine, theirs]);
+    const repeats = new Set([...seen].filter(([, n]) => n > 1).map(([k]) => k));
+    return { mine, theirs, repeats };
+  }, [terms, layerTerms, places, boilerplate]);
+  const counts = useMemo(() => new Map(pool.map((t) => [t._id, t.count])), [pool]);
 
   const [opened, setOpened] = useState(false);
-  const { data: offers } = useBoardOffers({ enabled: opened });
+  const { data: offers } = useBoardOffers({ enabled: opened, list: places?.list });
   const { data: browse } = useTagBrowse("all", { enabled: opened });
   const thumbs = useMemo(() => new Map((browse ?? []).map((b) => [b.tag, b.thumb_url])), [browse]);
-  const thumbOf = (id: string) => thumbs.get(id) ?? null;
-  const present = new Set(mine.flatMap((t) => [t.name, tagOf(t)]));
-  // The library's most used first, then Danbooru's.
-  const optionsOf = (k: BoxKey): TagSuggestion[] =>
-    (offers?.[k as BoardSection] ?? [])
-      .filter(([n]) => !present.has(n))
-      .map(([n, posts]) => ({ _id: n, count: counts.get(n) ?? 0, posts }))
-      .sort((a, b) => b.count - a.count || b.posts - a.posts)
-      .map(({ _id, count }) => ({ _id, count }));
+  const thumbOf = useCallback((id: string) => thumbs.get(id) ?? null, [thumbs]);
+  const present = useMemo(() => new Set(mine.flatMap((t) => [t.name, tagOf(t)])), [mine]);
+  // Each box's suggestions: the library's most used first, then Danbooru's.
+  const options = useMemo(() => {
+    const out = new Map<BoxKey, TagSuggestion[]>();
+    for (const [k, list] of Object.entries(offers ?? {}) as [BoardSection, [string, number][]][]) {
+      out.set(
+        k,
+        list
+          .filter(([n]) => !present.has(n))
+          .map(([n, posts]) => ({ _id: n, count: counts.get(n) ?? 0, posts }))
+          .sort((a, b) => b.count - a.count || b.posts - a.posts)
+          .map(({ _id, count }) => ({ _id, count })),
+      );
+    }
+    return out;
+  }, [offers, present, counts]);
 
   const add = (typed: string) => {
-    const n = typed.trim().toLowerCase().replace(/\s+/g, "_");
-    if (n && !present.has(n) && !present.has(places?.names[n]?.alias_of ?? "")) onPrompt(appendTag(prompt, n));
+    // What was typed, read as a prompt piece: a weight stays as written.
+    const t = promptTerms(typed)[0];
+    if (!t || t.kind !== "tag") return;
+    if (present.has(t.name) || present.has(places?.names[t.name]?.alias_of ?? "")) return;
+    onPrompt(t.weight != null ? appendPiece(prompt, typed.trim()) : appendTag(prompt, t.name));
   };
   const remove = (t: Placed) => onPrompt(removeSpan(prompt, t.start, t.end));
   const swap = (t: Placed) => t.place?.alias_of && onPrompt(replaceName(prompt, t, t.place.alias_of));
@@ -385,7 +403,7 @@ export function PromptBoard({
       covers={k === "unknown" ? [] : coversOf(k)}
       counts={counts}
       repeats={repeats}
-      options={ADDABLE.has(k) ? optionsOf(k) : []}
+      options={(ADDABLE.has(k) && options.get(k)) || NO_OPTIONS}
       thumbOf={thumbOf}
       onOpen={() => setOpened(true)}
       onAdd={add}

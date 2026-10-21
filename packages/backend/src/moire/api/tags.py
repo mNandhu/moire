@@ -103,13 +103,15 @@ async def place_tags(body: PlaceBody):
     """Where each prompt tag goes on Generate's prompt board, with what the
     tag lists know of it (group, Danbooru posts, the tag an alias stands
     for). ``list``: whether Danbooru's list is in; until it is, no name is
-    called unknown."""
+    called unknown. ``fetching``: it is being downloaded."""
     tags = await danbooru_tags.load()
     vocab = await tag_categories.load()
     placed = await asyncio.to_thread(
         prompt_board.place_all, body.names, tags, vocab.names
     )
-    return JSONResponse({"names": placed, "list": bool(tags.tags)})
+    return JSONResponse(
+        {"names": placed, "list": bool(tags.tags), "fetching": danbooru_tags.fetching()}
+    )
 
 
 @router.get("/board")

@@ -24,7 +24,9 @@ import csv
 import logging
 import os
 import re
+import threading
 import time
+from itertools import islice
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -92,16 +94,22 @@ def list_path() -> Path:
     return settings.model_cache_dir_path / "danbooru" / "danbooru-tags.csv"
 
 
-@lru_cache(maxsize=2)
+# One list in memory (a refreshed file replaces it), read by one thread at a
+# time so concurrent first requests don't each parse it.
+@lru_cache(maxsize=1)
 def _read(path: str, mtime: float) -> TagList:
     with open(path, encoding="utf-8", newline="") as f:
         return parse(f)
 
 
+_read_lock = threading.Lock()
+
+
 def _load() -> TagList:
     path = list_path()
     try:
-        return _read(str(path), path.stat().st_mtime)
+        with _read_lock:
+            return _read(str(path), path.stat().st_mtime)
     except (OSError, ValueError):
         return EMPTY
 
@@ -127,8 +135,14 @@ def _stale(path: Path) -> bool:
 
 
 def _has_tags(path: Path) -> bool:
+    """Whether a download reads as a tag list (its first rows parse)."""
     with open(path, encoding="utf-8", newline="") as f:
-        return bool(parse(f).tags)
+        return bool(parse(islice(f, 100)).tags)
+
+
+def fetching() -> bool:
+    """A fetch is under way: the list may arrive soon."""
+    return _task is not None and not _task.done()
 
 
 def ensure_fresh() -> None:

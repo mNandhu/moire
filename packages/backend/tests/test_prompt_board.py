@@ -107,6 +107,15 @@ def test_offers_rank_by_posts_and_skip_aliases_and_characters():
     assert "my_lora_word" not in every  # unknown: not offered
     assert "hatsune_miku" not in every
     assert "blowjob" not in every
+
+
+def test_offers_leave_stray_library_words_out_without_the_list():
+    offers = prompt_board.offers(
+        [], TagList(), frozenset(), ["my_lora_word", "red_kimono"]
+    )
+    every = {n for v in offers.values() for n, _ in v}
+    assert "my_lora_word" not in every
+    assert "red_kimono" in every
     assert "quality" not in offers
 
 
@@ -131,6 +140,7 @@ async def test_place_route(client, tag_list):
     )
     body = r.json()
     assert body["list"] is True
+    assert body["fetching"] is False
     assert body["names"]["blowjob"]["alias_of"] == "fellatio"
     assert body["names"]["xyzzy_tag"]["section"] == "unknown"
     assert body["names"]["long_hair"]["section"] == "hair"

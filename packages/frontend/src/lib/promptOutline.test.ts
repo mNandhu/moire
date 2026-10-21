@@ -32,6 +32,28 @@ describe("promptTerms", () => {
     ]);
   });
 
+  it("unwraps nested and square-bracket groups", () => {
+    expect(names("((sunflower field, blue sky)), [red bow, smile], ((solo))")).toEqual([
+      ["sunflower_field", null, "tag"],
+      ["blue_sky", null, "tag"],
+      ["red_bow", null, "tag"],
+      ["smile", null, "tag"],
+      ["solo", null, "tag"],
+    ]);
+    expect(names("((a, b:1.3))")).toEqual([
+      ["a", 1.3, "tag"],
+      ["b", 1.3, "tag"],
+    ]);
+  });
+
+  it("reads a colon outside parens as part of the name", () => {
+    expect(names(":3, 16:9, (:d:1.1)")).toEqual([
+      [":3", null, "tag"],
+      ["16:9", null, "tag"],
+      [":d", 1.1, "tag"],
+    ]);
+  });
+
   it("splits on new lines too", () => {
     expect(names("smile,\nstanding\noutdoors")).toEqual([
       ["smile", null, "tag"],
@@ -57,6 +79,17 @@ describe("removeSpan", () => {
   it("takes a group member and keeps the group's weight", () => {
     expect(without("sunflower_field")).toBe("1girl, (blue sky:1.1), smile,\nstanding, x_\\(cosplay\\)");
     expect(without("blue_sky")).toBe("1girl, (sunflower field:1.1), smile,\nstanding, x_\\(cosplay\\)");
+  });
+
+  it("takes a term's line break when lines separate them", () => {
+    const cut = (text: string, name: string) => {
+      const t = promptTerms(text).find((x) => x.name === name)!;
+      return removeSpan(text, t.start, t.end);
+    };
+    expect(cut("smile\nstanding\noutdoors", "standing")).toBe("smile\noutdoors");
+    expect(cut("smile\nstanding\noutdoors", "smile")).toBe("standing\noutdoors");
+    expect(cut("smile,\nstanding", "standing")).toBe("smile");
+    expect(cut("smile,\nstanding", "smile")).toBe("standing");
   });
 
   it("empties a prompt of one term", () => {

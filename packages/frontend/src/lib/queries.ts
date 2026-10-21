@@ -339,6 +339,8 @@ export type TagPlaces = {
   names: Record<string, TagPlace>;
   /** Danbooru's list is in: until then nothing reads as unknown. */
   list: boolean;
+  /** It is being downloaded. */
+  fetching: boolean;
 };
 
 /** Where each tag goes on the prompt board. Asked once typing pauses; the
@@ -362,18 +364,20 @@ export function useTagPlaces(names: readonly string[]) {
     enabled: asked !== "",
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
-    // The list is fetched on first use: ask again until it's in.
-    refetchInterval: (q) => (q.state.data?.list === false ? 15_000 : false),
+    // The list is fetched on first use: ask again while it downloads.
+    refetchInterval: (q) => (q.state.data?.fetching ? 10_000 : false),
   });
 }
 
 /** What each board section suggests: `[tag, Danbooru posts]`, most posted
  * first, the library's own tags among them. */
-export function useBoardOffers({ enabled = true } = {}) {
+export function useBoardOffers({ enabled = true, list }: { enabled?: boolean; list?: boolean } = {}) {
   return useQuery({
-    queryKey: [...TAGS_KEY, "board"],
+    // Asked again once Danbooru's list is in: it ranks and sorts them.
+    queryKey: [...TAGS_KEY, "board", list ?? false],
     queryFn: ({ signal }) => api<Partial<Record<BoardSection, [string, number][]>>>("/api/v1/tags/board", { signal }),
     enabled,
     staleTime: TAG_MAP_STALE_MS,
+    placeholderData: keepPreviousData,
   });
 }
