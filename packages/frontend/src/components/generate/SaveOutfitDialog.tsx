@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Input } from "../ui";
 import { Checkbox } from "../ui/Checkbox";
@@ -22,7 +23,7 @@ type Row = { tag: string; group: string | null; checkable: boolean; source: Sour
 
 const SOURCE_STYLE: Record<Source, string> = {
   image: "",
-  usual: "border-dashed",
+  usual: "border-dashed border-neutral-500",
   added: "border-brand-700 bg-brand-900/30",
 };
 
@@ -110,7 +111,9 @@ export function SaveOutfitDialog({
   });
   const ready = !!name.trim() && rows.length > 0 && !save.isPending;
 
-  return (
+  // On the body: the viewer's side panel is transformed, which would pin a
+  // fixed overlay inside it.
+  return createPortal(
     <Dialog
       open={open}
       onClose={onClose}
@@ -202,6 +205,7 @@ export function SaveOutfitDialog({
           </div>
         </div>
       </div>
-    </Dialog>
+    </Dialog>,
+    document.body,
   );
 }

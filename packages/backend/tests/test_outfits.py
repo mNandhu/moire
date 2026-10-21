@@ -57,10 +57,11 @@ async def test_outfits_end_to_end(client, comfy, seed, monkeypatch):  # noqa: F8
     monkeypatch.setattr(tag_categories, "load", _chars(HU, hu_tao="genshin_impact"))
     await asyncio.to_thread(_library, seed)
     seed("L1:wear", tags=(HU, "porkpie_hat", "manual:long_coat", "prompt:sandals"))
+    seed("L1:bare", tags=(HU, "porkpie_hat", "nude"), score=5)
 
     d = (await client.get("/generate/outfits/default", params={"character": HU})).json()
     assert [x["tag"] for x in d["tags"]] == ["porkpie_hat"]
-    # The best-scored image wearing it.
+    # The best-scored image wearing it (one of nobody dressed never is).
     assert d["image_id"] == "L1:h0"
 
     p = (
@@ -68,10 +69,11 @@ async def test_outfits_end_to_end(client, comfy, seed, monkeypatch):  # noqa: F8
             "/generate/outfits/prefill", params={"image": "L1:wear", "character": HU}
         )
     ).json()
-    # Seen or added by hand, then the usual ones it lacks; prompt-only left out.
+    # Seen, added by hand or prompted; the usual ones it lacks would follow.
     assert [(x["tag"], x["source"]) for x in p["tags"]] == [
         ("porkpie_hat", "image"),
         ("long_coat", "image"),
+        ("sandals", "image"),
     ]
 
     r = await client.post(

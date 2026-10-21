@@ -37,7 +37,7 @@ function OutfitCard({ o, onOpen }: { o: Outfit; onOpen: () => void }) {
         if (!(e.target as HTMLElement).closest("a")) onOpen();
       }}
     >
-      <div className="relative aspect-[4/3] bg-raised">
+      <div className="relative aspect-[4/3] overflow-hidden bg-raised">
         <OutfitThumb imageId={o.image_id} className="h-full w-full rounded-none [&>svg]:h-6 [&>svg]:w-6" />
         <Link
           to={outfitGalleryHref(o)}
@@ -90,12 +90,12 @@ export default function OutfitsPage() {
   const [q, setQ] = useState("");
   const [show, setShow] = useState<Show>("all");
   const [editing, setEditing] = useState<Outfit | null>(null);
-  const all = data ?? [];
+  const all = useMemo(() => data ?? [], [data]);
 
   const owners: PickerOption[] = useMemo(() => {
     const tags = [...new Set(all.map((o) => o.character))];
     return [
-      { value: EVERYONE, label: "All" },
+      { value: EVERYONE, label: "All characters" },
       ...tags
         .map((tag) => ({ tag, entry: lookup.get(tag) }))
         .map(({ tag, entry }) => ({

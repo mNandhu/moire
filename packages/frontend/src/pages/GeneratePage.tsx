@@ -212,7 +212,9 @@ export default function GeneratePage() {
     if (settings?.new_character_outfit !== "default") return;
     for (const tag of added) {
       void qc
-        .fetchQuery({ queryKey: defaultOutfitKey(tag), queryFn: ({ signal }) => fetchDefaultOutfit(tag, signal), staleTime: 5 * 60_000 })
+        // No abort signal: the picker's query shares this key, and its
+        // observer unmounting would cancel the fetch out from under us.
+        .fetchQuery({ queryKey: defaultOutfitKey(tag), queryFn: () => fetchDefaultOutfit(tag), staleTime: 5 * 60_000 })
         .then((o) => {
           if (!o.tags.length) return;
           setForm((f) => (f.characters.includes(tag) && !f.outfits[tag] ? { ...f, outfits: { ...f.outfits, [tag]: pickOf(o) } } : f));

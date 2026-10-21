@@ -28,6 +28,8 @@ from .image_tags import canonical_tag, find_image
 
 MAX_TAGS = 40
 DEFAULT_ID = "default"
+# Never an outfit's cover: an image of nobody wearing anything.
+UNDRESSED = ("nude", "completely_nude")
 
 
 class OutfitError(ValueError):
@@ -170,6 +172,7 @@ async def default(character: str) -> dict[str, Any] | None:
                     .where(
                         it.c.image_id.in_(tag_index.image_ids(names)),
                         it.c.base.in_(tags),
+                        ~it.c.image_id.in_(tag_index.image_ids(list(UNDRESSED))),
                     )
                     .group_by(it.c.image_id)
                     .order_by(
@@ -317,8 +320,9 @@ async def set_hidden(outfit_id: str, character: str, hidden: bool) -> bool:
 
 async def prefill(image_id: str, character: str) -> dict[str, Any] | None:
     """What the save dialog starts with: the image's attire tags (seen by the
-    tagger or added by hand, ``source`` "image"), then the character's usual
-    ones it lacks ("usual"). None when the image or character is unknown."""
+    tagger, added by hand or prompted: most generated images have only their
+    prompt's tags; ``source`` "image"), then the character's usual ones it
+    lacks ("usual"). None when the image or character is unknown."""
     img = await find_image(image_id)
     r = await recipes.recipe(character)
     if img is None or r is None:
@@ -328,9 +332,7 @@ async def prefill(image_id: str, character: str) -> dict[str, Any] | None:
         bases = [
             row[0]
             for row in await conn.execute(
-                sa.select(it.c.base).where(
-                    it.c.image_id == img["_id"], ~it.c.tag.like("prompt:%")
-                )
+                sa.select(it.c.base).where(it.c.image_id == img["_id"])
             )
         ]
     # In the image's own tag order, not the join table's.
