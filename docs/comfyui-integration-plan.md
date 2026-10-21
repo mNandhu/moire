@@ -810,7 +810,7 @@ Left:
   Generate badge and "Use this workflow" (was Open in Generate: switches the
   workflow, keeps the draft) or "Set up this workflow"; Edit rule moves under
   it. A1111 / no graph: Remix goes straight to Built-in.
-- After Remix: commit, `/code-review medium <shas>`, fix, then merge.
+- Done 2026-10-21: Remix reviewed and fixed (6eb2592); phase 3 fast-forwarded into local main.
 - Ask the user: delete the never-ready SillyFlow workflow row
   `g35528c7ad2` from the real DB; delete the test output
   `VPS/hires_00001_.png` on the ComfyUI server.
