@@ -17,7 +17,7 @@ uv run moire run --reload        # or: uv run uvicorn moire.main:app --reload
 
 ## Build
 
-The backend is the installable app: PyPI name `moire-gallery`, import package
+The backend is the installable app: PyPI name `moire-studio`, import package
 `moire` (src layout, `src/moire`), command `moire`. Run `pnpm build` first so
 the wheel carries the UI (`src/moire/web`, gitignored but included):
 

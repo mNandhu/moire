@@ -3,7 +3,7 @@
 from importlib.metadata import PackageNotFoundError, version
 
 # The PyPI distribution name; the import package and the command are `moire`.
-DIST_NAME = "moire-gallery"
+DIST_NAME = "moire-studio"
 
 try:
     __version__ = version(DIST_NAME)

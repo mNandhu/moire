@@ -28,7 +28,7 @@ function pyprojectVersion() {
   return m[1];
 }
 
-// The PyPI name, e.g. "moire-gallery": it keys the project's own uv.lock entry.
+// The PyPI name, e.g. "moire-studio": it keys the project's own uv.lock entry.
 function distName() {
   const text = readFileSync(join(backend, "pyproject.toml"), "utf8");
   const m = text.match(/^\[project\][^[]*?^name\s*=\s*"([^"]+)"/ms);

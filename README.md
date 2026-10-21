@@ -132,7 +132,7 @@ uv --directory packages/backend run moire run --open   # http://localhost:8000
 The wheel is the whole app (backend with the built UI inside). Install it with [uv](https://docs.astral.sh/uv/) and run it:
 
 ```bash
-uv tool install "moire-gallery[cpu]"   # or [gpu] for AI tagging on an NVIDIA GPU
+uv tool install "moire-studio[cpu]"   # or [gpu] for AI tagging on an NVIDIA GPU
 moire run --open                       # http://localhost:8000
 moire paths                            # where the database, thumbnails and models live
 ```

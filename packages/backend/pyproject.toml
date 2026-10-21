@@ -1,5 +1,5 @@
 [project]
-name = "moire-gallery"
+name = "moire-studio"
 version = "0.1.0"
 description = "Organize, tag and generate AI images: a local gallery for your ComfyUI outputs"
 readme = "README.md"
@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 # The AI tagger's runtime for an installed Moiré: `uv tool install
-# "moire-gallery[cpu]"` or `[gpu]`. Same lists as the `cpu`/`gpu` dependency
+# "moire-studio[cpu]"` or `[gpu]`. Same lists as the `cpu`/`gpu` dependency
 # groups below (which a dev checkout uses); keep them in step. uv can't point a
 # group at a conflicting extra of its own project.
 [project.optional-dependencies]
