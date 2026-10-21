@@ -871,6 +871,14 @@ the edit dialog / the character page's Default card (images wearing most
 of the outfit's tags; Pick automatically resets Default). Default covers
 live in `outfit_default_covers`.
 
+Later 2026-10-21 (board "Outfits: Default outfit tags and thumbnail", C +
+menu on click; 4827cae, 635a198): the viewer's Outfit menu is plain text
+and ends with All outfits. Default is editable like a saved outfit (rename,
+strike computed tags, add own, Reset to computed; `outfit_defaults`, which
+also holds its picked cover). Change opens a wrapping grid captioned with
+the tags each image lacks. Outfit cards open a menu on click (Edit tags and
+thumbnail, Use in Generate, Open in gallery, Hide / Show for shared).
+
 Asked 2026-10-21: filter All Images by outfit. Today only through Open in
 gallery (an all-of tag filter in the URL); no Outfit control in the
 gallery's filters yet.
