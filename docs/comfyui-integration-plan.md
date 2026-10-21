@@ -879,6 +879,17 @@ also holds its picked cover). Change opens a wrapping grid captioned with
 the tags each image lacks. Outfit cards open a menu on click (Edit tags and
 thumbnail, Use in Generate, Open in gallery, Hide / Show for shared).
 
+Later still (64390ab..b8f87eb): exposure tags (how a garment is cut or worn,
+from Danbooru's nudity group: midriff, bare shoulders, *_cutout, ...) count
+as attire in an "exposure" group, plus unlisted hubs (jewelry, strapless);
+tags added by hand get group and tagger check from the server
+(`/tags/attire`, `/generate/outfits/tag-info`). Composer copy is
+"Outfit: Not set" (was "Wears: No outfit"). Character page: + New outfit
+(starts from usual clothes, thumbnail by Set / Change over the tags so
+far); an empty Default (Nahida: no attire tag on more than 18% of her
+images) shows a + and opens its dialog. Card menus open beside the card.
+Review of d9b95bd..b8f87eb not run yet.
+
 Asked 2026-10-21: filter All Images by outfit. Today only through Open in
 gallery (an all-of tag filter in the URL); no Outfit control in the
 gallery's filters yet.
