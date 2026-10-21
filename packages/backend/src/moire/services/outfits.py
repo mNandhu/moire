@@ -167,26 +167,56 @@ async def worn(image_id: str, characters: list[str]) -> list[dict[str, Any]] | N
                 )
             )
         }
+    keys = [
+        k
+        for k in dict.fromkeys(
+            [await _key(n) for n in characters[:WORN_MAX_CHARACTERS]]
+        )
+        if k
+    ]
+    if not keys:
+        return []
+    # Every saved outfit any of them has, in one go: their own, and the
+    # shared ones at least one of them doesn't hide.
+    o = t.outfits
+    h = t.outfit_hidden
+    async with async_conn() as conn:
+        rows = [
+            dict(r)
+            for r in (
+                await conn.execute(
+                    sa.select(o).where(
+                        sa.or_(o.c.character.in_(keys), o.c.shared.is_(True))
+                    )
+                )
+            ).mappings()
+        ]
+        hidden: dict[str, set[str]] = {}
+        for oid, ch in await conn.execute(
+            sa.select(h.c.outfit_id, h.c.character).where(h.c.character.in_(keys))
+        ):
+            hidden.setdefault(oid, set()).add(ch)
+        images = await _existing(conn, (r["image_id"] for r in rows))
+    vocab = await tag_categories.load()
+    saved = [
+        _view(r, vocab.general, images, {})
+        for r in rows
+        if r["character"] in keys or not set(keys) <= hidden.get(r["_id"], set())
+    ]
+    defaults = [d for d in [await default(k) for k in keys] if d and d["tags"]]
     found: dict[str, dict[str, Any]] = {}
-    for name in dict.fromkeys(characters[:WORN_MAX_CHARACTERS]):
-        key = await _key(name)
-        if key is None:
+    for view in [*defaults, *saved]:
+        is_default = view["_id"] == DEFAULT_ID
+        oid = f"{DEFAULT_ID}:{view['character']}" if is_default else view["_id"]
+        rule = rule_of(view)
+        if oid in found or not wears(rule, img["_id"], bases):
             continue
-        d = await default(key)
-        own = [o for o in await listing(key) if not o["hidden"]]
-        for o in [*([d] if d and d["tags"] else []), *own]:
-            oid = f"{DEFAULT_ID}:{key}" if o["_id"] == DEFAULT_ID else o["_id"]
-            rule = rule_of(o)
-            if oid in found or not wears(rule, img["_id"], bases):
-                continue
-            carried = len(set(rule.tags) & bases)
-            found[oid] = {
-                **o,
-                "character": o["character"] or key,
-                "carried": carried,
-                "of": len(rule.tags),
-                "thumbnail": o["image_id"] == img["_id"],
-            }
+        found[oid] = {
+            **view,
+            "carried": len(set(rule.tags) & bases),
+            "of": len(rule.tags),
+            "thumbnail": view["image_id"] == img["_id"],
+        }
     return sorted(
         found.values(),
         key=lambda o: (

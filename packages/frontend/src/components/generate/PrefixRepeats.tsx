@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useToast } from "../Toasts";
 import { displayWord } from "../../lib/compose";
@@ -18,15 +18,23 @@ export function PrefixRepeats({
 }) {
   const toast = useToast();
   const [closed, setClosed] = useState<string | null>(null);
+  // The prompt as it stands when Undo is clicked, not when the toast opened.
+  const latest = useRef(prompt);
+  latest.current = prompt;
   const repeats = prefixRepeats(prefix, prompt);
   const key = repeats.join("\n").toLowerCase();
   if (!repeats.length || closed === key) return null;
   const remove = () => {
     const before = prompt;
-    onPrompt(withoutTerms(prompt, repeats));
-    toast.push(`Removed ${repeats.length} ${repeats.length === 1 ? "tag" : "tags"} from the prompt`, {
+    const { text, removed } = withoutTerms(prompt, repeats);
+    onPrompt(text);
+    toast.push(`Removed ${removed} ${removed === 1 ? "tag" : "tags"} from the prompt`, {
       type: "success",
-      action: { label: "Undo", onClick: () => onPrompt(before) },
+      action: {
+        label: "Undo",
+        // Edited since: put the tags back in front rather than lose the edit.
+        onClick: () => onPrompt(latest.current === text ? before : [...repeats, latest.current].filter(Boolean).join(", ")),
+      },
     });
   };
   return (

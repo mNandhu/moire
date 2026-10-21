@@ -16,14 +16,25 @@ describe("prefixRepeats", () => {
   });
 });
 
+describe("prompt terms", () => {
+  it("splits past a kaomoji, keeps LoRA tags whole, reads escaped parens", () => {
+    expect(prefixRepeats("masterpiece", "1girl, >_<, masterpiece")).toEqual(["masterpiece"]);
+    expect(prefixRepeats("x", "<lora:a, b:1>, x")).toEqual(["x"]);
+    expect(prefixRepeats("hu_tao_\\(genshin_impact\\)", "1girl, hu tao \\(genshin impact\\)")).toEqual(["hu tao \\(genshin impact\\)"]);
+  });
+});
+
 describe("withoutTerms", () => {
+  it("counts every copy it takes out", () => {
+    expect(withoutTerms("masterpiece, 1girl, masterpiece", ["masterpiece"])).toEqual({ text: "1girl", removed: 2 });
+  });
   it("drops the terms and one separator each", () => {
-    expect(withoutTerms("masterpiece, 1girl, best quality, beach", ["masterpiece", "best_quality"])).toBe("1girl, beach");
-    expect(withoutTerms("1girl, beach, masterpiece", ["masterpiece"])).toBe("1girl, beach");
-    expect(withoutTerms("a, m, b", ["m", "b"])).toBe("a");
+    expect(withoutTerms("masterpiece, 1girl, best quality, beach", ["masterpiece", "best_quality"]).text).toBe("1girl, beach");
+    expect(withoutTerms("1girl, beach, masterpiece", ["masterpiece"]).text).toBe("1girl, beach");
+    expect(withoutTerms("a, m, b", ["m", "b"]).text).toBe("a");
   });
   it("keeps line breaks and groups", () => {
-    expect(withoutTerms("masterpiece, 1girl\nbeach, best quality\n(x, masterpiece)", ["masterpiece", "best quality"])).toBe(
+    expect(withoutTerms("masterpiece, 1girl\nbeach, best quality\n(x, masterpiece)", ["masterpiece", "best quality"]).text).toBe(
       "1girl\nbeach\n(x, masterpiece)",
     );
   });

@@ -7,22 +7,32 @@ import { canonicalName } from "./tags";
 
 type Term = { start: number; end: number; key: string | null };
 
-const OPEN = "([{<";
-const CLOSE = ")]}>";
+const OPEN = "([{";
+const CLOSE = ")]}";
+
+/** A term's tag name, or null when it isn't a plain tag (weighted,
+ * bracketed, a LoRA, AND / BREAK). Escaped parentheses are part of a tag
+ * (`hu_tao_\(genshin_impact\)`). */
+function keyOf(word: string): string | null {
+  const bare = word.replace(/\\([()])/g, "$1");
+  if (/^(AND|BREAK)$/.test(word) || /[[\]{}<>:\\]/.test(bare) || /[()]/.test(word.replace(/\\[()]/g, ""))) return null;
+  return canonicalName(bare).toLowerCase();
+}
 
 /** The prompt's top-level terms, split on commas and newlines, with where
  * each sits; `key` is its tag name, null for anything not a plain tag. */
 function topTerms(text: string): Term[] {
   const out: Term[] = [];
   let depth = 0;
+  // `<lora:x:1>` nests; a lone `<` or `>` (`>_<`) doesn't.
+  let angle = false;
   let start = 0;
   const push = (end: number) => {
     const raw = text.slice(start, end);
     const lead = raw.length - raw.trimStart().length;
     const word = raw.trim();
     if (word) {
-      const plain = !/[()[\]{}<>:\\]/.test(word) && !/^(AND|BREAK)$/.test(word);
-      out.push({ start: start + lead, end: start + lead + word.length, key: plain ? canonicalName(word).toLowerCase() : null });
+      out.push({ start: start + lead, end: start + lead + word.length, key: keyOf(word) });
     }
   };
   for (let i = 0; i < text.length; i++) {
@@ -30,7 +40,9 @@ function topTerms(text: string): Term[] {
     if (c === "\\") i++;
     else if (OPEN.includes(c)) depth++;
     else if (CLOSE.includes(c)) depth = Math.max(0, depth - 1);
-    else if (depth === 0 && (c === "," || c === "\n")) {
+    else if (c === "<" && !angle && /[a-z]/i.test(text[i + 1] ?? "")) angle = true;
+    else if (c === ">" && angle) angle = false;
+    else if (depth === 0 && !angle && (c === "," || c === "\n")) {
       push(i);
       start = i + 1;
     }
@@ -53,13 +65,13 @@ export function prefixRepeats(prefix: string, prompt: string): string[] {
   return out;
 }
 
-/** `prompt` without its plain top-level terms named in `words`; the rest as
- * written, kept terms joined by the separators that stood between them (a
- * line break wins over a comma). Pure. */
-export function withoutTerms(prompt: string, words: readonly string[]): string {
-  const drop = new Set(words.map((w) => canonicalName(w.trim()).toLowerCase()));
+/** `prompt` without its plain top-level terms named in `words`, and how many
+ * it took out; the rest as written, kept terms joined by the separators that
+ * stood between them (a line break wins over a comma). Pure. */
+export function withoutTerms(prompt: string, words: readonly string[]): { text: string; removed: number } {
+  const drop = new Set(words.flatMap((w) => keyOf(w.trim()) ?? []));
   const terms = topTerms(prompt);
-  if (!terms.length) return prompt;
+  if (!terms.length) return { text: prompt, removed: 0 };
   const gone = (t: Term) => !!t.key && drop.has(t.key);
   let out = prompt.slice(0, terms[0].start);
   let last = -1;
@@ -72,5 +84,5 @@ export function withoutTerms(prompt: string, words: readonly string[]): string {
     out += prompt.slice(t.start, t.end);
     last = i;
   });
-  return out + prompt.slice(terms[terms.length - 1].end);
+  return { text: out + prompt.slice(terms[terms.length - 1].end), removed: terms.filter(gone).length };
 }

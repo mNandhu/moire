@@ -732,10 +732,11 @@ export type WornOutfit = Outfit & { carried: number; of: number; thumbnail: bool
 
 /** The outfits `imageId` wears, for the characters in it: covers first, then
  * the most carried. */
-export function useWornOutfits(imageId: string, characters: readonly string[]) {
+export function useWornOutfits(imageId: string, characters: readonly string[], tags: ReadonlySet<string>) {
   const q = characters.map((c) => `&characters=${encodeURIComponent(c)}`).join("");
   return useQuery({
-    queryKey: [...OUTFITS_KEY, "worn", imageId, characters],
+    // The image's tags in the key: an edit to them asks again.
+    queryKey: [...OUTFITS_KEY, "worn", imageId, characters, [...tags].sort().join(",")],
     queryFn: ({ signal }) => api<WornOutfit[]>(`${BASE}/outfits/worn?image=${encodeURIComponent(imageId)}${q}`, { signal }),
     enabled: characters.length > 0,
     staleTime: 30_000,

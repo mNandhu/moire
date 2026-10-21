@@ -45,7 +45,8 @@ function TagsCard({ o, imageTags }: { o: WornOutfit; imageTags: ReadonlySet<stri
             key={t.tag}
             className={cn(
               "rounded border border-line bg-raised px-1.5 py-px",
-              imageTags.has(t.tag) ? "text-neutral-200" : "text-faint line-through",
+              // Only the tags the tagger can check count; the rest are dotted.
+              !t.checkable ? "text-muted decoration-dotted underline" : imageTags.has(t.tag) ? "text-neutral-200" : "text-faint line-through",
             )}
           >
             {displayWord(t.tag)}
@@ -73,7 +74,7 @@ export function WornOutfits({
   imageTags: ReadonlySet<string>;
   characterName: (tag: string) => string;
 }) {
-  const { data } = useWornOutfits(imageId, characters);
+  const { data } = useWornOutfits(imageId, characters, imageTags);
   const [open, setOpen] = useState(readOpen);
   const [all, setAll] = useState(false);
   const worn = data ?? [];

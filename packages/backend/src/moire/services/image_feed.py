@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 
@@ -24,6 +24,9 @@ from ..database.db import async_conn
 from ..database import schema as t
 from . import image_shapes, image_tags, workflow_family
 from .tag_names import canonical_name
+
+if TYPE_CHECKING:
+    from .outfits import WearRule
 
 
 class FeedFilterError(ValueError):
@@ -148,7 +151,7 @@ class FeedFilter:
     family_sigs: tuple[str, ...] | None = None
     # Each outfit's `outfits.WearRule`, resolved from `outfit` by `_resolved`;
     # None for an unknown outfit (matches nothing).
-    outfit_rules: tuple[Any, ...] | None = None
+    outfit_rules: tuple[WearRule | None, ...] | None = None
     # The images of the filter's rarest tag group or prompt term, when that
     # is few enough to drive the query by id (`_drive_by_rarest`).
     driver_ids: tuple[str, ...] | None = None

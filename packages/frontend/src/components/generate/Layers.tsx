@@ -50,7 +50,6 @@ export function LayerRow({
       )}
     </>
   );
-  if (!footer) return <Card className={cn("flex min-h-[3.25rem] items-center gap-3 px-3.5 py-2", className)}>{row}</Card>;
   return (
     <Card className={cn("px-3.5 py-2", className)}>
       <div className="flex min-h-[2.25rem] items-center gap-3">{row}</div>

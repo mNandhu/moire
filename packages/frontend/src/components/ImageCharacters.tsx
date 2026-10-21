@@ -150,6 +150,8 @@ export function ImageCharacters({
         })}
       </div>
       <WornOutfits
+        // A new image starts folded to its first rows.
+        key={imageId}
         imageId={imageId}
         characters={here.map((c) => c.tag)}
         imageTags={bases}
