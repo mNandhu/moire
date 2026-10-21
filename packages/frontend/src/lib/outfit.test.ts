@@ -132,6 +132,10 @@ describe("fresh characters", () => {
     expect([f.characters, f.outfits, f.fresh]).toEqual([["hu_tao"], {}, ["hu_tao"]]);
   });
 
+  it("ends a remix the draft was", () => {
+    expect(withCharacter({ ...loadDraft(null), remix: { image: "L1:a.png", seed: 3 } }, "hu_tao").remix).toBeNull();
+  });
+
   it("keeps a draft's fresh marks only for its characters", () => {
     const store = { getItem: () => JSON.stringify({ characters: ["a"], fresh: ["a", "b", 3] }) };
     expect(loadDraft(store).fresh).toEqual(["a"]);
@@ -142,6 +146,10 @@ describe("wearingOutfit", () => {
   it("puts the character in the draft wearing the outfit, settled", () => {
     const f = wearingOutfit({ ...loadDraft(null), prompt: "cafe", fresh: ["x"] }, "kana", funeral);
     expect([f.characters, f.outfits, f.fresh, f.prompt]).toEqual([["kana"], { kana: funeral }, [], "cafe"]);
+  });
+
+  it("ends a remix the draft was", () => {
+    expect(wearingOutfit({ ...loadDraft(null), remix: { image: "L1:a.png", seed: 3 } }, "kana", funeral).remix).toBeNull();
   });
 });
 

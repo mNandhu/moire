@@ -494,13 +494,14 @@ export function rejectedFields(errors: readonly NodeError[]): { checkpoint: bool
 }
 
 /** The draft with `tag` as its one character, to start in what Settings
- * says new characters wear (a character page's Generate). Pure. */
+ * says new characters wear (a character page's Generate). A remix it was
+ * is over. Pure. */
 export function withCharacter(f: GenerateForm, tag: string): GenerateForm {
-  return { ...f, characters: [tag], outfits: {}, fresh: [tag] };
+  return { ...f, characters: [tag], outfits: {}, fresh: [tag], remix: null };
 }
 
 /** The draft with `tag` as its one character, wearing `pick` (an outfit's
- * Use in Generate). Pure. */
+ * Use in Generate). A remix it was is over. Pure. */
 export function wearingOutfit(f: GenerateForm, tag: string, pick: OutfitPick): GenerateForm {
-  return { ...f, characters: [tag], outfits: { [tag]: pick }, fresh: [] };
+  return { ...f, characters: [tag], outfits: { [tag]: pick }, fresh: [], remix: null };
 }
