@@ -2,17 +2,18 @@ import { useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useToast } from "../Toasts";
 import { displayWord } from "../../lib/compose";
-import { prefixRepeats, withoutTerms } from "../../lib/promptRepeats";
+import { withoutTerms } from "../../lib/promptRepeats";
 
-/** Under the Prefix: the prompt's tags it already has, with a way to take
- * them out of the prompt (Undo in the toast). Closed, it stays closed for
- * those same tags. */
-export function PrefixRepeats({
-  prefix,
+/** Under a layer (the Prefix, a character): the prompt's tags that layer
+ * already sends, with a way to take them out of the prompt (Undo in the
+ * toast). Closed, it stays closed for those same tags. */
+export function PromptRepeats({
+  repeats,
   prompt,
   onPrompt,
 }: {
-  prefix: string;
+  /** As written in the prompt (`prefixRepeats`, `tagRepeats`). */
+  repeats: readonly string[];
   prompt: string;
   onPrompt: (text: string) => void;
 }) {
@@ -21,7 +22,6 @@ export function PrefixRepeats({
   // The prompt as it stands when Undo is clicked, not when the toast opened.
   const latest = useRef(prompt);
   latest.current = prompt;
-  const repeats = prefixRepeats(prefix, prompt);
   const key = repeats.join("\n").toLowerCase();
   if (!repeats.length || closed === key) return null;
   const remove = () => {
@@ -44,7 +44,8 @@ export function PrefixRepeats({
         {repeats.map((r, i) => (
           <span key={r}>
             {i > 0 && ", "}
-            <span className="text-amber-200">{displayWord(r)}</span>
+            {/* A character tag's escaped parentheses are prompt syntax, not its name. */}
+            <span className="text-amber-200">{displayWord(r.replace(/\\([()])/g, "$1"))}</span>
           </span>
         ))}
       </span>

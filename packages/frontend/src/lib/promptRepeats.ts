@@ -1,5 +1,6 @@
 /**
- * Tags written in both the Prefix and the Prompt. Only plain top-level terms
+ * Tags written in the Prompt that a layer already sends: the Prefix, or a
+ * character with what they wear. Only plain top-level terms
  * count: anything weighted, bracketed or inside a group (`(1girl, eula) AND
  * (1girl, furina)`) is left alone, since a repeat there is on purpose.
  */
@@ -51,18 +52,30 @@ function topTerms(text: string): Term[] {
   return out;
 }
 
-/** The prompt's plain tags the prefix also has, as written in the prompt,
- * each once. Pure. */
-export function prefixRepeats(prefix: string, prompt: string): string[] {
-  const inPrefix = new Set(topTerms(prefix).flatMap((t) => (t.key ? [t.key] : [])));
+/** The prompt's plain tags whose names are in `keys`, as written in the
+ * prompt, each once. */
+function repeatsOf(keys: ReadonlySet<string>, prompt: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const t of topTerms(prompt)) {
-    if (!t.key || !inPrefix.has(t.key) || seen.has(t.key)) continue;
+    if (!t.key || !keys.has(t.key) || seen.has(t.key)) continue;
     seen.add(t.key);
     out.push(prompt.slice(t.start, t.end));
   }
   return out;
+}
+
+/** The prompt's plain tags the prefix also has, as written in the prompt,
+ * each once. Pure. */
+export function prefixRepeats(prefix: string, prompt: string): string[] {
+  return repeatsOf(new Set(topTerms(prefix).flatMap((t) => (t.key ? [t.key] : []))), prompt);
+}
+
+/** The prompt's plain tags named in `tags` (stored names, e.g. a character's
+ * and its outfit's), as written in the prompt, each once. Pure. */
+export function tagRepeats(tags: readonly string[], prompt: string): string[] {
+  // A tag typed into an outfit can keep the prompt's `\(` escapes.
+  return repeatsOf(new Set(tags.map((t) => canonicalName(t.replace(/\\([()])/g, "$1")).toLowerCase())), prompt);
 }
 
 /** `prompt` without its plain top-level terms named in `words`, and how many

@@ -12,7 +12,9 @@ import { characterHref, displayName, fewImagesNote, type CharacterEntry } from "
 import { useChipBorderStyle } from "../../hooks/useTagMarks";
 import { displayWord } from "../../lib/compose";
 import { putRecipe, recipeKey, useRecipe, type Recipe, type RecipePatch } from "../../lib/generate";
-import { toggleDropped } from "../../lib/recipe";
+import { characterTags, toggleDropped } from "../../lib/recipe";
+import { tagRepeats } from "../../lib/promptRepeats";
+import { PromptRepeats } from "./PromptRepeats";
 import { FieldLabel, stemOf } from "./RunControls";
 import { bareTagPool } from "./ChipInput";
 import { ExpandButton } from "./Layers";
@@ -374,6 +376,8 @@ function CharacterRow({
   taken,
   outfit,
   onOutfit,
+  prompt,
+  onPrompt,
 }: {
   value: string | null;
   onChange: (tag: string | null) => void;
@@ -383,6 +387,10 @@ function CharacterRow({
   /** What they wear in this batch. */
   outfit?: OutfitPick;
   onOutfit?: (pick: OutfitPick | null) => void;
+  /** The Prompt, to flag the tags this character (and what they wear)
+   * already sends. */
+  prompt?: string;
+  onPrompt?: (text: string) => void;
   /** With no character: the picker starts open. */
   open?: boolean;
   onPickerClose?: () => void;
@@ -484,6 +492,13 @@ function CharacterRow({
       </button>
       </div>
       {onOutfit && <WearsLine character={value} outfit={outfit} onOutfit={onOutfit} folded={!expanded} />}
+      {recipe && prompt !== undefined && onPrompt && (
+        <PromptRepeats
+          repeats={tagRepeats([...characterTags(recipe), ...wornTags(outfit)], prompt)}
+          prompt={prompt}
+          onPrompt={onPrompt}
+        />
+      )}
       {expanded && recipe && (
         <div className="mt-2 space-y-4 border-t border-line pb-2 pt-3">
           <RecipeEditor recipe={recipe} label={name} installedLoras={installedLoras} rejectedLoras={rejectedLoras} />
@@ -584,11 +599,15 @@ export function CharacterLayer({
   onAdded,
   outfits,
   onOutfit,
+  prompt,
+  onPrompt,
 }: {
   value: readonly string[];
   onChange: (tags: string[]) => void;
   outfits?: Outfits;
   onOutfit?: (character: string, pick: OutfitPick | null) => void;
+  prompt?: string;
+  onPrompt?: (text: string) => void;
   installedLoras: readonly string[];
   rejectedLoras: ReadonlySet<string>;
   adding?: boolean;
@@ -621,6 +640,8 @@ export function CharacterLayer({
           taken={value}
           outfit={outfits?.[tag]}
           onOutfit={onOutfit && ((p) => onOutfit(tag, p))}
+          prompt={prompt}
+          onPrompt={onPrompt}
         />
       ))}
       {adding && value.length < MAX_CHARACTERS && (
