@@ -21,6 +21,7 @@ from ..services import (
     generator_setup,
     library_watch,
     lora_presets,
+    outfits,
     prompt_presets,
     recipes,
     remix,
@@ -47,6 +48,8 @@ class ComfyPatch(BaseModel):
     ca_cert: str | None = None
     #: Folder ComfyUI saves into; registered as (or matched to) a library.
     output_path: str | None = None
+    #: What a character picked in Generate starts wearing: none / default.
+    new_character_outfit: str | None = None
 
 
 class LoraChoice(BaseModel):
@@ -64,6 +67,14 @@ class SeedIn(BaseModel):
     value: int | None = None
 
 
+class OutfitIn(BaseModel):
+    #: A saved outfit's id, or "default" (the computed one).
+    id: str = Field(..., min_length=1, max_length=64)
+    name: str = Field("", max_length=200)
+    #: The tags sent, after this batch's chip edits.
+    tags: list[str] = Field(default_factory=list, max_length=80)
+
+
 class CharacterIn(BaseModel):
     #: The character's page key (the tagger's full name).
     tag: str = Field(..., min_length=1)
@@ -72,6 +83,8 @@ class CharacterIn(BaseModel):
     #: The Character block's tags as sent: character tag + identity left after drops.
     tags: list[str] = Field(default_factory=list)
     lora: LoraIn | None = None
+    #: What they wear, sent right after their tags.
+    outfit: OutfitIn | None = None
 
 
 class PartIn(BaseModel):
@@ -436,6 +449,77 @@ async def put_recipe(tag: str, patch: dict[str, Any]):
     if r is None:
         raise HTTPException(status_code=404, detail="Character not found")
     return r
+
+
+# -- Outfits ----------------------------------------------------------------------
+
+
+class HiddenIn(BaseModel):
+    character: str = Field(..., min_length=1)
+    hidden: bool
+
+
+@router.get("/outfits")
+async def list_outfits(character: str | None = None):
+    """Every saved outfit, or ``character``'s list (own and shared)."""
+    try:
+        return await outfits.listing(character)
+    except outfits.OutfitError as e:
+        raise HTTPException(status_code=404, detail="Character not found") from e
+
+
+@router.get("/outfits/default")
+async def default_outfit(character: str):
+    o = await outfits.default(character)
+    if o is None:
+        raise HTTPException(status_code=404, detail="Character not found")
+    return o
+
+
+@router.get("/outfits/prefill")
+async def outfit_prefill(image: str, character: str):
+    """The save dialog's tags for ``image`` worn by ``character``."""
+    o = await outfits.prefill(image, character)
+    if o is None:
+        raise HTTPException(status_code=404, detail="Image or character not found")
+    return o
+
+
+@router.post("/outfits")
+async def create_outfit(body: dict[str, Any]):
+    try:
+        return await outfits.create(body)
+    except outfits.OutfitError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.put("/outfits/{outfit_id}")
+async def update_outfit(outfit_id: str, body: dict[str, Any]):
+    try:
+        o = await outfits.update(outfit_id, body)
+    except outfits.OutfitError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if o is None:
+        raise HTTPException(status_code=404, detail="Outfit not found")
+    return o
+
+
+@router.delete("/outfits/{outfit_id}")
+async def delete_outfit(outfit_id: str):
+    if not await outfits.delete(outfit_id):
+        raise HTTPException(status_code=404, detail="Outfit not found")
+    return {"ok": True}
+
+
+@router.put("/outfits/{outfit_id}/hidden")
+async def hide_outfit(outfit_id: str, body: HiddenIn):
+    try:
+        found = await outfits.set_hidden(outfit_id, body.character, body.hidden)
+    except outfits.OutfitError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if not found:
+        raise HTTPException(status_code=404, detail="Outfit not found")
+    return {"ok": True}
 
 
 # -- Prompt presets --------------------------------------------------------------

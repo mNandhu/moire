@@ -258,13 +258,21 @@ def _resolve(
         if p["kind"] == "text":
             items.append(p["text"])
         elif p["kind"] == "character":
-            items.extend(c["tags"] for c in characters)
+            for c in characters:
+                items.append(c["tags"])
+                items.append(outfit_tags(c))
         elif p["name"]:
             items.append(f"embedding:{p['name']}")
     return items
 
 
 MAX_CHARACTERS = 8
+
+
+def outfit_tags(c: dict[str, Any]) -> list[str]:
+    """The tags a character's recorded outfit sent (none without one). Pure."""
+    o = c.get("outfit")
+    return list(o.get("tags") or []) if isinstance(o, dict) else []
 
 
 def characters_of(holder: dict[str, Any]) -> list[dict[str, Any]]:
@@ -307,7 +315,19 @@ def _character_input(c: dict[str, Any] | None) -> dict[str, Any] | None:
         "lora": {"name": lora["name"], "strength": float(lora.get("strength", 1.0))}
         if lora and lora.get("name")
         else None,
+        "outfit": _outfit_input(c.get("outfit")),
     }
+
+
+def _outfit_input(o: Any) -> dict[str, Any] | None:
+    """A character's outfit as the batch keeps it: id, name and the tags sent
+    (a snapshot: editing the saved outfit later never changes the batch)."""
+    if not isinstance(o, dict) or not o.get("id"):
+        return None
+    tags = [w for w in (o.get("tags") or []) if isinstance(w, str) and w.strip()]
+    if not tags:
+        return None
+    return {"id": str(o["id"]), "name": (o.get("name") or "").strip(), "tags": tags}
 
 
 def annotate_node_errors(
@@ -976,7 +996,9 @@ class GenerationManager:
             )
         else:
             inputs["positive_text"] = compose(
-                inputs["base"], [w for c in characters for w in c["tags"]], extra
+                inputs["base"],
+                [w for c in characters for w in [*c["tags"], *outfit_tags(c)]],
+                extra,
             )
             inputs["negative_text"] = compose(
                 inputs["negative_base"], inputs["negative_extra"]
@@ -1016,12 +1038,18 @@ class GenerationManager:
             )
             batch_id = int(res.inserted_primary_key[0])  # type: ignore[index]
             given = (body.get("name") or "").strip()
-            who = [c["label"] or c["tag"] for c in characters_of(inputs)]
+            chars = characters_of(inputs)
+            who = [c["label"] or c["tag"] for c in chars]
+            # One character names its saved outfit too; Default isn't news.
+            worn = chars[0].get("outfit") if len(chars) == 1 else None
             name = given or auto_name(
                 number=batch_id,
                 generator=gen["name"],
                 extra=name_words,
                 character=" & ".join(who) if who else None,
+                outfit=worn["name"]
+                if isinstance(worn, dict) and worn.get("id") != "default"
+                else None,
             )
             await conn.execute(
                 sa.update(b)

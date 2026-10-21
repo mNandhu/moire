@@ -344,6 +344,31 @@ lora_presets = sa.Table(
     sa.Column("updated_at", sa.Float),
 )
 
+# Saved outfits: attire tags (a JSON list, canonical names) made from an image
+# in the viewer, which is the thumbnail. `character` is the page key it was
+# made for; `shared` lists it for every character. A batch records the tags
+# it sent, so editing or deleting an outfit never changes an old batch.
+outfits = sa.Table(
+    "outfits",
+    metadata,
+    sa.Column("_id", sa.Text, primary_key=True),
+    sa.Column("name", sa.Text, nullable=False),
+    sa.Column("character", sa.Text, nullable=False, index=True),
+    sa.Column("shared", sa.Boolean, server_default=sa.text("0")),
+    sa.Column("tags", sa.JSON, nullable=False),
+    sa.Column("image_id", _BINARY),
+    sa.Column("created_at", sa.Float),
+    sa.Column("updated_at", sa.Float),
+)
+
+# Shared outfits a character's list leaves out.
+outfit_hidden = sa.Table(
+    "outfit_hidden",
+    metadata,
+    sa.Column("character", sa.Text, primary_key=True),
+    sa.Column("outfit_id", sa.Text, primary_key=True),
+)
+
 # A ComfyUI API-format graph plus slots (slot -> path into the graph). `ready`
 # flips once a test run's image is found in the library.
 generators = sa.Table(

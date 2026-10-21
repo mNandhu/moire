@@ -26,7 +26,12 @@ DEFAULT_COMFY_SETTINGS: dict[str, Any] = {
     "download_outputs": True,
     # PEM file to verify an HTTPS ComfyUI with a self-signed certificate.
     "ca_cert": "",
+    # What a character picked in Generate starts wearing: "none" (identity
+    # only) or "default" (their usual attire tags).
+    "new_character_outfit": "none",
 }
+
+OUTFIT_STARTS = ("none", "default")
 
 
 def clean_patch(patch: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
@@ -54,6 +59,8 @@ def clean_patch(patch: dict[str, Any], current: dict[str, Any]) -> dict[str, Any
         clean["download_outputs"] = bool(patch["download_outputs"])
     if "ca_cert" in patch:
         clean["ca_cert"] = str(patch["ca_cert"] or "").strip()
+    if patch.get("new_character_outfit") in OUTFIT_STARTS:
+        clean["new_character_outfit"] = patch["new_character_outfit"]
     if "output_library_id" in patch:
         clean["output_library_id"] = patch["output_library_id"] or None
     return clean
