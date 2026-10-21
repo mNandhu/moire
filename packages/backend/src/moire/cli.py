@@ -110,13 +110,17 @@ def _run(args: argparse.Namespace) -> None:
     sys.stdout.flush()
     log_level = "info" if args.verbose else "warning"
     if args.reload:  # dev: uvicorn's reloader owns the server process
-        uvicorn.run(
-            "moire.main:app",
-            host=args.host,
-            port=args.port,
-            reload=True,
-            log_level=log_level,
-        )
+        try:
+            uvicorn.run(
+                "moire.main:app",
+                host=args.host,
+                port=args.port,
+                reload=True,
+                log_level=log_level,
+            )
+        except KeyboardInterrupt:
+            pass
+        print("Moiré stopped.")
         return
 
     server = uvicorn.Server(
@@ -135,7 +139,14 @@ def _run(args: argparse.Namespace) -> None:
                 time.sleep(0.1)
 
         threading.Thread(target=open_when_started, daemon=True).start()
-    server.run()
+    # uvicorn finishes its graceful shutdown on the first Ctrl+C, but asyncio
+    # (or a second Ctrl+C mid-shutdown) can still surface KeyboardInterrupt
+    # here; that is a normal exit, not a traceback.
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        pass
+    print("Moiré stopped.")
 
 
 def _paths(_: argparse.Namespace) -> None:
