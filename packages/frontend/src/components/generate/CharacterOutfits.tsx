@@ -91,7 +91,7 @@ function Mini({ o, character }: { o: Outfit; character: string }) {
             +{o.tags.length - shown.length}
           </span>
         )}
-        {!o.tags.length && <span className="text-xs text-faint">No tags</span>}
+        {!o.tags.length && <span className="text-xs text-faint">{isDefault ? "No usual clothes found" : "No tags"}</span>}
       </span>
     </div>
   );
@@ -111,8 +111,9 @@ export function CharacterOutfits({ character, name }: { character: string; name:
   const actions = useOutfitActions(character, name);
   const own = (list ?? []).filter((o) => o.character === character);
   const shared = (list ?? []).filter((o) => o.character !== character);
-  // Default shows even when empty once edited: it may have been emptied by hand.
-  const d = def && (def.tags.length || def.edited) ? def : null;
+  // Default shows even with no tags (nothing worn often enough in their
+  // images): it is where their usual clothes get written in by hand.
+  const d = def ?? null;
   const counts = [own.length && `${own.length} own`, shared.length && `${shared.length} shared`].filter(Boolean).join(", ");
   const card = (o: Outfit, canHide = false) => (
     <DropdownMenu
