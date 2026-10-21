@@ -864,7 +864,13 @@ Phase 4 (outfits) is on `feat/comfyui-phase4`, off main after phase 3 was
 merged and pushed. Built, clicked through in the sandbox, reviewed (10
 findings fixed in 24d6858). Not pushed.
 
-Open: outfit thumbnails can't be changed (a saved one keeps the image it
-was saved from; Default's is picked). Proposed: "Use as outfit thumbnail"
-in the viewer like the avatar pin, later a pick strip in the edit dialog;
-mock on the canvas first.
+Thumbnails (board "Outfits: changing the thumbnail", user chose both, built
+d9b95bd): the viewer's Outfit menu (save as new, or use this image as the
+thumbnail of one of the character's own or Default), and a Change strip in
+the edit dialog / the character page's Default card (images wearing most
+of the outfit's tags; Pick automatically resets Default). Default covers
+live in `outfit_default_covers`.
+
+Asked 2026-10-21: filter All Images by outfit. Today only through Open in
+gallery (an all-of tag filter in the URL); no Outfit control in the
+gallery's filters yet.
