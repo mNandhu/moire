@@ -615,3 +615,29 @@ def test_extract_passes_the_workflow_for_display_caches():
         },
     }
     assert "smile" in gm.extract(raw)["prompt_terms"]
+
+
+def test_comfy_prompt_lora_tags_count_after_the_graph_loras():
+    # A LoRA written into the prompt (a prompt-parsing encoder, or a remote
+    # workflow) is a used LoRA too; one the graph loads isn't listed twice.
+    graph = {
+        "1": {
+            "class_type": "LoraLoader",
+            "inputs": {"lora_name": "eyes.safetensors", "strength_model": 1.0},
+        },
+        "2": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {
+                "text": "1girl, <lora:Fern_IlluXL.safetensors:0.8> <lora:Eyes:0.5>"
+            },
+        },
+        "3": {
+            "class_type": "KSampler",
+            "inputs": {"seed": 1, "positive": ["2", 0], "negative": ["2", 0]},
+        },
+    }
+    g = gm.extract({"source": "comfyui", "prompt": graph})
+    assert g["loras"] == [
+        {"name": "eyes", "strength": 1.0},
+        {"name": "Fern_IlluXL", "strength": 0.8},
+    ]
