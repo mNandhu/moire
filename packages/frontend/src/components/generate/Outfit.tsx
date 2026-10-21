@@ -4,6 +4,7 @@ import { ChevronDown, Shirt, Undo2, X } from "lucide-react";
 import { Picker, type PickerOption } from "../ui/Picker";
 import { cn } from "../../lib/cn";
 import { displayWord } from "../../lib/compose";
+import { canonicalName } from "../../lib/tags";
 import {
   DEFAULT_OUTFIT,
   thumbUrl,
@@ -139,7 +140,7 @@ export function AttireTagInput({
     return [...ranked.filter((m) => worn(m._id)), ...ranked.filter((m) => !worn(m._id))];
   }, [ranked, facets]);
   const add = (tag: string) => {
-    const t = tag.trim().replace(/\s+/g, "_");
+    const t = canonicalName(tag);
     if (t) onAdd(t);
     setText("");
     setMoved(false);

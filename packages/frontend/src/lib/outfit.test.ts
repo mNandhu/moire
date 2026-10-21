@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addWorn, keepPicked, outfitGalleryHref, outfitInput, pickFromInput, pickOf, toggleWorn, validOutfits, wornTags } from "./outfit";
-import { formFromBatch, loadDraft, previewText } from "./generateForm";
+import { formFromBatch, loadDraft, previewText, withCharacter } from "./generateForm";
 import type { BatchInputs } from "./generate";
 
 const funeral = pickOf({
@@ -95,5 +95,17 @@ describe("outfitGalleryHref", () => {
     expect(href.startsWith("/?")).toBe(true);
     expect(sp.getAll("tags")).toEqual(["hu_tao", "porkpie_hat"]);
     expect(sp.get("logic")).toBe("and");
+  });
+});
+
+describe("fresh characters", () => {
+  it("marks a character page's pick to start as Settings says", () => {
+    const f = withCharacter({ ...loadDraft(null), outfits: { old: funeral } }, "hu_tao");
+    expect([f.characters, f.outfits, f.fresh]).toEqual([["hu_tao"], {}, ["hu_tao"]]);
+  });
+
+  it("keeps a draft's fresh marks only for its characters", () => {
+    const store = { getItem: () => JSON.stringify({ characters: ["a"], fresh: ["a", "b", 3] }) };
+    expect(loadDraft(store).fresh).toEqual(["a"]);
   });
 });

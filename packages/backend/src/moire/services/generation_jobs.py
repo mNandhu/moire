@@ -36,6 +36,7 @@ from . import (
     generation_estimate,
 )
 from .comfy_client import ComfyClient, ComfyError, ComfyRejected, ComfyUnreachable
+from .outfits import clean_tags
 from .generation_compose import auto_name, compose, compose_parts, prompt_terms
 from .generator_graph import (
     SAMPLING,
@@ -324,7 +325,7 @@ def _outfit_input(o: Any) -> dict[str, Any] | None:
     (a snapshot: editing the saved outfit later never changes the batch)."""
     if not isinstance(o, dict) or not o.get("id"):
         return None
-    tags = [w for w in (o.get("tags") or []) if isinstance(w, str) and w.strip()]
+    tags = clean_tags(o.get("tags") or [])
     if not tags:
         return None
     return {"id": str(o["id"]), "name": (o.get("name") or "").strip(), "tags": tags}

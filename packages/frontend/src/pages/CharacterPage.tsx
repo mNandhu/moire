@@ -14,7 +14,7 @@ import { TagEditDialog } from "../components/TagEditDialog";
 import { CharacterAvatar } from "../components/CharacterAvatar";
 import { CharacterOutfits } from "../components/generate/CharacterOutfits";
 import { useComfyModels, useRecipe } from "../lib/generate";
-import { loadDraft, saveDraft } from "../lib/generateForm";
+import { loadDraft, saveDraft, withCharacter } from "../lib/generateForm";
 import { cn } from "../lib/cn";
 import { useAmbientTint } from "../lib/ambient";
 import { fetchSignatures } from "../lib/gen";
@@ -319,7 +319,7 @@ function Images({ c, person }: { c: Character; person: boolean }) {
 function useGenerateWith() {
   const navigate = useNavigate();
   return (tag: string) => {
-    saveDraft({ ...loadDraft(), characters: [tag] });
+    saveDraft(withCharacter(loadDraft(), tag));
     navigate("/generate");
   };
 }

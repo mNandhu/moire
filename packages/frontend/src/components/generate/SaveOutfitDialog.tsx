@@ -17,6 +17,7 @@ import {
 } from "../../lib/generate";
 import { useTagFacets } from "../../lib/queries";
 import { AttireTagInput, OutfitChip, OutfitThumb } from "./Outfit";
+import { MAX_OUTFIT_TAGS } from "../../lib/outfit";
 
 type Source = "image" | "usual" | "added";
 type Row = { tag: string; group: string | null; checkable: boolean; source: Source };
@@ -61,7 +62,7 @@ export function SaveOutfitDialog({
   const toast = useToast();
   const confirm = useConfirm();
   const { data: facets } = useTagFacets();
-  const { data: prefill } = useQuery({
+  const { data: prefill, isError: noPrefill } = useQuery({
     queryKey: [...OUTFITS_KEY, "prefill", imageId ?? "", character],
     queryFn: ({ signal }) => fetchOutfitPrefill(imageId!, character, signal),
     enabled: open && !outfit && !!imageId,
@@ -78,13 +79,14 @@ export function SaveOutfitDialog({
       setShared(outfit.shared);
       setRows(outfit.tags.map((t) => ({ ...t, source: "image" })));
       setSeeded(true);
-    } else if (prefill) {
+    } else if (prefill || noPrefill || !imageId) {
+      // Without a prefill (the image or character is gone): start empty.
       setName("");
       setShared(false);
-      setRows(prefill.tags.map((t) => ({ ...t, source: t.source })));
+      setRows((prefill?.tags ?? []).map((t) => ({ ...t, source: t.source })));
       setSeeded(true);
     }
-  }, [open, outfit, prefill, seeded]);
+  }, [open, outfit, prefill, noPrefill, imageId, seeded]);
 
   const taken = useMemo(() => new Set(rows.map((r) => r.tag)), [rows]);
   const done = () => {
@@ -109,7 +111,8 @@ export function SaveOutfitDialog({
     onSuccess: done,
     onError: (e) => toast.push(e.message, "error"),
   });
-  const ready = !!name.trim() && rows.length > 0 && !save.isPending;
+  const tooMany = rows.length > MAX_OUTFIT_TAGS;
+  const ready = !!name.trim() && rows.length > 0 && !tooMany && !save.isPending;
 
   // On the body: the viewer's side panel is transformed, which would pin a
   // fixed overlay inside it.
@@ -138,8 +141,8 @@ export function SaveOutfitDialog({
               Delete
             </Button>
           ) : (
-            <span className="text-xs text-muted">
-              {rows.length} {rows.length === 1 ? "tag" : "tags"}
+            <span className={cn("text-xs", tooMany ? "text-red-300" : "text-muted")}>
+              {tooMany ? `${rows.length} of ${MAX_OUTFIT_TAGS} tags` : `${rows.length} ${rows.length === 1 ? "tag" : "tags"}`}
             </span>
           )}
           <Button variant="ghost" className="ml-auto" onClick={onClose}>

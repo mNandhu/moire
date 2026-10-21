@@ -13,7 +13,7 @@ vocabulary) is kept but marked: nothing can check an image wears it.
 
 from __future__ import annotations
 
-import json
+import re
 import time
 import uuid
 from typing import Any, Iterable
@@ -23,8 +23,9 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import attire, characters, recipes, tag_categories, tag_index
-from .image_tags import canonical_tag, find_image
+from . import attire, recipes, tag_categories, tag_index
+from .image_tags import find_image
+from .tag_names import canonical_name
 
 MAX_TAGS = 40
 DEFAULT_ID = "default"
@@ -34,6 +35,21 @@ UNDRESSED = ("nude", "completely_nude")
 
 class OutfitError(ValueError):
     pass
+
+
+_SOURCE = re.compile(r"^(?:manual|prompt|any):")
+
+
+def clean_tags(tags: Iterable[str]) -> list[str]:
+    """Outfit tags as stored and sent: bare canonical names (a pasted
+    ``manual:`` / ``prompt:`` prefix dropped), each once, at most
+    ``MAX_TAGS``. Pure."""
+    out = dict.fromkeys(
+        canonical_name(_SOURCE.sub("", x.strip()))
+        for x in tags
+        if isinstance(x, str) and _SOURCE.sub("", x.strip()).strip()
+    )
+    return list(out)[:MAX_TAGS]
 
 
 def clean(patch: dict[str, Any], *, new: bool) -> dict[str, Any]:
@@ -49,8 +65,10 @@ def clean(patch: dict[str, Any], *, new: bool) -> dict[str, Any]:
         tags = patch.get("tags")
         if not isinstance(tags, list) or not all(isinstance(x, str) for x in tags):
             raise OutfitError("tags must be a list of tags")
-        tags = list(dict.fromkeys(canonical_tag(x) for x in tags if x.strip()))
-        if not 1 <= len(tags) <= MAX_TAGS:
+        if len(tags) > MAX_TAGS:
+            raise OutfitError(f"an outfit takes 1 to {MAX_TAGS} tags")
+        tags = clean_tags(tags)
+        if not tags:
             raise OutfitError(f"an outfit takes 1 to {MAX_TAGS} tags")
         out["tags"] = tags
     if "shared" in patch:
@@ -79,33 +97,10 @@ def tag_info(tags: Iterable[str], general: frozenset[str]) -> list[dict[str, Any
     ]
 
 
-def usage(batch_characters: Iterable[Any]) -> dict[str, dict[str, Any]]:
-    """Outfit id -> {batches, characters} over batches' recorded
-    ``characters`` lists. Pure."""
-    out: dict[str, dict[str, Any]] = {}
-    for chars in batch_characters:
-        if not isinstance(chars, list):
-            continue
-        seen: set[str] = set()
-        for c in chars:
-            o = c.get("outfit") if isinstance(c, dict) else None
-            oid = o.get("id") if isinstance(o, dict) else None
-            if not isinstance(oid, str) or oid == DEFAULT_ID:
-                continue
-            u = out.setdefault(oid, {"batches": 0, "characters": set()})
-            if oid not in seen:
-                u["batches"] += 1
-                seen.add(oid)
-            u["characters"].add(c.get("tag"))
-    return out
-
-
 async def _key(character: str) -> str | None:
     """The page key for any of a character's names; None when it isn't one."""
-    key, _, key_of, rows = await characters._named(character)
-    if key not in key_of and not await characters.is_made(key, rows):
-        return None
-    return key
+    found = await recipes.character_key(character)
+    return found[0] if found else None
 
 
 async def _existing(conn, ids: Iterable[str | None]) -> set[str]:
@@ -118,25 +113,35 @@ async def _existing(conn, ids: Iterable[str | None]) -> set[str]:
     return {r[0] for r in rows}
 
 
-async def _usage() -> dict[str, dict[str, Any]]:
-    b = t.generation_batches
+_USAGE = sa.text(
+    """
+    SELECT json_extract(c.value, '$.outfit.id') AS outfit_id,
+           COUNT(DISTINCT b._id) AS batches,
+           COUNT(DISTINCT json_extract(c.value, '$.tag')) AS used_by
+    FROM generation_batches AS b, json_each(b.inputs, '$.characters') AS c
+    WHERE json_extract(c.value, '$.outfit.id') IN :ids
+    GROUP BY outfit_id
+    """
+).bindparams(sa.bindparam("ids", expanding=True))
+
+
+async def _usage(ids: list[str]) -> dict[str, dict[str, int]]:
+    """Outfit id -> batches it was worn in, and by how many characters."""
+    if not ids:
+        return {}
     async with async_conn() as conn:
-        rows = (
-            await conn.execute(
-                sa.select(sa.func.json_extract(b.c.inputs, "$.characters"))
-            )
-        ).fetchall()
-    return usage(json.loads(r[0]) if isinstance(r[0], str) else r[0] for r in rows)
+        rows = (await conn.execute(_USAGE, {"ids": ids})).fetchall()
+    return {r.outfit_id: {"batches": r.batches, "used_by": r.used_by} for r in rows}
 
 
 def _view(
     row: dict[str, Any],
     general: frozenset[str],
     images: set[str],
-    used: dict[str, dict[str, Any]],
+    used: dict[str, dict[str, int]],
     hidden: set[str] = frozenset(),  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    u = used.get(row["_id"], {"batches": 0, "characters": set()})
+    u = used.get(row["_id"], {"batches": 0, "used_by": 0})
     return {
         "_id": row["_id"],
         "name": row["name"],
@@ -147,7 +152,7 @@ def _view(
         "image_id": row["image_id"] if row["image_id"] in images else None,
         "hidden": row["_id"] in hidden,
         "batches": u["batches"],
-        "used_by": len(u["characters"]),
+        "used_by": u["used_by"],
         "updated_at": row["updated_at"],
     }
 
@@ -155,13 +160,13 @@ def _view(
 async def default(character: str) -> dict[str, Any] | None:
     """The computed Default outfit for ``character``; None when it isn't a
     character. ``image_id``: the best-scored image wearing most of it."""
-    r = await recipes.recipe(character)
+    r = await recipes.wardrobe(character)
     if r is None:
         return None
     tags = list(r["outfit"])
+    names = r["names"]
     image_id = None
     if tags:
-        _, names, _, _ = await characters._named(r["tag"])
         it, im = t.image_tags, t.images
         wearing = sa.func.count(sa.distinct(it.c.base))
         async with async_conn() as conn:
@@ -222,7 +227,7 @@ async def listing(character: str | None = None) -> list[dict[str, Any]]:
                 )
             }
     vocab = await tag_categories.load()
-    used = await _usage()
+    used = await _usage([r["_id"] for r in rows])
     return [_view(r, vocab.general, images, used, hidden) for r in rows]
 
 
@@ -235,7 +240,7 @@ async def get(outfit_id: str) -> dict[str, Any] | None:
         row = dict(row._mapping)
         images = await _existing(conn, [row["image_id"]])
     vocab = await tag_categories.load()
-    return _view(row, vocab.general, images, await _usage())
+    return _view(row, vocab.general, images, await _usage([outfit_id]))
 
 
 async def create(body: dict[str, Any]) -> dict[str, Any]:
@@ -274,6 +279,13 @@ async def update(outfit_id: str, patch: dict[str, Any]) -> dict[str, Any] | None
             )
             if not res.rowcount:
                 return None
+            # Hides belong to one sharing: sharing it again starts afresh.
+            if values.get("shared") is False:
+                await conn.execute(
+                    sa.delete(t.outfit_hidden).where(
+                        t.outfit_hidden.c.outfit_id == outfit_id
+                    )
+                )
     return await get(outfit_id)
 
 
@@ -324,7 +336,7 @@ async def prefill(image_id: str, character: str) -> dict[str, Any] | None:
     prompt's tags; ``source`` "image"), then the character's usual ones it
     lacks ("usual"). None when the image or character is unknown."""
     img = await find_image(image_id)
-    r = await recipes.recipe(character)
+    r = await recipes.wardrobe(character)
     if img is None or r is None:
         return None
     it = t.image_tags
@@ -337,13 +349,14 @@ async def prefill(image_id: str, character: str) -> dict[str, Any] | None:
         ]
     # In the image's own tag order, not the join table's.
     order = {
-        canonical_tag(tg.split(":", 1)[-1]): i
+        canonical_name(_SOURCE.sub("", tg)): i
         for i, tg in enumerate(img.get("tags") or [])
     }
     seen = sorted(
         {b for b in bases if attire.is_attire(b)}, key=lambda b: order.get(b, 1 << 30)
     )
-    usual = [x for x in r["outfit"] if x not in seen]
+    seen = seen[:MAX_TAGS]
+    usual = [x for x in r["outfit"] if x not in seen][: MAX_TAGS - len(seen)]
     vocab = await tag_categories.load()
     info = tag_info([*seen, *usual], vocab.general)
     for i, x in enumerate(info):

@@ -5,6 +5,10 @@
  */
 import type { Outfit, OutfitInput } from "./generate";
 import { DEFAULT_FILTERS, serializeFilters } from "./imageFilter";
+import { canonicalName } from "./tags";
+
+/** As many tags as an outfit takes (the backend's MAX_TAGS). */
+export const MAX_OUTFIT_TAGS = 40;
 
 export type OutfitPick = {
   /** A saved outfit's id, or "default". */
@@ -40,7 +44,7 @@ export function toggleWorn(p: OutfitPick, tag: string): OutfitPick {
 
 /** The pick with `tag` added for this batch (once). Pure. */
 export function addWorn(p: OutfitPick, tag: string): OutfitPick {
-  const t = tag.trim().replace(/\s+/g, "_");
+  const t = canonicalName(tag);
   if (!t) return p;
   if (p.tags.includes(t)) return { ...p, dropped: p.dropped.filter((x) => x !== t) };
   return { ...p, tags: [...p.tags, t] };

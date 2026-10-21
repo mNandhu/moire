@@ -44,13 +44,14 @@ def test_tag_info_marks_what_the_tagger_cant_check():
     assert outfits.tag_info(["x"], frozenset())[0]["checkable"] is True
 
 
-def test_usage_counts_batches_and_characters():
-    a = {"tag": "a", "outfit": {"id": "o1"}}
-    b = {"tag": "b", "outfit": {"id": "o1"}}
-    d = {"tag": "a", "outfit": {"id": "default"}}
-    u = outfits.usage([[a, b], [a], [d], None, [{"tag": "c"}]])
-    assert set(u) == {"o1"}
-    assert u["o1"]["batches"] == 2 and u["o1"]["characters"] == {"a", "b"}
+def test_clean_tags_drops_source_prefixes_and_caps():
+    assert outfits.clean_tags(["manual:hat", "prompt:red dress", "hat", " "]) == [
+        "hat",
+        "red_dress",
+    ]
+    assert len(outfits.clean_tags([f"t{i}" for i in range(60)])) == outfits.MAX_TAGS
+    with pytest.raises(OutfitError):
+        outfits.clean({"name": "x", "tags": [f"t{i}" for i in range(41)]}, new=True)
 
 
 async def test_outfits_end_to_end(client, comfy, seed, monkeypatch):  # noqa: F811
@@ -122,6 +123,11 @@ async def test_outfits_end_to_end(client, comfy, seed, monkeypatch):  # noqa: F8
         "Funeral director": False,
         "Swimsuit": True,
     }
+    # Unsharing drops the hides: shared again, it shows again.
+    await client.put(f"/generate/outfits/{shared['_id']}", json={"shared": False})
+    await client.put(f"/generate/outfits/{shared['_id']}", json={"shared": True})
+    listed = (await client.get("/generate/outfits", params={"character": HU})).json()
+    assert not next(o for o in listed if o["name"] == "Swimsuit")["hidden"]
 
     await make_ready(client, comfy, seed)
     body = {
@@ -137,7 +143,7 @@ async def test_outfits_end_to_end(client, comfy, seed, monkeypatch):  # noqa: F8
                 "outfit": {
                     "id": own["_id"],
                     "name": "Funeral director",
-                    "tags": ["porkpie_hat", "long_coat"],
+                    "tags": ["porkpie_hat", "manual:long coat"],
                 },
             }
         ],
@@ -163,7 +169,8 @@ async def test_outfits_end_to_end(client, comfy, seed, monkeypatch):  # noqa: F8
     worn = got["inputs"]["characters"][0]["outfit"]
     assert worn["tags"] == ["porkpie_hat", "long_coat"]
     listed = (await client.get("/generate/outfits")).json()
-    assert next(o for o in listed if o["_id"] == own["_id"])["batches"] == 1
+    mine = next(o for o in listed if o["_id"] == own["_id"])
+    assert (mine["batches"], mine["used_by"]) == (1, 1)
 
     assert (await client.delete(f"/generate/outfits/{own['_id']}")).status_code == 200
     assert (await client.delete(f"/generate/outfits/{own['_id']}")).status_code == 404

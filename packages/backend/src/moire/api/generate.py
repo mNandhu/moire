@@ -70,9 +70,9 @@ class SeedIn(BaseModel):
 class OutfitIn(BaseModel):
     #: A saved outfit's id, or "default" (the computed one).
     id: str = Field(..., min_length=1, max_length=64)
-    name: str = Field("", max_length=200)
+    name: str = Field("", max_length=80)
     #: The tags sent, after this batch's chip edits.
-    tags: list[str] = Field(default_factory=list, max_length=80)
+    tags: list[str] = Field(default_factory=list, max_length=outfits.MAX_TAGS)
 
 
 class CharacterIn(BaseModel):

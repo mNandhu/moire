@@ -38,7 +38,6 @@ import {
   useComfyModels,
   useComfySettings,
   DEFAULT_OUTFIT,
-  defaultOutfitKey,
   fetchDefaultOutfit,
   useComfyStatus,
   useBatches,
@@ -197,31 +196,49 @@ export default function GeneratePage() {
   const [addingCharacter, setAddingCharacter] = useState(false);
   const addCharacter = form.characters.length < MAX_CHARACTERS ? () => setAddingCharacter(true) : undefined;
   const set = <K extends keyof GenerateForm>(k: K, v: GenerateForm[K]) => setForm((f) => ({ ...f, [k]: v }));
+  // An outfit chosen by hand settles the character: no late Default over it.
   const setOutfit = (tag: string, pick: OutfitPick | null) =>
     setForm((f) => {
       const outfits = { ...f.outfits };
       if (pick) outfits[tag] = pick;
       else delete outfits[tag];
-      return { ...f, outfits };
+      return { ...f, outfits, fresh: f.fresh.filter((t) => t !== tag) };
     });
-  // A character the user picks starts wearing what Settings says (No outfit
-  // unless set to Default); a remix or a replayed batch brings its own.
-  const setCharacters = (tags: string[]) => {
-    const added = tags.filter((t) => !form.characters.includes(t));
-    setForm((f) => ({ ...f, characters: tags, outfits: keepPicked(f.outfits, tags) }));
-    if (settings?.new_character_outfit !== "default") return;
-    for (const tag of added) {
-      void qc
-        // No abort signal: the picker's query shares this key, and its
-        // observer unmounting would cancel the fetch out from under us.
-        .fetchQuery({ queryKey: defaultOutfitKey(tag), queryFn: () => fetchDefaultOutfit(tag), staleTime: 5 * 60_000 })
-        .then((o) => {
-          if (!o.tags.length) return;
-          setForm((f) => (f.characters.includes(tag) && !f.outfits[tag] ? { ...f, outfits: { ...f.outfits, [tag]: pickOf(o) } } : f));
-        })
-        .catch(() => {});
+  const setCharacters = (tags: string[]) =>
+    setForm((f) => ({
+      ...f,
+      characters: tags,
+      outfits: keepPicked(f.outfits, tags),
+      fresh: [...f.fresh, ...tags.filter((t) => !f.characters.includes(t))].filter((t) => tags.includes(t)),
+    }));
+  // Characters just picked (here or from a character page) start wearing
+  // what Settings says: No outfit unless set to their usual clothes. A remix
+  // or a replayed batch brings its own and marks none.
+  const startAs = settings?.new_character_outfit;
+  useEffect(() => {
+    if (!form.fresh.length || !startAs) return;
+    const settle = (tag: string, pick: OutfitPick | null) =>
+      setForm((f) =>
+        f.fresh.includes(tag)
+          ? {
+              ...f,
+              fresh: f.fresh.filter((t) => t !== tag),
+              outfits: pick && f.characters.includes(tag) && !f.outfits[tag] ? { ...f.outfits, [tag]: pick } : f.outfits,
+            }
+          : f,
+      );
+    for (const tag of form.fresh) {
+      if (startAs !== "default") {
+        settle(tag, null);
+        continue;
+      }
+      // Its own request, not the picker's query: that one's observer
+      // unmounting cancels a fetch shared through the query cache.
+      void fetchDefaultOutfit(tag)
+        .then((o) => settle(tag, o.tags.length ? pickOf(o) : null))
+        .catch(() => settle(tag, null));
     }
-  };
+  }, [form.fresh, startAs]);
 
   useEffect(() => saveDraft(form), [form]);
   // A remix made from the viewer while this page sat under it: the page

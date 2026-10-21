@@ -57,6 +57,9 @@ export type GenerateForm = {
   characters: string[];
   /** What each picked character wears; absent wears nothing. */
   outfits: Outfits;
+  /** Characters just picked, still to start in what Settings says new
+   * characters wear (an outfit chosen for one meanwhile wins). */
+  fresh: string[];
   width: number;
   height: number;
   seed: { mode: "random" | "fixed"; value: number | null };
@@ -84,6 +87,7 @@ export const DEFAULT_FORM: GenerateForm = {
   loras: [],
   characters: [],
   outfits: {},
+  fresh: [],
   width: 832,
   height: 1216,
   seed: { mode: "random", value: null },
@@ -406,6 +410,7 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     if (Array.isArray(d.characters)) out.characters = [...new Set<string>(d.characters.filter(isStr))].slice(0, MAX_CHARACTERS);
     else if (isStr(d.character)) out.characters = [d.character];
     out.outfits = keepPicked(validOutfits(d.outfits), out.characters);
+    if (Array.isArray(d.fresh)) out.fresh = d.fresh.filter((t: unknown) => isStr(t) && out.characters.includes(t));
     if (isStr(d.name) || d.name === null) out.name = d.name;
     if (isStr(d.workflow) && d.workflow) out.workflow = d.workflow;
     for (const k of ["width", "height", "count"] as const) if (typeof d[k] === "number") out[k] = d[k];
@@ -486,4 +491,10 @@ export function rejectedFields(errors: readonly NodeError[]): { checkpoint: bool
     sampling: errors.some((e) => e.field === "sampling"),
     loras: new Set(errors.filter((e) => e.field === "lora" && e.lora_name).map((e) => e.lora_name!)),
   };
+}
+
+/** The draft with `tag` as its one character, to start in what Settings
+ * says new characters wear (a character page's Generate). Pure. */
+export function withCharacter(f: GenerateForm, tag: string): GenerateForm {
+  return { ...f, characters: [tag], outfits: {}, fresh: [tag] };
 }

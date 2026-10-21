@@ -265,12 +265,38 @@ async def _signature(
     return n, counted, [s["tag"] for s in sig], characters.gender(here, counted)
 
 
-async def recipe(tag: str) -> dict | None:
-    """The Character block for ``tag`` (any of the character's names), or
-    ``None`` when it isn't a character in the library."""
+async def character_key(tag: str) -> tuple[str, list[str], dict, list] | None:
+    """``characters._named`` for a character in the library (or made by
+    hand); None when ``tag`` isn't one."""
     key, names, key_of, rows = await characters._named(tag)
     if key not in key_of and not await characters.is_made(key, rows):
         return None
+    return key, names, key_of, rows
+
+
+async def wardrobe(tag: str) -> dict | None:
+    """Just the default outfit of ``tag``'s recipe (no LoRA or file work):
+    ``tag`` (page key), ``names``, ``count`` and ``outfit``."""
+    found = await character_key(tag)
+    if found is None:
+        return None
+    key, names, key_of, rows = found
+    count, _, sig, _ = await _signature(names, key_of, rows)
+    return {
+        "tag": key,
+        "names": names,
+        "count": count,
+        "outfit": split_signature(sig)[1],
+    }
+
+
+async def recipe(tag: str) -> dict | None:
+    """The Character block for ``tag`` (any of the character's names), or
+    ``None`` when it isn't a character in the library."""
+    found = await character_key(tag)
+    if found is None:
+        return None
+    key, names, key_of, rows = found
     count, sig_images, sig, gender = await _signature(names, key_of, rows)
     identity, outfit = split_signature(sig)
     total = await _visible_count()
@@ -372,9 +398,10 @@ def clean(patch: dict) -> dict:
 
 
 async def update(tag: str, patch: dict) -> dict | None:
-    key, _, key_of, rows = await characters._named(tag)
-    if key not in key_of and not await characters.is_made(key, rows):
+    found = await character_key(tag)
+    if found is None:
         return None
+    key = found[0]
     values = clean(patch)
     added = values.pop("added", None)
     now = time.time()
