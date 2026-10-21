@@ -122,7 +122,8 @@ export function RemixButton({ info }: { info: RemixInfo }) {
     value: g._id,
     label: g.name,
     group: own ? (g === own ? "This image's workflow" : "Other workflows") : undefined,
-    hint: g.kind === "builtin" ? undefined : <TestBadge gen={g} />,
+    // Only a workflow that can't run yet says why.
+    hint: g.ready ? undefined : <TestBadge gen={g} />,
   }));
   return (
     <Picker
