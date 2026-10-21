@@ -12,7 +12,6 @@ export function RingBackground({ mode }: { mode: "landing" | "setup" }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   // Read by the draw loop, so switching mode doesn't restart it.
   const modeRef = useRef(mode);
-  modeRef.current = mode;
   const redrawRef = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -109,8 +108,12 @@ export function RingBackground({ mode }: { mode: "landing" | "setup" }) {
     };
   }, []);
 
-  // Under reduced motion nothing animates, so a mode switch redraws by hand.
-  useEffect(() => redrawRef.current(), [mode]);
+  // Set after commit, not during render; and under reduced motion nothing
+  // animates, so a mode switch redraws by hand.
+  useEffect(() => {
+    modeRef.current = mode;
+    redrawRef.current();
+  }, [mode]);
 
   return (
     <div className={cn("ring-bg", mode === "landing" && "ring-bg-landing")} aria-hidden="true">
