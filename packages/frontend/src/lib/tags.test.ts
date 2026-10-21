@@ -112,9 +112,13 @@ describe("tagFlow", () => {
     expect(flow[0].confidence).toBe(0.93);
   });
 
-  it("keeps an AI tag and the same prompt tag as separate entries", () => {
-    const flow = tagFlow(["solo", "prompt:solo"], ai);
-    expect(flow.map((t) => t.raw)).toEqual(["solo", "prompt:solo"]);
+  it("lists a name that is both an AI and a prompt tag once, as the AI tag", () => {
+    const flow = tagFlow(["prompt:solo", "solo", "prompt:neon", "zhongli", "prompt:Zhongli"], ai);
+    expect(flow.map((t) => [t.raw, t.kind, t.inPrompt])).toEqual([
+      ["zhongli", "character", true],
+      ["solo", "ai", true],
+      ["prompt:neon", "prompt", undefined],
+    ]);
   });
 
   it("works without tagger metadata, keeping stored order", () => {

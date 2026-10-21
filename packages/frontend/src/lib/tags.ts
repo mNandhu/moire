@@ -121,13 +121,16 @@ export type FlowTag = {
   kind: TagKind;
   /** Tagger confidence (0-1), for AI and character tags when known. */
   confidence?: number;
+  /** An AI or character tag the prompt also has; that prompt tag is not
+   * listed again. */
+  inPrompt?: boolean;
 };
 
 /**
  * One image's tags in reading order for the image view: characters, then AI
- * tags most confident first, then the user's own, then prompt tags. AI and
- * prompt tags that share a name both appear: they are different kinds and
- * filter differently (see partitionTags).
+ * tags most confident first, then the user's own, then prompt tags. A name
+ * that is both an AI and a prompt tag is listed once, as the AI tag (with
+ * its confidence), marked `inPrompt`; reading, it is one word either way.
  */
 export function tagFlow(tags: readonly string[] = [], ai?: AiTagMeta | null): FlowTag[] {
   const conf = new Map<string, number>();
@@ -138,12 +141,17 @@ export function tagFlow(tags: readonly string[] = [], ai?: AiTagMeta | null): Fl
     characters.add(t);
   }
   const { ai: aiTags, manual, prompt } = partitionTags(tags);
+  // Matched case-blind: a stored name keeps its case.
+  const fold = (raw: string) => tagName(raw).toLowerCase();
+  const prompted = new Set(prompt.map(fold));
+  const tagged = new Set(aiTags.map(fold));
   const aiFlow = aiTags.map(
     (raw): FlowTag => ({
       raw,
       label: formatTag(raw),
       kind: characters.has(raw) ? "character" : "ai",
       confidence: conf.get(raw),
+      inPrompt: prompted.has(fold(raw)) || undefined,
     }),
   );
   // Stable sort: characters first, then by confidence; unknown confidence
@@ -155,7 +163,9 @@ export function tagFlow(tags: readonly string[] = [], ai?: AiTagMeta | null): Fl
   return [
     ...aiFlow,
     ...manual.map((raw): FlowTag => ({ raw, label: formatTag(raw), kind: "manual" })),
-    ...prompt.map((raw): FlowTag => ({ raw, label: formatTag(raw), kind: "prompt" })),
+    ...prompt
+      .filter((raw) => !tagged.has(fold(raw)))
+      .map((raw): FlowTag => ({ raw, label: formatTag(raw), kind: "prompt" })),
   ];
 }
 
