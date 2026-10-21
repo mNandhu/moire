@@ -29,6 +29,8 @@ export function Dialog({
   className,
   initialFocusRef,
   labelledBy = "dialog-title",
+  ariaLabel,
+  placement = "center",
 }: {
   open: boolean;
   onClose: () => void;
@@ -40,6 +42,11 @@ export function Dialog({
   /** Element to focus on open; defaults to the first focusable. */
   initialFocusRef?: React.RefObject<HTMLElement | null>;
   labelledBy?: string;
+  /** For a dialog with no title. */
+  ariaLabel?: string;
+  /** "top": anchored near the top, so a panel whose height changes as you
+   * type (a search) doesn't jump. */
+  placement?: "center" | "top";
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
@@ -94,7 +101,10 @@ export function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-[950] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      className={cn(
+        "fixed inset-0 z-[950] flex justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in",
+        placement === "top" ? "items-start pt-[12vh]" : "items-center",
+      )}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -105,6 +115,7 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? labelledBy : undefined}
+        aria-label={title ? undefined : ariaLabel}
         tabIndex={-1}
         className={cn(
           "w-full max-w-md rounded-xl border border-neutral-800 bg-neutral-900 p-5 shadow-xl outline-none",

@@ -45,7 +45,7 @@ import { generatorFor } from "../components/generate/InGenerate";
 import { Badge } from "../components/ui";
 import { ambientPalette } from "../lib/blurhash";
 import { applyAmbient } from "../lib/ambient";
-import { LIBRARIES_KEY, TAGS_KEY, type Library } from "../lib/queries";
+import { LIBRARIES_KEY, TAGS_KEY, imageEmbeddingsQuery, imageLorasQuery, imageModelsQuery, type Library } from "../lib/queries";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { Picker } from "../components/ui/Picker";
@@ -201,23 +201,11 @@ export default function AllImagesPage() {
       ),
   });
   // Distinct checkpoints (with counts) for the model filter dropdown.
-  const { data: modelOptions = NO_MODELS } = useQuery({
-    queryKey: ["image-models"],
-    queryFn: ({ signal }) =>
-      api<{ model: string; count: number }[]>(`/api/v1/images/models`, { signal }),
-  });
+  const { data: modelOptions = NO_MODELS } = useQuery(imageModelsQuery);
   // Distinct embeddings (with counts) for the embedding filter dropdown.
-  const { data: embeddingOptions = NO_LORAS } = useQuery({
-    queryKey: ["image-embeddings"],
-    queryFn: ({ signal }) =>
-      api<{ name: string; count: number }[]>(`/api/v1/images/embeddings`, { signal }),
-  });
+  const { data: embeddingOptions = NO_LORAS } = useQuery(imageEmbeddingsQuery);
   // Distinct loras (with counts) for the LoRA filter dropdown.
-  const { data: loraOptions = NO_LORAS } = useQuery({
-    queryKey: ["image-loras"],
-    queryFn: ({ signal }) =>
-      api<{ name: string; count: number }[]>(`/api/v1/images/loras`, { signal }),
-  });
+  const { data: loraOptions = NO_LORAS } = useQuery(imageLorasQuery);
   // Loras and embeddings as search terms: suggested in the search box, and
   // typed names resolved to the library's spelling (matching is exact).
   const resourceSuggestions = useMemo(

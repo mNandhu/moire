@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { SEARCH_KEYS } from "./Sidebar";
 
 /**
  * Keyboard reference for the gallery, opened with `?`.
@@ -38,6 +39,7 @@ const GROUPS: { title: string; keys: [string, string][] }[] = [
     title: "View",
     keys: [
       ["+ / -", "Larger / smaller thumbnails"],
+      [SEARCH_KEYS, "Search everything"],
       ["/", "Focus the tag search"],
       ["?", "This help"],
     ],

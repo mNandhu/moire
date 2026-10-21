@@ -10,6 +10,7 @@ import {
   PanelLeftClose,
   Wand2,
   History,
+  Search,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "../lib/cn";
@@ -19,8 +20,12 @@ import { BackButton } from "./HistoryButtons";
 
 type Status = string;
 
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
+/** The search's shortcut as this keyboard writes it. */
+export const SEARCH_KEYS = IS_MAC ? "⌘K" : "Ctrl K";
+
 // Browse first (where the images are), then the places you manage them.
-const NAV = [
+export const NAV = [
   {
     section: null,
     items: [
@@ -50,10 +55,13 @@ export function Sidebar({
   status = "loading",
   collapsed = false,
   onToggle,
+  onSearch,
 }: {
   status?: Status;
   collapsed?: boolean;
   onToggle?: () => void;
+  /** Opens the Ctrl/Cmd+K search. */
+  onSearch?: () => void;
 }) {
   const NavButton = ({
     label,
@@ -140,6 +148,27 @@ export function Sidebar({
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+        {onSearch && (
+          <button
+            type="button"
+            onClick={onSearch}
+            title={collapsed ? `Search (${SEARCH_KEYS})` : undefined}
+            aria-label="Search"
+            aria-keyshortcuts={IS_MAC ? "Meta+K" : "Control+K"}
+            className={cn(
+              "w-full flex items-center gap-3 rounded-lg text-sm text-muted transition-colors hover:bg-raised/60 hover:text-neutral-100",
+              collapsed ? "justify-center px-0 py-2.5" : "px-3 py-2",
+            )}
+          >
+            <Search size={18} />
+            {!collapsed && (
+              <>
+                <span className="flex-1 text-left">Search</span>
+                <kbd className="font-sans text-xs text-faint">{SEARCH_KEYS}</kbd>
+              </>
+            )}
+          </button>
+        )}
         {NAV.map((group, gi) => (
           <div key={gi} className="space-y-1">
             {group.section && !collapsed && (

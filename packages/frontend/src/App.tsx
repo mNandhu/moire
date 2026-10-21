@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
+import { SearchPalette } from "./components/SearchPalette";
 import { PageErrorBoundary } from "./components/ErrorScreen";
 import { MobileNavContext } from "./components/ui/PageHeader";
 import { cn } from "./lib/cn";
@@ -16,6 +17,14 @@ export default function App() {
     () => localStorage.getItem("sidebar:collapsed") === "1",
   );
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  // A result on the same path ("/?lora=…") doesn't close the drawer, so
+  // the search does.
+  const openSearch = useCallback(() => {
+    setMobileNavOpen(false);
+    setSearchOpen(true);
+  }, []);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
   const openMobileNav = useCallback(() => setMobileNavOpen(true), []);
   const loc = useLocation();
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -43,6 +52,21 @@ export default function App() {
       mq?.removeEventListener?.("change", onWide);
     };
   }, [mobileNavOpen]);
+
+  // Ctrl/Cmd+K opens the search from anywhere, a text field or a dialog
+  // included; again closes it. Capture phase, ahead of a dialog's key trap.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "KeyK" || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.isComposing) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.repeat) return;
+      setMobileNavOpen(false);
+      setSearchOpen((v) => !v);
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("sidebar:collapsed", collapsed ? "1" : "0");
@@ -168,6 +192,7 @@ export default function App() {
             status={status}
             collapsed={collapsed && !mobileNavOpen}
             onToggle={() => setCollapsed((v) => !v)}
+            onSearch={openSearch}
           />
         </div>
         {/* Main column shifted right of sidebar. Each page caps its own
@@ -187,6 +212,7 @@ export default function App() {
             </PageErrorBoundary>
           </div>
         </div>
+        <SearchPalette open={searchOpen} onClose={closeSearch} />
       </div>
     </MobileNavContext.Provider>
   );

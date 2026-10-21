@@ -69,6 +69,24 @@ export function useLibraries({ poll = true } = {}) {
   });
 }
 
+type Used = { name: string; count: number }[];
+
+/** Checkpoints, embeddings and loras the library's images used, with counts
+ * (the gallery's filters and the Ctrl/Cmd+K search). */
+export const imageModelsQuery = {
+  queryKey: ["image-models"],
+  queryFn: ({ signal }: { signal: AbortSignal }) =>
+    api<{ model: string; count: number }[]>(`/api/v1/images/models`, { signal }),
+};
+export const imageEmbeddingsQuery = {
+  queryKey: ["image-embeddings"],
+  queryFn: ({ signal }: { signal: AbortSignal }) => api<Used>(`/api/v1/images/embeddings`, { signal }),
+};
+export const imageLorasQuery = {
+  queryKey: ["image-loras"],
+  queryFn: ({ signal }: { signal: AbortSignal }) => api<Used>(`/api/v1/images/loras`, { signal }),
+};
+
 export type TagAgg = { _id: string; count: number };
 
 /** Prefix for every tag-aggregate query; invalidate this after tag writes. */
