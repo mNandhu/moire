@@ -22,6 +22,8 @@ import {
   Tags,
   X,
   FolderSearch,
+  SlidersHorizontal,
+  Check,
 } from "lucide-react";
 import {
   DEFAULT_FILTERS,
@@ -38,7 +40,7 @@ import {
 } from "../lib/imageFilter";
 import { PageHeader } from "../components/ui/PageHeader";
 import { LibraryScopeTabs } from "../components/LibraryScopeTabs";
-import { SortControl } from "../components/SortControl";
+import { SortControl, SORT_OPTIONS } from "../components/SortControl";
 import { fetchSignatures } from "../lib/gen";
 import { groupWorkflows, workflowFilterName } from "../lib/workflows";
 import { useGenerators, useOutfits } from "../lib/generate";
@@ -852,6 +854,7 @@ export default function AllImagesPage() {
             <Button
               size="icon"
               variant="ghost"
+              className="hidden md:inline-flex"
               onClick={() => setShowShortcuts(true)}
               aria-label="Keyboard shortcuts"
               title="Keyboard shortcuts (?)"
@@ -861,7 +864,7 @@ export default function AllImagesPage() {
           </>
         }
       >
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap md:flex-nowrap items-center gap-2">
           <Button
             ref={filterButtonRef}
             size="icon"
@@ -891,6 +894,38 @@ export default function AllImagesPage() {
               placeholder="Search tags, outfits, lora:, embedding:…"
             />
           </div>
+          {/* Phones: sort, grouping and selection fold into one menu so the
+              search keeps the row. */}
+          <div className="md:hidden">
+            <DropdownMenu
+              aria-label="View options"
+              icon={<SlidersHorizontal size={18} />}
+              items={[
+                ...SORT_OPTIONS.map((o) => ({
+                  group: "Sort",
+                  label: o.hint,
+                  icon: <o.icon size={15} />,
+                  hint: filters.sort === o.value ? <Check size={15} /> : undefined,
+                  onClick: () => setFilters({ ...filters, sort: o.value }),
+                })),
+                {
+                  group: "View",
+                  label: "Group batches",
+                  icon: <Layers size={15} />,
+                  hint: filters.group && !filters.groupId ? <Check size={15} /> : undefined,
+                  onClick: () =>
+                    setFilters({ ...filters, group: !filters.group, groupId: undefined }),
+                },
+                {
+                  group: "View",
+                  label: selectionMode ? "Done selecting" : "Select",
+                  icon: selectionMode ? <CheckSquare size={15} /> : <Square size={15} />,
+                  onClick: () => setSelectionMode((v) => !v),
+                },
+              ]}
+            />
+          </div>
+          <div className="hidden md:flex items-center gap-2">
           <SortControl
             value={filters.sort}
             onChange={(sort) => setFilters({ ...filters, sort })}
@@ -926,6 +961,16 @@ export default function AllImagesPage() {
           >
             {selectionMode ? <CheckSquare size={18} /> : <Square size={18} />}
             <span className="hidden xl:inline">{selectionMode ? "Done" : "Select"}</span>
+          </Button>
+          </div>
+          {selectionMode && (
+          <div className="w-full md:w-auto flex items-center gap-2">
+          <Button
+            variant="secondary"
+            className="md:hidden"
+            onClick={() => setSelectionMode(false)}
+          >
+            Done
           </Button>
           {selectionMode && !(filters.group && !filters.groupId) && (
             <Button
@@ -969,6 +1014,8 @@ export default function AllImagesPage() {
                 },
               ]}
             />
+          )}
+          </div>
           )}
         </div>
 

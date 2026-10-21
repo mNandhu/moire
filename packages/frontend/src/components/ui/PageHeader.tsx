@@ -80,7 +80,9 @@ export function PageHeader({
             <Menu size={20} />
           </button>
         )}
-        <div className="min-w-0 flex items-baseline gap-2.5">
+        {/* Phones: the title takes what the actions leave and truncates,
+            instead of pushing them onto a row of their own. */}
+        <div className="min-w-0 max-md:flex-1 flex items-baseline gap-2.5">
           <h1 className="text-lg font-semibold text-neutral-50 truncate">
             {title}
           </h1>

@@ -3,7 +3,7 @@ import { Clock, History, Star, type LucideIcon } from "lucide-react";
 import { cn } from "../lib/cn";
 import type { FeedSort } from "../lib/imageFilter";
 
-const OPTIONS: Array<{ value: FeedSort; label: string; hint: string; icon: LucideIcon }> = [
+export const SORT_OPTIONS: Array<{ value: FeedSort; label: string; hint: string; icon: LucideIcon }> = [
   { value: "newest", label: "Newest", hint: "Newest first", icon: Clock },
   { value: "oldest", label: "Oldest", hint: "Oldest first", icon: History },
   { value: "top", label: "Top", hint: "Top rated first", icon: Star },
@@ -22,7 +22,7 @@ export function SortControl({
   value: FeedSort;
   onChange: (sort: FeedSort) => void;
 }) {
-  const index = Math.max(0, OPTIONS.findIndex((o) => o.value === value));
+  const index = Math.max(0, SORT_OPTIONS.findIndex((o) => o.value === value));
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -32,8 +32,8 @@ export function SortControl({
     // the keypress is this control's, so keep it from reaching that.
     e.preventDefault();
     e.stopPropagation();
-    const next = (index + step + OPTIONS.length) % OPTIONS.length;
-    onChange(OPTIONS[next].value);
+    const next = (index + step + SORT_OPTIONS.length) % SORT_OPTIONS.length;
+    onChange(SORT_OPTIONS[next].value);
     refs.current[next]?.focus();
   };
 
@@ -49,7 +49,7 @@ export function SortControl({
         className="absolute inset-y-0.5 left-0.5 rounded-md bg-brand-600/25 border border-brand-500/60 transition-transform duration-200 ease-out motion-reduce:transition-none"
         style={{ width: "calc((100% - 4px) / 3)", transform: `translateX(${index * 100}%)` }}
       />
-      {OPTIONS.map((o, i) => {
+      {SORT_OPTIONS.map((o, i) => {
         const on = i === index;
         const Icon = o.icon;
         return (
