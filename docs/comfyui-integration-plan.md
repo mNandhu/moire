@@ -861,5 +861,10 @@ Left:
 ### Next session (from 2026-10-21; phase 4)
 
 Phase 4 (outfits) is on `feat/comfyui-phase4`, off main after phase 3 was
-merged and pushed. Built, clicked through in the sandbox, code review
-pending at the time of writing. Not pushed.
+merged and pushed. Built, clicked through in the sandbox, reviewed (10
+findings fixed in 24d6858). Not pushed.
+
+Open: outfit thumbnails can't be changed (a saved one keeps the image it
+was saved from; Default's is picked). Proposed: "Use as outfit thumbnail"
+in the viewer like the avatar pin, later a pick strip in the edit dialog;
+mock on the canvas first.
