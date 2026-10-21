@@ -221,7 +221,7 @@ export function SaveOutfitDialog({
               aria-expanded={changing}
               className="absolute inset-x-1.5 bottom-1.5 inline-flex h-[26px] items-center justify-center gap-1.5 rounded-md border border-line-strong bg-surface/90 text-xs text-neutral-100 hover:bg-raised"
             >
-              <ImageIcon size={12} /> Change
+              <ImageIcon size={12} /> {(outfit || blank ? cover : imageId) ? "Change" : "Set"}
             </button>
           )}
         </div>
