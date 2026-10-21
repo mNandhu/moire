@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import csv
+import os
 import time
 from dataclasses import dataclass
 from io import BytesIO
@@ -11,17 +12,35 @@ from typing import Any
 import numpy as np
 from PIL import Image
 
-try:
-    import onnxruntime as rt
-except Exception:  # pragma: no cover
-    rt = None  # type: ignore[assignment]
-
 from ..core.config import settings as app_settings
 from .ai_tagger_download import (
     download_wd_tagger,
     get_download_manager,
     model_target,
 )
+
+
+def _import_onnxruntime():
+    """Import onnxruntime with fd 2 muted. Its env init probes GPUs through
+    sysfs once, and on WSL2 (a vgem ``card0`` with no ``vendor`` file) that
+    logs a harmless C++ warning nothing in Python can silence. Import errors
+    still raise; later sessions don't probe again."""
+    saved = os.dup(2)
+    null = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(null, 2)
+    try:
+        import onnxruntime
+    finally:
+        os.dup2(saved, 2)
+        os.close(saved)
+        os.close(null)
+    return onnxruntime
+
+
+try:
+    rt = _import_onnxruntime()
+except Exception:  # pragma: no cover
+    rt = None  # type: ignore[assignment]
 
 logger = logging.getLogger("moire.ai_tagger")
 
