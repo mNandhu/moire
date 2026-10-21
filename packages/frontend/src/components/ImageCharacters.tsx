@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Pin } from "lucide-react";
 import { api } from "../lib/api";
 import { cn } from "../lib/cn";
@@ -9,18 +9,30 @@ import { useToast } from "./Toasts";
 import { formatTag, tagName } from "../lib/tags";
 import { characterHref, displayName, type CharacterEntry } from "../lib/character";
 import { CharacterAvatar } from "./CharacterAvatar";
+import { Skeleton } from "./ui/Skeleton";
 import { usePinCover } from "../hooks/usePinCover";
 import { SaveOutfitDialog } from "./generate/SaveOutfitDialog";
 import { OutfitMenu } from "./generate/OutfitCover";
 import { WornOutfits } from "./generate/WornOutfits";
 
+const charactersQuery = {
+  queryKey: [...TAGS_KEY, "characters"],
+  queryFn: ({ signal }: { signal: AbortSignal }) => api<CharacterEntry[]>("/api/v1/tags/characters", { signal }),
+  staleTime: 60_000,
+};
+
 /** Every character in the library; shared by the image view and character pages. */
 export function useCharacters() {
-  return useQuery({
-    queryKey: [...TAGS_KEY, "characters"],
-    queryFn: ({ signal }) => api<CharacterEntry[]>("/api/v1/tags/characters", { signal }),
-    staleTime: 60_000,
-  });
+  return useQuery(charactersQuery);
+}
+
+/** Loads the characters at startup: a cold list takes the server a second or
+ * more, and the first image opened shouldn't wait on it. */
+export function usePrefetchCharacters() {
+  const qc = useQueryClient();
+  useEffect(() => {
+    void qc.prefetchQuery(charactersQuery);
+  }, [qc]);
 }
 
 /** Every character by each of its names (a bare alias included). */
@@ -48,7 +60,7 @@ export function ImageCharacters({
   tags: readonly string[] | undefined;
   quarantined?: boolean;
 }) {
-  const { data: characters } = useCharacters();
+  const { data: characters, isPending } = useCharacters();
   const { pin } = usePinCover("avatar");
   // Which character's avatar is changing: one image, several characters.
   const [pinning, setPinning] = useState<string | null>(null);
@@ -61,6 +73,9 @@ export function ImageCharacters({
   }, [tags, characters]);
   const bases = useMemo(() => new Set((tags ?? []).map((t) => tagName(t).toLowerCase())), [tags]);
   const names = useMemo(() => new Map(here.map((c) => [c.tag, displayName(c).name])), [here]);
+  // Until the list arrives, a placeholder where the people go (an image
+  // without any loses it then).
+  if (isPending && tags?.length) return <CharactersSkeleton />;
   if (!here.length) return null;
 
   const pinAvatar = async (c: CharacterEntry) => {
@@ -157,6 +172,18 @@ export function ImageCharacters({
         imageTags={bases}
         characterName={(t) => names.get(t) ?? formatTag(t)}
       />
+    </section>
+  );
+}
+
+function CharactersSkeleton() {
+  return (
+    <section className="px-4 py-4 space-y-3" aria-busy="true" aria-label="Characters">
+      <h2 className="text-sm font-semibold">Characters</h2>
+      <div className="flex w-20 flex-col items-center gap-1.5">
+        <Skeleton className="h-14 w-14 rounded-full" />
+        <Skeleton className="h-3 w-14" />
+      </div>
     </section>
   );
 }

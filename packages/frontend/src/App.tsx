@@ -8,9 +8,11 @@ import { cn } from "./lib/cn";
 import { useOverlayOpen } from "./lib/backgroundLocation";
 import { restoreAmbient } from "./lib/ambient";
 import { useQueueTitle } from "./hooks/useQueueTitle";
+import { usePrefetchCharacters } from "./components/ImageCharacters";
 
 export default function App() {
   useQueueTitle();
+  usePrefetchCharacters();
   const overlayOpen = useOverlayOpen();
   const [status, setStatus] = useState("loading");
   const [collapsed, setCollapsed] = useState(

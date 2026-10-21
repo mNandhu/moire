@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { cn } from "../lib/cn";
+import { Skeleton } from "./ui/Skeleton";
 import { avatarCrop, focusPosition, FACE_ZOOM, type Face } from "../lib/character";
 
 type FaceCropProps = {
@@ -37,15 +39,34 @@ export function FaceCrop({
         </span>
       )}
       {src && (
-        <img
+        <FadeIn
+          // A new image starts unloaded again.
+          key={src}
           src={src}
-          alt=""
-          loading="lazy"
           className={crop ? "absolute max-w-none" : "h-full w-full object-cover"}
           style={crop ?? { objectPosition: focusPosition(focus) }}
         />
       )}
     </div>
+  );
+}
+
+/** Shimmers until the image arrives, then fades it in. */
+function FadeIn({ src, className, style }: { src: string; className: string; style: React.CSSProperties }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <>
+      {!loaded && <Skeleton className="absolute inset-0 rounded-none" />}
+      <img
+        src={src}
+        alt=""
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        className={cn(className, "transition-opacity duration-200", loaded ? "opacity-100" : "opacity-0")}
+        style={style}
+      />
+    </>
   );
 }
 
