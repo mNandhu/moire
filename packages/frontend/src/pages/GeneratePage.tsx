@@ -211,7 +211,7 @@ export default function GeneratePage() {
       fresh: [...f.fresh, ...tags.filter((t) => !f.characters.includes(t))].filter((t) => tags.includes(t)),
     }));
   // Characters just picked (here or from a character page) start wearing
-  // what Settings says: No outfit unless set to their usual clothes. A remix
+  // what Settings says: none unless set to their usual clothes. A remix
   // or a replayed batch brings its own and marks none.
   const startAs = settings?.new_character_outfit;
   useEffect(() => {

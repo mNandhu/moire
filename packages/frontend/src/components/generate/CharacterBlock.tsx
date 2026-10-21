@@ -504,7 +504,7 @@ function CharacterRow({
   );
 }
 
-/** A character's "Wears" line: the outfit picker, and folded, its tags. */
+/** A character's Outfit line: the outfit picker, and folded, its tags. */
 function WearsLine({
   character,
   outfit,
@@ -519,7 +519,7 @@ function WearsLine({
   const worn = wornTags(outfit).map(displayWord).join(", ");
   return (
     <div className="flex min-w-0 items-center gap-2.5 pb-1 pl-[5.25rem] pt-1.5">
-      <span className="shrink-0 text-xs text-muted">Wears</span>
+      <span className="shrink-0 text-xs text-muted">Outfit</span>
       <OutfitPicker character={character} value={outfit} onChange={onOutfit} />
       {folded && (
         <span className="min-w-0 flex-1 truncate text-xs text-faint" title={worn}>
@@ -543,7 +543,7 @@ function OutfitFold({
   const { groups } = useCharacterOutfits(character);
   return (
     <div>
-      <FieldLabel>Outfit</FieldLabel>
+      <FieldLabel>Outfit tags</FieldLabel>
       <OutfitChips pick={outfit} groups={groups} onChange={onOutfit} />
     </div>
   );

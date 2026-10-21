@@ -72,7 +72,7 @@ export function OutfitPicker({
   const { def, own, shared } = useCharacterOutfits(character);
   const all = [...(def ? [def] : []), ...own, ...shared];
   const options: PickerOption[] = [
-    { value: NO_OUTFIT, label: "No outfit" },
+    { value: NO_OUTFIT, label: "Not set" },
     ...(def ? [option(def, "Usual clothes")] : []),
     ...own.map((o) => option(o, "Their outfits")),
     ...shared.map((o) => option(o, "Shared")),
@@ -99,7 +99,7 @@ export function OutfitPicker({
             "inline-flex h-8 shrink-0 items-center gap-2 rounded-lg border bg-raised pr-2 text-sm text-neutral-100 hover:border-line-strong",
             value ? "border-line-strong pl-1" : "border-dashed border-line-strong pl-2.5 text-muted",
           )}
-          title="What they wear"
+          title="Change outfit"
         >
           {value && (
             <OutfitThumb
@@ -107,7 +107,7 @@ export function OutfitPicker({
               className={cn("h-[26px] w-5", value.id === DEFAULT_OUTFIT && "outline-dashed outline-1 outline-line-strong")}
             />
           )}
-          <span className="max-w-[12rem] truncate">{value ? value.name : "No outfit"}</span>
+          <span className="max-w-[12rem] truncate">{value ? value.name : "Not set"}</span>
           <ChevronDown size={13} className="text-muted" />
         </span>
       )}

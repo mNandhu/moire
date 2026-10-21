@@ -602,13 +602,13 @@ running prompt only after a fresh `/queue` shows it is ours and running.
 
 **As built (phase 4, 2026-10-21, `feat/comfyui-phase4`).**
 - Placement decided on the board "Generate: outfit with several
-  characters" (option B): each character card in the composer has a
-  "Wears" line, an outfit picker (No outfit, their usual clothes = Default,
+  characters" (option B): each character card in the composer has an
+  "Outfit" line (was "Wears": read as nude when empty), an outfit picker (Not set, their usual clothes = Default,
   their own, shared ones they don't hide; thumbnail in the closed button)
   and the outfit's tags; unfolded, the chips (struck or added for this
   batch only). No separate Outfit layer: an outfit belongs to a character,
   and its tags are sent right after that character's.
-- Settings > Characters: "New characters wear" No outfit (default) or their
+- Settings > Characters: "Outfit for new characters" Not set (default) or their
   usual clothes (`new_character_outfit` in the ComfyUI settings). Applied
   only when the user picks a character; a remix or a replayed batch brings
   its own (a remix picks none: the image's clothes stay in its prompt).

@@ -140,7 +140,7 @@ export function CharactersSection() {
 }
 
 const OUTFIT_STARTS = [
-  { value: "none", label: "No outfit" },
+  { value: "none", label: "Not set" },
   { value: "default", label: "Their usual clothes" },
 ];
 
@@ -159,13 +159,13 @@ function NewCharacterOutfit() {
   return (
     <Section title="Outfits in Generate">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm text-neutral-200">New characters wear</span>
+        <span className="text-sm text-neutral-200">Outfit for new characters</span>
         <div className="w-56">
           <Picker
             value={comfy?.new_character_outfit ?? "none"}
             options={OUTFIT_STARTS}
             onChange={(v) => void pick(v)}
-            aria-label="New characters wear"
+            aria-label="Outfit for new characters"
             disabled={!comfy}
           />
         </div>
