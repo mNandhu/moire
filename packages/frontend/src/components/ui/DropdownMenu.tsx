@@ -11,6 +11,8 @@ export type DropdownItem = {
   hint?: React.ReactNode;
   /** Heading the item sits under; consecutive items share it. */
   group?: string;
+  /** A rule above the item (a way out after a list, "All …"). */
+  divider?: boolean;
   onClick: () => void;
 };
 
@@ -29,8 +31,9 @@ export function DropdownMenu({
   /** Icon-only trigger (e.g. a row's "more actions" ⋯). No label, no chevron. */
   icon?: React.ReactNode;
   size?: "sm" | "md";
-  /** The labelled trigger's look. */
-  variant?: "secondary" | "primary";
+  /** The labelled trigger's look; "link" is bare text, like a panel's
+   * header actions. */
+  variant?: "secondary" | "primary" | "link";
   /** Controls under the items that set how they run (the menu stays open). */
   footer?: React.ReactNode;
 }) {
@@ -63,8 +66,21 @@ export function DropdownMenu({
 
   return (
     <div ref={ref} className="relative">
+      {variant === "link" && !icon ? (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={ariaLabel}
+          className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
+        >
+          {label}
+          <ChevronDown size={12} className={cn("transition-transform", open && "rotate-180")} />
+        </button>
+      ) : (
       <Button
-        variant={icon ? "ghost" : variant}
+        variant={icon ? "ghost" : variant === "link" ? "secondary" : variant}
         size={icon ? (size === "sm" ? "iconSm" : "icon") : size}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
@@ -80,6 +96,7 @@ export function DropdownMenu({
           </>
         )}
       </Button>
+      )}
 
       {open && (
         <div
@@ -96,6 +113,7 @@ export function DropdownMenu({
                 {item.group}
               </div>
             )}
+            {item.divider && <div className="my-1 border-t border-line" />}
             <button
               role="menuitem"
               className={cn(

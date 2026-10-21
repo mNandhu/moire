@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
-import { Check, Shirt } from "lucide-react";
+import { ArrowRight, Check, Shirt } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button, DropdownMenu, type DropdownItem } from "../ui";
 import { Dialog } from "../ui/Dialog";
 import { useToast } from "../Toasts";
@@ -150,6 +151,7 @@ export function OutfitMenu({
 }) {
   const qc = useQueryClient();
   const toast = useToast();
+  const navigate = useNavigate();
   const lists = useQueries({
     queries: characters.map((c) => ({
       queryKey: outfitsKey(c.tag),
@@ -196,11 +198,19 @@ export function OutfitMenu({
         hint: o.image_id === imageId ? <span className="text-xs text-faint">this image</span> : undefined,
         onClick: () => void setCover(c, o),
       })),
+      {
+        label: one ? "All outfits" : `All of ${name}'s outfits`,
+        // Under the thumbnails when there are some, else right after New.
+        group: outfits.length ? (one ? "Use as thumbnail" : `${name}: use as thumbnail`) : one ? undefined : name,
+        divider: outfits.length > 0,
+        icon: <ArrowRight size={14} className="text-muted" />,
+        onClick: () => navigate(`/outfits?character=${encodeURIComponent(c.tag)}`),
+      },
     ];
   });
   return (
     <DropdownMenu
-      size="sm"
+      variant="link"
       label={
         <>
           <Shirt size={12} /> Outfit
