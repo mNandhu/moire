@@ -112,6 +112,8 @@ export type GeneratorSlots = Partial<{
   cfg: SlotPath;
   lora_model: OutputRef;
   lora_clip: OutputRef | null;
+  /** No insertion point: LoRAs go into the positive prompt as `<lora:name:strength>`. */
+  lora_text: boolean;
   /** The workflow's own LoRA loaders left out (not on the connected ComfyUI). */
   drop_loras: string[];
 }>;
@@ -401,6 +403,8 @@ export type BatchSummary = {
   failed: number;
   images: number;
   kept: number;
+  /** Made, not in the library yet (downloading or waiting for the scan). */
+  arriving: number;
   thumbs: string[];
 };
 
@@ -767,7 +771,7 @@ export function useBatches(limit = 50) {
   return useQuery({
     queryKey: [...BATCHES_KEY, limit],
     queryFn: ({ signal }) => api<BatchSummary[]>(`${BASE}/batches?limit=${limit}`, { signal }),
-    refetchInterval: (q) => (q.state.data?.some((b) => b.state === "running") ? 2000 : false),
+    refetchInterval: (q) => (q.state.data?.some((b) => b.state === "running" || b.arriving > 0) ? 2000 : false),
   });
 }
 

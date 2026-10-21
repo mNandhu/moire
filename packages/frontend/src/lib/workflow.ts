@@ -23,7 +23,7 @@ export function runBarOf(gen: Generator | undefined): RunBar {
     size: !gen || (!!s.width && !!s.height),
     sampling: Object.keys(gen?.sampling ?? {}).length > 0,
     batchSize: !!s.batch_size,
-    loras: !gen || !!s.lora_model,
+    loras: !gen || !!s.lora_model || !!s.lora_text,
   };
 }
 

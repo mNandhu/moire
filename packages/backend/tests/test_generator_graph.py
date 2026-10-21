@@ -137,6 +137,38 @@ def test_build_prompt_refuses_a_slot_on_a_link():
         build_prompt(builtin_generator.graph(), slots, {"positive": "x", "seed": 1})
 
 
+def test_build_prompt_writes_loras_into_the_prompt_for_lora_text():
+    base = builtin_generator.graph()
+    slots = {
+        k: v
+        for k, v in builtin_generator.slots().items()
+        if k not in ("lora_model", "lora_clip")
+    } | {"lora_text": True}
+    g = build_prompt(
+        base,
+        slots,
+        {
+            "positive": "1girl, solo, ",
+            "seed": 1,
+            "loras": [LoraPick("chars/fern.safetensors", 0.8), LoraPick("flat", 1.0)],
+        },
+    )
+    assert g["6"]["inputs"]["text"] == (
+        "1girl, solo, <lora:chars/fern.safetensors:0.8> <lora:flat:1>"
+    )
+    assert not any(n["class_type"] == "LoraLoader" for n in g.values())
+    # Without LoRAs the prompt is untouched.
+    g = build_prompt(base, slots, {"positive": "1girl", "seed": 1})
+    assert g["6"]["inputs"]["text"] == "1girl"
+    # A real insertion point wins over lora_text.
+    g = build_prompt(
+        base,
+        builtin_generator.slots() | {"lora_text": True},
+        {"positive": "1girl", "seed": 1, "loras": [LoraPick("flat", 1.0)]},
+    )
+    assert g["6"]["inputs"]["text"] == "1girl"
+
+
 def test_split_requests():
     assert split_requests(8, 2) == [2, 2, 2, 2]
     assert split_requests(7, 3) == [3, 3, 1]

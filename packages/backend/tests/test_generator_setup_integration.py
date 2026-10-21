@@ -12,6 +12,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
+from moire.services import generator_setup
 from tests.test_generate_integration import comfy, scanned, tick  # noqa: F401
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -186,6 +187,34 @@ async def test_no_insertion_point_means_no_test_lora(client, comfy, seed):  # no
     assert "lora_model" not in gen["slots"]
     await client.post(f"/generate/generators/{gen['_id']}/test", json={})
     sent = comfy.prompts[comfy.order[-1]]
+    assert sum(n["class_type"] == "LoraLoader" for n in sent.values()) == 4
+
+
+async def test_lora_text_puts_the_batch_loras_in_the_prompt(client, comfy, seed):  # noqa: F811
+    # Kept only where there's no insertion point to splice into.
+    assert "lora_text" not in generator_setup.clean_slots(
+        {"lora_model": ["4", 0], "lora_text": True}
+    )
+    gen = await _create(client, seed, lora_model=None, lora_clip=None, lora_text=True)
+    assert gen["slots"]["lora_text"] is True
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.update(t.generators)
+            .where(t.generators.c._id == gen["_id"])
+            .values(ready=True)
+        )
+    r = await client.post(
+        "/generate/batches",
+        json={
+            "generator_id": gen["_id"],
+            "base": "1girl, solo",
+            "loras": [{"name": "fern.safetensors", "strength": 0.7}],
+        },
+    )
+    assert r.status_code == 200, r.text
+    sent = comfy.prompts[comfy.order[-1]]
+    path = gen["slots"]["positive"]
+    assert sent[path[0]]["inputs"][path[1]].endswith("<lora:fern.safetensors:0.7>")
     assert sum(n["class_type"] == "LoraLoader" for n in sent.values()) == 4
 
 

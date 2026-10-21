@@ -21,6 +21,8 @@ describe("runBarOf", () => {
     expect(runBarOf(gen())).toEqual({ checkpoint: false, size: false, sampling: true, batchSize: true, loras: false });
     const all = gen({ slots: { checkpoint: ["4", "ckpt_name"], width: ["5", "width"], height: ["5", "height"], lora_model: ["4", 0] } });
     expect(runBarOf(all)).toMatchObject({ checkpoint: true, size: true, batchSize: false, loras: true });
+    // LoRAs written into the prompt (a remote workflow) still take the picker.
+    expect(runBarOf(gen({ slots: { lora_text: true } })).loras).toBe(true);
   });
   it("keeps everything while the list is loading", () => {
     expect(runBarOf(undefined)).toEqual({ checkpoint: true, size: true, sampling: false, batchSize: false, loras: true });

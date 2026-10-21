@@ -47,6 +47,7 @@ _SLOT_KEYS = (
     "lora_model",
     "lora_clip",
     "drop_loras",
+    "lora_text",
 )
 
 
@@ -338,6 +339,8 @@ def clean_slots(raw: Any) -> dict[str, Any]:
     out["drop_loras"] = [str(n) for n in drops]
     if out.get("lora_clip") and not out.get("lora_model"):
         raise SetupError("A CLIP insertion point needs a model one")
+    if raw.get("lora_text") is True and not out.get("lora_model"):
+        out["lora_text"] = True
     return out
 
 

@@ -87,7 +87,9 @@ export function checklist(setup: GeneratorSetup, slots: GeneratorSlots): CheckIt
       : { label: "No Save Image node: add one in ComfyUI", ok: false },
     slots.lora_model
       ? { label: "LoRA insertion point found", ok: true }
-      : { label: "No LoRA insertion point: LoRAs are off", ok: true, note: true },
+      : slots.lora_text
+        ? { label: "LoRAs go into the prompt as tags", ok: true }
+        : { label: "No LoRA insertion point: LoRAs are off", ok: true, note: true },
   ];
   const ckpt = setup.found.checkpoint;
   if (ckpt?.installed === false && !slots.checkpoint) {

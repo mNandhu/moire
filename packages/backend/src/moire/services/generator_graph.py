@@ -19,6 +19,10 @@ Slots (found for a custom graph by :mod:`services.generator_discovery`):
 - ``lora_model`` / ``lora_clip``: ``[node_id, out_index]`` where Moiré's LoRA
   chain starts (the "Model from" / "CLIP from" picks). ``lora_clip`` None
   means a model-only chain (``LoraLoaderModelOnly``).
+- ``lora_text``: True when the graph takes LoRAs as ``<lora:name:strength>``
+  in the positive prompt instead (a remote workflow whose model Moiré can't
+  reach, read by a prompt-parsing encoder such as Impact's
+  ``ImpactWildcardEncode``). Only used without ``lora_model``.
 """
 
 from __future__ import annotations
@@ -119,6 +123,12 @@ def merge_loras(
         seen.add(stem)
         out.append(LoraPick(lo["name"], float(lo.get("strength", 1.0))))
     return out
+
+
+def lora_tags(loras: list[LoraPick]) -> str:
+    """``<lora:name:strength>`` for each pick, space separated (A1111 syntax,
+    ComfyUI's lora_name as the name)."""
+    return " ".join(f"<lora:{p.name}:{p.strength:g}>" for p in loras)
 
 
 def lora_insertion(graph: Graph, loader_id: str) -> tuple[list[Any], list[Any] | None]:
@@ -380,11 +390,19 @@ def build_prompt(graph: Graph, slots: dict[str, Any], values: dict[str, Any]) ->
     """The graph for one request. ``values``: positive, negative, seed, and
     optionally width, height, batch_size, checkpoint, sampler, scheduler,
     steps, cfg, loras (list of
-    :class:`LoraPick`, already merged by precedence). Never mutates ``graph``."""
+    :class:`LoraPick`, already merged by precedence; with ``lora_text`` they
+    go into the positive prompt as tags). Never mutates ``graph``."""
     g = copy.deepcopy(graph)
+    loras = values.get("loras") or []
+    positive = values["positive"]
+    if loras and not slots.get("lora_model") and slots.get("lora_text"):
+        positive = ", ".join(
+            x for x in (positive.rstrip(", \n"), lora_tags(loras)) if x
+        )
+        loras = []
     # A prompt built at run time (a join) is replaced only when setup said so.
     over = set(slots.get("replace_links") or [])
-    _write(g, slots.get("positive"), values["positive"], over_link="positive" in over)
+    _write(g, slots.get("positive"), positive, over_link="positive" in over)
     _write(
         g,
         slots.get("negative"),
@@ -403,7 +421,6 @@ def build_prompt(graph: Graph, slots: dict[str, Any], values: dict[str, Any]) ->
         model_from, clip_from = bypass_loras(
             g, slots["drop_loras"], [model_from, clip_from]
         )
-    loras = values.get("loras") or []
     if loras:
         if not model_from:
             raise GraphError("this workflow has no LoRA insertion point")
