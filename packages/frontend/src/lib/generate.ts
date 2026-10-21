@@ -710,15 +710,14 @@ export function useOutfits(character: string | null = null) {
 
 /** Images `character` wears `outfit` in ("default": their usual clothes),
  * for picking its cover. */
-export function useCoverChoices(character: string, outfit: string, enabled = true) {
+export function useCoverChoices(character: string, outfit: string, tags?: readonly string[]) {
+  // An outfit not saved yet ("") is matched by the tags it has so far.
+  const q = tags ? tags.map((t) => `&tags=${encodeURIComponent(t)}`).join("") : `&outfit=${encodeURIComponent(outfit)}`;
   return useQuery({
-    queryKey: [...OUTFITS_KEY, "covers", character, outfit],
+    queryKey: [...OUTFITS_KEY, "covers", character, outfit, tags ?? null],
     queryFn: ({ signal }) =>
-      api<CoverChoice[]>(
-        `${BASE}/outfits/covers?character=${encodeURIComponent(character)}&outfit=${encodeURIComponent(outfit)}`,
-        { signal },
-      ),
-    enabled,
+      api<CoverChoice[]>(`${BASE}/outfits/covers?character=${encodeURIComponent(character)}${q}`, { signal }),
+    placeholderData: (prev) => prev,
   });
 }
 

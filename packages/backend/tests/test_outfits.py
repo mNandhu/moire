@@ -74,6 +74,14 @@ async def test_outfits_end_to_end(client, comfy, seed, monkeypatch):  # noqa: F8
     ).json()
     assert choices[0] == {"image_id": "L1:h0", "missing": [], "of": 1}
     assert "L1:bare" not in {c["image_id"] for c in choices}
+    # An outfit not saved yet, by its tags.
+    loose = (
+        await client.get(
+            "/generate/outfits/covers",
+            params={"character": HU, "tags": ["porkpie hat", "cape"]},
+        )
+    ).json()
+    assert loose[0] == {"image_id": "L1:h0", "missing": ["cape"], "of": 2}
     put = lambda body: client.put(  # noqa: E731
         "/generate/outfits/default", params={"character": HU}, json=body
     )

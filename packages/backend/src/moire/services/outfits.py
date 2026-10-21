@@ -291,15 +291,19 @@ async def update_default(
     return await default(key)
 
 
-async def covers(character: str, outfit_id: str) -> list[dict[str, Any]] | None:
+async def covers(
+    character: str, outfit_id: str | None, tags: list[str] | None = None
+) -> list[dict[str, Any]] | None:
     """Images that could be ``outfit_id``'s cover ("default" for the
-    character's Default): the character's images wearing most of its tags,
-    each with the tags it lacks (``missing``). None when the character or
-    outfit is unknown."""
+    character's Default; none: an outfit not saved yet, by its ``tags``):
+    the character's images wearing most of its tags, each with the tags it
+    lacks (``missing``). None when the character or outfit is unknown."""
     r = await recipes.wardrobe(character)
     if r is None:
         return None
-    if outfit_id == DEFAULT_ID:
+    if not outfit_id:
+        tags = clean_tags(tags or [])
+    elif outfit_id == DEFAULT_ID:
         tags, _ = apply_default_edits(list(r["outfit"]), await _default_edit(r["tag"]))
     else:
         o = await get(outfit_id)

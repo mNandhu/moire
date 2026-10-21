@@ -36,15 +36,18 @@ export function coverCaption(missing: readonly string[]): string {
 export function CoverGrid({
   character,
   outfit,
+  tags,
   value,
   onChange,
 }: {
   character: string;
   outfit: string;
+  /** An outfit not saved yet: its tags so far, in place of `outfit`. */
+  tags?: readonly string[];
   value: string | null;
   onChange: (imageId: string) => void;
 }) {
-  const { data, isLoading } = useCoverChoices(character, outfit);
+  const { data, isLoading } = useCoverChoices(character, outfit, tags);
   const [all, setAll] = useState(false);
   if (isLoading) return <span className="text-sm text-faint">Loading…</span>;
   const listed = data ?? [];

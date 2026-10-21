@@ -15,6 +15,7 @@ import {
   putDefaultOutfit,
   deleteOutfit,
   fetchOutfitPrefill,
+  useDefaultOutfit,
   fetchOutfitTagInfo,
   updateOutfit,
   type Outfit,
@@ -84,6 +85,10 @@ export function SaveOutfitDialog({
   const [cover, setCover] = useState<string | null>(null);
   const [changing, setChanging] = useState(false);
   const isDefault = outfit?._id === DEFAULT_OUTFIT;
+  // A new outfit with no image (a character page's New outfit) starts from
+  // their usual clothes and picks its thumbnail with Change.
+  const blank = !outfit && !imageId;
+  const { data: usual, isError: noUsual } = useDefaultOutfit(open && blank ? character : null);
   useEffect(() => {
     if (!open) return setSeeded(false);
     if (seeded) return;
@@ -98,14 +103,22 @@ export function SaveOutfitDialog({
           : outfit.tags.map((t) => ({ ...t, source: "image" })),
       );
       setSeeded(true);
-    } else if (prefill || noPrefill || !imageId) {
+    } else if (blank) {
+      if (!usual && !noUsual) return;
+      setName("");
+      setShared(false);
+      setCover(null);
+      setChanging(false);
+      setRows((usual?.tags ?? []).map((t) => ({ ...t, source: "usual" })));
+      setSeeded(true);
+    } else if (prefill || noPrefill) {
       // Without a prefill (the image or character is gone): start empty.
       setName("");
       setShared(false);
       setRows((prefill?.tags ?? []).map((t) => ({ ...t, source: t.source })));
       setSeeded(true);
     }
-  }, [open, outfit, prefill, noPrefill, imageId, seeded]);
+  }, [open, outfit, prefill, noPrefill, blank, usual, noUsual, seeded]);
 
   const taken = useMemo(() => new Set(rows.map((r) => r.tag)), [rows]);
   const done = () => {
@@ -125,7 +138,7 @@ export function SaveOutfitDialog({
       const body = { name: name.trim(), tags: rows.map((r) => r.tag), shared };
       return outfit
         ? updateOutfit(outfit._id, cover !== outfit.image_id ? { ...body, image_id: cover } : body)
-        : createOutfit({ ...body, character, image_id: imageId });
+        : createOutfit({ ...body, character, image_id: imageId ?? cover });
     },
     onSuccess: (o) => {
       if (isDefault) qc.setQueryData(defaultOutfitKey(character), o);
@@ -160,7 +173,7 @@ export function SaveOutfitDialog({
       className={changing ? "max-w-3xl" : "max-w-2xl"}
       title={
         <span className="flex items-baseline gap-3">
-          {isDefault ? "Default outfit" : outfit ? "Edit outfit" : "Save outfit"}
+          {isDefault ? "Default outfit" : outfit ? "Edit outfit" : blank ? "New outfit" : "Save outfit"}
           <span className="text-sm font-normal text-muted">
             {isDefault ? `${characterName}, read from ${outfit!.images ?? 0} images` : `for ${characterName}`}
           </span>
@@ -193,15 +206,15 @@ export function SaveOutfitDialog({
             Cancel
           </Button>
           <Button variant="primary" disabled={!ready} onClick={() => save.mutate()}>
-            {outfit ? "Save changes" : "Save outfit"}
+            {outfit ? "Save changes" : blank ? "Create outfit" : "Save outfit"}
           </Button>
         </div>
       }
     >
       <div className="flex flex-wrap gap-5">
         <div className="relative h-[140px] w-24 shrink-0">
-          <OutfitThumb imageId={outfit ? cover : imageId} className="h-full w-full rounded-lg border border-line-strong" />
-          {outfit && (
+          <OutfitThumb imageId={outfit || blank ? cover : imageId} className="h-full w-full rounded-lg border border-line-strong" />
+          {(outfit || blank) && (
             <button
               type="button"
               onClick={() => setChanging((x) => !x)}
@@ -228,7 +241,7 @@ export function SaveOutfitDialog({
               <span className="text-xs font-medium text-muted">Attire tags</span>
               {!outfit && (
                 <>
-                  <Key source="image">in this image</Key>
+                  {!blank && <Key source="image">in this image</Key>}
                   <Key source="usual">{characterName} usually wears</Key>
                 </>
               )}
@@ -286,10 +299,16 @@ export function SaveOutfitDialog({
           )}
         </div>
       </div>
-      {outfit && changing && (
+      {(outfit || blank) && changing && (
         <div className="mt-5 flex flex-col gap-2 border-t border-line pt-4">
           <span className="text-xs font-medium text-muted">Thumbnail</span>
-          <CoverGrid character={character} outfit={outfit._id} value={cover} onChange={setCover} />
+          <CoverGrid
+            character={character}
+            outfit={outfit?._id ?? ""}
+            tags={outfit ? undefined : rows.map((r) => r.tag)}
+            value={cover}
+            onChange={setCover}
+          />
         </div>
       )}
     </Dialog>,

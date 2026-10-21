@@ -498,10 +498,13 @@ async def outfit_tag_info(tags: list[str] = Query(default_factory=list)):
 
 
 @router.get("/outfits/covers")
-async def outfit_covers(character: str, outfit: str):
+async def outfit_covers(
+    character: str, outfit: str = "", tags: list[str] = Query(default_factory=list)
+):
     """Images ``character`` wears ``outfit`` in ("default" for their usual
-    clothes), most of its tags first: the cover picker's choices."""
-    found = await outfits.covers(character, outfit)
+    clothes; none: these ``tags``), most of it first: the cover picker's
+    choices."""
+    found = await outfits.covers(character, outfit or None, tags)
     if found is None:
         raise HTTPException(status_code=404, detail="Character or outfit not found")
     return found

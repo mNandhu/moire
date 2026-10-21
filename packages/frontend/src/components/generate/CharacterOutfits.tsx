@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Images, Pencil, Wand2 } from "lucide-react";
+import { Eye, EyeOff, Images, Pencil, Plus, Wand2 } from "lucide-react";
 import { Badge, DropdownMenu, type DropdownItem } from "../ui";
 import { useToast } from "../Toasts";
 import { cn } from "../../lib/cn";
@@ -107,12 +107,12 @@ export function CharacterOutfits({ character, name }: { character: string; name:
   const { data: def } = useDefaultOutfit(character);
   const { data: list } = useOutfits(character);
   const [editing, setEditing] = useState<Outfit | null>(null);
+  const [creating, setCreating] = useState(false);
   const actions = useOutfitActions(character, name);
   const own = (list ?? []).filter((o) => o.character === character);
   const shared = (list ?? []).filter((o) => o.character !== character);
   // Default shows even when empty once edited: it may have been emptied by hand.
   const d = def && (def.tags.length || def.edited) ? def : null;
-  if (!d && !own.length && !shared.length) return null;
   const counts = [own.length && `${own.length} own`, shared.length && `${shared.length} shared`].filter(Boolean).join(", ");
   const card = (o: Outfit, canHide = false) => (
     <DropdownMenu
@@ -127,15 +127,28 @@ export function CharacterOutfits({ character, name }: { character: string; name:
       <div className="mb-2 flex items-baseline gap-2.5">
         <h2 className="text-2xs uppercase tracking-wider text-faint">Outfits · {own.length + shared.length}</h2>
         {counts && <span className="text-xs text-muted">{counts}</span>}
-        <Link to={`/outfits?character=${encodeURIComponent(character)}`} className="ml-auto text-xs text-brand-300 hover:text-brand-200">
-          All outfits
-        </Link>
+        <span className="ml-auto flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
+          >
+            <Plus size={12} /> New outfit
+          </button>
+          <Link to={`/outfits?character=${encodeURIComponent(character)}`} className="text-xs text-brand-300 hover:text-brand-200">
+            All outfits
+          </Link>
+        </span>
       </div>
       <div className="flex flex-wrap gap-3 pb-1">
+        {!d && !own.length && !shared.length && <span className="text-sm text-faint">No outfits yet</span>}
         {d && card(d)}
         {own.map((o) => card(o))}
         {shared.map((o) => card(o, true))}
       </div>
+      {creating && (
+        <SaveOutfitDialog open onClose={() => setCreating(false)} character={character} characterName={name} imageId={null} />
+      )}
       {editing && (
         <SaveOutfitDialog
           open
