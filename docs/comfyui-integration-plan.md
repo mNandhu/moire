@@ -911,7 +911,6 @@ garment counts as that garment. Reviewed (c2556ac). SillyFlow row deleted.
 ### Status (2026-10-21, phases 0-4 merged to main and pushed)
 
 Open:
-- The user deletes `VPS/hires_00001_.png` on the ComfyUI server (no API for it).
 - Not checked with a real run: an output joining its family through the
   `moire` chunk; a batch with outfits (fake only).
 - Viewer panel redesign (user's call, later): the Wearing list becomes
@@ -919,6 +918,9 @@ Open:
 - Only 5 of ~3.8k images have AI tags; tagging the library improves
   Defaults, prefill, thumbnails and the outfit filter.
 - Deferred from phase 2: the weak-recipe warning.
-- Later: adherence stats, settings recall, learned negatives, X/Y batches,
-  coverage gaps. Deferred: reference images. TBD: img2img workflows.
-- Branches `feat/comfyui-phase2..4` (and their remotes) are merged and can go.
+- Later (the user's next big item): adherence stats, settings recall,
+  learned negatives, X/Y batches, coverage gaps, reference images, img2img
+  workflows.
+
+Done since: the server test image is deleted (by the user); the merged
+`feat/comfyui-phase2..4` branches are deleted locally and on origin.
