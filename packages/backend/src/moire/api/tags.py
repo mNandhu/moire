@@ -48,6 +48,13 @@ class TagSettingsPatch(BaseModel):
     boilerplate: list[str]
 
 
+@router.get("/attire")
+async def get_attire_groups():
+    """``tag -> attire group`` (headwear, accessories, ...) for every attire
+    tag: outfit chips are labelled by it. Static per build, like facets."""
+    return JSONResponse(attire.attire_tags())
+
+
 @router.get("/facets")
 async def get_tag_facets():
     """``tag -> facet`` (look, outfit, pose, scene, framing) for every listed

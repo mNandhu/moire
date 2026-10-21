@@ -231,3 +231,9 @@ def test_default_edits_strike_and_add():
         ("scarf", False, True),
     ]
     assert outfits.clean_default_patch({"name": "Default"}) == {"name": None}
+
+
+async def test_attire_groups_route(client):
+    groups = (await client.get("/tags/attire")).json()
+    assert groups["hair_flower"] == "accessories"
+    assert "red_eyes" not in groups

@@ -185,6 +185,17 @@ export function useImageStats() {
   });
 }
 
+/** `tag -> attire group` (headwear, accessories, ...): outfit chips are
+ * labelled by it. Fixed per build, so fetched once. */
+export function useAttireGroups() {
+  return useQuery({
+    queryKey: ["tag-attire"],
+    queryFn: ({ signal }) => api<Record<string, string>>("/api/v1/tags/attire", { signal }),
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+}
+
 export const TAG_FACETS_KEY = ["tag-facets"] as const;
 
 /** `tag -> facet` from the shipped tag-group list: fixed per build, so fetched once. */

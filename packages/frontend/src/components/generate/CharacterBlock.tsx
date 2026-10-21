@@ -21,7 +21,7 @@ import { NewCharacterDialog } from "../NewCharacterDialog";
 import { OutfitChips, OutfitPicker, useCharacterOutfits } from "./Outfit";
 import { wornTags, type OutfitPick, type Outfits } from "../../lib/outfit";
 import { TagSuggestList, useTagMatches } from "../TagSuggestList";
-import { useTagAggregate } from "../../lib/queries";
+import { useAttireGroups, useTagAggregate } from "../../lib/queries";
 
 const NO_LORA = "\u0000none";
 
@@ -540,7 +540,13 @@ function OutfitFold({
   outfit: OutfitPick;
   onOutfit: (pick: OutfitPick | null) => void;
 }) {
-  const { groups } = useCharacterOutfits(character);
+  const { groups: known } = useCharacterOutfits(character);
+  const { data: attireGroups } = useAttireGroups();
+  // Tags added for this batch get their group from the attire list.
+  const groups = useMemo(
+    () => new Map([...Object.entries(attireGroups ?? {}), ...known]),
+    [attireGroups, known],
+  );
   return (
     <div>
       <FieldLabel>Outfit tags</FieldLabel>

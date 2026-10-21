@@ -18,7 +18,7 @@ import {
   updateOutfit,
   type Outfit,
 } from "../../lib/generate";
-import { useTagFacets } from "../../lib/queries";
+import { useAttireGroups, useTagFacets } from "../../lib/queries";
 import { AttireTagInput, OutfitChip, OutfitThumb } from "./Outfit";
 import { CoverGrid } from "./OutfitCover";
 import { Image as ImageIcon } from "lucide-react";
@@ -70,6 +70,7 @@ export function SaveOutfitDialog({
   const toast = useToast();
   const confirm = useConfirm();
   const { data: facets } = useTagFacets();
+  const { data: attireGroups } = useAttireGroups();
   const { data: prefill, isError: noPrefill } = useQuery({
     queryKey: [...OUTFITS_KEY, "prefill", imageId ?? "", character],
     queryFn: ({ signal }) => fetchOutfitPrefill(imageId!, character, signal),
@@ -261,7 +262,10 @@ export function SaveOutfitDialog({
                     setRows((x) =>
                       x.some((y) => y.tag === tag)
                         ? x
-                        : [...x, { tag, group: null, checkable: !facets || tag in facets, source: "added" }],
+                        : [
+                            ...x,
+                            { tag, group: attireGroups?.[tag] ?? null, checkable: !facets || tag in facets, source: "added" },
+                          ],
                     )
                   }
                 />
