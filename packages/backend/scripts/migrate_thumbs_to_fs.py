@@ -23,12 +23,14 @@ from __future__ import annotations
 import os
 import sys
 
-# Ensure `src` is importable when run from packages/backend.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure `moire` is importable when run from packages/backend.
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
+)
 
 from minio import Minio  # noqa: E402  (optional dep, installed via --with)
 
-from src.services.storage_fs import _safe_path, ensure_thumb_root  # noqa: E402
+from moire.services.storage_fs import _safe_path, ensure_thumb_root  # noqa: E402
 
 
 def _env(*names: str, default: str = "") -> str:

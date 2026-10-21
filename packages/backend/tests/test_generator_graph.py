@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from src.services import builtin_generator
-from src.services.generator_graph import (
+from moire.services import builtin_generator
+from moire.services.generator_graph import (
     GraphError,
     LoraPick,
     build_prompt,

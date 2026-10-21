@@ -1,4 +1,4 @@
-from src.services.generation_compose import (
+from moire.services.generation_compose import (
     auto_name,
     compose,
     compose_parts,
@@ -65,8 +65,8 @@ def test_prompt_terms_for_the_auto_name():
 
 
 def test_without_terms_keeps_the_rest_as_written():
-    from src.services.generation_compose import without_terms
-    from src.services.tag_names import canonical_name
+    from moire.services.generation_compose import without_terms
+    from moire.services.tag_names import canonical_name
 
     text = (
         "masterpiece, hu tao \\(genshin impact\\), brown hair,\n(twintails:1.2), smile"
@@ -81,8 +81,8 @@ def test_without_terms_keeps_the_rest_as_written():
 
 
 def test_without_terms_trims_both_ends():
-    from src.services.generation_compose import without_terms
-    from src.services.tag_names import canonical_name
+    from moire.services.generation_compose import without_terms
+    from moire.services.tag_names import canonical_name
 
     assert (
         without_terms("hatsune_miku, 1girl", {"hatsune_miku"}, canonical_name)

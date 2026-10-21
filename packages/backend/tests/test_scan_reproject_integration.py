@@ -10,9 +10,9 @@ import sqlalchemy as sa
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
-from src.database import db
-from src.database import schema as t
-from src.services import reproject, scanner
+from moire.database import db
+from moire.database import schema as t
+from moire.services import reproject, scanner
 
 pytestmark = pytest.mark.asyncio
 
@@ -270,8 +270,8 @@ async def test_rescan_skips_unchanged_files_and_rebuilds_on_change(
     gone, and a change to the thumbnail settings rebuilds everything."""
     import os
 
-    from src.core.config import settings
-    from src.services.storage_fs import delete_thumb
+    from moire.core.config import settings
+    from moire.services.storage_fs import delete_thumb
 
     lib_dir = tmp_path / "lib"
     lib_dir.mkdir()
@@ -391,7 +391,7 @@ async def test_a_file_that_failed_in_a_rebuild_is_read_again(
 ):
     """A rebuild scan (new thumbnail settings) where a file fails leaves that
     file's old row; the next scan must re-read it, not skip it."""
-    from src.core.config import settings
+    from moire.core.config import settings
 
     lib_dir = tmp_path / "lib"
     lib_dir.mkdir()

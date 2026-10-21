@@ -85,7 +85,7 @@ moire/
 
     - Run two separate terminal instances for development:
       - **Terminal 1 (Frontend):** Navigate to `packages/frontend` and run the Vite dev server (`pnpm dev`).
-      - **Terminal 2 (Backend):** Activate the virtual environment (`source packages/backend/.venv/bin/activate`) and run the Uvicorn dev server (`uvicorn src.main:app --reload`).
+      - **Terminal 2 (Backend):** Activate the virtual environment (`source packages/backend/.venv/bin/activate`) and run the Uvicorn dev server (`uvicorn moire.main:app --reload`).
     - **Recommendation:** Use a tool like `concurrently` in the root `package.json` to start both servers with a single command (`pnpm dev`).
 
 4.  **Static Assets (Thumbnails):**

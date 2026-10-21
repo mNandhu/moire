@@ -111,7 +111,7 @@ async def test_models_list_counts_and_sorted(client, seed):
 
 
 async def test_tag_untagged_skips_quarantined_like_coverage(client, seed, monkeypatch):
-    from src.services.ai_jobs import get_ai_job_manager
+    from moire.services.ai_jobs import get_ai_job_manager
 
     seed("L1:a", tags=("1girl",))  # ai-tagged: skipped
     seed("L1:b")  # untagged: queued

@@ -37,4 +37,4 @@ packages/**/.env
 
 # Attire list build cache (scripts/build_attire_list.py)
 /packages/backend/.tag-groups-cache/
-packages/backend/src/web/
+packages/backend/src/moire/web/

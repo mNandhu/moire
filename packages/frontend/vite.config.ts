@@ -5,9 +5,9 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   build: {
-    // The backend serves the built UI from here (src/web_ui.py), so a packaged
+    // The backend serves the built UI from here (src/moire/web_ui.py), so a packaged
     // Moiré is one process. Gitignored; `uv build` still includes it.
-    outDir: "../backend/src/web",
+    outDir: "../backend/src/moire/web",
     emptyOutDir: true,
   },
   test: {

@@ -4,7 +4,7 @@ Before this, the `moire.*` loggers had no handler at all, so records fell
 through to Python's last-resort handler: WARNING and above only, unformatted,
 stderr only. Errors were visible while a terminal was attached and gone after.
 
-`setup_logging()` is called from the app lifespan (so importing `src.main` in
+`setup_logging()` is called from the app lifespan (so importing `moire.main` in
 tests never creates log files) and is idempotent. Uvicorn configures its own
 loggers before the app starts; we leave those handlers alone and only add the
 file handler to `uvicorn.error`, which is where unhandled request exceptions

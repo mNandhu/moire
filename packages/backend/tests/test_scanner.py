@@ -8,7 +8,7 @@ Raw generation-metadata capture used to live here; it moved to
 from pathlib import Path
 
 
-from src.services import scanner
+from moire.services import scanner
 
 
 def test_image_id_for_is_library_prefixed_relative_path():

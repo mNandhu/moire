@@ -10,11 +10,11 @@ async def test_routes_live_under_api_v1(client):
 
 
 async def test_bare_prefix_is_gone(client):
-    from src.main import app
+    from moire.main import app
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
-        # Unprefixed paths never reach the API. With a built UI in src/web,
+        # Unprefixed paths never reach the API. With a built UI in src/moire/web,
         # `/libraries` is the Libraries page instead of a 404.
         r = await c.get("/libraries")
         assert r.status_code == 404 or r.headers["content-type"].startswith("text/html")

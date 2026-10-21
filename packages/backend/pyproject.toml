@@ -1,13 +1,13 @@
 [project]
-name = "moire-backend"
+name = "moire-gallery"
 version = "0.1.0"
-description = "Moiré backend API server (FastAPI)"
+description = "Organize, tag and generate AI images: a local gallery for your ComfyUI outputs"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi[standard]",
   "uvicorn",
-  "sqlalchemy>=2.0",
+  "sqlalchemy[asyncio]>=2.0",
   "aiosqlite",
   "pillow",
   "python-dotenv",
@@ -19,26 +19,46 @@ dependencies = [
   "websockets>=15",
 ]
 
+# The AI tagger's runtime for an installed Moiré: `uv tool install
+# "moire-gallery[cpu]"` or `[gpu]`. Same lists as the `cpu`/`gpu` dependency
+# groups below (which a dev checkout uses); keep them in step. uv can't point a
+# group at a conflicting extra of its own project.
+[project.optional-dependencies]
+cpu = ["onnxruntime>=1.23.0,<2.0"]
+gpu = [
+    "onnxruntime-gpu>=1.23.2,<1.24; sys_platform != 'darwin'",
+    "nvidia-cudnn-cu12>=9,<10; sys_platform != 'darwin'",
+    "nvidia-cublas-cu12; sys_platform != 'darwin'",
+    "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
+    "nvidia-cufft-cu12; sys_platform != 'darwin'",
+    "nvidia-curand-cu12; sys_platform != 'darwin'",
+    "nvidia-cuda-nvrtc-cu12; sys_platform != 'darwin'",
+]
+
+[project.scripts]
+moire = "moire.cli:main"
+
 [build-system]
 requires = ["uv_build>=0.11,<0.12"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-# Flat layout: the importable package is the top-level `src/` directory itself
-# (imported as `src.main`), not `src/<name>/`.
-module-root = ""
-module-name = "src"
+# src layout: the importable package is `src/moire`, whatever the PyPI name.
+module-name = "moire"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = ["src", "."]
 
 [tool.uv]
 # onnxruntime comes from one of two conflicting groups: `cpu` (default) or
-# `gpu` (CUDA). See README "GPU tagging".
+# `gpu` (CUDA); the extras of the same names mirror them. See README "GPU tagging".
 default-groups = ["dev", "cpu"]
-conflicts = [[{ group = "cpu" }, { group = "gpu" }]]
+conflicts = [
+    [{ group = "cpu" }, { group = "gpu" }],
+    [{ extra = "cpu" }, { extra = "gpu" }],
+]
 environments = [
     "sys_platform == 'win32'",
     "sys_platform == 'linux' and platform_machine == 'x86_64'",

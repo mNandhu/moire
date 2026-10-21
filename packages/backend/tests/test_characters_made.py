@@ -5,13 +5,13 @@ from __future__ import annotations
 
 import asyncio
 
-from src.services import tag_index
+from moire.services import tag_index
 
 FERN = "fern_(sousou_no_frieren)"
 
 
 async def test_made_character_lives_until_images_have_it(client, seed, monkeypatch):
-    from src.services import tag_categories
+    from moire.services import tag_categories
 
     async def vocab():
         return tag_categories.vocab({FERN}, set())
@@ -64,7 +64,7 @@ async def test_made_character_can_be_deleted(client):
 async def test_making_a_character_twice_or_by_its_full_name_is_refused(
     client, seed, monkeypatch
 ):
-    from src.services import tag_categories
+    from moire.services import tag_categories
 
     async def vocab():
         return tag_categories.vocab({"furina_(genshin_impact)"}, set())

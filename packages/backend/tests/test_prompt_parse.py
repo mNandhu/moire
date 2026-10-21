@@ -4,7 +4,7 @@ Patterns recreated from real prompts with neutral wording."""
 
 import pytest
 
-from src.services.prompt_parse import classify, is_prose, parse_prompt
+from moire.services.prompt_parse import classify, is_prose, parse_prompt
 
 
 def tags(text):

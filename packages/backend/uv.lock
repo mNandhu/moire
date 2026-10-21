@@ -12,8 +12,11 @@ supported-markers = [
     "platform_machine == 'arm64' and sys_platform == 'darwin'",
 ]
 conflicts = [[
-    { package = "moire-backend", group = "cpu" },
-    { package = "moire-backend", group = "gpu" },
+    { package = "moire-gallery", group = "cpu" },
+    { package = "moire-gallery", group = "gpu" },
+], [
+    { package = "moire-gallery", extra = "cpu" },
+    { package = "moire-gallery", extra = "gpu" },
 ]]
 
 [[package]]
@@ -39,9 +42,9 @@ name = "anyio"
 version = "4.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "idna", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "sniffio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "typing-extensions", marker = "(python_full_version < '3.13' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.13' and platform_machine == 'x86_64' and sys_platform == 'linux') or (python_full_version < '3.13' and sys_platform == 'win32') or (python_full_version >= '3.13' and sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (python_full_version >= '3.13' and sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (platform_machine != 'arm64' and sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (platform_machine != 'x86_64' and sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "idna" },
+    { name = "sniffio" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f1/b4/636b3b65173d3ce9a38ef5f0522789614e590dab6a8d505340a4efe4c567/anyio-4.10.0.tar.gz", hash = "sha256:3f3fae35c96039744587aa5b8371e7e8e603c0702999535961dd336026973ba6", size = 213252, upload-time = "2025-08-04T08:54:26.451Z" }
 wheels = [
@@ -62,7 +65,7 @@ name = "click"
 version = "8.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/60/6c/8ca2efa64cf75a977a0d7fac081354553ebe483345c734fb6b6515d96bbc/click-8.2.1.tar.gz", hash = "sha256:27c491cc05d968d271d5a1db13e3b5a184636d9d930f148c50b038f0d0646202", size = 286342, upload-time = "2025-05-20T23:19:49.832Z" }
 wheels = [
@@ -83,7 +86,7 @@ name = "coloredlogs"
 version = "15.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "humanfriendly", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu') or (platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu') or (platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'group-13-moire-backend-gpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-backend-cpu') or (sys_platform == 'win32' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "humanfriendly", marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-13-moire-gallery-cpu') or (sys_platform == 'linux' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-gallery-cpu') or (sys_platform == 'linux' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-gallery-cpu') or (sys_platform == 'win32' and extra == 'group-13-moire-gallery-gpu') or extra == 'extra-13-moire-gallery-cpu'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/cc/c7/eed8f27100517e8c0e6b923d5f0845d0cb99763da6fdee00478f91db7325/coloredlogs-15.0.1.tar.gz", hash = "sha256:7c991aa71a4577af2f82600d8f8f3a89f936baeaf9b50a9c197da014e5bf16b0", size = 278520, upload-time = "2021-06-11T10:22:45.202Z" }
 wheels = [
@@ -104,8 +107,8 @@ name = "email-validator"
 version = "2.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "dnspython", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "idna", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "dnspython" },
+    { name = "idna" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/48/ce/13508a1ec3f8bb981ae4ca79ea40384becc868bfae97fd1c942bb3a001b1/email_validator-2.2.0.tar.gz", hash = "sha256:cb690f344c617a714f22e66ae771445a1ceb46821152df8e165c5f9a364582b7", size = 48967, upload-time = "2024-06-20T11:30:30.034Z" }
 wheels = [
@@ -117,9 +120,9 @@ name = "fastapi"
 version = "0.116.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pydantic", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "starlette", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "pydantic" },
+    { name = "starlette" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/78/d7/6c8b3bfe33eeffa208183ec037fee0cce9f7f024089ab1c5d12ef04bd27c/fastapi-0.116.1.tar.gz", hash = "sha256:ed52cbf946abfd70c5a0dccb24673f0670deeb517a88b3544d03c2a6bf283143", size = 296485, upload-time = "2025-07-11T16:22:32.057Z" }
 wheels = [
@@ -128,12 +131,12 @@ wheels = [
 
 [package.optional-dependencies]
 standard = [
-    { name = "email-validator", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "fastapi-cli", extra = ["standard"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "httpx", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "jinja2", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "python-multipart", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "uvicorn", extra = ["standard"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "email-validator" },
+    { name = "fastapi-cli", extra = ["standard"] },
+    { name = "httpx" },
+    { name = "jinja2" },
+    { name = "python-multipart" },
+    { name = "uvicorn", extra = ["standard"] },
 ]
 
 [[package]]
@@ -141,9 +144,9 @@ name = "fastapi-cli"
 version = "0.0.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "rich-toolkit", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "typer", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "uvicorn", extra = ["standard"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "rich-toolkit" },
+    { name = "typer" },
+    { name = "uvicorn", extra = ["standard"] },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c6/94/3ef75d9c7c32936ecb539b9750ccbdc3d2568efd73b1cb913278375f4533/fastapi_cli-0.0.8.tar.gz", hash = "sha256:2360f2989b1ab4a3d7fc8b3a0b20e8288680d8af2e31de7c38309934d7f8a0ee", size = 16884, upload-time = "2025-07-07T14:44:09.326Z" }
 wheels = [
@@ -152,8 +155,8 @@ wheels = [
 
 [package.optional-dependencies]
 standard = [
-    { name = "fastapi-cloud-cli", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "uvicorn", extra = ["standard"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "fastapi-cloud-cli" },
+    { name = "uvicorn", extra = ["standard"] },
 ]
 
 [[package]]
@@ -161,13 +164,13 @@ name = "fastapi-cloud-cli"
 version = "0.1.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "httpx", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "pydantic", extra = ["email"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "rich-toolkit", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "rignore", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "sentry-sdk", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "typer", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "uvicorn", extra = ["standard"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "httpx" },
+    { name = "pydantic", extra = ["email"] },
+    { name = "rich-toolkit" },
+    { name = "rignore" },
+    { name = "sentry-sdk" },
+    { name = "typer" },
+    { name = "uvicorn", extra = ["standard"] },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a9/2e/3b6e5016affc310e5109bc580f760586eabecea0c8a7ab067611cd849ac0/fastapi_cloud_cli-0.1.5.tar.gz", hash = "sha256:341ee585eb731a6d3c3656cb91ad38e5f39809bf1a16d41de1333e38635a7937", size = 22710, upload-time = "2025-07-28T13:30:48.216Z" }
 wheels = [
@@ -238,8 +241,8 @@ name = "httpcore"
 version = "1.0.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "certifi", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "h11", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "certifi" },
+    { name = "h11" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/06/94/82699a10bca87a5556c9c59b5963f2d039dbd239f25bc2a63907a05a14cb/httpcore-1.0.9.tar.gz", hash = "sha256:6e34463af53fd2ab5d807f399a9b45ea31c3dfa2276f15a2c3f00afff6e176e8", size = 85484, upload-time = "2025-04-24T22:06:22.219Z" }
 wheels = [
@@ -274,10 +277,10 @@ name = "httpx"
 version = "0.28.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "certifi", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "httpcore", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "idna", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "anyio" },
+    { name = "certifi" },
+    { name = "httpcore" },
+    { name = "idna" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b1/df/48c586a5fe32a0f01324ee087459e112ebb7224f646c0b5023f5e79e9956/httpx-0.28.1.tar.gz", hash = "sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc", size = 141406, upload-time = "2024-12-06T15:37:23.222Z" }
 wheels = [
@@ -289,7 +292,7 @@ name = "humanfriendly"
 version = "10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyreadline3", marker = "sys_platform == 'win32'" },
+    { name = "pyreadline3", marker = "(sys_platform == 'win32' and extra == 'extra-13-moire-gallery-cpu') or (sys_platform == 'win32' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-gallery-cpu') or (sys_platform == 'win32' and extra == 'group-13-moire-gallery-gpu') or (sys_platform != 'win32' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/cc/3f/2c29224acb2e2df4d2046e4c73ee2662023c58ff5b113c4c1adac0886c43/humanfriendly-10.0.tar.gz", hash = "sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc", size = 360702, upload-time = "2021-09-17T21:40:43.31Z" }
 wheels = [
@@ -319,7 +322,7 @@ name = "jinja2"
 version = "3.1.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "markupsafe", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "markupsafe" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz", hash = "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d", size = 245115, upload-time = "2025-03-05T20:05:02.478Z" }
 wheels = [
@@ -331,7 +334,7 @@ name = "markdown-it-py"
 version = "4.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "mdurl", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "mdurl" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/5b/f5/4ec618ed16cc4f8fb3b701563655a69816155e79e24a17b651541804721d/markdown_it_py-4.0.0.tar.gz", hash = "sha256:cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3", size = 73070, upload-time = "2025-08-11T12:57:52.854Z" }
 wheels = [
@@ -380,41 +383,55 @@ wheels = [
 ]
 
 [[package]]
-name = "moire-backend"
+name = "moire-gallery"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "aiosqlite", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "fastapi", extra = ["standard"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "httpx", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "numpy", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "pillow", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "pydantic-settings", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "python-dotenv", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "sqlalchemy", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "tzdata", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "uvicorn", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "watchfiles", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "websockets", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "aiosqlite" },
+    { name = "fastapi", extra = ["standard"] },
+    { name = "httpx" },
+    { name = "numpy" },
+    { name = "pillow" },
+    { name = "pydantic-settings" },
+    { name = "python-dotenv" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "tzdata" },
+    { name = "uvicorn" },
+    { name = "watchfiles" },
+    { name = "websockets" },
+]
+
+[package.optional-dependencies]
+cpu = [
+    { name = "onnxruntime" },
+]
+gpu = [
+    { name = "nvidia-cublas-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
+    { name = "nvidia-cuda-nvrtc-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
+    { name = "nvidia-cuda-runtime-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
+    { name = "nvidia-cudnn-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
+    { name = "nvidia-cufft-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
+    { name = "nvidia-curand-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
+    { name = "onnxruntime-gpu", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
 ]
 
 [package.dev-dependencies]
 cpu = [
-    { name = "onnxruntime", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
+    { name = "onnxruntime" },
 ]
 dev = [
-    { name = "pytest", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "pytest-asyncio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "ruff", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
 ]
 gpu = [
-    { name = "nvidia-cublas-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "nvidia-cuda-nvrtc-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "nvidia-cuda-runtime-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "nvidia-cudnn-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "nvidia-cufft-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "nvidia-curand-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "onnxruntime-gpu", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
+    { name = "nvidia-cublas-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu')" },
+    { name = "nvidia-cuda-nvrtc-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu')" },
+    { name = "nvidia-cuda-runtime-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu')" },
+    { name = "nvidia-cudnn-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu')" },
+    { name = "nvidia-cufft-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu')" },
+    { name = "nvidia-curand-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu')" },
+    { name = "onnxruntime-gpu", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu')" },
 ]
 
 [package.metadata]
@@ -423,15 +440,24 @@ requires-dist = [
     { name = "fastapi", extras = ["standard"] },
     { name = "httpx" },
     { name = "numpy", specifier = ">=2.4.0,<3.0" },
+    { name = "nvidia-cublas-cu12", marker = "sys_platform != 'darwin' and extra == 'gpu'" },
+    { name = "nvidia-cuda-nvrtc-cu12", marker = "sys_platform != 'darwin' and extra == 'gpu'" },
+    { name = "nvidia-cuda-runtime-cu12", marker = "sys_platform != 'darwin' and extra == 'gpu'" },
+    { name = "nvidia-cudnn-cu12", marker = "sys_platform != 'darwin' and extra == 'gpu'", specifier = ">=9,<10" },
+    { name = "nvidia-cufft-cu12", marker = "sys_platform != 'darwin' and extra == 'gpu'" },
+    { name = "nvidia-curand-cu12", marker = "sys_platform != 'darwin' and extra == 'gpu'" },
+    { name = "onnxruntime", marker = "extra == 'cpu'", specifier = ">=1.23.0,<2.0" },
+    { name = "onnxruntime-gpu", marker = "sys_platform != 'darwin' and extra == 'gpu'", specifier = ">=1.23.2,<1.24" },
     { name = "pillow" },
     { name = "pydantic-settings", specifier = ">=2.14.1" },
     { name = "python-dotenv" },
-    { name = "sqlalchemy", specifier = ">=2.0" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "tzdata", specifier = ">=2026.5" },
     { name = "uvicorn" },
     { name = "watchfiles", specifier = ">=1.0" },
     { name = "websockets", specifier = ">=15" },
 ]
+provides-extras = ["cpu", "gpu"]
 
 [package.metadata.requires-dev]
 cpu = [{ name = "onnxruntime", specifier = ">=1.23.0,<2.0" }]
@@ -518,7 +544,7 @@ name = "nvidia-cublas-cu12"
 version = "12.9.2.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cuda-nvrtc-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
+    { name = "nvidia-cuda-nvrtc-cu12", marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/c0/0a517bfe63ccd3b92eb254d264e28fca3c7cab75d07daea315250fb1bf73/nvidia_cublas_cu12-12.9.2.10-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:e4f53a8ca8c5d6e8c492d0d0a3d565ecb59a751b19cfdaa4f6da0ab2104c1702", size = 581240110, upload-time = "2026-04-08T18:52:31.532Z" },
@@ -548,7 +574,7 @@ name = "nvidia-cudnn-cu12"
 version = "9.27.0.42"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
+    { name = "nvidia-cublas-cu12", marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/65/e4/c5a205d48ff00ed8b27882bb45d338d8138e976c76385f328a326bbfaeda/nvidia_cudnn_cu12-9.27.0.42-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:0a4aa3a7d2264256506c6857fc41fc0c499982f78d70195b1cfcc9055c1957cd", size = 766178381, upload-time = "2026-09-29T23:42:52.357Z" },
@@ -560,7 +586,7 @@ name = "nvidia-cufft-cu12"
 version = "11.4.1.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/95/f4/61e6996dd20481ee834f57a8e9dca28b1869366a135e0d42e2aa8493bdd4/nvidia_cufft_cu12-11.4.1.4-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:c67884f2a7d276b4b80eb56a79322a95df592ae5e765cf1243693365ccab4e28", size = 200877592, upload-time = "2025-06-05T20:05:45.862Z" },
@@ -590,12 +616,12 @@ name = "onnxruntime"
 version = "1.23.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "coloredlogs", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "flatbuffers", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "numpy", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "packaging", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "protobuf", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "sympy", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
+    { name = "coloredlogs", marker = "extra == 'extra-13-moire-gallery-cpu' or extra == 'group-13-moire-gallery-cpu'" },
+    { name = "flatbuffers", marker = "extra == 'extra-13-moire-gallery-cpu' or extra == 'group-13-moire-gallery-cpu'" },
+    { name = "numpy", marker = "extra == 'extra-13-moire-gallery-cpu' or extra == 'group-13-moire-gallery-cpu'" },
+    { name = "packaging", marker = "extra == 'extra-13-moire-gallery-cpu' or extra == 'group-13-moire-gallery-cpu'" },
+    { name = "protobuf", marker = "extra == 'extra-13-moire-gallery-cpu' or extra == 'group-13-moire-gallery-cpu'" },
+    { name = "sympy", marker = "extra == 'extra-13-moire-gallery-cpu' or extra == 'group-13-moire-gallery-cpu'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/44/be/467b00f09061572f022ffd17e49e49e5a7a789056bad95b54dfd3bee73ff/onnxruntime-1.23.2-cp311-cp311-macosx_13_0_arm64.whl", hash = "sha256:6f91d2c9b0965e86827a5ba01531d5b669770b01775b23199565d6c1f136616c", size = 17196113, upload-time = "2025-10-22T03:47:33.526Z" },
@@ -615,12 +641,12 @@ name = "onnxruntime-gpu"
 version = "1.23.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "coloredlogs", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "flatbuffers", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "numpy", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "packaging", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "protobuf", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "sympy", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
+    { name = "coloredlogs", marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
+    { name = "flatbuffers", marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
+    { name = "numpy", marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
+    { name = "packaging", marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
+    { name = "protobuf", marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
+    { name = "sympy", marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'extra-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/43/a4/e3d7fbe32b44e814ae24ed642f05fac5d96d120efd82db7a7cac936e85a9/onnxruntime_gpu-1.23.2-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d76d1ac7a479ecc3ac54482eea4ba3b10d68e888a0f8b5f420f0bdf82c5eec59", size = 300525715, upload-time = "2025-10-22T16:56:19.928Z" },
@@ -725,10 +751,10 @@ name = "pydantic"
 version = "2.11.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "annotated-types", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "pydantic-core", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "typing-inspection", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "annotated-types" },
+    { name = "pydantic-core" },
+    { name = "typing-extensions" },
+    { name = "typing-inspection" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/00/dd/4325abf92c39ba8623b5af936ddb36ffcfe0beae70405d456ab1fb2f5b8c/pydantic-2.11.7.tar.gz", hash = "sha256:d989c3c6cb79469287b1569f7447a17848c998458d49ebe294e975b9baf0f0db", size = 788350, upload-time = "2025-06-14T08:33:17.137Z" }
 wheels = [
@@ -737,7 +763,7 @@ wheels = [
 
 [package.optional-dependencies]
 email = [
-    { name = "email-validator", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "email-validator" },
 ]
 
 [[package]]
@@ -745,7 +771,7 @@ name = "pydantic-core"
 version = "2.33.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ad/88/5f2260bdfae97aabf98f1778d43f69574390ad787afb646292a638c923d4/pydantic_core-2.33.2.tar.gz", hash = "sha256:7cb8bc3605c29176e1b105350d2e6474142d7c1bd1d9327c4a9bdb46bf827acc", size = 435195, upload-time = "2025-04-23T18:33:52.104Z" }
 wheels = [
@@ -781,9 +807,9 @@ name = "pydantic-settings"
 version = "2.14.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pydantic", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "python-dotenv", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "typing-inspection", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "typing-inspection" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/07/60/1d1e59c9c90d54591469ada7d268251f71c24bdb765f1a8a832cee8c6653/pydantic_settings-2.14.1.tar.gz", hash = "sha256:e874d3bec7e787b0c9958277956ed9b4dd5de6a80e162188fdaff7c5e26fd5fa", size = 235551, upload-time = "2026-05-08T13:40:06.542Z" }
 wheels = [
@@ -813,11 +839,11 @@ name = "pytest"
 version = "9.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "iniconfig", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "packaging", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "pluggy", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "pygments", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
+    { name = "iniconfig" },
+    { name = "packaging" },
+    { name = "pluggy" },
+    { name = "pygments" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7d/0d/549bd94f1a0a402dc8cf64563a117c0f3765662e2e668477624baeec44d5/pytest-9.0.3.tar.gz", hash = "sha256:b86ada508af81d19edeb213c681b1d48246c1a91d304c6c81a427674c17eb91c", size = 1572165, upload-time = "2026-04-07T17:16:18.027Z" }
 wheels = [
@@ -829,8 +855,8 @@ name = "pytest-asyncio"
 version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pytest", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "typing-extensions", marker = "(python_full_version < '3.13' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.13' and platform_machine == 'x86_64' and sys_platform == 'linux') or (python_full_version < '3.13' and sys_platform == 'win32') or (python_full_version >= '3.13' and sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (python_full_version >= '3.13' and sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (platform_machine != 'arm64' and sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (platform_machine != 'x86_64' and sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "pytest" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/43/7c/d36d04db312ecf4298932ef77e6e4a9e8ad017906e24e34f0b0c361a2473/pytest_asyncio-1.4.0.tar.gz", hash = "sha256:c6c0d2259945122819f171a32ecea2c349ead889ee28176caaf492143424be42", size = 58514, upload-time = "2026-05-26T09:56:04.083Z" }
 wheels = [
@@ -883,8 +909,8 @@ name = "rich"
 version = "14.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "markdown-it-py", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "pygments", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "markdown-it-py" },
+    { name = "pygments" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/fe/75/af448d8e52bf1d8fa6a9d089ca6c07ff4453d86c65c145d0a300bb073b9b/rich-14.1.0.tar.gz", hash = "sha256:e497a48b844b0320d45007cdebfeaeed8db2a4f4bcf49f15e455cfc4af11eaa8", size = 224441, upload-time = "2025-07-25T07:32:58.125Z" }
 wheels = [
@@ -896,9 +922,9 @@ name = "rich-toolkit"
 version = "0.15.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "click", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "rich", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "click" },
+    { name = "rich" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/65/36/cdb3d51371ad0cccbf1541506304783bd72d55790709b8eb68c0d401a13a/rich_toolkit-0.15.0.tar.gz", hash = "sha256:3f5730e9f2d36d0bfe01cf723948b7ecf4cc355d2b71e2c00e094f7963128c09", size = 115118, upload-time = "2025-08-11T10:55:37.909Z" }
 wheels = [
@@ -951,8 +977,8 @@ name = "sentry-sdk"
 version = "2.34.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "certifi", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "urllib3", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "certifi" },
+    { name = "urllib3" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/3a/38/10d6bfe23df1bfc65ac2262ed10b45823f47f810b0057d3feeea1ca5c7ed/sentry_sdk-2.34.1.tar.gz", hash = "sha256:69274eb8c5c38562a544c3e9f68b5be0a43be4b697f5fd385bf98e4fbe672687", size = 336969, upload-time = "2025-07-30T11:13:37.93Z" }
 wheels = [
@@ -982,8 +1008,8 @@ name = "sqlalchemy"
 version = "2.0.50"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "greenlet", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (platform_machine == 'WIN32' and sys_platform == 'win32') or (platform_machine == 'aarch64' and sys_platform == 'win32') or (platform_machine == 'amd64' and sys_platform == 'win32') or (platform_machine == 'ppc64le' and sys_platform == 'win32') or (platform_machine == 'win32' and sys_platform == 'win32') or (platform_machine == 'x86_64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "greenlet", marker = "(platform_machine != 'AMD64' and platform_machine != 'WIN32' and platform_machine != 'aarch64' and platform_machine != 'amd64' and platform_machine != 'ppc64le' and platform_machine != 'win32' and platform_machine != 'x86_64' and extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (platform_machine != 'AMD64' and platform_machine != 'WIN32' and platform_machine != 'aarch64' and platform_machine != 'amd64' and platform_machine != 'ppc64le' and platform_machine != 'win32' and platform_machine != 'x86_64' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (platform_machine == 'WIN32' and sys_platform == 'win32') or (platform_machine == 'aarch64' and sys_platform == 'win32') or (platform_machine == 'amd64' and sys_platform == 'win32') or (platform_machine == 'ppc64le' and sys_platform == 'win32') or (platform_machine == 'win32' and sys_platform == 'win32') or (platform_machine == 'x86_64' and sys_platform == 'win32') or sys_platform == 'linux' or (sys_platform != 'win32' and extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform != 'win32' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/57/da/6fbf010c8ebb347679d0d100b22fe9ba5e13fd04046c5df7280d2f0bf706/sqlalchemy-2.0.50.tar.gz", hash = "sha256:af5607d11ef90fd6a5c0549fe0045dce1663d427426bcfb506dcb5346a85a3b9", size = 9907424, upload-time = "2026-05-24T19:20:04.018Z" }
 wheels = [
@@ -1015,13 +1041,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/d0/10/f7220e9b784d295d241c86ed99aeb537f92afcd469a64861f2717e9bb077/sqlalchemy-2.0.50-py3-none-any.whl", hash = "sha256:92064363517a3ff8212b5a93b8c62876579d8dfd1ca5b561335f30152d884fa9", size = 1943861, upload-time = "2026-05-24T19:59:01.119Z" },
 ]
 
+[package.optional-dependencies]
+asyncio = [
+    { name = "greenlet" },
+]
+
 [[package]]
 name = "starlette"
 version = "0.47.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "typing-extensions", marker = "(python_full_version < '3.13' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.13' and platform_machine == 'x86_64' and sys_platform == 'linux') or (python_full_version < '3.13' and sys_platform == 'win32') or (python_full_version >= '3.13' and sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (python_full_version >= '3.13' and sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (platform_machine != 'arm64' and sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (platform_machine != 'x86_64' and sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "anyio" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/04/57/d062573f391d062710d4088fa1369428c38d51460ab6fedff920efef932e/starlette-0.47.2.tar.gz", hash = "sha256:6ae9aa5db235e4846decc1e7b79c4f346adf41e9777aebeb49dfd09bbd7023d8", size = 2583948, upload-time = "2025-07-20T17:31:58.522Z" }
 wheels = [
@@ -1033,7 +1064,7 @@ name = "sympy"
 version = "1.14.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "mpmath", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu') or (platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu') or (platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'group-13-moire-backend-gpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-backend-cpu') or (sys_platform == 'win32' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "mpmath", marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-13-moire-gallery-cpu') or (sys_platform == 'linux' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-gallery-cpu') or (sys_platform == 'linux' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'group-13-moire-gallery-cpu') or (sys_platform == 'win32' and extra == 'group-13-moire-gallery-gpu') or extra == 'extra-13-moire-gallery-cpu'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/83/d3/803453b36afefb7c2bb238361cd4ae6125a569b4db67cd9e79846ba2d68c/sympy-1.14.0.tar.gz", hash = "sha256:d3d3fe8df1e5a0b42f0e7bdf50541697dbe7d23746e894990c030e2b05e72517", size = 7793921, upload-time = "2025-04-27T18:05:01.611Z" }
 wheels = [
@@ -1045,10 +1076,10 @@ name = "typer"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "click", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "rich", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "shellingham", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "click" },
+    { name = "rich" },
+    { name = "shellingham" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c5/8c/7d682431efca5fd290017663ea4588bf6f2c6aad085c7f108c5dbc316e70/typer-0.16.0.tar.gz", hash = "sha256:af377ffaee1dbe37ae9440cb4e8f11686ea5ce4e9bae01b84ae7c63b87f1dd3b", size = 102625, upload-time = "2025-05-26T14:30:31.824Z" }
 wheels = [
@@ -1069,7 +1100,7 @@ name = "typing-inspection"
 version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f8/b1/0c11f5058406b3af7609f121aaa6b609744687f1d158b3c3a5bf4cc94238/typing_inspection-0.4.1.tar.gz", hash = "sha256:6ae134cc0203c33377d43188d4064e9b357dba58cff3185f22924610e70a9d28", size = 75726, upload-time = "2025-05-21T18:55:23.885Z" }
 wheels = [
@@ -1099,8 +1130,8 @@ name = "uvicorn"
 version = "0.35.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "click", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "h11", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "click" },
+    { name = "h11" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/5e/42/e0e305207bb88c6b8d3061399c6a961ffe5fbb7e2aa63c9234df7259e9cd/uvicorn-0.35.0.tar.gz", hash = "sha256:bc662f087f7cf2ce11a1d7fd70b90c9f98ef2e2831556dd078d131b96cc94a01", size = 78473, upload-time = "2025-06-28T16:15:46.058Z" }
 wheels = [
@@ -1109,13 +1140,13 @@ wheels = [
 
 [package.optional-dependencies]
 standard = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "httptools", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "python-dotenv", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "pyyaml", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "uvloop", marker = "(platform_machine == 'arm64' and platform_python_implementation != 'PyPy' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and platform_python_implementation != 'PyPy' and sys_platform == 'linux') or (platform_machine != 'arm64' and sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (platform_machine != 'x86_64' and sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (platform_python_implementation == 'PyPy' and sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (platform_python_implementation == 'PyPy' and sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "watchfiles", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
-    { name = "websockets", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
+    { name = "httptools" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+    { name = "uvloop", marker = "(platform_python_implementation != 'PyPy' and sys_platform != 'win32') or (platform_python_implementation == 'PyPy' and extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (platform_python_implementation == 'PyPy' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra == 'extra-13-moire-gallery-cpu' and extra == 'extra-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra != 'extra-13-moire-gallery-gpu' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu') or (sys_platform == 'win32' and extra != 'extra-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-cpu' and extra == 'group-13-moire-gallery-gpu')" },
+    { name = "watchfiles" },
+    { name = "websockets" },
 ]
 
 [[package]]
@@ -1140,7 +1171,7 @@ name = "watchfiles"
 version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32' or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'darwin' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu') or (sys_platform == 'linux' and extra == 'group-13-moire-backend-cpu' and extra == 'group-13-moire-backend-gpu')" },
+    { name = "anyio" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/2a/9a/d451fcc97d029f5812e898fd30a53fd8c15c7bbd058fd75cfc6beb9bd761/watchfiles-1.1.0.tar.gz", hash = "sha256:693ed7ec72cbfcee399e92c895362b6e66d63dac6b91e2c11ae03d10d503e575", size = 94406, upload-time = "2025-06-15T19:06:59.42Z" }
 wheels = [

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from src.services.library_discover import discover, normalize_path
+from moire.services.library_discover import discover, normalize_path
 
 
 def _img(p: Path) -> None:
@@ -151,9 +151,9 @@ async def test_name_only_edit_of_unnormalized_path_does_not_rescan(
     # dialog re-sends its path, which now arrives normalized.
     import sqlalchemy as sa
 
-    from src.api import libraries as libs_api
-    from src.database import schema as t
-    from src.database.db import async_tx
+    from moire.api import libraries as libs_api
+    from moire.database import schema as t
+    from moire.database.db import async_tx
 
     async with async_tx() as conn:
         await conn.execute(

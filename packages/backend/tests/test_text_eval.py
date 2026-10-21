@@ -1,8 +1,8 @@
 """Computing a runtime-built prompt from the graph, so a display node's stale
 cache (the previous run's text) doesn't win."""
 
-from src.services import gen_metadata
-from src.services.text_eval import evaluate
+from moire.services import gen_metadata
+from moire.services.text_eval import evaluate
 
 HEADER = "masterpiece, best quality"
 CARD = "<tags>\n1girl, arima kana, beach\n</tags>\n<character>red hair</character>"

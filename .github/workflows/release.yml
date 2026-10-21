@@ -51,7 +51,7 @@ jobs:
         run: |
           uv --directory packages/backend build --out-dir "$GITHUB_WORKSPACE/dist"
           # The wheel is the app: refuse one without the UI in it.
-          unzip -l dist/*.whl | grep -q "src/web/index.html"
+          unzip -l dist/*.whl | grep -q "moire/web/index.html"
 
       - name: Upload build
         uses: actions/upload-artifact@v4

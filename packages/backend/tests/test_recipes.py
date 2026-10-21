@@ -8,11 +8,11 @@ import asyncio
 
 import sqlalchemy as sa
 
-from src.database import db
-from src.database import schema as t
-from src.services import recipes, tag_categories
-from src.services.generator_graph import merge_loras
-from src.services.recipes import LoraUse
+from moire.database import db
+from moire.database import schema as t
+from moire.services import recipes, tag_categories
+from moire.services.generator_graph import merge_loras
+from moire.services.recipes import LoraUse
 from tests.test_characters import _chars
 from tests.test_generate_integration import comfy, make_ready  # noqa: F401
 

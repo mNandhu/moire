@@ -6,7 +6,7 @@
 - Run dev server:
 
 ```
-uv run uvicorn src.main:app --reload --host 127.0.0.1 --port 8000
+uv run moire run --reload        # or: uv run uvicorn moire.main:app --reload
 ```
 
 - Env: copy `.env.example` to `.env` and fill values.
@@ -17,17 +17,22 @@ uv run uvicorn src.main:app --reload --host 127.0.0.1 --port 8000
 
 ## Build
 
-The backend is an installable package (uv build backend, flat layout; the
-importable package is `src`):
+The backend is the installable app: PyPI name `moire-gallery`, import package
+`moire` (src layout, `src/moire`), command `moire`. Run `pnpm build` first so
+the wheel carries the UI (`src/moire/web`, gitignored but included):
 
 ```
 uv build            # sdist + wheel into dist/
 ```
 
+The AI tagger's onnxruntime is an extra (`[cpu]` or `[gpu]`) for installs, and
+a dependency group of the same name in a checkout. Keep the two lists in step.
+
 ## Configuration
 
-Environment variables (see `.env.example`). Relative paths resolve against the
-repo root, not the process working directory.
+Environment variables (see `.env.example`). Relative paths resolve against
+`MOIRE_HOME`, not the process working directory: the repo root in a checkout,
+the OS app-data folder for an installed copy (`moire paths` shows it).
 
 - Storage
   - `SQLITE_PATH` SQLite database file (default: `./data/moire.db`)

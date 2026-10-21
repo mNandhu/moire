@@ -7,7 +7,7 @@
 //   node scripts/version.mjs set 0.2.0    write it everywhere (+ uv.lock)
 //   node scripts/version.mjs check v0.2.0 fail unless every file says 0.2.0
 //
-// `set` also rewrites moire-backend's own entry in uv.lock: a pyproject bump
+// `set` also rewrites the project's own entry in uv.lock: a pyproject bump
 // without it breaks `uv sync --locked`. Only that line, so a release never
 // re-resolves dependencies. Plain x.y.z only; npm and PEP 440 spell
 // prereleases differently.
@@ -28,14 +28,23 @@ function pyprojectVersion() {
   return m[1];
 }
 
-function lockVersion() {
-  const text = readFileSync(join(backend, "uv.lock"), "utf8");
-  const m = text.match(/^name = "moire-backend"\nversion = "([^"]+)"/m);
-  return m ? m[1] : null;
+// The PyPI name, e.g. "moire-gallery": it keys the project's own uv.lock entry.
+function distName() {
+  const text = readFileSync(join(backend, "pyproject.toml"), "utf8");
+  const m = text.match(/^\[project\][^[]*?^name\s*=\s*"([^"]+)"/ms);
+  if (!m) throw new Error("no [project] name in pyproject.toml");
+  return m[1];
 }
 
 const PYPROJECT_VERSION = /^(\[project\][^[]*?^version\s*=\s*")[^"]+(")/ms;
-const LOCK_VERSION = /^(name = "moire-backend"\nversion = ")[^"]+(")/m;
+const lockPattern = () =>
+  new RegExp(`^(name = "${distName()}"\\nversion = ")[^"]+(")`, "m");
+
+function lockVersion() {
+  const text = readFileSync(join(backend, "uv.lock"), "utf8");
+  const m = text.match(lockPattern());
+  return m ? text.slice(m.index + m[1].length).split('"')[0] : null;
+}
 
 function rewrite(file, pattern, version) {
   const text = readFileSync(file, "utf8");
@@ -57,7 +66,7 @@ function readVersions() {
 function set(version) {
   if (!SEMVER.test(version)) throw new Error(`not a version: ${version}`);
   rewrite(join(backend, "pyproject.toml"), PYPROJECT_VERSION, version);
-  rewrite(join(backend, "uv.lock"), LOCK_VERSION, version);
+  rewrite(join(backend, "uv.lock"), lockPattern(), version);
   // In place, to keep each file's own indentation and key order.
   for (const p of packageJsons) {
     rewrite(join(root, p), /("version"\s*:\s*")[^"]*(")/, version);

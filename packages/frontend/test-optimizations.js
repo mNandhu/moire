@@ -92,7 +92,7 @@ function testBackendFiles() {
     import('path').then(({ default: path }) => {
       
       const files = [
-        '../backend/src/main.py',
+        '../backend/src/moire/main.py',
         '../backend/src/services/storage_minio.py',
         '../backend/src/database/mongo.py'
       ];

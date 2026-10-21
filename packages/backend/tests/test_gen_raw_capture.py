@@ -18,7 +18,7 @@ import pytest
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
-from src.services import gen_metadata
+from moire.services import gen_metadata
 
 _COMFY = {
     "3": {"class_type": "KSampler", "inputs": {"positive": ["6", 0]}},
@@ -165,7 +165,7 @@ def test_read_gen_raw_tolerates_an_object_with_no_exif():
 
 
 def test_moires_family_chunk_is_kept():
-    from src.services.gen_metadata import gen_raw_from_embedded
+    from moire.services.gen_metadata import gen_raw_from_embedded
 
     doc = gen_raw_from_embedded({"prompt": '{"1": {}}', "moire": '{"family": "f"}'})
     assert doc["moire"] == {"family": "f"} and doc["workflow"] is None

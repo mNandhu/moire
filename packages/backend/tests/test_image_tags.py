@@ -6,7 +6,7 @@ recompute, so the invariant has a test surface that needs no database. The
 transactional repo writes are covered separately by the DB integration tests.
 """
 
-from src.services import image_tags as it
+from moire.services import image_tags as it
 
 
 # --- id candidates -----------------------------------------------------------

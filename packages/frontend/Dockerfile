@@ -28,7 +28,7 @@ FROM nginx:alpine AS production
 RUN apk add --no-cache curl
 
 # Copy built assets
-COPY --from=build /app/packages/backend/src/web /usr/share/nginx/html
+COPY --from=build /app/packages/backend/src/moire/web /usr/share/nginx/html
 
 # Copy nginx configuration for SPA routing
 COPY packages/frontend/nginx.conf /etc/nginx/conf.d/default.conf

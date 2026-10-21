@@ -12,7 +12,7 @@ Brief: Moiré is a pnpm monorepo with a FastAPI backend (Python, MongoDB, MinIO)
 
 - Prereqs: MongoDB (mongodb://localhost:27017) and MinIO (127.0.0.1:9000). Backend env in packages/backend/.env (see backend README): MINIO\_\*, MEDIA_PRESIGNED_MODE, etc.
 - One-command dev: pnpm install, then pnpm dev. Backend: uvicorn on 127.0.0.1:8000; Frontend: Vite on 5173 with proxy /api -> backend. Health: GET /api/health.
-- Backend uses uv (pyproject.toml). Root script runs: uv run uvicorn src.main:app --reload.
+- Backend uses uv (pyproject.toml). Root script runs: uv run uvicorn moire.main:app --reload.
 
 ## Data model and IDs
 

@@ -3,7 +3,7 @@ folded into its full one, and what the user sets."""
 
 import pytest
 
-from src.services import characters, tag_categories
+from moire.services import characters, tag_categories
 
 
 def _chars(*names, **candidates):

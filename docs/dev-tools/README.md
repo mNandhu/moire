@@ -12,7 +12,7 @@ Throwaway helpers used while building the ComfyUI integration. Not part of the a
   Picker options react to `mousedown`, not `click`.
 
 Sandbox (keeps the user's `pnpm dev` on 8000/5173 untouched):
-- backend: `SQLITE_PATH=/tmp/x/t.db THUMB_ROOT=/tmp/x/thumbs uv run uvicorn src.main:app --port 8010` (no --reload: restart after backend edits)
+- backend: `SQLITE_PATH=/tmp/x/t.db THUMB_ROOT=/tmp/x/thumbs uv run uvicorn moire.main:app --port 8010` (no --reload: restart after backend edits)
 - vite: copy `vite.config.ts` to a temp config with port 5180 and proxy target 127.0.0.1:8010, run `vite --config <it>`, delete it afterwards.
 - PUT `/api/v1/generate/comfyui` with address `http://127.0.0.1:8190` and `output_path` = FAKE_COMFY_OUT, then POST the builtin test run.
 - Stop servers by port (`ss -ltnp`), never `pkill -f` (it kills its own shell).

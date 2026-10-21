@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.services.tag_settings import DEFAULT_BOILERPLATE, clean_boilerplate
+from moire.services.tag_settings import DEFAULT_BOILERPLATE, clean_boilerplate
 
 pytestmark = pytest.mark.asyncio
 

@@ -6,7 +6,7 @@ end-to-end behaviour stays covered by test_feed_integration.py.
 
 import pytest
 
-from src.services.image_feed import FeedFilter, FeedFilterError, feed_where
+from moire.services.image_feed import FeedFilter, FeedFilterError, feed_where
 
 
 def test_defaults_are_valid():

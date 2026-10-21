@@ -8,14 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from src.services import builtin_generator
-from src.services.generator_discovery import (
+from moire.services import builtin_generator
+from moire.services.generator_discovery import (
     base_sampler,
     check_slots,
     discover,
     seed_groups,
 )
-from src.services.generator_graph import GraphError, build_prompt
+from moire.services.generator_graph import GraphError, build_prompt
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -215,7 +215,7 @@ def test_controlnet_advanced_keeps_the_sides_apart():
 
 
 def test_checkpoint_is_offered_not_chosen_and_fixed_values(hires):
-    from src.services.generator_discovery import fixed_values
+    from moire.services.generator_discovery import fixed_values
 
     d = discover(hires)
     assert d["found"]["checkpoint"] == {
@@ -238,7 +238,7 @@ def test_checkpoint_is_offered_not_chosen_and_fixed_values(hires):
 
 
 def test_custom_savers_count_previews_do_not():
-    from src.services.generator_graph import is_save_image
+    from moire.services.generator_graph import is_save_image
 
     assert is_save_image("SaveImage") and is_save_image("Save Image w/o Metadata")
     assert is_save_image("Image Save")
@@ -263,7 +263,7 @@ def test_a_unet_is_not_offered_as_a_checkpoint():
             "inputs": {"model": ["1", 0], "positive": ["3", 0], "seed": 3},
         },
     }
-    from src.services.generator_discovery import fixed_values
+    from moire.services.generator_discovery import fixed_values
 
     assert "checkpoint" not in discover(g)["found"]
     assert fixed_values(g, {})["checkpoint"] == "flux.safetensors"
@@ -272,7 +272,7 @@ def test_a_unet_is_not_offered_as_a_checkpoint():
 def test_drop_missing_takes_out_dead_branches_only(runtime):
     import copy
 
-    from src.services.generator_graph import drop_missing
+    from moire.services.generator_graph import drop_missing
 
     g = build_prompt(
         runtime,
@@ -298,7 +298,7 @@ def test_drop_missing_takes_out_dead_branches_only(runtime):
 
 
 def test_left_out_loras_are_bypassed_and_the_insertion_point_follows(hires):
-    from src.services.generator_graph import LoraPick
+    from moire.services.generator_graph import LoraPick
 
     d = discover(hires)
     assert [lo["node"] for lo in d["found"]["loras"]] == ["40", "41", "42", "43"]
@@ -331,7 +331,7 @@ def test_left_out_loras_are_bypassed_and_the_insertion_point_follows(hires):
 
 
 def test_fill_defaults_like_the_editor_does():
-    from src.services.generator_graph import fill_defaults
+    from moire.services.generator_graph import fill_defaults
 
     g = {
         "1": {
@@ -372,7 +372,7 @@ def test_fill_defaults_like_the_editor_does():
 
 
 def test_carry_slots_needs_the_same_kind_of_node(hires):
-    from src.services.generator_setup import carry_slots
+    from moire.services.generator_setup import carry_slots
 
     old = {
         **discover(hires)["slots"],
@@ -389,7 +389,7 @@ def test_carry_slots_needs_the_same_kind_of_node(hires):
 
 
 def test_carry_slots_keeps_the_other_prompts_join(runtime):
-    from src.services.generator_setup import carry_slots
+    from moire.services.generator_setup import carry_slots
 
     proposed = {
         **discover(runtime)["slots"],
@@ -402,7 +402,7 @@ def test_carry_slots_keeps_the_other_prompts_join(runtime):
 
 
 def test_fill_defaults_skips_link_only_inputs_and_respects_min():
-    from src.services.generator_graph import fill_defaults
+    from moire.services.generator_graph import fill_defaults
 
     g = {"1": {"class_type": "X", "inputs": {}}}
     info = {
@@ -419,7 +419,7 @@ def test_fill_defaults_skips_link_only_inputs_and_respects_min():
 
 
 def test_only_text_displays_are_cleared():
-    from src.services.generator_graph import clear_display_text
+    from moire.services.generator_graph import clear_display_text
 
     g = {
         "1": {
@@ -436,7 +436,7 @@ def test_only_text_displays_are_cleared():
 
 
 def test_family_pnginfo():
-    from src.services.generator_graph import family_pnginfo
+    from moire.services.generator_graph import family_pnginfo
 
     assert family_pnginfo({"family": "f"}) == {"moire": {"family": "f"}}
     assert family_pnginfo({"kind": "upload"}) is None

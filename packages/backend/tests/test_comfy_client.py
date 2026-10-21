@@ -1,6 +1,6 @@
 import pytest
 
-from src.services.comfy_client import (
+from moire.services.comfy_client import (
     ComfyClient,
     ComfyRejected,
     ComfyUnreachable,

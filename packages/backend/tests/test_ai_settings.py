@@ -1,6 +1,6 @@
 """Unit tests for the pure AI-settings validation/clamping rules."""
 
-from src.services.ai_settings import clean_settings_patch
+from moire.services.ai_settings import clean_settings_patch
 
 
 def test_unknown_keys_dropped():

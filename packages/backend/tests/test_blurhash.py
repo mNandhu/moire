@@ -4,7 +4,7 @@ image's average colour: that's what the frontend decoder reads first."""
 
 import numpy as np
 
-from src.services import blurhash
+from moire.services import blurhash
 
 
 def _b83_decode(s: str) -> int:

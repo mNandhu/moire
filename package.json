@@ -14,7 +14,7 @@
         "build": "pnpm -C packages/frontend build",
         "version:check": "node scripts/version.mjs check",
         "version:set": "node scripts/version.mjs set",
-        "dev:backend": "uv --directory packages/backend run uvicorn src.main:app --reload --port 8000",
+        "dev:backend": "uv --directory packages/backend run uvicorn moire.main:app --reload --port 8000",
         "dev:frontend": "pnpm -C packages/frontend dev",
         "dev": "concurrently -c auto -n backend,frontend \"pnpm dev:backend\" \"pnpm dev:frontend\"",
         "perf": "uv --directory packages/backend run python tests/perf_benchmark.py",

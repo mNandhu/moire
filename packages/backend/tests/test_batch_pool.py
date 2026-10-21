@@ -2,7 +2,7 @@
 closure. A plain list + a fake worker + a cancel flag exercise prime/wait/refill
 /cancel without a filesystem or DB."""
 
-from src.services.batch_pool import run_pool
+from moire.services.batch_pool import run_pool
 
 
 def test_processes_every_item_and_reports_no_errors():

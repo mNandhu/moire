@@ -1,11 +1,11 @@
-"""One-off dev script: build ``data/tag_groups.json``, the tag-group list.
+"""One-off dev script: build ``src/moire/data/tag_groups.json``, the tag-group list.
 
 Walks Danbooru's ``tag_groups`` wiki hub and its ``tag_group:*`` sub-group pages
 recursively (Body, Hair, Clothing, Composition, Sex, World, ...). Each tag keeps
 the top-level category (the hub heading it sits under) and the group page it
 came from. Tags the WD tagger can't produce (its ``selected_tags.csv``) are
 dropped. Output is sorted, stable, hand-editable JSON; the attire list
-(``src/services/attire.py``) is its Clothing category.
+(``src/moire/services/attire.py``) is its Clothing category.
 
 Danbooru sits behind Cloudflare, so the API needs a logged-in key. Credentials
 come from the environment only, never from files or arguments::
@@ -37,15 +37,15 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from src.services.tag_names import canonical_name  # noqa: E402
+from moire.services.tag_names import canonical_name  # noqa: E402
 
 BASE_URL = "https://danbooru.donmai.us"
 ROOT_TITLE = "tag_groups"
 GROUP_PREFIX = "tag_group:"
 BACKEND = Path(__file__).resolve().parents[1]
-DEFAULT_OUT = BACKEND / "data" / "tag_groups.json"
+DEFAULT_OUT = BACKEND / "src" / "moire" / "data" / "tag_groups.json"
 DEFAULT_CACHE = BACKEND / ".tag-groups-cache"
 
 # `[[target]]`, `[[target|label]]`, `[[target#anchor|label]]`

@@ -120,15 +120,26 @@ pnpm dev
 
 ### Running without the dev server
 
-`pnpm build` writes the UI into `packages/backend/src/web`, and the backend then serves it itself. Moiré runs as one process on one port:
+`pnpm build` writes the UI into `packages/backend/src/moire/web`, and the backend then serves it itself. Moiré runs as one process on one port:
 
 ```bash
 pnpm build
-uv --directory packages/backend run uvicorn src.main:app --port 8000
-# open http://localhost:8000
+uv --directory packages/backend run moire run --open   # http://localhost:8000
 ```
 
-`pnpm dev` is unaffected: Vite still serves the UI on :5173 with hot reload. A stale build in `src/web` is harmless in dev; delete it or rebuild after frontend changes if you use the single-port mode.
+### Installing as an app
+
+The wheel is the whole app (backend with the built UI inside). Install it with [uv](https://docs.astral.sh/uv/) and run it:
+
+```bash
+uv tool install "moire-gallery[cpu]"   # or [gpu] for AI tagging on an NVIDIA GPU
+moire run --open                       # http://localhost:8000
+moire paths                            # where the database, thumbnails and models live
+```
+
+An installed Moiré keeps its data in the OS app-data folder (`%LOCALAPPDATA%\Moire`, `~/Library/Application Support/Moire`, or `~/.local/share/moire`), and reads a `.env` there. Set `MOIRE_HOME` to put it elsewhere. A source checkout keeps using `<repo>/data`. `moire run --host 0.0.0.0` serves your LAN.
+
+`pnpm dev` is unaffected: Vite still serves the UI on :5173 with hot reload. A stale build in `src/moire/web` is harmless in dev; delete it or rebuild after frontend changes if you use the single-port mode.
 
 ### Adding Your First Library
 

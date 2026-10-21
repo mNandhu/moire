@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from src.services import attire
+from moire.services import attire
 
 _SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "build_tag_groups.py"
 _spec = importlib.util.spec_from_file_location("build_tag_groups", _SCRIPT)

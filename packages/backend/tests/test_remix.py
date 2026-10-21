@@ -7,9 +7,9 @@ from pathlib import Path
 
 import sqlalchemy as sa
 
-from src.database import db
-from src.database import schema as t
-from src.services import recipes, remix, tag_categories
+from moire.database import db
+from moire.database import schema as t
+from moire.services import recipes, remix, tag_categories
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

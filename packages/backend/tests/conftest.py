@@ -15,10 +15,10 @@ import pytest
 import pytest_asyncio
 import sqlalchemy as sa
 
-from src.core.config import settings
-from src.database import db
-from src.database import schema as t
-from src.services import image_tags, tag_index
+from moire.core.config import settings
+from moire.database import db
+from moire.database import schema as t
+from moire.services import image_tags, tag_index
 
 
 @pytest.fixture(autouse=True)
@@ -44,7 +44,7 @@ async def temp_db(tmp_path: Path):
 @pytest_asyncio.fixture
 async def client(temp_db):
     """An httpx client bound to the ASGI app (no network, no lifespan)."""
-    from src.main import API_PREFIX, app
+    from moire.main import API_PREFIX, app
 
     transport = httpx.ASGITransport(app=app)
     # Every route lives under API_PREFIX; httpx joins a leading-slash path onto

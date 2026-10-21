@@ -42,12 +42,12 @@ echo
 echo "== Surface touched"
 # name|pathspec... : areas where a change can make a user act or notice.
 SURFACES=(
-  "Settings and env vars (renames, new required values)|packages/backend/src/core/config.py packages/backend/.env.example"
-  "Database schema (tables, columns, indexes)|packages/backend/src/database/schema.py"
-  "Data migrations (run once on startup)|packages/backend/src/services/tag_migrations.py"
-  "On-disk layout (thumbs, model cache, data dir)|packages/backend/src/services/storage_fs.py packages/backend/src/services/ai_tagger_download.py"
-  "HTTP API (/api/v1)|packages/backend/src/api"
-  "ComfyUI integration (workflows, generators)|packages/backend/src/services/comfy* packages/backend/src/services/generat* packages/backend/src/services/generator*"
+  "Settings and env vars (renames, new required values)|packages/backend/src/moire/core/config.py packages/backend/.env.example"
+  "Database schema (tables, columns, indexes)|packages/backend/src/moire/database/schema.py"
+  "Data migrations (run once on startup)|packages/backend/src/moire/services/tag_migrations.py"
+  "On-disk layout (thumbs, model cache, data dir)|packages/backend/src/moire/services/storage_fs.py packages/backend/src/moire/services/ai_tagger_download.py"
+  "HTTP API (/api/v1)|packages/backend/src/moire/api"
+  "ComfyUI integration (workflows, generators)|packages/backend/src/moire/services/comfy* packages/backend/src/moire/services/generat* packages/backend/src/moire/services/generator*"
   "Dependencies|packages/backend/pyproject.toml packages/backend/uv.lock packages/frontend/package.json pnpm-lock.yaml"
   "Deployment (Docker, nginx, CI)|docker-compose*.yml packages/*/Dockerfile deploy .github/workflows"
 )

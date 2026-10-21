@@ -8,8 +8,8 @@ import asyncio
 import pytest
 import pytest_asyncio
 
-from src.services import comfy_settings, generation_jobs
-from src.services.generation_jobs import get_generation_manager
+from moire.services import comfy_settings, generation_jobs
+from moire.services.generation_jobs import get_generation_manager
 from tests.fake_comfy import FakeComfy
 
 OUT = "OUT"
@@ -304,7 +304,7 @@ async def test_manager_starts_with_comfyui_down(temp_db):
     ],
 )
 def test_batch_state(states, connected, expected):
-    from src.services.generation_batches import batch_state
+    from moire.services.generation_batches import batch_state
 
     assert batch_state(states, connected) == expected
 
@@ -408,8 +408,8 @@ async def test_outputs_ComfyUI_wrote_elsewhere_are_downloaded(
     """A remote ComfyUI: the output folder here starts empty, so each output
     is fetched over /view into it; one already there is left alone."""
     import sqlalchemy as sa
-    from src.database import db
-    from src.database import schema as t
+    from moire.database import db
+    from moire.database import schema as t
 
     out = tmp_path / "out"
     out.mkdir()
@@ -439,8 +439,8 @@ async def test_bad_certificate_path_is_refused(client, comfy):
 
 async def test_download_can_be_turned_off(client, comfy, seed, tmp_path):
     import sqlalchemy as sa
-    from src.database import db
-    from src.database import schema as t
+    from moire.database import db
+    from moire.database import schema as t
 
     out = tmp_path / "out"
     out.mkdir()
@@ -501,7 +501,7 @@ async def test_images_per_request_for_one_batch(client, comfy, seed):
 
 
 def test_only_a_sampling_input_flags_sampling():
-    from src.services import builtin_generator
+    from moire.services import builtin_generator
 
     gen = {"slots": builtin_generator.slots(), "graph": builtin_generator.graph()}
     errs = [
@@ -552,9 +552,9 @@ async def test_outputs_are_found_when_the_output_library_comes_back(client, tmp_
     instead of waiting for a scan that never matches."""
     import sqlalchemy as sa
 
-    from src.database import schema as t
-    from src.database.db import async_tx
-    from src.services.generation_jobs import output_image_id
+    from moire.database import schema as t
+    from moire.database.db import async_tx
+    from moire.services.generation_jobs import output_image_id
 
     out = tmp_path / "out"
     out.mkdir()

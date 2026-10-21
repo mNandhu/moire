@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.services import image_tags, tag_index
+from moire.services import image_tags, tag_index
 
 
 # --- Cache primitives (pure, no DB) -------------------------------------------
@@ -160,7 +160,7 @@ async def test_route_decorates_samples_with_the_thumb_url(client, seed):
 async def test_reprojection_batch_dirties_the_index(temp_db, seed):
     """Reprojection owns its own sync transaction and runs on scanner threads, so
     it invalidates per committed batch rather than per image."""
-    from src.services import reproject
+    from moire.services import reproject
 
     seed("L1:a.jpg", tags=("cat",))
     before = tag_index.current_generation()

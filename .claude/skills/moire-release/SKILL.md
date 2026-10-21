@@ -101,7 +101,7 @@ uv --directory packages/backend run pytest -q
 pnpm -C packages/frontend test
 pnpm build
 uv --directory packages/backend build --out-dir /tmp/moire-dist
-unzip -l /tmp/moire-dist/*.whl | grep src/web/index.html   # the UI is inside
+unzip -l /tmp/moire-dist/*.whl | grep moire/web/index.html   # the UI is inside
 ```
 
 ## 7. Commit and tag

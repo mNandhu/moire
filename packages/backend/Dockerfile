@@ -31,7 +31,7 @@ FROM python:3.12-slim-bookworm AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH="/app" \
+    MOIRE_HOME=/data \
     PATH="/app/.venv/bin:$PATH"
 
 # Install curl for health checks and libgomp1 for onnxruntime
@@ -62,4 +62,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Start the FastAPI app
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "moire.main:app", "--host", "0.0.0.0", "--port", "8000"]

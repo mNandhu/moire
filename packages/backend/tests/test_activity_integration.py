@@ -5,9 +5,9 @@ import threading
 import pytest
 import sqlalchemy as sa
 
-from src.database import db
-from src.database import schema as t
-from src.services import activity, face_detect
+from moire.database import db
+from moire.database import schema as t
+from moire.services import activity, face_detect
 
 
 async def _items(client):
@@ -93,7 +93,7 @@ def test_face_progress_counts_the_current_batch(monkeypatch):
 
 
 def test_reprojecting_ids_never_moves_the_bar_back(monkeypatch):
-    from src.services import reproject
+    from moire.services import reproject
 
     seen: list[tuple[int, int]] = []
 
@@ -114,7 +114,7 @@ def test_reprojecting_ids_never_moves_the_bar_back(monkeypatch):
 
 
 def test_a_download_counts_the_files_already_sized():
-    from src.api.activity import _download
+    from moire.api.activity import _download
 
     files = [
         {"name": "model.onnx", "downloaded": 100, "total": 400},

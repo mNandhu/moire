@@ -4,9 +4,9 @@ subdoc follows, duplicate spellings collapse, and it runs once."""
 import pytest
 import sqlalchemy as sa
 
-from src.database import db
-from src.database import schema as t
-from src.services import tag_migrations
+from moire.database import db
+from moire.database import schema as t
+from moire.services import tag_migrations
 
 pytestmark = pytest.mark.asyncio
 

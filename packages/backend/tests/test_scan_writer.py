@@ -2,7 +2,7 @@
 (last partial batch never flushed, buffers cleared before commit, indexed drift).
 A counting sink stands in for the real transaction; no DB, no threads."""
 
-from src.services.scan_writer import ScanWriter
+from moire.services.scan_writer import ScanWriter
 
 
 def _img(i):

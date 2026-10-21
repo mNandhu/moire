@@ -4,8 +4,8 @@ shadows API routes or leaves the web folder."""
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.core.config import API_PREFIX
-from src.web_ui import mount_web_ui
+from moire.core.config import API_PREFIX
+from moire.web_ui import mount_web_ui
 
 
 def _app(tmp_path, built=True):

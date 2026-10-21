@@ -4,10 +4,10 @@ structural walk can't read, by quality keywords."""
 import pytest
 import sqlalchemy as sa
 
-from src.database import db
-from src.database import schema as t
-from src.services import gen_metadata, reproject
-from src.services.prompt_guess import (
+from moire.database import db
+from moire.database import schema as t
+from moire.services import gen_metadata, reproject
+from moire.services.prompt_guess import (
     DEFAULT_KEYWORDS,
     Candidate,
     Keywords,

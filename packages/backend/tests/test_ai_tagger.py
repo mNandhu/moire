@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from src.services.ai_tagger import (
+from moire.services.ai_tagger import (
     LabelIndex,
     PreparedImage,
     TaggerManager,
@@ -16,7 +16,7 @@ from src.services.ai_tagger import (
     prepare_image,
     select_tags,
 )
-from src.services.ai_tagger_download import (
+from moire.services.ai_tagger_download import (
     DEFAULT_CACHE_DIR,
     ModelDownloadManager,
     RemoteFile,

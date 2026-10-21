@@ -1,6 +1,6 @@
 """Pure tests for the canonical tag spelling and merge-rule mapping."""
 
-from src.services import tag_names as tn
+from moire.services import tag_names as tn
 
 
 def test_canonical_name_joins_words_with_underscores():

@@ -3,7 +3,7 @@ import sys
 import pytest
 from pydantic import ValidationError
 
-from src.models.library import LibraryIn, LibraryUpdate
+from moire.models.library import LibraryIn, LibraryUpdate
 
 
 def test_strips_wrapping_quotes(tmp_path):

@@ -8,7 +8,7 @@ import json
 
 import pytest
 
-from src.services import lora_presets
+from moire.services import lora_presets
 from tests.test_recipes import _loras
 
 
@@ -144,7 +144,7 @@ async def test_file_words_skip_tags_common_in_the_library(client, seed):
 
 
 async def test_character_names_come_from_the_tagger_vocab(client, monkeypatch):
-    from src.services import tag_categories
+    from moire.services import tag_categories
 
     async def fake():
         return tag_categories.vocab({"fern_(sousou_no_frieren)", "nahida"}, set())

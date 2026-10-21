@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from src.services import face_detect, tag_categories
+from moire.services import face_detect, tag_categories
 
 
 def test_letterbox_fits_the_long_side():
@@ -157,8 +157,8 @@ async def test_switching_off_stops_the_crops_already_found(
 async def test_a_changed_file_is_looked_at_again(client, seed, monkeypatch, tmp_path):
     import sqlalchemy as sa
 
-    from src.database import db
-    from src.database import schema as t
+    from moire.database import db
+    from moire.database import schema as t
 
     monkeypatch.setattr(tag_categories, "load", _chars("frieren"))
     seed("L1:a", tags=("frieren",), thumb_key="k/a", mtime=100)
@@ -207,9 +207,9 @@ async def test_a_failing_image_is_tried_once(client, seed, monkeypatch, tmp_path
 async def test_the_mtime_migration_replaces_the_cache(client, seed):
     import sqlalchemy as sa
 
-    from src.database import db
-    from src.database import schema as t
-    from src.services import tag_migrations
+    from moire.database import db
+    from moire.database import schema as t
+    from moire.services import tag_migrations
 
     seed("L1:a")
     async with db.async_tx() as conn:

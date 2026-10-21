@@ -4,11 +4,11 @@ the feed and counted for the dropdown."""
 
 import sqlalchemy as sa
 
-from src.database import db
-from src.database import schema as t
-from src.services import reproject
-from src.services.gen_metadata import prompt_embeddings
-from src.services.prompt_parse import parse_prompt
+from moire.database import db
+from moire.database import schema as t
+from moire.services import reproject
+from moire.services.gen_metadata import prompt_embeddings
+from moire.services.prompt_parse import parse_prompt
 
 
 def test_embedding_syntax_is_one_network_piece():

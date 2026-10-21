@@ -2,7 +2,7 @@
 set exist as the query layer expects. Pure metadata introspection, no DB needed.
 """
 
-from src.database import schema
+from moire.database import schema
 
 
 def test_expected_tables_exist():
@@ -78,7 +78,7 @@ def test_expected_indexes_present():
 def test_ensure_schema_drops_retired_and_is_idempotent(tmp_path, monkeypatch):
     import sqlalchemy as sa
 
-    from src.database import db
+    from moire.database import db
 
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'old.db'}")
     with engine.begin() as conn:

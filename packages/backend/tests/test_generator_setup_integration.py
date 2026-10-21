@@ -10,8 +10,8 @@ from pathlib import Path
 
 import sqlalchemy as sa
 
-from src.database import db
-from src.database import schema as t
+from moire.database import db
+from moire.database import schema as t
 from tests.test_generate_integration import comfy, scanned, tick  # noqa: F401
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -514,8 +514,8 @@ async def test_a_new_version_needs_its_slots(client, seed):
 
 
 async def test_an_image_moire_made_joins_its_family(temp_db, seed):
-    from src.database.db import async_conn
-    from src.services import workflow_family
+    from moire.database.db import async_conn
+    from moire.services import workflow_family
 
     _version(seed, "L1:a.png", _graph("graph_hires_detailer.json"), "sig-1", 1.0)
     seed("OUT:x.png", gen={"workflow_sig": "sig-9"}, mtime=2.0)

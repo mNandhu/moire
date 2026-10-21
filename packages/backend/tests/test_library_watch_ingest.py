@@ -11,9 +11,9 @@ import pytest
 import sqlalchemy as sa
 from PIL import Image
 
-from src.database import db
-from src.database import schema as t
-from src.services import scanner
+from moire.database import db
+from moire.database import schema as t
+from moire.services import scanner
 
 pytestmark = pytest.mark.asyncio
 

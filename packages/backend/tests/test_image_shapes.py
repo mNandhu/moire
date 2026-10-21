@@ -1,6 +1,6 @@
 """Size presets: every image ratio lands in exactly one shape, the nearest."""
 
-from src.services import image_shapes
+from moire.services import image_shapes
 
 
 def test_presets_classify_as_themselves():

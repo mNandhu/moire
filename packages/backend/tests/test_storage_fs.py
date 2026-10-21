@@ -15,8 +15,8 @@ import pytest
 @pytest.fixture
 def fs(tmp_path, monkeypatch):
     """storage_fs pointed at a temp thumb root."""
-    from src.core.config import settings
-    from src.services import storage_fs
+    from moire.core.config import settings
+    from moire.services import storage_fs
 
     monkeypatch.setattr(
         type(settings),

@@ -16,10 +16,10 @@ from .services.ai_tagger import get_tagger_manager
 from .services import library_nesting, library_watch, tag_migrations
 from .services.generation_jobs import get_generation_manager
 from .web_ui import mount_web_ui
+from . import __version__
 
 import logging
 import time
-from importlib.metadata import PackageNotFoundError, version
 import anyio  # type: ignore[import-not-found]
 import sqlalchemy as sa
 
@@ -84,15 +84,8 @@ async def lifespan(app: FastAPI):
     await get_generation_manager().stop()
 
 
-def _app_version() -> str:
-    try:
-        return version("moire-backend")
-    except PackageNotFoundError:  # running from a tree that was never synced
-        return "0.0.0"
-
-
 # pyproject.toml is the one version (scripts/version.mjs keeps the rest in step).
-app = FastAPI(title="Moiré API", version=_app_version(), lifespan=lifespan)
+app = FastAPI(title="Moiré API", version=__version__, lifespan=lifespan)
 
 
 class GZipExceptMedia:

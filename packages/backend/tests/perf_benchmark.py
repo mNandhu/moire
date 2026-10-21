@@ -12,8 +12,8 @@ import httpx
 import threading
 from pathlib import Path
 
-# Add backend root to sys.path for optional in-process uvicorn start (so we can import 'src.main')
-BACKEND_ROOT = str((Path(__file__).resolve().parents[1]).resolve())
+# Add backend src/ to sys.path for optional in-process uvicorn start (so we can import 'moire.main')
+BACKEND_ROOT = str(Path(__file__).resolve().parents[1] / "src")
 if BACKEND_ROOT not in sys.path:
     sys.path.insert(0, BACKEND_ROOT)
 
@@ -192,7 +192,7 @@ async def run_benchmark():
                 import uvicorn  # type: ignore
                 import importlib
 
-                mod = importlib.import_module("src.main")
+                mod = importlib.import_module("moire.main")
                 app = getattr(mod, "app")
 
                 def _run_server():

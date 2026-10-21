@@ -24,7 +24,7 @@ from pathlib import Path
 
 from .tag_names import canonical_name
 
-TAG_GROUPS_PATH = Path(__file__).resolve().parents[2] / "data" / "tag_groups.json"
+TAG_GROUPS_PATH = Path(__file__).resolve().parents[1] / "data" / "tag_groups.json"
 # Groups whose tags are things worn. A tag is attire when any of its places is
 # one of these.
 ATTIRE_GROUPS = frozenset(

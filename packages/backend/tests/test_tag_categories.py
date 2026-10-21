@@ -1,7 +1,7 @@
 """Character names from the tagger's word list, bare names included."""
 
-from src.services import tag_categories
-from src.services.tag_categories import Candidate
+from moire.services import tag_categories
+from moire.services.tag_categories import Candidate
 
 
 def test_bare_names_are_candidates_only_when_unambiguous():

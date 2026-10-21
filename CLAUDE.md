@@ -17,7 +17,7 @@ pnpm perf                    # backend perf benchmark
 
 # Backend (Python via uv; never call `python` directly)
 uv --directory packages/backend sync                # install deps
-uv --directory packages/backend run uvicorn src.main:app --reload   # backend only
+uv --directory packages/backend run moire run --reload   # backend only (serves a built UI too)
 uv --directory packages/backend run pytest          # all backend tests
 uv --directory packages/backend run pytest tests/test_scanner.py::test_name   # single test
 
@@ -28,7 +28,7 @@ pnpm -C packages/frontend test src/lib/fuzzy.test.ts   # single test file
 pnpm -C packages/frontend build   # tsc -b && vite build
 ```
 
-Backend env is optional: `SQLITE_PATH` (defaults to `<repo>/data/moire.db`) and `THUMB_ROOT` (defaults to `<repo>/data/thumbs`). Settings load from repo-root `.env` then `packages/backend/.env` (`src/core/config.py`). The SQLite schema is created on startup (`ensure_schema` in `main.py` lifespan); there is no schema migration step. One-off *data* migrations run right after it (`services/tag_migrations.py` `run_pending`, recorded in the `app_settings` row "migrations"). Backend tests now include router-level **integration tests** (`tests/test_*_integration.py`) that run against a temp-file SQLite DB via the `client`/`seed` fixtures in `tests/conftest.py`.
+The backend's import package is `moire` (`packages/backend/src/moire`, PyPI name `moire-gallery`, command `moire`). Backend env is optional: `SQLITE_PATH` (defaults to `<MOIRE_HOME>/data/moire.db`) and `THUMB_ROOT` (defaults to `<MOIRE_HOME>/data/thumbs`); `MOIRE_HOME` is the repo root in a checkout and the OS app-data folder for an installed copy. Settings load from `<MOIRE_HOME>/.env` then (checkout only) `packages/backend/.env` (`src/moire/core/config.py`). The SQLite schema is created on startup (`ensure_schema` in `main.py` lifespan); there is no schema migration step. One-off *data* migrations run right after it (`services/tag_migrations.py` `run_pending`, recorded in the `app_settings` row "migrations"). Backend tests now include router-level **integration tests** (`tests/test_*_integration.py`) that run against a temp-file SQLite DB via the `client`/`seed` fixtures in `tests/conftest.py`.
 
 ## Domain model
 
@@ -44,7 +44,7 @@ Backend env is optional: `SQLITE_PATH` (defaults to `<repo>/data/moire.db`) and 
 
 ## Backend layout
 
-`src/api/` routers (libraries, images, tags, ai, rules) mounted in `main.py` under `/api/v1/<name>`. `src/services/` holds the logic: `scanner.py` (multithreaded walk → write thumb to FS → upsert + library progress), `storage_fs.py` (thumbnail FS keys/paths under `THUMB_ROOT`, atomic writes, traversal guard, `delete_by_prefix`), `ai_jobs.py` (queued cancellable batch tagging worker, started in lifespan), `ai_tagger.py` (WD ONNX model lifecycle vs pure `select_tags` inference), `ai_settings.py`, `reproject.py` (prompt-tag extraction), `image_tags.py`, `blurhash.py`.
+`src/moire/api/` routers (libraries, images, tags, ai, rules) mounted in `main.py` under `/api/v1/<name>`. `src/moire/services/` holds the logic: `scanner.py` (multithreaded walk → write thumb to FS → upsert + library progress), `storage_fs.py` (thumbnail FS keys/paths under `THUMB_ROOT`, atomic writes, traversal guard, `delete_by_prefix`), `ai_jobs.py` (queued cancellable batch tagging worker, started in lifespan), `ai_tagger.py` (WD ONNX model lifecycle vs pure `select_tags` inference), `ai_settings.py`, `reproject.py` (prompt-tag extraction), `image_tags.py`, `blurhash.py`.
 
 **Media delivery** streams everything from the local filesystem through the API: thumbnails via `FileResponse` from `THUMB_ROOT`, originals via `FileResponse` from their on-disk library path. Originals support Range requests; both thumb and original have HEAD endpoints. New media endpoints should serve from the FS with a HEAD counterpart. A single exposed port covers remote access; front with nginx for TLS/static offload (see `deploy/nginx.conf.example`).
 

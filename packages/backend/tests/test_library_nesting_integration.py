@@ -8,9 +8,9 @@ import pytest
 import sqlalchemy as sa
 from PIL import Image
 
-from src.database import db
-from src.database import schema as t
-from src.services import library_nesting
+from moire.database import db
+from moire.database import schema as t
+from moire.services import library_nesting
 
 from test_scan_reproject_integration import _wait_scan
 

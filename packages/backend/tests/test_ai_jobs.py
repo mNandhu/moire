@@ -6,9 +6,9 @@ import time
 
 from PIL import Image
 
-from src.services import ai_jobs
-from src.services.ai_jobs import AIJobManager
-from src.services.ai_tagger import TaggerManager
+from moire.services import ai_jobs
+from moire.services.ai_jobs import AIJobManager
+from moire.services.ai_tagger import TaggerManager
 
 _RESULT = {"caption": "", "rating": {}, "general_tags": [], "character_tags": []}
 

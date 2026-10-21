@@ -3,9 +3,9 @@ pinned covers keyed by name."""
 
 import sqlalchemy as sa
 
-from src.database import db
-from src.database import schema as t
-from src.services import tag_categories, tag_index, tag_migrations
+from moire.database import db
+from moire.database import schema as t
+from moire.services import tag_categories, tag_index, tag_migrations
 
 
 def _chars(*names, **candidates):

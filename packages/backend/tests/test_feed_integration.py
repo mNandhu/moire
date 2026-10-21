@@ -196,8 +196,8 @@ async def test_cursor_pagination_walks_every_row_once_in_order(client, seed):
 async def test_workflow_filters_by_family_and_version(client, seed):
     import sqlalchemy as sa
 
-    from src.database import db
-    from src.database import schema as t
+    from moire.database import db
+    from moire.database import schema as t
 
     # Family W has two versions (s1, s2); s3 belongs to another family.
     seed("L1:a", gen={"workflow_sig": "s1"})
@@ -232,7 +232,7 @@ async def test_workflow_filters_by_family_and_version(client, seed):
 
 
 async def test_select_all_follows_the_feed_filter(client, seed, monkeypatch):
-    from src.api import images
+    from moire.api import images
 
     seed("L1:a", tags=("cat",), gen={"group_id": "g1"})
     seed("L1:b", tags=("cat",), gen={"group_id": "g1"})
@@ -294,7 +294,7 @@ async def test_rare_filter_by_ids_matches_the_full_walk(client, seed, monkeypatc
     """A rare tag group or prompt term drives the query by id
     (`_drive_by_rarest`); it must return exactly what the plain walk does,
     page by page, whatever else the filter holds."""
-    from src.services import image_feed
+    from moire.services import image_feed
 
     for i in range(12):
         tags = (

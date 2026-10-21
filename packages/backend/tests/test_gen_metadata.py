@@ -2,7 +2,7 @@
 ComfyUI graph walking, signature stability across id renumbering, tokenisation,
 and grouping."""
 
-from src.services import gen_metadata as gm
+from moire.services import gen_metadata as gm
 
 
 # --- A1111 -------------------------------------------------------------------

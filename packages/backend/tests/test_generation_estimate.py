@@ -5,15 +5,15 @@ from __future__ import annotations
 
 import pytest
 
-from src.services.generation_estimate import (
+from moire.services.generation_estimate import (
     Job,
     Run,
     load_cost,
     plan,
     warm_estimate,
 )
-from src.services.generation_estimate import _job, _run_order
-from src.services.generation_jobs import batch_shape, model_loaded
+from moire.services.generation_estimate import _job, _run_order
+from moire.services.generation_jobs import batch_shape, model_loaded
 
 PX = 832 * 1216
 
