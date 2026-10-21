@@ -15,6 +15,7 @@ from ..services import (
     characters,
     face_detect,
     image_tags,
+    tag_categories,
     tag_focus,
     tag_index,
     tag_rename,
@@ -52,7 +53,8 @@ class TagSettingsPatch(BaseModel):
 async def get_attire_groups():
     """``tag -> attire group`` (headwear, accessories, ...) for every attire
     tag: outfit chips are labelled by it. Static per build, like facets."""
-    return JSONResponse(attire.attire_tags())
+    vocab = await tag_categories.load()
+    return JSONResponse(attire.attire_tags(vocab.general))
 
 
 @router.get("/facets")
@@ -60,7 +62,8 @@ async def get_tag_facets():
     """``tag -> facet`` (look, outfit, pose, scene, framing) for every listed
     tag that has one: the image view tints tags by it. Static per build of the
     tag-group list, so clients can cache it for the session."""
-    return JSONResponse(attire.facets())
+    vocab = await tag_categories.load()
+    return JSONResponse(attire.facets(vocab.general))
 
 
 @router.get("/settings")

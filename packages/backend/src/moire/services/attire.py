@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
 
@@ -122,9 +123,49 @@ EXPOSURE_TAGS = frozenset(
 # group members), with the group they'd sit in.
 UNLISTED_ATTIRE = {"jewelry": "accessories", "strapless": "exposure"}
 
+# A colour or print in front of a garment (`red_bikini`, `white_shirt`,
+# `striped_thighhighs`): Danbooru tags these but the groups list only the
+# garment, so the tag counts as the garment's group. Hubs the groups leave
+# out (`black_footwear`) are named here.
+_COLOURED = re.compile(
+    r"^(?:(?:light|dark|pale)_)?"
+    r"(red|blue|green|yellow|orange|purple|pink|black|white|grey|gray|brown|"
+    r"aqua|beige|silver|gold|multicolored|two-tone|see-through|striped|plaid|"
+    r"polka_dot|checkered|camouflage|floral_print|leopard_print|frilled)_(.+)$"
+)
+_GARMENT_HUBS = {
+    "footwear": "attire",
+    "headwear": "headwear",
+    "legwear": "legwear",
+    "neckwear": "neck_and_neckwear",
+    "one-piece_swimsuit": "attire",
+}
+
 
 def _key(tag: str) -> str:
     return canonical_name(tag).lower()
+
+
+def _coloured_group(key: str) -> str | None:
+    """The attire group of an unlisted coloured garment, else None."""
+    m = _COLOURED.match(key)
+    if not m:
+        return None
+    garment = m.group(2)
+    entry = _load().get(garment)
+    if entry is None:
+        return _GARMENT_HUBS.get(garment) or UNLISTED_ATTIRE.get(garment)
+    group = _attire_group(garment, entry)
+    # A coloured exposure tag isn't a thing (`red_midriff`).
+    return group if group != EXPOSURE_GROUP else None
+
+
+def _unlisted_group(key: str) -> str | None:
+    """An attire tag the groups don't list: a hub, or a coloured garment.
+    Only beside a loaded list, like everything else here."""
+    if not _load():
+        return None
+    return UNLISTED_ATTIRE.get(key) or _coloured_group(key)
 
 
 def parse(doc: object) -> dict[str, tuple[str, str, tuple[str, ...]]]:
@@ -193,8 +234,7 @@ def is_attire(tag: str) -> bool:
     key = _key(tag)
     entry = _load().get(key)
     if entry is None:
-        # Like attire_tags(): the extras only beside a loaded list.
-        return bool(_load()) and key in UNLISTED_ATTIRE
+        return _unlisted_group(key) is not None
     return _attire_group(key, entry) is not None
 
 
@@ -227,7 +267,7 @@ def group_of(tag: str) -> str | None:
     key = _key(tag)
     entry = _load().get(key)
     if entry is None:
-        return UNLISTED_ATTIRE.get(key) if _load() else None
+        return _unlisted_group(key)
     return _attire_group(key, entry) or entry[1]
 
 
@@ -244,8 +284,22 @@ def all_tags(category: str | None = None) -> dict[str, str]:
     }
 
 
-def attire_tags() -> dict[str, str]:
-    """``tag -> attire group`` for every attire tag."""
+def coloured(names: Iterable[str]) -> dict[str, str]:
+    """``tag -> attire group`` for the unlisted coloured garments among
+    ``names`` (the tagger's vocabulary): the lists below can't enumerate
+    them from the groups alone."""
+    listed = _load()
+    out: dict[str, str] = {}
+    for name in names:
+        key = _key(name)
+        if key not in listed and (group := _unlisted_group(key)):
+            out[key] = group
+    return out
+
+
+def attire_tags(extra: Iterable[str] = ()) -> dict[str, str]:
+    """``tag -> attire group`` for every attire tag; ``extra`` names (the
+    tagger's vocabulary) add the coloured garments among them."""
     out: dict[str, str] = {}
     listed = _load()
     for tag, entry in listed.items():
@@ -254,6 +308,7 @@ def attire_tags() -> dict[str, str]:
             out[tag] = group
     if listed:
         out.update({t: g for t, g in UNLISTED_ATTIRE.items() if t not in listed})
+        out.update(coloured(extra))
     return out
 
 
@@ -300,7 +355,7 @@ def _facet(key: str, entry: tuple[str, str, tuple[str, ...]] | None) -> str | No
     if key in EYE_STATES:
         return "pose"
     if entry is None:
-        if key in UNLISTED_ATTIRE and _load():
+        if _unlisted_group(key):
             return "outfit"
         return "look" if _BODY_WORDS.search(key) or _ANIMAL_PERSON.match(key) else None
     # Animal traits the groups file beside animals and body parts: `cat_girl`,
@@ -332,7 +387,7 @@ def facet_of(tag: str) -> str | None:
 _facets_cache: tuple[dict, dict[str, str]] | None = None
 
 
-def facets() -> dict[str, str]:
+def facets(extra: Iterable[str] = ()) -> dict[str, str]:
     """``tag -> facet`` for every *listed* tag that has one (an unlisted tag
     that only :func:`facet_of`'s body-word rule would place is left out).
     Rebuilt whenever the list itself is reloaded."""
@@ -343,4 +398,5 @@ def facets() -> dict[str, str]:
         if listed:
             out.update({t: "outfit" for t in UNLISTED_ATTIRE if t not in listed})
         _facets_cache = (listed, out)
-    return _facets_cache[1]
+    added = {t: "outfit" for t in coloured(extra)}
+    return {**_facets_cache[1], **added} if added else _facets_cache[1]

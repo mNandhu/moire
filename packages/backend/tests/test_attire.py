@@ -298,3 +298,24 @@ def test_animal_traits_are_a_look():
     assert attire._facet("fox_girl", None) == "look"
     assert attire._facet("wolf_boy", None) == "look"
     assert attire._facet("magical_girl", None) is None
+
+
+def test_coloured_garments_count_as_their_garment():
+    assert attire.group_of("red_bikini") == "attire"
+    assert attire.is_attire("light_blue_dress")
+    assert attire.group_of("black_footwear") == "attire"
+    assert attire.facet_of("striped_thighhighs") == "outfit"
+    # Not garments: hair, eyes, backgrounds, a coloured cut-out.
+    for tag in (
+        "red_hair",
+        "blue_eyes",
+        "white_background",
+        "red_midriff",
+        "black_cat",
+    ):
+        assert not attire.is_attire(tag)
+    assert attire.coloured(["red_bikini", "red_hair", "swimsuit"]) == {
+        "red_bikini": "attire"
+    }
+    assert attire.attire_tags(["red_bikini"])["red_bikini"] == "attire"
+    assert attire.facets(["red_bikini"])["red_bikini"] == "outfit"
