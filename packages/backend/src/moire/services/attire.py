@@ -72,13 +72,13 @@ _ANIMAL_PERSON = re.compile(
 # Poses and actions that the attire groups list because they involve clothing
 # (`adjusting_scarf`, `towel_around_neck`, `hand_on_headwear`), not garments;
 # what isn't on (`unworn_hat`, `no_gloves`); body parts filed under neckwear
-# (`collarbone`, `nape`); carried things (`umbrella`, `shopping_bag`); and
-# endings that only look like a garment (`soul_gem`, `swim_ring`).
+# (`collarbone`, `nape`); carried things (`umbrella`, `shopping_bag`); names
+# that only end like a garment (`clitoral_hood`, `mobile_suit`).
 _NOT_WORN = re.compile(
     r"^(adjusting|holding|kissing|no|unworn|removing|carrying|drawing)_|_around_neck$"
     r"|_grab$|^hands?_(on|in)_|(^|_)bag$"
     r"|^(long_neck|hand_fan|hand_tattoo|collarbone|nape|strangling|umbrella"
-    r"|clitoral_hood|soul_gem|swim_ring|mobile_suit|sharp_fingernails)$"
+    r"|clitoral_hood|mobile_suit)$"
 )
 
 
@@ -129,7 +129,7 @@ EXPOSURE_TAGS = frozenset(
 UNLISTED_ATTIRE = {"jewelry": "accessories", "strapless": "exposure"}
 
 # A colour or print in front of a garment (`red_bikini`, `white_shirt`,
-# `striped_thighhighs`): a coloured cut-out isn't a thing (`red_midriff`).
+# `striped_thighhighs`).
 _COLOURED = re.compile(
     r"^(?:(?:light|dark|pale)_)?"
     r"(red|blue|green|yellow|orange|purple|pink|black|white|grey|gray|brown|"
@@ -153,18 +153,47 @@ def _key(tag: str) -> str:
     return canonical_name(tag).lower()
 
 
+# Garment words that also name other things (`onion_ring`, `seat_belt`,
+# `wine_glasses`, `soul_gem`): as the ending of an unlisted tag they count only
+# behind a colour or print (`red_belt`), where it's worn (`thumb_ring`,
+# `waist_bow`) or a size or material (`huge_bow`, `leather_belt`).
+_AMBIGUOUS = frozenset(
+    {"badge", "bell", "belt", "bow", "gem", "glasses", "pocket", "ring", "sticker"}
+)
+_WORN_LEAD = re.compile(
+    r"^(ankle|arm|back|belly|breast|chest|ear|ears|finger|foot|hair|hand|head|hip"
+    r"|horn|knee|leg|lip|navel|neck|nipple|nose|shoulder|sleeve|tail|thigh|thumb"
+    r"|toe|tongue|waist|wrist|large|huge|big|small|long|short|loose|open|tight"
+    r"|thin|wide|single|double|multiple|leather|studded|spiked|rope|lace|fur"
+    r"|metal|silk|satin|velvet|cloth|chain|oversized)$"
+)
+# What may stand in front of a cut or exposure ending (`bare_midriff`): any
+# other word describes the body (`toned_midriff`, `huge_cleavage`).
+_EXPOSURE_LEAD = frozenset({"bare", "exposed"})
+
+
+def _clothing(entry: tuple[str, str, tuple[str, ...]]) -> bool:
+    """Listed somewhere about clothing, attire or not (`naked_shirt`)."""
+    return bool(_groups(entry) & (ATTIRE_GROUPS | {"nudity"}))
+
+
 def _garment_group(key: str) -> str | None:
     """The attire group of an unlisted tag that ends in a garment, whatever
     comes in front (`red_bikini`, `oversized_cropped_hoodie`,
     `blue_cotton_panties`, `bare_midriff`; `star_hair_clip` as `hairclip`).
-    The longest attire ending decides (`floral_print_kimono` is a `kimono`,
-    though `print_kimono` is listed as a print); `sky_blue_hair` has none."""
+    The longest listed ending decides; one listed elsewhere is skipped
+    (`floral_print_kimono` is a `kimono`, though `print_kimono` is a print),
+    but one about clothing that isn't attire stops it (`white_naked_shirt`,
+    `girl_holding_mask`). `sky_blue_hair` has no garment ending."""
     if _PHRASE.search(key) or _NOT_WORN.search(key):
         return None
     listed = _load()
     words = key.split("_")
     for i in range(1, len(words)):
         tail = "_".join(words[i:])
+        if _NOT_WORN.search(tail):
+            return None
+        front = words[:i]
         for name in dict.fromkeys((tail, tail.replace("_", ""))):
             entry = listed.get(name)
             if entry is None:
@@ -172,10 +201,17 @@ def _garment_group(key: str) -> str | None:
                     return group
                 continue
             group = _attire_group(name, entry)
-            if group == EXPOSURE_GROUP and _COLOURED.match(key):
-                return None
-            if group:
-                return group
+            if group is None:
+                if _clothing(entry):
+                    return None
+                continue
+            if group == EXPOSURE_GROUP:
+                return group if set(front) <= _EXPOSURE_LEAD else None
+            if name in _AMBIGUOUS:
+                m = _COLOURED.match(key)
+                worn = (m and m.group(2) == name) or _WORN_LEAD.match(front[-1])
+                return group if worn else None
+            return group
     return None
 
 
@@ -303,10 +339,10 @@ def all_tags(category: str | None = None) -> dict[str, str]:
     }
 
 
-def coloured(names: Iterable[str]) -> dict[str, str]:
+def unlisted_attire(names: Iterable[str]) -> dict[str, str]:
     """``tag -> attire group`` for the unlisted garments among ``names`` (the
-    tagger's vocabulary): coloured or otherwise described, which the lists
-    below can't enumerate from the groups alone."""
+    tagger's vocabulary, the library's tags): coloured or otherwise
+    described, which the lists below can't enumerate from the groups alone."""
     listed = _load()
     out: dict[str, str] = {}
     for name in names:
@@ -327,7 +363,7 @@ def attire_tags(extra: Iterable[str] = ()) -> dict[str, str]:
             out[tag] = group
     if listed:
         out.update({t: g for t, g in UNLISTED_ATTIRE.items() if t not in listed})
-        out.update(coloured(extra))
+        out.update(unlisted_attire(extra))
     return out
 
 
@@ -407,9 +443,9 @@ _facets_cache: tuple[dict, dict[str, str]] | None = None
 
 
 def facets(extra: Iterable[str] = ()) -> dict[str, str]:
-    """``tag -> facet`` for every *listed* tag that has one (an unlisted tag
-    that only :func:`facet_of`'s body-word rule would place is left out).
-    Rebuilt whenever the list itself is reloaded."""
+    """``tag -> facet`` for every listed tag that has one, plus the unlisted
+    ``extra`` names that :func:`facet_of` places (a described garment, a body
+    word). The listed part is rebuilt whenever the list itself is reloaded."""
     global _facets_cache
     listed = _load()
     if _facets_cache is None or _facets_cache[0] is not listed:
@@ -417,5 +453,10 @@ def facets(extra: Iterable[str] = ()) -> dict[str, str]:
         if listed:
             out.update({t: "outfit" for t in UNLISTED_ATTIRE if t not in listed})
         _facets_cache = (listed, out)
-    added = {t: "outfit" for t in coloured(extra)}
+    added: dict[str, str] = {}
+    if listed:
+        for name in extra:
+            key = _key(name)
+            if key not in listed and (f := _facet(key, None)):
+                added[key] = f
     return {**_facets_cache[1], **added} if added else _facets_cache[1]

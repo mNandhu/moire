@@ -314,7 +314,7 @@ def test_coloured_garments_count_as_their_garment():
         "black_cat",
     ):
         assert not attire.is_attire(tag)
-    assert attire.coloured(["red_bikini", "red_hair", "swimsuit"]) == {
+    assert attire.unlisted_attire(["red_bikini", "red_hair", "swimsuit"]) == {
         "red_bikini": "attire"
     }
     assert attire.attire_tags(["red_bikini"])["red_bikini"] == "attire"
@@ -343,6 +343,29 @@ def test_described_garments_count_as_their_garment():
         "waist-length_sky_blue_hair",
         "white_bed_sheet",
         "red_midriff",
+        # An ending about clothing that isn't attire stops the walk.
+        "white_naked_shirt",
+        "girl_holding_mask",
+        "cat_holding_hat",
+        # Garment words that name other things, without a colour, a body
+        # part or a material in front.
+        "wine_glasses",
+        "onion_ring",
+        "boxing_ring",
+        "seat_belt",
+        "cow_bell",
+        "soul_gem",
+        "swim_ring",
+        # The body, not a cut.
+        "toned_midriff",
+        "huge_cleavage",
+        "sweaty_bare_shoulders",
     ):
         assert not attire.is_attire(tag), tag
+    for tag in ("red_belt", "leather_belt", "thumb_ring", "huge_bow", "panda_hood"):
+        assert attire.is_attire(tag), tag
     assert attire.is_identity("waist-length_sky_blue_hair")
+    # Unlisted names get any facet facet_of gives them.
+    got = attire.facets(["waist-length_sky_blue_hair", "blue_cotton_panties"])
+    assert got["waist-length_sky_blue_hair"] == "look"
+    assert got["blue_cotton_panties"] == "outfit"
