@@ -5,12 +5,12 @@ import { useNavigate } from "react-router-dom";
 import { DropdownMenu, type DropdownItem } from "../ui";
 import { useToast } from "../Toasts";
 import { cn } from "../../lib/cn";
-import { api } from "../../lib/api";
 import {
   DEFAULT_OUTFIT,
   OUTFITS_KEY,
   defaultOutfitKey,
   fetchDefaultOutfit,
+  fetchOutfits,
   outfitsKey,
   putDefaultOutfit,
   thumbUrl,
@@ -79,7 +79,7 @@ export function CoverGrid({
         </span>
       </div>
       {!choices.length ? (
-        <span className="text-sm text-faint">No images wear all of it</span>
+        <span className="text-sm text-faint">{all ? "No images wear all of it" : "No images wear any of it"}</span>
       ) : (
         <div className="grid max-h-[22rem] grid-cols-[repeat(auto-fill,minmax(5.75rem,1fr))] gap-2 overflow-y-auto p-0.5">
           {choices.map((c) => {
@@ -136,17 +136,21 @@ export function OutfitMenu({
   const qc = useQueryClient();
   const toast = useToast();
   const navigate = useNavigate();
+  // Loaded when the menu opens: the viewer shows this for every image.
+  const [open, setOpen] = useState(false);
   const lists = useQueries({
     queries: characters.map((c) => ({
       queryKey: outfitsKey(c.tag),
-      queryFn: ({ signal }: { signal: AbortSignal }) =>
-        api<Outfit[]>(`/api/v1/generate/outfits?character=${encodeURIComponent(c.tag)}`, { signal }),
+      queryFn: ({ signal }: { signal: AbortSignal }) => fetchOutfits(c.tag, signal),
+      enabled: open,
+      staleTime: 30_000,
     })),
   });
   const defs = useQueries({
     queries: characters.map((c) => ({
       queryKey: defaultOutfitKey(c.tag),
       queryFn: ({ signal }: { signal: AbortSignal }) => fetchDefaultOutfit(c.tag, signal),
+      enabled: open,
       staleTime: 5 * 60_000,
     })),
   });
@@ -195,6 +199,7 @@ export function OutfitMenu({
   return (
     <DropdownMenu
       variant="link"
+      onOpenChange={setOpen}
       label={
         <>
           <Shirt size={12} /> Outfit

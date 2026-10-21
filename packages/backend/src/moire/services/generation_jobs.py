@@ -36,6 +36,7 @@ from . import (
     generation_estimate,
 )
 from .comfy_client import ComfyClient, ComfyError, ComfyRejected, ComfyUnreachable
+from . import outfits
 from .outfits import clean_tags
 from .generation_compose import auto_name, compose, compose_parts, prompt_terms
 from .generator_graph import (
@@ -1041,7 +1042,8 @@ class GenerationManager:
             given = (body.get("name") or "").strip()
             chars = characters_of(inputs)
             who = [c["label"] or c["tag"] for c in chars]
-            # One character names their outfit too; plain "Default" isn't news.
+            # One character names their outfit too; an unrenamed Default
+            # isn't news.
             worn = chars[0].get("outfit") if len(chars) == 1 else None
             name = given or auto_name(
                 number=batch_id,
@@ -1049,7 +1051,12 @@ class GenerationManager:
                 extra=name_words,
                 character=" & ".join(who) if who else None,
                 outfit=worn["name"]
-                if isinstance(worn, dict) and worn.get("name") not in ("", "Default")
+                if isinstance(worn, dict)
+                and worn.get("name")
+                and not (
+                    worn.get("id") == outfits.DEFAULT_ID
+                    and worn["name"] == outfits.DEFAULT_NAME
+                )
                 else None,
             )
             await conn.execute(

@@ -201,7 +201,8 @@ def apply_default_edits(
     added = [x for x in (edit or {}).get("added") or [] if x not in computed]
     chips = [{"tag": x, "dropped": x in dropped, "added": False} for x in computed]
     chips += [{"tag": x, "dropped": False, "added": True} for x in added]
-    return [c["tag"] for c in chips if not c["dropped"]], chips
+    # As many as any outfit sends.
+    return [c["tag"] for c in chips if not c["dropped"]][:MAX_TAGS], chips
 
 
 async def _default_edit(key: str) -> dict[str, Any] | None:
@@ -307,7 +308,9 @@ async def covers(
         tags, _ = apply_default_edits(list(r["outfit"]), await _default_edit(r["tag"]))
     else:
         o = await get(outfit_id)
-        if o is None:
+        # Their own or a shared one: another character's private outfit
+        # isn't theirs to wear.
+        if o is None or not (o["character"] == r["tag"] or o["shared"]):
             return None
         tags = [x["tag"] for x in o["tags"]]
     found = await _wearing(r["names"], tags, COVER_CHOICES)

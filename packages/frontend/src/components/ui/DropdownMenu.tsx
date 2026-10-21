@@ -25,6 +25,7 @@ export function DropdownMenu({
   variant = "secondary",
   footer,
   trigger,
+  onOpenChange,
 }: {
   label?: React.ReactNode;
   items: DropdownItem[];
@@ -37,12 +38,17 @@ export function DropdownMenu({
   variant?: "secondary" | "primary" | "link";
   /** Controls under the items that set how they run (the menu stays open). */
   footer?: React.ReactNode;
+  /** Told when the menu opens or closes (load its items only when wanted). */
+  onOpenChange?: (open: boolean) => void;
   /** A whole element as the trigger (a card): a click anywhere on it opens
    * the menu beside it, on its right (its left when there's no room). */
   trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+  useEffect(() => onOpenChangeRef.current?.(open), [open]);
   // A card's menu: beside it, on the side with room.
   const [onLeft, setOnLeft] = useState(false);
   const toggle = () => {

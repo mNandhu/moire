@@ -263,3 +263,11 @@ async def test_tag_info_route(client, monkeypatch):
         ("midriff", "exposure", True),
         ("plum_ornament", None, False),
     ]
+
+
+def test_exposure_is_a_list_not_a_pattern():
+    from moire.services import attire
+
+    assert attire.group_of("midriff") == "exposure"
+    for tag in ("open_bra", "crotch_cutout", "underboob", "open_pants"):
+        assert not attire.is_attire(tag)

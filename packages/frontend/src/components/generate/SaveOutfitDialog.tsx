@@ -9,6 +9,7 @@ import { useToast } from "../Toasts";
 import { cn } from "../../lib/cn";
 import {
   DEFAULT_OUTFIT,
+  DEFAULT_OUTFIT_NAME,
   OUTFITS_KEY,
   createOutfit,
   defaultOutfitKey,
@@ -95,7 +96,7 @@ export function SaveOutfitDialog({
     if (outfit) {
       setCover(outfit.image_id);
       setChanging(false);
-      setName(outfit._id === DEFAULT_OUTFIT && outfit.name === "Default" ? "" : outfit.name);
+      setName(outfit._id === DEFAULT_OUTFIT && outfit.name === DEFAULT_OUTFIT_NAME ? "" : outfit.name);
       setShared(outfit.shared);
       setRows(
         outfit.chips
@@ -160,7 +161,9 @@ export function SaveOutfitDialog({
     onSuccess: done,
     onError: (e) => toast.push(e.message, "error"),
   });
-  const tooMany = rows.length > MAX_OUTFIT_TAGS;
+  // Struck tags aren't sent, so they don't count.
+  const kept = rows.filter((r) => !r.struck);
+  const tooMany = kept.length > MAX_OUTFIT_TAGS;
   const ready = (isDefault || (!!name.trim() && rows.length > 0)) && !tooMany && !save.isPending;
 
   // On the body: the viewer's side panel is transformed, which would pin a
@@ -199,7 +202,7 @@ export function SaveOutfitDialog({
             </Button>
           ) : (
             <span className={cn("text-xs", tooMany ? "text-red-300" : "text-muted")}>
-              {tooMany ? `${rows.length} of ${MAX_OUTFIT_TAGS} tags` : `${rows.length} ${rows.length === 1 ? "tag" : "tags"}`}
+              {tooMany ? `${kept.length} of ${MAX_OUTFIT_TAGS} tags` : `${kept.length} ${kept.length === 1 ? "tag" : "tags"}`}
             </span>
           )}
           <Button variant="ghost" className="ml-auto" onClick={onClose}>
@@ -305,7 +308,8 @@ export function SaveOutfitDialog({
           <CoverGrid
             character={character}
             outfit={outfit?._id ?? ""}
-            tags={outfit ? undefined : rows.map((r) => r.tag)}
+            // The tags as they stand in the dialog, not as last saved.
+            tags={kept.map((r) => r.tag)}
             value={cover}
             onChange={setCover}
           />

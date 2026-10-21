@@ -38,6 +38,8 @@ import {
   useComfyModels,
   useComfySettings,
   fetchDefaultOutfit,
+  DEFAULT_OUTFIT,
+  DEFAULT_OUTFIT_NAME,
   useComfyStatus,
   useBatches,
   useGenerators,
@@ -306,8 +308,11 @@ export default function GeneratePage() {
     generator: gen?.name ?? "Built-in",
     extra: nameWords(form),
     character: labels.length ? labels.join(" & ") : null,
-    // As the backend names it: one character's outfit, unless plain "Default".
-    outfit: oneWorn && oneWorn.name && oneWorn.name !== "Default" && wornTags(oneWorn).length ? oneWorn.name : null,
+    // As the backend names it: one character's outfit, unless an unrenamed Default.
+    outfit:
+      oneWorn && oneWorn.name && wornTags(oneWorn).length && !(oneWorn.id === DEFAULT_OUTFIT && oneWorn.name === DEFAULT_OUTFIT_NAME)
+        ? oneWorn.name
+        : null,
   });
 
   // The page takes the picked characters' colours: one character's own

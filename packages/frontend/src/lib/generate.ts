@@ -298,6 +298,8 @@ export type DefaultOutfitPatch = Partial<{
 }>;
 
 export const DEFAULT_OUTFIT = "default";
+/** A Default's name until the user renames it. */
+export const DEFAULT_OUTFIT_NAME = "Default";
 
 /** The save dialog's start: the image's attire, then the character's usual. */
 export type OutfitPrefill = {
@@ -700,11 +702,14 @@ export function useRecipe(tag: string | null) {
 }
 
 /** Every saved outfit, or one character's list (own and shared). */
+export const fetchOutfits = (character: string | null, signal?: AbortSignal) =>
+  api<Outfit[]>(`${BASE}/outfits${character ? `?character=${encodeURIComponent(character)}` : ""}`, { signal });
+
 export function useOutfits(character: string | null = null) {
   return useQuery({
     queryKey: outfitsKey(character),
-    queryFn: ({ signal }) =>
-      api<Outfit[]>(`${BASE}/outfits${character ? `?character=${encodeURIComponent(character)}` : ""}`, { signal }),
+    queryFn: ({ signal }) => fetchOutfits(character, signal),
+    staleTime: 30_000,
   });
 }
 
