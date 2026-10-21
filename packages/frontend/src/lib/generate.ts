@@ -20,6 +20,9 @@ export type ComfySettings = {
   ca_cert: string;
   /** Fetch finished images from ComfyUI when they aren't in the output folder. */
   download_outputs: boolean;
+  /** ComfyUI's own output folder as Moiré sees it (found from the first
+   * output a library holds); "" until known. */
+  output_root: string;
   /** What a character picked in Generate starts wearing. */
   new_character_outfit: "none" | "default";
 };

@@ -24,6 +24,10 @@ DEFAULT_COMFY_SETTINGS: dict[str, Any] = {
     # Fetch finished images over /view when they aren't in the output folder:
     # for a ComfyUI on another machine, whose output folder isn't shared here.
     "download_outputs": True,
+    # ComfyUI's own output folder as this machine sees it, when it does
+    # (found from the first output a library holds): outputs there are
+    # linked where they are instead of downloaded. "" until known.
+    "output_root": "",
     # PEM file to verify an HTTPS ComfyUI with a self-signed certificate.
     "ca_cert": "",
     # What a character picked in Generate starts wearing: "none" (identity
@@ -57,6 +61,8 @@ def clean_patch(patch: dict[str, Any], current: dict[str, Any]) -> dict[str, Any
             pass
     if "download_outputs" in patch:
         clean["download_outputs"] = bool(patch["download_outputs"])
+    if "output_root" in patch:
+        clean["output_root"] = str(patch["output_root"] or "").strip()
     if "ca_cert" in patch:
         clean["ca_cert"] = str(patch["ca_cert"] or "").strip()
     if patch.get("new_character_outfit") in OUTFIT_STARTS:

@@ -453,6 +453,75 @@ async def test_download_can_be_turned_off(client, comfy, seed, tmp_path):
     assert not any(out.rglob("*.png"))
 
 
+async def test_outputs_a_library_already_holds_link_there(
+    client, comfy, seed, tmp_path
+):
+    """A local ComfyUI whose output folder isn't the output library: its
+    folder is found from the library holding the first output, the outputs
+    link to that library's files and nothing is downloaded."""
+    import sqlalchemy as sa
+    from moire.database import db
+    from moire.database import schema as t
+
+    out, comfy_out = tmp_path / "out", tmp_path / "ComfyUI" / "output"
+    out.mkdir()
+    (comfy_out / "moire").mkdir(parents=True)
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.insert(t.libraries),
+            [
+                {"_id": OUT, "path": str(out), "name": "ComfyUI output"},
+                {"_id": "MOIRE", "path": str(comfy_out / "moire"), "name": "moire"},
+            ],
+        )
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x"})).json()
+    pid = comfy.order[-1]
+    names = [f"gen_{pid}_{i:05}_.png" for i in range(2)]
+    for n in names:
+        (comfy_out / "moire" / n).write_bytes(b"PNG:" + n.encode())
+    comfy.finish(pid, images=2)
+    await tick()
+    got = (await client.get(f"/generate/batches/{b['_id']}")).json()
+    assert [o["image_id"] for o in got["requests"][0]["outputs"]] == [
+        f"MOIRE:{n}" for n in names
+    ]
+    assert not [n for n in names if (out / "moire" / n).exists()]
+    assert (await comfy_settings.get_settings())["output_root"] == str(comfy_out)
+
+    # Another ComfyUI: its folder is found again.
+    await client.put("/generate/comfyui", json={"address": "http://other"})
+    assert (await comfy_settings.get_settings())["output_root"] == ""
+
+
+async def test_output_folder_can_be_set_by_hand(client, comfy, tmp_path):
+    r = await client.put(
+        "/generate/comfyui", json={"output_root": str(tmp_path / "nope")}
+    )
+    assert r.status_code == 400
+    r = await client.put("/generate/comfyui", json={"output_root": str(tmp_path)})
+    assert r.json()["output_root"] == str(tmp_path)
+
+
+def test_held_by_is_the_innermost_library(tmp_path):
+    from moire.services.generation_jobs import held_by, root_candidates
+
+    root = tmp_path / "output"
+    (root / "Unorganized10").mkdir(parents=True)
+    (root / "Unorganized10" / "img_1.png").write_bytes(b"x")
+    libs = [
+        ("OUTER", str(root)),
+        ("U10", str(root / "Unorganized10")),
+        ("ELSE", str(tmp_path / "else")),
+    ]
+    assert held_by(libs, str(root / "Unorganized10" / "img_1.png")) == "U10:img_1.png"
+    assert held_by(libs, str(root / "a.png")) == "OUTER:a.png"
+    assert held_by(libs[1:], str(root / "a.png")) is None
+    assert root_candidates(libs[1:], "Unorganized10", "img_1.png") == [str(root)]
+    assert root_candidates(libs, "Unorganized10", "img_1.png") == [str(root)]
+    assert root_candidates(libs[1:], "Other", "img_1.png") == []
+
+
 async def test_sampling_reaches_the_sampler_and_requeue_keeps_it(client, comfy, seed):
     await make_ready(client, comfy, seed)
     g = (await client.get("/generate/generators/builtin")).json()

@@ -6,6 +6,7 @@ is polled (``GET /status``, ``GET /batches/{id}``) like the AI job status.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from fastapi import Query, APIRouter, HTTPException
@@ -48,6 +49,8 @@ class ComfyPatch(BaseModel):
     ca_cert: str | None = None
     #: Folder ComfyUI saves into; registered as (or matched to) a library.
     output_path: str | None = None
+    #: ComfyUI's own output folder as Moiré sees it ("" forgets it).
+    output_root: str | None = None
     #: What a character picked in Generate starts wearing: none / default.
     new_character_outfit: str | None = None
 
@@ -225,8 +228,13 @@ async def put_comfyui(body: ComfyPatch):
             raise HTTPException(
                 status_code=400, detail=f"Can't read the certificate: {e}"
             ) from e
+    if patch.get("output_root") and not os.path.isdir(patch["output_root"].strip()):
+        raise HTTPException(status_code=400, detail="That folder doesn't exist")
     before = await comfy_settings.get_settings()
     after = await comfy_settings.update_settings(patch)
+    # Another ComfyUI saves somewhere else: find its folder again.
+    if "output_root" not in patch and before.get("address") != after.get("address"):
+        after = await comfy_settings.update_settings({"output_root": ""})
     if any(before.get(k) != after.get(k) for k in ("address", "headers", "ca_cert")):
         await get_generation_manager().configure()
     return await _settings_view()

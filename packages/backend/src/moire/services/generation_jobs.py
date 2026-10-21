@@ -36,7 +36,7 @@ from . import (
     generation_estimate,
 )
 from .comfy_client import ComfyClient, ComfyError, ComfyRejected, ComfyUnreachable
-from . import outfits
+from . import library_nesting, outfits
 from .outfits import clean_tags
 from .generation_compose import auto_name, compose, compose_parts, prompt_terms
 from .generator_graph import (
@@ -92,6 +92,47 @@ def output_image_id(library_id: str, subfolder: str, filename: str) -> str:
     library (`{library_id}:{relative path}`, platform separators)."""
     rel = PurePath(subfolder, filename) if subfolder else PurePath(filename)
     return f"{library_id}:{rel}"
+
+
+Libraries = list[tuple[str, str]]  # (id, folder)
+
+
+def held_by(libraries: Libraries, path: str) -> str | None:
+    """The `_id` the file at ``path`` has in the innermost library holding
+    it (the one whose scan owns it), or None when no library does."""
+    key = library_nesting.path_key(path)
+    best: tuple[str, str] | None = None
+    for lib_id, root in libraries:
+        rk = library_nesting.path_key(root)
+        if library_nesting.is_inside(key, rk) and (
+            best is None or len(rk) > len(library_nesting.path_key(best[1]))
+        ):
+            best = (lib_id, root)
+    if best is None:
+        return None
+    return f"{best[0]}:{os.path.relpath(os.path.normpath(path), os.path.normpath(best[1]))}"
+
+
+def root_candidates(libraries: Libraries, subfolder: str, filename: str) -> list[str]:
+    """Where ComfyUI's output folder may be, from the libraries holding a
+    file at ``subfolder/filename`` below it: a library at ``out/Unorganized10``
+    with ``img.png`` in it says ``out``, for ``Unorganized10/img.png``."""
+    parts = PurePath(subfolder).parts if subfolder else ()
+    found: list[str] = []
+    for _, root in libraries:
+        rp = Path(root)
+        for k in range(len(parts) + 1):
+            if k and (
+                len(rp.parts) <= k
+                or [os.path.normcase(x) for x in rp.parts[-k:]]
+                != [os.path.normcase(x) for x in parts[:k]]
+            ):
+                continue
+            if rp.joinpath(*parts[k:], filename).is_file():
+                base = str(rp.parents[k - 1] if k else rp)
+                if base not in found:
+                    found.append(base)
+    return found
 
 
 def outputs_from_history(entry: dict[str, Any]) -> list[tuple[str, str]]:
@@ -681,6 +722,7 @@ class GenerationManager:
         files = outputs_from_history(entry)
         s = await comfy_settings.get_settings()
         lib = s.get("output_library_id") or ""
+        ids, fetch = await self._place_outputs(files, s)
         node = await self._checkpoint_node(request_id)
         async with async_tx() as conn:
             await conn.execute(
@@ -697,7 +739,7 @@ class GenerationManager:
                             "idx": i,
                             "subfolder": sub,
                             "filename": name,
-                            "image_id": output_image_id(lib, sub, name),
+                            "image_id": ids[i],
                         }
                         for i, (sub, name) in enumerate(files)
                     ],
@@ -736,8 +778,8 @@ class GenerationManager:
         generation_estimate.forget()
         self.progress.pop(prompt_id, None)
         self.started.pop(prompt_id, None)
-        if files and lib and s.get("download_outputs", True):
-            await self._fetch_missing(lib, files)
+        if fetch and lib and s.get("download_outputs", True):
+            await self._fetch_missing(lib, fetch)
 
     def running_for(self, prompt_id: str | None) -> float | None:
         """Seconds since ComfyUI started ``prompt_id``; None until it has."""
@@ -763,6 +805,67 @@ class GenerationManager:
         gen = await load_generator(gen_id) if gen_id else None
         slot = (gen or {}).get("slots", {}).get("checkpoint")
         return str(slot[0]) if slot else None
+
+    async def _place_outputs(
+        self, files: list[tuple[str, str]], s: dict[str, Any]
+    ) -> tuple[list[str], list[tuple[str, str]]]:
+        """Each output's image id, and the outputs to download. Where this
+        machine sees ComfyUI's output folder (``output_root``: set, or found
+        from the first output a library holds), an output is that file, in
+        the library holding it. Otherwise it is downloaded into the output
+        library, as for a ComfyUI on another machine."""
+        lib = s.get("output_library_id") or ""
+        if not files:
+            return [], []
+        async with async_conn() as conn:
+            libraries = [
+                (r._id, r.path)
+                for r in await conn.execute(
+                    sa.select(t.libraries.c._id, t.libraries.c.path)
+                )
+                if r.path
+            ]
+        root = s.get("output_root") or ""
+        sub, name = files[0]
+        if not root or not await asyncio.to_thread(
+            os.path.isfile, os.path.join(root, sub, name)
+        ):
+            root = await self._find_output_root(libraries, sub, name) or root
+        ids: list[str] = []
+        fetch: list[tuple[str, str]] = []
+        for sub, name in files:
+            path = os.path.join(root, sub, name) if root else ""
+            here = path and await asyncio.to_thread(os.path.isfile, path)
+            owned = held_by(libraries, path) if here else None
+            if owned:
+                ids.append(owned)
+            else:
+                ids.append(output_image_id(lib, sub, name))
+                fetch.append((sub, name))
+        return ids, fetch
+
+    async def _find_output_root(
+        self, libraries: Libraries, subfolder: str, filename: str
+    ) -> str | None:
+        """ComfyUI's output folder as this machine sees it: a library file at
+        ``subfolder/filename`` with the same bytes as ComfyUI's output.
+        Remembered in the settings."""
+        candidates = await asyncio.to_thread(
+            root_candidates, libraries, subfolder, filename
+        )
+        if not candidates or self.client is None:
+            return None
+        try:
+            data = await self.client.view(subfolder, filename)
+        except (ComfyUnreachable, ComfyError):
+            return None
+        for root in candidates:
+            path = Path(root, subfolder, filename)
+            if await asyncio.to_thread(path.read_bytes) == data:
+                await comfy_settings.update_settings({"output_root": root})
+                log.info("ComfyUI's output folder is %s", root)
+                return root
+        return None
 
     async def _fetch_missing(
         self, library_id: str, files: list[tuple[str, str]]

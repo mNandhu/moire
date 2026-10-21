@@ -109,6 +109,7 @@ export function ComfySection() {
   const [caCert, setCaCert] = useState("");
   const [headers, setHeaders] = useState<HeaderRow[]>([]);
   const [outputPath, setOutputPath] = useState("");
+  const [outputRoot, setOutputRoot] = useState("");
   const [perRequest, setPerRequest] = useState(1);
 
   const resetConnection = (s: ComfySettings) => {
@@ -120,6 +121,7 @@ export function ComfySection() {
     if (!settings) return;
     resetConnection(settings);
     setOutputPath(settings.output_path ?? "");
+    setOutputRoot(settings.output_root ?? "");
     setPerRequest(settings.builtin_per_request);
   }, [settings]);
 
@@ -284,6 +286,27 @@ export function ComfySection() {
           >
             Save
           </Button>
+        </div>
+        <div
+          className="mt-4 space-y-1.5"
+          title="ComfyUI's own output folder as Moiré sees it, found from the first image a library already holds. Images there are linked where they are, not downloaded."
+        >
+          <span className="text-sm text-neutral-200">ComfyUI saves to</span>
+          <div className="flex gap-2">
+            <Input
+              aria-label="ComfyUI saves to"
+              value={outputRoot}
+              placeholder="Not found yet"
+              onChange={(e) => setOutputRoot(e.target.value)}
+              className="font-mono"
+            />
+            <Button
+              onClick={() => save.mutate({ output_root: outputRoot.trim() })}
+              disabled={save.isPending || outputRoot.trim() === (settings?.output_root ?? "")}
+            >
+              Save
+            </Button>
+          </div>
         </div>
         <div
           className="mt-4"
