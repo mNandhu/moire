@@ -60,8 +60,8 @@ export function useBatchScrub(
         const docs = await api<ImageDoc[]>(`/api/v1/images?${params.toString()}`);
         if (cancelled) return;
         const urls = docs
-          .map((d) => d.thumb_url ?? `/api/v1/images/${encodeURIComponent(d._id)}/thumb`)
-          .filter(Boolean);
+          .map((d) => d.thumb_url)
+          .filter((u): u is string => !!u);
         // Decode every frame up front so the crossfade in ThumbnailTile never
         // reveals an empty layer: a keyed/layered <img> paints nothing until
         // its src has loaded, unlike the old single-element swap which kept

@@ -66,14 +66,13 @@ async def _outputs(conn, reqs: list[Any]) -> dict[int, list[dict[str, Any]]]:
                 _i.c.score,
                 _i.c.width,
                 _i.c.height,
-                _i.c.mtime,
             )
             .select_from(_o.outerjoin(_i, _i.c._id == _o.c.image_id))
             .where(_o.c.request_id.in_(request_ids))
             .order_by(_o.c.request_id, _o.c.idx)
         )
     ).fetchall()
-    stamps = await thumb_version.stamps()
+    thumbs = await thumb_version.urls(r.image_id for r in rows if r.found is not None)
     out: dict[int, list[dict[str, Any]]] = {}
     for row in rows:
         out.setdefault(row.request_id, []).append(
@@ -87,7 +86,7 @@ async def _outputs(conn, reqs: list[Any]) -> dict[int, list[dict[str, Any]]]:
                 "score": row.score,
                 "width": row.width,
                 "height": row.height,
-                "thumb_url": thumb_version.url(stamps, row.image_id, row.mtime)
+                "thumb_url": thumbs.get(row.image_id)
                 if row.found is not None
                 else None,
             }

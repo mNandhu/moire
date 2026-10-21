@@ -45,9 +45,9 @@ class PurgeBody(BaseModel):
 
 async def _attach_thumb_urls(items: list[dict]) -> None:
     """Replace each row's thumb_key with its versioned streaming thumb route."""
+    await thumb_version.urls_for_rows(items)
     for it in items:
         it.pop("thumb_key", None)
-    await thumb_version.urls_for_rows(items)
 
 
 def feed_filter(
@@ -308,11 +308,12 @@ async def head_image_thumb(
 @router.get("/{image_id:path}/thumb-url")
 async def get_thumb_url(image_id: str):
     """The image's versioned thumbnail URL, for a page holding only its id."""
-    img = await _find_image_doc(image_id, {"_id": 1})
+    img = await _find_image_doc(image_id, {"_id": 1, "thumb_key": 1})
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
-    got = await thumb_version.urls([img["_id"]])
-    return {"thumb_url": got[img["_id"]]}
+    row = {"_id": img["_id"], "thumb_key": img.get("thumb_key")}
+    await thumb_version.urls_for_rows([row])
+    return {"thumb_url": row["thumb_url"]}
 
 
 @router.get("/models")

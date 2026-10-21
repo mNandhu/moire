@@ -91,7 +91,10 @@ export function SaveOutfitDialog({
   // A new outfit with no image (a character page's New outfit) starts from
   // their usual clothes and picks its thumbnail with Change.
   const blank = !outfit && !imageId;
-  const coverUrl = useThumbUrl(outfit || blank ? cover : imageId);
+  const shown = outfit || blank ? cover : imageId;
+  // The outfit's own cover comes with it; only another one is looked up.
+  const lookedUp = useThumbUrl(shown && shown === outfit?.image_id ? null : shown);
+  const coverUrl = shown && shown === outfit?.image_id ? (outfit?.thumb_url ?? null) : lookedUp;
   const { data: usual, isError: noUsual } = useDefaultOutfit(open && blank ? character : null);
   useEffect(() => {
     if (!open) return setSeeded(false);

@@ -1,17 +1,13 @@
-"""Versioned thumbnail URLs: `v` follows the file's mtime and its library's
-last full-scan stamp; with it a thumbnail is kept a year, without it the
-browser revalidates."""
+"""Versioned thumbnail URLs: `v` follows the thumbnail file; with it a
+thumbnail is kept a year, without it the browser revalidates."""
 
 import re
 from io import BytesIO
 from pathlib import Path
 
 import pytest
-import sqlalchemy as sa
 from PIL import Image as PILImage
 
-from moire.database import db
-from moire.database import schema as t
 from moire.services import storage_fs, thumb_version
 
 
@@ -26,33 +22,47 @@ async def _url(client, image_id: str = "L1:a.png") -> str:
     return next(r["thumb_url"] for r in feed if r["_id"] == image_id)
 
 
+def _webp_of(colour) -> bytes:
+    buf = BytesIO()
+    PILImage.new("RGB", (40, 60), colour).save(buf, format="WEBP")
+    return buf.getvalue()
+
+
 @pytest.mark.asyncio
-async def test_url_follows_the_file_and_its_librarys_scan(client, seed):
-    seed("L1:a.png", tags=("cat",), mtime=100.0)
-    seed("L2:b.png", tags=("cat",), mtime=100.0)
+async def test_url_follows_the_thumbnail_file(client, seed):
+    key = storage_fs.put_thumb("L1", "L1:a.png", _webp())
+    seed("L1:a.png", thumb_key=key, mtime=100.0)
+    seed("L1:b.png", mtime=100.0)
     first = await _url(client)
     assert "/images/L1%3Aa.png/thumb?v=" in first
     assert await _url(client) == first
+    # No thumbnail yet: version 0 until one is written.
+    assert (await _url(client, "L1:b.png")).endswith("?v=0")
 
-    with db.sync_tx() as conn:
-        conn.execute(
-            sa.update(t.images).where(t.images.c._id == "L1:a.png").values(mtime=200.0)
-        )
-    edited = await _url(client)
-    assert edited != first
+    # A rescan making the same bytes leaves the file and the URL alone.
+    path = storage_fs.thumb_path(key)
+    before = path.stat().st_mtime_ns
+    storage_fs.put_thumb("L1", "L1:a.png", _webp())
+    assert path.stat().st_mtime_ns == before
+    assert await _url(client) == first
 
-    other = await _url(client, "L2:b.png")
-    thumb_version.set_stamp("L1", "1024/webp/q85/r2/c3")
-    assert await _url(client) != edited
-    assert await _url(client, "L2:b.png") == other
+    # A rebuilt thumbnail (an edited file, new settings) gets a new URL.
+    storage_fs.put_thumb("L1", "L1:a.png", _webp_of((1, 2, 3)))
+    assert await _url(client) != first
+    # Everywhere the same: the id-only lookup agrees with the feed.
+    got = (await client.get("/images/L1:a.png/thumb-url")).json()
+    assert got["thumb_url"] == await _url(client)
+    doc = (await client.get("/images/L1:a.png")).json()
+    assert doc["thumb_url"] == await _url(client)
 
 
 @pytest.mark.asyncio
 async def test_lists_carry_versioned_urls(client, seed):
+    storage_fs.put_thumb("L1", "L1:a.png", _webp())
     seed("L1:a.png", tags=("cat", "frieren"), mtime=1.0)
     want = await thumb_version.urls(["L1:a.png"])
     url = want["L1:a.png"]
-    assert "?v=" in url
+    assert "?v=" in url and not url.endswith("?v=0")
 
     samples = (await client.get("/tags/samples", params={"tags": "cat"})).json()
     assert samples["cat"][0]["thumb_url"] == url

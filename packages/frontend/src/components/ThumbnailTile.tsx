@@ -65,11 +65,8 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
    * feed considered when it picked this tile as the representative. */
   peekQuery?: string;
 }) {
-  // Prefer the ready-to-use URL embedded in the list payload (no per-tile
-  // resolve request). Fall back to the endpoint, which ImageThumbnail resolves
-  // lazily once it decides to load.
-  const embedded = item.thumb_url;
-  const src = embedded ?? `/api/v1/images/${encodeURIComponent(item._id)}/thumb`;
+  // The versioned URL the feed carries (no per-tile resolve request).
+  const src = item.thumb_url ?? "";
 
   const groupCount = item.group_count ?? 1;
   const isBatch = groupCount > 1;
@@ -159,7 +156,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
     >
       <ImageThumbnail
         src={src}
-        preResolved={!!embedded}
+        preResolved={!!item.thumb_url}
         blurhash={item.blurhash}
         alt={item.path}
         width={item.width}

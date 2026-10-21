@@ -289,7 +289,8 @@ export default function ImageView() {
   const thumbUrl = useMemo(() => {
     if (!id) return null;
     const item = list.find((x) => x._id === id);
-    return item?.thumb_url ?? (data?._id === id ? data.thumb_url : null) ?? null;
+    // A deep link's image isn't in the feed: its doc carries the URL.
+    return item?.thumb_url ?? data?.thumb_url ?? null;
   }, [id, list, data]);
   const listItem = useMemo(() => list.find((x) => x._id === id), [id, list]);
   const [thumbFailed, setThumbFailed] = useState(false);

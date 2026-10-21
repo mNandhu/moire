@@ -52,7 +52,7 @@ export function CoverGrid({
   const listed = data ?? [];
   // The current cover first, even when it isn't among the best matches.
   const now = listed.find((c) => c.image_id === value);
-  const valueUrl = useThumbUrl(now ? null : value);
+  const valueUrl = useThumbUrl(isLoading || now ? null : value);
   if (isLoading) return <span className="text-sm text-faint">Loading…</span>;
   const rest = listed.filter((c) => c.image_id !== value && (!all || !c.missing.length));
   const choices: (CoverChoice | { image_id: string; thumb_url: string | null; missing: null })[] = value

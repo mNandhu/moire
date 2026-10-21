@@ -15,7 +15,6 @@ from . import batch_pool
 from . import library_nesting
 from .scan_writer import ScanWriter
 from .storage_fs import put_thumb, thumb_path
-from . import thumb_version
 from .blurhash import blurhash_for_image
 import hashlib
 import logging
@@ -87,8 +86,6 @@ def _save_stamp(library_id: str, stamp: str | None, retry: list[str]) -> None:
                 index_elements=[t.app_settings.c._id], set_={"doc": doc}
             )
         )
-    # Thumbnail URLs carry the stamp: the rebuilt ones get new URLs.
-    thumb_version.set_stamp(library_id, stamp)
 
 
 def _make_thumb_bytes(

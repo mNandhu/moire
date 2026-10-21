@@ -52,10 +52,23 @@ def put_thumb(library_id: str, image_id: str, data: bytes) -> str:
     matching transform to keep in sync.
     """
     key = f"{library_id}/{image_id}.webp".replace(":", "_")
-    _write_atomic(_safe_path(key), data)
+    dst = _safe_path(key)
+    try:
+        # A rescan that makes the same bytes leaves the file, so its mtime
+        # (and the thumbnail's versioned URL) stays put.
+        if dst.stat().st_size == len(data) and dst.read_bytes() == data:
+            return key
+    except FileNotFoundError:
+        pass
+    _write_atomic(dst, data)
     # A rescan rewrites the thumbnail: its small copy is remade on next ask.
     _safe_path(small_key(key)).unlink(missing_ok=True)
     return key
+
+
+def thumb_key(image_id: str) -> str:
+    """The key `put_thumb` writes an image's thumbnail under."""
+    return f"{image_id.split(':', 1)[0]}/{image_id}.webp".replace(":", "_")
 
 
 def _write_atomic(dst: Path, data: bytes, mtime_ns: int | None = None) -> None:
@@ -88,6 +101,20 @@ def thumb_path(key: str) -> Path | None:
 # Thumbnails Pillow couldn't read, by key, with the thumbnail's mtime then:
 # served as themselves without another try until the thumbnail changes.
 _unreadable: dict[str, int] = {}
+
+
+def thumb_stat(key: str) -> os.stat_result | None:
+    """The thumbnail file's stat, or None if it isn't on disk. Run for every
+    thumbnail URL in a list, so the traversal guard is lexical: `resolve()`
+    walks each path component and costs ~15x the stat."""
+    root = os.path.abspath(_root())
+    p = os.path.normpath(os.path.join(root, key))
+    if not key.strip("/") or not p.startswith(root + os.sep):
+        raise ValueError(f"thumb key escapes root: {key!r}")
+    try:
+        return os.stat(p)
+    except FileNotFoundError:
+        return None
 
 
 def small_thumb_path(key: str) -> Path | None:

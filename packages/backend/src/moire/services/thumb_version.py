@@ -1,10 +1,9 @@
 """Versioned thumbnail URLs. A thumbnail is served ``immutable`` for a year, so
-its URL carries ``v``: a hash of the image file's mtime and its library's last
-full-scan stamp (the thumbnail recipe it was built with). Editing a file or
-rebuilding a library's thumbnails gives new URLs; nothing else does.
-
-The stamp is the one the scan recorded when it finished, not the current
-settings: a URL changes only once the new thumbnails are on disk."""
+its URL carries ``v``: a hash of the thumbnail file's own mtime and size.
+Whatever rebuilds a thumbnail (a file edited in place, new thumbnail
+settings, a scan retrying a failed file) writes a new file and so gives a new
+URL; a rescan that writes the same bytes leaves the file, and the URL, alone
+(`storage_fs.put_thumb`). The URL only changes once the new file is on disk."""
 
 from __future__ import annotations
 
@@ -12,41 +11,10 @@ import hashlib
 from collections.abc import Iterable
 from urllib.parse import quote
 
-import sqlalchemy as sa
+import anyio
 
 from ..core.config import API_PREFIX
-from ..database.db import async_conn
-from ..database import schema as t
-
-# library id -> its last full-scan stamp. Loaded once; the scanner sets it.
-_stamps: dict[str, str | None] | None = None
-
-# Ids per `IN (...)` lookup, under SQLite's bound-parameter limit.
-_CHUNK = 500
-
-_PREFIX = "thumbs:"
-
-
-async def stamps() -> dict[str, str | None]:
-    """Each library's last full-scan stamp, for `url`."""
-    global _stamps
-    if _stamps is None:
-        async with async_conn() as conn:
-            rows = await conn.execute(
-                sa.select(t.app_settings.c._id, t.app_settings.c.doc).where(
-                    t.app_settings.c._id.startswith(_PREFIX)
-                )
-            )
-            _stamps = {
-                r._id.removeprefix(_PREFIX): (r.doc or {}).get("stamp") for r in rows
-            }
-    return _stamps
-
-
-def set_stamp(library_id: str, stamp: str | None) -> None:
-    """A library's scan finished with ``stamp`` (after its commit)."""
-    if _stamps is not None:
-        _stamps[library_id] = stamp
+from . import storage_fs
 
 
 def thumb_url(image_id: str, v: str) -> str:
@@ -55,42 +23,43 @@ def thumb_url(image_id: str, v: str) -> str:
     return f"{API_PREFIX}/images/{quote(image_id, safe='')}/thumb?v={v}"
 
 
-def version(stamps: dict[str, str | None], image_id: str, mtime: float | None) -> str:
-    library_id = image_id.split(":", 1)[0]
-    raw = f"{mtime!r}|{stamps.get(library_id)}"
+def version(key: str | None) -> str:
+    """The thumbnail file's version: "0" while there is none."""
+    try:
+        st = storage_fs.thumb_stat(key) if key else None
+    except (OSError, ValueError):
+        st = None
+    if st is None:
+        return "0"
+    raw = f"{st.st_mtime_ns}|{st.st_size}"
     return hashlib.blake2s(raw.encode(), digest_size=6).hexdigest()
 
 
-def url(stamps: dict[str, str | None], image_id: str, mtime: float | None) -> str:
-    """An image's thumbnail URL from its row's ``mtime`` (`stamps()`)."""
-    return thumb_url(image_id, version(stamps, image_id, mtime))
+def _url(image_id: str, key: str | None) -> str:
+    return thumb_url(image_id, version(key))
 
 
-async def urls_for_rows(rows: Iterable[dict], id_key: str = "_id") -> None:
-    """Set ``thumb_url`` on rows that carry their image's ``mtime``."""
-    got = await stamps()
-    for r in rows:
-        image_id = r[id_key]
-        r["thumb_url"] = url(got, image_id, r.get("mtime"))
+async def urls_for_rows(rows: list[dict], id_key: str = "_id") -> None:
+    """Set ``thumb_url`` on rows, from their ``thumb_key`` when they carry it."""
+
+    def build() -> None:
+        for r in rows:
+            image_id = r[id_key]
+            key = r.get("thumb_key") or storage_fs.thumb_key(image_id)
+            r["thumb_url"] = _url(image_id, key)
+
+    await anyio.to_thread.run_sync(build)
 
 
 async def urls(ids: Iterable[str | None]) -> dict[str, str]:
-    """Each image id's thumbnail URL, by id: one lookup of their mtimes."""
+    """Each image id's thumbnail URL, by id (a stat per thumbnail, no query:
+    the key follows from the id)."""
     want = list(dict.fromkeys(i for i in ids if i))
     if not want:
         return {}
-    got = await stamps()
-    mtimes: dict[str, float | None] = {}
-    async with async_conn() as conn:
-        for at in range(0, len(want), _CHUNK):
-            part = want[at : at + _CHUNK]
-            rows = await conn.execute(
-                sa.select(t.images.c._id, t.images.c.mtime).where(
-                    t.images.c._id.in_(part)
-                )
-            )
-            mtimes.update({r._id: r.mtime for r in rows})
-    return {i: url(got, i, mtimes.get(i)) for i in want}
+    return await anyio.to_thread.run_sync(
+        lambda: {i: _url(i, storage_fs.thumb_key(i)) for i in want}
+    )
 
 
 async def attach(items: dict | list | None, id_key: str = "image_id") -> None:
@@ -102,8 +71,3 @@ async def attach(items: dict | list | None, id_key: str = "image_id") -> None:
     got = await urls(r.get(id_key) for r in rows)
     for r in rows:
         r["thumb_url"] = got.get(r.get(id_key) or "")
-
-
-def reset_for_tests() -> None:
-    global _stamps
-    _stamps = None
