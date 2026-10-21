@@ -20,6 +20,8 @@ everything.
 from __future__ import annotations
 
 import json
+import os
+import signal
 import sys
 import threading
 import traceback
@@ -49,6 +51,9 @@ def _run(key: str, path: str, debounce_ms: int, stop: threading.Event) -> None:
 
 
 def main() -> None:
+    # Ctrl+C is the server's to handle (Windows sends it to the whole
+    # console); this process stops on stdin EOF.
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
     sys.stdin.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
     for line in sys.stdin:
@@ -69,8 +74,9 @@ def main() -> None:
                 name=f"watch-{key}",
                 daemon=True,
             ).start()
-    for stop in _stops.values():
-        stop.set()
+    # Exit now rather than stopping each watcher: closing one joins its
+    # polling thread mid-walk, ~25 s for 42 roots on a slow mount.
+    os._exit(0)
 
 
 if __name__ == "__main__":

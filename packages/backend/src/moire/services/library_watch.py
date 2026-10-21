@@ -102,6 +102,10 @@ def _spawn() -> subprocess.Popen[str]:
         stdout=subprocess.PIPE,
         text=True,
         encoding="utf-8",
+        # Out of the terminal's process group, so a Ctrl+C (or a dev
+        # runner's group signal) stops only the server; the child ends on
+        # stdin EOF once `stop_all` (or the server's exit) closes it.
+        start_new_session=os.name != "nt",
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         if os.name == "nt"
         else 0,
@@ -117,25 +121,11 @@ def _read_child(proc: subprocess.Popen[str]) -> None:
     started = time.monotonic()
     assert proc.stdout is not None
     for line in proc.stdout:
+        # One bad line must not end routing (and restarts) for every library.
         try:
-            msg = json.loads(line)
-        except ValueError:
-            continue
-        with _lock:
-            w = _by_key.get(str(msg.get("key")))
-        if w is None:
-            continue
-        if "error" in msg:
-            # The root vanished (drive unplugged, share dropped) or watchfiles
-            # hit a platform error. The reconciliation timer (and a future
-            # add/rescan) is the recovery path, as before.
-            logger.error(
-                "watch loop exited unexpectedly library=%s\n%s",
-                w.library_id,
-                msg["error"],
-            )
-        else:
-            w.queue.put({(Change(c), p) for c, p in msg.get("changes", ())})
+            _route(json.loads(line))
+        except Exception:
+            logger.exception("bad message from watcher process: %r", line[:200])
     proc.wait()
     with _child_lock:
         if _child is not proc:
@@ -154,6 +144,24 @@ def _read_child(proc: subprocess.Popen[str]) -> None:
         ws = list(_watches.values())
     for w in ws:
         _send_add(w)
+
+
+def _route(msg: dict) -> None:
+    with _lock:
+        w = _by_key.get(str(msg.get("key")))
+    if w is None:
+        return
+    if "error" in msg:
+        # The root vanished (drive unplugged, share dropped) or watchfiles
+        # hit a platform error. The reconciliation timer (and a future
+        # add/rescan) is the recovery path, as before.
+        logger.error(
+            "watch loop exited unexpectedly library=%s\n%s",
+            w.library_id,
+            msg["error"],
+        )
+    else:
+        w.queue.put({(Change(c), p) for c, p in msg.get("changes", ())})
 
 
 def _send_add(w: _Watch) -> None:
