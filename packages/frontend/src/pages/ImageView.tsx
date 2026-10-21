@@ -117,7 +117,11 @@ export default function ImageView() {
   const [searchParams] = useSearchParams();
   const { push } = useToast();
   const queryClient = useQueryClient();
-  const [infoOpen, setInfoOpen] = useState(true);
+  // Docked beside the image from lg up; below that the panel is a drawer over
+  // the stage, so a phone opens on the image, not on a wall of metadata.
+  const [infoOpen, setInfoOpen] = useState(
+    () => window.matchMedia?.("(min-width: 1024px)")?.matches ?? true,
+  );
   // Which image has actually painted. Tracked by id rather than as a boolean
   // so it resets with every navigation (a write-once flag would let one failed
   // load disable the glow for the rest of the session) and so a fresh mount,
@@ -558,10 +562,6 @@ export default function ImageView() {
     [goPrev, goNext],
   );
 
-  const handleTouchMove = useCallback((_e: React.TouchEvent) => {
-    // Optional: could add visual feedback here for swipe in progress
-  }, []);
-
   const copyAllTags = useCallback(async () => {
     const all = data?.tags ?? [];
     if (!all.length) {
@@ -614,12 +614,14 @@ export default function ImageView() {
       // cover the sidebar and grid itself instead of relying on being the only
       // thing on the page.
       className="fixed inset-0 z-[100] overflow-hidden bg-canvas text-white flex"
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      onTouchMove={handleTouchMove}
     >
-      {/* Image stage */}
-      <div className="flex-1 h-full flex items-center justify-center relative overflow-hidden [container-type:size]">
+      {/* Image stage. Swipes count only here: one that starts in the details
+          drawer is a scroll, not a step to the next image. */}
+      <div
+        className="flex-1 h-full flex items-center justify-center relative overflow-hidden [container-type:size]"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         {/* Back icon (overlay) */}
         <button
           onClick={goBack}
@@ -755,7 +757,7 @@ export default function ImageView() {
       <aside
         role="region"
         aria-label="Image details"
-        className={`fixed lg:static inset-y-0 right-0 z-40 h-dvh lg:h-full w-full sm:w-[380px] lg:w-[400px] lg:shrink-0 flex flex-col border-l border-line bg-surface shadow-xl shadow-black/30 lg:shadow-none transition-transform duration-300 ease-out lg:transition-none ${
+        className={`fixed lg:static inset-y-0 right-0 z-[60] h-dvh lg:h-full w-full sm:w-[380px] lg:w-[400px] lg:shrink-0 flex flex-col border-l border-line bg-surface shadow-xl shadow-black/30 lg:shadow-none transition-transform duration-300 ease-out lg:transition-none ${
           infoOpen ? "translate-x-0 lg:flex" : "translate-x-full lg:hidden"
         }`}
       >
@@ -791,7 +793,7 @@ export default function ImageView() {
                   className="group mt-1 flex items-start gap-1 text-left text-xs text-faint hover:text-neutral-200"
                 >
                   <span className="break-all">{data.path}</span>
-                  <Copy size={11} className="mt-0.5 shrink-0 opacity-0 group-hover:opacity-100" />
+                  <Copy size={11} className="mt-0.5 shrink-0 opacity-0 group-hover:opacity-100 touch:opacity-100" />
                 </button>
               </div>
               <div className="flex items-center gap-1 shrink-0">
