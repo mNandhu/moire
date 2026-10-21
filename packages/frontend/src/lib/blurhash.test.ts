@@ -16,6 +16,18 @@ describe("accentFromBlurhash", () => {
     const accent = accentFromBlurhash("LEHV6nWB2yk8pyo0adR*.7kCMdnj");
     expect(accent).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
   });
+
+  it("glows with a strong colour on a light frame, not the washed-out average", () => {
+    // Yellow hair on a white background: averages to near-white.
+    const accent = accentFromBlurhash("WXMZgkMznb-o%KxZouxZ?vj[RPof5[bco~R*RkRjtoj?bLNIV?og")!;
+    const [r, g, b] = accent.match(/\d+/g)!.map(Number);
+    expect(r).toBeGreaterThan(b + 80);
+    expect(g).toBeGreaterThan(b + 50);
+  });
+
+  it("glows a grey frame its plain average", () => {
+    expect(accentFromBlurhash(solid(90, 90, 90))).toBe("rgb(90, 90, 90)");
+  });
 });
 
 /** A 4x4 BlurHash of one flat colour. */

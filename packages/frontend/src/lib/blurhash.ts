@@ -1,17 +1,58 @@
 import { decode } from "blurhash";
 
 /**
- * Derive a single accent color (CSS `rgb(...)`) from a BlurHash by decoding it
- * to one pixel. Returns null for a missing/invalid hash.
+ * The colour an image glows with (CSS `rgb(...)`): its most prominent vivid
+ * hue, not its average. An average washes out to grey-white whenever a
+ * strong colour sits on a light frame (yellow hair on a white background),
+ * so cells of a small decode vote for their hue weighted by chroma, as
+ * `ambientPalette` does across images, and the winner's cells are averaged.
+ * A frame with no real colour glows its plain average. Null for a missing
+ * or invalid hash.
  */
 export function accentFromBlurhash(hash?: string): string | null {
   if (!hash) return null;
+  const N = 8;
+  let px: Uint8ClampedArray;
   try {
-    const [r, g, b] = decode(hash, 1, 1);
-    return `rgb(${r}, ${g}, ${b})`;
+    px = decode(hash, N, N);
   } catch {
     return null;
   }
+  const buckets = new Map<number, { weight: number; rgb: [number, number, number] }>();
+  const sum = [0, 0, 0];
+  let total = 0;
+  for (let i = 0; i < px.length; i += 4) {
+    const [r, g, b] = [px[i], px[i + 1], px[i + 2]];
+    sum[0] += r;
+    sum[1] += g;
+    sum[2] += b;
+    const hc = hueChromaOf(r / 255, g / 255, b / 255);
+    if (hc.chroma <= 0.08) continue;
+    const key = Math.floor(hc.hue / 30);
+    const bucket = buckets.get(key) ?? { weight: 0, rgb: [0, 0, 0] };
+    bucket.weight += hc.chroma;
+    bucket.rgb[0] += r * hc.chroma;
+    bucket.rgb[1] += g * hc.chroma;
+    bucket.rgb[2] += b * hc.chroma;
+    buckets.set(key, bucket);
+    total += hc.chroma;
+  }
+  const cells = px.length / 4;
+  // Too little colour to call (a grey or near-black frame): its average.
+  const top = total / cells >= 0.03 ? [...buckets.values()].sort((a, b) => b.weight - a.weight)[0] : undefined;
+  const [r, g, b] = top ? top.rgb.map((v) => v / top.weight) : sum.map((v) => v / cells);
+  return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+}
+
+function hueChromaOf(r: number, g: number, b: number): { hue: number; chroma: number } {
+  const max = Math.max(r, g, b);
+  const chroma = max - Math.min(r, g, b);
+  if (chroma === 0) return { hue: 0, chroma: 0 };
+  let h: number;
+  if (max === r) h = ((g - b) / chroma) % 6;
+  else if (max === g) h = (b - r) / chroma + 2;
+  else h = (r - g) / chroma + 4;
+  return { hue: Math.round((h * 60 + 360) % 360), chroma };
 }
 
 /**
@@ -25,14 +66,7 @@ function hueChroma(hash: string): { hue: number; chroma: number } | null {
     // Array.from first: mapping the Uint8ClampedArray itself would clamp
     // every channel back to an integer, i.e. 0 or 1.
     const [r, g, b] = Array.from(decode(hash, 1, 1), (v) => v / 255);
-    const max = Math.max(r, g, b);
-    const chroma = max - Math.min(r, g, b);
-    if (chroma === 0) return { hue: 0, chroma: 0 };
-    let h: number;
-    if (max === r) h = ((g - b) / chroma) % 6;
-    else if (max === g) h = (b - r) / chroma + 2;
-    else h = (r - g) / chroma + 4;
-    return { hue: Math.round((h * 60 + 360) % 360), chroma };
+    return hueChromaOf(r, g, b);
   } catch {
     return null;
   }

@@ -667,6 +667,16 @@ export default function ImageView() {
               style={{ background: accent }}
             />
           )}
+          {/* Dithers the glow's banding; fades out past where it reaches. */}
+          {accent && (
+            <div
+              aria-hidden="true"
+              className={`grain pointer-events-none absolute -inset-[40%] z-0 transition-opacity duration-1000 ${
+                imgLoaded ? "opacity-[0.02]" : "opacity-0"
+              }`}
+              style={{ maskImage: "radial-gradient(closest-side, black 70%, transparent)" }}
+            />
+          )}
           {/* Blur-up placeholder: the (already-cached) thumbnail, blurred and
               slightly scaled up to hide its soft edge. Sits in normal flow;
               it is what defines the box while the original is absolutely
