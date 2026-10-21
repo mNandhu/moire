@@ -409,7 +409,7 @@ export default function LibrariesPage() {
                   className="hidden sm:inline-flex"
                 >
                   <Images size={14} />
-                  <span className="hidden sm:inline">Images</span>
+                  Images
                 </ButtonLink>
                 <Button
                   size="sm"
@@ -542,7 +542,7 @@ export default function LibrariesPage() {
             {refreshing && !initialLoading && (
               <span className="flex items-center gap-2 text-xs text-neutral-400">
                 <Spinner className="h-3 w-3" />
-                <span className="hidden sm:inline">Refreshing…</span>
+                <span className="sr-only sm:not-sr-only">Refreshing…</span>
               </span>
             )}
             {/* Phones keep the title readable: labels shorten to icons
