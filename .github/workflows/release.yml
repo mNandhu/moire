@@ -1,7 +1,7 @@
 name: Release
 
-# Builds the app wheel (backend + built UI) for a vX.Y.Z tag and attaches it to
-# a GitHub Release. Cut releases with the /moire-release skill.
+# Builds the app wheel (backend + built UI) for a vX.Y.Z tag, attaches it to a
+# GitHub Release and publishes it to PyPI as moire-studio. Cut releases with the /moire-release skill.
 #
 # OFF until versioning starts: set the repository variable RELEASE_ENABLED to
 # "true" (Settings > Secrets and variables > Actions > Variables) to turn it on.
@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write # PyPI trusted publishing
 
 jobs:
   release:
@@ -50,8 +51,10 @@ jobs:
       - name: Build the wheel and sdist
         run: |
           uv --directory packages/backend build --out-dir "$GITHUB_WORKSPACE/dist"
-          # The wheel is the app: refuse one without the UI in it.
-          unzip -l dist/*.whl | grep -q "moire/web/index.html"
+          # The wheel is the app: refuse one without the UI in it. (A file,
+          # not a pipe: grep -q exiting early would SIGPIPE unzip.)
+          unzip -l dist/*.whl > wheel-files.txt
+          grep -q "moire/web/index.html" wheel-files.txt
 
       - name: Upload build
         uses: actions/upload-artifact@v4
@@ -73,3 +76,11 @@ jobs:
           ' CHANGELOG.md > notes.md
           gh release create "$GITHUB_REF_NAME" dist/* \
             --title "Moiré $VERSION" --notes-file notes.md --verify-tag
+
+      - name: Publish to PyPI
+        if: github.ref_type == 'tag' && vars.RELEASE_ENABLED == 'true'
+        # Trusted publishing: add this repo + workflow (release.yml) as a
+        # trusted publisher for `moire-studio` on pypi.org first; no token.
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

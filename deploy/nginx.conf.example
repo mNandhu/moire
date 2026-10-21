@@ -26,8 +26,11 @@ server {
     ssl_certificate     /etc/letsencrypt/live/moire.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/moire.example.com/privkey.pem;
 
-    # Built SPA (output of `pnpm -C packages/frontend build`).
-    root /srv/moire/frontend/dist;
+    # Built SPA: `pnpm build` writes it to packages/backend/src/moire/web (the
+    # backend can serve it itself; nginx serving it is the static offload).
+    # Copy that folder here, or delete this block and `location /` to let the
+    # backend serve the UI.
+    root /srv/moire/web;
     index index.html;
 
     # SPA routing: serve files if present, else fall back to index.html.

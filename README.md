@@ -129,7 +129,7 @@ uv --directory packages/backend run moire run --open   # http://localhost:8000
 
 ### Installing as an app
 
-The wheel is the whole app (backend with the built UI inside). Install it with [uv](https://docs.astral.sh/uv/) and run it:
+The wheel is the whole app (backend with the built UI inside). Once a release is published to PyPI, install it with [uv](https://docs.astral.sh/uv/) and run it:
 
 ```bash
 uv tool install "moire-studio[cpu]"   # or [gpu] for AI tagging on an NVIDIA GPU
@@ -137,7 +137,7 @@ moire run --open                       # http://localhost:8000
 moire paths                            # where the database, thumbnails and models live
 ```
 
-An installed Moiré keeps its data in the OS app-data folder (`%LOCALAPPDATA%\Moire`, `~/Library/Application Support/Moire`, or `~/.local/share/moire`), and reads a `.env` there. Set `MOIRE_HOME` to put it elsewhere. A source checkout keeps using `<repo>/data`. `moire run --host 0.0.0.0` serves your LAN.
+An installed Moiré keeps its data in the OS app-data folder (`%LOCALAPPDATA%\Moire`, `~/Library/Application Support/Moire`, or `~/.local/share/moire`), and reads a `.env` there. Set `MOIRE_HOME` to put it elsewhere. A source checkout keeps using `<repo>/data`. `moire run --host 0.0.0.0` serves your LAN. Before the first PyPI release, install a wheel you built (`pnpm build`, then `uv --directory packages/backend build`) with `uv tool install "moire-studio[cpu] @ file:///path/to/moire_studio-X.Y.Z-py3-none-any.whl"`.
 
 `pnpm dev` is unaffected: Vite still serves the UI on :5173 with hot reload. A stale build in `src/moire/web` is harmless in dev; delete it or rebuild after frontend changes if you use the single-port mode.
 

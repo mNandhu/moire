@@ -3,11 +3,35 @@
 
 import argparse
 import importlib.util
+import socket
 import sys
 import threading
+import time
 import webbrowser
 
 from . import DIST_NAME, __version__
+
+
+def _browser_host(host: str) -> str:
+    """The host to put in a URL: a wildcard or loopback bind is opened as
+    localhost, and an IPv6 literal needs brackets."""
+    if host in ("127.0.0.1", "0.0.0.0", "::", "::1", ""):
+        return "localhost"
+    return f"[{host}]" if ":" in host else host
+
+
+def _port_free(host: str, port: int) -> bool:
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_STREAM) as s:
+        # As uvicorn binds, so a just-stopped Moiré's TIME_WAIT isn't "in use".
+        # Not on Windows, where SO_REUSEADDR lets a bind steal a live port.
+        if sys.platform != "win32":
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind((host, port))
+        except OSError:
+            return False
+    return True
 
 
 def _run(args: argparse.Namespace) -> None:
@@ -16,8 +40,14 @@ def _run(args: argparse.Namespace) -> None:
     from .core.config import MOIRE_HOME
     from .web_ui import WEB_DIR
 
-    shown_host = "localhost" if args.host in ("127.0.0.1", "0.0.0.0") else args.host
-    url = f"http://{shown_host}:{args.port}"
+    url = f"http://{_browser_host(args.host)}:{args.port}"
+    # Checked up front: the app's startup (DB, watchers) runs before uvicorn
+    # binds, and a failed bind then hangs on shutdown instead of exiting.
+    if not _port_free(args.host, args.port):
+        sys.exit(
+            f"Port {args.port} is already in use (is Moiré already running? "
+            f"{url}). Pick another with --port."
+        )
     print(f"Moiré {__version__}, data in {MOIRE_HOME}")
     if not (WEB_DIR / "index.html").is_file():
         print("  No built UI in this install: only the API is served (pnpm build).")
@@ -27,18 +57,34 @@ def _run(args: argparse.Namespace) -> None:
             f'  `uv tool install "{DIST_NAME}[cpu]"` (or [gpu] for an NVIDIA GPU).'
         )
     print(f"  Open {url}  (Ctrl+C to stop)")
-    if args.open:
-        # After uvicorn has had a moment to bind; a browser that loads early
-        # just retries.
-        threading.Timer(1.5, webbrowser.open, (url,)).start()
+    log_level = "info" if args.verbose else "warning"
+    if args.reload:  # dev: uvicorn's reloader owns the server process
+        uvicorn.run(
+            "moire.main:app",
+            host=args.host,
+            port=args.port,
+            reload=True,
+            log_level=log_level,
+        )
+        return
 
-    uvicorn.run(
-        "moire.main:app",
-        host=args.host,
-        port=args.port,
-        reload=args.reload,
-        log_level="warning" if not args.verbose else "info",
+    server = uvicorn.Server(
+        uvicorn.Config(
+            "moire.main:app", host=args.host, port=args.port, log_level=log_level
+        )
     )
+    if args.open:
+        # Only once the port is ours: if binding fails (port in use), opening
+        # the URL would show whatever else is listening there.
+        def open_when_started() -> None:
+            for _ in range(600):
+                if server.started:
+                    webbrowser.open(url)
+                    return
+                time.sleep(0.1)
+
+        threading.Thread(target=open_when_started, daemon=True).start()
+    server.run()
 
 
 def _paths(_: argparse.Namespace) -> None:

@@ -32,6 +32,10 @@ FROM python:3.12-slim-bookworm AS runtime
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     MOIRE_HOME=/data \
+    SQLITE_PATH=/data/moire.db \
+    THUMB_ROOT=/data/thumbs \
+    MODEL_CACHE_DIR=/data/models \
+    LOG_DIR=/data/logs \
     PATH="/app/.venv/bin:$PATH"
 
 # Install curl for health checks and libgomp1 for onnxruntime

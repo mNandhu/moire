@@ -19,7 +19,7 @@ else
 fi
 echo "branch: $(git branch --show-current)"
 
-LAST_TAG="$(git tag --list 'v*.*.*' --sort=-v:refname | head -1)"
+LAST_TAG="$(git tag --list 'v*.*.*' --sort=-v:refname | sed -n 1p)"
 if [ -n "$LAST_TAG" ]; then
   RANGE="$LAST_TAG..HEAD"
   echo "last tag: $LAST_TAG"
@@ -35,7 +35,9 @@ COMMITS="$(git log --oneline --no-merges "$RANGE")"
 if [ -z "$COMMITS" ]; then
   echo "none: nothing to release"; exit 0
 fi
-echo "$COMMITS" | head -200
+# sed reads all its input (head would quit early and, under pipefail, the
+# SIGPIPE to echo would end the scan).
+echo "$COMMITS" | sed -n "1,200p"
 echo "($(echo "$COMMITS" | wc -l) commits)"
 
 echo
@@ -56,7 +58,7 @@ for entry in "${SURFACES[@]}"; do
   # shellcheck disable=SC2086
   files="$(git diff --name-only "${LAST_TAG:-$(git rev-list --max-parents=0 HEAD | tail -1)}" HEAD -- $paths 2>/dev/null || true)"
   if [ -n "$files" ]; then
-    echo "[!] $name"; echo "$files" | sed 's/^/      /' | head -15
+    echo "[!] $name"; echo "$files" | sed -n '1,15s/^/      /p'
   else
     echo "    $name: untouched"
   fi
