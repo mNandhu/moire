@@ -81,6 +81,8 @@ import { characterInput, characterTags } from "../lib/recipe";
 import { keepPicked, outfitInput, pickOf, wornTags, type OutfitPick } from "../lib/outfit";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
+import { PromptBoard, type BoardLayer } from "../components/generate/PromptBoard";
+import { promptWord } from "../lib/promptOutline";
 
 const NO_STRINGS: string[] = [];
 
@@ -179,6 +181,9 @@ function TestRunCard({ gen, checkpoint, disabled }: { gen: Generator; checkpoint
     </Card>
   );
 }
+
+/** A prompt part's layer, named on the prompt board. */
+const LAYER_LABEL: Record<string, string> = { prefix: "Prefix", style: "Style", text: "Text", preset: "Preset" };
 
 export default function GeneratePage() {
   useDocumentTitle("Generate");
@@ -400,6 +405,38 @@ export default function GeneratePage() {
         apply: () => set("prompt", fixCountTags(form.prompt, counts.expected!)),
       }
     : null;
+  const promptEditor = (
+    <PromptInput
+      label="Prompt"
+      value={form.prompt}
+      onChange={(v) => set("prompt", v)}
+      suggestions={pool}
+      embeddings={models?.embeddings ?? NO_STRINGS}
+      rows={6}
+      placeholder="Scene, pose, lighting"
+      // The card is already outlined; no focus ring inside it.
+      className="text-[15px] leading-relaxed focus-visible:shadow-none"
+      marks={counts?.marks}
+      fix={countFix}
+    />
+  );
+  // What the other layers already say, for the prompt board.
+  const boardLayers: BoardLayer[] = [
+    ...parts.positive.flatMap((p) =>
+      p.kind === "text" && p.role !== "prompt" && p.text?.trim() ? [{ label: p.label || LAYER_LABEL[p.role ?? ""] || "Layer", text: p.text }] : [],
+    ),
+    ...recipes.flatMap((r) => {
+      if (!r) return [];
+      const entry = everyone?.find((c) => c.tag === r.tag);
+      return [
+        {
+          label: displayName(entry ?? { tag: r.tag }).name,
+          text: [...characterTags(r), ...wornTags(form.outfits[r.tag])].map(promptWord).join(", "),
+          character: entry,
+        },
+      ];
+    }),
+  ];
   // As the backend merges them: characters' LoRAs first, each file once.
   const sentLoras = [...(characters ?? []).flatMap((c) => (c.lora ? [c.lora] : [])), ...form.loras].filter(
     (l, i, all) => all.findIndex((x) => stemOf(x.name) === stemOf(l.name)) === i,
@@ -494,19 +531,8 @@ export default function GeneratePage() {
                           </Button>
                         )}
                       </div>
-                      <PromptInput
-                        label="Prompt"
-                        value={form.prompt}
-                        onChange={(v) => set("prompt", v)}
-                        suggestions={pool}
-                        embeddings={models?.embeddings ?? NO_STRINGS}
-                        rows={6}
-                        placeholder="Scene, pose, lighting"
-                        // The card is already outlined; no focus ring inside it.
-                        className="text-[15px] leading-relaxed focus-visible:shadow-none"
-                        marks={counts?.marks}
-                        fix={countFix}
-                      />
+                      {promptEditor}
+                      <PromptBoard prompt={form.prompt} onPrompt={(v) => set("prompt", v)} layers={boardLayers} pool={pool} />
                     </Card>
                   ) : blk.kind === "style" && !bar.loras ? (
                     <LayerRow label="Style" className="opacity-60">

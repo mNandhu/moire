@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import time
 import asyncio
 
@@ -13,8 +13,10 @@ from ._utils import thumb_url, validate_tags
 from ..services import (
     attire,
     characters,
+    danbooru_tags,
     face_detect,
     image_tags,
+    prompt_board,
     tag_categories,
     tag_focus,
     tag_index,
@@ -90,6 +92,50 @@ async def get_tag_facets():
     tag that has one, plus the library's own tags that :func:`attire.facet_of`
     places: the image view tints tags by it."""
     return JSONResponse((await _tag_maps())[1])
+
+
+class PlaceBody(BaseModel):
+    names: list[str] = Field(max_length=1000)
+
+
+@router.post("/place")
+async def place_tags(body: PlaceBody):
+    """Where each prompt tag goes on Generate's prompt board, with what the
+    tag lists know of it (group, Danbooru posts, the tag an alias stands
+    for). ``list``: whether Danbooru's list is in; until it is, no name is
+    called unknown."""
+    tags = await danbooru_tags.load()
+    vocab = await tag_categories.load()
+    placed = await asyncio.to_thread(
+        prompt_board.place_all, body.names, tags, vocab.names
+    )
+    return JSONResponse({"names": placed, "list": bool(tags.tags)})
+
+
+@router.get("/board")
+async def board_offers():
+    """``section -> [[tag, posts], ...]``: what each prompt-board section can
+    suggest, the library's tags among them. Changes with the library's tags
+    and when Danbooru's list arrives."""
+    gen = tag_index.current_generation()
+    tags = await danbooru_tags.load()
+    vocab = await tag_categories.load()
+    cached = tag_index.read_derived("board-offers")
+    if cached is not None and cached[0] is tags and cached[1] is vocab:
+        return JSONResponse(cached[2])
+    async with async_conn() as conn:
+        bases = [
+            b
+            for b in (
+                await conn.execute(sa.select(t.image_tags.c.base).distinct())
+            ).scalars()
+            if b
+        ]
+    out = await asyncio.to_thread(
+        prompt_board.offers, vocab.general, tags, vocab.names, bases
+    )
+    tag_index.store_derived("board-offers", gen, (tags, vocab, out))
+    return JSONResponse(out)
 
 
 @router.get("/settings")

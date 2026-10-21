@@ -172,6 +172,18 @@ belongs in this file.
   `scripts/build_tag_groups.py`): every tag keeps its category (body, sex,
   ...), its most specific group and its other places. Attire is a set of
   groups, not one category. (`services/attire.py`)
+- **Prompt board**: Generate's Prompt read as a board under its text: each
+  tag in the part of the scene it sets (subject, hair, eyes, expression, body,
+  attire, pose, framing, background, lighting, style, other, quality), so a
+  tag that pulls a picture the wrong way, or a part left unsaid, shows. Each
+  box suggests and takes its own tags; the text stays the one source. A tag's
+  section comes from the tag-group list (through the facets) and from
+  **Danbooru's tag list**: every Danbooru tag with 20+ posts, its category,
+  post count and aliases (`blowjob` is `fellatio`), downloaded on first use
+  into the model cache and refreshed quarterly (`services/danbooru_tags.py`).
+  A name in neither list is **unknown**. The aliases serve the board only:
+  library tags never go through them. (`services/prompt_board.py`,
+  `lib/promptOutline.ts`, `components/generate/PromptBoard.tsx`)
 - **Outfit**: a named set of attire tags saved from an image (that image is
   its thumbnail), for the character it was saved under, or shared with all
   characters. User-made; suggested groupings come later.
