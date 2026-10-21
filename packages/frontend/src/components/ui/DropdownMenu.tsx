@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { Button } from "./Button";
+import { useKeepInViewport } from "../../hooks/useKeepInViewport";
 
 export type DropdownItem = {
   label: string;
@@ -46,6 +47,8 @@ export function DropdownMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useKeepInViewport(menuRef, open);
   const onOpenChangeRef = useRef(onOpenChange);
   onOpenChangeRef.current = onOpenChange;
   useEffect(() => onOpenChangeRef.current?.(open), [open]);
@@ -138,11 +141,12 @@ export function DropdownMenu({
 
       {open && (
         <div
+          ref={menuRef}
           role="menu"
           className={cn(
             "absolute z-50 rounded-lg border border-line-strong bg-raised shadow-panel py-1",
             trigger ? (onLeft ? "right-full top-2 mr-2" : "left-full top-2 ml-2") : "right-0 top-full mt-1",
-            footer || trigger || items.some((x) => x.group) ? "w-max min-w-[16rem] max-w-[24rem]" : "min-w-[180px]",
+            footer || trigger || items.some((x) => x.group) ? "w-max min-w-[16rem] max-w-[min(24rem,calc(100vw-16px))]" : "min-w-[180px]",
           )}
         >
           {items.map((item, i) => (
