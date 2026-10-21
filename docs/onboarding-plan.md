@@ -45,27 +45,27 @@ Skipping at any point lands in the gallery, with whatever was done so far.
 
 ## Phase 1: First run and folders
 
-- [ ] `onboarding` value in `app_settings` (not started / done / skipped), read and written through a small settings service like the others.
-- [ ] Route guard in `RootRoutes.tsx`: a fresh install (no libraries, onboarding not done) opens the landing page. Existing databases never see it.
-- [ ] Landing page: logo lockup, line, Set up / Skip buttons, footer with version and data folder.
-- [ ] Ring background component (canvas, pointer lean, colour wash with grain), shared by landing and setup. Static under reduced motion.
-- [ ] Setup shell: step list with summaries, form pane, footer with scan progress and Back / Continue / Open Moiré.
-- [ ] Image folders step. Pull the path checking and preview out of `AddLibraryDialog` so the dialog and onboarding share it (`lib/libraryPlan.ts`, `POST /libraries/discover`).
-  - [ ] Validate before adding: full path (accept `/` and `\`), not already listed, reachable. Errors inline under the field.
-  - [ ] Paste of several lines adds each valid path.
-  - [ ] Show image counts from `discover` ("5,000+" when capped).
-  - [ ] "One library per subfolder" switch.
-  - [ ] Remote server: the hint names the machine the paths are on.
-- [ ] Continue creates the libraries and starts the scans.
-- [ ] Skip setup from any step marks onboarding skipped and opens the gallery.
-- [ ] Gallery hand-off: the "?" shortcuts hint, shown once.
+- [x] `onboarding` value in `app_settings` (pending / done / skipped), read and written through `services/onboarding.py`, served at `GET`/`PUT /api/v1/onboarding` (with version, data folder, host name and install type for the page). No row plus existing libraries reads as done.
+- [x] Route guard in `RootRoutes.tsx`: a fresh install (no libraries, onboarding not done) opens `/welcome`. Existing databases never see it; a failed check opens the app as usual.
+- [x] Landing page: logo lockup, line, Set up / Skip buttons, footer with version and data folder.
+- [x] Ring background component, `components/onboarding/RingBackground.tsx` (canvas, pointer lean, colour wash with grain), shared by landing and setup. Static under reduced motion.
+- [x] Setup shell (`pages/WelcomePage.tsx`): step list with summaries, form pane, footer with scan progress and Back / Continue / Open Moiré.
+- [x] Image folders step (`components/onboarding/FoldersStep.tsx`). Shares `discoverLibraries` and `errorText` with `AddLibraryDialog`; the path rules are pure functions in `lib/onboarding.ts`.
+  - [x] Validate before adding: full path (accept `/` and `\`), not already listed, reachable. Errors inline under the field.
+  - [x] Paste of several lines adds each valid path.
+  - [x] Show image counts from `discover` ("5,000+" when capped).
+  - [x] "One library per subfolder" switch. Recounts the list, and warns when images sit directly in a folder and so join no library.
+  - [x] Remote server: the hint names the machine the paths are on.
+- [x] Continue creates the libraries and starts the scans. Going back and changing the list creates or removes only the difference.
+- [x] Skip setup from any step marks onboarding skipped and opens the gallery.
+- [x] Gallery hand-off: the "?" shortcuts hint, shown once (a toast, flagged in `localStorage`).
 
 ## Phase 2: ComfyUI step
 
-- [ ] Address field with Connect / Disconnect, reusing the ComfyUI settings service (`services/comfy_settings.py`). States: checking, connected, nothing answered.
-- [ ] Saved workflows: folder picker (`<input webkitdirectory>`) and drop zone, reusing `parseWorkflowFile` and `importWorkflowFiles` from `lib/workflows.ts` and `POST /rules/workflow-files`.
-- [ ] Show what was read: workflow names and node counts, files skipped, or "no workflows in that folder".
-- [ ] Step summary in the rail ("Connected · 7 workflows").
+- [x] Address field with Connect / Disconnect, reusing the ComfyUI settings service (`services/comfy_settings.py`). States: checking, connected, nothing answered.
+- [x] Saved workflows: folder picker (`<input webkitdirectory>`) and drop zone, reusing `parseWorkflowFile` and `importWorkflowFiles` from `lib/workflows.ts` and `POST /rules/workflow-files`.
+- [x] Show what was read: workflow names and node counts, files skipped, or "no workflows in that folder".
+- [x] Step summary in the rail ("Connected · 7 workflows").
 
 ## Phase 3: AI tagging and auto-tag
 
@@ -75,21 +75,23 @@ Skipping at any point lands in the gallery, with whatever was done so far.
 - [ ] Survive restarts: AI jobs live only in memory (`AIJobManager._jobs`). On startup, if `auto_tag` is on, queue the untagged images again.
 - [ ] Don't loop on images the tagger can't tag (unreadable, or no tags above the thresholds): `has_ai_tags` stays false for them, so a resume or batch would pick them up forever. Record a "tagged, nothing found" or failed state.
 - [ ] Order: newest first by file `mtime` (what the user looks at first). `enqueue_untagged` orders by `_id` today.
-- [ ] Onboarding step UI: switch (off by default), CPU vs GPU time for this library, GPU callout.
-- [ ] Ship the switch **disabled** for now, with a short note that tagging can be turned on in Settings › AI Tagging later. Remove the disabled state when the deferred batching item is done.
-- [ ] Time estimate: start from the documented rates (CPU ~0.6 images/s in a real job, GPU ~0.1 s an image on a GTX 1650, see `docs/perf-findings.md`); later, measure a few images on this machine once the model is loaded.
+- [x] Onboarding step UI: switch (off by default), CPU vs GPU time for this library, GPU callout.
+- [x] Ship the switch **disabled** for now, with a short note that tagging can be run from the AI Tagging page. Remove the disabled state when the deferred batching item is done.
+- [x] Time estimate from the documented rates (CPU ~0.6 images/s in a real job, GPU ~0.1 s an image on a GTX 1650, see `docs/perf-findings.md`), in `lib/onboarding.ts`.
+- [ ] Later: measure a few images on this machine once the model is loaded, instead of quoting someone else's hardware.
 - [ ] GPU detection:
   - [ ] Which build is running: `session.get_providers()` / installed `onnxruntime-gpu`.
-  - [ ] Whether an NVIDIA GPU is present when the CPU build is running (for example `nvidia-smi` on PATH). Without this, show the recommendation without claiming a GPU was found.
-  - [ ] Install command by install type, from `IS_CHECKOUT`: `uv tool install --reinstall "moire-studio[gpu]"` for an installed copy, the `UV_NO_GROUP=cpu … --group gpu` command from the README for a checkout.
+  - [ ] Whether an NVIDIA GPU is present when the CPU build is running (for example `nvidia-smi` on PATH). Until then the step shows the recommendation to everyone ("Have an NVIDIA GPU?") without claiming one was found.
+  - [x] Install command by install type, from `IS_CHECKOUT`: `uv tool install --reinstall "moire-studio[gpu]"` for an installed copy, the `UV_NO_GROUP=cpu … --group gpu` command from the README for a checkout.
 - [ ] Sidebar activity shows tagging progress after the scan.
 
 ## Open questions
 
 - Should the AI tagging step stay in onboarding, or live only in Settings? Kept in for now, off by default.
-- Does onboarding need a way back in later (for example "Run setup again" in Settings), or is each step's own Settings page enough?
+- Does onboarding need a way back in later (for example "Run setup again" in Settings), or is each step's own Settings page enough? `/welcome` opens it directly for now; nothing links there.
 
 ## Tests
 
-- [ ] Backend: `onboarding` setting round trip; auto-tag queues new images only when on; startup resume; no requeue loop on untaggable images.
-- [ ] Frontend: path validation (pure function in `lib/` with a colocated test); route guard sends a fresh install to the landing page and an existing one to the gallery.
+- [x] Backend: `onboarding` setting round trip (`tests/test_onboarding_integration.py`).
+- [ ] Backend: auto-tag queues new images only when on; startup resume; no requeue loop on untaggable images.
+- [x] Frontend: path validation (`lib/onboarding.test.ts`); route guard (`RootRoutes.onboarding.test.tsx`); folder step and library creation (`pages/WelcomePage.test.tsx`).

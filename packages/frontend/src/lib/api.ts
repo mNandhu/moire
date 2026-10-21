@@ -8,3 +8,16 @@ export async function api<T>(url: string, init?: RequestInit): Promise<T> {
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
+
+/** FastAPI errors arrive as `{"detail": "..."}` or a 422 list; the words to show. */
+export function errorText(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  try {
+    const d = JSON.parse(raw)?.detail;
+    if (typeof d === "string") return d;
+    if (Array.isArray(d)) return d.map((x) => x?.msg ?? String(x)).join("; ");
+  } catch {
+    /* not JSON; use as-is */
+  }
+  return raw;
+}

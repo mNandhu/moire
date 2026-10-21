@@ -116,3 +116,54 @@ body {
     display: none;
   }
 }
+
+/* Welcome page background (components/onboarding/RingBackground). The masks
+ * fade the rings out toward the form; the wash is a faint light in the
+ * colours generated images tend to have, dithered by the grain. */
+.ring-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.ring-bg-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  -webkit-mask-image: radial-gradient(ellipse 55% 85% at 82% 45%, #000 15%, transparent 72%);
+  mask-image: radial-gradient(ellipse 55% 85% at 82% 45%, #000 15%, transparent 72%);
+}
+.ring-bg-landing .ring-bg-canvas {
+  -webkit-mask-image: radial-gradient(circle at 50% 46%, #000 8%, transparent 62%);
+  mask-image: radial-gradient(circle at 50% 46%, #000 8%, transparent 62%);
+}
+.ring-bg-wash {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(30% 45% at 70% 34%, rgb(232 137 168 / 0.10), transparent 70%),
+    radial-gradient(34% 50% at 88% 64%, rgb(90 123 216 / 0.12), transparent 70%),
+    radial-gradient(22% 30% at 80% 14%, rgb(246 196 142 / 0.06), transparent 70%);
+}
+.ring-bg-landing .ring-bg-wash {
+  background:
+    radial-gradient(38% 48% at 32% 36%, rgb(232 137 168 / 0.11), transparent 70%),
+    radial-gradient(44% 54% at 70% 62%, rgb(90 123 216 / 0.13), transparent 70%),
+    radial-gradient(28% 34% at 56% 18%, rgb(246 196 142 / 0.07), transparent 70%);
+}
+.ring-bg-wash::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.07;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+@media (max-width: 767px) {
+  .ring-bg:not(.ring-bg-landing) .ring-bg-canvas {
+    -webkit-mask-image: radial-gradient(ellipse 90% 40% at 80% 30%, #000 10%, transparent 80%);
+    mask-image: radial-gradient(ellipse 90% 40% at 80% 30%, #000 10%, transparent 80%);
+    opacity: 0.6;
+  }
+}
