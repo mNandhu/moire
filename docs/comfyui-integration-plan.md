@@ -898,3 +898,27 @@ two thirds of the outfit's tagger-checkable tags, rounded up (1 of 1, 2 of
 URL), outfits suggested by name, and a plain name that is an outfit and not
 a library tag resolves to it. Open in gallery uses it (plus the character
 from their page). This replaces the plan's "no new Gallery filter kind".
+
+Last round (2026-10-21, 948e1e7..b90739c): an outfit's thumbnail always
+wears it (filter and viewer); new outfits get a suggested name from their
+main pieces; the composer's Outfit line lines up with Character, borderless,
+folded tags strike on click; a line under the Prefix offers to take its
+plain top-level tags out of the prompt (Undo; groups and weights never
+counted); the viewer's Characters section has a pill that unfolds a
+"Wearing" list (`/generate/outfits/worn`); a colour or print in front of a
+garment counts as that garment. Reviewed (c2556ac). SillyFlow row deleted.
+
+### Status (2026-10-21, phases 0-4 merged to main and pushed)
+
+Open:
+- The user deletes `VPS/hires_00001_.png` on the ComfyUI server (no API for it).
+- Not checked with a real run: an output joining its family through the
+  `moire` chunk; a batch with outfits (fake only).
+- Viewer panel redesign (user's call, later): the Wearing list becomes
+  compact rows near the top (board "Viewer: the outfit an image wears").
+- Only 5 of ~3.8k images have AI tags; tagging the library improves
+  Defaults, prefill, thumbnails and the outfit filter.
+- Deferred from phase 2: the weak-recipe warning.
+- Later: adherence stats, settings recall, learned negatives, X/Y batches,
+  coverage gaps. Deferred: reference images. TBD: img2img workflows.
+- Branches `feat/comfyui-phase2..4` (and their remotes) are merged and can go.
