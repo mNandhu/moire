@@ -211,6 +211,7 @@ function SetupForm({
     } else {
       out.lora_model = lora.model.ref;
       out.lora_clip = lora.clip?.ref ?? null;
+      delete out.lora_text;
     }
     onSave({ name: name.trim() || initialName, slots: out, defaults: { base, negative } });
   };
@@ -367,7 +368,15 @@ function SetupForm({
           title="LoRA insertion point"
           badge={lora ? <Badge tone="success">Found</Badge> : <Badge>None found</Badge>}
           action={
-            lora && <Checkbox checked={lorasOn} onChange={setLorasOn} label={<span className="text-xs">Let Moiré add LoRAs</span>} />
+            lora ? (
+              <Checkbox checked={lorasOn} onChange={setLorasOn} label={<span className="text-xs">Let Moiré add LoRAs</span>} />
+            ) : (
+              <Checkbox
+                checked={!!slots.lora_text}
+                onChange={(on) => setSlots((s) => ({ ...s, lora_text: on || undefined }))}
+                label={<span className="text-xs">Write LoRAs into the prompt</span>}
+              />
+            )
           }
         >
           {lora ? (
@@ -379,6 +388,8 @@ function SetupForm({
                 <p className="text-xs text-muted">Model only: this loader has no CLIP output.</p>
               )}
             </div>
+          ) : slots.lora_text ? (
+            <p className="text-xs text-muted">LoRAs go into the positive prompt as &lt;lora:name:strength&gt; tags.</p>
           ) : (
             <p className="text-xs text-muted">The Style layer and character LoRAs are off for this workflow.</p>
           )}

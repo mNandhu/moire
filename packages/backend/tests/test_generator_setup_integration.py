@@ -8,6 +8,7 @@ import asyncio
 import json
 from pathlib import Path
 
+import pytest
 import sqlalchemy as sa
 
 from moire.database import db
@@ -191,10 +192,9 @@ async def test_no_insertion_point_means_no_test_lora(client, comfy, seed):  # no
 
 
 async def test_lora_text_puts_the_batch_loras_in_the_prompt(client, comfy, seed):  # noqa: F811
-    # Kept only where there's no insertion point to splice into.
-    assert "lora_text" not in generator_setup.clean_slots(
-        {"lora_model": ["4", 0], "lora_text": True}
-    )
+    # Only where there's no insertion point to splice into.
+    with pytest.raises(generator_setup.SetupError):
+        generator_setup.clean_slots({"lora_model": ["4", 0], "lora_text": True})
     gen = await _create(client, seed, lora_model=None, lora_clip=None, lora_text=True)
     assert gen["slots"]["lora_text"] is True
     with db.sync_tx() as conn:

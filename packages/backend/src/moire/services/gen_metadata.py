@@ -586,12 +586,13 @@ def _resolve_ckpt(
 #     ``lora_wt_1`` / ``strength_1``, often with a ``switch_1`` on/off
 
 _LORA_EXT = re.compile(r"\.(?:safetensors|ckpt|pt|pth|bin)$", re.IGNORECASE)
-_LORA_TOKEN = re.compile(
-    r"^<(?:lora|lyco|lycoris):([^:>]+)(?::([-\d.]+))?", re.IGNORECASE
-)
-_LORA_ANYWHERE = re.compile(
-    r"<(?:lora|lyco|lycoris):([^:>]+)(?::([-\d.]+))?", re.IGNORECASE
-)
+_LORA_TAG = r"<(?:lora|lyco|lycoris):([^:>]+)(?::([-\d.]+))?"
+_LORA_TOKEN = re.compile("^" + _LORA_TAG, re.IGNORECASE)
+_LORA_ANYWHERE = re.compile(_LORA_TAG, re.IGNORECASE)
+# Nodes that apply `<lora:...>` tags in a ComfyUI prompt: a prompt-parsing
+# encoder, or a remote queue (the remote graph may). A stock CLIPTextEncode
+# reads them as plain text, so elsewhere they aren't used LoRAs.
+_PROMPT_LORA_NODES = re.compile(r"WildcardEncode|RemoteQueue", re.IGNORECASE)
 
 
 def lora_name(raw: str) -> str:
@@ -677,13 +678,27 @@ def prompt_loras(text: str | None) -> list[dict[str, Any]]:
     return [{"name": k, "strength": v} for k, v in out.items()]
 
 
-def _raw_prompt_loras(text: str | None) -> list[dict[str, Any]]:
+def _raw_prompt_loras(
+    text: str | None, have: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Like :func:`prompt_loras`, off the raw text so a file name keeps its
-    case (as a loader node's does)."""
+    case (as a loader node's does); each name once, ignoring case, and none
+    already in ``have``."""
+    seen = {lo["name"].lower() for lo in have}
     out: dict[str, float | None] = {}
     for m in _LORA_ANYWHERE.finditer(text or ""):
-        _add_lora(out, m.group(1), m.group(2))
+        name = lora_name(m.group(1))
+        if name and name.lower() not in seen:
+            seen.add(name.lower())
+            _add_lora(out, m.group(1), m.group(2))
     return [{"name": k, "strength": v} for k, v in out.items()]
+
+
+def _applies_prompt_loras(prompt_json: dict[str, Any]) -> bool:
+    return any(
+        isinstance(n, dict) and _PROMPT_LORA_NODES.search(str(n.get("class_type", "")))
+        for n in prompt_json.values()
+    )
 
 
 def prompt_embeddings(prompt: str | None, negative: str | None) -> list[dict[str, Any]]:
@@ -1045,16 +1060,10 @@ def extract(
                 g["guess_paths"][field] = picked[field].path
 
     g["embeddings"] = prompt_embeddings(g.get("prompt"), g.get("negative"))
-    if source == "comfyui":
-        # LoRAs written into the prompt as `<lora:name:w>` (read by a
-        # prompt-parsing encoder, e.g. Impact's, or applied on a remote) count
-        # too, after the graph's own loaders.
-        have = {lo["name"].lower() for lo in g["loras"]}
-        g["loras"] += [
-            lo
-            for lo in _raw_prompt_loras(g.get("prompt"))
-            if lo["name"].lower() not in have
-        ]
+    if source == "comfyui" and _applies_prompt_loras(prompt_json):
+        # LoRAs written into the prompt as `<lora:name:w>` count too, after
+        # the graph's own loaders, where something in the graph applies them.
+        g["loras"] += _raw_prompt_loras(g.get("prompt"), g["loras"])
 
     if prompt_positive_only:
         g["prompt_terms"] = tokenize_prompt(g.get("prompt"))

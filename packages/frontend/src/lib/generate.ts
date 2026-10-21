@@ -212,6 +212,8 @@ export type Output = {
   image_id: string;
   filename: string;
   in_library: boolean;
+  /** Not in the library yet, shortly after its request finished. */
+  arriving: boolean;
   quarantined: boolean;
   score: number | null;
   width: number | null;
@@ -775,9 +777,9 @@ export function useBatches(limit = 50) {
   });
 }
 
-/** True while some output still waits for the library scan. */
+/** True while some output still waits for the download or library scan. */
 export function waitingForScan(b: Batch): boolean {
-  return b.requests.some((q) => q.state === "done" && q.outputs.some((o) => !o.in_library));
+  return b.requests.some((q) => q.outputs.some((o) => o.arriving));
 }
 
 /** One batch; polls while it runs or its images are still being scanned. */

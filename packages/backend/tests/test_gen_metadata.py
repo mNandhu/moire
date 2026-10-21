@@ -628,7 +628,7 @@ def test_comfy_prompt_lora_tags_count_after_the_graph_loras():
         "2": {
             "class_type": "CLIPTextEncode",
             "inputs": {
-                "text": "1girl, <lora:Fern_IlluXL.safetensors:0.8> <lora:Eyes:0.5>"
+                "text": "1girl, <lora:Fern_IlluXL.safetensors:0.8> <lora:fern_illuxl:0.6> <lora:Eyes:0.5>"
             },
         },
         "3": {
@@ -636,7 +636,16 @@ def test_comfy_prompt_lora_tags_count_after_the_graph_loras():
             "inputs": {"seed": 1, "positive": ["2", 0], "negative": ["2", 0]},
         },
     }
+    # A stock CLIPTextEncode reads the tags as text: not used LoRAs.
     g = gm.extract({"source": "comfyui", "prompt": graph})
+    assert g["loras"] == [{"name": "eyes", "strength": 1.0}]
+    # A prompt-parsing encoder (or a remote queue) applies them.
+    graph["2"]["class_type"] = "ImpactWildcardEncode"
+    graph["2"]["inputs"] = {"populated_text": graph["2"]["inputs"]["text"]}
+    g = gm.extract(
+        {"source": "comfyui", "prompt": graph},
+        {"fields": {"prompt": ["prompt.2.inputs.populated_text"]}},
+    )
     assert g["loras"] == [
         {"name": "eyes", "strength": 1.0},
         {"name": "Fern_IlluXL", "strength": 0.8},

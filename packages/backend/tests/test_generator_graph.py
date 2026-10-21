@@ -150,11 +150,15 @@ def test_build_prompt_writes_loras_into_the_prompt_for_lora_text():
         {
             "positive": "1girl, solo, ",
             "seed": 1,
-            "loras": [LoraPick("chars/fern.safetensors", 0.8), LoraPick("flat", 1.0)],
+            "loras": [
+                LoraPick("chars/fern.safetensors", 0.8),
+                LoraPick("flat", 1.0),
+                LoraPick("tiny", 0.00001),
+            ],
         },
     )
     assert g["6"]["inputs"]["text"] == (
-        "1girl, solo, <lora:chars/fern.safetensors:0.8> <lora:flat:1>"
+        "1girl, solo, <lora:chars/fern.safetensors:0.8> <lora:flat:1> <lora:tiny:0>"
     )
     assert not any(n["class_type"] == "LoraLoader" for n in g.values())
     # Without LoRAs the prompt is untouched.

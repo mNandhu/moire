@@ -180,6 +180,7 @@ _MIGRATIONS = (
     # (v2: the dev library already ran a first cut that lowercased names)
     ("gen_embeddings_v2", None, True),
     ("image_faces_mtime", migrate_image_faces_mtime, False),
+    ("gen_prompt_loras", None, True),
 )
 
 

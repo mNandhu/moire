@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, RotateCcw, Star, X } from "lucide-react";
+import { ImageOff, Loader2, RotateCcw, Star, X } from "lucide-react";
 import { ProgressBar } from "../ui";
 import { resultGrid, resultSlots, type ResultSlot } from "../../lib/batches";
 import { cancelRequest, retryRequest, thumbUrl, type Batch, type GenRequest, type Output } from "../../lib/generate";
@@ -35,7 +35,15 @@ export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; on
         style={{ aspectRatio: ratio }}
         title={out.filename}
       >
-        <Loader2 size={14} className="mr-1.5 animate-spin" /> Scanning
+        {out.arriving ? (
+          <>
+            <Loader2 size={14} className="mr-1.5 animate-spin" /> Scanning
+          </>
+        ) : (
+          <>
+            <ImageOff size={14} className="mr-1.5" /> Not in the library
+          </>
+        )}
       </div>
     );
   }

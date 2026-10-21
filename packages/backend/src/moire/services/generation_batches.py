@@ -45,9 +45,15 @@ def batch_state(states: list[str], connected: bool) -> str:
     return "done"
 
 
-async def _outputs(conn, request_ids: list[int]) -> dict[int, list[dict[str, Any]]]:
-    if not request_ids:
+async def _outputs(conn, reqs: list[Any]) -> dict[int, list[dict[str, Any]]]:
+    """Each request's outputs. ``arriving``: made, not in the library yet
+    (downloading or waiting for the scan), for a while after the request
+    finished; past that, a missing one was deleted."""
+    if not reqs:
         return {}
+    request_ids = [q._id for q in reqs]
+    recent = time.time() - ARRIVING_SECONDS
+    fresh = {q._id for q in reqs if (q.finished_at or 0) > recent}
     rows = (
         await conn.execute(
             sa.select(
@@ -74,6 +80,7 @@ async def _outputs(conn, request_ids: list[int]) -> dict[int, list[dict[str, Any
                 "image_id": row.image_id,
                 "filename": row.filename,
                 "in_library": row.found is not None,
+                "arriving": row.found is None and row.request_id in fresh,
                 "quarantined": bool(row.quarantined),
                 "score": row.score,
                 "width": row.width,
@@ -95,7 +102,7 @@ async def get_batch(batch_id: int, manager: GenerationManager) -> dict[str, Any]
                 .order_by(_r.c.idx)
             )
         ).fetchall()
-        outputs = await _outputs(conn, [q._id for q in reqs])
+        outputs = await _outputs(conn, reqs)
         ran = dict(
             (
                 await conn.execute(
@@ -176,12 +183,11 @@ async def list_batches(
             if ids
             else []
         )
-        outputs = await _outputs(conn, [q._id for q in reqs])
+        outputs = await _outputs(conn, reqs)
     by_batch: dict[int, list[Any]] = {}
     for q in reqs:
         by_batch.setdefault(q.batch_id, []).append(q)
     names: dict[str, str | None] = {}
-    now = time.time()
     out = []
     for b in batches:
         if b.generator_id not in names:
@@ -189,16 +195,6 @@ async def list_batches(
             names[b.generator_id] = g["name"] if g else None
         rs = by_batch.get(b._id, [])
         outs = [o for q in rs for o in outputs.get(q._id, [])]
-        # Made but not in the library yet: still downloading or waiting for
-        # the scan (not rejected). Past the window, a missing one was deleted.
-        recent = now - ARRIVING_SECONDS
-        arriving = sum(
-            1
-            for q in rs
-            if (q.finished_at or 0) > recent
-            for o in outputs.get(q._id, [])
-            if not o["in_library"]
-        )
         out.append(
             {
                 "_id": b._id,
@@ -214,7 +210,7 @@ async def list_batches(
                 "kept": sum(
                     1 for o in outs if o["in_library"] and not o["quarantined"]
                 ),
-                "arriving": arriving,
+                "arriving": sum(1 for o in outs if o["arriving"]),
                 "thumbs": [o["image_id"] for o in outs if o["in_library"]][:12],
             }
         )

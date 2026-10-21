@@ -339,7 +339,11 @@ def clean_slots(raw: Any) -> dict[str, Any]:
     out["drop_loras"] = [str(n) for n in drops]
     if out.get("lora_clip") and not out.get("lora_model"):
         raise SetupError("A CLIP insertion point needs a model one")
-    if raw.get("lora_text") is True and not out.get("lora_model"):
+    if raw.get("lora_text") is True:
+        if out.get("lora_model"):
+            raise SetupError(
+                "LoRAs go either at the insertion point or into the prompt"
+            )
         out["lora_text"] = True
     return out
 

@@ -128,7 +128,13 @@ def merge_loras(
 def lora_tags(loras: list[LoraPick]) -> str:
     """``<lora:name:strength>`` for each pick, space separated (A1111 syntax,
     ComfyUI's lora_name as the name)."""
-    return " ".join(f"<lora:{p.name}:{p.strength:g}>" for p in loras)
+    return " ".join(f"<lora:{p.name}:{_plain(p.strength)}>" for p in loras)
+
+
+def _plain(x: float) -> str:
+    """A strength as plain decimals (``0.8``, ``1``): never ``1e-05``, which
+    the ``<lora:...>`` parsers can't read."""
+    return f"{x:.4f}".rstrip("0").rstrip(".") or "0"
 
 
 def lora_insertion(graph: Graph, loader_id: str) -> tuple[list[Any], list[Any] | None]:
