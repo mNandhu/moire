@@ -1235,8 +1235,8 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-2xs text-faint">
         {kinds.map((k) => (
-          <span key={k} className={`inline-flex items-center gap-1 ${KIND_TEXT[k]}`}>
-            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+          // The label is in its kind's colour: the key needs no swatch.
+          <span key={k} className={KIND_TEXT[k]}>
             {KIND_LABEL[k]}
           </span>
         ))}
