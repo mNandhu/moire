@@ -39,6 +39,7 @@ Skipping at any point lands in the gallery, with whatever was done so far.
 | Workflow import | Manual: the user picks ComfyUI's workflows folder. |
 | AI tagging default | Off. Prompt tags are enough for most features. |
 | When tagging is turned on | Tag every existing image, and keep tagging new images as they arrive (auto-tag). |
+| Until "tag everything" works | The AI tagging switch ships **disabled** in onboarding, with the time comparison and GPU callout still shown. Enable it once the deferred batching item below is done. |
 | GPU | Recommend the GPU build in onboarding itself, with the measured numbers. |
 | Look | No cards, no hero. Plain forms in an app-like layout; the ring background is the one flourish. |
 
@@ -69,12 +70,13 @@ Skipping at any point lands in the gallery, with whatever was done so far.
 ## Phase 3: AI tagging and auto-tag
 
 - [ ] Setting `auto_tag` (default off) in `DEFAULT_AI_SETTINGS` (`services/ai_settings.py`). Turning it on in onboarding or Settings › AI Tagging sets it.
-- [ ] Turning it on queues **every** untagged image. `enqueue_untagged` caps at `limit=200` today; the backlog needs to run in batches until nothing is left.
+- [ ] **Deferred, blocks enabling the switch.** Turning it on queues **every** untagged image. `enqueue_untagged` caps at `limit=200` today; the backlog needs to run in batches until nothing is left.
 - [ ] Auto-tag new images: after the scanner or the folder watcher indexes new images, queue them for tagging when `auto_tag` is on.
 - [ ] Survive restarts: AI jobs live only in memory (`AIJobManager._jobs`). On startup, if `auto_tag` is on, queue the untagged images again.
 - [ ] Don't loop on images the tagger can't tag (unreadable, or no tags above the thresholds): `has_ai_tags` stays false for them, so a resume or batch would pick them up forever. Record a "tagged, nothing found" or failed state.
 - [ ] Order: newest first by file `mtime` (what the user looks at first). `enqueue_untagged` orders by `_id` today.
 - [ ] Onboarding step UI: switch (off by default), CPU vs GPU time for this library, GPU callout.
+- [ ] Ship the switch **disabled** for now, with a short note that tagging can be turned on in Settings › AI Tagging later. Remove the disabled state when the deferred batching item is done.
 - [ ] Time estimate: start from the documented rates (CPU ~0.6 images/s in a real job, GPU ~0.1 s an image on a GTX 1650, see `docs/perf-findings.md`); later, measure a few images on this machine once the model is loaded.
 - [ ] GPU detection:
   - [ ] Which build is running: `session.get_providers()` / installed `onnxruntime-gpu`.
