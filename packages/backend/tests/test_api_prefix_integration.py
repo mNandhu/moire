@@ -14,7 +14,10 @@ async def test_bare_prefix_is_gone(client):
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
-        assert (await c.get("/libraries")).status_code == 404
+        # Unprefixed paths never reach the API. With a built UI in src/web,
+        # `/libraries` is the Libraries page instead of a 404.
+        r = await c.get("/libraries")
+        assert r.status_code == 404 or r.headers["content-type"].startswith("text/html")
         # Root health stays for container probes; the API copy mirrors it.
         assert (await c.get("/health")).json() == {"status": "ok"}
         assert (await c.get("/api/v1/health")).json() == {"status": "ok"}

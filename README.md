@@ -118,6 +118,18 @@ pnpm dev
    pnpm dev
    ```
 
+### Running without the dev server
+
+`pnpm build` writes the UI into `packages/backend/src/web`, and the backend then serves it itself. Moiré runs as one process on one port:
+
+```bash
+pnpm build
+uv --directory packages/backend run uvicorn src.main:app --port 8000
+# open http://localhost:8000
+```
+
+`pnpm dev` is unaffected: Vite still serves the UI on :5173 with hot reload. A stale build in `src/web` is harmless in dev; delete it or rebuild after frontend changes if you use the single-port mode.
+
 ### Adding Your First Library
 
 1. Navigate to http://localhost:5173/libraries and click **Add libraries**

@@ -11,6 +11,7 @@
         "lint-staged": "^17.0.7"
     },
     "scripts": {
+        "build": "pnpm -C packages/frontend build",
         "dev:backend": "uv --directory packages/backend run uvicorn src.main:app --reload --port 8000",
         "dev:frontend": "pnpm -C packages/frontend dev",
         "dev": "concurrently -c auto -n backend,frontend \"pnpm dev:backend\" \"pnpm dev:frontend\"",

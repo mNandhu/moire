@@ -15,6 +15,7 @@ from .services.ai_jobs import get_ai_job_manager, get_ai_settings
 from .services.ai_tagger import get_tagger_manager
 from .services import library_nesting, library_watch, tag_migrations
 from .services.generation_jobs import get_generation_manager
+from .web_ui import mount_web_ui
 
 import logging
 import time
@@ -194,3 +195,5 @@ api.include_router(rules.router, prefix="/rules", tags=["rules"])
 api.include_router(generate.router, prefix="/generate", tags=["generate"])
 api.include_router(activity.router, prefix="/activity", tags=["activity"])
 app.include_router(api)
+# Last, so its catch-all route never shadows an API route.
+mount_web_ui(app)
