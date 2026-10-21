@@ -9,8 +9,11 @@ events a watcher misses (network shares, drives that don't deliver
 inotify/ReadDirectoryChanges reliably, the process being down when a change
 happened).
 
-One thread per library runs `watchfiles.watch(...)`, which internally
-debounces bursts into batches. Debounced batches still name files that may be
+The watching itself (`watchfiles`, which debounces bursts into batches) runs
+in one child process, `watch_proc`: watchfiles holds the GIL while it walks a
+new root, which froze the server for the whole walk (10 to 30 s at boot with
+dozens of libraries on a slow mount). One thread per library here takes that
+library's batches off a queue. Debounced batches still name files that may be
 mid-write (a generator tool still streaming bytes to disk); `_wait_stable`
 re-reads size across a short quiet window before ingesting, and gives up
 (leaving the row for the next reconciliation pass) after a bounded number of
@@ -19,11 +22,18 @@ attempts rather than blocking the watcher thread indefinitely.
 
 from __future__ import annotations
 
+import itertools
+import json
 import logging
+import os
+import queue
+import subprocess
+import sys
 import threading
+import time
 from pathlib import Path
 
-from watchfiles import Change, watch
+from watchfiles import Change
 
 from ..core.config import settings
 from . import library_nesting, scanner
@@ -36,18 +46,125 @@ _IGNORED_SUFFIXES = (".tmp", ".part", ".partial", ".crdownload", ".download")
 
 
 class _Watch:
-    __slots__ = ("library_id", "root", "stop_event", "thread", "reconcile_timer")
+    __slots__ = (
+        "library_id",
+        "root",
+        "key",
+        "queue",
+        "stop_event",
+        "thread",
+        "reconcile_timer",
+    )
 
     def __init__(self, library_id: str, root: Path) -> None:
         self.library_id = library_id
         self.root = root
+        # Names this watch in the child, so a restarted watch never gets
+        # batches still in flight for the root it replaced.
+        self.key = str(next(_keys))
+        # Batches of (Change, path) from the child; None ends the thread.
+        self.queue: queue.Queue[set[tuple[Change, str]] | None] = queue.Queue()
         self.stop_event = threading.Event()
         self.thread: threading.Thread | None = None
         self.reconcile_timer: threading.Timer | None = None
 
 
+_keys = itertools.count(1)
 _lock = threading.Lock()
 _watches: dict[str, _Watch] = {}
+_by_key: dict[str, _Watch] = {}
+
+# The child process; `_child_lock` also serializes writes to its stdin.
+_child: subprocess.Popen[str] | None = None
+_child_lock = threading.Lock()
+_restart_delay_s = 1.0
+
+
+def _send(cmd: dict) -> None:
+    """Send one command to the child, starting it if needed. A child that
+    died mid-write is restarted by its reader, which re-adds every watch."""
+    global _child
+    with _child_lock:
+        if _child is None:
+            _child = _spawn()
+        try:
+            assert _child.stdin is not None
+            _child.stdin.write(json.dumps(cmd) + "\n")
+            _child.stdin.flush()
+        except OSError:
+            pass
+
+
+def _spawn() -> subprocess.Popen[str]:
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "moire.services.watch_proc"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        if os.name == "nt"
+        else 0,
+    )
+    threading.Thread(
+        target=_read_child, args=(proc,), name="watch-child-reader", daemon=True
+    ).start()
+    return proc
+
+
+def _read_child(proc: subprocess.Popen[str]) -> None:
+    global _child, _restart_delay_s
+    started = time.monotonic()
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        try:
+            msg = json.loads(line)
+        except ValueError:
+            continue
+        with _lock:
+            w = _by_key.get(str(msg.get("key")))
+        if w is None:
+            continue
+        if "error" in msg:
+            # The root vanished (drive unplugged, share dropped) or watchfiles
+            # hit a platform error. The reconciliation timer (and a future
+            # add/rescan) is the recovery path, as before.
+            logger.error(
+                "watch loop exited unexpectedly library=%s\n%s",
+                w.library_id,
+                msg["error"],
+            )
+        else:
+            w.queue.put({(Change(c), p) for c, p in msg.get("changes", ())})
+    proc.wait()
+    with _child_lock:
+        if _child is not proc:
+            return  # stopped on purpose (stop_all)
+        _child = None
+    # Back off a child that keeps dying young; reconciliation covers the gap.
+    lived = time.monotonic() - started
+    _restart_delay_s = 1.0 if lived > 60 else min(_restart_delay_s * 2, 60.0)
+    logger.warning(
+        "watcher process exited code=%s; restarting in %.0fs",
+        proc.returncode,
+        _restart_delay_s,
+    )
+    time.sleep(_restart_delay_s)
+    with _lock:
+        ws = list(_watches.values())
+    for w in ws:
+        _send_add(w)
+
+
+def _send_add(w: _Watch) -> None:
+    _send(
+        {
+            "op": "add",
+            "key": w.key,
+            "path": str(w.root),
+            "debounce_ms": max(50, settings.watch_debounce_ms),
+        }
+    )
 
 
 def _is_ignored(path: Path) -> bool:
@@ -84,53 +201,42 @@ def _wait_stable(path: Path, stop_event: threading.Event) -> bool:
 
 
 def _run_watch(w: _Watch) -> None:
-    debounce_ms = max(50, settings.watch_debounce_ms)
-    try:
-        for changes in watch(
-            w.root,
-            debounce=debounce_ms,
-            stop_event=w.stop_event,
-        ):
+    while True:
+        changes = w.queue.get()
+        if changes is None or w.stop_event.is_set():
+            break
+        for change, raw_path in changes:
             if w.stop_event.is_set():
                 break
-            for change, raw_path in changes:
-                if w.stop_event.is_set():
-                    break
-                if scanner.is_scanning(w.library_id):
-                    # A full scan already reflects (or will reflect) disk state
-                    # as of its own walk; let it own this pass instead of racing
-                    # it. Checked per-change (not once per debounced batch) so a
-                    # scan that starts mid-batch still stops the rest of it.
-                    continue
-                path = Path(raw_path)
-                if _is_ignored(path):
-                    continue
-                # A library inside this one watches its own folder.
-                if library_nesting.owned_by_nested(w.library_id, w.root, path):
-                    continue
-                try:
-                    if change == Change.deleted:
-                        image_id = scanner.image_id_for(w.library_id, w.root, path)
-                        scanner.remove_single_image(w.library_id, image_id)
-                    else:
-                        if not path.is_file() or not scanner.is_image(path):
-                            continue
-                        if not _wait_stable(path, w.stop_event):
-                            continue
-                        scanner.ingest_single_file(w.library_id, w.root, path)
-                except Exception:
-                    logger.exception(
-                        "watch event failed library=%s change=%s path=%s",
-                        w.library_id,
-                        change,
-                        raw_path,
-                    )
-    except Exception:
-        # The root vanished (drive unplugged, share dropped) or watchfiles hit
-        # a platform error. Best-effort: log and let the reconciliation timer
-        # (and a future add/rescan) be the recovery path; don't crash a
-        # background thread the app doesn't otherwise supervise.
-        logger.exception("watch loop exited unexpectedly library=%s", w.library_id)
+            if scanner.is_scanning(w.library_id):
+                # A full scan already reflects (or will reflect) disk state
+                # as of its own walk; let it own this pass instead of racing
+                # it. Checked per-change (not once per debounced batch) so a
+                # scan that starts mid-batch still stops the rest of it.
+                continue
+            path = Path(raw_path)
+            if _is_ignored(path):
+                continue
+            # A library inside this one watches its own folder.
+            if library_nesting.owned_by_nested(w.library_id, w.root, path):
+                continue
+            try:
+                if change == Change.deleted:
+                    image_id = scanner.image_id_for(w.library_id, w.root, path)
+                    scanner.remove_single_image(w.library_id, image_id)
+                else:
+                    if not path.is_file() or not scanner.is_image(path):
+                        continue
+                    if not _wait_stable(path, w.stop_event):
+                        continue
+                    scanner.ingest_single_file(w.library_id, w.root, path)
+            except Exception:
+                logger.exception(
+                    "watch event failed library=%s change=%s path=%s",
+                    w.library_id,
+                    change,
+                    raw_path,
+                )
 
 
 def _schedule_reconcile(w: _Watch) -> None:
@@ -169,6 +275,7 @@ def start_watch(library_id: str, path: str) -> None:
     with _lock:
         existing = _watches.pop(library_id, None)
         if existing is not None:
+            _by_key.pop(existing.key, None)
             _stop(existing)
 
         w = _Watch(library_id, root)
@@ -177,7 +284,9 @@ def start_watch(library_id: str, path: str) -> None:
         )
         w.thread = th
         _watches[library_id] = w
+        _by_key[w.key] = w
         th.start()
+        _send_add(w)
     _schedule_reconcile(w)
 
 
@@ -185,6 +294,8 @@ def _stop(w: _Watch) -> None:
     w.stop_event.set()
     if w.reconcile_timer is not None:
         w.reconcile_timer.cancel()
+    _send({"op": "remove", "key": w.key})
+    w.queue.put(None)
     if w.thread is not None and w.thread.is_alive():
         w.thread.join(timeout=1.0)
 
@@ -192,16 +303,30 @@ def _stop(w: _Watch) -> None:
 def stop_watch(library_id: str) -> None:
     with _lock:
         w = _watches.pop(library_id, None)
+        if w is not None:
+            _by_key.pop(w.key, None)
     if w is not None:
         _stop(w)
 
 
 def stop_all() -> None:
+    global _child
     with _lock:
         ws = list(_watches.values())
         _watches.clear()
+        _by_key.clear()
     for w in ws:
         _stop(w)
+    with _child_lock:
+        proc, _child = _child, None
+    if proc is not None:
+        # EOF on its stdin stops the child; kill it if it doesn't go.
+        try:
+            assert proc.stdin is not None
+            proc.stdin.close()
+            proc.wait(timeout=2)
+        except (OSError, subprocess.TimeoutExpired):
+            proc.kill()
 
 
 def is_watching(library_id: str) -> bool:
