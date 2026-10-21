@@ -173,6 +173,11 @@ def _shuffle_key(seed):
     return (rowid * _HASH_MUL + seed) % _HASH_MOD
 
 
+# How many matching rows a mosaic reads per image it shows, to find images
+# from different batches.
+SAMPLE_SPREAD = 8
+
+
 def _shuffled(tag: str):
     """A fixed shuffle of a tag's images: mosaics look varied across tags (not
     every common tag showing the newest image) yet stay put when an unrelated
@@ -280,7 +285,9 @@ async def list_tags(
 async def samples_for_tag(tag: str, per: int) -> list[dict]:
     """Up to ``per`` distinct images for one tag's mosaic card (``tag`` a stored
     id, or ``any:<base>`` for every source). A pinned
-    ``tag_meta`` thumbnail leads when present; the rest follow ``_shuffled``. Rows
+    ``tag_meta`` thumbnail leads when present; the rest follow ``_shuffled``,
+    one per generation batch while there are enough batches (a batch's images
+    look alike), then the batches again. Rows
     carry ``_id``/``width``/``height``/``blurhash``; the route decorates them
     with the thumb URL."""
     cache_key = (tag, per)
@@ -292,6 +299,7 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
 
     cols = (
         t.images.c._id,
+        t.images.c.gen_group_id,
         t.images.c.thumb_key,
         t.images.c.width,
         t.images.c.height,
@@ -332,6 +340,7 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
             if row is not None:
                 seen.add(row._id)
                 out.append(dict(row._mapping))
+        batches = {out[0]["gen_group_id"]} - {None} if out else set()
 
         # A fixed per-tag shuffle (`_shuffled`) varies images across tags and
         # keeps each mosaic put across refreshes. Full scan + sort of the
@@ -354,16 +363,24 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
                         ),
                     )
                     .order_by(_shuffled(tag))
-                    .limit(remaining + (1 if pinned else 0))
+                    # Room to skip a batch's other images.
+                    .limit((remaining + 1) * SAMPLE_SPREAD)
                 )
             ).fetchall()
-            for row in rows:
-                if row._id in seen:
+            fresh = [r for r in rows if r._id not in seen]
+            again = []
+            for row in fresh:
+                group = row.gen_group_id
+                if group is not None and group in batches:
+                    again.append(row)
                     continue
-                seen.add(row._id)
+                if group is not None:
+                    batches.add(group)
                 out.append(dict(row._mapping))
                 if len(out) >= per:
                     break
+            for row in again[: max(0, per - len(out))]:
+                out.append(dict(row._mapping))
 
     samples = [
         {

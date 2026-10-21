@@ -4,11 +4,11 @@ import { ChevronDown, Undo2, X } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { fuzzyRank } from "../../lib/fuzzy";
 import { api } from "../../lib/api";
-import { thumbUrl } from "../../lib/generate";
 import type { CharacterEntry } from "../../lib/character";
-import type { ImageDoc } from "../../lib/imageFilter";
+import type { Sample } from "../TagMosaic";
 import { appendPiece, appendTag, promptTerms, removeSpan, replaceName, type PromptTerm } from "../../lib/promptOutline";
 import {
+  TAGS_KEY,
   useBoardOffers,
   useBoilerplate,
   useTagBrowse,
@@ -108,8 +108,12 @@ function TagPreview({ term, count, swap }: { term: Placed; count: number | undef
   const tag = p?.alias_of ?? term.name;
   const tagged = term.kind === "tag";
   const { data, isPending } = useQuery({
-    queryKey: ["images", "tag-preview", tag],
-    queryFn: ({ signal }) => api<ImageDoc[]>(`/api/v1/images?tags=${encodeURIComponent(`any:${tag}`)}&limit=4`, { signal }),
+    // The Tags page's pick: shuffled, one image per batch while it can.
+    queryKey: [...TAGS_KEY, "samples", `any:${tag}`, 4],
+    queryFn: ({ signal }) =>
+      api<Record<string, Sample[]>>(`/api/v1/tags/samples?${new URLSearchParams({ tags: `any:${tag}`, per: "4" })}`, { signal }).then(
+        (r) => r[`any:${tag}`] ?? [],
+      ),
     enabled: tagged,
     staleTime: 60_000,
   });
@@ -138,7 +142,7 @@ function TagPreview({ term, count, swap }: { term: Placed; count: number | undef
         <div className="grid h-[92px] grid-cols-4 gap-1">
           {isPending
             ? Array.from({ length: 4 }, (_, i) => <div key={i} className="animate-pulse rounded bg-surface" />)
-            : (data ?? []).map((img) => <img key={img._id} src={img.thumb_url ?? thumbUrl(img._id)} alt="" className="h-full w-full rounded object-cover" />)}
+            : (data ?? []).map((img) => <img key={img._id} src={img.thumb_url} alt="" className="h-full w-full rounded object-cover" />)}
           {!isPending && !data?.length && (
             <div className="col-span-4 grid place-items-center rounded border border-dashed border-line text-xs text-faint">No images with it yet</div>
           )}

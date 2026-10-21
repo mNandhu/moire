@@ -140,6 +140,29 @@ async def test_pinned_thumbnail_leads_and_is_not_duplicated(temp_db, client, see
 
 
 @pytest.mark.asyncio
+async def test_samples_take_one_image_per_batch_while_they_can(temp_db, seed):
+    # Batch A has six look-alike images; B, C and D one each.
+    for i in range(6):
+        seed(f"L1:a{i}.jpg", tags=("cat",), gen={"group_id": "A"})
+    for g in "BCD":
+        seed(f"L1:{g}.jpg", tags=("cat",), gen={"group_id": g})
+
+    ids = [row["_id"] for row in await tag_index.samples_for_tag("cat", 4)]
+    assert sum(i.startswith("L1:a") for i in ids) == 1
+    assert {"L1:B.jpg", "L1:C.jpg", "L1:D.jpg"} <= set(ids)
+
+
+@pytest.mark.asyncio
+async def test_samples_fill_from_a_batch_again_when_short(temp_db, seed):
+    for i in range(3):
+        seed(f"L1:a{i}.jpg", tags=("cat",), gen={"group_id": "A"})
+    seed("L1:b.jpg", tags=("cat",))
+
+    ids = [row["_id"] for row in await tag_index.samples_for_tag("cat", 4)]
+    assert len(set(ids)) == 4
+
+
+@pytest.mark.asyncio
 async def test_samples_are_capped_at_per(temp_db, seed):
     for name in "abcde":
         seed(f"L1:{name}.jpg", tags=("cat",))
