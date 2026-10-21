@@ -49,7 +49,7 @@ class _Watch:
     __slots__ = (
         "library_id",
         "root",
-        "key",
+        "gen",
         "queue",
         "stop_event",
         "thread",
@@ -59,9 +59,9 @@ class _Watch:
     def __init__(self, library_id: str, root: Path) -> None:
         self.library_id = library_id
         self.root = root
-        # Names this watch in the child, so a restarted watch never gets
-        # batches still in flight for the root it replaced.
-        self.key = str(next(_keys))
+        # Echoed back by the child, so a restarted watch never gets batches
+        # still in flight for the root it replaced.
+        self.gen = next(_gens)
         # Batches of (Change, path) from the child; None ends the thread.
         self.queue: queue.Queue[set[tuple[Change, str]] | None] = queue.Queue()
         self.stop_event = threading.Event()
@@ -69,33 +69,108 @@ class _Watch:
         self.reconcile_timer: threading.Timer | None = None
 
 
-_keys = itertools.count(1)
+_gens = itertools.count(1)
 _lock = threading.Lock()
 _watches: dict[str, _Watch] = {}
-_by_key: dict[str, _Watch] = {}
 
-# The child process; `_child_lock` also serializes writes to its stdin.
-_child: subprocess.Popen[str] | None = None
-_child_lock = threading.Lock()
+# Commands for the child, written by one thread that owns it, so callers
+# (holding `_lock`, often on the event loop) never block on its stdin and a
+# respawn's re-adds stay ordered with every start/stop around them.
+_cmds: queue.Queue[dict] = queue.Queue()
+_writer: threading.Thread | None = None
+# Restart backoff for a child that keeps dying young.
 _restart_delay_s = 1.0
+_respawn_at = 0.0
 
 
 def _send(cmd: dict) -> None:
-    """Send one command to the child, starting it if needed. A child that
-    died mid-write is restarted by its reader, which re-adds every watch."""
-    global _child
-    with _child_lock:
-        if _child is None:
-            _child = _spawn()
-        try:
-            assert _child.stdin is not None
-            _child.stdin.write(json.dumps(cmd) + "\n")
-            _child.stdin.flush()
-        except OSError:
-            pass
+    """Queue one command for the child. Call with `_lock` held."""
+    global _writer
+    if _writer is None or not _writer.is_alive():
+        _writer = threading.Thread(
+            target=_write_loop, name="watch-child-writer", daemon=True
+        )
+        _writer.start()
+    _cmds.put(cmd)
 
 
-def _spawn() -> subprocess.Popen[str]:
+def _add_cmd(w: _Watch) -> dict:
+    return {
+        "op": "add",
+        "key": w.library_id,
+        "gen": w.gen,
+        "path": str(w.root),
+        "debounce_ms": max(50, settings.watch_debounce_ms),
+    }
+
+
+def _write_loop() -> None:
+    proc: subprocess.Popen[str] | None = None
+    closing = threading.Event()
+    readded: set[int] = set()
+    while True:
+        cmd = _cmds.get()
+        op = cmd["op"]
+        if op == "close":
+            if proc is not None:
+                closing.set()
+                _close(proc)
+            cmd["done"].set()
+            return
+        if proc is not None and proc.poll() is not None:
+            proc = None  # died; its reader queued a respawn
+        if proc is None:
+            if op == "remove":
+                continue  # a new child only ever gets the live watches
+            delay = _respawn_at - time.monotonic()
+            if delay > 0:
+                time.sleep(delay)
+            closing = threading.Event()
+            try:
+                proc = _spawn(closing)
+            except Exception:
+                logger.exception("could not start the watcher process")
+                _back_off(0.0)
+                _cmds.put({"op": "respawn"})
+                continue
+            with _lock:
+                adds = [_add_cmd(w) for w in _watches.values()]
+            readded = {c["gen"] for c in adds}
+            for c in adds:
+                _write(proc, c)
+        if op == "respawn":
+            continue
+        if op == "add":
+            # Sent with the respawn's re-adds, or replaced since it was
+            # queued (writing it would put the old root back).
+            with _lock:
+                w = _watches.get(cmd["key"])
+            if cmd["gen"] in readded or w is None or w.gen != cmd["gen"]:
+                continue
+        _write(proc, cmd)
+
+
+def _write(proc: subprocess.Popen[str], cmd: dict) -> None:
+    try:
+        assert proc.stdin is not None
+        proc.stdin.write(json.dumps(cmd) + "\n")
+        proc.stdin.flush()
+    except OSError:
+        pass  # it died; its reader queues a respawn
+
+
+def _close(proc: subprocess.Popen[str]) -> None:
+    # EOF on its stdin stops the child; kill it if it doesn't go.
+    try:
+        assert proc.stdin is not None
+        proc.stdin.close()
+        proc.wait(timeout=2)
+    except (OSError, subprocess.TimeoutExpired):
+        proc.kill()
+        proc.wait()
+
+
+def _spawn(closing: threading.Event) -> subprocess.Popen[str]:
     proc = subprocess.Popen(
         [sys.executable, "-m", "moire.services.watch_proc"],
         stdin=subprocess.PIPE,
@@ -111,13 +186,25 @@ def _spawn() -> subprocess.Popen[str]:
         else 0,
     )
     threading.Thread(
-        target=_read_child, args=(proc,), name="watch-child-reader", daemon=True
+        target=_read_child,
+        args=(proc, closing),
+        name="watch-child-reader",
+        daemon=True,
     ).start()
     return proc
 
 
-def _read_child(proc: subprocess.Popen[str]) -> None:
-    global _child, _restart_delay_s
+def _back_off(lived_s: float) -> float:
+    global _restart_delay_s, _respawn_at
+    if lived_s > 60:
+        _restart_delay_s = 1.0
+    delay = _restart_delay_s
+    _restart_delay_s = min(delay * 2, 60.0)
+    _respawn_at = time.monotonic() + delay
+    return delay
+
+
+def _read_child(proc: subprocess.Popen[str], closing: threading.Event) -> None:
     started = time.monotonic()
     assert proc.stdout is not None
     for line in proc.stdout:
@@ -127,29 +214,23 @@ def _read_child(proc: subprocess.Popen[str]) -> None:
         except Exception:
             logger.exception("bad message from watcher process: %r", line[:200])
     proc.wait()
-    with _child_lock:
-        if _child is not proc:
-            return  # stopped on purpose (stop_all)
-        _child = None
-    # Back off a child that keeps dying young; reconciliation covers the gap.
-    lived = time.monotonic() - started
-    _restart_delay_s = 1.0 if lived > 60 else min(_restart_delay_s * 2, 60.0)
+    if closing.is_set():
+        return
+    # Reconciliation covers the gap until the new child is up.
+    delay = _back_off(time.monotonic() - started)
     logger.warning(
         "watcher process exited code=%s; restarting in %.0fs",
         proc.returncode,
-        _restart_delay_s,
+        delay,
     )
-    time.sleep(_restart_delay_s)
     with _lock:
-        ws = list(_watches.values())
-    for w in ws:
-        _send_add(w)
+        _send({"op": "respawn"})
 
 
 def _route(msg: dict) -> None:
     with _lock:
-        w = _by_key.get(str(msg.get("key")))
-    if w is None:
+        w = _watches.get(str(msg.get("key")))
+    if w is None or w.gen != msg.get("gen"):
         return
     if "error" in msg:
         # The root vanished (drive unplugged, share dropped) or watchfiles
@@ -162,17 +243,6 @@ def _route(msg: dict) -> None:
         )
     else:
         w.queue.put({(Change(c), p) for c, p in msg.get("changes", ())})
-
-
-def _send_add(w: _Watch) -> None:
-    _send(
-        {
-            "op": "add",
-            "key": w.key,
-            "path": str(w.root),
-            "debounce_ms": max(50, settings.watch_debounce_ms),
-        }
-    )
 
 
 def _is_ignored(path: Path) -> bool:
@@ -283,7 +353,6 @@ def start_watch(library_id: str, path: str) -> None:
     with _lock:
         existing = _watches.pop(library_id, None)
         if existing is not None:
-            _by_key.pop(existing.key, None)
             _stop(existing)
 
         w = _Watch(library_id, root)
@@ -292,9 +361,9 @@ def start_watch(library_id: str, path: str) -> None:
         )
         w.thread = th
         _watches[library_id] = w
-        _by_key[w.key] = w
         th.start()
-        _send_add(w)
+        # Replaces the child's watch for this library, if any.
+        _send(_add_cmd(w))
     _schedule_reconcile(w)
 
 
@@ -302,7 +371,6 @@ def _stop(w: _Watch) -> None:
     w.stop_event.set()
     if w.reconcile_timer is not None:
         w.reconcile_timer.cancel()
-    _send({"op": "remove", "key": w.key})
     w.queue.put(None)
     if w.thread is not None and w.thread.is_alive():
         w.thread.join(timeout=1.0)
@@ -312,29 +380,22 @@ def stop_watch(library_id: str) -> None:
     with _lock:
         w = _watches.pop(library_id, None)
         if w is not None:
-            _by_key.pop(w.key, None)
+            _send({"op": "remove", "key": library_id})
     if w is not None:
         _stop(w)
 
 
 def stop_all() -> None:
-    global _child
     with _lock:
         ws = list(_watches.values())
         _watches.clear()
-        _by_key.clear()
+        writer = _writer
     for w in ws:
         _stop(w)
-    with _child_lock:
-        proc, _child = _child, None
-    if proc is not None:
-        # EOF on its stdin stops the child; kill it if it doesn't go.
-        try:
-            assert proc.stdin is not None
-            proc.stdin.close()
-            proc.wait(timeout=2)
-        except (OSError, subprocess.TimeoutExpired):
-            proc.kill()
+    if writer is not None and writer.is_alive():
+        done = threading.Event()
+        _cmds.put({"op": "close", "done": done})
+        done.wait(timeout=5)
 
 
 def is_watching(library_id: str) -> bool:

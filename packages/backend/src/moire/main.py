@@ -80,7 +80,8 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    library_watch.stop_all()
+    # Joins each watcher thread and waits on the watcher process: off the loop.
+    await anyio.to_thread.run_sync(library_watch.stop_all)  # type: ignore[attr-defined]
     await get_generation_manager().stop()
 
 

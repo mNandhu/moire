@@ -9,12 +9,13 @@ process; `library_watch` in the server keeps its threads responsive.
 Imports nothing from Moiré beyond the package itself (no DB, no settings).
 
 Protocol, one JSON object per line:
-  stdin   {"op": "add", "key": k, "path": p, "debounce_ms": n}
+  stdin   {"op": "add", "key": k, "gen": g, "path": p, "debounce_ms": n}
           {"op": "remove", "key": k}
-  stdout  {"key": k, "changes": [[change, path], ...]}
-          {"key": k, "error": "..."}  (the watch loop died; it is not retried)
-`change` is watchfiles' `Change` value. EOF on stdin (the server exited) stops
-everything.
+  stdout  {"key": k, "gen": g, "changes": [[change, path], ...]}
+          {"key": k, "gen": g, "error": "..."}  (the watch loop died)
+An add replaces the key's watch; `gen` is echoed so the server can drop
+batches from the one it replaced. `change` is watchfiles' `Change` value.
+EOF on stdin (the server exited) stops everything.
 """
 
 from __future__ import annotations
@@ -39,15 +40,23 @@ def _emit(msg: dict) -> None:
         sys.stdout.flush()
 
 
-def _run(key: str, path: str, debounce_ms: int, stop: threading.Event) -> None:
+def _run(
+    key: str, gen: int, path: str, debounce_ms: int, stop: threading.Event
+) -> None:
     try:
         for changes in watch(path, debounce=debounce_ms, stop_event=stop):
             if stop.is_set():
                 break
-            _emit({"key": key, "changes": [[int(c), p] for c, p in changes]})
+            _emit(
+                {
+                    "key": key,
+                    "gen": gen,
+                    "changes": [[int(c), p] for c, p in changes],
+                }
+            )
     except Exception:
         if not stop.is_set():
-            _emit({"key": key, "error": traceback.format_exc()})
+            _emit({"key": key, "gen": gen, "error": traceback.format_exc()})
 
 
 def main() -> None:
@@ -70,7 +79,13 @@ def main() -> None:
             _stops[key] = stop
             threading.Thread(
                 target=_run,
-                args=(key, cmd["path"], int(cmd.get("debounce_ms", 800)), stop),
+                args=(
+                    key,
+                    cmd.get("gen"),
+                    cmd["path"],
+                    int(cmd.get("debounce_ms", 800)),
+                    stop,
+                ),
                 name=f"watch-{key}",
                 daemon=True,
             ).start()
