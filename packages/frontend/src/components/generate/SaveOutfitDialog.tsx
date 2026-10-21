@@ -286,7 +286,7 @@ export function SaveOutfitDialog({
                     setRows((x) =>
                       x.some((y) => y.tag === tag)
                         ? x
-                        : [...x, { tag, group: attireGroups?.[tag] ?? null, checkable: true, source: "added" }],
+                        : [...x, { tag, group: attireGroups?.[tag.toLowerCase()] ?? null, checkable: true, source: "added" }],
                     );
                     // The tagger's own vocabulary says whether it can check it.
                     void fetchOutfitTagInfo([tag])

@@ -7,7 +7,7 @@ import asyncio
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from ..database.db import async_tx
+from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ._utils import thumb_url, validate_tags
 from ..services import (
@@ -49,21 +49,47 @@ class TagSettingsPatch(BaseModel):
     boilerplate: list[str]
 
 
+_maps_lock = asyncio.Lock()
+
+
+async def _tag_maps() -> tuple[dict[str, str], dict[str, str]]:
+    """The attire and facet maps over the tagger's vocabulary plus every tag in
+    the library (free-form prompt tags like ``pastel_pink_dolphin_shorts``
+    included). Classifying ~10k names takes tens of milliseconds, so they are
+    built together in a thread and kept until a tag write or a new
+    vocabulary."""
+    async with _maps_lock:
+        gen = tag_index.current_generation()
+        vocab = await tag_categories.load()
+        cached = tag_index.read_derived("tag-maps")
+        if cached is not None and cached[0] is vocab.general:
+            return cached[1], cached[2]
+        async with async_conn() as conn:
+            bases = (
+                await conn.execute(sa.select(t.image_tags.c.base).distinct())
+            ).scalars()
+            names = list(dict.fromkeys([*vocab.general, *(b for b in bases if b)]))
+        attire_map, facet_map = await asyncio.to_thread(
+            lambda: (attire.attire_tags(names), attire.facets(names))
+        )
+        tag_index.store_derived("tag-maps", gen, (vocab.general, attire_map, facet_map))
+        return attire_map, facet_map
+
+
 @router.get("/attire")
 async def get_attire_groups():
     """``tag -> attire group`` (headwear, accessories, ...) for every attire
-    tag: outfit chips are labelled by it. Static per build, like facets."""
-    vocab = await tag_categories.load()
-    return JSONResponse(attire.attire_tags(vocab.general))
+    tag the app knows of: outfit chips are labelled by it, and the attire
+    autocomplete ranks by it. Changes with the library's tags."""
+    return JSONResponse((await _tag_maps())[0])
 
 
 @router.get("/facets")
 async def get_tag_facets():
     """``tag -> facet`` (look, outfit, pose, scene, framing) for every listed
-    tag that has one: the image view tints tags by it. Static per build of the
-    tag-group list, so clients can cache it for the session."""
-    vocab = await tag_categories.load()
-    return JSONResponse(attire.facets(vocab.general))
+    tag that has one, plus the library's own tags that :func:`attire.facet_of`
+    places: the image view tints tags by it."""
+    return JSONResponse((await _tag_maps())[1])
 
 
 @router.get("/settings")

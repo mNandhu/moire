@@ -141,7 +141,7 @@ export function AttireTagInput({
   const pool = useMemo(() => bareTagPool(tagAgg ?? []).filter((t) => !taken.has(t._id)), [tagAgg, taken]);
   const ranked = useTagMatches(text, pool);
   const matches = useMemo(() => {
-    const worn = (id: string) => facets?.[id] === "outfit";
+    const worn = (id: string) => facets?.[id.toLowerCase()] === "outfit";
     return [...ranked.filter((m) => worn(m._id)), ...ranked.filter((m) => !worn(m._id))];
   }, [ranked, facets]);
   const add = (tag: string) => {
@@ -183,7 +183,7 @@ export function AttireTagInput({
             active={active}
             onActive={setActive}
             onPick={(m) => add(m._id)}
-            noteOf={(id) => (facets?.[id] === "outfit" ? "attire" : null)}
+            noteOf={(id) => (facets?.[id.toLowerCase()] === "outfit" ? "attire" : null)}
           />
         </div>
       )}
@@ -238,6 +238,7 @@ export function OutfitChips({
 }: {
   pick: OutfitPick;
   /** Attire group per tag, where the outfit list knows it. */
+  /** Keyed by tag; the attire map's entries are lowercased. */
   groups: ReadonlyMap<string, string | null>;
   onChange: (p: OutfitPick) => void;
 }) {
@@ -249,7 +250,7 @@ export function OutfitChips({
         <OutfitChip
           key={tag}
           tag={tag}
-          group={groups.get(tag)}
+          group={groups.get(tag) ?? groups.get(tag.toLowerCase())}
           struck={struck.has(tag)}
           onToggle={() => onChange(toggleWorn(pick, tag))}
         />

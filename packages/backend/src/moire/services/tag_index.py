@@ -49,6 +49,9 @@ _generation = 0
 # Each entry is (stored_at, generation, value).
 _tags_cache: dict[str, tuple[float, int, list[dict]]] = {}
 _samples_cache: dict[tuple[str, int], tuple[float, int, list[dict]]] = {}
+# Values derived from every tag (the attire and facet maps): no TTL, only the
+# generation, since they are costly to build and change only with a write.
+_derived_cache: dict[str, tuple[int, Any]] = {}
 
 
 # --- Cache primitives ---------------------------------------------------------
@@ -63,6 +66,7 @@ def invalidate() -> None:
         _generation += 1
         _tags_cache.clear()
         _samples_cache.clear()
+        _derived_cache.clear()
 
 
 def current_generation() -> int:
@@ -109,6 +113,22 @@ def store_view(key: str, gen: int, value: list[dict]) -> None:
     _store(_tags_cache, key, gen, value)
 
 
+def read_derived(key: str) -> Any:
+    """A value stored with :func:`store_derived`, ``None`` once a write
+    intervened."""
+    with _LOCK:
+        entry = _derived_cache.get(key)
+        return entry[1] if entry is not None and entry[0] == _generation else None
+
+
+def store_derived(key: str, gen: int, value: Any) -> None:
+    """Keep ``value`` until the next write, unless one already happened since
+    ``gen`` was captured."""
+    with _LOCK:
+        if gen == _generation:
+            _derived_cache[key] = (gen, value)
+
+
 def reset_for_tests() -> None:
     """Drop all cached state and the generation counter."""
     global _generation
@@ -116,6 +136,7 @@ def reset_for_tests() -> None:
         _generation = 0
         _tags_cache.clear()
         _samples_cache.clear()
+        _derived_cache.clear()
 
 
 # --- Pinned thumbnails ---------------------------------------------------------

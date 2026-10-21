@@ -92,6 +92,11 @@ export type TagAgg = { _id: string; count: number };
 /** Prefix for every tag-aggregate query; invalidate this after tag writes. */
 export const TAGS_KEY = ["tags"] as const;
 
+// The attire and facet maps change only with the library's tags, and any tag
+// write invalidates them (TAGS_KEY), so they can live long; the server keeps
+// them built until a write, so a refetch is cheap.
+const TAG_MAP_STALE_MS = 10 * 60_000;
+
 /**
  * The tag aggregate (AI + manual, optionally prompt tags). The backend caches
  * this for ~30s, so the default staleTime matches it.
@@ -186,25 +191,27 @@ export function useImageStats() {
 }
 
 /** `tag -> attire group` (headwear, accessories, ...): outfit chips are
- * labelled by it. Fixed per build, so fetched once. */
+ * labelled by it. Covers the library's own tags, so it sits under TAGS_KEY
+ * and refreshes after tag writes. */
 export function useAttireGroups() {
   return useQuery({
-    queryKey: ["tag-attire"],
+    queryKey: [...TAGS_KEY, "attire"],
     queryFn: ({ signal }) => api<Record<string, string>>("/api/v1/tags/attire", { signal }),
-    staleTime: Infinity,
-    gcTime: Infinity,
+    staleTime: TAG_MAP_STALE_MS,
+    gcTime: TAG_MAP_STALE_MS,
   });
 }
 
-export const TAG_FACETS_KEY = ["tag-facets"] as const;
+export const TAG_FACETS_KEY = [...TAGS_KEY, "facets"] as const;
 
-/** `tag -> facet` from the shipped tag-group list: fixed per build, so fetched once. */
+/** `tag -> facet` from the shipped tag-group list plus the library's garments;
+ * under TAGS_KEY like the attire map. */
 export function useTagFacets() {
   return useQuery({
     queryKey: TAG_FACETS_KEY,
     queryFn: ({ signal }) => api<Record<string, Facet>>("/api/v1/tags/facets", { signal }),
-    staleTime: Infinity,
-    gcTime: Infinity,
+    staleTime: TAG_MAP_STALE_MS,
+    gcTime: TAG_MAP_STALE_MS,
   });
 }
 

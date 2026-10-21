@@ -7,6 +7,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
+from moire.services import tag_index
 
 pytestmark = pytest.mark.asyncio
 
@@ -158,3 +159,19 @@ async def test_tag_facets_route(client):
     assert facets["blue_eyes"] == "look"
     assert facets["serafuku"] == "outfit"
     assert set(facets.values()) <= {"look", "outfit", "pose", "scene", "framing"}
+
+
+async def test_attire_and_facet_maps_know_the_library_garments(client, seed):
+    seed("L1:a", tags=("prompt:pastel_pink_dolphin_shorts", "prompt:collarbone"))
+    attire_map = (await client.get("/tags/attire")).json()
+    assert attire_map["pastel_pink_dolphin_shorts"] == "attire"
+    assert "collarbone" not in attire_map
+    facets = (await client.get("/tags/facets")).json()
+    assert facets["pastel_pink_dolphin_shorts"] == "outfit"
+    # Kept until a tag write, then rebuilt with the new tags.
+    seed("L1:b", tags=("prompt:blue_cotton_panties",))
+    assert "blue_cotton_panties" not in (await client.get("/tags/attire")).json()
+    tag_index.invalidate()
+    assert (await client.get("/tags/attire")).json()[
+        "blue_cotton_panties"
+    ] == "sexual_attire"
