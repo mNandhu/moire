@@ -726,6 +726,22 @@ export function useCoverChoices(character: string, outfit: string, tags?: readon
   });
 }
 
+/** An outfit an image wears: how many of its checked tags it carries, and
+ * whether the image is its thumbnail. */
+export type WornOutfit = Outfit & { carried: number; of: number; thumbnail: boolean };
+
+/** The outfits `imageId` wears, for the characters in it: covers first, then
+ * the most carried. */
+export function useWornOutfits(imageId: string, characters: readonly string[]) {
+  const q = characters.map((c) => `&characters=${encodeURIComponent(c)}`).join("");
+  return useQuery({
+    queryKey: [...OUTFITS_KEY, "worn", imageId, characters],
+    queryFn: ({ signal }) => api<WornOutfit[]>(`${BASE}/outfits/worn?image=${encodeURIComponent(imageId)}${q}`, { signal }),
+    enabled: characters.length > 0,
+    staleTime: 30_000,
+  });
+}
+
 /** A character's computed Default outfit. */
 export function useDefaultOutfit(character: string | null) {
   return useQuery({

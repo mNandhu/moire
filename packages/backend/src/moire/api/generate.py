@@ -510,6 +510,16 @@ async def outfit_covers(
     return found
 
 
+@router.get("/outfits/worn")
+async def outfits_worn(image: str, characters: list[str] = Query(default_factory=list)):
+    """The outfits ``image`` wears, for the ``characters`` in it: the
+    viewer's Wearing list."""
+    found = await outfits.worn(image, characters)
+    if found is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return found
+
+
 @router.get("/outfits/prefill")
 async def outfit_prefill(image: str, character: str):
     """The save dialog's tags for ``image`` worn by ``character``."""

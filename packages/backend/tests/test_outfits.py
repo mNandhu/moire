@@ -319,3 +319,38 @@ def test_wears_matches_the_thumbnail_or_most_tags():
     assert outfits.wears(rule, "x", ["a", "c", "z"])
     assert not outfits.wears(rule, "x", ["a"])
     assert not outfits.wears(outfits.WearRule((), 0, None), "x", ["a"])
+
+
+async def test_outfits_worn_by_an_image(client, seed, monkeypatch):
+    monkeypatch.setattr(tag_categories, "load", _chars(HU, hu_tao="genshin_impact"))
+    await asyncio.to_thread(_library, seed)
+    seed("L1:all", tags=(HU, "porkpie_hat", "long_coat", "prompt:black_shorts"))
+    seed("L1:one", tags=(HU, "long_coat"))
+    o = (
+        await client.post(
+            "/generate/outfits",
+            json={
+                "name": "Funeral",
+                "character": HU,
+                "tags": ["porkpie hat", "long coat", "black shorts"],
+                "image_id": "L1:one",
+                "shared": True,
+            },
+        )
+    ).json()
+
+    async def worn(image):
+        r = await client.get(
+            "/generate/outfits/worn", params={"image": image, "characters": [HU, HU]}
+        )
+        return r
+
+    got = (await worn("L1:all")).json()
+    funeral = [w for w in got if w["_id"] == o["_id"]]
+    assert len(funeral) == 1
+    assert funeral[0]["carried"] == 3 and funeral[0]["of"] == 3
+    assert not funeral[0]["thumbnail"]
+    # Its thumbnail wears it with one tag of three, and comes first.
+    got = (await worn("L1:one")).json()
+    assert got[0]["_id"] == o["_id"] and got[0]["thumbnail"]
+    assert (await worn("L1:nope")).status_code == 404

@@ -12,6 +12,7 @@ import { CharacterAvatar } from "./CharacterAvatar";
 import { usePinCover } from "../hooks/usePinCover";
 import { SaveOutfitDialog } from "./generate/SaveOutfitDialog";
 import { OutfitMenu } from "./generate/OutfitCover";
+import { WornOutfits } from "./generate/WornOutfits";
 
 /** Every character in the library; shared by the image view and character pages. */
 export function useCharacters() {
@@ -58,6 +59,8 @@ export function ImageCharacters({
     const names = new Set((tags ?? []).map(tagName));
     return (characters ?? []).filter((c) => [c.tag, ...c.aliases].some((n) => names.has(n)));
   }, [tags, characters]);
+  const bases = useMemo(() => new Set((tags ?? []).map((t) => tagName(t).toLowerCase())), [tags]);
+  const names = useMemo(() => new Map(here.map((c) => [c.tag, displayName(c).name])), [here]);
   if (!here.length) return null;
 
   const pinAvatar = async (c: CharacterEntry) => {
@@ -71,7 +74,7 @@ export function ImageCharacters({
   };
 
   return (
-    <section className="px-4 py-4 space-y-3">
+    <section className="relative px-4 py-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Characters</h2>
         <OutfitMenu imageId={imageId} characters={here} onSave={setSaving} />
@@ -146,6 +149,12 @@ export function ImageCharacters({
           );
         })}
       </div>
+      <WornOutfits
+        imageId={imageId}
+        characters={here.map((c) => c.tag)}
+        imageTags={bases}
+        characterName={(t) => names.get(t) ?? formatTag(t)}
+      />
     </section>
   );
 }

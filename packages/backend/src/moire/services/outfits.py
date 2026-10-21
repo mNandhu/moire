@@ -145,6 +145,58 @@ async def wear_rule(outfit_id: str) -> WearRule | None:
     return None if o is None else rule_of(o)
 
 
+WORN_MAX_CHARACTERS = 10
+
+
+async def worn(image_id: str, characters: list[str]) -> list[dict[str, Any]] | None:
+    """The outfits ``image_id`` wears, for the characters in it: each one's
+    Default (with tags), own outfits and the shared ones it doesn't hide,
+    each outfit once. Every entry is an outfit view plus ``carried`` /
+    ``of`` (its checked tags the image has) and ``thumbnail`` (this image
+    is its cover); covers first, then the most carried. None when the image
+    is unknown."""
+    img = await find_image(image_id)
+    if img is None:
+        return None
+    async with async_conn() as conn:
+        bases = {
+            r[0]
+            for r in await conn.execute(
+                sa.select(t.image_tags.c.base).where(
+                    t.image_tags.c.image_id == img["_id"]
+                )
+            )
+        }
+    found: dict[str, dict[str, Any]] = {}
+    for name in dict.fromkeys(characters[:WORN_MAX_CHARACTERS]):
+        key = await _key(name)
+        if key is None:
+            continue
+        d = await default(key)
+        own = [o for o in await listing(key) if not o["hidden"]]
+        for o in [*([d] if d and d["tags"] else []), *own]:
+            oid = f"{DEFAULT_ID}:{key}" if o["_id"] == DEFAULT_ID else o["_id"]
+            rule = rule_of(o)
+            if oid in found or not wears(rule, img["_id"], bases):
+                continue
+            carried = len(set(rule.tags) & bases)
+            found[oid] = {
+                **o,
+                "character": o["character"] or key,
+                "carried": carried,
+                "of": len(rule.tags),
+                "thumbnail": o["image_id"] == img["_id"],
+            }
+    return sorted(
+        found.values(),
+        key=lambda o: (
+            not o["thumbnail"],
+            -(o["carried"] / o["of"] if o["of"] else 0),
+            o["name"].lower(),
+        ),
+    )
+
+
 async def _key(character: str) -> str | None:
     """The page key for any of a character's names; None when it isn't one."""
     found = await recipes.character_key(character)
