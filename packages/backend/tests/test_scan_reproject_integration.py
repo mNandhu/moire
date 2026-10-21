@@ -406,6 +406,10 @@ async def test_a_file_that_failed_in_a_rebuild_is_read_again(
     fail = {"b.png"}
 
     def flaky_make(path):
+        # Only this library's files: watchers and rescans of libraries left by
+        # other tests run the same function on their own a.png and b.png.
+        if path.parent != lib_dir:
+            return real_make(path)
         opened.append(path.name)
         if path.name in fail:
             raise OSError("share hiccup")
