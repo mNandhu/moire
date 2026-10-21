@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   gridColumns,
+  PHONE_DEFAULT_DENSITY,
   targetTileWidth,
   DENSITY_STEPS,
   MIN_COLUMNS,
@@ -19,6 +20,16 @@ import {
 } from "./masonryLayout";
 
 describe("gridColumns", () => {
+  it("gives a phone one more column per zoom step", () => {
+    const counts = DENSITY_STEPS.map((_, d) => gridColumns(343, d));
+    expect(counts).toEqual([1, 2, 3, 4, 5]);
+    expect(gridColumns(343, PHONE_DEFAULT_DENSITY)).toBe(2);
+  });
+
+  it("never makes phone tiles narrower than a thumb", () => {
+    expect(gridColumns(200, DENSITY_STEPS.length - 1)).toBe(3);
+  });
+
   it("derives columns from the target tile width", () => {
     // DEFAULT_DENSITY targets 250px tiles.
     expect(gridColumns(1000)).toBe(4);

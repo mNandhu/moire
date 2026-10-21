@@ -19,6 +19,20 @@ export const DENSITY_STEPS = [460, 340, 250, 185, 140] as const;
 /** Index into DENSITY_STEPS used when nothing is stored. */
 export const DEFAULT_DENSITY = 2;
 
+/**
+ * Below this container width (a phone) columns come straight from the density
+ * index instead of the px targets: even the densest target fits a 343px phone
+ * column only twice, and the default fits it once, so a phone got one giant
+ * tile per row and only two zoom steps that did anything.
+ */
+export const PHONE_MAX_WIDTH = 600;
+
+/** Narrowest tile a phone column count may produce. */
+const PHONE_MIN_TILE = 64;
+
+/** Default density on a phone: two columns, like any phone gallery. */
+export const PHONE_DEFAULT_DENSITY = 1;
+
 /** Hard bounds on the derived column count. */
 export const MIN_COLUMNS = 1;
 export const MAX_COLUMNS = 14;
@@ -43,6 +57,11 @@ export function gridColumns(
   density: number = DEFAULT_DENSITY,
 ): number {
   if (containerWidth <= 0) return MIN_COLUMNS;
+  if (containerWidth < PHONE_MAX_WIDTH) {
+    const i = Math.max(0, Math.min(DENSITY_STEPS.length - 1, Math.round(density)));
+    const fit = Math.floor(containerWidth / PHONE_MIN_TILE);
+    return Math.max(MIN_COLUMNS, Math.min(i + 1, fit));
+  }
   const target = targetTileWidth(density);
   const cols = Math.round(containerWidth / target);
   return Math.max(MIN_COLUMNS, Math.min(MAX_COLUMNS, cols));
