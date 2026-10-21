@@ -5,7 +5,10 @@ import { Section } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { Checkbox } from "../../../components/ui/Checkbox";
 import { ProgressBar } from "../../../components/ui/ProgressBar";
+import { Picker } from "../../../components/ui/Picker";
 import { api } from "../../../lib/api";
+import { SETTINGS_KEY, putSettings, useComfySettings, type ComfySettings } from "../../../lib/generate";
+import { useToast } from "../../../components/Toasts";
 import { TAGS_KEY } from "../../../lib/queries";
 import { formatBytes, useSettings } from "../SettingsContext";
 
@@ -63,6 +66,7 @@ export function CharactersSection() {
 
   return (
     <div className="space-y-5">
+      <NewCharacterOutfit />
       <Section
         title="Face detection"
         description="Crops each character's avatar to their face. Uses a small model made for anime art (about 12 MB) that runs on this computer."
@@ -132,5 +136,40 @@ export function CharactersSection() {
         </div>
       )}
     </div>
+  );
+}
+
+const OUTFIT_STARTS = [
+  { value: "none", label: "No outfit" },
+  { value: "default", label: "Their usual clothes" },
+];
+
+/** What a character picked in Generate starts wearing. Saved at once. */
+function NewCharacterOutfit() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const { data: comfy } = useComfySettings();
+  const pick = async (v: string) => {
+    try {
+      qc.setQueryData(SETTINGS_KEY, await putSettings({ new_character_outfit: v as ComfySettings["new_character_outfit"] }));
+    } catch (e) {
+      toast.push(e instanceof Error ? e.message : "Couldn't save", "error");
+    }
+  };
+  return (
+    <Section title="Outfits in Generate">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm text-neutral-200">New characters wear</span>
+        <div className="w-56">
+          <Picker
+            value={comfy?.new_character_outfit ?? "none"}
+            options={OUTFIT_STARTS}
+            onChange={(v) => void pick(v)}
+            aria-label="New characters wear"
+            disabled={!comfy}
+          />
+        </div>
+      </div>
+    </Section>
   );
 }

@@ -18,6 +18,8 @@ import { bareTagPool } from "./ChipInput";
 import { ExpandButton } from "./Layers";
 import { MAX_CHARACTERS, replaceCharacter } from "../../lib/generateForm";
 import { NewCharacterDialog } from "../NewCharacterDialog";
+import { OutfitChips, OutfitPicker, useCharacterOutfits } from "./Outfit";
+import { wornTags, type OutfitPick, type Outfits } from "../../lib/outfit";
 import { TagSuggestList, useTagMatches } from "../TagSuggestList";
 import { useTagAggregate } from "../../lib/queries";
 
@@ -370,12 +372,17 @@ function CharacterRow({
   open = false,
   onPickerClose,
   taken,
+  outfit,
+  onOutfit,
 }: {
   value: string | null;
   onChange: (tag: string | null) => void;
   installedLoras: readonly string[];
   rejectedLoras: ReadonlySet<string>;
   taken?: readonly string[];
+  /** What they wear in this batch. */
+  outfit?: OutfitPick;
+  onOutfit?: (pick: OutfitPick | null) => void;
   /** With no character: the picker starts open. */
   open?: boolean;
   onPickerClose?: () => void;
@@ -476,9 +483,11 @@ function CharacterRow({
         <X size={14} />
       </button>
       </div>
+      {onOutfit && <WearsLine character={value} outfit={outfit} onOutfit={onOutfit} folded={!expanded} />}
       {expanded && recipe && (
         <div className="mt-2 space-y-4 border-t border-line pb-2 pt-3">
           <RecipeEditor recipe={recipe} label={name} installedLoras={installedLoras} rejectedLoras={rejectedLoras} />
+          {outfit && onOutfit && <OutfitFold character={value} outfit={outfit} onOutfit={onOutfit} />}
           <Link to={characterHref(value)} className="inline-block text-xs text-muted hover:text-neutral-100">
             {recipe.count.toLocaleString()} {recipe.count === 1 ? "image" : "images"} · character page
           </Link>
@@ -495,6 +504,51 @@ function CharacterRow({
   );
 }
 
+/** A character's "Wears" line: the outfit picker, and folded, its tags. */
+function WearsLine({
+  character,
+  outfit,
+  onOutfit,
+  folded,
+}: {
+  character: string;
+  outfit: OutfitPick | undefined;
+  onOutfit: (pick: OutfitPick | null) => void;
+  folded: boolean;
+}) {
+  const worn = wornTags(outfit).map(displayWord).join(", ");
+  return (
+    <div className="flex min-w-0 items-center gap-2.5 pb-1 pl-[5.25rem] pt-1.5">
+      <span className="shrink-0 text-xs text-muted">Wears</span>
+      <OutfitPicker character={character} value={outfit} onChange={onOutfit} />
+      {folded && (
+        <span className="min-w-0 flex-1 truncate text-xs text-faint" title={worn}>
+          {worn}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** The unfolded character's outfit chips (edits are this batch's). */
+function OutfitFold({
+  character,
+  outfit,
+  onOutfit,
+}: {
+  character: string;
+  outfit: OutfitPick;
+  onOutfit: (pick: OutfitPick | null) => void;
+}) {
+  const { groups } = useCharacterOutfits(character);
+  return (
+    <div>
+      <FieldLabel>Outfit</FieldLabel>
+      <OutfitChips pick={outfit} groups={groups} onChange={onOutfit} />
+    </div>
+  );
+}
+
 /**
  * The Character layer: one row per picked character, in prompt order, each
  * unfolding its recipe below. With none, just the picker.
@@ -508,9 +562,13 @@ export function CharacterLayer({
   rejectedLoras,
   adding = false,
   onAdded,
+  outfits,
+  onOutfit,
 }: {
   value: readonly string[];
   onChange: (tags: string[]) => void;
+  outfits?: Outfits;
+  onOutfit?: (character: string, pick: OutfitPick | null) => void;
   installedLoras: readonly string[];
   rejectedLoras: ReadonlySet<string>;
   adding?: boolean;
@@ -541,6 +599,8 @@ export function CharacterLayer({
           installedLoras={installedLoras}
           rejectedLoras={rejectedLoras}
           taken={value}
+          outfit={outfits?.[tag]}
+          onOutfit={onOutfit && ((p) => onOutfit(tag, p))}
         />
       ))}
       {adding && value.length < MAX_CHARACTERS && (

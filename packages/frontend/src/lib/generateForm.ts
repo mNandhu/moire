@@ -23,6 +23,7 @@ import type {
   Sampling,
   StyleLora,
 } from "./generate";
+import { keepPicked, pickFromInput, validOutfits, type Outfits } from "./outfit";
 
 export type PresetRef = { id: string; text: string } | null;
 
@@ -54,6 +55,8 @@ export type GenerateForm = {
   /** The picked characters' page keys, in prompt order; each one's block
    * comes from its recipe. */
   characters: string[];
+  /** What each picked character wears; absent wears nothing. */
+  outfits: Outfits;
   width: number;
   height: number;
   seed: { mode: "random" | "fixed"; value: number | null };
@@ -80,6 +83,7 @@ export const DEFAULT_FORM: GenerateForm = {
   sampling: {},
   loras: [],
   characters: [],
+  outfits: {},
   width: 832,
   height: 1216,
   seed: { mode: "random", value: null },
@@ -163,7 +167,7 @@ export function toParts(
 }
 
 /** What the backend will send, for the "Prompt as sent" preview: each
- * character's tags are their own block. */
+ * character's tags are their own block (what they wear another, right after). */
 export function previewText(parts: readonly PromptPart[], characterTags: readonly (readonly string[])[]): string {
   return composeParts(
     parts.flatMap((p) =>
@@ -311,6 +315,7 @@ function loraPresetOf(composer: Record<string, unknown> | null | undefined, name
  * stays; an auto name is picked again. */
 export function formFromBatch(i: BatchInputs, name: string | null, workflow = "builtin"): GenerateForm {
   const c = i.composer && (i.composer as { v?: unknown }).v === 2 ? composerFrom(i.composer) : null;
+  const chars = i.characters ?? (i.character ? [i.character] : []);
   return {
     ...DEFAULT_FORM,
     ...(c ?? {
@@ -320,7 +325,11 @@ export function formFromBatch(i: BatchInputs, name: string | null, workflow = "b
     checkpoint: i.checkpoint,
     sampling: { ...i.sampling },
     loras: i.loras.map((l) => ({ ...l, preset: loraPresetOf(i.composer, l.name) })),
-    characters: (i.characters ?? (i.character ? [i.character] : [])).map((c) => c.tag),
+    characters: chars.map((c) => c.tag),
+    outfits: Object.fromEntries(chars.flatMap((c) => {
+      const p = pickFromInput(c.outfit);
+      return p ? [[c.tag, p]] : [];
+    })),
     width: i.width ?? DEFAULT_FORM.width,
     height: i.height ?? DEFAULT_FORM.height,
     seed: i.seed.mode === "fixed" ? { ...i.seed } : { mode: "random", value: null },
@@ -396,6 +405,7 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     // Drafts from before several characters keep their one.
     if (Array.isArray(d.characters)) out.characters = [...new Set<string>(d.characters.filter(isStr))].slice(0, MAX_CHARACTERS);
     else if (isStr(d.character)) out.characters = [d.character];
+    out.outfits = keepPicked(validOutfits(d.outfits), out.characters);
     if (isStr(d.name) || d.name === null) out.name = d.name;
     if (isStr(d.workflow) && d.workflow) out.workflow = d.workflow;
     for (const k of ["width", "height", "count"] as const) if (typeof d[k] === "number") out[k] = d[k];

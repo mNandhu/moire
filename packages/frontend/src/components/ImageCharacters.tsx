@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Pin } from "lucide-react";
+import { Loader2, Pin, Shirt } from "lucide-react";
 import { api } from "../lib/api";
 import { cn } from "../lib/cn";
 import { TAGS_KEY } from "../lib/queries";
@@ -10,6 +10,8 @@ import { formatTag, tagName } from "../lib/tags";
 import { characterHref, displayName, type CharacterEntry } from "../lib/character";
 import { CharacterAvatar } from "./CharacterAvatar";
 import { usePinCover } from "../hooks/usePinCover";
+import { DropdownMenu } from "./ui";
+import { SaveOutfitDialog } from "./generate/SaveOutfitDialog";
 
 /** Every character in the library; shared by the image view and character pages. */
 export function useCharacters() {
@@ -50,6 +52,8 @@ export function ImageCharacters({
   // Which character's avatar is changing: one image, several characters.
   const [pinning, setPinning] = useState<string | null>(null);
   const { push } = useToast();
+  // Whose outfit the save dialog is making.
+  const [saving, setSaving] = useState<CharacterEntry | null>(null);
   const here = useMemo(() => {
     const names = new Set((tags ?? []).map(tagName));
     return (characters ?? []).filter((c) => [c.tag, ...c.aliases].some((n) => names.has(n)));
@@ -68,7 +72,37 @@ export function ImageCharacters({
 
   return (
     <section className="px-4 py-4 space-y-3">
-      <h2 className="text-sm font-semibold">Characters</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">Characters</h2>
+        {here.length === 1 ? (
+          <button
+            type="button"
+            onClick={() => setSaving(here[0])}
+            className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
+          >
+            <Shirt size={12} /> Save outfit
+          </button>
+        ) : (
+          <DropdownMenu
+            size="sm"
+            label={
+              <>
+                <Shirt size={12} /> Save outfit
+              </>
+            }
+            items={here.map((c) => ({ label: displayName(c).name, onClick: () => setSaving(c) }))}
+          />
+        )}
+      </div>
+      {saving && (
+        <SaveOutfitDialog
+          open
+          onClose={() => setSaving(null)}
+          character={saving.tag}
+          characterName={displayName(saving).name}
+          imageId={imageId}
+        />
+      )}
       <div className="flex flex-wrap gap-x-4 gap-y-3">
         {here.map((c) => {
           const { name, series } = displayName(c);

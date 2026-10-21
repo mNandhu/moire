@@ -20,6 +20,8 @@ export type ComfySettings = {
   ca_cert: string;
   /** Fetch finished images from ComfyUI when they aren't in the output folder. */
   download_outputs: boolean;
+  /** What a character picked in Generate starts wearing. */
+  new_character_outfit: "none" | "default";
 };
 
 export const HEADER_MASK = "••••";
@@ -241,7 +243,50 @@ export type LoraPick = { name: string; strength: number };
 export type StyleLora = LoraPick & { preset?: { id: string; text: string } | null };
 
 /** The Character block as queued: tag, display label, the tags sent, its LoRA file. */
-export type CharacterInput = { tag: string; label: string; tags: string[]; lora: LoraPick | null };
+/** What a character wears in a batch: a saved outfit's id (or "default"),
+ * its name, and the tags sent. */
+export type OutfitInput = { id: string; name: string; tags: string[] };
+
+export type CharacterInput = {
+  tag: string;
+  label: string;
+  tags: string[];
+  lora: LoraPick | null;
+  outfit?: OutfitInput | null;
+};
+
+/** An outfit tag: its attire group, and whether the tagger can see it. */
+export type OutfitTag = { tag: string; group: string | null; checkable: boolean };
+
+/** A saved outfit, or a character's computed Default (`_id` "default"). */
+export type Outfit = {
+  _id: string;
+  name: string;
+  /** The character it was made for. */
+  character: string;
+  shared: boolean;
+  tags: OutfitTag[];
+  /** Its thumbnail; null when the image is gone from the library. */
+  image_id: string | null;
+  /** A shared one this character's list leaves out. */
+  hidden: boolean;
+  batches?: number;
+  /** How many characters wore it in those batches. */
+  used_by?: number;
+  /** Default only: the character's images it was read from. */
+  images?: number;
+};
+
+export const DEFAULT_OUTFIT = "default";
+
+/** The save dialog's start: the image's attire, then the character's usual. */
+export type OutfitPrefill = {
+  image_id: string;
+  character: string;
+  tags: (OutfitTag & { source: "image" | "usual" })[];
+};
+
+export type OutfitBody = { name: string; character: string; tags: string[]; shared: boolean; image_id: string | null };
 
 /** A character's computed recipe with the user's edits on top. */
 export type Recipe = {
@@ -416,6 +461,9 @@ export const batchKey = (id: number) => [...GEN_KEY, "batch", id] as const;
 export const PRESETS_KEY = [...GEN_KEY, "presets"] as const;
 export const LORA_PRESETS_KEY = [...GEN_KEY, "lora-presets"] as const;
 export const recipeKey = (tag: string) => [...GEN_KEY, "recipe", tag] as const;
+export const OUTFITS_KEY = [...GEN_KEY, "outfits"] as const;
+export const outfitsKey = (character: string | null) => [...OUTFITS_KEY, "list", character ?? ""] as const;
+export const defaultOutfitKey = (character: string) => [...OUTFITS_KEY, "default", character] as const;
 
 export const getSettings = () => api<ComfySettings>(`${BASE}/comfyui`);
 export const putSettings = (patch: Partial<ComfySettings> & { output_path?: string | null }) =>
@@ -457,6 +505,19 @@ export const getGeneratorLatest = (id: string, signal?: AbortSignal) =>
   api<{ newer: NewerVersion | null }>(`${BASE}/generators/${encodeURIComponent(id)}/latest`, { signal });
 export const putRecipe = (tag: string, patch: RecipePatch) =>
   send<Recipe>(`/recipes/${encodeURIComponent(tag)}`, "PUT", patch);
+export const fetchDefaultOutfit = (character: string, signal?: AbortSignal) =>
+  api<Outfit>(`${BASE}/outfits/default?character=${encodeURIComponent(character)}`, { signal });
+export const fetchOutfitPrefill = (image: string, character: string, signal?: AbortSignal) =>
+  api<OutfitPrefill>(
+    `${BASE}/outfits/prefill?image=${encodeURIComponent(image)}&character=${encodeURIComponent(character)}`,
+    { signal },
+  );
+export const createOutfit = (body: OutfitBody) => send<Outfit>("/outfits", "POST", body);
+export const updateOutfit = (id: string, patch: Partial<OutfitBody>) =>
+  send<Outfit>(`/outfits/${encodeURIComponent(id)}`, "PUT", patch);
+export const deleteOutfit = (id: string) => send<{ ok: boolean }>(`/outfits/${encodeURIComponent(id)}`, "DELETE");
+export const hideOutfit = (id: string, character: string, hidden: boolean) =>
+  send<{ ok: boolean }>(`/outfits/${encodeURIComponent(id)}/hidden`, "PUT", { character, hidden });
 export const createPreset = (p: Pick<Preset, "name" | "kind" | "text">) => send<Preset>("/presets", "POST", p);
 export const updatePreset = (id: string, p: Partial<Pick<Preset, "name" | "text">>) =>
   send<Preset>(`/presets/${encodeURIComponent(id)}`, "PUT", p);
@@ -610,6 +671,25 @@ export function useRecipe(tag: string | null) {
     queryKey: recipeKey(tag ?? ""),
     queryFn: ({ signal }) => api<Recipe>(`${BASE}/recipes/${encodeURIComponent(tag!)}`, { signal }),
     enabled: !!tag,
+  });
+}
+
+/** Every saved outfit, or one character's list (own and shared). */
+export function useOutfits(character: string | null = null) {
+  return useQuery({
+    queryKey: outfitsKey(character),
+    queryFn: ({ signal }) =>
+      api<Outfit[]>(`${BASE}/outfits${character ? `?character=${encodeURIComponent(character)}` : ""}`, { signal }),
+  });
+}
+
+/** A character's computed Default outfit. */
+export function useDefaultOutfit(character: string | null) {
+  return useQuery({
+    queryKey: defaultOutfitKey(character ?? ""),
+    queryFn: ({ signal }) => fetchDefaultOutfit(character!, signal),
+    enabled: !!character,
+    staleTime: 5 * 60_000,
   });
 }
 

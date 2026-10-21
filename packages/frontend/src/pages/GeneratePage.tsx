@@ -37,6 +37,9 @@ import {
   startTest,
   useComfyModels,
   useComfySettings,
+  DEFAULT_OUTFIT,
+  defaultOutfitKey,
+  fetchDefaultOutfit,
   useComfyStatus,
   useBatches,
   useGenerators,
@@ -72,6 +75,7 @@ import { characterPageQuery, useTagAggregate } from "../lib/queries";
 import { characterColours, displayName, mixColours } from "../lib/character";
 import { useAmbientTint } from "../lib/ambient";
 import { characterInput, characterTags } from "../lib/recipe";
+import { keepPicked, outfitInput, pickOf, wornTags, type OutfitPick } from "../lib/outfit";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
 
@@ -193,6 +197,29 @@ export default function GeneratePage() {
   const [addingCharacter, setAddingCharacter] = useState(false);
   const addCharacter = form.characters.length < MAX_CHARACTERS ? () => setAddingCharacter(true) : undefined;
   const set = <K extends keyof GenerateForm>(k: K, v: GenerateForm[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const setOutfit = (tag: string, pick: OutfitPick | null) =>
+    setForm((f) => {
+      const outfits = { ...f.outfits };
+      if (pick) outfits[tag] = pick;
+      else delete outfits[tag];
+      return { ...f, outfits };
+    });
+  // A character the user picks starts wearing what Settings says (No outfit
+  // unless set to Default); a remix or a replayed batch brings its own.
+  const setCharacters = (tags: string[]) => {
+    const added = tags.filter((t) => !form.characters.includes(t));
+    setForm((f) => ({ ...f, characters: tags, outfits: keepPicked(f.outfits, tags) }));
+    if (settings?.new_character_outfit !== "default") return;
+    for (const tag of added) {
+      void qc
+        .fetchQuery({ queryKey: defaultOutfitKey(tag), queryFn: ({ signal }) => fetchDefaultOutfit(tag, signal), staleTime: 5 * 60_000 })
+        .then((o) => {
+          if (!o.tags.length) return;
+          setForm((f) => (f.characters.includes(tag) && !f.outfits[tag] ? { ...f, outfits: { ...f.outfits, [tag]: pickOf(o) } } : f));
+        })
+        .catch(() => {});
+    }
+  };
 
   useEffect(() => saveDraft(form), [form]);
   // A remix made from the viewer while this page sat under it: the page
@@ -252,14 +279,17 @@ export default function GeneratePage() {
   // Each block as it would be sent; null until its recipe has loaded.
   const inputs = form.characters.map((tag, i) => {
     const r = recipes[i];
-    return r && r.tag === tag ? characterInput(r, labels[i]) : null;
+    return r && r.tag === tag ? { ...characterInput(r, labels[i]), outfit: outfitInput(form.outfits[tag]) } : null;
   });
   const characters = inputs.every((c) => c) ? (inputs as CharacterInput[]) : null;
+  const oneWorn = form.characters.length === 1 ? form.outfits[form.characters[0]] : undefined;
   const autoName = autoBatchName({
     number: null,
     generator: gen?.name ?? "Built-in",
     extra: nameWords(form),
     character: labels.length ? labels.join(" & ") : null,
+    // As the backend names it: one character's saved outfit, not Default.
+    outfit: oneWorn && oneWorn.id !== DEFAULT_OUTFIT && wornTags(oneWorn).length ? oneWorn.name : null,
   });
 
   // The page takes the picked characters' colours: one character's own
@@ -335,7 +365,7 @@ export default function GeneratePage() {
   const parts = toParts(form, presets, loraPresets);
   const positive = previewText(
     parts.positive,
-    recipes.flatMap((r) => (r ? [characterTags(r)] : [])),
+    recipes.flatMap((r) => (r ? [characterTags(r), wornTags(form.outfits[r.tag])] : [])),
   );
   const negative = previewText(parts.negative, []);
   const countFix = counts?.expected?.length
@@ -399,7 +429,9 @@ export default function GeneratePage() {
                   ) : blk.kind === "character" ? (
                     <CharacterLayer
                       value={form.characters}
-                      onChange={(v) => set("characters", v)}
+                      onChange={setCharacters}
+                      outfits={form.outfits}
+                      onOutfit={setOutfit}
                       adding={addingCharacter}
                       onAdded={() => setAddingCharacter(false)}
                       installedLoras={models?.loras ?? NO_STRINGS}
