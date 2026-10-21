@@ -1,0 +1,75 @@
+name: Release
+
+# Builds the app wheel (backend + built UI) for a vX.Y.Z tag and attaches it to
+# a GitHub Release. Cut releases with the /moire-release skill.
+#
+# OFF until versioning starts: set the repository variable RELEASE_ENABLED to
+# "true" (Settings > Secrets and variables > Actions > Variables) to turn it on.
+# A manual run (Actions > Release > Run workflow) builds the wheel as an
+# artifact without publishing, to try it out while it is off.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: vars.RELEASE_ENABLED == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Tag matches every version file
+        if: github.ref_type == 'tag'
+        run: node scripts/version.mjs check "$GITHUB_REF_NAME"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Build the UI into the backend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Build the wheel and sdist
+        run: |
+          uv --directory packages/backend build --out-dir "$GITHUB_WORKSPACE/dist"
+          # The wheel is the app: refuse one without the UI in it.
+          unzip -l dist/*.whl | grep -q "src/web/index.html"
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: moire-${{ github.ref_name }}
+          path: dist/
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag' && vars.RELEASE_ENABLED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Notes are this version's CHANGELOG.md section.
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "Moiré $VERSION" --notes-file notes.md --verify-tag

@@ -6,6 +6,11 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 
 ## [Unreleased]
 
+### Added
+
+- Single-port mode: `pnpm build` writes the UI into the backend, which then serves it, so Moiré runs as one process on one port (http://localhost:8000).
+- Release tooling: one version across `pyproject.toml`, `uv.lock` and both `package.json` files (`pnpm version:set`, `pnpm version:check`), and a release workflow that builds the app wheel for a `vX.Y.Z` tag. The workflow stays off until the `RELEASE_ENABLED` repository variable is `true`.
+
 ### Changed
 
 - Renamed the project from Tagify to Moiré. Code identifiers, paths and settings use `moire`: the database defaults to `data/moire.db`, the model cache to `.cache/moire/models`, logs to `moire.log`, the Docker volume is `moire_data`, and environment variables are `MOIRE_*` (formerly `TAGIFY_*`). There is no automatic migration; move an existing `tagify.db` (with its `-wal`/`-shm` files) to the new name by hand.

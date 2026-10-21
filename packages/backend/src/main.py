@@ -19,6 +19,7 @@ from .web_ui import mount_web_ui
 
 import logging
 import time
+from importlib.metadata import PackageNotFoundError, version
 import anyio  # type: ignore[import-not-found]
 import sqlalchemy as sa
 
@@ -83,7 +84,15 @@ async def lifespan(app: FastAPI):
     await get_generation_manager().stop()
 
 
-app = FastAPI(title="Moiré API", version="0.1.0", lifespan=lifespan)
+def _app_version() -> str:
+    try:
+        return version("moire-backend")
+    except PackageNotFoundError:  # running from a tree that was never synced
+        return "0.0.0"
+
+
+# pyproject.toml is the one version (scripts/version.mjs keeps the rest in step).
+app = FastAPI(title="Moiré API", version=_app_version(), lifespan=lifespan)
 
 
 class GZipExceptMedia:
