@@ -55,6 +55,7 @@ import {
   MAX_CHARACTERS,
   loadDraft,
   nameWords,
+  presetText,
   previewText,
   rejectedFields,
   removeBlock,
@@ -65,6 +66,7 @@ import {
   updateBlock,
   type GenerateForm,
 } from "../lib/generateForm";
+import { PrefixRepeats } from "../components/generate/PrefixRepeats";
 import { checkCountTags, fixCountTags, type Kind } from "../lib/countTags";
 import { queueTitle } from "../lib/eta";
 import { cn } from "../lib/cn";
@@ -446,7 +448,12 @@ export default function GeneratePage() {
                     <AddLayer onAdd={(k) => set("blocks", insertBlock(form.blocks, i, k))} onCharacter={addCharacter} />
                   )}
                   {blk.kind === "prefix" ? (
-                    <LayerRow label="Prefix">
+                    <LayerRow
+                      label="Prefix"
+                      footer={
+                        <PrefixRepeats prefix={presetText(form.prefix, presets)} prompt={form.prompt} onPrompt={(v) => set("prompt", v)} />
+                      }
+                    >
                       <PresetControl kind="positive" value={form.prefix} onChange={(v) => set("prefix", v)} presets={presets} label="Prefix preset" />
                     </LayerRow>
                   ) : blk.kind === "character" ? (

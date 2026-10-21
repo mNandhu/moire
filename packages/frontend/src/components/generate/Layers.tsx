@@ -24,14 +24,17 @@ export function LayerRow({
   children,
   onRemove,
   className,
+  footer,
 }: {
   label: string;
   children: React.ReactNode;
   onRemove?: () => void;
   className?: string;
+  /** Under the row, inside the card. */
+  footer?: React.ReactNode;
 }) {
-  return (
-    <Card className={cn("flex min-h-[3.25rem] items-center gap-3 px-3.5 py-2", className)}>
+  const row = (
+    <>
       <span className="w-[4.5rem] shrink-0 text-xs font-medium text-muted">{label}</span>
       <div className="flex min-w-0 flex-1 items-center gap-2.5">{children}</div>
       {onRemove && (
@@ -45,6 +48,13 @@ export function LayerRow({
           <X size={14} />
         </button>
       )}
+    </>
+  );
+  if (!footer) return <Card className={cn("flex min-h-[3.25rem] items-center gap-3 px-3.5 py-2", className)}>{row}</Card>;
+  return (
+    <Card className={cn("px-3.5 py-2", className)}>
+      <div className="flex min-h-[2.25rem] items-center gap-3">{row}</div>
+      {footer}
     </Card>
   );
 }
