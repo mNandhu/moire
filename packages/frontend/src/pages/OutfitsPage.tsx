@@ -38,7 +38,9 @@ function OutfitCard({ o }: { o: Outfit }) {
       <div className="flex flex-col gap-2 px-3.5 pb-3.5 pt-3">
         <div className="flex items-center gap-2">
           <h3 className="truncate text-sm font-semibold text-neutral-50">{o.name}</h3>
-          {o.shared && <Badge tone="brand">Shared</Badge>}
+          {/* Phones: "any character" below already says it, and the
+              name needs the width. */}
+          {o.shared && <Badge tone="brand" className="hidden sm:inline-flex">Shared</Badge>}
         </div>
         <span className="inline-flex items-center gap-1.5 text-xs text-muted">
           {o.shared ? (

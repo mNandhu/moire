@@ -398,12 +398,15 @@ export default function LibrariesPage() {
                 )}
               </div>
               <div className={cn("flex items-center gap-1 shrink-0", deleting && "invisible")}>
+                {/* Phones: the name already links there, and the room
+                    goes to the facts instead. */}
                 <ButtonLink
                   size="sm"
                   variant="ghost"
                   to={libraryGalleryHref(l._id)}
                   aria-label="Show images"
                   title="Show its images in the gallery"
+                  className="hidden sm:inline-flex"
                 >
                   <Images size={14} />
                   <span className="hidden sm:inline">Images</span>
@@ -538,9 +541,13 @@ export default function LibrariesPage() {
           <div className="flex items-center gap-3">
             {refreshing && !initialLoading && (
               <span className="flex items-center gap-2 text-xs text-neutral-400">
-                <Spinner className="h-3 w-3" /> Refreshing…
+                <Spinner className="h-3 w-3" />
+                <span className="hidden sm:inline">Refreshing…</span>
               </span>
             )}
+            {/* Phones keep the title readable: labels shorten to icons
+                (or to a word) and the buttons keep their names for
+                screen readers through aria-label. */}
             {selecting && (
               <>
                 <Button
@@ -549,16 +556,22 @@ export default function LibrariesPage() {
                       ? setPicked(new Set())
                       : setPickedMany(libs.map((l) => l._id), true)
                   }
+                  aria-label={selected.length === libs.length ? "Select none" : "Select all"}
                 >
-                  {selected.length === libs.length ? "Select none" : "Select all"}
+                  <span className="sm:hidden">{selected.length === libs.length ? "None" : "All"}</span>
+                  <span className="hidden sm:inline">
+                    {selected.length === libs.length ? "Select none" : "Select all"}
+                  </span>
                 </Button>
                 <Button
                   variant="dangerSoft"
                   onClick={() => void deleteSelected()}
                   disabled={!selected.length}
+                  aria-label={`Delete${selected.length ? ` ${selected.length}` : ""}`}
                 >
                   <Trash2 size={15} />
-                  Delete{selected.length ? ` ${selected.length}` : ""}
+                  <span className="hidden sm:inline">Delete</span>
+                  {selected.length ? <span className="tabular-nums">{selected.length}</span> : null}
                 </Button>
               </>
             )}
@@ -567,14 +580,15 @@ export default function LibrariesPage() {
                 active={selecting}
                 onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
                 title={selecting ? "Done selecting" : "Select libraries to delete several at once"}
+                aria-label={selecting ? "Done" : "Select"}
               >
                 {selecting ? <CheckSquare size={16} /> : <Square size={16} />}
-                {selecting ? "Done" : "Select"}
+                <span className="hidden sm:inline">{selecting ? "Done" : "Select"}</span>
               </Button>
             )}
-            <Button variant="primary" onClick={() => setAddOpen(true)}>
+            <Button variant="primary" onClick={() => setAddOpen(true)} aria-label="Add library">
               <Plus size={16} />
-              Add library
+              <span className="hidden sm:inline">Add library</span>
             </Button>
           </div>
         }
