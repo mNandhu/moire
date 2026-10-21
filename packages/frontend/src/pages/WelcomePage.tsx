@@ -211,6 +211,17 @@ function Setup({ info, onLeave }: { info: OnboardingInfo | undefined; onLeave: (
     return failed.length === 0;
   };
 
+  /** Jump to a step from the list. Leaving the folders step forward syncs
+   * the libraries first, the same as Continue does. */
+  const goTo = async (i: number) => {
+    if (i === at) return;
+    if (at === 0 && i > 0) {
+      if (!folders.length || counting) return;
+      if (!(await createLibraries())) return;
+    }
+    setAt(i);
+  };
+
   const next = async () => {
     if (at === 0) {
       if (await createLibraries()) go(1);
@@ -260,7 +271,7 @@ function Setup({ info, onLeave }: { info: OnboardingInfo | undefined; onLeave: (
                   type="button"
                   disabled={i > reached || creating}
                   aria-current={current ? "step" : undefined}
-                  onClick={() => setAt(i)}
+                  onClick={() => void goTo(i)}
                   className={cn(
                     "grid w-full grid-cols-[22px_minmax(0,1fr)] items-start gap-2.5 rounded-lg p-1.5 text-left text-muted md:px-2 md:py-2.5",
                     "enabled:hover:bg-surface enabled:hover:text-neutral-100 disabled:opacity-55",

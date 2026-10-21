@@ -17,6 +17,8 @@ import { Group, Help, StepHeading, SwitchRow } from "./parts";
 export function TaggingStep({ images, capped, checkout }: { images: number; capped: boolean; checkout: boolean }) {
   const cpu = images * CPU_SECONDS_PER_IMAGE;
   const gpu = images * GPU_SECONDS_PER_IMAGE;
+  // From the same rates as the bars, so the claim and the bars agree.
+  const faster = Math.round(CPU_SECONDS_PER_IMAGE / GPU_SECONDS_PER_IMAGE);
   const command = gpuInstallCommand(checkout);
   const [copied, setCopied] = useState(false);
 
@@ -61,7 +63,7 @@ export function TaggingStep({ images, capped, checkout }: { images: number; capp
       <Group>
         <div className="rounded-lg border border-brand-400/45 bg-brand-600/[0.07] px-3.5 py-3 text-[13px] leading-normal text-muted">
           <b className="mb-0.5 block font-medium text-neutral-100">Have an NVIDIA GPU? Use the GPU build</b>
-          It tags about 9 times faster. The download is about 2 GB, and you need the NVIDIA driver, nothing else.
+          It tags about {faster} times faster. The download is about 2 GB, and you need the NVIDIA driver, nothing else.
           Close Moiré, then run:
           <div className="my-2.5 flex items-center gap-2 rounded-lg border border-line bg-sunken py-1 pl-3 pr-1">
             <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap py-1 font-mono text-[12.5px] text-neutral-100">

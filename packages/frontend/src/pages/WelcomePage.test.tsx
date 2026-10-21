@@ -39,6 +39,7 @@ beforeEach(() => {
         return json({ sources: [source(p, !p.includes("missing"))] });
       }
       if (url.endsWith("/libraries") && method === "POST") return json({ _id: "lib1", ...(body as object) });
+      if (url.includes("/libraries/") && method === "DELETE") return json({ ok: true });
       if (url.endsWith("/generate/comfyui")) return json({ address: "" });
       return json([]);
     }),
@@ -114,5 +115,30 @@ describe("WelcomePage setup", () => {
     await waitFor(() =>
       expect(calls.filter((c) => c.url.endsWith("/libraries") && c.method === "POST")).toHaveLength(1),
     );
+  });
+
+  it("syncs the libraries when the step list leaves the folders step", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Set up Moiré" }));
+    await addPath("C:\\ComfyUI\\output");
+    await screen.findByText("42 images");
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await screen.findByRole("heading", { name: "ComfyUI" });
+
+    // Back to folders through the list, remove the folder, then jump ahead
+    // through the list instead of Continue.
+    fireEvent.click(screen.getByRole("button", { name: /Image folders/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Remove C:\\ComfyUI\\output" }));
+    await addPath("D:\\renders");
+    await screen.findByText("42 images");
+    fireEvent.click(screen.getByRole("button", { name: /ComfyUI/ }));
+    await screen.findByRole("heading", { name: "ComfyUI" });
+
+    expect(calls.filter((c) => c.method === "DELETE").map((c) => c.url)).toEqual(["/api/v1/libraries/lib1"]);
+    const posted = calls.filter((c) => c.url.endsWith("/libraries") && c.method === "POST").map((c) => c.body);
+    expect(posted).toEqual([
+      { path: "C:\\ComfyUI\\output", name: "output" },
+      { path: "D:\\renders", name: "output" },
+    ]);
   });
 });
