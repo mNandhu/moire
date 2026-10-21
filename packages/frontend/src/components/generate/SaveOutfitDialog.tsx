@@ -15,10 +15,11 @@ import {
   putDefaultOutfit,
   deleteOutfit,
   fetchOutfitPrefill,
+  fetchOutfitTagInfo,
   updateOutfit,
   type Outfit,
 } from "../../lib/generate";
-import { useAttireGroups, useTagFacets } from "../../lib/queries";
+import { useAttireGroups } from "../../lib/queries";
 import { AttireTagInput, OutfitChip, OutfitThumb } from "./Outfit";
 import { CoverGrid } from "./OutfitCover";
 import { Image as ImageIcon } from "lucide-react";
@@ -69,7 +70,6 @@ export function SaveOutfitDialog({
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
-  const { data: facets } = useTagFacets();
   const { data: attireGroups } = useAttireGroups();
   const { data: prefill, isError: noPrefill } = useQuery({
     queryKey: [...OUTFITS_KEY, "prefill", imageId ?? "", character],
@@ -258,16 +258,19 @@ export function SaveOutfitDialog({
                 ))}
                 <AttireTagInput
                   taken={taken}
-                  onAdd={(tag) =>
+                  onAdd={(tag) => {
                     setRows((x) =>
                       x.some((y) => y.tag === tag)
                         ? x
-                        : [
-                            ...x,
-                            { tag, group: attireGroups?.[tag] ?? null, checkable: !facets || tag in facets, source: "added" },
-                          ],
-                    )
-                  }
+                        : [...x, { tag, group: attireGroups?.[tag] ?? null, checkable: true, source: "added" }],
+                    );
+                    // The tagger's own vocabulary says whether it can check it.
+                    void fetchOutfitTagInfo([tag])
+                      .then(([info]) =>
+                        info && setRows((x) => x.map((y) => (y.tag === tag ? { ...y, group: info.group, checkable: info.checkable } : y))),
+                      )
+                      .catch(() => {});
+                  }}
                 />
               </div>
             )}

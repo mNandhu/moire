@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import Query, APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -487,6 +487,14 @@ async def put_default_outfit(character: str, body: dict[str, Any]):
     if o is None:
         raise HTTPException(status_code=404, detail="Character not found")
     return o
+
+
+@router.get("/outfits/tag-info")
+async def outfit_tag_info(tags: list[str] = Query(default_factory=list)):
+    """Each tag's attire group and whether the tagger can check it (its
+    vocabulary), for tags added by hand in the outfit dialog."""
+    vocab = await tag_categories.load()
+    return outfits.tag_info(outfits.clean_tags(tags), vocab.general)
 
 
 @router.get("/outfits/covers")

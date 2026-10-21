@@ -237,3 +237,21 @@ async def test_attire_groups_route(client):
     groups = (await client.get("/tags/attire")).json()
     assert groups["hair_flower"] == "accessories"
     assert "red_eyes" not in groups
+
+
+async def test_tag_info_route(client, monkeypatch):
+    async def vocab():
+        return tag_categories.Vocab(general=frozenset({"jewelry", "midriff"}))
+
+    monkeypatch.setattr(tag_categories, "load", vocab)
+    got = (
+        await client.get(
+            "/generate/outfits/tag-info",
+            params={"tags": ["jewelry", "midriff", "plum ornament"]},
+        )
+    ).json()
+    assert [(x["tag"], x["group"], x["checkable"]) for x in got] == [
+        ("jewelry", "accessories", True),
+        ("midriff", "exposure", True),
+        ("plum_ornament", None, False),
+    ]

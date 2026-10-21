@@ -76,6 +76,41 @@ _NOT_WORN = re.compile(
 )
 
 
+# From the nudity group, the tags that say how a garment is cut or worn
+# (`midriff`, `off_shoulder`, `cleavage_cutout`): part of an outfit, in the
+# "exposure" group. Its actions (`skirt_lift`) and actual nudity stay out.
+EXPOSURE_GROUP = "exposure"
+_EXPOSURE = re.compile(r"_cutout$|^(bare|open)_|^(sleeves|pants)_(rolled|pushed)_up$")
+EXPOSURE_TAGS = frozenset(
+    {
+        "backless_outfit",
+        "barefoot",
+        "center_opening",
+        "cleavage",
+        "frontless_outfit",
+        "hip_vent",
+        "hood_down",
+        "low-cut_armhole",
+        "midriff",
+        "off_shoulder",
+        "revealing_clothes",
+        "side_slit",
+        "sideboob",
+        "sideless_outfit",
+        "sleeveless",
+        "unbuttoned",
+        "underboob",
+        "unzipped",
+        "zettai_ryouiki",
+    }
+)
+
+
+# Attire hub tags the groups don't list (Danbooru files them as hubs, not
+# group members), with the group they'd sit in.
+UNLISTED_ATTIRE = {"jewelry": "accessories", "strapless": "exposure"}
+
+
 def _key(tag: str) -> str:
     return canonical_name(tag).lower()
 
@@ -118,6 +153,8 @@ def _groups(entry: tuple[str, str, tuple[str, ...]]) -> set[str]:
 
 def _attire_group(tag: str, entry: tuple[str, str, tuple[str, ...]]) -> str | None:
     groups = _groups(entry) & ATTIRE_GROUPS
+    if not groups and "nudity" in _groups(entry):
+        return EXPOSURE_GROUP if tag in EXPOSURE_TAGS or _EXPOSURE.search(tag) else None
     if not groups or _NOT_WORN.search(tag):
         return None
     return entry[1] if entry[1] in groups else min(groups)
@@ -143,7 +180,9 @@ EYE_STATES = frozenset(
 def is_attire(tag: str) -> bool:
     key = _key(tag)
     entry = _load().get(key)
-    return entry is not None and _attire_group(key, entry) is not None
+    if entry is None:
+        return key in UNLISTED_ATTIRE
+    return _attire_group(key, entry) is not None
 
 
 def is_identity(tag: str) -> bool:
@@ -175,7 +214,7 @@ def group_of(tag: str) -> str | None:
     key = _key(tag)
     entry = _load().get(key)
     if entry is None:
-        return None
+        return UNLISTED_ATTIRE.get(key)
     return _attire_group(key, entry) or entry[1]
 
 
@@ -195,10 +234,13 @@ def all_tags(category: str | None = None) -> dict[str, str]:
 def attire_tags() -> dict[str, str]:
     """``tag -> attire group`` for every attire tag."""
     out: dict[str, str] = {}
-    for tag, entry in _load().items():
+    listed = _load()
+    for tag, entry in listed.items():
         group = _attire_group(tag, entry)
         if group:
             out[tag] = group
+    if listed:
+        out.update({t: g for t, g in UNLISTED_ATTIRE.items() if t not in listed})
     return out
 
 
@@ -245,6 +287,8 @@ def _facet(key: str, entry: tuple[str, str, tuple[str, ...]] | None) -> str | No
     if key in EYE_STATES:
         return "pose"
     if entry is None:
+        if key in UNLISTED_ATTIRE:
+            return "outfit"
         return "look" if _BODY_WORDS.search(key) or _ANIMAL_PERSON.match(key) else None
     # Animal traits the groups file beside animals and body parts: `cat_girl`,
     # `demon_boy`, `tail`.
@@ -283,5 +327,7 @@ def facets() -> dict[str, str]:
     listed = _load()
     if _facets_cache is None or _facets_cache[0] is not listed:
         out = {t: f for t, e in listed.items() if (f := _facet(t, e))}
+        if listed:
+            out.update({t: "outfit" for t in UNLISTED_ATTIRE if t not in listed})
         _facets_cache = (listed, out)
     return _facets_cache[1]

@@ -38,6 +38,10 @@ def listed(tmp_path, monkeypatch):
                         "category": "attire_and_body_accessories",
                         "group": "nudity",
                     },
+                    "skirt_lift": {
+                        "category": "attire_and_body_accessories",
+                        "group": "nudity",
+                    },
                     "anklet": {
                         "category": "body",
                         "group": "feet",
@@ -63,7 +67,10 @@ def test_lookup(listed):
     assert attire.is_attire("serafuku")
     assert not attire.is_attire("1girl")
     assert not attire.is_attire("blue_eyes")  # listed, but not worn
-    assert not attire.is_attire("barefoot")  # in the clothing category, not worn
+    # The nudity group: how a garment is cut or worn counts (exposure), an
+    # action doesn't.
+    assert attire.group_of("barefoot") == "exposure"
+    assert not attire.is_attire("skirt_lift")
     assert attire.is_attire("necktie")  # neckwear sits under body
     assert not attire.is_attire("adjusting_scarf")  # an action, not a garment
     assert attire.is_attire("anklet")  # primary place is feet, also accessories
@@ -84,9 +91,13 @@ def test_attire_tags_use_the_attire_group(listed):
         "thighhighs": "legwear",
         "necktie": "neck_and_neckwear",
         "anklet": "accessories",
+        "barefoot": "exposure",
+        # Unlisted hubs.
+        "jewelry": "accessories",
+        "strapless": "exposure",
     }
     assert attire.all_tags("body")["blue_eyes"] == "eyes_tags"
-    assert len(attire.all_tags()) == 7
+    assert len(attire.all_tags()) == 8
     attire.all_tags()["x"] = "y"
     assert "x" not in attire.all_tags()
 
@@ -210,7 +221,10 @@ def test_facets(listed):
         "thighhighs": "outfit",
         "necktie": "outfit",
         "anklet": "outfit",
+        "barefoot": "outfit",
         "blue_eyes": "look",
+        "jewelry": "outfit",
+        "strapless": "outfit",
     }
 
 

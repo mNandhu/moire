@@ -534,6 +534,9 @@ export const fetchOutfitPrefill = (image: string, character: string, signal?: Ab
   );
 export const putDefaultOutfit = (character: string, patch: DefaultOutfitPatch) =>
   send<Outfit>(`/outfits/default?character=${encodeURIComponent(character)}`, "PUT", patch);
+/** Attire group and tagger check for tags added by hand. */
+export const fetchOutfitTagInfo = (tags: readonly string[]) =>
+  api<OutfitTag[]>(`${BASE}/outfits/tag-info?${tags.map((t) => `tags=${encodeURIComponent(t)}`).join("&")}`);
 export const createOutfit = (body: OutfitBody) => send<Outfit>("/outfits", "POST", body);
 export const updateOutfit = (id: string, patch: Partial<OutfitBody>) =>
   send<Outfit>(`/outfits/${encodeURIComponent(id)}`, "PUT", patch);
