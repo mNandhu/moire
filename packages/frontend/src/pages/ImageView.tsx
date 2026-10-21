@@ -1174,9 +1174,9 @@ function TagFlow({ tags }: { tags: FlowTag[] }) {
                   ...(t.confidence != null ? { opacity: 0.45 + 0.55 * t.confidence } : {}),
                 }}
                 title={
-                  t.confidence != null
+                  (t.confidence != null
                     ? `Open ${t.label} · ${Math.round(t.confidence * 100)}% confidence`
-                    : `Open ${t.label} (${KIND_LABEL[t.kind]})`
+                    : `Open ${t.label} (${KIND_LABEL[t.kind]})`) + (t.inPrompt ? " · also in the prompt" : "")
                 }
               >
                 {t.label}
