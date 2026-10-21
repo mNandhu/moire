@@ -121,16 +121,17 @@ export type FlowTag = {
   kind: TagKind;
   /** Tagger confidence (0-1), for AI and character tags when known. */
   confidence?: number;
-  /** An AI or character tag the prompt also has; that prompt tag is not
-   * listed again. */
-  inPrompt?: boolean;
+  /** The image's other stored kinds of this same name (yours, prompt),
+   * which are not listed again. */
+  also?: ("manual" | "prompt")[];
 };
 
 /**
  * One image's tags in reading order for the image view: characters, then AI
- * tags most confident first, then the user's own, then prompt tags. A name
- * that is both an AI and a prompt tag is listed once, as the AI tag (with
- * its confidence), marked `inPrompt`; reading, it is one word either way.
+ * tags most confident first, then the user's own, then prompt tags. Each name
+ * is listed once, where it first appears in that order (an AI tag keeps its
+ * confidence); the later kinds it also has go in `also`. Reading, it is one
+ * word whichever kinds stored it.
  */
 export function tagFlow(tags: readonly string[] = [], ai?: AiTagMeta | null): FlowTag[] {
   const conf = new Map<string, number>();
@@ -143,15 +144,19 @@ export function tagFlow(tags: readonly string[] = [], ai?: AiTagMeta | null): Fl
   const { ai: aiTags, manual, prompt } = partitionTags(tags);
   // Matched case-blind: a stored name keeps its case.
   const fold = (raw: string) => tagName(raw).toLowerCase();
+  const mine = new Set(manual.map(fold));
   const prompted = new Set(prompt.map(fold));
-  const tagged = new Set(aiTags.map(fold));
+  const alsoOf = (raw: string, kinds: readonly ("manual" | "prompt")[]) => {
+    const also = kinds.filter((k) => (k === "manual" ? mine : prompted).has(fold(raw)));
+    return also.length ? { also } : {};
+  };
   const aiFlow = aiTags.map(
     (raw): FlowTag => ({
       raw,
       label: formatTag(raw),
       kind: characters.has(raw) ? "character" : "ai",
       confidence: conf.get(raw),
-      inPrompt: prompted.has(fold(raw)) || undefined,
+      ...alsoOf(raw, ["manual", "prompt"]),
     }),
   );
   // Stable sort: characters first, then by confidence; unknown confidence
@@ -160,11 +165,14 @@ export function tagFlow(tags: readonly string[] = [], ai?: AiTagMeta | null): Fl
   aiFlow.sort(
     (a, b) => rank(a) - rank(b) || (b.confidence ?? -1) - (a.confidence ?? -1),
   );
+  const tagged = new Set(aiTags.map(fold));
   return [
     ...aiFlow,
-    ...manual.map((raw): FlowTag => ({ raw, label: formatTag(raw), kind: "manual" })),
-    ...prompt
+    ...manual
       .filter((raw) => !tagged.has(fold(raw)))
+      .map((raw): FlowTag => ({ raw, label: formatTag(raw), kind: "manual", ...alsoOf(raw, ["prompt"]) })),
+    ...prompt
+      .filter((raw) => !tagged.has(fold(raw)) && !mine.has(fold(raw)))
       .map((raw): FlowTag => ({ raw, label: formatTag(raw), kind: "prompt" })),
   ];
 }

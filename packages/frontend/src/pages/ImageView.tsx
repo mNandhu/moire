@@ -69,6 +69,7 @@ import { Button } from "../components/ui/Button";
 import { MARKER_DIGIT } from "../components/ui/ScoreMark";
 import { Input } from "../components/ui/Input";
 import { useConfirm } from "../components/ConfirmDialog";
+import { Tooltip } from "../components/ui/Tooltip";
 import { useRemix, type RemixInfo } from "../lib/generate";
 import { RemixButton, WorkflowLine } from "../components/generate/Remix";
 
@@ -1175,6 +1176,23 @@ const KIND_LABEL: Record<TagKind, string> = {
   prompt: "prompt",
 };
 
+const KIND_NOUN: Record<TagKind, string> = {
+  character: "Character",
+  ai: "AI tag",
+  manual: "Your tag",
+  prompt: "Prompt tag",
+};
+const ALSO_TEXT = { manual: "yours", prompt: "in the prompt" } as const;
+
+/** The hover bubble's second line: what the tag is, what else stored the
+ * same name, and how sure the tagger was. */
+function tagDetail(t: FlowTag): string {
+  const parts = [KIND_NOUN[t.kind]];
+  if (t.also?.length) parts.push(`also ${t.also.map((k) => ALSO_TEXT[k]).join(" and ")}`);
+  if (t.confidence != null) parts.push(`${Math.round(t.confidence * 100)}% confident`);
+  return parts.join(" · ");
+}
+
 // The side panel's background (tailwind `surface`): what a rainbow-outlined
 // tag paints inside its border.
 const PANEL_GROUND = "#15141c";
@@ -1214,21 +1232,28 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
         {shown.map((t, i) => (
           <React.Fragment key={t.raw}>
             <span className={i >= firstBoilerplate ? "opacity-50" : undefined}>
-              <Link
-                to={tagPageHref(t)}
-                className={`rounded px-0.5 -mx-0.5 ${TAG_TINT_CLASS} hover:bg-raised hover:underline ${KIND_TEXT[t.kind]}`}
-                style={{
-                  ...tagMarkStyle(t.raw, facetOf(t.raw), PANEL_GROUND, marks),
-                  ...(t.confidence != null ? { opacity: 0.45 + 0.55 * t.confidence } : {}),
-                }}
-                title={
-                  (t.confidence != null
-                    ? `Open ${t.label} · ${Math.round(t.confidence * 100)}% confidence`
-                    : `Open ${t.label} (${KIND_LABEL[t.kind]})`) + (t.inPrompt ? " · also in the prompt" : "")
+              <Tooltip
+                bubble
+                side="up"
+                className="inline"
+                content={
+                  <>
+                    <div className="font-medium">{t.label}</div>
+                    <div className="text-xs text-muted">{tagDetail(t)}</div>
+                  </>
                 }
               >
-                {t.label}
-              </Link>
+                <Link
+                  to={tagPageHref(t)}
+                  className={`rounded px-0.5 -mx-0.5 ${TAG_TINT_CLASS} hover:bg-raised hover:underline ${KIND_TEXT[t.kind]}`}
+                  style={{
+                    ...tagMarkStyle(t.raw, facetOf(t.raw), PANEL_GROUND, marks),
+                    ...(t.confidence != null ? { opacity: 0.45 + 0.55 * t.confidence } : {}),
+                  }}
+                >
+                  {t.label}
+                </Link>
+              </Tooltip>
             </span>
             {i < shown.length - 1 && <span className="text-line-strong">, </span>}
           </React.Fragment>
