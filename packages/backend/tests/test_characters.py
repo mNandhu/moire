@@ -3,7 +3,7 @@ folded into its full one, and what the user sets."""
 
 import pytest
 
-from moire.services import characters, tag_categories
+from moire.services import characters, tag_categories, tag_index
 
 
 def _chars(*names, **candidates):
@@ -184,6 +184,49 @@ async def test_not_a_character_covers_every_name(client, seed, monkeypatch):
     cats = {r["tag"]: r["category"] for r in (await client.get("/tags/browse")).json()}
     assert cats["nahida_(genshin_impact)"] == cats["nahida"] == "general"
     assert (await client.get("/tags/characters")).json() == []
+
+
+async def test_the_list_reads_only_character_tags_and_agrees_with_tags(
+    client, seed, monkeypatch
+):
+    monkeypatch.setattr(
+        tag_categories,
+        "load",
+        _chars("furina_(genshin_impact)", "nahida", "klee", furina="genshin_impact"),
+    )
+    seed("L1:a", tags=("furina_(genshin_impact)", "prompt:furina", "cat"))
+    seed("L1:b", tags=("prompt:furina", "prompt:genshin_impact", "cat"))
+    seed("L1:c", tags=("manual:Nahida", "prompt:my_oc", "cat"))
+    seed("L1:d", tags=("nahida", "cat"))
+    seed("L1:q", tags=("klee",), quarantined=True)
+    await client.patch(
+        "/tags/character", params={"tag": "my_oc"}, json={"kind": "character"}
+    )
+    await characters.create("fern", {})
+
+    rows = await tag_index.character_rows()
+    tags_page = await tag_index.browse("all")
+    want = [r for r in tags_page if r["category"] == "character"]
+    assert {r["tag"] for r in want} == {
+        "furina",
+        "furina_(genshin_impact)",
+        "Nahida",
+        "nahida",
+        "my_oc",
+    }
+    assert [r for r in rows if r["category"] == "character"] == want
+    assert "cat" not in {r["tag"] for r in rows}
+
+    listed = {c["tag"]: c for c in (await client.get("/tags/characters")).json()}
+    assert set(listed) == {
+        "furina_(genshin_impact)",
+        "Nahida",
+        "nahida",
+        "my_oc",
+        "fern",
+    }
+    assert listed["furina_(genshin_impact)"]["aliases"] == ["furina"]
+    assert listed["fern"]["count"] == 0
 
 
 async def test_an_avatar_pinned_under_an_alias_shows_everywhere(

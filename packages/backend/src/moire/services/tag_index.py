@@ -425,6 +425,44 @@ async def browse(source: str = "all") -> list[dict]:
         return cached
 
     gen = current_generation()
+    result = await _browse(source)
+    _store(_tags_cache, cache_key, gen, result)
+    return result
+
+
+async def character_rows() -> list[dict]:
+    """:func:`browse` rows (every source) of the tags that may be characters:
+    the listed names, the bare-name candidates and the tags the user set a
+    kind for (or made by hand), whatever their case. The same counts and
+    covers, without aggregating the rest of the library. Not cached: the
+    caller caches what it builds from them."""
+    vocab = await tag_categories.load()
+    async with async_conn() as conn:
+        set_by_user = (
+            await conn.execute(sa.select(sa.func.lower(t.characters.c.tag)))
+        ).scalars()
+        maybe = vocab.names | vocab.candidates.keys() | set(set_by_user)
+        # A walk of the base index, no image lookups: a few hundredths of a
+        # second against most of a second for every tag's aggregate.
+        bases = (
+            await conn.execute(
+                sa.select(t.image_tags.c.base)
+                .distinct()
+                .where(t.image_tags.c.base != "")
+            )
+        ).scalars()
+        wanted = [b for b in bases if b.lower() in maybe]
+    if not wanted:
+        return []
+    return await _browse("all", wanted, vocab)
+
+
+async def _browse(
+    source: str,
+    bases: list[str] | None = None,
+    vocab: tag_categories.Vocab | None = None,
+) -> list[dict]:
+    """:func:`browse`'s rows, uncached; only ``bases`` when given."""
     it, im, tm = t.image_tags, t.images, t.tag_meta
     # One pass over the tag rows, feeding both aggregates. The visible images
     # are materialized first (a few thousand rows), so each of the ~50 tag
@@ -451,7 +489,11 @@ async def browse(source: str = "all") -> list[dict]:
                 tm, tm.c.tag == it.c.base
             )
         )
-        .where(_source_clause(source), it.c.base != "")
+        .where(
+            _source_clause(source),
+            it.c.base != "",
+            sa.true() if bases is None else it.c.base.in_(bases),
+        )
         .cte("r")
         .prefix_with("MATERIALIZED")
     )
@@ -493,12 +535,13 @@ async def browse(source: str = "all") -> list[dict]:
         .select_from(agg.join(cov, cov.c.base == agg.c.base))
         .order_by(agg.c.count.desc(), agg.c.base)
     )
-    vocab = await tag_categories.load()  # a file read: before taking a connection
+    if vocab is None:
+        vocab = await tag_categories.load()  # a file read: before a connection
     async with async_conn() as conn:
         rows = (await conn.execute(stmt)).fetchall()
         characters = await _characters(conn, vocab, {r.base for r in rows})
 
-    result = [
+    return [
         {
             "tag": r.base,
             "count": r.count,
@@ -508,8 +551,6 @@ async def browse(source: str = "all") -> list[dict]:
         }
         for r in rows
     ]
-    _store(_tags_cache, cache_key, gen, result)
-    return result
 
 
 async def _characters(

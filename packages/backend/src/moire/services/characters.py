@@ -457,7 +457,10 @@ async def listing() -> list[dict]:
 
 
 async def _listing() -> list[dict]:
-    rows = await tag_index.browse("all")
+    # Only the tags that may be characters: the full Tags list is most of a
+    # second on a big library, and the character list is rebuilt after every
+    # tag write.
+    rows = await tag_index.character_rows()
     vocab = await tag_categories.load()
     by = {r["tag"]: r for r in rows}
     found = groups([r["tag"] for r in rows if r["category"] == "character"], vocab)
