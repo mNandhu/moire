@@ -503,7 +503,7 @@ export default function GeneratePage() {
       />
       <PageBody width="wide" className="pb-0">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_30rem] lg:items-start">
-          {/* The run bar pins to the bottom of the view; long layers scroll above it. */}
+          {/* From lg the run bar pins to the bottom of the view; long layers scroll above it. A phone has no room to spare for it. */}
           <div className="flex min-w-0 flex-col gap-4 lg:min-h-[calc(100dvh-5.5rem)]">
             {form.remix && <RemixStrip remix={form.remix} seed={form.seed} onClear={() => set("remix", null)} />}
             <div className="flex flex-col" aria-label="Positive prompt">
@@ -652,7 +652,7 @@ export default function GeneratePage() {
               </div>
             </details>
             <div className="flex-1" />
-            <div className="sticky bottom-0 z-[5] -mx-2 bg-gradient-to-t from-canvas from-80% to-transparent px-2 pb-4 pt-3">
+            <div className="lg:sticky bottom-0 z-[5] -mx-2 bg-gradient-to-t from-canvas from-80% to-transparent px-2 pb-4 pt-3">
               <Card className="space-y-3 p-4 shadow-panel">
                 {gen && !ready && (
                   <TestRunCard gen={gen} checkpoint={bar.checkpoint ? form.checkpoint : null} disabled={!connected} />

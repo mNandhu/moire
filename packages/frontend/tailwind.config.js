@@ -3,11 +3,6 @@ module.exports = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
-      screens: {
-        // No hover (a phone, a tablet): controls a mouse reveals on hover
-        // show outright, or a finger never finds them.
-        touch: { raw: "(hover: none)" },
-      },
       fontFamily: {
         sans: [
           '"Instrument Sans Variable"',
@@ -82,5 +77,10 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // touch: no hover (a phone, a tablet), so controls a mouse reveals on
+    // hover show outright, or a finger never finds them. A variant, not a
+    // `screens` entry: a raw screen turns off every max-* variant.
+    require("tailwindcss/plugin")(({ addVariant }) => addVariant("touch", "@media (hover: none)")),
+  ],
 };
