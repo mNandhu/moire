@@ -49,6 +49,10 @@ def setup_logging() -> None:
 
     root = logging.getLogger()
     root.setLevel(level)
+    # httpx logs every request at INFO; the ComfyUI queue poll alone is one line
+    # per 5 s. Keep failures, drop the per-request chatter unless debugging.
+    for noisy in ("httpx", "httpcore"):
+        logging.getLogger(noisy).setLevel(max(level, logging.WARNING))
     # Under uvicorn the root logger has no handlers; under another runner that
     # already configured one, don't print every record twice.
     if not root.handlers:
