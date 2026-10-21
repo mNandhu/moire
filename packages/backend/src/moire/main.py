@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 from fastapi.responses import JSONResponse
-from .api import activity, libraries, images, tags, ai, rules, generate
+from .api import activity, libraries, images, tags, ai, rules, generate, onboarding
 from .database.db import async_conn, ensure_schema
 from .database import schema as t
 from .core.config import API_PREFIX, settings
@@ -197,6 +197,7 @@ api.include_router(ai.router, prefix="/ai", tags=["ai"])
 api.include_router(rules.router, prefix="/rules", tags=["rules"])
 api.include_router(generate.router, prefix="/generate", tags=["generate"])
 api.include_router(activity.router, prefix="/activity", tags=["activity"])
+api.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])
 app.include_router(api)
 # Last, so its catch-all route never shadows an API route.
 mount_web_ui(app)

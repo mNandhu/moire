@@ -1,4 +1,5 @@
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Navigate, Routes, Route, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { OverlayOpenContext, getBackgroundLocation } from "./lib/backgroundLocation";
 import App from "./App";
 import OverviewPage from "./pages/OverviewPage";
@@ -17,6 +18,8 @@ import GenerationsPage from "./pages/GenerationsPage";
 import OutfitsPage from "./pages/OutfitsPage";
 import WorkflowSetupPage from "./pages/WorkflowSetupPage";
 import BatchPage from "./pages/BatchPage";
+import WelcomePage from "./pages/WelcomePage";
+import { ONBOARDING_KEY, fetchOnboarding } from "./lib/onboarding";
 
 // ImageView opens over the gallery rather than replacing it: opening a thumbnail
 // pushes `/image/:id` with `state.backgroundLocation` set to the gallery location
@@ -33,6 +36,19 @@ export default function RootRoutes() {
   // without App, and its tags still refresh when its AI tagging ends.
   useRefreshOnFinish();
   useTrackHistory();
+  // A fresh install (no libraries, setup neither finished nor skipped) opens
+  // on the welcome page. Nothing renders until that's known, so the empty
+  // gallery doesn't flash first; if the check fails, the app opens as usual.
+  const onboarding = useQuery({
+    queryKey: ONBOARDING_KEY,
+    queryFn: ({ signal }) => fetchOnboarding(signal),
+    staleTime: Infinity,
+    retry: false,
+  });
+  if (onboarding.isPending) return null;
+  if (onboarding.data?.status === "pending" && location.pathname !== "/welcome") {
+    return <Navigate to="/welcome" replace />;
+  }
 
   return (
     <OverlayOpenContext.Provider value={!!backgroundLocation}>
@@ -55,6 +71,7 @@ export default function RootRoutes() {
           <Route path="outfits" element={<OutfitsPage />} />
         </Route>
         <Route path="/image/:id" element={<ImageView />} />
+        <Route path="/welcome" element={<WelcomePage />} />
       </Routes>
       {backgroundLocation && (
         <Routes>

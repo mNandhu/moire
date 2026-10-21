@@ -6,7 +6,7 @@ import { Checkbox } from "./ui/Checkbox";
 import { Input, Field } from "./ui/Input";
 import { Badge } from "./ui/Badge";
 import { Spinner } from "./ui/Skeleton";
-import { api } from "../lib/api";
+import { api, errorText } from "../lib/api";
 import { cn } from "../lib/cn";
 import {
   defaultSelected,
@@ -17,19 +17,6 @@ import {
   type DiscoverSource,
   type LibraryCandidate,
 } from "../lib/libraryPlan";
-
-/** FastAPI errors arrive as `{"detail": "..."}` or a 422 list; show the words. */
-function errorText(e: unknown): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  try {
-    const d = JSON.parse(raw)?.detail;
-    if (typeof d === "string") return d;
-    if (Array.isArray(d)) return d.map((x) => x?.msg ?? String(x)).join("; ");
-  } catch {
-    /* not JSON; use as-is */
-  }
-  return raw;
-}
 
 const STATUS_BADGE: Record<
   LibraryCandidate["status"],

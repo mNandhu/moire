@@ -5,6 +5,7 @@ import { GallerySkeleton } from "../components/GallerySkeleton";
 import { DensityControl } from "../components/DensityControl";
 import { ShortcutOverlay } from "../components/ShortcutOverlay";
 import { useToast } from "../components/Toasts";
+import { SHORTCUT_HINT_KEY } from "../lib/onboarding";
 import { useConfirm } from "../components/ConfirmDialog";
 import { BulkTagDialog } from "../components/BulkTagDialog";
 import {
@@ -424,6 +425,17 @@ export default function AllImagesPage() {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [filtersOpen]);
+
+  // Once, right after first-run setup: say where the shortcuts are.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(SHORTCUT_HINT_KEY) !== "1") return;
+      localStorage.removeItem(SHORTCUT_HINT_KEY);
+    } catch {
+      return;
+    }
+    push("Press ? to see keyboard shortcuts", { type: "info", durationMs: 8000 });
+  }, [push]);
 
   // Global shortcuts: S selection mode, F/"/" focus search, N no-tags,
   // A no-AI-tags, Q quarantined, +/- zoom, ? help.
