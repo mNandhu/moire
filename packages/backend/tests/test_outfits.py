@@ -65,6 +65,29 @@ async def test_outfits_end_to_end(client, comfy, seed, monkeypatch):  # noqa: F8
     # The best-scored image wearing it (one of nobody dressed never is).
     assert d["image_id"] == "L1:h0"
 
+    assert d["cover_picked"] is False
+    # The cover picker's choices, most of the outfit first; a pick sticks.
+    choices = (
+        await client.get(
+            "/generate/outfits/covers", params={"character": HU, "outfit": "default"}
+        )
+    ).json()
+    assert choices[0] == {"image_id": "L1:h0", "matched": 1, "of": 1}
+    assert "L1:bare" not in {c["image_id"] for c in choices}
+    d = (
+        await client.put(
+            "/generate/outfits/default/cover",
+            json={"character": HU, "image_id": "L1:h2"},
+        )
+    ).json()
+    assert (d["image_id"], d["cover_picked"]) == ("L1:h2", True)
+    d = (
+        await client.put(
+            "/generate/outfits/default/cover", json={"character": HU, "image_id": None}
+        )
+    ).json()
+    assert (d["image_id"], d["cover_picked"]) == ("L1:h0", False)
+
     p = (
         await client.get(
             "/generate/outfits/prefill", params={"image": "L1:wear", "character": HU}

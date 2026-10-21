@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Pin, Shirt } from "lucide-react";
+import { Loader2, Pin } from "lucide-react";
 import { api } from "../lib/api";
 import { cn } from "../lib/cn";
 import { TAGS_KEY } from "../lib/queries";
@@ -10,8 +10,8 @@ import { formatTag, tagName } from "../lib/tags";
 import { characterHref, displayName, type CharacterEntry } from "../lib/character";
 import { CharacterAvatar } from "./CharacterAvatar";
 import { usePinCover } from "../hooks/usePinCover";
-import { DropdownMenu } from "./ui";
 import { SaveOutfitDialog } from "./generate/SaveOutfitDialog";
+import { OutfitMenu } from "./generate/OutfitCover";
 
 /** Every character in the library; shared by the image view and character pages. */
 export function useCharacters() {
@@ -74,25 +74,7 @@ export function ImageCharacters({
     <section className="px-4 py-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Characters</h2>
-        {here.length === 1 ? (
-          <button
-            type="button"
-            onClick={() => setSaving(here[0])}
-            className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
-          >
-            <Shirt size={12} /> Save outfit
-          </button>
-        ) : (
-          <DropdownMenu
-            size="sm"
-            label={
-              <>
-                <Shirt size={12} /> Save outfit
-              </>
-            }
-            items={here.map((c) => ({ label: displayName(c).name, onClick: () => setSaving(c) }))}
-          />
-        )}
+        <OutfitMenu imageId={imageId} characters={here} onSave={setSaving} />
       </div>
       {saving && (
         <SaveOutfitDialog

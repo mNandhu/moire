@@ -275,7 +275,12 @@ export type Outfit = {
   used_by?: number;
   /** Default only: the character's images it was read from. */
   images?: number;
+  /** Default only: the cover was picked by the user (else computed). */
+  cover_picked?: boolean;
 };
+
+/** An image that could be an outfit's cover: it wears `matched` of its `of` tags. */
+export type CoverChoice = { image_id: string; matched: number; of: number };
 
 export const DEFAULT_OUTFIT = "default";
 
@@ -512,6 +517,8 @@ export const fetchOutfitPrefill = (image: string, character: string, signal?: Ab
     `${BASE}/outfits/prefill?image=${encodeURIComponent(image)}&character=${encodeURIComponent(character)}`,
     { signal },
   );
+export const putDefaultCover = (character: string, imageId: string | null) =>
+  send<Outfit>("/outfits/default/cover", "PUT", { character, image_id: imageId });
 export const createOutfit = (body: OutfitBody) => send<Outfit>("/outfits", "POST", body);
 export const updateOutfit = (id: string, patch: Partial<OutfitBody>) =>
   send<Outfit>(`/outfits/${encodeURIComponent(id)}`, "PUT", patch);
@@ -680,6 +687,20 @@ export function useOutfits(character: string | null = null) {
     queryKey: outfitsKey(character),
     queryFn: ({ signal }) =>
       api<Outfit[]>(`${BASE}/outfits${character ? `?character=${encodeURIComponent(character)}` : ""}`, { signal }),
+  });
+}
+
+/** Images `character` wears `outfit` in ("default": their usual clothes),
+ * for picking its cover. */
+export function useCoverChoices(character: string, outfit: string, enabled = true) {
+  return useQuery({
+    queryKey: [...OUTFITS_KEY, "covers", character, outfit],
+    queryFn: ({ signal }) =>
+      api<CoverChoice[]>(
+        `${BASE}/outfits/covers?character=${encodeURIComponent(character)}&outfit=${encodeURIComponent(outfit)}`,
+        { signal },
+      ),
+    enabled,
   });
 }
 

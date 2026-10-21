@@ -17,6 +17,8 @@ import {
 } from "../../lib/generate";
 import { useTagFacets } from "../../lib/queries";
 import { AttireTagInput, OutfitChip, OutfitThumb } from "./Outfit";
+import { CoverStrip } from "./OutfitCover";
+import { Image as ImageIcon } from "lucide-react";
 import { MAX_OUTFIT_TAGS } from "../../lib/outfit";
 
 type Source = "image" | "usual" | "added";
@@ -71,10 +73,15 @@ export function SaveOutfitDialog({
   const [rows, setRows] = useState<Row[]>([]);
   const [shared, setShared] = useState(false);
   const [seeded, setSeeded] = useState(false);
+  // Editing: the cover picked in the Change strip (shown open), saved with the rest.
+  const [cover, setCover] = useState<string | null>(null);
+  const [changing, setChanging] = useState(false);
   useEffect(() => {
     if (!open) return setSeeded(false);
     if (seeded) return;
     if (outfit) {
+      setCover(outfit.image_id);
+      setChanging(false);
       setName(outfit.name);
       setShared(outfit.shared);
       setRows(outfit.tags.map((t) => ({ ...t, source: "image" })));
@@ -97,7 +104,7 @@ export function SaveOutfitDialog({
     mutationFn: () => {
       const body = { name: name.trim(), tags: rows.map((r) => r.tag), shared };
       return outfit
-        ? updateOutfit(outfit._id, body)
+        ? updateOutfit(outfit._id, cover !== outfit.image_id ? { ...body, image_id: cover } : body)
         : createOutfit({ ...body, character, image_id: imageId });
     },
     onSuccess: (o) => {
@@ -155,8 +162,26 @@ export function SaveOutfitDialog({
       }
     >
       <div className="flex flex-wrap gap-5">
-        <OutfitThumb imageId={outfit ? outfit.image_id : imageId} className="h-[140px] w-24 rounded-lg border border-line-strong" />
+        <div className="relative h-[140px] w-24 shrink-0">
+          <OutfitThumb imageId={outfit ? cover : imageId} className="h-full w-full rounded-lg border border-line-strong" />
+          {outfit && (
+            <button
+              type="button"
+              onClick={() => setChanging((x) => !x)}
+              aria-expanded={changing}
+              className="absolute inset-x-1.5 bottom-1.5 inline-flex h-[26px] items-center justify-center gap-1.5 rounded-md border border-line-strong bg-surface/90 text-xs text-neutral-100 hover:bg-raised"
+            >
+              <ImageIcon size={12} /> Change
+            </button>
+          )}
+        </div>
         <div className="flex min-w-0 flex-[1_1_22rem] flex-col gap-4">
+          {outfit && changing && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted">Thumbnail</span>
+              <CoverStrip character={character} outfit={outfit._id} value={cover} onChange={setCover} />
+            </div>
+          )}
           <label className="flex flex-col gap-2">
             <span className="text-xs font-medium text-muted">Name</span>
             <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoFocus />

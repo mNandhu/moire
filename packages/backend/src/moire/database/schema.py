@@ -361,6 +361,15 @@ outfits = sa.Table(
     sa.Column("updated_at", sa.Float),
 )
 
+# A character's Default outfit cover, when the user picked one (else the
+# best-scored image wearing most of it).
+outfit_default_covers = sa.Table(
+    "outfit_default_covers",
+    metadata,
+    sa.Column("character", sa.Text, primary_key=True),
+    sa.Column("image_id", _BINARY, nullable=False),
+)
+
 # Shared outfits a character's list leaves out.
 outfit_hidden = sa.Table(
     "outfit_hidden",

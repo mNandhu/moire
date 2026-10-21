@@ -30,6 +30,7 @@ def test_expected_tables_exist():
         "lora_presets",
         "outfits",
         "outfit_hidden",
+        "outfit_default_covers",
         "generators",
         "generation_batches",
         "generation_requests",

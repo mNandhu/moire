@@ -9,6 +9,8 @@ export type DropdownItem = {
   variant?: "default" | "danger";
   /** Shown at the row's end (a status badge). */
   hint?: React.ReactNode;
+  /** Heading the item sits under; consecutive items share it. */
+  group?: string;
   onClick: () => void;
 };
 
@@ -84,12 +86,17 @@ export function DropdownMenu({
           role="menu"
           className={cn(
             "absolute right-0 top-full mt-1 z-50 rounded-lg border border-line-strong bg-raised shadow-panel py-1",
-            footer ? "w-max min-w-[16rem] max-w-[24rem]" : "min-w-[180px]",
+            footer || items.some((x) => x.group) ? "w-max min-w-[16rem] max-w-[24rem]" : "min-w-[180px]",
           )}
         >
-          {items.map((item) => (
+          {items.map((item, i) => (
+            <React.Fragment key={i}>
+            {item.group && item.group !== items[i - 1]?.group && (
+              <div className={cn("px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wider text-faint", i > 0 && "mt-1 border-t border-line")}>
+                {item.group}
+              </div>
+            )}
             <button
-              key={item.label}
               role="menuitem"
               className={cn(
                 "w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-left",
@@ -106,6 +113,7 @@ export function DropdownMenu({
               {item.label}
               {item.hint && <span className="ml-auto shrink-0 whitespace-nowrap pl-3">{item.hint}</span>}
             </button>
+            </React.Fragment>
           ))}
           {footer && <div className="mt-1 border-t border-line px-3 pb-1 pt-2">{footer}</div>}
         </div>

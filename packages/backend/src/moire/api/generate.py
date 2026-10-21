@@ -476,6 +476,29 @@ async def default_outfit(character: str):
     return o
 
 
+class CoverIn(BaseModel):
+    character: str = Field(..., min_length=1)
+    #: null: back to the computed cover.
+    image_id: str | None = None
+
+
+@router.put("/outfits/default/cover")
+async def put_default_cover(body: CoverIn):
+    if not await outfits.set_default_cover(body.character, body.image_id):
+        raise HTTPException(status_code=404, detail="Character not found")
+    return await outfits.default(body.character)
+
+
+@router.get("/outfits/covers")
+async def outfit_covers(character: str, outfit: str):
+    """Images ``character`` wears ``outfit`` in ("default" for their usual
+    clothes), most of its tags first: the cover picker's choices."""
+    found = await outfits.covers(character, outfit)
+    if found is None:
+        raise HTTPException(status_code=404, detail="Character or outfit not found")
+    return found
+
+
 @router.get("/outfits/prefill")
 async def outfit_prefill(image: str, character: str):
     """The save dialog's tags for ``image`` worn by ``character``."""

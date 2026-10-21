@@ -157,37 +157,60 @@ def _view(
     }
 
 
+COVER_CHOICES = 24
+
+
+async def _wearing(
+    names: list[str], tags: list[str], limit: int
+) -> list[tuple[str, int]]:
+    """The character's images wearing any of ``tags``: (image id, how many),
+    most first, then best scored, then newest; never one of nobody dressed."""
+    if not tags:
+        return []
+    it, im = t.image_tags, t.images
+    wearing = sa.func.count(sa.distinct(it.c.base))
+    async with async_conn() as conn:
+        rows = await conn.execute(
+            sa.select(it.c.image_id, wearing)
+            .select_from(it.join(im, im.c._id == it.c.image_id))
+            .where(
+                it.c.image_id.in_(tag_index.image_ids(names)),
+                it.c.base.in_(tags),
+                ~it.c.image_id.in_(tag_index.image_ids(list(UNDRESSED))),
+            )
+            .group_by(it.c.image_id)
+            .order_by(
+                wearing.desc(),
+                sa.func.coalesce(sa.func.max(im.c.score), 0).desc(),
+                sa.func.max(im.c.mtime).desc(),
+            )
+            .limit(limit)
+        )
+        return [(r[0], r[1]) for r in rows]
+
+
+async def _picked_cover(key: str) -> str | None:
+    """The Default cover the user picked for ``key``, if it still exists."""
+    c = t.outfit_default_covers
+    async with async_conn() as conn:
+        image_id = (
+            await conn.execute(sa.select(c.c.image_id).where(c.c.character == key))
+        ).scalar()
+        if image_id and image_id in await _existing(conn, [image_id]):
+            return image_id
+    return None
+
+
 async def default(character: str) -> dict[str, Any] | None:
     """The computed Default outfit for ``character``; None when it isn't a
-    character. ``image_id``: the best-scored image wearing most of it."""
+    character. ``image_id``: the cover the user picked, else the best-scored
+    image wearing most of it (``cover_picked`` says which)."""
     r = await recipes.wardrobe(character)
     if r is None:
         return None
     tags = list(r["outfit"])
-    names = r["names"]
-    image_id = None
-    if tags:
-        it, im = t.image_tags, t.images
-        wearing = sa.func.count(sa.distinct(it.c.base))
-        async with async_conn() as conn:
-            image_id = (
-                await conn.execute(
-                    sa.select(it.c.image_id)
-                    .select_from(it.join(im, im.c._id == it.c.image_id))
-                    .where(
-                        it.c.image_id.in_(tag_index.image_ids(names)),
-                        it.c.base.in_(tags),
-                        ~it.c.image_id.in_(tag_index.image_ids(list(UNDRESSED))),
-                    )
-                    .group_by(it.c.image_id)
-                    .order_by(
-                        wearing.desc(),
-                        sa.func.coalesce(sa.func.max(im.c.score), 0).desc(),
-                        sa.func.max(im.c.mtime).desc(),
-                    )
-                    .limit(1)
-                )
-            ).scalar()
+    picked = await _picked_cover(r["tag"])
+    found = None if picked else await _wearing(r["names"], tags, 1)
     vocab = await tag_categories.load()
     return {
         "_id": DEFAULT_ID,
@@ -195,10 +218,51 @@ async def default(character: str) -> dict[str, Any] | None:
         "character": r["tag"],
         "shared": False,
         "tags": tag_info(tags, vocab.general),
-        "image_id": image_id,
+        "image_id": picked or (found[0][0] if found else None),
+        "cover_picked": picked is not None,
         "hidden": False,
         "images": r["count"],
     }
+
+
+async def set_default_cover(character: str, image_id: str | None) -> bool:
+    """Pick ``image_id`` as ``character``'s Default cover (None: back to the
+    computed one). False when ``character`` isn't one."""
+    key = await _key(character)
+    if key is None:
+        return False
+    c = t.outfit_default_covers
+    async with async_tx() as conn:
+        if image_id:
+            await conn.execute(
+                sqlite_insert(c)
+                .values(character=key, image_id=image_id)
+                .on_conflict_do_update(
+                    index_elements=["character"], set_={"image_id": image_id}
+                )
+            )
+        else:
+            await conn.execute(sa.delete(c).where(c.c.character == key))
+    return True
+
+
+async def covers(character: str, outfit_id: str) -> list[dict[str, Any]] | None:
+    """Images that could be ``outfit_id``'s cover ("default" for the
+    character's Default): the character's images wearing most of its tags,
+    with ``matched`` of ``of``. None when the character or outfit is
+    unknown."""
+    r = await recipes.wardrobe(character)
+    if r is None:
+        return None
+    if outfit_id == DEFAULT_ID:
+        tags = list(r["outfit"])
+    else:
+        o = await get(outfit_id)
+        if o is None:
+            return None
+        tags = [x["tag"] for x in o["tags"]]
+    found = await _wearing(r["names"], tags, COVER_CHOICES)
+    return [{"image_id": i, "matched": n, "of": len(tags)} for i, n in found]
 
 
 async def listing(character: str | None = None) -> list[dict[str, Any]]:

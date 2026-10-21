@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Images } from "lucide-react";
+import { Eye, EyeOff, Image as ImageIcon, Images } from "lucide-react";
 import { Badge } from "../ui";
 import { useToast } from "../Toasts";
 import { cn } from "../../lib/cn";
@@ -16,17 +16,21 @@ import {
 import { outfitGalleryHref } from "../../lib/outfit";
 import { OutfitThumb } from "./Outfit";
 import { SaveOutfitDialog } from "./SaveOutfitDialog";
+import { DefaultCoverDialog } from "./OutfitCover";
 
 function Mini({
   o,
   character,
   onOpen,
   onHide,
+  onCover,
 }: {
   o: Outfit;
   character: string;
   onOpen?: () => void;
   onHide?: () => void;
+  /** Default: pick its cover. */
+  onCover?: () => void;
 }) {
   const isDefault = o._id === DEFAULT_OUTFIT;
   const foreign = o.shared && o.character !== character;
@@ -52,6 +56,17 @@ function Mini({
         >
           <Images size={13} />
         </Link>
+        {onCover && (
+          <button
+            type="button"
+            onClick={onCover}
+            title="Change thumbnail"
+            aria-label={`Change ${o.name} thumbnail`}
+            className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-lg border border-line-strong bg-surface/90 text-neutral-100 opacity-0 transition-opacity hover:bg-raised group-hover:opacity-100 focus-visible:opacity-100"
+          >
+            <ImageIcon size={13} />
+          </button>
+        )}
         {foreign && onHide && (
           <button
             type="button"
@@ -92,6 +107,7 @@ export function CharacterOutfits({ character, name }: { character: string; name:
   const { data: def } = useDefaultOutfit(character);
   const { data: list } = useOutfits(character);
   const [editing, setEditing] = useState<Outfit | null>(null);
+  const [coverOpen, setCoverOpen] = useState(false);
   const hide = useMutation({
     mutationFn: (o: Outfit) => hideOutfit(o._id, character, !o.hidden),
     onSuccess: () => void qc.invalidateQueries({ queryKey: OUTFITS_KEY }),
@@ -112,7 +128,7 @@ export function CharacterOutfits({ character, name }: { character: string; name:
         </Link>
       </div>
       <div className="flex gap-3 overflow-x-auto pb-1">
-        {d && <Mini o={d} character={character} />}
+        {d && <Mini o={d} character={character} onCover={() => setCoverOpen(true)} />}
         {own.map((o) => (
           <Mini key={o._id} o={o} character={character} onOpen={() => setEditing(o)} />
         ))}
@@ -120,6 +136,7 @@ export function CharacterOutfits({ character, name }: { character: string; name:
           <Mini key={o._id} o={o} character={character} onOpen={() => setEditing(o)} onHide={() => hide.mutate(o)} />
         ))}
       </div>
+      {d && coverOpen && <DefaultCoverDialog open onClose={() => setCoverOpen(false)} outfit={d} characterName={name} />}
       {editing && (
         <SaveOutfitDialog
           open
