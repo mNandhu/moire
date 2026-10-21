@@ -38,11 +38,19 @@ export function DropdownMenu({
   /** Controls under the items that set how they run (the menu stays open). */
   footer?: React.ReactNode;
   /** A whole element as the trigger (a card): a click anywhere on it opens
-   * the menu, under its left edge. */
+   * the menu beside it, on its right (its left when there's no room). */
   trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // A card's menu: beside it, on the side with room.
+  const [onLeft, setOnLeft] = useState(false);
+  const toggle = () => {
+    if (trigger && !open && ref.current) {
+      setOnLeft(ref.current.getBoundingClientRect().right + 280 > window.innerWidth);
+    }
+    setOpen((v) => !v);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -78,12 +86,12 @@ export function DropdownMenu({
           aria-expanded={open}
           aria-label={ariaLabel}
           onClick={(e) => {
-            if (!(e.target as HTMLElement).closest("a")) setOpen((v) => !v);
+            if (!(e.target as HTMLElement).closest("a")) toggle();
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              setOpen((v) => !v);
+              toggle();
             }
           }}
           className="cursor-pointer rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
@@ -126,8 +134,8 @@ export function DropdownMenu({
         <div
           role="menu"
           className={cn(
-            "absolute top-full mt-1 z-50 rounded-lg border border-line-strong bg-raised shadow-panel py-1",
-            trigger ? "left-2 -mt-2" : "right-0",
+            "absolute z-50 rounded-lg border border-line-strong bg-raised shadow-panel py-1",
+            trigger ? (onLeft ? "right-full top-2 mr-2" : "left-full top-2 ml-2") : "right-0 top-full mt-1",
             footer || trigger || items.some((x) => x.group) ? "w-max min-w-[16rem] max-w-[24rem]" : "min-w-[180px]",
           )}
         >
