@@ -35,6 +35,7 @@ describe("Image filter URL round-trip", () => {
       model: "sdxl",
       lora: ["detail_xl", "NahidaXL"],
       embedding: ["lazypos"],
+      outfit: ["o1", "default:nahida"],
       shape: ["2:3", "3:4"],
       minW: 512,
       maxW: 2048,

@@ -890,6 +890,11 @@ far); an empty Default (Nahida: no attire tag on more than 18% of her
 images) shows a + and opens its dialog. Card menus open beside the card.
 Review of d9b95bd..b8f87eb not run yet.
 
-Asked 2026-10-21: filter All Images by outfit. Today only through Open in
-gallery (an all-of tag filter in the URL); no Outfit control in the
-gallery's filters yet.
+Gallery outfit filter (user's call 2026-10-21: a real filter, an
+aggregate, reachable from the search box): `outfit=<id>` (or
+`default:<character>`) in the feed filter; an image matches when it carries
+two thirds of the outfit's tagger-checkable tags, rounded up (1 of 1, 2 of
+3, 4 of 6), from any tag source. Search box: `outfit:Name` chips (id in the
+URL), outfits suggested by name, and a plain name that is an outfit and not
+a library tag resolves to it. Open in gallery uses it (plus the character
+from their page). This replaces the plan's "no new Gallery filter kind".

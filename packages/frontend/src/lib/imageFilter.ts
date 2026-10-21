@@ -69,6 +69,9 @@ export type Filters = {
   /** Embeddings either of its prompts used, every one (gen.embeddings);
    * `embedding:name` chips in the search box. */
   embedding: string[];
+  /** Outfits the image wears, each (most of its tags): saved outfit ids, or
+   * `default:<character>`. `outfit:Name` chips in the search box. */
+  outfit: string[];
   /** Size presets ("2:3"): the image's shape is any of them. Matched by
    * ratio, so upscales count (services/image_shapes.py). */
   shape: string[];
@@ -102,6 +105,7 @@ export const DEFAULT_FILTERS: Filters = {
   model: undefined,
   lora: [],
   embedding: [],
+  outfit: [],
   shape: [],
   minW: undefined,
   maxW: undefined,
@@ -140,6 +144,7 @@ export function parseFilters(sp: URLSearchParams): Filters {
     model: sp.get("model") || undefined,
     lora: sp.getAll("lora").filter(Boolean),
     embedding: sp.getAll("embedding").filter(Boolean),
+    outfit: sp.getAll("outfit").filter(Boolean),
     shape: sp.getAll("shape").filter(Boolean),
     minW: numOrUndef(sp.get("min_w")),
     maxW: numOrUndef(sp.get("max_w")),
@@ -178,6 +183,7 @@ export function serializeFilters(filters: Filters): URLSearchParams {
   if (filters.model) sp.set("model", filters.model);
   filters.lora.forEach((n) => sp.append("lora", n));
   filters.embedding.forEach((n) => sp.append("embedding", n));
+  filters.outfit.forEach((n) => sp.append("outfit", n));
   filters.shape.forEach((s) => sp.append("shape", s));
   if (filters.minW != null) sp.set("min_w", String(filters.minW));
   if (filters.maxW != null) sp.set("max_w", String(filters.maxW));
@@ -283,6 +289,7 @@ export function hasActiveFilter(f: Filters): boolean {
     !!f.model ||
     f.lora.length > 0 ||
     f.embedding.length > 0 ||
+    f.outfit.length > 0 ||
     f.shape.length > 0 ||
     f.minW != null ||
     f.maxW != null ||
@@ -305,6 +312,7 @@ export function withoutFilters(f: Filters): Filters {
     tags: f.tags,
     lora: f.lora,
     embedding: f.embedding,
+    outfit: f.outfit,
     logic: f.logic,
     libraryId: f.libraryId,
     sort: f.sort,
@@ -388,27 +396,41 @@ export function activeFilterChips(
 }
 
 
-/** How a lora or embedding reads as a search term: `lora:name`. ComfyUI's
- * own spelling; `emb:` is accepted as short for `embedding:`. */
-export const RESOURCE_PREFIXES = { lora: "lora:", embedding: "embedding:" } as const;
+/** How a lora, embedding or outfit reads as a search term: `lora:name`.
+ * ComfyUI's own spelling; `emb:` is accepted as short for `embedding:`. */
+export const RESOURCE_PREFIXES = { lora: "lora:", embedding: "embedding:", outfit: "outfit:" } as const;
 export type ResourceKind = keyof typeof RESOURCE_PREFIXES;
-const TYPED_PREFIX = /^(lora|embedding|emb):\s*(.+)$/i;
+const TYPED_PREFIX = /^(lora|embedding|emb|outfit):\s*(.+)$/i;
 
-/** A typed search term's lora or embedding, if it names one. Pure. */
+/** A typed search term's lora, embedding or outfit, if it names one. Pure. */
 export function resourceOf(term: string): { kind: ResourceKind; name: string } | null {
   const m = TYPED_PREFIX.exec(term.trim());
   if (!m) return null;
-  return { kind: m[1].toLowerCase() === "lora" ? "lora" : "embedding", name: m[2].trim() };
+  const k = m[1].toLowerCase();
+  return { kind: k === "lora" ? "lora" : k === "outfit" ? "outfit" : "embedding", name: m[2].trim() };
 }
 
-/** Everything the search box shows as chips: tags, then loras, then
- * embeddings, each as its search term. Pure. */
-export function searchTerms(f: Filters): string[] {
+/** A saved outfit as the search box knows it. */
+export type KnownOutfit = { id: string; name: string };
+
+/** Everything the search box shows as chips: tags, then loras, embeddings
+ * and outfits (by name; `outfits` gives the names for the ids), each as its
+ * search term. Pure. */
+export function searchTerms(f: Filters, outfits: readonly KnownOutfit[] = []): string[] {
   return [
     ...f.tags,
     ...f.lora.map((n) => RESOURCE_PREFIXES.lora + n),
     ...f.embedding.map((n) => RESOURCE_PREFIXES.embedding + n),
+    ...f.outfit.map((id) => RESOURCE_PREFIXES.outfit + outfitName(id, outfits)),
   ];
+}
+
+/** An outfit's name for its chip; one the list doesn't name reads as its
+ * id, a character's Default as "Default, <character>". Pure. */
+function outfitName(id: string, outfits: readonly KnownOutfit[]): string {
+  const known = outfits.find((o) => o.id === id)?.name;
+  if (known) return known;
+  return id.startsWith("default:") ? `Default, ${id.slice(8).replace(/_/g, " ")}` : id;
 }
 
 /**
@@ -420,15 +442,32 @@ export function searchTerms(f: Filters): string[] {
 export function withSearchTerms(
   f: Filters,
   terms: readonly string[],
-  known: Partial<Record<ResourceKind, readonly string[]>> = {},
+  known: Partial<Record<"lora" | "embedding", readonly string[]>> = {},
+  outfits: { list: readonly KnownOutfit[]; tags?: ReadonlySet<string> } = { list: [] },
 ): Filters {
-  const next = { tags: [] as string[], lora: [] as string[], embedding: [] as string[] };
+  const next = { tags: [] as string[], lora: [] as string[], embedding: [] as string[], outfit: [] as string[] };
+  const outfitNamed = (name: string) => {
+    const lower = name.toLowerCase();
+    return outfits.list.find((o) => o.name.toLowerCase() === lower);
+  };
+  // An outfit chip already in the filter keeps its id (a Default has no name
+  // in the list): the term it shows maps back to it.
+  const shown = new Map(f.outfit.map((id) => [RESOURCE_PREFIXES.outfit + outfitName(id, outfits.list), id]));
   for (const term of terms) {
     // A bare `lora:` with no name yet is nothing to search for.
-    if (/^(lora|embedding|emb):\s*$/i.test(term.trim())) continue;
+    if (/^(lora|embedding|emb|outfit):\s*$/i.test(term.trim())) continue;
     const r = resourceOf(term);
     if (!r) {
-      next.tags.push(term);
+      // A plain name that is an outfit, and not a tag the library has.
+      const o = outfitNamed(term.trim());
+      if (o && !outfits.tags?.has(term.trim().replace(/\s+/g, "_"))) {
+        if (!next.outfit.includes(o.id)) next.outfit.push(o.id);
+      } else next.tags.push(term);
+      continue;
+    }
+    if (r.kind === "outfit") {
+      const id = shown.get(term) ?? outfitNamed(r.name)?.id;
+      if (id && !next.outfit.includes(id)) next.outfit.push(id);
       continue;
     }
     const lower = r.name.toLowerCase();

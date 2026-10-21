@@ -65,6 +65,7 @@ def feed_filter(
     group_id: str | None = Query(default=None),
     workflow: str | None = Query(default=None, max_length=256),
     workflow_sig: str | None = Query(default=None, max_length=256),
+    outfit: list[str] | None = Query(default=None),
     sort: str = Query(default="newest"),
 ) -> FeedFilter:
     """The gallery filter from the query string: one parameter set for every
@@ -91,6 +92,7 @@ def feed_filter(
             group_id=group_id,
             workflow_id=workflow,
             workflow_sig=workflow_sig,
+            outfit=outfit,
             sort=sort,
         )
     except FeedFilterError as exc:
@@ -391,6 +393,7 @@ async def list_groups(
     max_h: int | None = Query(default=None, ge=0),
     workflow: str | None = Query(default=None, max_length=256),
     workflow_sig: str | None = Query(default=None, max_length=256),
+    outfit: list[str] | None = Query(default=None),
     sort: str = Query(default="newest"),
 ):
     """Batch-collapsed view of the same feed: images sharing a gen_group_id fold
@@ -418,6 +421,7 @@ async def list_groups(
             max_h=max_h,
             workflow_id=workflow,
             workflow_sig=workflow_sig,
+            outfit=outfit,
             sort=sort,
         )
     except FeedFilterError as exc:

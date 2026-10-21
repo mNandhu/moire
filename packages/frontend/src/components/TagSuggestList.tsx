@@ -13,7 +13,7 @@ const MAX_SUGGESTIONS = 8;
 // Rows kept for loras and embeddings when tags also match: they rank below
 // tags, but a long tag list mustn't hide them.
 const RESOURCE_ROWS = 2;
-const TYPED_KIND = /^(lora|embedding|emb):\s*(.*)$/i;
+const TYPED_KIND = /^(lora|embedding|emb|outfit):\s*(.*)$/i;
 
 /**
  * The suggestions for typed text: tags fuzzy-ranked on their display form
@@ -35,7 +35,8 @@ export function rankSuggestions(
   const nameOf = (s: TagSuggestion) => s._id.slice(s._id.indexOf(":") + 1);
   const typed = TYPED_KIND.exec(q);
   if (typed) {
-    const kind = typed[1].toLowerCase() === "lora" ? "lora:" : "embedding:";
+    const k = typed[1].toLowerCase();
+    const kind = k === "lora" ? "lora:" : k === "outfit" ? "outfit:" : "embedding:";
     const ofKind = resources.filter((r) => r._id.startsWith(kind));
     const rest = typed[2].trim();
     return rest
@@ -69,7 +70,7 @@ const NONE: TagSuggestion[] = [];
 /** A lora or embedding search term's kind and name, or null for a tag. */
 export function resourceLabel(id: string): { kind: string; name: string } | null {
   const r = resourceOf(id);
-  return r ? { kind: r.kind === "lora" ? "LoRA" : "Embedding", name: r.name } : null;
+  return r ? { kind: r.kind === "lora" ? "LoRA" : r.kind === "outfit" ? "Outfit" : "Embedding", name: r.name } : null;
 }
 
 /**

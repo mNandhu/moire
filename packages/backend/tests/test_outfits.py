@@ -271,3 +271,39 @@ def test_exposure_is_a_list_not_a_pattern():
     assert attire.group_of("midriff") == "exposure"
     for tag in ("open_bra", "crotch_cutout", "underboob", "open_pants"):
         assert not attire.is_attire(tag)
+
+
+def test_wears_most_is_two_thirds_rounded_up():
+    assert [outfits.wears_most(n) for n in range(7)] == [0, 1, 2, 2, 3, 4, 4]
+
+
+async def test_gallery_outfit_filter(client, seed, monkeypatch):
+    monkeypatch.setattr(tag_categories, "load", _chars(HU, hu_tao="genshin_impact"))
+    await asyncio.to_thread(_library, seed)
+    seed("L1:all", tags=(HU, "porkpie_hat", "long_coat", "prompt:black_shorts"))
+    seed("L1:two", tags=("porkpie_hat", "manual:long_coat"))
+    seed("L1:one", tags=("long_coat",))
+    o = (
+        await client.post(
+            "/generate/outfits",
+            json={
+                "name": "Funeral",
+                "character": HU,
+                "tags": ["porkpie hat", "long coat", "black shorts"],
+            },
+        )
+    ).json()
+
+    def ids(r):
+        return {i["_id"] for i in r.json()}
+
+    # Wears most of it (2 of 3), from any tag source.
+    got = ids(await client.get("/images", params={"outfit": o["_id"]}))
+    assert {"L1:all", "L1:two"} <= got and "L1:one" not in got
+    # With the character too.
+    got = ids(await client.get("/images", params={"outfit": o["_id"], "tags": HU}))
+    assert got == {"L1:all"}
+    # An unknown outfit matches nothing; Default by character works.
+    assert ids(await client.get("/images", params={"outfit": "nope"})) == set()
+    got = ids(await client.get("/images", params={"outfit": f"default:{HU}"}))
+    assert "L1:h0" in got

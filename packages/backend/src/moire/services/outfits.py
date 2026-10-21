@@ -13,6 +13,7 @@ vocabulary) is kept but marked: nothing can check an image wears it.
 
 from __future__ import annotations
 
+import math
 import re
 import time
 import uuid
@@ -95,6 +96,33 @@ def tag_info(tags: Iterable[str], general: frozenset[str]) -> list[dict[str, Any
         }
         for tag in tags
     ]
+
+
+# How much of an outfit an image must wear to match the gallery's outfit
+# filter: two thirds of its tags, rounded up (1 of 1, 2 of 3, 4 of 6).
+WEARS_MOST = 2 / 3
+
+
+def wears_most(n: int) -> int:
+    """Tags of ``n`` an image must carry to wear the outfit. Pure."""
+    return max(1, math.ceil(n * WEARS_MOST - 1e-9)) if n else 0
+
+
+async def wear_rule(outfit_id: str) -> tuple[tuple[str, ...], int] | None:
+    """The gallery filter's view of an outfit: the tags the tagger can check
+    (all of them when it can check none) and how many an image must carry.
+    ``outfit_id`` is a saved id or ``default:<character>``. None when it is
+    unknown."""
+    if outfit_id.startswith(f"{DEFAULT_ID}:"):
+        o = await default(outfit_id.split(":", 1)[1])
+    else:
+        o = await get(outfit_id)
+    if o is None:
+        return None
+    seen = [x["tag"] for x in o["tags"] if x["checkable"]] or [
+        x["tag"] for x in o["tags"]
+    ]
+    return tuple(seen), wears_most(len(seen))
 
 
 async def _key(character: str) -> str | None:

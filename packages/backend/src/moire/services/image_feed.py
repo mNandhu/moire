@@ -139,10 +139,15 @@ class FeedFilter:
     group_id: str | None = None
     workflow_id: str | None = None
     workflow_sig: str | None = None
+    # Outfits the image wears (saved ids, or `default:<character>`), each.
+    outfit: list[str] | None = None
     sort: str = "newest"
     # The family's signatures, resolved from `workflow_id` by `_resolved`
     # before the query is built (not a user input).
     family_sigs: tuple[str, ...] | None = None
+    # Each outfit's (tags, how many to carry), resolved from `outfit` by
+    # `_resolved`; None for an unknown outfit (matches nothing).
+    outfit_rules: tuple[tuple[tuple[str, ...], int] | None, ...] | None = None
     # The images of the filter's rarest tag group or prompt term, when that
     # is few enough to drive the query by id (`_drive_by_rarest`).
     driver_ids: tuple[str, ...] | None = None
@@ -154,6 +159,8 @@ class FeedFilter:
             raise FeedFilterError("logic must be 'and' or 'or'")
         if self.plogic not in ("and", "or"):
             raise FeedFilterError("plogic must be 'and' or 'or'")
+        if self.outfit and len(self.outfit) > 10:
+            raise FeedFilterError("too many outfits (max 10)")
         if self.tags:
             if len(self.tags) > 100:
                 raise FeedFilterError("too many tags (max 100)")
@@ -256,6 +263,24 @@ def feed_where(f: FeedFilter):
                     )
                 )
             )
+    if f.outfit:
+        if f.outfit_rules is None:
+            raise RuntimeError("outfit filter used before _resolved()")
+        it = t.image_tags
+        for rule in f.outfit_rules:
+            if not rule or not rule[0]:
+                conds.append(sa.false())
+                continue
+            tags, need = rule
+            # Wears most of it: carries `need` of its tags, any source.
+            conds.append(
+                t.images.c._id.in_(
+                    sa.select(it.c.image_id)
+                    .where(it.c.base.in_(tags))
+                    .group_by(it.c.image_id)
+                    .having(sa.func.count(sa.distinct(it.c.base)) >= need)
+                )
+            )
     if f.shape:
         conds.append(image_shapes.where(f.shape))
     if f.min_w is not None:
@@ -284,6 +309,11 @@ async def _resolved(conn, f: FeedFilter) -> FeedFilter:
     if f.workflow_id and f.family_sigs is None:
         sigs = await workflow_family.family_sigs(conn, f.workflow_id)
         f = replace(f, family_sigs=sigs)
+    if f.outfit and f.outfit_rules is None:
+        from . import outfits
+
+        rules = [await outfits.wear_rule(o) for o in dict.fromkeys(f.outfit) if o]
+        f = replace(f, outfit_rules=tuple(rules))
     return await _drive_by_rarest(conn, f)
 
 

@@ -40,7 +40,7 @@ import { LibraryScopeTabs } from "../components/LibraryScopeTabs";
 import { SortControl } from "../components/SortControl";
 import { fetchSignatures } from "../lib/gen";
 import { groupWorkflows, workflowFilterName } from "../lib/workflows";
-import { useGenerators } from "../lib/generate";
+import { useGenerators, useOutfits } from "../lib/generate";
 import { generatorFor } from "../components/generate/InGenerate";
 import { Badge } from "../components/ui";
 import { ambientPalette } from "../lib/blurhash";
@@ -208,12 +208,18 @@ export default function AllImagesPage() {
   const { data: loraOptions = NO_LORAS } = useQuery(imageLorasQuery);
   // Loras and embeddings as search terms: suggested in the search box, and
   // typed names resolved to the library's spelling (matching is exact).
+  // Saved outfits too: typing a name offers them, and a plain name that is
+  // an outfit (and not a tag) becomes the outfit filter.
+  const { data: outfitList } = useOutfits();
+  const knownOutfits = useMemo(() => (outfitList ?? []).map((o) => ({ id: o._id, name: o.name })), [outfitList]);
+  const tagNames = useMemo(() => new Set(tagOptions.map((t) => t._id.slice(t._id.indexOf(":") + 1))), [tagOptions]);
   const resourceSuggestions = useMemo(
     () => [
       ...loraOptions.map((o) => ({ _id: RESOURCE_PREFIXES.lora + o.name, count: o.count })),
       ...embeddingOptions.map((o) => ({ _id: RESOURCE_PREFIXES.embedding + o.name, count: o.count })),
+      ...knownOutfits.map((o) => ({ _id: RESOURCE_PREFIXES.outfit + o.name, count: 0 })),
     ],
-    [loraOptions, embeddingOptions],
+    [loraOptions, embeddingOptions, knownOutfits],
   );
   const knownResources = useMemo(
     () => ({ lora: loraOptions.map((o) => o.name), embedding: embeddingOptions.map((o) => o.name) }),
@@ -864,11 +870,13 @@ export default function AllImagesPage() {
           <div className="flex-1 min-w-0">
             <TagSearchInput
               ref={searchInputRef}
-              value={searchTerms(filters)}
-              onChange={(terms) => setFilters(withSearchTerms(filters, terms, knownResources))}
+              value={searchTerms(filters, knownOutfits)}
+              onChange={(terms) =>
+                setFilters(withSearchTerms(filters, terms, knownResources, { list: knownOutfits, tags: tagNames }))
+              }
               suggestions={tagOptions}
               resources={resourceSuggestions}
-              placeholder="Search tags, lora:, embedding:…"
+              placeholder="Search tags, outfits, lora:, embedding:…"
             />
           </div>
           <SortControl

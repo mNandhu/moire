@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { addWorn, keepPicked, outfitGalleryHref, outfitInput, pickFromInput, pickOf, toggleWorn, validOutfits, wornTags } from "./outfit";
 import { formFromBatch, loadDraft, previewText, wearingOutfit, withCharacter } from "./generateForm";
 import type { BatchInputs } from "./generate";
+import { DEFAULT_FILTERS, searchTerms, withSearchTerms } from "./imageFilter";
 
 const funeral = pickOf({
   _id: "o1",
@@ -81,20 +82,36 @@ describe("outfits in the composer", () => {
 });
 
 describe("outfitGalleryHref", () => {
-  it("filters on the checkable tags, all of them, with the character", () => {
-    const href = outfitGalleryHref(
-      {
-        tags: [
-          { tag: "porkpie_hat", group: null, checkable: true },
-          { tag: "plum_ornament", group: null, checkable: false },
-        ],
-      },
-      "hu_tao",
-    );
-    const sp = new URLSearchParams(href.slice(2));
-    expect(href.startsWith("/?")).toBe(true);
-    expect(sp.getAll("tags")).toEqual(["hu_tao", "porkpie_hat"]);
-    expect(sp.get("logic")).toBe("and");
+  it("uses the outfit filter, with the character from their page", () => {
+    const sp = new URLSearchParams(outfitGalleryHref({ _id: "o1", character: "hu_tao" }, "hu_tao").slice(2));
+    expect([sp.getAll("outfit"), sp.getAll("tags")]).toEqual([["o1"], ["hu_tao"]]);
+  });
+
+  it("names a Default by its character", () => {
+    const sp = new URLSearchParams(outfitGalleryHref({ _id: "default", character: "nahida" }).slice(2));
+    expect([sp.getAll("outfit"), sp.getAll("tags")]).toEqual([["default:nahida"], []]);
+  });
+});
+
+describe("outfits in the search box", () => {
+  const list = [{ id: "o1", name: "Night out" }];
+  const base = { ...DEFAULT_FILTERS };
+
+  it("shows outfit chips by name and maps them back to ids", () => {
+    const f = { ...base, outfit: ["o1", "default:nahida"] };
+    const terms = searchTerms(f, list);
+    expect(terms).toEqual(["outfit:Night out", "outfit:Default, nahida"]);
+    expect(withSearchTerms(f, terms, {}, { list }).outfit).toEqual(["o1", "default:nahida"]);
+  });
+
+  it("resolves a typed outfit name, prefixed or plain, unless it is a tag", () => {
+    expect(withSearchTerms(base, ["outfit:night OUT"], {}, { list }).outfit).toEqual(["o1"]);
+    const plain = withSearchTerms(base, ["Night out"], {}, { list });
+    expect([plain.outfit, plain.tags]).toEqual([["o1"], []]);
+    const tag = withSearchTerms(base, ["Night out"], {}, { list, tags: new Set(["Night_out"]) });
+    expect([tag.outfit, tag.tags]).toEqual([[], ["Night out"]]);
+    // An unknown name is dropped, not searched as an id.
+    expect(withSearchTerms(base, ["outfit:nope"], {}, { list }).outfit).toEqual([]);
   });
 });
 

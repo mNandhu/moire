@@ -86,9 +86,10 @@ export function pickFromInput(o: OutfitInput | null | undefined): OutfitPick | n
   return o && isStr(o.id) && Array.isArray(o.tags) ? { id: o.id, name: o.name ?? "", tags: o.tags.filter(isStr), dropped: [] } : null;
 }
 
-/** The gallery for an outfit: an ordinary all-of tag filter over the tags
- * the tagger can check, plus the character when given. Pure. */
-export function outfitGalleryHref(o: Pick<Outfit, "tags">, character?: string | null): string {
-  const tags = [...(character ? [character] : []), ...o.tags.filter((t) => t.checkable).map((t) => t.tag)];
-  return `/?${serializeFilters({ ...DEFAULT_FILTERS, tags, logic: "and" }).toString()}`;
+/** The gallery's outfit filter for `o` (images wearing most of it), plus
+ * the character when given; a Default is named by its character. Pure. */
+export function outfitGalleryHref(o: Pick<Outfit, "_id" | "character">, character?: string | null): string {
+  const id = o._id === "default" ? `default:${o.character}` : o._id;
+  const tags = character ? [character] : [];
+  return `/?${serializeFilters({ ...DEFAULT_FILTERS, tags, outfit: [id] }).toString()}`;
 }
