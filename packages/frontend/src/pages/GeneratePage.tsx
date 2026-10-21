@@ -481,6 +481,30 @@ export default function GeneratePage() {
           : null;
   const canQueue = !blocked && !queue.isPending;
 
+  // One button, two places: in the settings card from lg, pinned to the
+  // bottom of the screen on phones so it never sits a long scroll away.
+  const runButton = blocked ? (
+    <Button
+      className="w-full h-11 text-[15px]"
+      disabled
+      title={!ready && connected ? "Use Test run above: one image proves the checkpoint and the output folder" : undefined}
+    >
+      {blocked === "Run the test first" ? <FlaskConical size={16} /> : <Lock size={16} />}
+      {blocked}
+    </Button>
+  ) : (
+    <Button
+      variant="primary"
+      className="w-full h-11 text-[15px]"
+      disabled={!canQueue}
+      onClick={() => queue.mutate()}
+      title={queueTitle(estimate)}
+    >
+      {queue.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+      Queue {countText(form.count, countMode)}
+    </Button>
+  );
+
   return (
     <>
       {/* On the right: which Generator this page runs, then one status, with
@@ -721,28 +745,11 @@ export default function GeneratePage() {
                     refreshing={refresh.isPending}
                   />
                 )}
-                {blocked ? (
-                  <Button
-                    className="w-full h-11 text-[15px]"
-                    disabled
-                    title={!ready && connected ? "Use Test run above: one image proves the checkpoint and the output folder" : undefined}
-                  >
-                    {blocked === "Run the test first" ? <FlaskConical size={16} /> : <Lock size={16} />}
-                    {blocked}
-                  </Button>
-                ) : (
-                  <Button
-                    variant="primary"
-                    className="w-full h-11 text-[15px]"
-                    disabled={!canQueue}
-                    onClick={() => queue.mutate()}
-                    title={queueTitle(estimate)}
-                  >
-                    {queue.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                    Queue {countText(form.count, countMode)}
-                  </Button>
-                )}
+                <div className="hidden lg:block">{runButton}</div>
               </Card>
+            </div>
+            <div className="lg:hidden sticky bottom-0 z-[5] -mx-2 bg-gradient-to-t from-canvas from-60% to-transparent px-2 pb-3 pt-4">
+              {runButton}
             </div>
           </div>
 

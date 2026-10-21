@@ -81,13 +81,16 @@ function layerTerm(t: LayerTag): PromptTerm & Pick<Placed, "dropped" | "self" | 
 }
 
 const LIST_ROWS = 40;
-// Per viewer: whether the board is folded away.
+// Per viewer: whether the board is folded away. Until they choose, a phone
+// starts folded: one box per part, stacked, is a long scroll of empty slots.
 const FOLD_KEY = "moire.generate.boardFolded";
 function readFolded(): boolean {
+  const phone = () => window.matchMedia?.("(max-width: 639px)").matches ?? false;
   try {
-    return localStorage.getItem(FOLD_KEY) === "1";
+    const stored = localStorage.getItem(FOLD_KEY);
+    return stored === null ? phone() : stored === "1";
   } catch {
-    return false;
+    return phone();
   }
 }
 const NO_OPTIONS: TagSuggestion[] = [];
@@ -492,8 +495,8 @@ export function PromptBoard({
         onClick={() => setFold(!folded)}
         className="flex w-full items-center gap-2 rounded-md py-1 text-left text-xs text-muted hover:text-neutral-100"
       >
-        <ChevronDown size={14} className={cn("transition-transform", folded && "-rotate-90")} />
-        <span className="font-medium">Tags by part</span>
+        <ChevronDown size={14} className={cn("shrink-0 transition-transform", folded && "-rotate-90")} />
+        <span className="shrink-0 whitespace-nowrap font-medium">Tags by part</span>
         {folded && (
           <span className="flex min-w-0 items-center gap-2 truncate text-faint">
             <span>
