@@ -9,6 +9,7 @@ import { useCharacters } from "./ImageCharacters";
 import { NAV } from "./Sidebar";
 import { SETTINGS_SECTIONS } from "../pages/settings/registry";
 import { cn } from "../lib/cn";
+import { smallThumb } from "../lib/media";
 import {
   imageEmbeddingsQuery,
   imageLorasQuery,
@@ -219,7 +220,7 @@ function Visual({ item }: { item: SearchItem }) {
       <CharacterAvatar src={c.thumb_url} face={c.face} focus={c.focus} aspect={c.aspect} letter={item.label} className={box} />
     );
   }
-  if (item.thumb) return <img src={item.thumb} alt="" loading="lazy" className={cn(box, "rounded-md object-cover bg-raised")} />;
+  if (item.thumb) return <img src={smallThumb(item.thumb)} alt="" loading="lazy" className={cn(box, "rounded-md object-cover bg-raised")} />;
   const Icon = PAGE_ICON.get(item.key) ?? GROUP_ICON[item.group];
   return (
     <span className={cn(box, "grid place-items-center rounded-md text-muted")}>

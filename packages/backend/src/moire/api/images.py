@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Header, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
+from typing import Literal
+import logging
 import mimetypes
 import time
 from datetime import datetime, timedelta, timezone
@@ -12,11 +14,13 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from ..services.storage_fs import thumb_path, delete_thumb
+from ..services.storage_fs import delete_thumb, small_thumb_path, thumb_path
 from ..services import gen_metadata, image_shapes, image_tags, image_feed, tag_index
 from ..services.image_feed import FeedFilter, FeedFilterError
 from ..services.image_tags import find_image as _find_image_doc  # type: ignore
 from ._utils import thumb_url
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter()
@@ -202,8 +206,23 @@ async def head_image_file(image_id: str):
     )
 
 
+ThumbSize = Literal["small"]
+
+
+def _thumb_file(key: str, size: ThumbSize | None):
+    if size == "small":
+        try:
+            return small_thumb_path(key)
+        except Exception:
+            # A thumbnail Pillow can't read still serves as itself.
+            logger.warning("small thumbnail failed for %s", key, exc_info=True)
+    return thumb_path(key)
+
+
 @router.get("/{image_id:path}/thumb")
-async def get_image_thumb(image_id: str):
+async def get_image_thumb(image_id: str, size: ThumbSize | None = None):
+    """The image's thumbnail; `size=small` for a copy ~256px on its short side
+    (made on first ask), for previews shown postage-stamp size."""
     img = await _find_image_doc(image_id, {"thumb_key": 1})
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
@@ -214,7 +233,7 @@ async def get_image_thumb(image_id: str):
     # Determine media type from the key extension
     media_type = "image/webp" if thumb_key.endswith(".webp") else "image/jpeg"
 
-    path = await anyio.to_thread.run_sync(lambda: thumb_path(thumb_key))  # type: ignore[attr-defined]
+    path = await anyio.to_thread.run_sync(lambda: _thumb_file(thumb_key, size))  # type: ignore[attr-defined]
     if path is None:
         raise HTTPException(status_code=404, detail="Thumbnail not found on disk")
     # FileResponse handles ETag/Content-Length/sendfile natively.
@@ -226,7 +245,7 @@ async def get_image_thumb(image_id: str):
 
 
 @router.head("/{image_id:path}/thumb")
-async def head_image_thumb(image_id: str):
+async def head_image_thumb(image_id: str, size: ThumbSize | None = None):
     img = await _find_image_doc(image_id, {"thumb_key": 1})
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")

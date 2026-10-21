@@ -10,6 +10,7 @@ import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { Input } from "../components/ui/Input";
 import { cn } from "../lib/cn";
 import { api } from "../lib/api";
+import { smallThumb } from "../lib/media";
 import {
   TAG_ALIASES_KEY,
   deleteTagAlias,
@@ -616,7 +617,7 @@ function NumeralCard({
       aria-pressed={selected}
       className={cn(CARD, "bg-sheen", cardState(selected))}
     >
-      <Mosaic samples={samples} cover={t.thumb_url} focus={t.focus} focusImage={t.thumb_image_id} className="aspect-[3/4]" />
+      <Mosaic samples={samples} cover={t.thumb_url} focus={t.focus} focusImage={t.thumb_image_id} className="aspect-[3/4]" smallCells />
       <div className="relative overflow-hidden px-3 pt-2.5 pb-3">
         <span
           aria-hidden="true"
@@ -657,7 +658,7 @@ function TagRow({
       <span className="h-10 w-10 rounded-md overflow-hidden bg-raised">
         {tag.thumb_url && (
           <img
-            src={tag.thumb_url}
+            src={smallThumb(tag.thumb_url)}
             alt=""
             loading="lazy"
             className="h-full w-full object-cover"

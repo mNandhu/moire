@@ -4,6 +4,7 @@ import { ChevronDown, Undo2, X } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { fuzzyRank } from "../../lib/fuzzy";
 import { api } from "../../lib/api";
+import { smallThumb } from "../../lib/media";
 import type { CharacterEntry } from "../../lib/character";
 import type { Sample } from "../TagMosaic";
 import { appendPiece, appendTag, promptTerms, removeSpan, replaceName, type PromptTerm } from "../../lib/promptOutline";
@@ -142,7 +143,7 @@ function TagPreview({ term, count, swap }: { term: Placed; count: number | undef
         <div className="grid h-[92px] grid-cols-4 gap-1">
           {isPending
             ? Array.from({ length: 4 }, (_, i) => <div key={i} className="animate-pulse rounded bg-surface" />)
-            : (data ?? []).map((img) => <img key={img._id} src={img.thumb_url} alt="" className="h-full w-full rounded object-cover" />)}
+            : (data ?? []).map((img) => <img key={img._id} src={smallThumb(img.thumb_url)} alt="" className="h-full w-full rounded object-cover" />)}
           {!isPending && !data?.length && (
             <div className="col-span-4 grid place-items-center rounded border border-dashed border-line text-xs text-faint">No images with it yet</div>
           )}

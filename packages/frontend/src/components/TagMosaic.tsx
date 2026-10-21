@@ -2,6 +2,7 @@ import { Tag as TagIcon } from "lucide-react";
 import { Skeleton } from "./ui/Skeleton";
 import { cn } from "../lib/cn";
 import { focusPosition } from "../lib/character";
+import { smallThumb } from "../lib/media";
 
 /** One `/tags/samples` image. */
 export type Sample = { _id: string; thumb_url: string };
@@ -15,6 +16,7 @@ export function Mosaic({
   className = "aspect-square",
   focus = null,
   focusImage = null,
+  smallCells = false,
 }: {
   samples: Sample[] | undefined;
   cover: string | null;
@@ -24,6 +26,9 @@ export function Mosaic({
    * applies where that image shows (a collage may lead with another). */
   focus?: readonly [number, number] | null;
   focusImage?: string | null;
+  /** Quarter cells load the small thumbnail: for a card too narrow to show
+   * more. A cell filling the collage keeps the full one. */
+  smallCells?: boolean;
 }) {
   const at = (id?: string): React.CSSProperties | undefined =>
     focus && (id === undefined || id === focusImage)
@@ -60,7 +65,7 @@ export function Mosaic({
       {cells.map((s, i) => (
         <div key={s._id} className={cn("relative overflow-hidden bg-neutral-900", spanClass(i))}>
           <img
-            src={s.thumb_url}
+            src={smallCells && !spanClass(i) ? smallThumb(s.thumb_url) : s.thumb_url}
             alt=""
             loading="lazy"
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"

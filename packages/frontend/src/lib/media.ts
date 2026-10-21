@@ -102,3 +102,12 @@ function addPreconnect(origin: string) {
   link.crossOrigin = "anonymous";
   document.head.appendChild(link);
 }
+
+/** A thumbnail URL's small copy (~256px short side), for previews shown
+ * postage-stamp size. Not for face crops: they zoom in. */
+export function smallThumb(url: string): string;
+export function smallThumb(url: string | null | undefined): string | null;
+export function smallThumb(url: string | null | undefined): string | null {
+  if (!url) return null;
+  return `${url}${url.includes("?") ? "&" : "?"}size=small`;
+}

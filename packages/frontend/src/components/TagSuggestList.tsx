@@ -6,6 +6,7 @@ import { Badge } from "./ui/Badge";
 import { cn } from "../lib/cn";
 import { formatSearchTag, isManual, isPrompt, tagQueryText } from "../lib/tags";
 import { resourceOf } from "../lib/imageFilter";
+import { smallThumb } from "../lib/media";
 
 export type TagSuggestion = { _id: string; count: number };
 
@@ -161,7 +162,7 @@ export function TagSuggestList({
 /** A tag's cover in the list, or an empty square to keep rows aligned. */
 function Thumb({ url }: { url: string | null }) {
   return url ? (
-    <img src={url} alt="" loading="lazy" className="h-8 w-8 shrink-0 rounded object-cover bg-raised" />
+    <img src={smallThumb(url)} alt="" loading="lazy" className="h-8 w-8 shrink-0 rounded object-cover bg-raised" />
   ) : (
     <span className="h-8 w-8 shrink-0 rounded bg-raised/60" />
   );
