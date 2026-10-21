@@ -165,8 +165,8 @@ def batch_shape(
     elif builtin:
         per_request = int(settings.get("builtin_per_request") or 1)
     else:
-        # Mapped but never given a size (picked by hand in setup): 1, as the
-        # Generate page shows it, so count stays in images.
+        # Mapped with no size saved: 1, as Generate and setup show it, so
+        # the count stays in images.
         per_request = int(gen["slots"].get("per_request") or 1)
     return {
         "count": max(1, min(500, int(body.get("count") or 1))),

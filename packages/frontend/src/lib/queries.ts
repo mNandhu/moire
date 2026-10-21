@@ -109,8 +109,9 @@ export function useTagAggregate({ includePrompt = false } = {}) {
 
 /** The Tags page list: one entry per tag name, optionally from one source.
  * Under TAGS_KEY, so every tag write refreshes it. */
-export function useTagBrowse(source: TagSource, { enabled = true } = {}) {
+export function useTagBrowse(source: TagSource, { enabled = true, staleTime = 0 } = {}) {
   return useQuery({
+    staleTime,
     queryKey: [...TAGS_KEY, "browse", source],
     queryFn: ({ signal }) =>
       api<BrowseTag[]>(`/api/v1/tags/browse?source=${source}`, { signal }),

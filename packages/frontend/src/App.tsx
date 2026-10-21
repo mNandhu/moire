@@ -57,7 +57,11 @@ export default function App() {
   // included; again closes it. Capture phase, ahead of a dialog's key trap.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== "KeyK" || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.isComposing) return;
+      // The K the layout types (Dvorak's too); a non-Latin layout's key in
+      // K's place.
+      const key = typeof e.key === "string" ? e.key.toLowerCase() : "";
+      const isK = key === "k" || (!/^[a-z]$/.test(key) && e.code === "KeyK");
+      if (!isK || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.isComposing) return;
       e.preventDefault();
       e.stopPropagation();
       if (e.repeat) return;

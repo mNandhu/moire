@@ -13,8 +13,7 @@ Slots (found for a custom graph by :mod:`services.generator_discovery`):
 - ``width`` / ``height``: path or None
 - ``batch_size``: path or None (None: the count is in runs, see
   :func:`split_requests`); ``per_request`` the images each request makes
-  (a custom Generator's, always set with batch_size; the built-in's is a
-  setting)
+  (a custom Generator's, 1 when missing; the built-in's is a setting)
 - ``sampler`` / ``scheduler`` / ``steps`` / ``cfg``: path or None
 - ``checkpoint``: path or None
 - ``lora_model`` / ``lora_clip``: ``[node_id, out_index]`` where Moiré's LoRA

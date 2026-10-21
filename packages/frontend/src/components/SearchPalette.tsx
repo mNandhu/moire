@@ -88,13 +88,14 @@ function SearchBody({ onClose }: { onClose: () => void }) {
   const listRef = useRef<HTMLUListElement>(null);
 
   const characters = useCharacters();
-  const tags = useTagBrowse("all");
+  // Lists that rarely change between opens: refetched at most once a minute.
+  const tags = useTagBrowse("all", { staleTime: 60_000 });
   const workflows = useGenerators();
   const batches = useBatches();
   const libraries = useLibraries({ poll: false });
-  const loras = useQuery(imageLorasQuery);
-  const embeddings = useQuery(imageEmbeddingsQuery);
-  const models = useQuery(imageModelsQuery);
+  const loras = useQuery({ ...imageLorasQuery, staleTime: 60_000 });
+  const embeddings = useQuery({ ...imageEmbeddingsQuery, staleTime: 60_000 });
+  const models = useQuery({ ...imageModelsQuery, staleTime: 60_000 });
   const loading = [characters, tags, workflows, batches, libraries, loras, embeddings, models].some((q) => q.isLoading);
 
   const items = useMemo(
@@ -133,7 +134,7 @@ function SearchBody({ onClose }: { onClose: () => void }) {
       if (!flat.length) return;
       const step = e.key === "ArrowDown" ? 1 : -1;
       setActive((active + step + flat.length) % flat.length);
-    } else if (e.key === "Enter") {
+    } else if (e.key === "Enter" && !e.nativeEvent.isComposing) {
       e.preventDefault();
       go(flat[active]);
     }
@@ -151,24 +152,24 @@ function SearchBody({ onClose }: { onClose: () => void }) {
           placeholder="Search characters, tags, workflows, pages…"
           aria-label="Search"
           role="combobox"
-          aria-expanded="true"
+          aria-expanded={flat.length > 0}
           aria-controls={listId}
           aria-activedescendant={flat[active] ? `${listId}-${active}` : undefined}
           className="min-w-0 flex-1 bg-transparent text-[15px] text-neutral-100 outline-none focus-visible:shadow-none placeholder:text-faint"
         />
       </div>
+      {flat.length === 0 && (
+        <p role="status" className="px-4 py-6 text-center text-sm text-faint">
+          {loading ? "Loading…" : `Nothing matches “${query.trim()}”`}
+        </p>
+      )}
       <ul
         ref={listRef}
         id={listId}
         role="listbox"
         aria-label="Results"
-        className="max-h-[min(60vh,28rem)] overflow-y-auto py-1.5"
+        className={cn("max-h-[min(60vh,28rem)] overflow-y-auto py-1.5", flat.length === 0 && "hidden")}
       >
-        {flat.length === 0 && (
-          <li className="px-4 py-6 text-center text-sm text-faint">
-            {loading ? "Loading…" : `Nothing matches “${query.trim()}”`}
-          </li>
-        )}
         {sections.map((s) => (
           <React.Fragment key={s.group}>
             <li role="presentation" className="px-4 pb-1 pt-2.5 text-2xs uppercase tracking-wider text-faint">

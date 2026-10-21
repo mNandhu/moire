@@ -341,17 +341,6 @@ def clean_slots(raw: Any) -> dict[str, Any]:
     return out
 
 
-def with_size(graph: dict[str, Any], slots: dict[str, Any]) -> dict[str, Any]:
-    """A mapped batch_size always carries its images per run, so Generate
-    counts images: the graph's own number when the client sent none, else 1."""
-    if not slots.get("batch_size") or slots.get("per_request"):
-        return slots
-    node, key = slots["batch_size"][0], slots["batch_size"][1]
-    own = ((graph.get(str(node)) or {}).get("inputs") or {}).get(key)
-    ok = isinstance(own, int) and not isinstance(own, bool)
-    return {**slots, "per_request": max(1, min(64, own)) if ok else 1}
-
-
 def clean_defaults(raw: Any) -> dict[str, str]:
     d = raw if isinstance(raw, dict) else {}
     return {"base": str(d.get("base") or ""), "negative": str(d.get("negative") or "")}
@@ -389,7 +378,6 @@ async def create(
     problems = check_slots(graph, slots)
     if problems:
         raise SetupError(problems[0])
-    slots = with_size(graph, slots)
     gen_id = "g" + secrets.token_hex(5)
     now = time.time()
     async with async_tx() as conn:
@@ -548,7 +536,6 @@ async def update(gen: dict[str, Any], patch: dict[str, Any]) -> None:
         problems = check_slots(graph, slots)
         if problems:
             raise SetupError(problems[0])
-        slots = with_size(graph, slots)
         if slots != gen["slots"] or "graph" in values:
             if await has_work(gen["_id"]):
                 raise SetupError("Wait for its batches to finish or cancel them first")
