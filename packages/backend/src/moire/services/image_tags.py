@@ -480,6 +480,12 @@ async def replace_ai(
     )
 
 
+async def clear_ai(image_id: str) -> None:
+    """Drop one image's AI tags, tagger metadata and rating (before a re-tag).
+    Manual and prompt tags stay."""
+    await _mutate_tags(image_id, with_cleared_ai, extra={"ai": None, "rating": "-"})
+
+
 # --- Scalar column writes (rating / score / quarantine) -----------------------
 #
 # These are the only writers of the per-image scalar columns, so the documented

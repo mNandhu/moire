@@ -21,6 +21,7 @@ import {
   ChevronRight,
   ChevronDown,
   Sparkles,
+  RotateCcw,
   Loader2,
   Copy,
   Ban,
@@ -67,6 +68,7 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { Button } from "../components/ui/Button";
 import { MARKER_DIGIT } from "../components/ui/ScoreMark";
 import { Input } from "../components/ui/Input";
+import { useConfirm } from "../components/ConfirmDialog";
 import { useRemix, type RemixInfo } from "../lib/generate";
 import { RemixButton, WorkflowLine } from "../components/generate/Remix";
 
@@ -885,6 +887,20 @@ function TagsSection({
   const hasTags = tags.length > 0;
   // The tagger has already run on it: no "Tag with AI" to offer.
   const aiTagged = tags.some((t) => t.kind === "ai" || t.kind === "character");
+  const confirm = useConfirm();
+  const retag = async () => {
+    const ok = await confirm({
+      title: "Re-tag this image with AI?",
+      message:
+        "All of its AI tags are removed and its rating is reset, then the tagger runs again. Your own tags and prompt tags stay.",
+      confirmLabel: "Remove and re-tag",
+      tone: "warning",
+    });
+    if (!ok) return;
+    await start([id], { retag: true });
+    // Show the cleared tags now; the job's end refreshes again.
+    onChange();
+  };
   const { data: tasks } = useBackgroundTasks();
   // A job tagging this image that the panel doesn't know (after a reload,
   // or from another tab); one started here it picks up by itself.
@@ -909,18 +925,27 @@ function TagsSection({
       title="Tags"
       right={
         <div className="flex items-center gap-3">
-          {/* While it runs, the status line below says so. To re-tag a
-              tagged image, select it in the gallery and use AI tag. */}
-          {!busy && !aiTagged && (
-            <button
-              type="button"
-              onClick={() => void start([id])}
-              className={HEADER_ACTION}
-              title="Tag this image with the AI tagger"
-            >
-              <Sparkles size={12} /> Tag with AI
-            </button>
-          )}
+          {/* While it runs, the status line below says so. */}
+          {!busy &&
+            (aiTagged ? (
+              <button
+                type="button"
+                onClick={() => void retag()}
+                className={HEADER_ACTION}
+                title="Remove its AI tags and rating, and tag it again"
+              >
+                <RotateCcw size={12} /> Re-tag with AI
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void start([id])}
+                className={HEADER_ACTION}
+                title="Tag this image with the AI tagger"
+              >
+                <Sparkles size={12} /> Tag with AI
+              </button>
+            ))}
           {hasTags && (
             <button
               type="button"

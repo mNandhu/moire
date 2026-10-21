@@ -86,11 +86,11 @@ export function useAiTagging(onTagged?: () => void, imageId?: string) {
   }, [jobId, status, job?.error, push, onTagged, forget, resumed]);
 
   const start = useCallback(
-    async (ids: string[]) => {
+    async (ids: string[], opts?: { retag?: boolean }) => {
       if (submitting || jobId || !ids.length) return;
       setSubmitting(true);
       try {
-        const { job_id } = await postAiTag(ids);
+        const { job_id } = await postAiTag(ids, opts);
         handled.current = null;
         if (imageId && ids.length === 1 && ids[0] === imageId) jobOfImage.set(imageId, job_id);
         // No toast: the button shows the job's progress. Its model download
