@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { prefixRepeats, withoutTerms } from "./promptRepeats";
+import { prefixRepeats, tagRepeats, withoutTerms } from "./promptRepeats";
 
 const PREFIX = "masterpiece, best quality, amazing_quality";
 
@@ -37,5 +37,26 @@ describe("withoutTerms", () => {
     expect(withoutTerms("masterpiece, 1girl\nbeach, best quality\n(x, masterpiece)", ["masterpiece", "best quality"]).text).toBe(
       "1girl\nbeach\n(x, masterpiece)",
     );
+  });
+});
+
+describe("tagRepeats", () => {
+  it("finds a character's and outfit's stored tags in the prompt, either spelling, once", () => {
+    const tags = ["hu_tao_(genshin_impact)", "red_eyes", "twintails", "black_coat"];
+    expect(tagRepeats(tags, "1girl, Red Eyes, hu tao \\(genshin impact\\), beach, red_eyes, black_coat")).toEqual([
+      "Red Eyes",
+      "hu tao \\(genshin impact\\)",
+      "black_coat",
+    ]);
+  });
+  it("reads a stored tag that kept its escapes", () => {
+    expect(tagRepeats(["hu_tao_\\(genshin_impact\\)"], "hu tao \\(genshin impact\\)")).toEqual(["hu tao \\(genshin impact\\)"]);
+  });
+  it("leaves weighted and grouped terms alone", () => {
+    expect(tagRepeats(["red_eyes"], "(red_eyes:1.2), (1girl, red_eyes) AND (1girl)")).toEqual([]);
+  });
+  it("takes out what it found", () => {
+    const prompt = "1girl, hu tao \\(genshin impact\\), beach";
+    expect(withoutTerms(prompt, tagRepeats(["hu_tao_(genshin_impact)"], prompt)).text).toBe("1girl, beach");
   });
 });

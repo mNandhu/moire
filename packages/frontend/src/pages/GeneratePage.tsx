@@ -66,7 +66,8 @@ import {
   updateBlock,
   type GenerateForm,
 } from "../lib/generateForm";
-import { PrefixRepeats } from "../components/generate/PrefixRepeats";
+import { PromptRepeats } from "../components/generate/PromptRepeats";
+import { prefixRepeats } from "../lib/promptRepeats";
 import { checkCountTags, fixCountTags, type Kind } from "../lib/countTags";
 import { queueTitle } from "../lib/eta";
 import { cn } from "../lib/cn";
@@ -451,7 +452,11 @@ export default function GeneratePage() {
                     <LayerRow
                       label="Prefix"
                       footer={
-                        <PrefixRepeats prefix={presetText(form.prefix, presets)} prompt={form.prompt} onPrompt={(v) => set("prompt", v)} />
+                        <PromptRepeats
+                          repeats={prefixRepeats(presetText(form.prefix, presets), form.prompt)}
+                          prompt={form.prompt}
+                          onPrompt={(v) => set("prompt", v)}
+                        />
                       }
                     >
                       <PresetControl kind="positive" value={form.prefix} onChange={(v) => set("prefix", v)} presets={presets} label="Prefix preset" />
@@ -462,6 +467,8 @@ export default function GeneratePage() {
                       onChange={setCharacters}
                       outfits={form.outfits}
                       onOutfit={setOutfit}
+                      prompt={form.prompt}
+                      onPrompt={(v) => set("prompt", v)}
                       adding={addingCharacter}
                       onAdded={() => setAddingCharacter(false)}
                       installedLoras={models?.loras ?? NO_STRINGS}
