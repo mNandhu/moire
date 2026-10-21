@@ -19,7 +19,7 @@ import { ExpandButton } from "./Layers";
 import { MAX_CHARACTERS, replaceCharacter } from "../../lib/generateForm";
 import { NewCharacterDialog } from "../NewCharacterDialog";
 import { OutfitChips, OutfitPicker, useCharacterOutfits } from "./Outfit";
-import { wornTags, type OutfitPick, type Outfits } from "../../lib/outfit";
+import { toggleWorn, wornTags, type OutfitPick, type Outfits } from "../../lib/outfit";
 import { TagSuggestList, useTagMatches } from "../TagSuggestList";
 import { useAttireGroups, useTagAggregate } from "../../lib/queries";
 
@@ -504,7 +504,8 @@ function CharacterRow({
   );
 }
 
-/** A character's Outfit line: the outfit picker, and folded, its tags. */
+/** A character's Outfit line: the outfit picker, and folded, its tags; a
+ * click on one strikes it for this batch (or brings it back). */
 function WearsLine({
   character,
   outfit,
@@ -517,13 +518,26 @@ function WearsLine({
   folded: boolean;
 }) {
   const worn = wornTags(outfit).map(displayWord).join(", ");
+  const struck = new Set(outfit?.dropped);
   return (
-    <div className="flex min-w-0 items-center gap-2.5 pb-1 pl-[5.25rem] pt-1.5">
-      <span className="shrink-0 text-xs text-muted">Outfit</span>
+    <div className="flex min-h-[2.25rem] min-w-0 items-center gap-3">
+      <span className="w-[4.5rem] shrink-0 text-xs font-medium text-muted">Outfit</span>
       <OutfitPicker character={character} value={outfit} onChange={onOutfit} />
-      {folded && (
+      {folded && outfit && (
         <span className="min-w-0 flex-1 truncate text-xs text-faint" title={worn}>
-          {worn}
+          {outfit.tags.map((tag, i) => (
+            <span key={tag}>
+              {i > 0 && ", "}
+              <button
+                type="button"
+                onClick={() => onOutfit(toggleWorn(outfit, tag))}
+                title={struck.has(tag) ? "Bring back" : "Leave out of this batch"}
+                className={cn("rounded-sm hover:text-neutral-100", struck.has(tag) && "text-faint/60 line-through")}
+              >
+                {displayWord(tag)}
+              </button>
+            </span>
+          ))}
         </span>
       )}
     </div>

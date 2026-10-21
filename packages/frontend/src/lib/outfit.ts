@@ -93,3 +93,42 @@ export function outfitGalleryHref(o: Pick<Outfit, "_id" | "character">, characte
   const tags = character ? [character] : [];
   return `/?${serializeFilters({ ...DEFAULT_FILTERS, tags, outfit: [id] }).toString()}`;
 }
+
+// The attire groups a name is made from, main garment first; exposure and
+// unlisted tags never name an outfit.
+const NAME_GROUPS = [
+  "fashion_style",
+  "attire",
+  "sexual_attire",
+  "legwear",
+  "headwear",
+  "handwear",
+  "neck_and_neckwear",
+  "sleeves",
+  "eyewear",
+  "accessories",
+];
+
+/**
+ * A name for an outfit from its tags: its two main pieces, garments before
+ * accessories, the more specific tag over the one it narrows (`red_bikini`
+ * over `bikini`), "Red bikini + shell necklace". Tags seen in the image
+ * (`source` "image" or "added") name it before ones it only usually has.
+ * Empty when nothing names it. Pure.
+ */
+export function suggestOutfitName(
+  rows: readonly { tag: string; group: string | null; source?: string; struck?: boolean }[],
+): string {
+  const live = rows.filter((r) => !r.struck && r.group && NAME_GROUPS.includes(r.group));
+  const seen = live.filter((r) => r.source !== "usual");
+  const pool = seen.length ? seen : live;
+  const tags = pool.map((r) => r.tag);
+  const pieces = pool
+    .filter((r) => !tags.some((t) => t !== r.tag && t.endsWith(`_${r.tag}`)))
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => NAME_GROUPS.indexOf(a.r.group!) - NAME_GROUPS.indexOf(b.r.group!) || a.i - b.i)
+    .slice(0, 2)
+    .map(({ r }) => r.tag.replace(/_/g, " "));
+  const name = pieces.join(" + ");
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}

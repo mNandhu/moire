@@ -17,7 +17,7 @@ import math
 import re
 import time
 import uuid
-from typing import Any, Iterable
+from typing import Any, Iterable, NamedTuple
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -108,21 +108,41 @@ def wears_most(n: int) -> int:
     return max(1, math.ceil(n * WEARS_MOST - 1e-9)) if n else 0
 
 
-async def wear_rule(outfit_id: str) -> tuple[tuple[str, ...], int] | None:
-    """The gallery filter's view of an outfit: the tags the tagger can check
-    (all of them when it can check none) and how many an image must carry.
-    ``outfit_id`` is a saved id or ``default:<character>``. None when it is
-    unknown."""
+class WearRule(NamedTuple):
+    """When an image wears an outfit: it carries ``need`` of ``tags``, or it
+    is the outfit's own thumbnail (``image_id``), which wears it by being
+    picked, whatever its tags say."""
+
+    tags: tuple[str, ...]
+    need: int
+    image_id: str | None
+
+
+def wears(rule: WearRule, image_id: str, bases: Iterable[str]) -> bool:
+    """Whether one image (its tag bases) wears the outfit. Pure; the feed's
+    SQL condition says the same."""
+    if image_id == rule.image_id:
+        return True
+    return bool(rule.tags) and len(set(rule.tags) & set(bases)) >= rule.need
+
+
+def rule_of(o: dict[str, Any]) -> WearRule:
+    """An outfit view's wear rule: the tags the tagger can check (all of them
+    when it can check none) and how many an image must carry. Pure."""
+    seen = [x["tag"] for x in o["tags"] if x["checkable"]] or [
+        x["tag"] for x in o["tags"]
+    ]
+    return WearRule(tuple(seen), wears_most(len(seen)), o.get("image_id"))
+
+
+async def wear_rule(outfit_id: str) -> WearRule | None:
+    """The gallery filter's view of an outfit (:func:`rule_of`). ``outfit_id``
+    is a saved id or ``default:<character>``. None when it is unknown."""
     if outfit_id.startswith(f"{DEFAULT_ID}:"):
         o = await default(outfit_id.split(":", 1)[1])
     else:
         o = await get(outfit_id)
-    if o is None:
-        return None
-    seen = [x["tag"] for x in o["tags"] if x["checkable"]] or [
-        x["tag"] for x in o["tags"]
-    ]
-    return tuple(seen), wears_most(len(seen))
+    return None if o is None else rule_of(o)
 
 
 async def _key(character: str) -> str | None:

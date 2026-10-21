@@ -307,3 +307,15 @@ async def test_gallery_outfit_filter(client, seed, monkeypatch):
     assert ids(await client.get("/images", params={"outfit": "nope"})) == set()
     got = ids(await client.get("/images", params={"outfit": f"default:{HU}"}))
     assert "L1:h0" in got
+    # Its thumbnail wears it, even carrying less than most of its tags.
+    await client.put(f"/generate/outfits/{o['_id']}", json={"image_id": "L1:one"})
+    got = ids(await client.get("/images", params={"outfit": o["_id"]}))
+    assert {"L1:all", "L1:two", "L1:one"} <= got
+
+
+def test_wears_matches_the_thumbnail_or_most_tags():
+    rule = outfits.WearRule(("a", "b", "c"), 2, "img")
+    assert outfits.wears(rule, "img", [])
+    assert outfits.wears(rule, "x", ["a", "c", "z"])
+    assert not outfits.wears(rule, "x", ["a"])
+    assert not outfits.wears(outfits.WearRule((), 0, None), "x", ["a"])

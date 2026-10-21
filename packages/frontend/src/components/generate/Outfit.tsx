@@ -96,19 +96,24 @@ export function OutfitPicker({
       trigger={() => (
         <span
           className={cn(
-            "inline-flex h-8 shrink-0 items-center gap-2 rounded-lg border bg-raised pr-2 text-sm text-neutral-100 hover:border-line-strong",
-            value ? "border-line-strong pl-1" : "border-dashed border-line-strong pl-2.5 text-muted",
+            "group/outfit -mx-1 inline-flex shrink-0 items-center gap-2.5 rounded-md px-1 py-0.5 text-sm hover:bg-line/60",
+            value ? "font-medium text-neutral-100" : "text-muted",
           )}
           title="Change outfit"
         >
-          {value && (
-            <OutfitThumb
-              imageId={thumb}
-              className={cn("h-[26px] w-5", value.id === DEFAULT_OUTFIT && "outline-dashed outline-1 outline-line-strong")}
-            />
-          )}
-          <span className="max-w-[12rem] truncate">{value ? value.name : "Not set"}</span>
-          <ChevronDown size={13} className="text-muted" />
+          {/* As wide as the character's avatar above, so the names line up. */}
+          <span className="flex w-7 shrink-0 justify-center">
+            {value ? (
+              <OutfitThumb
+                imageId={thumb}
+                className={cn("h-7 w-5", value.id === DEFAULT_OUTFIT && "outline-dashed outline-1 outline-line-strong")}
+              />
+            ) : (
+              <Shirt size={14} className="text-faint" />
+            )}
+          </span>
+          <span className="max-w-[14rem] truncate">{value ? value.name : "Not set"}</span>
+          <ChevronDown size={13} className="text-faint opacity-0 transition-opacity group-hover/outfit:opacity-100" />
         </span>
       )}
     />

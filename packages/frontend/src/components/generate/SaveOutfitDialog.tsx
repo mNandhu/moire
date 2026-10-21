@@ -25,7 +25,7 @@ import { useAttireGroups } from "../../lib/queries";
 import { AttireTagInput, OutfitChip, OutfitThumb } from "./Outfit";
 import { CoverGrid } from "./OutfitCover";
 import { Image as ImageIcon } from "lucide-react";
-import { MAX_OUTFIT_TAGS } from "../../lib/outfit";
+import { MAX_OUTFIT_TAGS, suggestOutfitName } from "../../lib/outfit";
 
 type Source = "image" | "usual" | "added";
 /** `struck`: a Default's computed tag left out (restorable). */
@@ -79,6 +79,8 @@ export function SaveOutfitDialog({
     enabled: open && !outfit && !!imageId,
   });
   const [name, setName] = useState("");
+  // A new outfit's name follows its tags until you type one.
+  const [typed, setTyped] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [shared, setShared] = useState(false);
   const [seeded, setSeeded] = useState(false);
@@ -93,6 +95,7 @@ export function SaveOutfitDialog({
   useEffect(() => {
     if (!open) return setSeeded(false);
     if (seeded) return;
+    setTyped(!!outfit);
     if (outfit) {
       setCover(outfit.image_id);
       setChanging(false);
@@ -122,6 +125,7 @@ export function SaveOutfitDialog({
   }, [open, outfit, prefill, noPrefill, blank, usual, noUsual, seeded]);
 
   const taken = useMemo(() => new Set(rows.map((r) => r.tag)), [rows]);
+  const shownName = typed ? name : suggestOutfitName(rows);
   const done = () => {
     void qc.invalidateQueries({ queryKey: OUTFITS_KEY });
     onClose();
@@ -136,7 +140,7 @@ export function SaveOutfitDialog({
           ...(cover !== outfit!.image_id ? { image_id: cover } : {}),
         });
       }
-      const body = { name: name.trim(), tags: rows.map((r) => r.tag), shared };
+      const body = { name: shownName.trim(), tags: rows.map((r) => r.tag), shared };
       return outfit
         ? updateOutfit(outfit._id, cover !== outfit.image_id ? { ...body, image_id: cover } : body)
         : createOutfit({ ...body, character, image_id: imageId ?? cover });
@@ -164,7 +168,7 @@ export function SaveOutfitDialog({
   // Struck tags aren't sent, so they don't count.
   const kept = rows.filter((r) => !r.struck);
   const tooMany = kept.length > MAX_OUTFIT_TAGS;
-  const ready = (isDefault || (!!name.trim() && rows.length > 0)) && !tooMany && !save.isPending;
+  const ready = (isDefault || (!!shownName.trim() && rows.length > 0)) && !tooMany && !save.isPending;
 
   // On the body: the viewer's side panel is transformed, which would pin a
   // fixed overlay inside it.
@@ -232,8 +236,12 @@ export function SaveOutfitDialog({
           <label className="flex flex-col gap-2">
             <span className="text-xs font-medium text-muted">Name</span>
             <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={shownName}
+              onChange={(e) => {
+                setName(e.target.value);
+                setTyped(true);
+              }}
+              onFocus={(e) => !typed && e.target.select()}
               maxLength={80}
               placeholder={isDefault ? "Default" : undefined}
               autoFocus={!outfit}

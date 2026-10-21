@@ -20,7 +20,7 @@ const SHOW_LABEL: Record<Show, string> = { all: "All", shared: "Shared", own: "O
 const EVERYONE = "";
 
 function usedLine(o: Outfit): string {
-  if (!o.batches) return "Not used yet";
+  if (!o.batches) return "Not generated yet";
   const batches = `Used in ${o.batches} ${o.batches === 1 ? "batch" : "batches"}`;
   return o.used_by && o.used_by > 1 ? `${batches}, ${o.used_by} characters` : batches;
 }

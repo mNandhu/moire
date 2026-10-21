@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
+from typing import Any
 
 import sqlalchemy as sa
 
@@ -145,9 +146,9 @@ class FeedFilter:
     # The family's signatures, resolved from `workflow_id` by `_resolved`
     # before the query is built (not a user input).
     family_sigs: tuple[str, ...] | None = None
-    # Each outfit's (tags, how many to carry), resolved from `outfit` by
-    # `_resolved`; None for an unknown outfit (matches nothing).
-    outfit_rules: tuple[tuple[tuple[str, ...], int] | None, ...] | None = None
+    # Each outfit's `outfits.WearRule`, resolved from `outfit` by `_resolved`;
+    # None for an unknown outfit (matches nothing).
+    outfit_rules: tuple[Any, ...] | None = None
     # The images of the filter's rarest tag group or prompt term, when that
     # is few enough to drive the query by id (`_drive_by_rarest`).
     driver_ids: tuple[str, ...] | None = None
@@ -268,19 +269,24 @@ def feed_where(f: FeedFilter):
             raise RuntimeError("outfit filter used before _resolved()")
         it = t.image_tags
         for rule in f.outfit_rules:
-            if not rule or not rule[0]:
+            if not rule:
                 conds.append(sa.false())
                 continue
-            tags, need = rule
-            # Wears most of it: carries `need` of its tags, any source.
-            conds.append(
-                t.images.c._id.in_(
-                    sa.select(it.c.image_id)
-                    .where(it.c.base.in_(tags))
-                    .group_by(it.c.image_id)
-                    .having(sa.func.count(sa.distinct(it.c.base)) >= need)
+            # Its thumbnail, or wears most of it: carries `need` of its tags,
+            # any source (`outfits.wears`).
+            either = []
+            if rule.image_id:
+                either.append(t.images.c._id == rule.image_id)
+            if rule.tags:
+                either.append(
+                    t.images.c._id.in_(
+                        sa.select(it.c.image_id)
+                        .where(it.c.base.in_(rule.tags))
+                        .group_by(it.c.image_id)
+                        .having(sa.func.count(sa.distinct(it.c.base)) >= rule.need)
+                    )
                 )
-            )
+            conds.append(sa.or_(*either) if either else sa.false())
     if f.shape:
         conds.append(image_shapes.where(f.shape))
     if f.min_w is not None:

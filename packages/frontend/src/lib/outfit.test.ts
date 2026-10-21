@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { addWorn, keepPicked, outfitGalleryHref, outfitInput, pickFromInput, pickOf, toggleWorn, validOutfits, wornTags } from "./outfit";
+import {
+  addWorn,
+  keepPicked,
+  outfitGalleryHref,
+  outfitInput,
+  pickFromInput,
+  pickOf,
+  suggestOutfitName,
+  toggleWorn,
+  validOutfits,
+  wornTags,
+} from "./outfit";
 import { formFromBatch, loadDraft, previewText, wearingOutfit, withCharacter } from "./generateForm";
 import type { BatchInputs } from "./generate";
 import { DEFAULT_FILTERS, searchTerms, withSearchTerms } from "./imageFilter";
@@ -131,5 +142,27 @@ describe("wearingOutfit", () => {
   it("puts the character in the draft wearing the outfit, settled", () => {
     const f = wearingOutfit({ ...loadDraft(null), prompt: "cafe", fresh: ["x"] }, "kana", funeral);
     expect([f.characters, f.outfits, f.fresh, f.prompt]).toEqual([["kana"], { kana: funeral }, [], "cafe"]);
+  });
+});
+
+describe("suggestOutfitName", () => {
+  const row = (tag: string, group: string | null, source = "image") => ({ tag, group, source });
+  it("names the main garment, then the next piece", () => {
+    expect(
+      suggestOutfitName([
+        row("shell_necklace", "neck_and_neckwear"),
+        row("cleavage", "exposure"),
+        row("bikini", "attire"),
+        row("red_bikini", "attire"),
+        row("ring", "accessories", "usual"),
+      ]),
+    ).toBe("Red bikini + shell necklace");
+  });
+  it("uses usual tags only when the image has none, and skips struck ones", () => {
+    expect(suggestOutfitName([row("hat", "headwear", "usual"), row("coat", "attire", "usual")])).toBe("Coat + hat");
+    expect(suggestOutfitName([{ ...row("coat", "attire"), struck: true }, row("hat", "headwear")])).toBe("Hat");
+  });
+  it("is empty with nothing to name it by", () => {
+    expect(suggestOutfitName([row("midriff", "exposure"), row("odd", null)])).toBe("");
   });
 });
