@@ -506,15 +506,22 @@ export function rejectedFields(errors: readonly NodeError[]): { checkpoint: bool
   };
 }
 
+/** The draft no longer a remix: the image's seed it kept goes with it. */
+function endRemix(f: GenerateForm): GenerateForm {
+  if (!f.remix) return f;
+  const kept = f.seed.mode === "fixed" && f.remix.seed != null && f.seed.value === f.remix.seed;
+  return { ...f, remix: null, seed: kept ? { mode: "random", value: null } : f.seed };
+}
+
 /** The draft with `tag` as its one character, to start in what Settings
  * says new characters wear (a character page's Generate). A remix it was
  * is over. Pure. */
 export function withCharacter(f: GenerateForm, tag: string): GenerateForm {
-  return { ...f, characters: [tag], outfits: {}, fresh: [tag], remix: null };
+  return { ...endRemix(f), characters: [tag], outfits: {}, fresh: [tag] };
 }
 
 /** The draft with `tag` as its one character, wearing `pick` (an outfit's
  * Use in Generate). A remix it was is over. Pure. */
 export function wearingOutfit(f: GenerateForm, tag: string, pick: OutfitPick): GenerateForm {
-  return { ...f, characters: [tag], outfits: { [tag]: pick }, fresh: [], remix: null };
+  return { ...endRemix(f), characters: [tag], outfits: { [tag]: pick }, fresh: [] };
 }

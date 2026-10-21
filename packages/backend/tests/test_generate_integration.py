@@ -520,6 +520,50 @@ def test_held_by_is_the_innermost_library(tmp_path):
     assert root_candidates(libs[1:], "Unorganized10", "img_1.png") == [str(root)]
     assert root_candidates(libs, "Unorganized10", "img_1.png") == [str(root)]
     assert root_candidates(libs[1:], "Other", "img_1.png") == []
+    # Older than the run: another run's file with the same name.
+    import os
+
+    os.utime(root / "Unorganized10" / "img_1.png", (1, 1))
+    assert root_candidates(libs[1:], "Unorganized10", "img_1.png", since=100) == []
+
+
+async def test_an_unwatched_library_doesnt_take_outputs(client, comfy, seed, tmp_path):
+    """Nothing would pick the file up there: it downloads as before."""
+    import sqlalchemy as sa
+    from moire.database import db
+    from moire.database import schema as t
+
+    out, comfy_out = tmp_path / "out", tmp_path / "ComfyUI" / "output"
+    out.mkdir()
+    (comfy_out / "moire").mkdir(parents=True)
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.insert(t.libraries),
+            [
+                {
+                    "_id": OUT,
+                    "path": str(out),
+                    "name": "ComfyUI output",
+                    "watch_enabled": True,
+                },
+                {
+                    "_id": "MOIRE",
+                    "path": str(comfy_out / "moire"),
+                    "name": "moire",
+                    "watch_enabled": False,
+                },
+            ],
+        )
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x"})).json()
+    pid = comfy.order[-1]
+    name = f"gen_{pid}_00000_.png"
+    (comfy_out / "moire" / name).write_bytes(b"PNG:" + name.encode())
+    comfy.finish(pid, images=1)
+    await tick()
+    got = (await client.get(f"/generate/batches/{b['_id']}")).json()
+    assert got["requests"][0]["outputs"][0]["image_id"] == f"{OUT}:moire/{name}"
+    assert (out / "moire" / name).exists()
 
 
 async def test_sampling_reaches_the_sampler_and_requeue_keeps_it(client, comfy, seed):
@@ -753,11 +797,11 @@ async def test_a_failed_setup_at_startup_is_retried(temp_db, monkeypatch):
     generation_jobs.reset_for_tests()
 
 
-def test_slot_value_is_the_graphs_own_string():
-    from moire.services.generation_batches import _slot_value
+def test_slot_value_is_the_graphs_own_value():
+    from moire.services.generator_graph import slot_value
 
-    graph = {"86": {"inputs": {"value": "anima.safetensors", "n": 3}}}
-    assert _slot_value(graph, ["86", "value"]) == "anima.safetensors"
-    assert _slot_value(graph, ["86", "n"]) is None
-    assert _slot_value(graph, ["9", "value"]) is None
-    assert _slot_value(graph, None) is None
+    graph = {"86": {"inputs": {"value": "anima.safetensors", "link": ["3", 0]}}}
+    assert slot_value(graph, ["86", "value"]) == "anima.safetensors"
+    assert slot_value(graph, ["86", "link"]) is None
+    assert slot_value(graph, ["9", "value"]) is None
+    assert slot_value(graph, None) is None

@@ -90,7 +90,7 @@ export function RemixButton({ info }: { info: RemixInfo }) {
   const [seed, setSeed] = useState<SeedChoice | null>(null);
   const seedChoice: SeedChoice = seed ?? (exact && gen?.ready ? "same" : "new");
   const builtin = generators?.find((g) => g.kind === "builtin");
-  const own = gen && gen.kind !== "builtin" ? gen : undefined;
+  const own = gen;
   const go = async (target: Generator) => {
     const mine = target === own;
     try {
@@ -104,7 +104,20 @@ export function RemixButton({ info }: { info: RemixInfo }) {
   };
   if (!builtin || !generators) return null;
   const others = generators.filter((g) => g.kind !== "builtin" && g !== own);
-  const ordered = [...(own ? [own] : []), ...others, builtin];
+  const ordered = [...(own ? [own] : []), ...others, ...(own === builtin ? [] : [builtin])];
+  const label = (
+    <>
+      <Shuffle size={13} /> Remix
+    </>
+  );
+  // Built-in alone: nothing to choose.
+  if (ordered.length === 1 && !own) {
+    return (
+      <Button size="sm" variant="primary" onClick={() => void go(builtin)}>
+        {label}
+      </Button>
+    );
+  }
   const options: PickerOption[] = ordered.map((g) => ({
     value: g._id,
     label: g.name,
@@ -125,7 +138,7 @@ export function RemixButton({ info }: { info: RemixInfo }) {
       align="right"
       trigger={() => (
         <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-transparent bg-brand-600 px-3 text-xs font-medium text-white hover:bg-brand-500">
-          <Shuffle size={13} /> Remix
+          {label}
         </span>
       )}
       footer={own && <SeedSwitch value={seedChoice} onChange={setSeed} own={own.name} />}

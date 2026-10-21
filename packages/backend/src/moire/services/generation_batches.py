@@ -15,7 +15,7 @@ from ..database import schema as t
 from . import comfy_models, generation_estimate, generator_setup
 from .generation_jobs import GenerationManager, Invalid, Unavailable, load_generator
 from .generator_discovery import fixed_values
-from .generator_graph import sampling_defaults
+from .generator_graph import sampling_defaults, slot_value
 
 _b, _r, _o, _i = (
     t.generation_batches,
@@ -278,12 +278,9 @@ async def start_test(
     return batch_id
 
 
-def _slot_value(graph: dict[str, Any], slot: Any) -> str | None:
-    """The graph's own string at ``[node, input]``; None when it isn't one."""
-    if not (isinstance(slot, list) and len(slot) == 2):
-        return None
-    v = ((graph.get(str(slot[0])) or {}).get("inputs") or {}).get(slot[1])
-    return v if isinstance(v, str) else None
+def _checkpoint_default(gen: dict[str, Any]) -> str | None:
+    value = slot_value(gen["graph"], gen["slots"].get("checkpoint"))
+    return value if isinstance(value, str) else None
 
 
 async def generator_view(
@@ -332,7 +329,7 @@ async def generator_view(
         # What the workflow sets itself where there's no slot (shown read-only).
         "fixed": fixed_values(gen["graph"], gen["slots"]),
         # The checkpoint slot's own value: what a remix into it starts on.
-        "checkpoint_default": _slot_value(gen["graph"], gen["slots"].get("checkpoint")),
+        "checkpoint_default": _checkpoint_default(gen),
         "test": test,
     }
 

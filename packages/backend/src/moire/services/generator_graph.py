@@ -86,15 +86,22 @@ def _write(
 SAMPLING = ("sampler", "scheduler", "steps", "cfg")
 
 
+def slot_value(graph: Graph, path: Any) -> Any:
+    """The graph's own value at slot ``[node, input]``; None for a link or
+    nothing there."""
+    if not path:
+        return None
+    value = ((graph.get(str(path[0])) or {}).get("inputs") or {}).get(path[1])
+    return None if _is_link(value) else value
+
+
 def sampling_defaults(graph: Graph, slots: dict[str, Any]) -> dict[str, Any]:
     """What the graph has at each sampling slot it exposes."""
     out = {}
     for key in SAMPLING:
-        path = slots.get(key)
-        if path:
-            value = (graph.get(str(path[0])) or {}).get("inputs", {}).get(path[1])
-            if value is not None and not _is_link(value):
-                out[key] = value
+        value = slot_value(graph, slots.get(key))
+        if value is not None:
+            out[key] = value
     return out
 
 

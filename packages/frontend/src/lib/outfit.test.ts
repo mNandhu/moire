@@ -132,8 +132,12 @@ describe("fresh characters", () => {
     expect([f.characters, f.outfits, f.fresh]).toEqual([["hu_tao"], {}, ["hu_tao"]]);
   });
 
-  it("ends a remix the draft was", () => {
-    expect(withCharacter({ ...loadDraft(null), remix: { image: "L1:a.png", seed: 3 } }, "hu_tao").remix).toBeNull();
+  it("ends a remix the draft was, and the image's seed with it", () => {
+    const remixed = { ...loadDraft(null), remix: { image: "L1:a.png", seed: 3 }, seed: { mode: "fixed" as const, value: 3 } };
+    const f = withCharacter(remixed, "hu_tao");
+    expect([f.remix, f.seed]).toEqual([null, { mode: "random", value: null }]);
+    // A seed the user set after is theirs.
+    expect(withCharacter({ ...remixed, seed: { mode: "fixed", value: 7 } }, "hu_tao").seed).toEqual({ mode: "fixed", value: 7 });
   });
 
   it("keeps a draft's fresh marks only for its characters", () => {

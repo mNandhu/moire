@@ -96,27 +96,32 @@ def output_image_id(library_id: str, subfolder: str, filename: str) -> str:
 
 Libraries = list[tuple[str, str]]  # (id, folder)
 
+# How fresh a library file must be to be a just-finished output: an older
+# one with the same name is another run's.
+OUTPUT_FRESH_S = 600.0
+
 
 def held_by(libraries: Libraries, path: str) -> str | None:
     """The `_id` the file at ``path`` has in the innermost library holding
     it (the one whose scan owns it), or None when no library does."""
     key = library_nesting.path_key(path)
-    best: tuple[str, str] | None = None
+    best: tuple[str, str, int] | None = None
     for lib_id, root in libraries:
         rk = library_nesting.path_key(root)
-        if library_nesting.is_inside(key, rk) and (
-            best is None or len(rk) > len(library_nesting.path_key(best[1]))
-        ):
-            best = (lib_id, root)
+        if library_nesting.is_inside(key, rk) and (best is None or len(rk) > best[2]):
+            best = (lib_id, root, len(rk))
     if best is None:
         return None
     return f"{best[0]}:{os.path.relpath(os.path.normpath(path), os.path.normpath(best[1]))}"
 
 
-def root_candidates(libraries: Libraries, subfolder: str, filename: str) -> list[str]:
+def root_candidates(
+    libraries: Libraries, subfolder: str, filename: str, since: float = 0.0
+) -> list[str]:
     """Where ComfyUI's output folder may be, from the libraries holding a
-    file at ``subfolder/filename`` below it: a library at ``out/Unorganized10``
-    with ``img.png`` in it says ``out``, for ``Unorganized10/img.png``."""
+    file at ``subfolder/filename`` below it, written since ``since``: a
+    library at ``out/Unorganized10`` with ``img.png`` in it says ``out``, for
+    ``Unorganized10/img.png``."""
     parts = PurePath(subfolder).parts if subfolder else ()
     found: list[str] = []
     for _, root in libraries:
@@ -128,10 +133,13 @@ def root_candidates(libraries: Libraries, subfolder: str, filename: str) -> list
                 != [os.path.normcase(x) for x in parts[:k]]
             ):
                 continue
-            if rp.joinpath(*parts[k:], filename).is_file():
-                base = str(rp.parents[k - 1] if k else rp)
-                if base not in found:
-                    found.append(base)
+            try:
+                st = rp.joinpath(*parts[k:], filename).stat()
+            except OSError:
+                continue
+            base = str(rp.parents[k - 1] if k else rp)
+            if st.st_mtime >= since and base not in found:
+                found.append(base)
     return found
 
 
@@ -811,32 +819,41 @@ class GenerationManager:
     ) -> tuple[list[str], list[tuple[str, str]]]:
         """Each output's image id, and the outputs to download. Where this
         machine sees ComfyUI's output folder (``output_root``: set, or found
-        from the first output a library holds), an output is that file, in
-        the library holding it. Otherwise it is downloaded into the output
-        library, as for a ComfyUI on another machine."""
+        from an output a library holds), an output is that file, in the
+        watched library holding it. Otherwise it is downloaded into the
+        output library, as for a ComfyUI on another machine."""
         lib = s.get("output_library_id") or ""
         if not files:
             return [], []
+        # Only a watched library picks a new file up by itself.
         async with async_conn() as conn:
             libraries = [
                 (r._id, r.path)
                 for r in await conn.execute(
-                    sa.select(t.libraries.c._id, t.libraries.c.path)
+                    sa.select(t.libraries.c._id, t.libraries.c.path).where(
+                        t.libraries.c.watch_enabled.is_(True)
+                    )
                 )
                 if r.path
             ]
+
+        def reachable(root: str, sub: str, name: str) -> bool:
+            return os.path.isfile(os.path.join(root, sub, name))
+
         root = s.get("output_root") or ""
-        sub, name = files[0]
-        if not root or not await asyncio.to_thread(
-            os.path.isfile, os.path.join(root, sub, name)
+        if not root or not any(
+            [await asyncio.to_thread(reachable, root, *f) for f in files]
         ):
-            root = await self._find_output_root(libraries, sub, name) or root
+            for sub, name in files:
+                found = await self._find_output_root(libraries, sub, name, s)
+                if found:
+                    root = found
+                    break
         ids: list[str] = []
         fetch: list[tuple[str, str]] = []
         for sub, name in files:
-            path = os.path.join(root, sub, name) if root else ""
-            here = path and await asyncio.to_thread(os.path.isfile, path)
-            owned = held_by(libraries, path) if here else None
+            here = root and await asyncio.to_thread(reachable, root, sub, name)
+            owned = held_by(libraries, os.path.join(root, sub, name)) if here else None
             if owned:
                 ids.append(owned)
             else:
@@ -845,13 +862,18 @@ class GenerationManager:
         return ids, fetch
 
     async def _find_output_root(
-        self, libraries: Libraries, subfolder: str, filename: str
+        self, libraries: Libraries, subfolder: str, filename: str, s: dict[str, Any]
     ) -> str | None:
-        """ComfyUI's output folder as this machine sees it: a library file at
-        ``subfolder/filename`` with the same bytes as ComfyUI's output.
-        Remembered in the settings."""
+        """ComfyUI's output folder as this machine sees it: a just-written
+        library file at ``subfolder/filename`` with the same bytes as
+        ComfyUI's output. Remembered in the settings, unless ComfyUI's
+        address changed meanwhile."""
         candidates = await asyncio.to_thread(
-            root_candidates, libraries, subfolder, filename
+            root_candidates,
+            libraries,
+            subfolder,
+            filename,
+            time.time() - OUTPUT_FRESH_S,
         )
         if not candidates or self.client is None:
             return None
@@ -860,11 +882,21 @@ class GenerationManager:
         except (ComfyUnreachable, ComfyError):
             return None
         for root in candidates:
-            path = Path(root, subfolder, filename)
-            if await asyncio.to_thread(path.read_bytes) == data:
-                await comfy_settings.update_settings({"output_root": root})
-                log.info("ComfyUI's output folder is %s", root)
-                return root
+            try:
+                same = (
+                    await asyncio.to_thread(Path(root, subfolder, filename).read_bytes)
+                    == data
+                )
+            except OSError:
+                continue
+            if not same:
+                continue
+            now = await comfy_settings.get_settings()
+            if now.get("address") != s.get("address"):
+                return None
+            await comfy_settings.update_settings({"output_root": root})
+            log.info("ComfyUI's output folder is %s", root)
+            return root
         return None
 
     async def _fetch_missing(
