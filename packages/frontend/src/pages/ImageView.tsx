@@ -51,7 +51,6 @@ import {
 import { accentFromBlurhash } from "../lib/blurhash";
 import { pickRating, ratingBadgeClass } from "../lib/rating";
 import {
-  partitionTags,
   tagFlow,
   tagName,
   toPromptText,
@@ -593,11 +592,6 @@ export default function ImageView() {
   if (!id) return null;
 
   const fileName = data?.path ? data.path.split(/[\\/]/).pop() : "";
-  const {
-    ai: aiTags,
-    manual: manualTagsRaw,
-    prompt: promptTagsRaw,
-  } = partitionTags(data?.tags);
   const rating = pickRating(data);
   const accent = accentFromBlurhash(data?.blurhash);
   // Has the image currently on screen painted?
@@ -860,13 +854,10 @@ export default function ImageView() {
               <TagsSection
                 key={data._id}
                 id={data._id}
-                hasTags={Boolean(aiTags.length || manualTagsRaw.length || promptTagsRaw.length)}
-                aiTagged={aiTags.length > 0}
                 onCopyAll={() => void copyAllTags()}
                 onChange={onTagsChanged}
-              >
-                <TagFlow tags={tagFlow(data.tags, data.ai)} />
-              </TagsSection>
+                tags={tagFlow(data.tags, data.ai)}
+              />
             </div>
           </>
         )}
@@ -880,22 +871,20 @@ const HEADER_ACTION = "inline-flex items-center gap-1 text-xs text-brand-300 hov
 
 function TagsSection({
   id,
-  hasTags,
-  aiTagged,
   onCopyAll,
   onChange,
-  children,
+  tags,
 }: {
   id: string;
-  hasTags: boolean;
-  /** The tagger has already run on it: no "Tag with AI" to offer. */
-  aiTagged: boolean;
   onCopyAll: () => void;
   onChange: () => void;
-  children: React.ReactNode;
+  tags: FlowTag[];
 }) {
   const { start, adopt, cancel, submitting, cancelling, jobId, job, canCancel } =
     useAiTagging(onChange, id);
+  const hasTags = tags.length > 0;
+  // The tagger has already run on it: no "Tag with AI" to offer.
+  const aiTagged = tags.some((t) => t.kind === "ai" || t.kind === "character");
   const { data: tasks } = useBackgroundTasks();
   // A job tagging this image that the panel doesn't know (after a reload,
   // or from another tab); one started here it picks up by itself.
@@ -953,8 +942,10 @@ function TagsSection({
           cancelling={cancelling || job?.status === "cancelling"}
         />
       )}
-      {hasTags ? children : <div className="text-xs text-faint">No tags yet.</div>}
-      <AddTags id={id} onAdded={onChange} />
+      {!hasTags && <div className="text-xs text-faint">No tags yet.</div>}
+      {/* Adding sits where the tags end, as one more pill in the run. One
+          place either way, so the open field survives the first tag. */}
+      <TagFlow tags={tags} trailing={<AddTags id={id} onAdded={onChange} />} />
     </Section>
   );
 }
@@ -1002,11 +993,17 @@ function AiTagStatus({
   );
 }
 
-/** Manual tags, typed comma separated. */
+/**
+ * Manual tags: a small "Add tags" pill that opens into a field, so it costs
+ * one line until used. Takes several at once, comma separated; stays open
+ * after adding for more, and closes on Escape or when left empty.
+ */
 function AddTags({ id, onAdded }: { id: string; onAdded: () => void }) {
   const { push } = useToast();
+  const [open, setOpen] = useState(false);
   const [val, setVal] = useState("");
   const [adding, setAdding] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
   const tags = val
     .split(",")
     .map((s) => s.trim())
@@ -1018,32 +1015,57 @@ function AddTags({ id, onAdded }: { id: string; onAdded: () => void }) {
       await applyTags(id, tags);
       setVal("");
       onAdded();
+      // Back to the field for more (the + button took the focus).
+      field.current?.focus();
     } catch (e) {
       push(`Couldn't add tags: ${String(e)}`, "error");
     } finally {
       setAdding(false);
     }
   };
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        title="Add your own tags"
+        className="inline-flex items-center gap-0.5 h-5 px-1.5 rounded-full border border-dashed border-line text-2xs text-muted hover:text-neutral-100 hover:border-line-strong align-middle"
+      >
+        <Plus size={11} /> Add tags
+      </button>
+    );
+  }
   return (
     <form
-      className="relative"
+      className="relative mt-1"
       onSubmit={(e) => {
         e.preventDefault();
         void add();
       }}
     >
       <Input
+        ref={field}
+        autoFocus
         value={val}
         onChange={(e) => setVal(e.target.value)}
-        placeholder="Add tags, comma separated"
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setVal("");
+            setOpen(false);
+          }
+        }}
+        onBlur={() => {
+          if (!val.trim() && !adding) setOpen(false);
+        }}
+        placeholder="Tags, comma separated"
         aria-label="Add tags"
-        className="w-full pr-9"
+        className="h-8 text-xs pr-9"
       />
       <button
         type="submit"
         disabled={adding || !tags.length}
         className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted hover:bg-raised hover:text-neutral-100 disabled:opacity-40 disabled:pointer-events-none"
-        title="Add tags"
+        title={tags.length > 1 ? `Add ${tags.length} tags` : "Add tag"}
         aria-label="Add tags"
       >
         {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
@@ -1140,7 +1162,7 @@ const PANEL_GROUND = "#15141c";
  * (lib/tagColour.ts). Each tag opens its tag page (a character's, its
  * character page), where its cover is framed too.
  */
-function TagFlow({ tags }: { tags: FlowTag[] }) {
+function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNode }) {
   const { data: facets } = useTagFacets();
   const facetOf = (raw: string): Facet | null => facets?.[tagName(raw).toLowerCase()] ?? null;
   // Boilerplate (Settings) folds into one quiet toggle at the end, so the
@@ -1162,7 +1184,8 @@ function TagFlow({ tags }: { tags: FlowTag[] }) {
     : [];
   return (
     <div className="space-y-2">
-      <p className="text-[13px] leading-7">
+      {/* A div, not a p: the trailing add-tags field is a form. */}
+      <div className="text-[13px] leading-7">
         {shown.map((t, i) => (
           <React.Fragment key={t.raw}>
             <span className={i >= firstBoilerplate ? "opacity-50" : undefined}>
@@ -1203,7 +1226,13 @@ function TagFlow({ tags }: { tags: FlowTag[] }) {
             </button>
           </>
         )}
-      </p>
+        {trailing && (
+          <>
+            {shown.length + boilerplate.length > 0 && <span className="text-line-strong"> </span>}
+            {trailing}
+          </>
+        )}
+      </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-2xs text-faint">
         {kinds.map((k) => (
           <span key={k} className={`inline-flex items-center gap-1 ${KIND_TEXT[k]}`}>
