@@ -46,6 +46,9 @@ import {
   useLoraPresets,
   usePresets,
   useRecipes,
+  putRecipe,
+  recipeKey,
+  type Recipe,
   type CharacterInput,
   type Generator,
   type NodeError,
@@ -77,12 +80,11 @@ import { AddLayer, EmbeddingLayer, LayerRow, NegativeLayer, PresetControl, TextL
 import { characterPageQuery, useTagAggregate } from "../lib/queries";
 import { characterColours, displayName, mixColours } from "../lib/character";
 import { useAmbientTint } from "../lib/ambient";
-import { characterInput, characterTags } from "../lib/recipe";
-import { keepPicked, outfitInput, pickOf, wornTags, type OutfitPick } from "../lib/outfit";
+import { characterInput, characterTags, toggleDropped } from "../lib/recipe";
+import { keepPicked, outfitInput, pickOf, toggleWorn, wornTags, type OutfitPick } from "../lib/outfit";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
 import { PromptBoard, type BoardLayer } from "../components/generate/PromptBoard";
-import { promptWord } from "../lib/promptOutline";
 
 const NO_STRINGS: string[] = [];
 
@@ -420,19 +422,44 @@ export default function GeneratePage() {
       fix={countFix}
     />
   );
-  // What the other layers already say, for the prompt board.
+  // What the other layers already say, for the prompt board. A character's
+  // tags strike out there as they do in their card: identity in the recipe,
+  // outfit for this batch.
+  const toggleIdentity = (r: Recipe, tag: string) => {
+    const c = r.identity.find((x) => x.tag === tag);
+    if (!c) return;
+    const patch = c.added
+      ? { added: r.identity.filter((x) => x.added && x.tag !== tag).map((x) => x.tag) }
+      : { dropped: toggleDropped(r, tag) };
+    putRecipe(r.tag, patch).then(
+      (next) => qc.setQueryData(recipeKey(next.tag), next),
+      (e) => toast.push(e instanceof Error ? e.message : "Couldn't change the recipe", "error"),
+    );
+  };
   const boardLayers: BoardLayer[] = [
-    ...parts.positive.flatMap((p) =>
-      p.kind === "text" && p.role !== "prompt" && p.text?.trim() ? [{ label: p.label || LAYER_LABEL[p.role ?? ""] || "Layer", text: p.text }] : [],
+    ...parts.positive.flatMap((p, i) =>
+      p.kind === "text" && p.role !== "prompt" && p.text?.trim()
+        ? [{ key: `part:${i}`, label: p.label || LAYER_LABEL[p.role ?? ""] || "Layer", text: p.text }]
+        : [],
     ),
     ...recipes.flatMap((r) => {
       if (!r) return [];
       const entry = everyone?.find((c) => c.tag === r.tag);
+      const pick = form.outfits[r.tag];
       return [
         {
+          key: `character:${r.tag}`,
           label: displayName(entry ?? { tag: r.tag }).name,
-          text: [...characterTags(r), ...wornTags(form.outfits[r.tag])].map(promptWord).join(", "),
           character: entry,
+          tags: [
+            { tag: r.tag, self: true },
+            ...r.identity.map((c) => ({ tag: c.tag, dropped: c.dropped, onToggle: () => toggleIdentity(r, c.tag) })),
+            ...(pick?.tags ?? []).map((t) => ({
+              tag: t,
+              dropped: pick!.dropped.includes(t),
+              onToggle: () => setOutfit(r.tag, toggleWorn(pick!, t)),
+            })),
+          ],
         },
       ];
     }),

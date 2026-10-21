@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { ChevronDown, Undo2, X } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { fuzzyRank } from "../../lib/fuzzy";
 import { api } from "../../lib/api";
@@ -62,13 +62,33 @@ const TONE: Record<BoxKey, string> = {
   prose: "border-line bg-transparent text-muted italic",
 };
 
-/** A layer other than the Prompt (prefix, a character's recipe): what it
- * already covers keeps a section from reading as missing. */
-export type BoardLayer = { label: string; text: string; character?: CharacterEntry };
+/** One of a layer's tags. `onToggle` strikes it out (or brings it back)
+ * where the layer keeps it: a recipe's identity, an outfit pick. */
+export type LayerTag = { tag: string; dropped?: boolean; onToggle?: () => void; self?: boolean };
 
-type Placed = PromptTerm & { box: BoxKey; place?: TagPlace };
+/** A layer other than the Prompt: a character (their recipe's tags, shown
+ * in each box beside their avatar) or a text layer (prefix, preset). What
+ * it covers keeps a part from reading as missing. */
+export type BoardLayer = { key: string; label: string; character?: CharacterEntry; text?: string; tags?: LayerTag[] };
+
+type Placed = PromptTerm & { box: BoxKey; place?: TagPlace; dropped?: boolean; self?: boolean; onToggle?: () => void };
+type Cover = { layer: BoardLayer; terms: Placed[] };
+
+/** A layer tag as a term (it has no place in the Prompt's text). */
+function layerTerm(t: LayerTag): PromptTerm & Pick<Placed, "dropped" | "self" | "onToggle"> {
+  return { name: t.tag.toLowerCase(), written: t.tag.replace(/_/g, " "), kind: "tag", start: -1, end: -1, nameStart: -1, nameEnd: -1, dropped: t.dropped, self: t.self, onToggle: t.onToggle };
+}
 
 const LIST_ROWS = 40;
+// Per viewer: whether the board is folded away.
+const FOLD_KEY = "moire.generate.boardFolded";
+function readFolded(): boolean {
+  try {
+    return localStorage.getItem(FOLD_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 const NO_OPTIONS: TagSuggestion[] = [];
 const tagOf = (t: Placed) => t.place?.alias_of ?? t.name;
 const pretty = (g?: string) => (g ? g.replace(/_tags$/, "").replace(/_/g, " ") : "");
@@ -83,7 +103,7 @@ function boxOf(t: PromptTerm, place: TagPlace | undefined, boilerplate: (n: stri
 
 /** Hover card: a few library images with the tag, how common it is, where
  * it's filed, and the tag an alias stands for. */
-function TagPreview({ term, count, onSwap }: { term: Placed; count: number | undefined; onSwap?: () => void }) {
+function TagPreview({ term, count, swap }: { term: Placed; count: number | undefined; swap?: { label: string; run: () => void } }) {
   const p = term.place;
   const tag = p?.alias_of ?? term.name;
   const tagged = term.kind === "tag";
@@ -107,9 +127,9 @@ function TagPreview({ term, count, onSwap }: { term: Placed; count: number | und
       {p?.alias_of && (
         <div className="flex items-center gap-2 text-xs text-amber-200">
           Alias of {p.alias_of.replace(/_/g, " ")}
-          {onSwap && (
-            <button type="button" onClick={onSwap} className="ml-auto rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-100 hover:bg-amber-500/25">
-              Use {p.alias_of.replace(/_/g, " ")}
+          {swap && (
+            <button type="button" onClick={swap.run} className="ml-auto rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-100 hover:bg-amber-500/25">
+              {swap.label}
             </button>
           )}
         </div>
@@ -138,16 +158,28 @@ function TagPreview({ term, count, onSwap }: { term: Placed; count: number | und
   );
 }
 
-function Chip({ term, counts, repeated, onRemove, onSwap }: { term: Placed; counts: Map<string, number>; repeated?: boolean; onRemove?: () => void; onSwap?: () => void }) {
+function Chip({
+  term,
+  counts,
+  repeated,
+  onRemove,
+  swap,
+}: {
+  term: Placed;
+  counts: Map<string, number>;
+  repeated?: boolean;
+  onRemove?: () => void;
+  swap?: { label: string; run: () => void };
+}) {
   const label = term.kind === "lora" ? term.name.replace(/^<lora:|>$/g, "").split(":")[0] : term.written;
   const alias = !!term.place?.alias_of;
   return (
-    <Tooltip content={<TagPreview term={term} count={counts.get(term.place?.alias_of ?? term.name)} onSwap={onSwap} />}>
+    <Tooltip content={<TagPreview term={term} count={counts.get(term.place?.alias_of ?? term.name)} swap={swap} />}>
       <span
         tabIndex={0}
         className={cn(
           "inline-flex cursor-default items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs outline-none",
-          TONE[term.box],
+          term.dropped ? "border-line/60 text-faint line-through" : TONE[term.box],
           alias && "border-dashed border-amber-400/70",
           repeated && "ring-1 ring-amber-400/70",
         )}
@@ -155,8 +187,13 @@ function Chip({ term, counts, repeated, onRemove, onSwap }: { term: Placed; coun
         {label}
         {term.weight != null && <span className="text-[10px] opacity-70">{term.weight}</span>}
         {onRemove && (
-          <button type="button" aria-label={`Remove ${label}`} onClick={onRemove} className="-mr-0.5 rounded opacity-50 hover:bg-white/10 hover:opacity-100">
-            <X size={12} />
+          <button
+            type="button"
+            aria-label={`${term.dropped ? "Bring back" : "Remove"} ${label}`}
+            onClick={onRemove}
+            className="-mr-0.5 rounded no-underline opacity-50 hover:bg-white/10 hover:opacity-100"
+          >
+            {term.dropped ? <Undo2 size={12} /> : <X size={12} />}
           </button>
         )}
       </span>
@@ -164,25 +201,22 @@ function Chip({ term, counts, repeated, onRemove, onSwap }: { term: Placed; coun
   );
 }
 
-/** The layers that already cover a section: a character's avatar, else the
- * layer's name. */
-function Covers({ covers }: { covers: { layer: BoardLayer; terms: Placed[] }[] }) {
+/** A layer's tags in a box, on their own line: a character's avatar and
+ * name, else the layer's name. */
+function CoverRow({ cover, counts }: { cover: Cover; counts: Map<string, number> }) {
+  const c = cover.layer.character;
   return (
-    <span className="ml-auto flex items-center gap-1">
-      {covers.map(({ layer, terms }, i) => {
-        const what = terms.map((t) => t.written.replace(/_/g, " ")).join(", ");
-        const c = layer.character;
-        return (
-          <Tooltip key={`${i}:${layer.label}`} content={`${layer.label}: ${what}`} bubble>
-            {c ? (
-              <CharacterAvatar src={c.thumb_url} face={c.face} focus={c.focus} aspect={c.aspect} letter={layer.label} className="h-5 w-5 ring-1 ring-line" />
-            ) : (
-              <span className="text-2xs font-normal text-faint">{layer.label}</span>
-            )}
-          </Tooltip>
-        );
-      })}
-    </span>
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="inline-flex items-center gap-1.5 pr-0.5 text-xs text-muted">
+        {c && <CharacterAvatar src={c.thumb_url} face={c.face} focus={c.focus} aspect={c.aspect} letter={cover.layer.label} className="h-5 w-5 ring-1 ring-line" />}
+        {cover.layer.label}
+      </span>
+      {cover.terms
+        .filter((t) => !t.self)
+        .map((t) => (
+          <Chip key={t.name} term={t} counts={counts} onRemove={t.onToggle} />
+        ))}
+    </div>
   );
 }
 
@@ -198,13 +232,13 @@ function GroupBox({
   onOpen,
   onAdd,
   onRemove,
-  onSwap,
+  swapOf,
   tone,
 }: {
   label: string;
   box: BoxKey;
   terms: readonly Placed[];
-  covers: { layer: BoardLayer; terms: Placed[] }[];
+  covers: Cover[];
   counts: Map<string, number>;
   repeats: Set<string>;
   options: readonly TagSuggestion[];
@@ -212,7 +246,7 @@ function GroupBox({
   onOpen: () => void;
   onAdd: (name: string) => void;
   onRemove: (t: Placed) => void;
-  onSwap: (t: Placed) => void;
+  swapOf: (t: Placed) => { label: string; run: () => void } | undefined;
   tone?: string;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -233,7 +267,7 @@ function GroupBox({
     setQ("");
     setActive(-1);
   };
-  const gap = terms.length === 0 && covers.length === 0;
+  const gap = terms.length === 0 && !covers.some((c) => c.terms.some((t) => !t.dropped));
   const missing = gap && BOXES.find((b) => b.key === box)?.expected;
   return (
     <div
@@ -251,8 +285,14 @@ function GroupBox({
       <div className="mb-1.5 flex min-h-5 items-center gap-1.5 text-xs font-medium text-muted">
         {label}
         {missing && <span className="text-amber-300">Missing</span>}
-        {covers.length > 0 && <Covers covers={covers} />}
       </div>
+      {covers.length > 0 && (
+        <div className="mb-1.5 space-y-1.5">
+          {covers.map((c) => (
+            <CoverRow key={c.layer.key} cover={c} counts={counts} />
+          ))}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-1.5">
         {terms.map((t) => (
           <Chip
@@ -261,7 +301,7 @@ function GroupBox({
             counts={counts}
             repeated={repeats.has(t.place?.alias_of ?? t.name)}
             onRemove={() => onRemove(t)}
-            onSwap={t.place?.alias_of ? () => onSwap(t) : undefined}
+            swap={swapOf(t)}
           />
         ))}
         {addable && (
@@ -334,29 +374,43 @@ export function PromptBoard({
   const terms = useMemo(() => promptTerms(prompt), [prompt]);
   // The page rebuilds `layers` every render; parse them again only when
   // what they say changes.
-  const layersKey = layers.map((l) => `${l.label}\u0000${l.text}\u0000${l.character?.tag ?? ""}`).join("\u0001");
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const layerTerms = useMemo(() => layers.map((l) => ({ layer: l, terms: promptTerms(l.text) })), [layersKey]);
+  const layersKey = layers
+    .map((l) => [l.key, l.label, l.character?.thumb_url ?? "", l.text ?? "", ...(l.tags ?? []).map((t) => `${t.tag}${t.dropped ? "-" : ""}`)].join("\u0000"))
+    .join("\u0001");
+  const layerTerms = useMemo(
+    () => layers.map((l) => ({ layer: l, terms: l.tags ? l.tags.map(layerTerm) : promptTerms(l.text ?? "") })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [layersKey],
+  );
   const names = useMemo(
     () => [...terms, ...layerTerms.flatMap((l) => l.terms)].filter((t) => t.kind === "tag").map((t) => t.name),
     [terms, layerTerms],
   );
   const { data: places } = useTagPlaces(names);
   const { mine, theirs, repeats } = useMemo(() => {
-    const placed = (t: PromptTerm): Placed => {
+    const placed = (t: PromptTerm & Partial<Placed>): Placed => {
       const place = places?.names[t.name];
       return { ...t, place, box: boxOf(t, place, boilerplate) };
     };
     const mine = terms.map(placed);
     const theirs = layerTerms.map((l) => ({ layer: l.layer, terms: l.terms.map(placed) }));
     const seen = new Map<string, number>();
-    for (const t of [...mine, ...theirs.flatMap((l) => l.terms)]) seen.set(tagOf(t), (seen.get(tagOf(t)) ?? 0) + 1);
+    for (const t of [...mine, ...theirs.flatMap((l) => l.terms)]) if (!t.dropped) seen.set(tagOf(t), (seen.get(tagOf(t)) ?? 0) + 1);
     const repeats = new Set([...seen].filter(([, n]) => n > 1).map(([k]) => k));
     return { mine, theirs, repeats };
   }, [terms, layerTerms, places, boilerplate]);
   const counts = useMemo(() => new Map(pool.map((t) => [t._id, t.count])), [pool]);
 
   const [opened, setOpened] = useState(false);
+  const [folded, setFolded] = useState(readFolded);
+  const setFold = (v: boolean) => {
+    setFolded(v);
+    try {
+      localStorage.setItem(FOLD_KEY, v ? "1" : "0");
+    } catch {
+      // Storage off: it just won't be remembered.
+    }
+  };
   const { data: offers } = useBoardOffers({ enabled: opened, list: places?.list });
   const { data: browse } = useTagBrowse("all", { enabled: opened });
   const thumbs = useMemo(() => new Map((browse ?? []).map((b) => [b.tag, b.thumb_url])), [browse]);
@@ -386,7 +440,15 @@ export function PromptBoard({
     onPrompt(t.weight != null ? appendPiece(prompt, typed.trim()) : appendTag(prompt, t.name));
   };
   const remove = (t: Placed) => onPrompt(removeSpan(prompt, t.start, t.end));
-  const swap = (t: Placed) => t.place?.alias_of && onPrompt(replaceName(prompt, t, t.place.alias_of));
+  // The tag already in the prompt: the alias only goes.
+  const hasTag = (t: Placed) => mine.some((o) => o !== t && o.start !== t.start && tagOf(o) === t.place?.alias_of);
+  const swapOf = (t: Placed) => {
+    const tag = t.place?.alias_of;
+    if (!tag) return undefined;
+    return hasTag(t)
+      ? { label: "Remove duplicate", run: () => onPrompt(removeSpan(prompt, t.start, t.end)) }
+      : { label: `Use ${tag.replace(/_/g, " ")}`, run: () => onPrompt(replaceName(prompt, t, tag)) };
+  };
 
   const byBox = new Map<BoxKey, Placed[]>();
   for (const t of mine) byBox.set(t.box, [...(byBox.get(t.box) ?? []), t]);
@@ -408,17 +470,41 @@ export function PromptBoard({
       onOpen={() => setOpened(true)}
       onAdd={add}
       onRemove={remove}
-      onSwap={swap}
+      swapOf={swapOf}
       tone={tone}
     />
   );
   const unknown = byBox.get("unknown")?.length ?? 0;
+  const shown = BOXES.filter((b) => b.expected || byBox.has(b.key) || theirs.some((l) => l.terms.some((t) => t.box === b.key)));
+  const missing = BOXES.filter(
+    (b) => b.expected && !byBox.has(b.key) && !theirs.some((l) => l.terms.some((t) => t.box === b.key && !t.dropped)),
+  );
   return (
-    <div className="mt-3 space-y-2" aria-label="Prompt board">
-      {unknown > 0 && box("unknown", `Not a known tag (${unknown})`, "border-red-500/40 bg-red-500/5")}
-      <div className="grid gap-2 sm:grid-cols-2">
-        {BOXES.filter((b) => b.expected || byBox.has(b.key)).map((b) => box(b.key, b.label))}
-      </div>
+    <div className="mt-3" aria-label="Prompt board">
+      <button
+        type="button"
+        aria-expanded={!folded}
+        onClick={() => setFold(!folded)}
+        className="flex w-full items-center gap-2 rounded-md py-1 text-left text-xs text-muted hover:text-neutral-100"
+      >
+        <ChevronDown size={14} className={cn("transition-transform", folded && "-rotate-90")} />
+        <span className="font-medium">Tags by part</span>
+        {folded && (
+          <span className="flex min-w-0 items-center gap-2 truncate text-faint">
+            <span>
+              {mine.length} {mine.length === 1 ? "tag" : "tags"}
+            </span>
+            {unknown > 0 && <span className="text-red-300">{unknown} not known</span>}
+            {missing.length > 0 && <span className="truncate text-amber-300">Missing {missing.map((b) => b.label).join(", ")}</span>}
+          </span>
+        )}
+      </button>
+      {!folded && (
+        <div className="mt-1.5 space-y-2">
+          {unknown > 0 && box("unknown", `Not a known tag (${unknown})`, "border-red-500/40 bg-red-500/5")}
+          <div className="grid gap-2 sm:grid-cols-2">{shown.map((b) => box(b.key, b.label))}</div>
+        </div>
+      )}
     </div>
   );
 }
