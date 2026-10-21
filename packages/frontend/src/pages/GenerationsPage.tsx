@@ -40,7 +40,7 @@ function Masonry({ items }: { items: BatchSummary[] }) {
   return (
     <ul
       className="grid"
-      style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${MIN_COL}px, 1fr))`, gridAutoRows: 1, columnGap: GAP }}
+      style={{ gridTemplateColumns: `repeat(auto-fill, minmax(min(${MIN_COL}px, calc(50% - ${GAP / 2}px)), 1fr))`, gridAutoRows: 1, columnGap: GAP }}
     >
       {items.map((b) => (
         <MasonryItem key={b._id}>

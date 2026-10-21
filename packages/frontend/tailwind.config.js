@@ -3,6 +3,11 @@ module.exports = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      screens: {
+        // No hover (a phone, a tablet): controls a mouse reveals on hover
+        // show outright, or a finger never finds them.
+        touch: { raw: "(hover: none)" },
+      },
       fontFamily: {
         sans: [
           '"Instrument Sans Variable"',

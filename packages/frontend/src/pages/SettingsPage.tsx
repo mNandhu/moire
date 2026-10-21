@@ -29,7 +29,7 @@ export default function SettingsPage() {
       <PageHeader title="Settings" />
       <PageBody className="space-y-5">
         <nav
-          className="flex gap-1 border-b border-line -mt-1"
+          className="flex gap-1 border-b border-line -mt-1 overflow-x-auto [scrollbar-width:none]"
           aria-label="Settings sections"
         >
           {SETTINGS_SECTIONS.map((section) => {
@@ -41,7 +41,7 @@ export default function SettingsPage() {
                 onClick={() => selectSection(section.id)}
                 aria-current={on ? "page" : undefined}
                 className={cn(
-                  "relative -mb-px inline-flex items-center gap-2 px-3 py-2.5 text-sm border-b-2 transition-colors",
+                  "relative md:-mb-px shrink-0 whitespace-nowrap inline-flex items-center gap-2 px-3 py-2.5 text-sm border-b-2 transition-colors",
                   on
                     ? "border-brand-400 text-neutral-50 font-medium"
                     : "border-transparent text-muted hover:text-neutral-100",

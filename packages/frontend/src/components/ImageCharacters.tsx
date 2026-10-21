@@ -155,7 +155,7 @@ export function ImageCharacters({
                   "absolute right-1.5 top-0 h-6 w-6 rounded-full inline-flex items-center justify-center transition-opacity",
                   isAvatar || busy
                     ? "bg-brand-500 text-white"
-                    : "bg-black/70 text-white/85 hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0 disabled:group-hover:opacity-40",
+                    : "bg-black/70 text-white/85 hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 touch:enabled:opacity-100 disabled:opacity-0 disabled:group-hover:opacity-40",
                 )}
               >
                 <Pin size={12} />

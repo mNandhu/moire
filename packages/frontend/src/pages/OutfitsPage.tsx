@@ -164,7 +164,7 @@ export default function OutfitsPage() {
         {!isLoading && !shown.length ? (
           <EmptyState icon={Shirt} title={all.length ? "No outfits match" : "No outfits yet"} />
         ) : (
-          <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+          <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(220px, calc(50% - 8px)), 1fr))" }}>
             {shown.map((o) => (
               <OutfitCardMenu key={o._id} o={o} onEdit={() => setEditing(o)} />
             ))}

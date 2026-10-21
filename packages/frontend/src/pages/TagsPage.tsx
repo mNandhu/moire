@@ -293,7 +293,7 @@ export default function TagsPage() {
         >
           <div className="min-w-0 space-y-6">
             {/* Shortcuts to what still needs work */}
-            <div className="flex flex-wrap gap-3">
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3">
               <SpecialTile
                 title="Untagged"
                 subtitle={
@@ -513,7 +513,7 @@ function TagGrid({
   }, [rows, source]);
 
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(min(170px,calc(50%_-_6px)),1fr))] gap-3">
       {rows.map((t) =>
         t.category === "character" ? (
           <SpineCard
@@ -689,7 +689,7 @@ function LoadingGrid({ view }: { view: TagView }) {
     );
   }
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(min(170px,calc(50%_-_6px)),1fr))] gap-3">
       {Array.from({ length: 12 }).map((_, i) => (
         <div key={i} className="overflow-hidden border border-white/5 bg-surface shadow-panel">
           <Skeleton className="w-full aspect-[3/4] rounded-none" />
@@ -708,7 +708,7 @@ function SpecialTile({ title, subtitle, to }: { title: string; subtitle: string;
     <Link
       to={to}
       title={title}
-      className="rounded-xl border border-white/5 bg-surface bg-sheen shadow-panel px-4 py-3 text-left card-hover min-w-[180px]"
+      className="rounded-xl border border-white/5 bg-surface bg-sheen shadow-panel px-4 py-3 text-left card-hover min-w-0 sm:min-w-[180px]"
     >
       <div className="flex items-center gap-2 font-semibold">
         <span className="relative inline-flex items-center justify-center w-5 h-5">

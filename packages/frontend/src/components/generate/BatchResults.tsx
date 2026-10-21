@@ -69,7 +69,7 @@ export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; on
           </button>
         </div>
       )}
-      <div className="absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100">
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}

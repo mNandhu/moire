@@ -34,7 +34,7 @@ export function ComfyStatusLine({ withActions = true, ready }: { withActions?: b
       <span className={down ? "text-red-200" : "text-neutral-100"} title={down ? status.error ?? undefined : undefined}>
         {label}
       </span>
-      <span className="text-faint" title={`ComfyUI at ${address}`}>
+      <span className="hidden sm:inline text-faint" title={`ComfyUI at ${address}`}>
         ComfyUI <span className="font-mono">{address}</span>
       </span>
       {down && withActions && (
