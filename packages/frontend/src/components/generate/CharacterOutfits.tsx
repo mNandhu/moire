@@ -58,6 +58,8 @@ function Mini({ o, character }: { o: Outfit; character: string }) {
   const isDefault = o._id === DEFAULT_OUTFIT;
   const foreign = o.shared && o.character !== character;
   const shown = o.tags.slice(0, 3);
+  // A Default with nothing in it: a place to write their usual clothes.
+  const empty = isDefault && !o.tags.length;
   return (
     <div
       className={cn(
@@ -67,13 +69,19 @@ function Mini({ o, character }: { o: Outfit; character: string }) {
       )}
     >
       <div className="h-[10.5rem] overflow-hidden rounded-md bg-raised">
-        <OutfitThumb imageId={o.image_id} className="h-full w-full rounded-none" />
+        {empty ? (
+          <span className="grid h-full w-full place-items-center text-muted">
+            <Plus size={22} />
+          </span>
+        ) : (
+          <OutfitThumb imageId={o.image_id} className="h-full w-full rounded-none" />
+        )}
       </div>
       <span className="flex min-w-0 items-center gap-1.5 px-0.5 text-sm text-neutral-100">
         <span className="truncate" title={o.name}>
           {o.name}
         </span>
-        {isDefault && (
+        {isDefault && !empty && (
           <span className="shrink-0 rounded-full border border-line-strong px-1.5 text-[10.5px] text-muted">
             {o.edited ? "usual, edited" : "usual"}
           </span>
@@ -115,14 +123,20 @@ export function CharacterOutfits({ character, name }: { character: string; name:
   // images): it is where their usual clothes get written in by hand.
   const d = def ?? null;
   const counts = [own.length && `${own.length} own`, shared.length && `${shared.length} shared`].filter(Boolean).join(", ");
-  const card = (o: Outfit, canHide = false) => (
-    <DropdownMenu
-      key={o._id}
-      aria-label={`${o.name} actions`}
-      trigger={<Mini o={o} character={character} />}
-      items={actions(o, () => setEditing(o), { canHide })}
-    />
-  );
+  const card = (o: Outfit, canHide = false) =>
+    o._id === DEFAULT_OUTFIT && !o.tags.length ? (
+      // Nothing to use or open in the gallery yet: straight to writing it.
+      <button key={o._id} type="button" onClick={() => setEditing(o)} className="rounded-xl text-left" title="Add their usual clothes">
+        <Mini o={o} character={character} />
+      </button>
+    ) : (
+      <DropdownMenu
+        key={o._id}
+        aria-label={`${o.name} actions`}
+        trigger={<Mini o={o} character={character} />}
+        items={actions(o, () => setEditing(o), { canHide })}
+      />
+    );
   return (
     <section>
       <div className="mb-2 flex items-baseline gap-2.5">
