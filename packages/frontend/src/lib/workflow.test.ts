@@ -12,6 +12,7 @@ const gen = (over: Partial<Generator> = {}): Generator => ({
   source: { kind: "image", image_id: "L:a.png", family: "f", family_name: "Portraits", workflow_sig: "s" },
   defaults: { base: "1girl", negative: "bad" },
   fixed: { checkpoint: "noob.safetensors", size: "2:3 [832x1216 portrait]" },
+  checkpoint_default: null,
   test: null,
   ...over,
 });

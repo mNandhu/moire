@@ -682,3 +682,13 @@ async def test_a_failed_setup_at_startup_is_retried(temp_db, monkeypatch):
     assert m.status()["configured"] is True and m.status()["connected"] is True
     await m.stop()
     generation_jobs.reset_for_tests()
+
+
+def test_slot_value_is_the_graphs_own_string():
+    from moire.services.generation_batches import _slot_value
+
+    graph = {"86": {"inputs": {"value": "anima.safetensors", "n": 3}}}
+    assert _slot_value(graph, ["86", "value"]) == "anima.safetensors"
+    assert _slot_value(graph, ["86", "n"]) is None
+    assert _slot_value(graph, ["9", "value"]) is None
+    assert _slot_value(graph, None) is None

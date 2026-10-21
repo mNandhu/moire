@@ -278,6 +278,14 @@ async def start_test(
     return batch_id
 
 
+def _slot_value(graph: dict[str, Any], slot: Any) -> str | None:
+    """The graph's own string at ``[node, input]``; None when it isn't one."""
+    if not (isinstance(slot, list) and len(slot) == 2):
+        return None
+    v = ((graph.get(str(slot[0])) or {}).get("inputs") or {}).get(slot[1])
+    return v if isinstance(v, str) else None
+
+
 async def generator_view(
     manager: GenerationManager, generator_id: str
 ) -> dict[str, Any] | None:
@@ -323,6 +331,8 @@ async def generator_view(
         "sampling": sampling_defaults(gen["graph"], gen["slots"]),
         # What the workflow sets itself where there's no slot (shown read-only).
         "fixed": fixed_values(gen["graph"], gen["slots"]),
+        # The checkpoint slot's own value: what a remix into it starts on.
+        "checkpoint_default": _slot_value(gen["graph"], gen["slots"].get("checkpoint")),
         "test": test,
     }
 

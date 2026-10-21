@@ -351,9 +351,17 @@ export type SeedChoice = "same" | "new";
  * whole request again, so the image is among its results). Otherwise the
  * image's own values, each only where the workflow takes it: the built-in
  * takes everything; a custom workflow keeps its graph's own LoRAs, and its
- * checkpoint, size and sampling unless it has a slot. `current` gives what
- * the image doesn't say (checkpoint, size). Pure. */
-export function formFromRemix(doc: RemixDoc, target: Generator, seed: SeedChoice, current: GenerateForm): GenerateForm {
+ * checkpoint, size and sampling unless it has a slot. A checkpoint slot
+ * takes the image's checkpoint only on the image's `own` workflow; another
+ * workflow starts on its own default, which fits its model family.
+ * `current` gives what the image doesn't say (checkpoint, size). Pure. */
+export function formFromRemix(
+  doc: RemixDoc,
+  target: Generator,
+  seed: SeedChoice,
+  current: GenerateForm,
+  own = false,
+): GenerateForm {
   const remix = { image: doc.image_id, seed: seed === "same" ? doc.seed : null };
   const b = doc.batch;
   if (b && !b.inputs.test && b.generator_id === target._id) {
@@ -370,9 +378,9 @@ export function formFromRemix(doc: RemixDoc, target: Generator, seed: SeedChoice
   const slots = target.slots;
   const sizeSlot = builtin || (!!slots.width && !!slots.height);
   const sampling: Sampling = {};
-  const own = builtin ? null : Object.keys(target.sampling ?? {});
+  const exposed = builtin ? null : Object.keys(target.sampling ?? {});
   for (const [k, v] of Object.entries(doc.sampling) as [keyof Sampling, never][]) {
-    if (!own || own.includes(k)) sampling[k] = v;
+    if (!exposed || exposed.includes(k)) sampling[k] = v;
   }
   return {
     ...DEFAULT_FORM,
@@ -380,7 +388,12 @@ export function formFromRemix(doc: RemixDoc, target: Generator, seed: SeedChoice
     prompt: doc.prompt,
     negative: doc.negative,
     characters: doc.characters.slice(0, MAX_CHARACTERS),
-    checkpoint: builtin || slots.checkpoint ? (doc.checkpoint ?? current.checkpoint) : current.checkpoint,
+    checkpoint:
+      builtin || (slots.checkpoint && own)
+        ? (doc.checkpoint ?? current.checkpoint)
+        : slots.checkpoint
+          ? target.checkpoint_default || current.checkpoint
+          : current.checkpoint,
     sampling,
     loras: builtin ? doc.loras.map((l) => ({ name: l.name, strength: l.strength, preset: null })) : [],
     width: sizeSlot && doc.width ? doc.width : current.width,

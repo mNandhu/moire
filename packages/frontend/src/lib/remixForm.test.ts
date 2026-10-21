@@ -12,6 +12,7 @@ const builtin: Generator = {
   source: null,
   defaults: null,
   fixed: { checkpoint: null, size: null },
+  checkpoint_default: null,
   test: null,
 };
 
@@ -66,6 +67,13 @@ describe("formFromRemix", () => {
     expect(f.sampling).toEqual({ steps: 30 });
     expect(f.seed).toEqual({ mode: "random", value: null });
     expect(f.remix).toEqual({ image: "L1:a.png", seed: null });
+  });
+
+  it("takes the image's checkpoint only into its own workflow, else the workflow's default", () => {
+    const anima = { ...custom, slots: { ...custom.slots, checkpoint: ["86", "value"] }, checkpoint_default: "anima.safetensors" } as Generator;
+    expect(formFromRemix(doc, anima, "new", current, true).checkpoint).toBe("noob.safetensors");
+    expect(formFromRemix(doc, anima, "new", current).checkpoint).toBe("anima.safetensors");
+    expect(formFromRemix(doc, { ...anima, checkpoint_default: null }, "new", current).checkpoint).toBe("mine.safetensors");
   });
 
   it("keeps the draft's checkpoint when ComfyUI lacks the image's", () => {

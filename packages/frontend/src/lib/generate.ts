@@ -87,6 +87,8 @@ export type Generator = {
   defaults: { base: string; negative: string } | null;
   /** What the workflow sets itself where Moiré has no slot (shown read-only). */
   fixed: { checkpoint: string | null; size: string | null };
+  /** The checkpoint slot's own value: what a remix into it starts on. */
+  checkpoint_default: string | null;
   test: GeneratorTest | null;
 };
 

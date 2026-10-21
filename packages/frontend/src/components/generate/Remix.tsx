@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { Shuffle, Wand2, X } from "lucide-react";
-import { Badge, Button, DropdownMenu } from "../ui";
+import { Badge, Button, Picker, type PickerOption } from "../ui";
 import { cn } from "../../lib/cn";
 import { fetchRemix, remixKey, thumbUrl, useGenerators, type Generator, type RemixInfo } from "../../lib/generate";
 import { formFromRemix, loadDraft, saveDraft, type GenerateForm, type SeedChoice } from "../../lib/generateForm";
@@ -50,9 +50,9 @@ export function WorkflowLine({ info, imageId }: { info: RemixInfo; imageId: stri
   );
 }
 
-function SeedSwitch({ value, onChange }: { value: SeedChoice; onChange: (v: SeedChoice) => void }) {
+function SeedSwitch({ value, onChange, own }: { value: SeedChoice; onChange: (v: SeedChoice) => void; own: string }) {
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-2.5 px-2 py-1" title={`For ${own}; other workflows start on a new seed`}>
       <span className="text-xs font-medium text-muted">Seed</span>
       <div role="radiogroup" aria-label="Seed" className="inline-flex gap-0.5 rounded-lg border border-line bg-canvas p-0.5">
         {(["same", "new"] as const).map((v) => (
@@ -76,10 +76,10 @@ function SeedSwitch({ value, onChange }: { value: SeedChoice; onChange: (v: Seed
 }
 
 /**
- * Remix: start Generate from this image. With its workflow set up the menu
- * offers that one and Built-in, with Same / New seed; without, Built-in only.
- * An image without a ComfyUI workflow goes straight to Built-in. The full
- * read (prompt split, settings checked) happens on the click.
+ * Remix: start Generate from this image with any workflow, searchable. Its
+ * own workflow (if set up) leads, then the others, Built-in last. Same /
+ * New seed applies to its own workflow; another one starts on a new seed.
+ * The full read (prompt split, settings checked) happens on the pick.
  */
 export function RemixButton({ info }: { info: RemixInfo }) {
   const navigate = useNavigate();
@@ -90,42 +90,45 @@ export function RemixButton({ info }: { info: RemixInfo }) {
   const [seed, setSeed] = useState<SeedChoice | null>(null);
   const seedChoice: SeedChoice = seed ?? (exact && gen?.ready ? "same" : "new");
   const builtin = generators?.find((g) => g.kind === "builtin");
-  const go = async (target: Generator, s: SeedChoice) => {
+  const own = gen && gen.kind !== "builtin" ? gen : undefined;
+  const go = async (target: Generator) => {
+    const mine = target === own;
     try {
       const doc = await qc.fetchQuery({ queryKey: remixKey(info.image_id, true), queryFn: () => fetchRemix(info.image_id) });
-      const form = formFromRemix(doc, target, s, loadDraft());
+      const form = formFromRemix(doc, target, mine ? seedChoice : "new", loadDraft(), mine);
       saveDraft(form);
       navigate("/generate", { state: { remixForm: form } satisfies RemixState });
     } catch (e) {
       toast.push(e instanceof Error ? e.message : "Couldn't read this image", "error");
     }
   };
-  if (!builtin) return null;
-  const label = (
-    <>
-      <Shuffle size={13} /> Remix
-    </>
-  );
-  if (!info.workflow) {
-    return (
-      <Button size="sm" variant="primary" onClick={() => void go(builtin, "new")}>
-        {label}
-      </Button>
-    );
-  }
-  const items = [
-    ...(gen && gen.kind !== "builtin"
-      ? [{ label: `Remix with ${gen.name}`, hint: <TestBadge gen={gen} />, onClick: () => void go(gen, seedChoice) }]
-      : []),
-    { label: "Remix with Built-in", onClick: () => void go(builtin, seedChoice) },
-  ];
+  if (!builtin || !generators) return null;
+  const others = generators.filter((g) => g.kind !== "builtin" && g !== own);
+  const ordered = [...(own ? [own] : []), ...others, builtin];
+  const options: PickerOption[] = ordered.map((g) => ({
+    value: g._id,
+    label: g.name,
+    group: own ? (g === own ? "This image's workflow" : "Other workflows") : undefined,
+    hint: g.kind === "builtin" ? undefined : <TestBadge gen={g} />,
+  }));
   return (
-    <DropdownMenu
-      size="sm"
-      variant="primary"
-      label={label}
-      items={items}
-      footer={<SeedSwitch value={seedChoice} onChange={setSeed} />}
+    <Picker
+      value=""
+      options={options}
+      onChange={(id) => {
+        const target = ordered.find((g) => g._id === id);
+        if (target) void go(target);
+      }}
+      aria-label="Remix with"
+      searchable
+      checks={false}
+      align="right"
+      trigger={() => (
+        <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-transparent bg-brand-600 px-3 text-xs font-medium text-white hover:bg-brand-500">
+          <Shuffle size={13} /> Remix
+        </span>
+      )}
+      footer={own && <SeedSwitch value={seedChoice} onChange={setSeed} own={own.name} />}
     />
   );
 }
