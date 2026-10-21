@@ -58,13 +58,15 @@ def put_thumb(library_id: str, image_id: str, data: bytes) -> str:
     return key
 
 
-def _write_atomic(dst: Path, data: bytes) -> None:
+def _write_atomic(dst: Path, data: bytes, mtime_ns: int | None = None) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     # Temp file in the SAME dir → same filesystem → os.replace is atomic. Unique
     # per write: two requests may make the same small copy at once.
     tmp = dst.with_name(f"{dst.name}.tmp.{os.getpid()}.{uuid.uuid4().hex}")
     try:
         tmp.write_bytes(data)
+        if mtime_ns is not None:
+            os.utime(tmp, ns=(mtime_ns, mtime_ns))
         os.replace(tmp, dst)
     finally:
         tmp.unlink(missing_ok=True)
@@ -83,27 +85,45 @@ def thumb_path(key: str) -> Path | None:
     return p if p.is_file() else None
 
 
+# Thumbnails Pillow couldn't read, by key, with the thumbnail's mtime then:
+# served as themselves without another try until the thumbnail changes.
+_unreadable: dict[str, int] = {}
+
+
 def small_thumb_path(key: str) -> Path | None:
     """The small copy of a thumbnail, for postage-stamp previews: made from the
-    thumbnail on first ask, and again when the thumbnail is newer. None if the
-    thumbnail isn't on disk."""
+    thumbnail on first ask, and again when the thumbnail changes. The thumbnail
+    itself when it is already that small or can't be read; None if it isn't on
+    disk. Raises only when the copy can't be written."""
     src = thumb_path(key)
     if src is None:
         return None
+    made = src.stat().st_mtime_ns
     dst = _safe_path(small_key(key))
+    # The copy carries the thumbnail's mtime: a copy made from an older
+    # thumbnail (one a rescan replaced mid-encode) never matches.
     try:
-        if dst.stat().st_mtime_ns >= src.stat().st_mtime_ns:
+        if dst.stat().st_mtime_ns == made:
             return dst
     except FileNotFoundError:
         pass
-    with PILImage.open(src) as img:
-        w, h = img.size
-        scale = SMALL_SIDE / min(w, h)
-        if scale < 1:
+    if _unreadable.get(key) == made:
+        return src
+    try:
+        with PILImage.open(src) as img:
+            w, h = img.size
+            if min(w, h) <= SMALL_SIDE:
+                return src
+            scale = SMALL_SIDE / min(w, h)
             img.thumbnail((round(w * scale), round(h * scale)))
-        buf = BytesIO()
-        img.save(buf, format="WEBP", quality=_SMALL_QUALITY)
-    _write_atomic(dst, buf.getvalue())
+            buf = BytesIO()
+            img.save(buf, format="WEBP", quality=_SMALL_QUALITY)
+    except (OSError, ValueError, SyntaxError):
+        if len(_unreadable) > 10_000:
+            _unreadable.clear()
+        _unreadable[key] = made
+        return src
+    _write_atomic(dst, buf.getvalue(), mtime_ns=made)
     return dst
 
 

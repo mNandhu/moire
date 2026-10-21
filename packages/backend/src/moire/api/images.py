@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import anyio  # type: ignore[import-not-found]
 import os
+from pathlib import Path
 
 import sqlalchemy as sa
 
@@ -209,14 +210,32 @@ async def head_image_file(image_id: str):
 ThumbSize = Literal["small"]
 
 
-def _thumb_file(key: str, size: ThumbSize | None):
+# Making small copies is CPU work: a cold page of previews shouldn't take
+# every worker thread the other routes share.
+_SMALL_LIMIT = anyio.CapacityLimiter(4)
+
+_IMMUTABLE = {"Cache-Control": "public, max-age=31536000, immutable"}
+
+
+def _media_type(path: str) -> str:
+    return "image/webp" if path.endswith(".webp") else "image/jpeg"
+
+
+async def _thumb_file(key: str, size: ThumbSize | None) -> tuple[Path | None, bool]:
+    """The file to serve, and whether it is the one asked for (cacheable)."""
     if size == "small":
         try:
-            return small_thumb_path(key)
-        except Exception:
-            # A thumbnail Pillow can't read still serves as itself.
+            path = await anyio.to_thread.run_sync(
+                lambda: small_thumb_path(key), limiter=_SMALL_LIMIT
+            )
+            return path, True
+        except OSError:
+            # Couldn't write the copy: the thumbnail stands in, uncached, so
+            # the small one is asked for again.
             logger.warning("small thumbnail failed for %s", key, exc_info=True)
-    return thumb_path(key)
+            path = await anyio.to_thread.run_sync(lambda: thumb_path(key))
+            return path, False
+    return await anyio.to_thread.run_sync(lambda: thumb_path(key)), True
 
 
 @router.get("/{image_id:path}/thumb")
@@ -230,17 +249,14 @@ async def get_image_thumb(image_id: str, size: ThumbSize | None = None):
     if not thumb_key:
         raise HTTPException(status_code=404, detail="Thumbnail not available")
 
-    # Determine media type from the key extension
-    media_type = "image/webp" if thumb_key.endswith(".webp") else "image/jpeg"
-
-    path = await anyio.to_thread.run_sync(lambda: _thumb_file(thumb_key, size))  # type: ignore[attr-defined]
+    path, cacheable = await _thumb_file(thumb_key, size)
     if path is None:
         raise HTTPException(status_code=404, detail="Thumbnail not found on disk")
     # FileResponse handles ETag/Content-Length/sendfile natively.
     return FileResponse(
         path,
-        media_type=media_type,
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        media_type=_media_type(path.name),
+        headers=_IMMUTABLE if cacheable else {"Cache-Control": "no-cache"},
     )
 
 
@@ -250,7 +266,11 @@ async def head_image_thumb(image_id: str, size: ThumbSize | None = None):
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
     thumb_key = img.get("thumb_key", "") or ""
-    media_type = "image/webp" if thumb_key.endswith(".webp") else "image/jpeg"
+    exists = thumb_key and await anyio.to_thread.run_sync(lambda: thumb_path(thumb_key))
+    if not exists:
+        raise HTTPException(status_code=404, detail="Thumbnail not found on disk")
+    # A small copy is always WebP; it may not be made yet, so no length.
+    media_type = "image/webp" if size == "small" else _media_type(thumb_key)
     headers = {"Accept-Ranges": "bytes"}
     return Response(status_code=200, headers=headers, media_type=media_type)
 
