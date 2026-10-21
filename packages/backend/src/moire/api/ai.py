@@ -41,6 +41,9 @@ class SettingsPatch(BaseModel):
 class TagRequest(BaseModel):
     ids: list[str] = Field(default_factory=list)
     force: bool = False
+    # Re-tag: clear each image's AI tags and rating first, so what it ends
+    # with is only this run's (or nothing, if the run is cancelled).
+    retag: bool = False
 
 
 class TagUntaggedRequest(BaseModel):
@@ -146,6 +149,9 @@ async def ai_model_unload():
 @router.post("/tag")
 async def ai_tag(req: TagRequest):
     jm = get_ai_job_manager()
+    if req.retag:
+        for image_id in req.ids:
+            await image_tags.clear_ai(image_id)
     job = await jm.enqueue(ids=req.ids, force=bool(req.force))
     return {"job_id": job.id, "queued": job.total, "skipped": job.skipped}
 

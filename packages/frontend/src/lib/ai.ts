@@ -266,8 +266,12 @@ function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 /** Queue an AI tagging job for the given image ids; returns the job id. */
-export function postAiTag(ids: string[]): Promise<{ job_id: string }> {
-  return postJson<{ job_id: string }>("/api/v1/ai/tag", { ids });
+/** Queue AI tagging. `retag` first clears the images' AI tags and rating. */
+export function postAiTag(
+  ids: string[],
+  opts: { retag?: boolean } = {},
+): Promise<{ job_id: string }> {
+  return postJson<{ job_id: string }>("/api/v1/ai/tag", { ids, ...opts });
 }
 
 /** Request cancellation of an AI tagging job. Returns whether the backend
