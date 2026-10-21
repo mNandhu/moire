@@ -4,6 +4,7 @@
  * and a draft survives the outfit being edited or deleted.
  */
 import type { Outfit, OutfitInput } from "./generate";
+import { DEFAULT_FILTERS, serializeFilters } from "./imageFilter";
 
 export type OutfitPick = {
   /** A saved outfit's id, or "default". */
@@ -79,4 +80,11 @@ export function validOutfits(v: unknown): Outfits {
  * nothing struck. Pure. */
 export function pickFromInput(o: OutfitInput | null | undefined): OutfitPick | null {
   return o && isStr(o.id) && Array.isArray(o.tags) ? { id: o.id, name: o.name ?? "", tags: o.tags.filter(isStr), dropped: [] } : null;
+}
+
+/** The gallery for an outfit: an ordinary all-of tag filter over the tags
+ * the tagger can check, plus the character when given. Pure. */
+export function outfitGalleryHref(o: Pick<Outfit, "tags">, character?: string | null): string {
+  const tags = [...(character ? [character] : []), ...o.tags.filter((t) => t.checkable).map((t) => t.tag)];
+  return `/?${serializeFilters({ ...DEFAULT_FILTERS, tags, logic: "and" }).toString()}`;
 }

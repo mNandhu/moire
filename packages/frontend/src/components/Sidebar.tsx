@@ -11,6 +11,7 @@ import {
   Wand2,
   History,
   Search,
+  Shirt,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "../lib/cn";
@@ -39,6 +40,7 @@ export const NAV = [
     items: [
       { label: "Generate", path: "/generate", icon: Wand2 },
       { label: "Generations", path: "/generations", icon: History },
+      { label: "Outfits", path: "/outfits", icon: Shirt },
     ],
   },
   {

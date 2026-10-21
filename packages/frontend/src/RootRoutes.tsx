@@ -14,6 +14,7 @@ import { useRefreshOnFinish } from "./hooks/useBackgroundTasks";
 import { useTrackHistory } from "./hooks/useHistoryNav";
 import GeneratePage from "./pages/GeneratePage";
 import GenerationsPage from "./pages/GenerationsPage";
+import OutfitsPage from "./pages/OutfitsPage";
 import WorkflowSetupPage from "./pages/WorkflowSetupPage";
 import BatchPage from "./pages/BatchPage";
 
@@ -51,6 +52,7 @@ export default function RootRoutes() {
           <Route path="generate/workflows/:id" element={<WorkflowSetupPage />} />
           <Route path="generations" element={<GenerationsPage />} />
           <Route path="generations/:id" element={<BatchPage />} />
+          <Route path="outfits" element={<OutfitsPage />} />
         </Route>
         <Route path="/image/:id" element={<ImageView />} />
       </Routes>

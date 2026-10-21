@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addWorn, keepPicked, outfitInput, pickFromInput, pickOf, toggleWorn, validOutfits, wornTags } from "./outfit";
+import { addWorn, keepPicked, outfitGalleryHref, outfitInput, pickFromInput, pickOf, toggleWorn, validOutfits, wornTags } from "./outfit";
 import { formFromBatch, loadDraft, previewText } from "./generateForm";
 import type { BatchInputs } from "./generate";
 
@@ -77,5 +77,23 @@ describe("outfits in the composer", () => {
       getItem: () => JSON.stringify({ characters: ["hu_tao"], outfits: { hu_tao: funeral, gone: funeral } }),
     };
     expect(loadDraft(store).outfits).toEqual({ hu_tao: funeral });
+  });
+});
+
+describe("outfitGalleryHref", () => {
+  it("filters on the checkable tags, all of them, with the character", () => {
+    const href = outfitGalleryHref(
+      {
+        tags: [
+          { tag: "porkpie_hat", group: null, checkable: true },
+          { tag: "plum_ornament", group: null, checkable: false },
+        ],
+      },
+      "hu_tao",
+    );
+    const sp = new URLSearchParams(href.slice(2));
+    expect(href.startsWith("/?")).toBe(true);
+    expect(sp.getAll("tags")).toEqual(["hu_tao", "porkpie_hat"]);
+    expect(sp.get("logic")).toBe("and");
   });
 });

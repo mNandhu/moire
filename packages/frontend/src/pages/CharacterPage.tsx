@@ -12,6 +12,7 @@ import { useCharacters } from "../components/ImageCharacters";
 import { CharacterEditDialog } from "../components/CharacterEditDialog";
 import { TagEditDialog } from "../components/TagEditDialog";
 import { CharacterAvatar } from "../components/CharacterAvatar";
+import { CharacterOutfits } from "../components/generate/CharacterOutfits";
 import { useComfyModels, useRecipe } from "../lib/generate";
 import { loadDraft, saveDraft } from "../lib/generateForm";
 import { cn } from "../lib/cn";
@@ -126,6 +127,7 @@ export default function CharacterPage({ route = "character" }: { route?: "charac
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
               <div className="space-y-8 min-w-0">
                 {c.best.length > 0 && <BestOf c={c} />}
+                {person && <CharacterOutfits character={c.tag} name={displayName(c).name} />}
                 {c.made ? <NoImagesYet c={c} /> : <Images c={c} person={person} />}
               </div>
               <Sidebar c={c} accent={colours[0]} onEdit={() => setEditing(true)} person={person} />
