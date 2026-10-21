@@ -1,0 +1,896 @@
+<title>Moiré First Run</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a setup assistant laid out like the app. A left rail lists the
+   steps, each with a one-line summary of what's set, and any step can be
+   reopened. The step itself is a plain form on the canvas: labels, fields,
+   buttons. A footer holds scan progress and Back / Continue. The ring
+   interference sits behind on the right.
+   Single dark theme on purpose: Moiré itself is dark only. Tokens mirror
+   packages/frontend/tailwind.config.js. */
+:root {
+  color-scheme: dark;
+  --sunken: #0a0a0e;
+  --canvas: #0d0c12;
+  --surface: #15141c;
+  --raised: #1e1c26;
+  --line: #2a2833;
+  --line-strong: #3b3946;
+  --fg: #ececf1;
+  --muted: #a6a3b3;
+  --faint: #8a8797;
+  --brand-100: #e6e0fd;
+  --brand-300: #b6a6f7;
+  --brand-400: #9d88f0;
+  --brand-500: #8268e6;
+  --brand-600: #6e52d6;
+  --ok: #6fcf97;
+  --warn: #f2c46d;
+  --err: #f28b82;
+  --paper: #f2efe6;
+  --ink: #2a2620;
+  --font: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --panel: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 28px -14px rgb(0 0 0 / 0.7);
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--canvas); color: var(--fg);
+  font-family: var(--font); font-size: 14px; word-spacing: 0.08em;
+  -webkit-font-smoothing: antialiased; overflow: hidden;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+*:focus-visible { outline: none; box-shadow: 0 0 0 2px rgb(157 136 240 / 0.7); }
+code { font-family: var(--mono); font-size: 0.92em; }
+
+.stage { position: relative; height: 100%; display: grid; grid-template-columns: 280px minmax(0, 1fr); overflow: hidden; }
+
+/* ---------- rings ---------- */
+#rings {
+  position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;
+  -webkit-mask-image: radial-gradient(ellipse 55% 85% at 82% 45%, #000 15%, transparent 72%);
+          mask-image: radial-gradient(ellipse 55% 85% at 82% 45%, #000 15%, transparent 72%);
+}
+
+/* ---------- landing ---------- */
+/* A faint wash in the colours generated images tend to have, with grain to
+   dither the soft gradients (as .ambient-wash/.grain do in the app). */
+.wash {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity 700ms ease;
+  background:
+    radial-gradient(38% 48% at 32% 36%, rgb(232 137 168 / 0.11), transparent 70%),
+    radial-gradient(44% 54% at 70% 62%, rgb(90 123 216 / 0.13), transparent 70%),
+    radial-gradient(28% 34% at 56% 18%, rgb(246 196 142 / 0.07), transparent 70%);
+}
+.wash::after {
+  content: ""; position: absolute; inset: 0; opacity: 0.07; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.wash { opacity: 1; }
+/* In setup the rings sit right of the form, so the wash follows them. */
+.stage:not(.on-landing) .wash {
+  background:
+    radial-gradient(30% 45% at 70% 34%, rgb(232 137 168 / 0.10), transparent 70%),
+    radial-gradient(34% 50% at 88% 64%, rgb(90 123 216 / 0.12), transparent 70%),
+    radial-gradient(22% 30% at 80% 14%, rgb(246 196 142 / 0.06), transparent 70%);
+}
+.landing {
+  position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; text-align: center;
+  padding: 24px max(24px, env(safe-area-inset-right, 0px)) 24px max(24px, env(safe-area-inset-left, 0px));
+}
+.stage.on-landing .rail, .stage.on-landing .main { visibility: hidden; }
+.stage.on-landing #rings {
+  -webkit-mask-image: radial-gradient(circle at 50% 46%, #000 8%, transparent 62%);
+          mask-image: radial-gradient(circle at 50% 46%, #000 8%, transparent 62%);
+}
+.land { display: grid; justify-items: center; gap: 0; animation: enter 500ms cubic-bezier(.2,.7,.2,1) both; }
+.lockup { display: flex; align-items: center; gap: clamp(12px, 1.6vw, 20px); margin: 0 0 14px; }
+.lockup svg { width: clamp(44px, 6.4vw, 68px); height: auto; flex: none; }
+.land h1 { font-size: clamp(40px, 6vw, 64px); font-weight: 600; letter-spacing: -0.03em; line-height: 1; margin: 0; }
+.land p { color: var(--muted); font-size: 16px; line-height: 1.5; margin: 0 0 32px; max-width: 36ch; }
+.land .btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.land .btn { height: 42px; padding: 0 18px; }
+.land-foot { position: absolute; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); left: 0; right: 0; color: var(--faint); font-size: 12px; text-align: center; padding: 0 24px; }
+.land-foot code { color: var(--muted); font-size: 11.5px; }
+
+/* ---------- rail ---------- */
+.rail {
+  position: relative; z-index: 2; display: flex; flex-direction: column;
+  background: var(--sunken); border-right: 1px solid var(--line);
+  padding: 22px 16px 20px max(16px, env(safe-area-inset-left, 0px));
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; padding: 0 8px; }
+.rail h1 { font-size: 13px; font-weight: 500; color: var(--faint); margin: 28px 8px 10px; letter-spacing: 0.02em; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.step {
+  width: 100%; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start;
+  text-align: left; padding: 10px 8px; border-radius: 8px; background: none; border: 0; color: var(--muted);
+}
+.step:hover:not(:disabled) { background: var(--surface); color: var(--fg); }
+.step:disabled { cursor: default; opacity: 0.55; }
+.step[aria-current="step"] { background: var(--raised); color: var(--fg); }
+.mark {
+  width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line-strong);
+  display: grid; place-items: center; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--faint);
+}
+.step[aria-current="step"] .mark { border-color: var(--brand-400); color: var(--brand-300); }
+.step.done .mark { background: var(--brand-600); border-color: var(--brand-600); color: #fff; }
+.step b { display: block; font-weight: 500; font-size: 14px; line-height: 22px; }
+.step small { display: block; font-size: 12px; color: var(--faint); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step .opt { font-weight: 400; color: var(--faint); font-size: 12px; margin-left: 4px; }
+.rail-foot { margin-top: auto; padding: 0 8px; display: grid; gap: 10px; color: var(--faint); font-size: 12px; line-height: 1.5; }
+.rail-foot code { color: var(--muted); font-size: 11.5px; }
+
+/* ---------- main ---------- */
+.main { position: relative; z-index: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.pane {
+  flex: 1; overflow-y: auto; min-height: 0;
+  padding: 56px max(24px, env(safe-area-inset-right, 0px)) 48px clamp(24px, 5vw, 72px);
+}
+.pane > section { max-width: 620px; animation: enter 320ms cubic-bezier(.2,.7,.2,1) both; }
+@keyframes enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.pane h2 { font-size: 28px; letter-spacing: -0.02em; font-weight: 600; margin: 0 0 8px; }
+.pane .sub { color: var(--muted); line-height: 1.55; margin: 0 0 28px; max-width: 56ch; }
+.group { padding: 22px 0; border-top: 1px solid var(--line); }
+.group:last-of-type { border-bottom: 1px solid var(--line); }
+.group > label, .group > .label { display: block; font-weight: 500; margin-bottom: 4px; }
+.group .help { color: var(--faint); font-size: 13px; line-height: 1.5; margin: 0 0 12px; }
+.help code { color: var(--muted); font-size: 12px; }
+.opt { font-weight: 400; color: var(--faint); font-size: 12px; margin-left: 6px; }
+
+.field {
+  display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 4px 0 12px;
+  border-radius: 8px; border: 1px solid var(--line-strong); background: var(--sunken);
+}
+.field:focus-within { border-color: var(--brand-500); }
+.field.bad, .field.bad:focus-within { border-color: var(--err); }
+.ferr { color: var(--err); font-size: 13px; line-height: 1.5; margin: 8px 0 0; }
+.field input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: none; font-family: var(--mono); font-size: 13px; }
+.field input:focus-visible { box-shadow: none; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid transparent;
+  font-weight: 500; font-size: 14px; transition: background 150ms, border-color 150ms, color 150ms; white-space: nowrap;
+}
+.btn.sm { height: 30px; padding: 0 11px; font-size: 13px; }
+.btn.primary { background: var(--brand-600); color: #fff; }
+.btn.primary:hover { background: var(--brand-500); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn.primary:disabled:hover { background: var(--brand-600); }
+.btn.secondary { background: var(--raised); border-color: var(--line); }
+.btn.secondary:hover:not(:disabled) { border-color: var(--line-strong); background: var(--line); }
+.btn.ghost { background: transparent; color: var(--muted); }
+.btn.ghost:hover { background: var(--raised); color: var(--fg); }
+.link {
+  background: none; border: 0; padding: 2px 0; color: var(--muted); font-size: 12.5px; text-align: left;
+  text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px;
+}
+.link:hover { color: var(--fg); }
+.kbd { font-family: var(--mono); font-size: 11px; color: var(--faint); border: 1px solid var(--line-strong); border-radius: 4px; padding: 1px 5px; }
+.x { background: none; border: 0; color: var(--faint); padding: 5px; border-radius: 6px; display: grid; place-items: center; }
+.x:hover { color: var(--fg); background: var(--raised); }
+
+.rows { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: 10px; }
+.rows:empty { display: none; }
+.r {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 14px; align-items: center;
+  padding: 8px 0 8px 2px; border-bottom: 1px solid var(--line); animation: enter 220ms ease both;
+}
+.r .p { font-family: var(--mono); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.r .n { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.r.bad .n { color: var(--err); white-space: normal; text-align: right; }
+
+.toggle { display: flex; gap: 12px; align-items: flex-start; background: none; border: 0; padding: 0; text-align: left; width: 100%; }
+.switch { flex: none; width: 34px; height: 20px; border-radius: 99px; background: var(--line-strong); position: relative; transition: background 150ms; margin-top: 1px; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--fg); transition: transform 180ms; }
+.toggle[aria-checked="true"] .switch { background: var(--brand-600); }
+.toggle[aria-checked="true"] .switch::after { transform: translateX(14px); }
+.toggle b { display: block; font-weight: 500; }
+.toggle small { color: var(--faint); font-size: 13px; line-height: 1.5; display: block; margin-top: 2px; }
+
+.state { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--brand-400); animation: pulse 1.6s ease-in-out infinite; }
+.dot.ok { background: var(--ok); animation: none; }
+.dot.bad { background: var(--err); animation: none; }
+.dot.off { background: var(--faint); animation: none; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+
+.wf { columns: 2 200px; column-gap: 24px; margin-top: 10px; font-size: 13px; }
+.wf div { break-inside: avoid; display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.wf span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.wf span:last-child { color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.compare { display: grid; gap: 10px; margin: 4px 0 8px; }
+.cmp { display: grid; grid-template-columns: 96px minmax(0, 1fr) 64px; gap: 14px; align-items: center; font-size: 13px; color: var(--muted); }
+.cmp .track { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.cmp .track i { display: block; height: 100%; border-radius: 3px; background: var(--faint); }
+.cmp.g .track i { background: var(--brand-400); }
+.cmp .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--fg); font-weight: 500; }
+.callout { margin-top: 14px; padding: 12px 14px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; line-height: 1.5; color: var(--muted); }
+.callout.rec { border-color: rgb(157 136 240 / 0.45); background: rgb(110 82 214 / 0.07); }
+.callout b { display: block; color: var(--fg); font-weight: 500; margin-bottom: 2px; }
+.cmd { display: flex; align-items: center; gap: 8px; background: var(--sunken); border: 1px solid var(--line); border-radius: 8px; padding: 4px 4px 4px 12px; margin: 10px 0 6px; }
+.cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; font-size: 12.5px; color: var(--fg); padding: 5px 0; }
+
+/* design note (mockup annotation, not product UI) */
+.annot {
+  background: var(--paper); color: var(--ink); border-radius: 10px; padding: 14px 16px; margin-top: 24px;
+  font-size: 13px; line-height: 1.5; box-shadow: 0 10px 28px rgb(0 0 0 / 0.45); max-width: 420px;
+}
+.annot b { display: block; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+.annot p { margin: 0 0 6px; }
+.annot ul { margin: 0; padding-left: 18px; }
+.annot li { margin-bottom: 4px; }
+
+/* footer */
+.foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 14px max(24px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) clamp(24px, 5vw, 72px);
+  border-top: 1px solid var(--line); background: rgb(13 12 18 / 0.9);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.scan { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; flex-wrap: wrap; min-width: 0; }
+.bar { width: 140px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--brand-400); width: 0; transition: width 300ms linear; }
+.nav-btns { display: flex; gap: 8px; margin-left: auto; }
+
+/* ---------- app shell ---------- */
+.app { position: absolute; inset: 0; z-index: 5; display: grid; grid-template-columns: 220px minmax(0, 1fr); background: var(--canvas); animation: fade 400ms ease both; }
+@keyframes fade { from { opacity: 0; } }
+.side {
+  background: var(--sunken); padding: 18px 12px; display: flex; flex-direction: column; gap: 2px;
+  box-shadow: 1px 0 0 rgb(255 255 255 / 0.03), 8px 0 24px -12px rgb(0 0 0 / 0.8);
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+}
+.side .brand { padding: 0 8px 18px; }
+.nav { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; color: var(--muted); font-size: 13.5px; }
+.nav.on { background: var(--raised); color: var(--fg); }
+.side hr { border: 0; border-top: 1px solid var(--line); margin: 10px 8px; }
+.activity { margin-top: auto; padding: 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 12px; color: var(--muted); display: grid; gap: 8px; }
+.activity .ln { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.activity .bar { width: auto; }
+.amain { position: relative; min-width: 0; overflow-y: auto; }
+.ahead {
+  position: sticky; top: 0; z-index: 2; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 20px max(24px, env(safe-area-inset-right, 0px)) 14px 24px;
+  background: linear-gradient(var(--canvas) 70%, rgb(13 12 18 / 0));
+}
+.ahead h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.015em; }
+.ahead span { color: var(--faint); font-variant-numeric: tabular-nums; }
+.ambient { position: absolute; inset: 0 0 auto; height: 420px; pointer-events: none; opacity: 0.9;
+  background:
+    radial-gradient(55% 90% at 22% -10%, rgb(232 137 168 / 0.16), transparent 70%),
+    radial-gradient(45% 80% at 62% -15%, rgb(90 123 216 / 0.14), transparent 70%),
+    radial-gradient(40% 70% at 95% -5%, rgb(246 196 142 / 0.10), transparent 70%); }
+.gallery { display: flex; gap: 10px; align-items: flex-start; padding: 0 max(24px, env(safe-area-inset-right, 0px)) 40px 24px; position: relative; }
+.mcol { flex: 1; min-width: 0; display: grid; gap: 10px; }
+.tile { border-radius: 8px; width: 100%; opacity: 0; transform: translateY(6px); transition: opacity 500ms ease, transform 500ms ease; }
+.tile.on { opacity: 1; transform: none; }
+.empty { padding: 80px 24px; max-width: 420px; }
+.empty h2 { margin: 0 0 8px; font-size: 20px; }
+.empty p { color: var(--muted); margin: 0 0 20px; line-height: 1.5; }
+.toast {
+  position: absolute; right: max(20px, env(safe-area-inset-right, 0px)); bottom: 20px; z-index: 4;
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 14px; border-radius: 10px;
+  background: var(--raised); border: 1px solid var(--line-strong); box-shadow: var(--panel); font-size: 13px;
+  transition: opacity 300ms, transform 300ms;
+}
+.toast.gone { opacity: 0; transform: translateY(8px); pointer-events: none; }
+
+/* ---------- mockup controls (not part of the design) ---------- */
+.mock {
+  position: fixed; z-index: 50; right: max(12px, env(safe-area-inset-right, 0px)); top: calc(12px + env(safe-area-inset-top, 0px));
+  display: flex; align-items: center; gap: 2px; flex-wrap: wrap; justify-content: flex-end;
+  padding: 5px; border-radius: 10px; background: var(--paper); color: var(--ink); font-size: 12px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.5); max-width: calc(100vw - 24px);
+}
+.mock > span { font-weight: 600; padding: 0 6px; letter-spacing: 0.06em; text-transform: uppercase; font-size: 10.5px; }
+.mock button { border: 0; background: transparent; padding: 5px 8px; border-radius: 6px; color: var(--ink); display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.mock button:hover { background: rgb(0 0 0 / 0.07); }
+.mock button[aria-pressed] i { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid var(--ink); display: inline-block; }
+.mock button[aria-pressed="true"] i { background: var(--ink); }
+.mock button em { font-style: normal; font-weight: 600; }
+
+@media (max-width: 820px) {
+  .stage { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .rail { border-right: 0; border-bottom: 1px solid var(--line); padding: 14px 16px 10px; }
+  .rail h1, .rail-foot, .step small { display: none; }
+  .steps { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin-top: 12px; }
+  .step { grid-template-columns: 22px minmax(0, 1fr); padding: 6px; }
+  .step b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .step .opt { display: none; }
+  .pane { padding-top: 28px; }
+  #rings { -webkit-mask-image: radial-gradient(ellipse 90% 40% at 80% 30%, #000 10%, transparent 80%); mask-image: radial-gradient(ellipse 90% 40% at 80% 30%, #000 10%, transparent 80%); opacity: 0.6; }
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .side { display: none; }
+  .cmp { grid-template-columns: 84px minmax(0, 1fr) 60px; }
+  .bar { width: 80px; }
+  .mock { top: auto; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  .mock > span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}
+</style>
+
+<div class="stage on-landing" id="stage">
+  <div class="wash" aria-hidden="true"></div>
+  <canvas id="rings" aria-hidden="true"></canvas>
+
+  <section class="landing" id="landing" aria-labelledby="h-land">
+    <div class="land">
+      <div class="lockup">
+      <svg width="68" height="68" viewBox="0 0 32 32" fill="none" stroke-width="1.3" aria-hidden="true">
+        <g stroke="#ececf1"><circle cx="13" cy="16" r="2.5"/><circle cx="13" cy="16" r="6.5"/><circle cx="13" cy="16" r="10.5"/></g>
+        <g stroke="#9d88f0"><circle cx="19" cy="16" r="2.5"/><circle cx="19" cy="16" r="6.5"/><circle cx="19" cy="16" r="10.5"/></g>
+      </svg>
+      <h1 id="h-land">Moiré</h1>
+      </div>
+      <p>A library for the images you generate.</p>
+      <div class="btns">
+        <button class="btn primary" id="landStart">Set up Moiré</button>
+        <button class="btn ghost" id="landSkip">Skip for now</button>
+      </div>
+    </div>
+    <div class="land-foot">Version 0.1.0 · Everything stays on this computer, in <code>%LOCALAPPDATA%\Moire</code></div>
+  </section>
+
+  <nav class="rail" aria-label="Setup steps">
+    <div class="brand">
+      <svg width="24" height="24" viewBox="0 0 32 32" fill="none" stroke-width="1.7" aria-hidden="true">
+        <g stroke="#ececf1"><circle cx="13" cy="16" r="2.5"/><circle cx="13" cy="16" r="6.5"/><circle cx="13" cy="16" r="10.5"/></g>
+        <g stroke="#9d88f0"><circle cx="19" cy="16" r="2.5"/><circle cx="19" cy="16" r="6.5"/><circle cx="19" cy="16" r="10.5"/></g>
+      </svg>
+      Moiré
+    </div>
+    <h1>Set up Moiré</h1>
+    <ol class="steps" id="steps"></ol>
+    <div class="rail-foot">
+      <span>Everything stays on this computer, in <code>%LOCALAPPDATA%\Moire</code>.</span>
+      <button class="link" id="skipAll">Skip setup</button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <div class="pane" id="pane">
+
+      <!-- 1. Folders -->
+      <section id="p-folders" aria-labelledby="h-folders">
+        <h2 id="h-folders">Image folders</h2>
+        <p class="sub">Moiré indexes the images in these folders and reads the prompt saved in each one. New images are picked up as they're saved.</p>
+        <div class="group">
+          <label for="pathInput">Folder path</label>
+          <p class="help" id="pathHelp">The full path, such as ComfyUI's <code>output</code> folder. Subfolders are included.</p>
+          <form class="field" id="pathForm">
+            <input id="pathInput" autocomplete="off" spellcheck="false" aria-describedby="pathErr">
+            <button class="btn secondary sm" type="submit" id="addBtn" disabled>Add</button>
+          </form>
+          <p class="ferr" id="pathErr" role="alert" hidden></p>
+          <div class="rows" id="folderRows" aria-live="polite"></div>
+        </div>
+        <div class="group">
+          <button class="toggle" id="split" role="switch" aria-checked="false">
+            <span class="switch"></span>
+            <span><b>One library per subfolder</b><small>For folders split by project, model or date. Each subfolder becomes a library you can filter on.</small></span>
+          </button>
+        </div>
+      </section>
+
+      <!-- 2. ComfyUI -->
+      <section id="p-comfy" hidden aria-labelledby="h-comfy">
+        <h2 id="h-comfy">ComfyUI</h2>
+        <p class="sub">Both settings are optional. Skip this step if you don't use ComfyUI.</p>
+        <div class="group">
+          <label for="addrInput">Address<span class="opt">for Generate</span></label>
+          <p class="help">Moiré queues prompts on this ComfyUI. What it makes lands in your output folder like any other image.</p>
+          <form class="field" id="addrForm">
+            <input id="addrInput" spellcheck="false" value="127.0.0.1:8188">
+            <button class="btn secondary sm" type="submit" id="addrBtn">Connect</button>
+          </form>
+          <div class="state" id="comfyState"></div>
+        </div>
+        <div class="group">
+          <span class="label">Saved workflows<span class="opt">for extraction rules</span></span>
+          <p class="help">Moiré groups images by the workflow that made them. Pick ComfyUI's workflows folder, usually <code>ComfyUI\user\default\workflows</code>, and each group is named after its file. Only each file's id, name and node types are kept.</p>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button class="btn secondary sm" id="wfPick" type="button">Choose folder…</button>
+            <span class="help" style="margin:0" id="wfSummary">or drop the files here</span>
+          </div>
+          <input type="file" id="wfInput" webkitdirectory multiple hidden>
+          <div id="wfList"></div>
+        </div>
+      </section>
+
+      <!-- 3. Tagging -->
+      <section id="p-tagging" hidden aria-labelledby="h-tagging">
+        <h2 id="h-tagging">AI tagging</h2>
+        <p class="sub">Images are already tagged from their prompts, which covers search, filters and most of Moiré. The tagger adds tags for what is actually in each picture, which helps most with images saved without a prompt.</p>
+        <div class="group">
+          <button class="toggle" id="tagToggle" role="switch" aria-checked="false">
+            <span class="switch"></span>
+            <span><b>Tag images with AI</b><small id="tagSub"></small></span>
+          </button>
+        </div>
+        <div class="group">
+          <span class="label" id="cmpTitle"></span>
+          <p class="help">About 0.6 images a second on CPU and 0.1 s an image on a GTX 1650. Your hardware will differ.</p>
+          <div class="compare">
+            <div class="cmp"><span>CPU</span><span class="track"><i id="cpuBar"></i></span><span class="val" id="cpuVal"></span></div>
+            <div class="cmp g"><span>NVIDIA GPU</span><span class="track"><i id="gpuBar"></i></span><span class="val" id="gpuVal"></span></div>
+          </div>
+          <div class="callout" id="gpuBox"></div>
+        </div>
+        <aside class="annot" aria-label="Design note">
+          <b>Design note · revisit later</b>
+          <p>Tagging stays off by default for now. Prompt tags carry most features. Still to decide:</p>
+          <ul>
+            <li>Whether this belongs in onboarding at all, or only in Settings.</li>
+            <li>If it's on: tag new images as they arrive? In what order does the backlog run?</li>
+            <li>AI jobs live in memory today, so a long backlog is lost on restart.</li>
+          </ul>
+        </aside>
+      </section>
+    </div>
+
+    <footer class="foot">
+      <div class="scan" id="scan"></div>
+      <div class="nav-btns">
+        <button class="btn ghost" id="back">Back</button>
+        <button class="btn primary" id="next"></button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- The app -->
+  <div class="app" id="app" hidden>
+    <aside class="side">
+      <div class="brand">
+        <svg width="24" height="24" viewBox="0 0 32 32" fill="none" stroke-width="1.7" aria-hidden="true">
+          <g stroke="#ececf1"><circle cx="13" cy="16" r="2.5"/><circle cx="13" cy="16" r="6.5"/><circle cx="13" cy="16" r="10.5"/></g>
+          <g stroke="#9d88f0"><circle cx="19" cy="16" r="2.5"/><circle cx="19" cy="16" r="6.5"/><circle cx="19" cy="16" r="10.5"/></g>
+        </svg>
+        Moiré
+      </div>
+      <div id="navList"></div>
+      <div class="activity" id="activity"></div>
+    </aside>
+    <main class="amain">
+      <div class="ambient" aria-hidden="true"></div>
+      <div class="ahead"><h1>All Images</h1><span id="countLabel"></span></div>
+      <div class="gallery" id="gallery"></div>
+      <div class="empty" id="emptyState" hidden>
+        <h2>No libraries yet</h2>
+        <p>Add a folder of images and they'll show up here as they're found.</p>
+        <button class="btn primary" id="emptyAdd">Add a folder</button>
+      </div>
+    </main>
+    <div class="toast" id="toast"><span>Press <span class="kbd">?</span> to see keyboard shortcuts</span><button class="x" id="toastX" aria-label="Dismiss">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  </div>
+</div>
+
+<div class="mock" role="toolbar" aria-label="Mockup controls">
+  <span>Mockup</span>
+  <button id="mRestart">Restart</button>
+  <button id="mComfy" aria-pressed="true"><i></i>ComfyUI running</button>
+  <button id="mGpu">GPU: <em id="mGpuVal">found, CPU build</em></button>
+  <button id="mRemote" aria-pressed="false"><i></i>Remote server</button>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const X_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+  const CHECK = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const fmt = (n) => n.toLocaleString("en-US");
+  const plural = (n, one, many) => `${fmt(n)} ${n === 1 ? one : (many || one + "s")}`;
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const duration = (s) => s < 5400 ? `${Math.max(1, Math.round(s / 60))} min` : `${(s / 3600).toFixed(1).replace(/\.0$/, "")} h`;
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+
+  /* ---------- state ---------- */
+  // Stand-in for what POST /libraries/discover would report.
+  const FS = {
+    "c:\\comfyui\\output": [3184, 14], "d:\\stable-diffusion-webui\\outputs": [1028, 3],
+    "d:\\renders": [640, 4], "e:\\archive\\2024": [5000, 22, true],
+  };
+  const GPU_STATES = ["found, CPU build", "GPU build", "none"];
+  const STEPS = [
+    { id: "folders", title: "Image folders" },
+    { id: "comfy", title: "ComfyUI", opt: true },
+    { id: "tagging", title: "AI tagging", opt: true },
+  ];
+  const S = {
+    at: 0, reached: 0, comfyRunning: true, remote: false, gpu: 0,
+    split: false, folders: [], scanned: 0, total: 0,
+    comfyConnected: false, trying: false, comfyError: false,
+    workflows: null, skipped: 0, wfFolder: "", tagOn: false, inApp: false, landing: true,
+  };
+
+  /* ---------- rings ---------- */
+  const cv = $("rings"), ctx = cv.getContext("2d");
+  let W = 0, H = 0, raf = 0, last = 0;
+  function size() {
+    const d = Math.min(devicePixelRatio || 1, 2);
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = W * d; cv.height = H * d; ctx.setTransform(d, 0, 0, d, 0, 0);
+  }
+  function rings(cx, cy, color, gap, maxR) {
+    ctx.strokeStyle = color; ctx.beginPath();
+    for (let r = gap; r < maxR; r += gap) { ctx.moveTo(cx + r, cy); ctx.arc(cx, cy, r, 0, Math.PI * 2); }
+    ctx.stroke();
+  }
+  function draw(t) {
+    ctx.clearRect(0, 0, W, H);
+    const narrow = W < 820, land = S.landing;
+    const bx = land ? W * 0.5 - 13 : W * (narrow ? 0.75 : 0.8), by = land ? H * 0.46 : H * (narrow ? 0.3 : 0.45);
+    const ax = bx + Math.sin(t * 0.00011) * 26, ay = by + Math.cos(t * 0.00008) * 20;
+    const dx = 26 + Math.sin(t * 0.00017) * 16, dy = Math.cos(t * 0.00013) * 9;
+    const maxR = Math.hypot(W, H) * 0.75;
+    ctx.lineWidth = 1.05;
+    // The second set leans toward the pointer, so moving the mouse reshapes
+    // the interference, and its rings shade pink to blue.
+    ptr.cx = bx; ptr.cy = by;
+    ptr.x += (ptr.tx - ptr.x) * 0.06; ptr.y += (ptr.ty - ptr.y) * 0.06;
+    const ox = dx + ptr.x, oy = dy + ptr.y;
+    const ink = ctx.createLinearGradient(land ? 0 : W * 0.4, 0, W, H);
+    ink.addColorStop(0, "rgba(232,137,168,0.32)");
+    ink.addColorStop(0.5, "rgba(157,136,240,0.32)");
+    ink.addColorStop(1, "rgba(110,170,230,0.30)");
+    rings(ax, ay, "rgba(236,236,241,0.15)", 7, maxR);
+    rings(ax + ox, ay + oy, ink, 7, maxR);
+  }
+  const ptr = { x: 0, y: 0, tx: 0, ty: 0, cx: 0, cy: 0 };
+  addEventListener("pointermove", (e) => {
+    if (S.inApp) return;
+    const clamp = (v) => Math.max(-40, Math.min(40, v));
+    ptr.tx = clamp((e.clientX - ptr.cx) * 0.06);
+    ptr.ty = clamp((e.clientY - ptr.cy) * 0.06);
+  });
+  function loop(t) { raf = requestAnimationFrame(loop); if (t - last < 33) return; last = t; draw(t); }
+  size(); draw(0);
+  if (!reduce) raf = requestAnimationFrame(loop);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) cancelAnimationFrame(raf); else if (!reduce) raf = requestAnimationFrame(loop);
+  });
+
+  /* ---------- rail + footer ---------- */
+  const good = () => S.folders.filter((f) => !f.error && f.count !== null);
+  const imgCount = () => good().reduce((n, f) => n + f.count, 0);
+  const libCount = () => S.split ? good().reduce((n, f) => n + f.subs, 0) : good().length;
+  function summary(i) {
+    if (i === 0) return good().length ? `${S.split ? plural(libCount(), "library", "libraries") : plural(good().length, "folder")} · ${fmt(imgCount())} images` : "Not set";
+    if (i === 1) {
+      if (S.reached < 1) return "Optional";
+      const parts = [S.comfyConnected ? "Connected" : "Not connected"];
+      if (S.workflows && S.workflows.length) parts.push(plural(S.workflows.length, "workflow"));
+      return parts.join(" · ");
+    }
+    return S.reached < 2 ? "Optional" : S.tagOn ? (S.gpu === 1 ? "On, GPU" : "On, CPU") : "Off";
+  }
+  function renderRail() {
+    $("steps").innerHTML = STEPS.map((s, i) => {
+      const done = i < S.reached || (i === S.reached && i !== S.at && i > 0);
+      return `<li><button class="step${i < S.at || (done && i !== S.at) ? " done" : ""}" data-i="${i}" ${i === S.at ? 'aria-current="step"' : ""} ${i > S.reached ? "disabled" : ""}>
+        <span class="mark">${i < S.reached && i !== S.at ? CHECK : i + 1}</span>
+        <span style="min-width:0"><b>${s.title}</b><small>${summary(i)}</small></span>
+      </button></li>`;
+    }).join("");
+  }
+  $("steps").onclick = (e) => { const b = e.target.closest(".step"); if (b && !b.disabled) go(+b.dataset.i); };
+
+  function renderFoot() {
+    const done = S.total && S.scanned >= S.total;
+    $("scan").innerHTML = !S.total ? ""
+      : `<span class="dot${done ? " ok" : ""}"></span><span>${done ? `${fmt(S.total)} images indexed` : `Scanning ${fmt(S.scanned)} of ${fmt(S.total)}`}</span>${done ? "" : `<span class="bar"><i style="width:${(S.scanned / S.total) * 100}%"></i></span>`}`;
+    $("back").hidden = S.at === 0;
+    const next = $("next");
+    if (S.at === 0) {
+      const n = good().length;
+      next.disabled = n === 0;
+      next.textContent = n === 0 ? "Add a folder to continue" : "Continue";
+    } else if (S.at === 1) {
+      next.disabled = false;
+      next.textContent = S.comfyConnected || S.workflows ? "Continue" : "Skip";
+    } else {
+      next.disabled = false;
+      next.textContent = "Open Moiré";
+    }
+    if (S.inApp) renderActivity();
+  }
+
+  function go(i) {
+    S.at = i; S.reached = Math.max(S.reached, i);
+    STEPS.forEach((s, k) => ($("p-" + s.id).hidden = k !== i));
+    if (i === 0) renderFolders();
+    if (i === 1) renderComfy();
+    if (i === 2) renderTagging();
+    renderRail(); renderFoot();
+    $("pane").scrollTop = 0;
+    const sec = $("p-" + STEPS[i].id);
+    sec.style.animation = "none"; void sec.offsetWidth; sec.style.animation = "";
+    const f = { 0: "pathInput", 1: "addrInput", 2: "tagToggle" }[i];
+    setTimeout(() => $(f).focus({ preventScroll: true }), 30);
+  }
+  $("back").onclick = () => go(S.at - 1);
+  $("next").onclick = () => {
+    if (S.at === 0) { if (S.total !== imgCount()) startScan(); go(1); }
+    else if (S.at === 1) go(2);
+    else openApp();
+  };
+
+  /* ---------- 1 folders ---------- */
+  let nextId = 1;
+  function renderFolders() {
+    $("folderRows").innerHTML = S.folders.map((f, i) => {
+      const n = f.error ? f.error
+        : f.count === null ? "Counting…"
+        : S.split ? `${plural(f.subs, "library", "libraries")} · ${fmt(f.count)} images`
+        : `${fmt(f.count)}${f.capped ? "+" : ""} images`;
+      return `<div class="r${f.error ? " bad" : ""}"><span class="p">${esc(f.path)}</span><span class="n">${n}</span><button class="x" data-rm="${i}" aria-label="Remove ${esc(f.path)}">${X_ICON}</button></div>`;
+    }).join("");
+    $("pathHelp").innerHTML = S.remote
+      ? `The full path on <code>studio-pc</code>, the computer running Moiré. Subfolders are included.`
+      : `The full path, such as ComfyUI's <code>output</code> folder. Subfolders are included.`;
+    $("split").setAttribute("aria-checked", S.split);
+    renderRail(); renderFoot();
+  }
+  // Nothing goes in the list until its path has been checked. A bad path
+  // stays in the field with the reason under it, so it can be fixed in place.
+  const norm = (p) => p.toLowerCase().replace(/\//g, "\\").replace(/\\+$/, "");
+  function pathProblem(p) {
+    if (!/^([a-z]:[\\/]|\/|\\\\)/i.test(p)) return "Enter the full path, starting with the drive letter, like C:\\ComfyUI\\output.";
+    if (S.folders.some((f) => norm(f.path) === norm(p))) return "That folder is already in the list.";
+    return null;
+  }
+  function showErr(msg) {
+    $("pathErr").textContent = msg || "";
+    $("pathErr").hidden = !msg;
+    $("pathForm").classList.toggle("bad", !!msg);
+    $("pathInput").setAttribute("aria-invalid", msg ? "true" : "false");
+  }
+  let checking = false;
+  async function addPaths(raw) {
+    const paths = raw.split(/\r?\n/).map((s) => s.trim().replace(/^"|"$/g, "")).filter(Boolean);
+    if (!paths.length || checking) return;
+    checking = true; showErr("");
+    const btn = $("addBtn"); btn.disabled = true; btn.textContent = "Checking…";
+    const failed = [];
+    for (const p of paths) {
+      let err = pathProblem(p);
+      if (!err) {
+        await new Promise((r) => setTimeout(r, 450 + rnd() * 350));
+        if (/missing|old/i.test(p)) err = "Moiré can't open that folder. Check the path, and that the drive is connected.";
+      }
+      if (err) { failed.push({ p, err }); continue; }
+      const hit = FS[norm(p)];
+      S.folders.push({
+        id: nextId++, path: p, error: null,
+        count: hit ? hit[0] : 80 + Math.floor(rnd() * 900),
+        subs: hit ? hit[1] : 1 + Math.floor(rnd() * 6),
+        capped: !!(hit && hit[2]),
+      });
+      renderFolders();
+    }
+    checking = false; btn.textContent = "Add";
+    $("pathInput").value = failed.length ? failed[0].p : "";
+    btn.disabled = !failed.length;
+    showErr(failed.length ? failed[0].err + (failed.length > 1 ? ` ${plural(failed.length - 1, "more path")} also failed.` : "") : "");
+    $("pathInput").focus();
+  }
+  $("pathForm").onsubmit = (e) => { e.preventDefault(); addPaths($("pathInput").value); };
+  $("pathInput").addEventListener("input", () => { showErr(""); $("addBtn").disabled = checking || !$("pathInput").value.trim(); });
+  $("pathInput").addEventListener("paste", (e) => {
+    const text = e.clipboardData?.getData("text") || "";
+    if (!text.includes("\n")) return;
+    e.preventDefault(); addPaths(text);
+  });
+  $("folderRows").onclick = (e) => {
+    const b = e.target.closest("[data-rm]"); if (!b) return;
+    S.folders.splice(+b.dataset.rm, 1); renderFolders(); $("pathInput").focus();
+  };
+  $("split").onclick = () => { S.split = !S.split; renderFolders(); };
+
+  /* ---------- 2 ComfyUI ---------- */
+  function renderComfy() {
+    const st = $("comfyState"), btn = $("addrBtn");
+    btn.disabled = S.trying;
+    if (S.trying) { st.innerHTML = `<span class="dot"></span>Checking…`; btn.textContent = "Connect"; }
+    else if (S.comfyConnected) { st.innerHTML = `<span class="dot ok"></span>Connected. Generate will show in the sidebar.`; btn.textContent = "Disconnect"; }
+    else if (S.comfyError) { st.innerHTML = `<span class="dot bad"></span>Nothing answered at that address. Start ComfyUI, or check the address.`; btn.textContent = "Try again"; }
+    else { st.innerHTML = S.comfyRunning ? `<span class="dot ok"></span>ComfyUI is running at this address.` : `<span class="dot off"></span>Not checked yet.`; btn.textContent = "Connect"; }
+    if (S.workflows) {
+      const n = S.workflows.length;
+      $("wfPick").textContent = "Choose another folder…";
+      $("wfSummary").innerHTML = n
+        ? `${plural(n, "workflow")} read from <code>${esc(S.wfFolder)}</code>${S.skipped ? `, ${plural(S.skipped, "other file")} skipped` : ""}`
+        : `<span style="color:var(--warn)">No ComfyUI workflows in <code>${esc(S.wfFolder)}</code>. They're .json files with a <code>nodes</code> list.</span>`;
+      $("wfList").innerHTML = n ? `<div class="wf">${S.workflows.map((w) => `<div><span>${esc(w.name)}</span><span>${plural(w.nodes, "node")}</span></div>`).join("")}</div>` : "";
+    } else {
+      $("wfPick").textContent = "Choose folder…";
+      $("wfSummary").textContent = "or drop the files here";
+      $("wfList").innerHTML = "";
+    }
+    renderRail(); renderFoot();
+  }
+  $("addrForm").onsubmit = (e) => {
+    e.preventDefault();
+    if (S.comfyConnected) { S.comfyConnected = false; renderComfy(); return; }
+    S.trying = true; S.comfyError = false; renderComfy();
+    setTimeout(() => { S.trying = false; S.comfyConnected = S.comfyRunning; S.comfyError = !S.comfyRunning; renderComfy(); }, 800);
+  };
+  // Same test as lib/workflows.ts parseWorkflowFile: an editor-format graph
+  // with a string id and a nodes array.
+  function parseWorkflow(text) {
+    try {
+      const d = JSON.parse(text);
+      if (!d || typeof d.id !== "string" || !d.id || !Array.isArray(d.nodes)) return null;
+      return d.nodes.filter((n) => n && typeof n.type === "string").length;
+    } catch { return null; }
+  }
+  async function readWorkflowFiles(files) {
+    const list = [...files], out = [];
+    for (const f of list.filter((f) => /\.json$/i.test(f.name))) {
+      const nodes = parseWorkflow(await f.text());
+      if (nodes !== null) out.push({ name: f.name.replace(/\.json$/i, ""), nodes });
+    }
+    S.wfFolder = (list[0]?.webkitRelativePath || "").split("/")[0] || "the dropped files";
+    S.skipped = list.length - out.length;
+    S.workflows = out.sort((a, b) => a.name.localeCompare(b.name));
+    renderComfy();
+  }
+  $("wfPick").onclick = () => $("wfInput").click();
+  $("wfInput").onchange = (e) => { if (e.target.files.length) readWorkflowFiles(e.target.files); };
+  const pc = $("p-comfy");
+  pc.addEventListener("dragover", (e) => e.preventDefault());
+  pc.addEventListener("drop", (e) => { e.preventDefault(); if (e.dataTransfer.files.length) readWorkflowFiles(e.dataTransfer.files); });
+
+  /* ---------- 3 tagging ---------- */
+  function renderTagging() {
+    const n = S.total || 4212;
+    const cpu = n / 0.6, gpu = n * 0.1;
+    $("cmpTitle").textContent = `Time to tag ${fmt(n)} images`;
+    $("cpuVal").textContent = "~" + duration(cpu);
+    $("gpuVal").textContent = "~" + duration(gpu);
+    $("cpuBar").style.width = "100%";
+    $("gpuBar").style.width = Math.max(1.5, (gpu / cpu) * 100) + "%";
+    $("tagToggle").setAttribute("aria-checked", S.tagOn);
+    $("tagSub").textContent = S.tagOn
+      ? `Downloads the tagging model, then works through your images on the ${S.gpu === 1 ? "GPU" : "CPU"}.`
+      : "Off. You can turn it on later in Settings › AI Tagging.";
+    const box = $("gpuBox");
+    if (S.gpu === 0) {
+      box.className = "callout rec";
+      box.innerHTML = `<b>This computer has an NVIDIA GPU, but Moiré is running its CPU build.</b>
+        The GPU build tags about 9× faster. It's a one-time download of about 2 GB, and no CUDA toolkit is needed.
+        <div class="cmd"><code id="cmdText">uv tool install --reinstall "moire-studio[gpu]"</code><button class="btn ghost sm" id="copyCmd">Copy</button></div>
+        Run it in a terminal, then restart Moiré. Your library and settings are kept.`;
+      $("copyCmd").onclick = async (e) => {
+        const b = e.currentTarget;
+        try { await navigator.clipboard.writeText($("cmdText").textContent); b.textContent = "Copied"; }
+        catch { const r = document.createRange(); r.selectNodeContents($("cmdText")); getSelection().removeAllRanges(); getSelection().addRange(r); b.textContent = "Selected"; }
+        setTimeout(() => (b.textContent = "Copy"), 1600);
+      };
+    } else if (S.gpu === 1) {
+      box.className = "callout";
+      box.innerHTML = `<b>Running on the GPU.</b>The GPU build is installed and the NVIDIA GPU is usable.`;
+    } else {
+      box.className = "callout";
+      box.innerHTML = `<b>No NVIDIA GPU found.</b>Tagging runs on the CPU here. The GPU build needs an NVIDIA card on Windows or Linux.`;
+    }
+    renderRail(); renderFoot();
+  }
+  $("tagToggle").onclick = () => { S.tagOn = !S.tagOn; renderTagging(); };
+
+  /* ---------- scan ---------- */
+  let scanTimer = 0;
+  function startScan() {
+    S.total = imgCount(); S.scanned = Math.min(S.scanned, S.total);
+    clearInterval(scanTimer);
+    const per = S.total / 320;
+    scanTimer = setInterval(() => {
+      S.scanned = Math.min(S.total, Math.round(S.scanned + per * (0.6 + rnd() * 0.8)));
+      renderFoot();
+      if (S.scanned >= S.total) clearInterval(scanTimer);
+    }, 100);
+  }
+
+  /* ---------- the app ---------- */
+  const TILE_RATIOS = [2/3, 3/4, 2/3, 1, 4/5, 9/16, 2/3, 3/2];
+  const PALETTES = [
+    ["#1b1840", "#e889a8", "#f6c48e"], ["#7fb2e6", "#e9f1fb", "#36558a"], ["#16102e", "#ff4fa3", "#3ee0ff"],
+    ["#2c3b2a", "#9cc77a", "#f1e3b0"], ["#f3d6c6", "#c9715d", "#3a2430"], ["#0f1830", "#5a7bd8", "#c9d6ff"],
+    ["#3a1f2b", "#d6475f", "#ffd1b8"], ["#e8e1f4", "#a48bd9", "#3e2f63"], ["#20262e", "#f2a541", "#f7e6c4"],
+    ["#0e2a2c", "#3fb8a8", "#f4f0e8"], ["#f6e8ec", "#e7a0b6", "#6a4560"], ["#121216", "#8a8a96", "#e6e3ee"],
+  ];
+  const TILES = Array.from({ length: 140 }, () => {
+    const p = PALETTES[Math.floor(rnd() * PALETTES.length)], a = Math.floor(rnd() * 360);
+    const x1 = 20 + rnd() * 60, y1 = 15 + rnd() * 50, x2 = rnd() * 100, y2 = 50 + rnd() * 50;
+    return {
+      r: TILE_RATIOS[Math.floor(rnd() * TILE_RATIOS.length)],
+      bg: `radial-gradient(circle at ${x1}% ${y1}%, ${p[1]} 0%, transparent 52%), radial-gradient(ellipse at ${x2}% ${y2}%, ${p[2]}cc 0%, transparent 58%), linear-gradient(${a}deg, ${p[0]}, ${p[1]}66)`,
+    };
+  });
+  const gallery = $("gallery");
+  const galTiles = TILES.map((t) => { const d = document.createElement("div"); d.className = "tile"; d.style.aspectRatio = t.r; d.style.background = t.bg; return d; });
+  function masonry() {
+    const n = Math.max(2, Math.floor((gallery.clientWidth || innerWidth) / (innerWidth < 820 ? 140 : 200)));
+    if (gallery.dataset.n === String(n)) return;
+    gallery.dataset.n = n; gallery.innerHTML = "";
+    const cols = Array.from({ length: n }, () => { const c = document.createElement("div"); c.className = "mcol"; gallery.appendChild(c); return { c, h: 0 }; });
+    galTiles.forEach((el, i) => { const col = cols.reduce((a, b) => (b.h < a.h ? b : a)); col.c.appendChild(el); col.h += 1 / TILES[i].r + 0.05; });
+  }
+  const ICONS = {
+    Overview: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+    "All Images": '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
+    Tags: '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="8" cy="8" r="1.5"/>',
+    Generate: '<path d="M4 20 16 8M14 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/>',
+    Libraries: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    Rules: '<path d="M4 6h10M4 12h16M4 18h7"/><circle cx="17" cy="6" r="2"/><circle cx="14" cy="18" r="2"/>',
+    "AI Tagging": '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+    Settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+  };
+  const icon = (n) => `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+  function renderActivity() {
+    const lines = [];
+    if (S.total) {
+      const done = S.scanned >= S.total;
+      lines.push(`<div class="ln"><span class="dot${done ? " ok" : ""}"></span>${done ? `${fmt(S.total)} images indexed` : `Scanning ${fmt(S.scanned)} / ${fmt(S.total)}`}</div>`);
+      if (!done) lines.push(`<div class="bar"><i style="width:${(S.scanned / S.total) * 100}%"></i></div>`);
+    }
+    if (S.tagOn) lines.push(`<div class="ln"><span class="dot"></span>Tagging on ${S.gpu === 1 ? "GPU" : "CPU"} after the scan</div>`);
+    $("activity").innerHTML = lines.join("");
+    $("activity").hidden = !lines.length;
+    $("countLabel").textContent = S.total ? fmt(S.scanned) + " images" : "";
+    const on = S.total ? Math.round((S.scanned / S.total) * galTiles.length) : 0;
+    galTiles.forEach((t, i) => t.classList.toggle("on", i < on));
+  }
+  function openApp() {
+    S.inApp = true;
+    $("app").hidden = false;
+    const navs = ["Overview", "All Images", "Tags", ...(S.comfyConnected ? ["Generate"] : []), "|", "Libraries", "Rules", "AI Tagging", "|", "Settings"];
+    $("navList").innerHTML = navs.map((n) => n === "|" ? "<hr>" : `<div class="nav${n === "All Images" ? " on" : ""}">${icon(n)}${n}</div>`).join("");
+    $("emptyState").hidden = S.total > 0;
+    gallery.hidden = !S.total;
+    gallery.dataset.n = ""; masonry();
+    renderActivity();
+    $("toast").classList.remove("gone");
+    clearTimeout(openApp.t); openApp.t = setTimeout(() => $("toast").classList.add("gone"), 7000);
+  }
+  $("skipAll").onclick = openApp;
+  $("emptyAdd").onclick = () => { S.inApp = false; $("app").hidden = true; setLanding(false); go(0); };
+  $("toastX").onclick = () => $("toast").classList.add("gone");
+  addEventListener("resize", () => { size(); draw(performance.now()); if (S.inApp) masonry(); });
+
+  /* ---------- mockup controls ---------- */
+  function setLanding(on) {
+    S.landing = on;
+    $("landing").hidden = !on;
+    $("stage").classList.toggle("on-landing", on);
+    draw(performance.now());
+    if (on) setTimeout(() => $("landStart").focus({ preventScroll: true }), 30);
+  }
+  $("landStart").onclick = () => { setLanding(false); go(0); };
+  $("landSkip").onclick = () => { setLanding(false); openApp(); };
+
+  $("mRestart").onclick = () => {
+    clearInterval(scanTimer);
+    Object.assign(S, { at: 0, reached: 0, split: false, folders: [], scanned: 0, total: 0, comfyConnected: false, trying: false, comfyError: false, workflows: null, skipped: 0, tagOn: false, inApp: false });
+    $("app").hidden = true; $("pathInput").value = "";
+    go(0); setLanding(true);
+  };
+  $("mComfy").onclick = (e) => { S.comfyRunning = !S.comfyRunning; S.comfyConnected = false; S.comfyError = false; e.currentTarget.setAttribute("aria-pressed", S.comfyRunning); renderComfy(); };
+  $("mGpu").onclick = () => { S.gpu = (S.gpu + 1) % 3; $("mGpuVal").textContent = GPU_STATES[S.gpu]; renderTagging(); if (S.inApp) renderActivity(); };
+  $("mRemote").onclick = (e) => { S.remote = !S.remote; e.currentTarget.setAttribute("aria-pressed", S.remote); renderFolders(); };
+
+  go(0); setLanding(true);
+})();
+</script>
