@@ -28,6 +28,8 @@ def test_expected_tables_exist():
         "recipe_additions",
         "prompt_presets",
         "lora_presets",
+        "outfits",
+        "outfit_hidden",
         "generators",
         "generation_batches",
         "generation_requests",
