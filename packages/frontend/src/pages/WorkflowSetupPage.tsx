@@ -280,7 +280,7 @@ function SetupForm({
           </SlotCard>
 
           <SlotCard
-            title="Images per request"
+            title="Images per run"
             badge={slots.batch_size ? <Badge tone="success">Found</Badge> : <Badge>Set in the workflow</Badge>}
           >
             {slots.batch_size ? (
@@ -304,7 +304,7 @@ function SetupForm({
                 </button>
               </div>
             ) : (
-              <p className="text-xs text-muted">Count in Generate is in requests.</p>
+              <p className="text-xs text-muted">Count in Generate is in runs.</p>
             )}
           </SlotCard>
 

@@ -303,7 +303,7 @@ export function ComfySection() {
       <Section title="Built-in workflow">
         <label className="flex items-center justify-between gap-4 text-sm">
           <span className="text-neutral-200" title="The most images ComfyUI makes at once in one request">
-            Images per request
+            Images per run
           </span>
           <Input
             type="number"

@@ -3,14 +3,10 @@
  *
  * - images: the Generator's batch_size is mapped; `count` images go out as
  *   requests of at most `perRequest` ("8 images, 4 × 2").
- * - requests: batch_size isn't mapped but the graph has a literal one;
- *   `count` is a number of requests ("8 × 4 = 32 images").
- * - unknown: batch_size is built at run time ("8 × ?").
+ * - runs: batch_size isn't Moiré's to set (the workflow builds it), so
+ *   `count` is a number of runs, each as big as the workflow makes it.
  */
-export type CountMode =
-  | { kind: "images"; perRequest: number }
-  | { kind: "requests"; literal: number }
-  | { kind: "unknown" };
+export type CountMode = { kind: "images"; perRequest: number } | { kind: "runs" };
 
 export function splitRequests(count: number, perRequest: number | null): (number | null)[] {
   if (count < 1) return [];
@@ -22,11 +18,16 @@ export function splitRequests(count: number, perRequest: number | null): (number
 
 const runs = (n: number) => `${n} ${n === 1 ? "run" : "runs"}`;
 
-/** The short label by the count: "2 runs of 2", "3 runs of up to 3",
- * "8 × 4 = 32 images", "8 × ?". */
+/** The count with its unit: "3 images", or "3 runs" when the workflow sets
+ * its own batch size. */
+export function countText(count: number, mode: CountMode): string {
+  return mode.kind === "images" ? `${count} ${count === 1 ? "image" : "images"}` : runs(count);
+}
+
+/** The short label by the count: "2 runs of 2", "3 runs of up to 3", or
+ * for runs, who sets their size. */
 export function countLabel(count: number, mode: CountMode): string {
-  if (mode.kind === "unknown") return `${count} × ?`;
-  if (mode.kind === "requests") return `${count} × ${mode.literal} = ${count * mode.literal} images`;
+  if (mode.kind === "runs") return "Batch size set by the workflow";
   const sizes = splitRequests(count, mode.perRequest) as number[];
   if (mode.perRequest <= 1) return runs(count);
   // One smaller run when fewer images are asked than a run makes.
@@ -38,8 +39,9 @@ export function countLabel(count: number, mode: CountMode): string {
 
 /** The label's tooltip: what the count and batch size mean together. */
 export function countHint(count: number, mode: CountMode): string | undefined {
-  if (mode.kind !== "images") return undefined;
-  const total = `${count} ${count === 1 ? "image" : "images"} in total.`;
+  if (mode.kind === "runs")
+    return `The workflow builds its own batch size, so each run makes however many images it sets. Map batch_size in the workflow's setup to count images instead.`;
+  const total = `${countText(count, mode)} in total.`;
   if (mode.perRequest <= 1) return `${total} ComfyUI makes one at a time (the batch size), so this is ${runs(count)}.`;
   const sizes = splitRequests(count, mode.perRequest) as number[];
   // The sizes only while they are few enough to read.

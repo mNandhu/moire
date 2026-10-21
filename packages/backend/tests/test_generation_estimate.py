@@ -111,6 +111,9 @@ def test_images_per_request():
     # A size asked for one batch applies to a custom Generator too.
     assert per(custom, {"per_request": 4}) == (4, 4)
     assert per(custom, {}) == (3, None)
+    # Mapped by hand with no size: one image a run, as Generate shows it.
+    hand = {"kind": "custom", "slots": {"batch_size": ["5", "x"]}}
+    assert per(hand, {}) == (1, None)
     assert per({"kind": "custom", "slots": {}}, {"per_request": 4}) == (None, None)
 
 
@@ -156,3 +159,17 @@ def test_pending_requests_take_turns_between_batches():
     ]
     got = [(r.batch_id, r.idx) for r in _run_order(rows)]
     assert got == [(2, 0), (1, 1), (2, 1), (1, 2), (2, 2)]
+
+
+def test_a_mapped_batch_size_always_has_its_size():
+    from src.services.generator_setup import with_size
+
+    graph = {"5": {"class_type": "EmptyLatentImage", "inputs": {"batch_size": 4}}}
+    slots = {"batch_size": ["5", "batch_size"]}
+    assert with_size(graph, slots)["per_request"] == 4
+    assert with_size(graph, {**slots, "per_request": 2})["per_request"] == 2
+    assert (
+        with_size({"5": {"inputs": {"batch_size": ["9", 0]}}}, slots)["per_request"]
+        == 1
+    )
+    assert "per_request" not in with_size(graph, {})

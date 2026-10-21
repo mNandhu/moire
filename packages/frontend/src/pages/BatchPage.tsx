@@ -84,7 +84,7 @@ function PromptPanel({ b }: { b: Batch }) {
           ))}
         {i.extra.length > 0 && row("Extra", i.extra.map(displayWord).join(", "))}
         {i.width && i.height && row("Size", `${i.width} × ${i.height}`)}
-        {i.per_request != null && row("Per request", `${i.per_request} ${i.per_request === 1 ? "image" : "images"}`)}
+        {i.per_request != null && row("Per run", `${i.per_request} ${i.per_request === 1 ? "image" : "images"}`)}
         {row(
           b.requests.length > 1 ? "Seeds" : "Seed",
           <span className="font-mono" title={b.requests.map((q) => q.seed).join(", ")}>
@@ -257,7 +257,7 @@ export default function BatchPage() {
             {outputs.length} {outputs.length === 1 ? "image" : "images"}
           </span>
           <span>
-            {b.requests.length} {b.requests.length === 1 ? "request" : "requests"}
+            {b.requests.length} {b.requests.length === 1 ? "run" : "runs"}
             {perReq != null && perReq > 1 ? ` of ${perReq}` : ""}
           </span>
           {took && (

@@ -405,7 +405,7 @@ export function SeedControl({ value, onChange }: { value: SeedValue; onChange: (
               type="number"
               inputMode="numeric"
               aria-label="Seed"
-              title="Later requests count up from this seed"
+              title="Later runs count up from this seed"
               value={value.value ?? ""}
               placeholder="Seed"
               onChange={(e) => onChange({ mode: "fixed", value: e.target.value ? Number(e.target.value) : null })}
@@ -425,7 +425,7 @@ export function SeedControl({ value, onChange }: { value: SeedValue; onChange: (
           <button
             type="button"
             aria-pressed={false}
-            title="Keep one seed (later requests count up from it)"
+            title="Keep one seed (later runs count up from it)"
             onClick={toFixed}
             className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2.5 text-xs text-muted hover:text-neutral-100"
           >
@@ -438,7 +438,7 @@ export function SeedControl({ value, onChange }: { value: SeedValue; onChange: (
   );
 }
 
-/** Images (batch size mapped) or Requests, with the "4 × 2" split under it. */
+/** Images (batch size mapped), with the "2 runs of 2" split under it, or Runs. */
 export function CountStepper({
   value,
   onChange,
@@ -454,7 +454,7 @@ export function CountStepper({
   className?: string;
 }) {
   const set = (n: number) => onChange(Math.max(1, Math.min(500, n)));
-  const label = mode.kind === "images" ? "Images" : "Requests";
+  const label = mode.kind === "images" ? "Images" : "Runs";
   return (
     <div className={className}>
       <div className="flex items-start gap-2">

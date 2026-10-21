@@ -32,7 +32,9 @@ describe("count", () => {
     expect(countModeOf(gen(), null, 1)).toEqual({ kind: "images", perRequest: 4 });
     expect(countModeOf(gen(), 2, 1)).toEqual({ kind: "images", perRequest: 2 });
     expect(countModeOf(gen({ kind: "builtin" }), null, 3)).toEqual({ kind: "images", perRequest: 3 });
-    expect(countModeOf(gen({ slots: {} }), null, 1)).toEqual({ kind: "unknown" });
+    expect(countModeOf(gen({ slots: {} }), null, 1)).toEqual({ kind: "runs" });
+    // Still loading: the built-in, which counts images.
+    expect(countModeOf(undefined, null, 2)).toEqual({ kind: "images", perRequest: 2 });
     expect(defaultBatchSize(gen(), 1)).toBe(4);
     expect(defaultBatchSize(gen({ kind: "builtin" }), 2)).toBe(2);
   });

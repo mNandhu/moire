@@ -11,9 +11,10 @@ Slots (found for a custom graph by :mod:`services.generator_discovery`):
   ones whose path is a link Moiré overwrites (a prompt joined at run time)
 - ``seeds``: list of paths, all set to the request's seed
 - ``width`` / ``height``: path or None
-- ``batch_size``: path or None (None: the count is in requests, see
+- ``batch_size``: path or None (None: the count is in runs, see
   :func:`split_requests`); ``per_request`` the images each request makes
-  (a custom Generator's; the built-in's is a setting)
+  (a custom Generator's, always set with batch_size; the built-in's is a
+  setting)
 - ``sampler`` / ``scheduler`` / ``steps`` / ``cfg``: path or None
 - ``checkpoint``: path or None
 - ``lora_model`` / ``lora_clip``: ``[node_id, out_index]`` where Moiré's LoRA
@@ -414,7 +415,7 @@ def build_prompt(graph: Graph, slots: dict[str, Any], values: dict[str, Any]) ->
 def split_requests(count: int, per_request: int | None) -> list[int | None]:
     """Images asked of each request. With a known images-per-request, 8 at 2
     is ``[2, 2, 2, 2]`` and the last one is smaller if uneven. With none
-    (batch_size not mapped), ``count`` is a number of requests, each of
+    (batch_size not mapped), ``count`` is a number of runs, each of
     unknown size."""
     if count < 1:
         return []

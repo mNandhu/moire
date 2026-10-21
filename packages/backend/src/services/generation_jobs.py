@@ -146,8 +146,8 @@ def batch_shape(
 
     - ``count``, clamped;
     - ``per_request``: images per request, the body's choice, else the
-      setting (built-in) or the Generator's; ``None`` when the Generator has
-      no batch size (count is then in requests);
+      setting (built-in) or the Generator's (1 if it has none); ``None`` when
+      the Generator has no batch size (count is then in runs);
     - ``per_request_asked``: what the body chose, apart from the setting;
     - ``checkpoint``, ``sampling`` (only slots the Generator has), ``width``,
       ``height``."""
@@ -165,7 +165,9 @@ def batch_shape(
     elif builtin:
         per_request = int(settings.get("builtin_per_request") or 1)
     else:
-        per_request = gen["slots"].get("per_request")
+        # Mapped but never given a size (picked by hand in setup): 1, as the
+        # Generate page shows it, so count stays in images.
+        per_request = int(gen["slots"].get("per_request") or 1)
     return {
         "count": max(1, min(500, int(body.get("count") or 1))),
         "per_request": per_request,

@@ -46,7 +46,8 @@ export function NextBatch({
   estimate: NewEstimate | undefined;
   generator: string;
   checkpoint: string | null;
-  count: number;
+  /** With its unit: "3 images", or "3 runs". */
+  count: string;
   width: number;
   height: number;
 }) {
@@ -66,7 +67,7 @@ export function NextBatch({
       <div className="mt-1.5 flex items-center gap-2 text-xs text-muted">
         <ShapeIcon width={width} height={height} size={12} />
         <span className="tabular-nums">
-          {count} {count === 1 ? "image" : "images"} · {width}×{height}
+          {count} · {width}×{height}
         </span>
       </div>
       {said.notes.length > 0 && (

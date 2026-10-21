@@ -64,7 +64,7 @@ import {
 import { checkCountTags, fixCountTags, type Kind } from "../lib/countTags";
 import { queueTitle } from "../lib/eta";
 import { cn } from "../lib/cn";
-import type { CountMode } from "../lib/requests";
+import { countText, type CountMode } from "../lib/requests";
 import { PromptInput } from "../components/generate/PromptInput";
 import { AddLayer, EmbeddingLayer, LayerRow, NegativeLayer, PresetControl, TextLayer } from "../components/generate/Layers";
 import { characterPageQuery, useTagAggregate } from "../lib/queries";
@@ -606,7 +606,7 @@ export default function GeneratePage() {
                     title={queueTitle(estimate)}
                   >
                     {queue.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                    Queue {form.count} {form.count === 1 ? "image" : "images"}
+                    Queue {countText(form.count, countMode)}
                   </Button>
                 )}
               </Card>
@@ -623,7 +623,7 @@ export default function GeneratePage() {
                 estimate={estimate}
                 generator={gen?.name ?? "Built-in"}
                 checkpoint={form.checkpoint}
-                count={form.count}
+                count={countText(form.count, countMode)}
                 width={form.width}
                 height={form.height}
               />

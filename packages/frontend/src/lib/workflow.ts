@@ -28,9 +28,11 @@ export function runBarOf(gen: Generator | undefined): RunBar {
 }
 
 /** How the count splits: images when the batch size is Moiré's to set, else
- * requests of a size the workflow decides. */
+ * runs of a size the workflow decides. */
 export function countModeOf(gen: Generator | undefined, perRequest: number | null, builtinDefault: number): CountMode {
-  if (!gen?.slots.batch_size) return { kind: "unknown" };
+  // No workflow yet (loading): the built-in's, which counts images.
+  if (!gen) return { kind: "images", perRequest: perRequest ?? builtinDefault };
+  if (!gen.slots.batch_size) return { kind: "runs" };
   const own = gen.kind === "builtin" ? builtinDefault : (gen.slots.per_request ?? 1);
   return { kind: "images", perRequest: perRequest ?? own };
 }

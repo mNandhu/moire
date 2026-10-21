@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countHint, countLabel, fixedSeeds, splitRequests } from "./requests";
+import { countHint, countLabel, countText, fixedSeeds, splitRequests } from "./requests";
 
 describe("splitRequests", () => {
   it("matches the backend split", () => {
@@ -11,7 +11,7 @@ describe("splitRequests", () => {
 });
 
 describe("countLabel", () => {
-  it("covers the three count modes", () => {
+  it("covers both count modes", () => {
     expect(countLabel(8, { kind: "images", perRequest: 2 })).toBe("4 runs of 2");
     expect(countLabel(2, { kind: "images", perRequest: 2 })).toBe("1 run of 2");
     expect(countLabel(1, { kind: "images", perRequest: 2 })).toBe("1 run of 1");
@@ -26,8 +26,14 @@ describe("countLabel", () => {
     expect(countHint(40, { kind: "images", perRequest: 4 })).toBe(
       "40 images in total. ComfyUI makes up to 4 at a time (the batch size), so this is 10 runs.",
     );
-    expect(countLabel(8, { kind: "requests", literal: 4 })).toBe("8 × 4 = 32 images");
-    expect(countLabel(8, { kind: "unknown" })).toBe("8 × ?");
+    expect(countLabel(8, { kind: "runs" })).toBe("Batch size set by the workflow");
+  });
+
+  it("names the unit the count is in", () => {
+    expect(countText(1, { kind: "images", perRequest: 2 })).toBe("1 image");
+    expect(countText(3, { kind: "images", perRequest: 2 })).toBe("3 images");
+    expect(countText(1, { kind: "runs" })).toBe("1 run");
+    expect(countText(3, { kind: "runs" })).toBe("3 runs");
   });
 });
 
