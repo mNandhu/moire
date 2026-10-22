@@ -37,4 +37,6 @@ packages/**/.env
 
 # Attire list build cache (scripts/build_attire_list.py)
 /packages/backend/.tag-groups-cache/
+# Tag description build cache (scripts/build_tag_descriptions.py)
+/packages/backend/.tag-desc-cache/
 packages/backend/src/moire/web/
