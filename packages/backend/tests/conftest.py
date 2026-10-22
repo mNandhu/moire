@@ -67,7 +67,7 @@ def _gen_cols(gen: dict | None) -> dict:
 
 
 @pytest.fixture
-def seed():
+def seed(temp_db):
     """Insert image rows (with derived tag / prompt-term rows) straight into the DB.
 
     Mirrors what the scanner + reproject would persist, so feed/tag queries have

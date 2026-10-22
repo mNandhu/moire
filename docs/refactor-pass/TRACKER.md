@@ -29,7 +29,7 @@ Housekeeping, not findings:
 - [ ] **S2.6** Global keydown ignores modifier keys: Ctrl/Cmd+1..5, Alt+Arrow hijacked (bug, S, L3)
 - [ ] **S4.7** RenameTagDialog offers AI tags as merge targets when renaming a manual tag (bug, S, L2)
 - [ ] **S5.7** Moving a library while it is scanning leaves the scan on the old folder and nothing rescans (bug, S, L2)
-- [x] **S7.5** One malformed graph aborts a whole reprojection: extract is not total and the loop has no per-row guard (bug, S, L3), done
+- [x] **S7.5** One malformed graph aborts a whole reprojection: extract is not total and the loop has no per-row guard (bug, S, L3), done a903e1d
 - [ ] **S8.8** Cancelled requests render as 'done' frames in the queue card (bug, S, L2)
 - [ ] **S9.3** JsonTree branch toggle opens and closes every sibling branch at once (bug, S, L3)
 
