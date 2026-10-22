@@ -68,10 +68,14 @@ export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; on
           />
         )}
       </Link>
-      {/* Rejected reads as a state on the picture, not a bar across it. */}
+      {/* Rejected is marked like a score: a red grease-pencil X on the print. */}
       {rejected && (
-        <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-full bg-black/65 px-2 py-0.5 text-2xs font-medium text-red-200">
-          Rejected
+        <span
+          aria-label="Rejected"
+          title="Rejected"
+          className="pointer-events-none absolute left-2 top-1 font-marker text-[30px] leading-none text-red-500 -rotate-6 [text-shadow:0_0_1px_rgb(0_0_0/0.95),0_0_2px_rgb(0_0_0/0.9),0_1px_4px_rgb(0_0_0/0.75)]"
+        >
+          X
         </span>
       )}
       {/* Scored, the mark stays at rest as on the gallery's tiles; the rest
@@ -352,26 +356,37 @@ export function BatchResults({
   const ratio = batch.inputs.width && batch.inputs.height ? batch.inputs.width / batch.inputs.height : 2 / 3;
   const slots = resultSlots(batch);
   const { cols, rows } = resultGrid(slots.length, variant, ratio);
-  // Size cells so the rows fit the view's height (the output column leaves
-  // room for what sits above them); the column's width caps them too, so a
-  // single portrait fills it rather than sitting between empty bands.
-  const cell =
-    variant === "page"
-      ? `calc((100vh - 12rem) / ${Math.min(rows, 2)} * ${ratio})`
-      : `max(6rem, calc((100dvh - 17rem) / ${rows} * ${ratio}))`;
+  const grid = (cell: string) => ({ gridTemplateColumns: `repeat(${cols}, minmax(0, ${cell}))` });
+  const cells = slots.map((s) => (
+    <div key={s.kind === "image" ? `${s.req._id}:${s.out.idx}` : `${s.req._id}:${s.kind}:${slots.indexOf(s)}`} title={cellTitle(s)}>
+      {s.kind === "image" ? (
+        <Tile out={s.out} ratio={ratio} onChanged={() => onChanged()} />
+      ) : s.kind === "waiting" ? (
+        <WaitingCell batch={batch} req={s.req} first={s.first} ratio={ratio} onChanged={onChanged} />
+      ) : (
+        <FailedCell batch={batch} req={s.req} ratio={ratio} onChanged={onChanged} />
+      )}
+    </div>
+  ));
+  if (variant === "page") {
+    // Rows fit the view's height.
+    return (
+      <div className={cn("grid gap-2", cols === 1 && "justify-center")} style={grid(`calc((100vh - 12rem) / ${Math.min(rows, 2)} * ${ratio})`)}>
+        {cells}
+      </div>
+    );
+  }
+  // The output column keeps one stage height whatever the count: the height
+  // one image takes filling the column, capped by the view. Two, four and
+  // their loaders fit inside it, so the column doesn't jump from batch to
+  // batch and the recent batches stay put.
+  const stage = `min(100dvh - 20rem, 100cqw / ${ratio})`;
+  const cell = `max(4rem, min((100cqw - ${(cols - 1) * 0.5}rem) / ${cols}, (${stage} - ${(rows - 1) * 0.5}rem) / ${rows} * ${ratio}))`;
   return (
-    <div className={cn("grid gap-2", (variant === "panel" || cols === 1) && "justify-center")} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, ${cell}))` }}>
-      {slots.map((s) => (
-        <div key={s.kind === "image" ? `${s.req._id}:${s.out.idx}` : `${s.req._id}:${s.kind}:${slots.indexOf(s)}`} title={cellTitle(s)}>
-          {s.kind === "image" ? (
-            <Tile out={s.out} ratio={ratio} onChanged={() => onChanged()} />
-          ) : s.kind === "waiting" ? (
-            <WaitingCell batch={batch} req={s.req} first={s.first} ratio={ratio} onChanged={onChanged} />
-          ) : (
-            <FailedCell batch={batch} req={s.req} ratio={ratio} onChanged={onChanged} />
-          )}
-        </div>
-      ))}
+    <div className="[container-type:inline-size]">
+      <div className="grid content-center justify-center gap-2" style={{ ...grid(cell), minHeight: `calc(${stage})` }}>
+        {cells}
+      </div>
     </div>
   );
 }
