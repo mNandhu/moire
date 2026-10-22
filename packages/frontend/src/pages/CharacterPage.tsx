@@ -19,7 +19,7 @@ import { cn } from "../lib/cn";
 import { useAmbientTint } from "../lib/ambient";
 import { fetchSignatures } from "../lib/gen";
 import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
-import { useBoilerplate, useCharacterPage } from "../lib/queries";
+import { useBoilerplate, useCharacterPage, useTagPlaces } from "../lib/queries";
 import { formatTag, toPromptText } from "../lib/tags";
 import { useChipBorderStyle } from "../hooks/useTagMarks";
 import { tagWorkflows } from "../lib/tagBrowse";
@@ -76,6 +76,11 @@ export default function CharacterPage({ route = "character" }: { route?: "charac
   useAmbientTint(colours);
 
   const { name, series } = person ? displayName(c ?? { tag }) : { name: formatTag(c?.tag ?? tag), series: null };
+  // A plain tag's page says which tag group it sits in (`headwear_tags` -> Headwear).
+  const { data: places } = useTagPlaces(!person && c ? [c.tag] : []);
+  const place = !person && c ? places?.names[c.tag] : undefined;
+  const group = place?.group?.replace(/_tags$/, "").replace(/_/g, " ");
+  const groupLine = group ? group.charAt(0).toUpperCase() + group.slice(1) : undefined;
 
   if (isError) {
     return (
@@ -96,7 +101,7 @@ export default function CharacterPage({ route = "character" }: { route?: "charac
       <PageHeader
         title={name}
         width="wide"
-        description={series ?? undefined}
+        description={series ?? groupLine}
         actions={
           c && (
             <>
