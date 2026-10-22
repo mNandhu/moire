@@ -187,6 +187,12 @@ describe("adherenceGroups", () => {
     expect(g.mine.map((t) => t.raw)).toEqual(["manual:fav"]);
   });
 
+  it("counts your tag that the prompt also names as prompted", () => {
+    const g = adherenceGroups(tagFlow(["solo", "prompt:solo", "prompt:neon", "manual:neon"], ai))!;
+    expect(g.missed.map((t) => t.raw)).toEqual(["manual:neon"]);
+    expect(g.mine).toEqual([]);
+  });
+
   it("is null with only one side to compare", () => {
     expect(adherenceGroups(tagFlow(["prompt:neon", "manual:fav"]))).toBeNull();
     expect(adherenceGroups(tagFlow(["solo", "manual:fav"], ai))).toBeNull();

@@ -193,7 +193,8 @@ export function adherenceGroups(tags: readonly FlowTag[]): Record<TagGroup, Flow
   const out: Record<TagGroup, FlowTag[]> = { matched: [], unprompted: [], missed: [], mine: [] };
   for (const t of tags) {
     if (seen(t)) out[t.also?.includes("prompt") ? "matched" : "unprompted"].push(t);
-    else out[t.kind === "prompt" ? "missed" : "mine"].push(t);
+    // Your tag the prompt also names is still a prompted tag not seen.
+    else out[t.kind === "prompt" || t.also?.includes("prompt") ? "missed" : "mine"].push(t);
   }
   return out;
 }

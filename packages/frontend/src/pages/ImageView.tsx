@@ -605,12 +605,18 @@ export default function ImageView() {
   useDocumentTitle(data?.path ? data.path.split(/[\\/]/).pop() : null);
   const { data: libraries } = useLibraries({ poll: false });
   const library = libraries?.find((l) => l._id === data?.library_id);
+  const flowTags = useMemo(() => tagFlow(data?.tags, data?.ai), [data?.tags, data?.ai]);
+  // The Tags tab counts what its panel lists: folded boilerplate aside.
+  const isBoilerplate = useBoilerplate();
+  const shownTagCount = useMemo(
+    () => splitBoilerplate(flowTags, (t) => t.raw, isBoilerplate).kept.length,
+    [flowTags, isBoilerplate],
+  );
 
   if (!id) return null;
 
   const fileName = data?.path ? data.path.split(/[\\/]/).pop() : "";
   const rating = pickRating(data);
-  const flowTags = data ? tagFlow(data.tags, data.ai) : [];
   const accent = accentFromBlurhash(data?.blurhash);
   // Has the image currently on screen painted?
   const imgLoaded = !!id && loadedId === id;
@@ -837,7 +843,7 @@ export default function ImageView() {
             {/* Scrollable body */}
             {/* Flat sections split by rules: the sidebar is already a panel,
                 so boxing each section again read as cards inside a card. */}
-            <div ref={setPanelScroller} className="flex-1 min-h-0 overflow-y-auto">
+            <div ref={setPanelScroller} className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
               <PanelFit.Provider value={panelFit}>
                 <div ref={setPanelContent}>
                   <div className="divide-y divide-line border-b border-line">
@@ -875,7 +881,7 @@ export default function ImageView() {
 
                   <DetailTabs
                     hasGen={!!data.gen?.source}
-                    tagCount={flowTags.length}
+                    tagCount={shownTagCount}
                     generation={
                       <GenPanel
                         imageId={data._id}
@@ -917,12 +923,6 @@ function readDetailTab(): DetailTab {
   }
 }
 
-/**
- * Generation data and tags as two tabs, so neither waits below the other.
- * Generation first: most people come back to an image for its recipe. The
- * last tab picked sticks across images and visits, so a tagging session
- * stays on Tags. An image with no generation data shows its tags alone.
- */
 /** Where a tab's actions go: the tab bar's right end (null: no bar). */
 const TabActionsSlot = React.createContext<HTMLElement | null>(null);
 
@@ -937,6 +937,14 @@ function TabActions({ children }: { children: React.ReactNode }) {
 /** An icon-only action in a tab's action row. */
 const TAB_ACTION = "p-2 rounded-lg text-muted hover:text-white hover:bg-raised transition-colors";
 
+/**
+ * Generation data and tags as two tabs, so neither waits below the other.
+ * Generation first: most people come back to an image for its recipe. The
+ * last tab picked sticks across images and visits, so a tagging session
+ * stays on Tags. An image with no generation data shows its tags alone.
+ * Both panels stay mounted (the hidden one display:none): the tags panel
+ * owns a running AI job's watch, which must outlive a look at Generation.
+ */
 function DetailTabs({
   hasGen,
   tagCount,
@@ -990,8 +998,13 @@ function DetailTabs({
       </div>
       <div ref={setSlot} className="ml-auto flex items-center gap-1" />
       </div>
-      <TabActionsSlot.Provider value={slot}>
-        <div role="tabpanel">{tab === "generation" ? generation : tags}</div>
+      {/* Only the shown tab's actions go to the bar; the hidden one's stay
+          in its own (hidden) row. */}
+      <TabActionsSlot.Provider value={tab === "generation" ? slot : null}>
+        <div role="tabpanel" hidden={tab !== "generation"}>{generation}</div>
+      </TabActionsSlot.Provider>
+      <TabActionsSlot.Provider value={tab === "tags" ? slot : null}>
+        <div role="tabpanel" hidden={tab !== "tags"}>{tags}</div>
       </TabActionsSlot.Provider>
     </>
   );
@@ -1311,15 +1324,6 @@ const GROUPS: { id: TagGroup; label: string; swatch: string }[] = [
   { id: "mine", label: "Your tags", swatch: "bg-emerald-400/80" },
 ];
 
-/**
- * An image's tags as comma-separated runs, like a prompt: dense, easy to read
- * top to bottom and to copy. With both a prompt and AI tags, they split by
- * prompt adherence (lib/tags.ts adherenceGroups) under a bar of how much of
- * the prompt the tagger saw, and a tint marks each tag's facet (look,
- * outfit, pose...); otherwise by facet, under headings. An unsure AI tag is dimmed one step, and hair and eye tags are
- * outlined in their colour (lib/tagColour.ts). Each tag opens its tag page (a
- * character's, its character page).
- */
 // Tag runs: roomier than body text, so a long list reads as tags, not a wall.
 const RUN_TEXT = "text-sm leading-8";
 
@@ -1335,9 +1339,22 @@ function GroupHeading({ label, count }: { label: string; count: number }) {
   );
 }
 
+/**
+ * An image's tags as comma-separated runs, like a prompt: dense, easy to read
+ * top to bottom and to copy. With both a prompt and AI tags, they split by
+ * prompt adherence (lib/tags.ts adherenceGroups) under a bar of how much of
+ * the prompt the tagger saw, and a tint marks each tag's facet (look,
+ * outfit, pose...); otherwise by facet, under headings. An unsure AI tag is
+ * dimmed one step, and hair and eye tags are outlined in their colour
+ * (lib/tagColour.ts). Each tag opens its tag page (a character's, its
+ * character page).
+ */
 function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNode }) {
   const { data: facets } = useTagFacets();
-  const facetOf = (raw: string): Facet | null => facets?.[tagName(raw).toLowerCase()] ?? null;
+  const facetOf = useCallback(
+    (raw: string): Facet | null => facets?.[tagName(raw).toLowerCase()] ?? null,
+    [facets],
+  );
   // Boilerplate (Settings) folds into one quiet toggle at the end, so the
   // tags that describe this image lead instead of "masterpiece, best quality".
   const isBoilerplate = useBoilerplate();
@@ -1357,10 +1374,10 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
     if (groups) return null;
     const out = new Map<Facet | null, FlowTag[]>();
     for (const f of [...FACET_ORDER, null]) out.set(f, []);
-    for (const t of kept) out.get(facets?.[tagName(t.raw).toLowerCase()] ?? null)!.push(t);
+    for (const t of kept) out.get(facetOf(t.raw))!.push(t);
     const filled = [...out].filter(([, list]) => list.length);
     return filled.length > 1 ? filled : null;
-  }, [groups, kept, facets]);
+  }, [groups, kept, facetOf]);
   // Under facet headings the tints need no key.
   const shownFacets = marks.tints && !byFacet
     ? (Object.keys(FACET_TINT) as Facet[]).filter((f) => shown.some((t) => facetOf(t.raw) === f))
@@ -1561,7 +1578,7 @@ function CopyButton({ text, label }: { text?: string | null; label: string }) {
 /** The details panel's scroller and the content inside it. */
 const PanelFit = React.createContext<{ scroller: HTMLElement; content: HTMLElement } | null>(null);
 
-// "Show more" and its top margin.
+// "Show more" (a 16px line) and its top margin.
 const TOGGLE_HEIGHT = 20;
 
 /**
@@ -1581,16 +1598,20 @@ function PromptBlock({ text, fit = false }: { text: string; fit?: boolean }) {
     const p = para.current;
     if (!box || !p || expanded) return;
     const measure = () => {
+      // Hidden (the other tab is showing): nothing to measure; keep the clamp.
+      if (!p.clientWidth) return;
       const lineHeight = parseFloat(getComputedStyle(p).lineHeight) || 20;
       if (!fit || !panel) {
         setLines(p.scrollHeight > 3 * lineHeight + 1 ? 3 : null);
         return;
       }
       // What the rest of the panel takes, whatever this block shows now.
-      const others = panel.content.offsetHeight - box.offsetHeight;
+      // Exact heights, not rounded offsets, and a hair of slack: rounding
+      // left a 2px scroll at some panel heights.
+      const others = panel.content.getBoundingClientRect().height - box.getBoundingClientRect().height;
       setLines(
         fitLines({
-          available: panel.scroller.clientHeight - others,
+          available: panel.scroller.clientHeight - others - 2,
           lineHeight,
           fullHeight: p.scrollHeight,
           toggleHeight: TOGGLE_HEIGHT,
@@ -1598,18 +1619,35 @@ function PromptBlock({ text, fit = false }: { text: string; fit?: boolean }) {
       );
     };
     measure();
-    // Again when the panel resizes or its other content lands or folds
-    // (characters, the outfit board, the workflow line); this block's own
-    // resize measures the same. Committed at once: the observer runs before
-    // the frame paints, a plain update after it, which showed the old clamp
-    // pushed down for a frame.
+    // Again when the panel resizes or the content around this block lands or
+    // folds (characters, the outfit board, the workflow line, the other tab).
+    // Committed at once: the observer runs before the frame paints, a plain
+    // update after it, which showed the old clamp pushed down for a frame.
     const ro = new ResizeObserver(() => flushSync(measure));
-    ro.observe(p);
-    if (fit && panel) {
-      ro.observe(panel.scroller);
-      ro.observe(panel.content);
-    }
-    return () => ro.disconnect();
+    // Watch everything beside this block and its ancestors, never the text or
+    // its ancestors: a clamp resizes those, and an observed element resized
+    // from its own callback is a ResizeObserver loop. Rewatched as children
+    // come and go, without re-observing a watched one: that restarts it, and
+    // a restart from inside a frame's observer round is a loop too.
+    const watched = new Set<Element>();
+    const watch = () => {
+      if (!panel) return;
+      const next = new Set<Element>([panel.scroller]);
+      for (let el: Element = box; el !== panel.content && el.parentElement; el = el.parentElement) {
+        for (const sib of el.parentElement.children) if (sib !== el) next.add(sib);
+      }
+      for (const el of watched) if (!next.has(el)) ro.unobserve(el);
+      for (const el of next) if (!watched.has(el)) ro.observe(el);
+      watched.clear();
+      next.forEach((el) => watched.add(el));
+    };
+    watch();
+    const mo = panel ? new MutationObserver(watch) : null;
+    mo?.observe(panel!.content, { childList: true, subtree: true });
+    return () => {
+      ro.disconnect();
+      mo?.disconnect();
+    };
   }, [text, expanded, fit, panel]);
   const clamped = !expanded && lines != null;
   return (
@@ -1626,10 +1664,11 @@ function PromptBlock({ text, fit = false }: { text: string; fit?: boolean }) {
         {text}
       </p>
       {(clamped || expanded) && (
+        // A block, so it takes exactly TOGGLE_HEIGHT, not a taller line box.
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-1 text-xs text-brand-300 hover:text-brand-200"
+          className="block mt-1 text-xs text-brand-300 hover:text-brand-200"
         >
           {expanded ? "Show less" : "Show more"}
         </button>
