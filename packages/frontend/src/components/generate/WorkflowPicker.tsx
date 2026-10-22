@@ -20,7 +20,7 @@ export function TestBadge({ gen }: { gen: Generator }) {
 
 /**
  * The Generate header's workflow picker: Built-in and every set-up workflow
- * with its test state, "Set up a workflow" first (opens setup), "Manage
+ * (badged when not ready), "Set up a workflow" first (opens setup), "Manage
  * workflows" at the foot.
  */
 export function WorkflowPicker({
@@ -36,7 +36,8 @@ export function WorkflowPicker({
   const chosen = generators.find((g) => g._id === value);
   const options = workflowOptions(generators, value).map((o) => {
     const g = generators.find((x) => x._id === o.value)!;
-    return { ...o, hint: <TestBadge gen={g} /> };
+    // Only what needs attention: ready is the norm (as in Remix's picker).
+    return { ...o, hint: testState(g) !== "ready" ? <TestBadge gen={g} /> : undefined };
   });
   // The page's status line says when the chosen one needs its test run.
   return (
