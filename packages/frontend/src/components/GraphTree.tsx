@@ -1,0 +1,161 @@
+import { useState } from "react";
+
+// Does a key or any descendant value contain the (lowercased) search term?
+// Drives both the highlight and the auto-expand: a node matches when its own key
+// matches (e.g. node id "34"), or any nested value does (a class_type like
+// "CLIPTextEncode", a prompt word like "masterpiece"). Exported for unit testing.
+export function matchesQuery(
+  value: unknown,
+  query: string,
+  key?: string,
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return false;
+  if (key !== undefined && key.toLowerCase().includes(q)) return true;
+  if (value === null || value === undefined) return false;
+  if (typeof value !== "object") return String(value).toLowerCase().includes(q);
+  const entries = Array.isArray(value)
+    ? value.map((v, i) => [String(i), v] as const)
+    : Object.entries(value as Record<string, unknown>);
+  return entries.some(([k, v]) => matchesQuery(v, q, k));
+}
+
+// Flatten every leaf whose key or value contains the term into pinnable rows,
+// so matches can be surfaced at the top of the panel (no scrolling to find the
+// buried node). Each row carries its rooted dot-path, the same path clicking the
+// tree leaf would pin. Exported for unit testing.
+export type GraphMatch = { path: string; value: unknown };
+
+export function collectMatches(
+  value: unknown,
+  query: string,
+  path = "",
+  key = "",
+): GraphMatch[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  if (value === null || typeof value !== "object") {
+    const keyHit = key.toLowerCase().includes(q);
+    const valHit = value != null && String(value).toLowerCase().includes(q);
+    return keyHit || valHit ? [{ path, value }] : [];
+  }
+  const entries = Array.isArray(value)
+    ? value.map((v, i) => [String(i), v] as const)
+    : Object.entries(value as Record<string, unknown>);
+  return entries.flatMap(([k, v]) =>
+    collectMatches(v, q, path ? `${path}.${k}` : k, k),
+  );
+}
+
+const HIT = "bg-yellow-500/25 text-yellow-100 rounded px-0.5";
+
+// A clickable JSON tree: leaves pin their dot-path into the active field.
+// `query` highlights matching keys/values and force-opens the branches that
+// contain a match (the tree is collapsed at depth >= 2), so a search reveals the
+// whole matching node: its id *and* its class_type stay in view, never pruned.
+// `marks` labels leaves by path (where the prompt was guessed from) and keeps
+// the branches down to them open, so they're visible without searching.
+// Exported for unit testing the path construction (the load-bearing, silent-on-
+// failure interaction: click leaf -> correct dot-path).
+export function JsonTree({
+  value,
+  path,
+  onPin,
+  depth = 0,
+  query = "",
+  marks,
+}: {
+  value: unknown;
+  path: string;
+  onPin: (path: string) => void;
+  depth?: number;
+  query?: string;
+  marks?: ReadonlyMap<string, string>;
+}) {
+  const [open, setOpen] = useState(depth < 2);
+  const isObj = value && typeof value === "object";
+  const hasQuery = query.trim().length > 0;
+
+  if (!isObj) {
+    const valHit = hasQuery && matchesQuery(value, query);
+    const mark = marks?.get(path);
+    return (
+      <button
+        onClick={() => onPin(path)}
+        data-graph-path={path}
+        className={`group inline-flex items-baseline gap-2 text-left hover:bg-brand-500/10 rounded px-1 -mx-1 w-full ${
+          mark ? "ring-1 ring-amber-400/40" : ""
+        }`}
+        title={`Pin ${path}`}
+      >
+        <span className={valHit ? `break-all ${HIT}` : "text-emerald-300 break-all"}>
+          {JSON.stringify(value)}
+        </span>
+        {mark && (
+          <span className="shrink-0 text-2xs font-sans px-1.5 rounded-md border border-amber-400/30 text-amber-300">
+            {mark}
+          </span>
+        )}
+        <span className="text-2xs text-faint group-hover:text-brand-300 ml-auto shrink-0">
+          {path}
+        </span>
+      </button>
+    );
+  }
+
+  const entries = Array.isArray(value)
+    ? value.map((v, i) => [String(i), v] as const)
+    : Object.entries(value as Record<string, unknown>);
+
+  return (
+    <div className={depth === 0 ? "" : "pl-3 border-l border-neutral-800"}>
+      {entries.map(([k, v]) => {
+        const childPath = path ? `${path}.${k}` : k;
+        const leaf = !v || typeof v !== "object";
+        const keyHit = hasQuery && k.toLowerCase().includes(query.trim().toLowerCase());
+        const keyCls = keyHit ? HIT : "text-sky-300";
+        // Force a branch open when it (or a descendant) matches the search.
+        const childOpen =
+          open ||
+          (hasQuery && matchesQuery(v, query, k)) ||
+          (!!marks && [...marks.keys()].some((p) => p.startsWith(`${childPath}.`)));
+        return (
+          <div key={k} className="py-0.5">
+            {leaf ? (
+              <div className="flex items-baseline gap-2">
+                <span className={`shrink-0 ${keyCls}`}>{k}:</span>
+                <JsonTree
+                  value={v}
+                  path={childPath}
+                  onPin={onPin}
+                  depth={depth + 1}
+                  query={query}
+                  marks={marks}
+                />
+              </div>
+            ) : (
+              <div>
+                <button
+                  onClick={() => setOpen((o) => !o)}
+                  className={`hover:text-sky-200 ${keyCls}`}
+                >
+                  {childOpen ? "▾" : "▸"} {k}
+                </button>
+                {childOpen && (
+                  <JsonTree
+                    value={v}
+                    path={childPath}
+                    onPin={onPin}
+                    depth={depth + 1}
+                    query={query}
+                    marks={marks}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}

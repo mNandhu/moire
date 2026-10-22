@@ -13,6 +13,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { Picker } from "../components/ui/Picker";
+import { ResolvePromptDialog } from "../components/ResolvePromptDialog";
 import { getBackgroundLocation } from "../lib/backgroundLocation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -1233,18 +1234,19 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
   const kinds = (Object.keys(KIND_LABEL) as TagKind[]).filter((k) =>
     shown.some((t) => t.kind === k),
   );
-  const firstBoilerplate = kept.length;
+  const folded = new Set(boilerplate.map((t) => t.raw));
+  // Tags only the prompt gave sit apart, under their own heading.
+  const lead = shown.filter((t) => t.kind !== "prompt");
+  const promptOnly = shown.filter((t) => t.kind === "prompt");
   const marks = useTagMarks();
   const shownFacets = marks.tints
     ? (Object.keys(FACET_TINT) as Facet[]).filter((f) => shown.some((t) => facetOf(t.raw) === f))
     : [];
-  return (
-    <div className="space-y-2">
-      {/* A div, not a p: the trailing add-tags field is a form. */}
-      <div className="text-[13px] leading-7">
-        {shown.map((t, i) => (
+  const run = (list: FlowTag[]) => (
+    <>
+        {list.map((t, i) => (
           <React.Fragment key={t.raw}>
-            <span className={i >= firstBoilerplate ? "opacity-50" : undefined}>
+            <span className={folded.has(t.raw) ? "opacity-50" : undefined}>
               <Tooltip
                 bubble
                 side="up"
@@ -1268,12 +1270,19 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
                 </Link>
               </Tooltip>
             </span>
-            {i < shown.length - 1 && <span className="text-line-strong">, </span>}
+            {i < list.length - 1 && <span className="text-line-strong">, </span>}
           </React.Fragment>
         ))}
+    </>
+  );
+  return (
+    <div className="space-y-2">
+      {/* A div, not a p: the trailing add-tags field is a form. */}
+      <div className="text-[13px] leading-7">
+        {run(lead)}
         {boilerplate.length > 0 && (
           <>
-            {shown.length > 0 && <span className="text-line-strong"> </span>}
+            {lead.length > 0 && <span className="text-line-strong"> </span>}
             <button
               type="button"
               onClick={() => setShowBoilerplate((v) => !v)}
@@ -1291,11 +1300,17 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
         )}
         {trailing && (
           <>
-            {shown.length + boilerplate.length > 0 && <span className="text-line-strong"> </span>}
+            {lead.length + boilerplate.length > 0 && <span className="text-line-strong"> </span>}
             {trailing}
           </>
         )}
       </div>
+      {promptOnly.length > 0 && (
+        <div>
+          <div className="mb-0.5 text-2xs uppercase tracking-wide text-faint">Only in the prompt</div>
+          <div className="text-[13px] leading-7">{run(promptOnly)}</div>
+        </div>
+      )}
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-2xs text-faint">
         {kinds.map((k) => (
           // The label is in its kind's colour: the key needs no swatch.
@@ -1412,14 +1427,21 @@ function PromptBlock({ text }: { text: string }) {
 
 // A prompt found by keywords (services/prompt_guess.py), not by following the
 // workflow to its sampler.
-function GuessedBadge() {
+function GuessedBadge({ onResolve }: { onResolve?: () => void }) {
   return (
+    <>
     <span
       className="text-2xs px-1.5 py-0.5 rounded-md border border-amber-400/30 text-amber-300"
-      title="Picked by keyword match: the workflow doesn't show where its prompt goes. Pin it with Edit rule to be certain."
+      title="Picked by keyword match: the workflow doesn't show where its prompt goes. Resolve it to be certain."
     >
       Guessed
     </span>
+    {onResolve && (
+      <button type="button" onClick={onResolve} className="text-2xs text-brand-300 hover:text-brand-200">
+        Resolve
+      </button>
+    )}
+    </>
   );
 }
 
@@ -1437,6 +1459,12 @@ function GenPanel({
   onCopyAll: () => void;
 }) {
   const { data: remix } = useRemix(imageId, !!gen?.source);
+  const [resolving, setResolving] = useState<"prompt" | "negative" | null>(null);
+  const qc = useQueryClient();
+  // The pin re-reads the workflow's images in the background: look again as it lands.
+  const reread = () => {
+    for (const ms of [800, 3000]) window.setTimeout(() => void qc.invalidateQueries({ queryKey: imageDocKey(imageId) }), ms);
+  };
   if (!gen || !gen.source) return null;
   // Until the read lands (or if it fails), what the image's own data says,
   // so the header doesn't jump.
@@ -1461,6 +1489,7 @@ function GenPanel({
   );
   return (
     <section className="px-4 py-4 space-y-4">
+      {resolving && <ResolvePromptDialog open onClose={() => setResolving(null)} gen={gen} field={resolving} onSaved={reread} />}
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Generation data</h2>
         <div className="flex items-center gap-3">
@@ -1525,7 +1554,7 @@ function GenPanel({
               <span className="text-2xs uppercase px-1.5 py-0.5 rounded-md bg-raised border border-line text-muted">
                 {gen.source}
               </span>
-              {gen.guessed?.includes("prompt") && <GuessedBadge />}
+              {gen.guessed?.includes("prompt") && <GuessedBadge onResolve={gen.workflow_sig ? () => setResolving("prompt") : undefined} />}
             </div>
             <CopyButton text={gen.prompt} label="Prompt" />
           </div>
@@ -1538,7 +1567,7 @@ function GenPanel({
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <div className="text-sm font-semibold">Negative prompt</div>
-              {gen.guessed?.includes("negative") && <GuessedBadge />}
+              {gen.guessed?.includes("negative") && <GuessedBadge onResolve={gen.workflow_sig ? () => setResolving("negative") : undefined} />}
             </div>
             <CopyButton text={gen.negative} label="Negative prompt" />
           </div>
