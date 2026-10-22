@@ -7,6 +7,16 @@ const OPEN_DELAY = 250;
 const CLOSE_DELAY = 120;
 const GAP = 8;
 
+// Focus from the keyboard, not from a tap. Where the browser can't tell
+// (no :focus-visible), any focus counts, as before.
+function focusVisible(el: Element): boolean {
+  try {
+    return el.matches(":focus-visible");
+  } catch {
+    return true;
+  }
+}
+
 /**
  * The app's hover tip: use it instead of a native `title` where the text
  * explains something (why a control is off and how to turn it on). Opens on
@@ -91,9 +101,9 @@ export function Tooltip({
         // A bubble only labels, and a tap is a click: on touch it stays shut
         // instead of popping up as the tap lands (the pointer events and the
         // focus a tap gives a link). A real hover or keyboard focus opens it.
-        onPointerEnter={(e) => (!bubble || e.pointerType === "mouse") && show()}
+        onPointerEnter={(e) => (!bubble || e.pointerType !== "touch") && show()}
         onPointerLeave={hide}
-        onFocus={(e) => (!bubble || e.target.matches(":focus-visible")) && show()}
+        onFocus={(e) => (!bubble || focusVisible(e.target)) && show()}
         onBlur={hide}
       >
         {children}

@@ -191,6 +191,10 @@ export function removeImagesFromFeeds(
   patchFeeds(qc, (pages) => pages.map((page) => page.filter((d) => !drop.has(d._id))));
 }
 
+/** The image view's batch strip: a batch's members under the viewer's filters.
+ * Its own key, not under the feeds': their cache patches assume a paged feed. */
+export const BATCH_STRIP_KEY = ["batch-strip"] as const;
+
 /**
  * Refetch the feed, the grouped view, the tag aggregates and the Overview
  * stats after a mutation (tag counts move with tag writes, quarantine and
@@ -198,6 +202,7 @@ export function removeImagesFromFeeds(
  */
 export function invalidateFeeds(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: IMAGE_FEED_PREFIX });
+  qc.invalidateQueries({ queryKey: BATCH_STRIP_KEY });
   qc.invalidateQueries({ queryKey: IMAGE_GROUPS_PREFIX });
   qc.invalidateQueries({ queryKey: TAGS_KEY });
   qc.invalidateQueries({ queryKey: IMAGE_STATS_KEY });

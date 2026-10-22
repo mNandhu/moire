@@ -95,6 +95,7 @@ const tagPageHref = (t: FlowTag) =>
 const OVERLAY_BTN =
   "p-2 rounded-full bg-black/45 border border-white/10 text-white/80 hover:text-white hover:bg-black/65 disabled:opacity-30 disabled:pointer-events-none transition-colors duration-150";
 import {
+  BATCH_STRIP_KEY,
   imageDocKey,
   invalidateFeeds,
   patchImageEverywhere,
@@ -157,6 +158,8 @@ export default function ImageView() {
     ? {
         style: { touchAction: "none" },
         onPointerDown: (e) => {
+          // A drag on touch ends without a click to clear this; a new press does.
+          justDragged.current = false;
           if (e.button) return;
           const stops = sheetStops();
           dragRef.current = {
@@ -867,7 +870,10 @@ export default function ImageView() {
         aria-label="Image details"
         className={
           phone
-            ? "fixed inset-x-0 bottom-0 z-[60] h-[92dvh] flex flex-col rounded-t-2xl border-t border-line-strong bg-surface shadow-xl shadow-black/50 transition-transform duration-300 ease-out"
+            ? `fixed inset-x-0 bottom-0 z-[60] h-[92dvh] flex flex-col rounded-t-2xl border-t border-line-strong bg-surface transition-transform duration-300 ease-out ${
+                // Closed, it sits just below the screen: no shadow up over the image.
+                infoOpen || dragY != null ? "shadow-xl shadow-black/50" : ""
+              }`
             : `fixed lg:static inset-y-0 right-0 z-[60] h-dvh lg:h-full w-full sm:w-[380px] lg:w-[400px] lg:shrink-0 flex flex-col border-l border-line bg-surface shadow-xl shadow-black/30 lg:shadow-none transition-transform duration-300 ease-out lg:transition-none ${
                 infoOpen ? "translate-x-0 lg:flex" : "translate-x-full lg:hidden"
               }`
@@ -963,7 +969,14 @@ export default function ImageView() {
             {/* Scrollable body */}
             {/* Flat sections split by rules: the sidebar is already a panel,
                 so boxing each section again read as cards inside a card. */}
-            <div ref={setPanelScroller} className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
+            <div
+              // At peek the sheet's lower part is below the screen, so the
+              // whole of it drags: a swipe up pulls it up to read, not a
+              // scroll of content that can't be reached.
+              {...(sheet === "peek" ? sheetDrag : {})}
+              ref={setPanelScroller}
+              className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable]"
+            >
               <PanelFit.Provider value={panelFit}>
                 <div ref={setPanelContent}>
                   <div className="divide-y divide-line border-b border-line">
@@ -1010,6 +1023,7 @@ export default function ImageView() {
                         height={data.height}
                         onCopyAll={() => void copyWorkflow()}
                         batchScope={serializeFiltersForPeek(filters)}
+                        thumbUrl={data.thumb_url}
                       />
                     }
                     tags={
@@ -1825,6 +1839,7 @@ function GenPanel({
   height,
   onCopyAll,
   batchScope,
+  thumbUrl,
 }: {
   imageId: string;
   gen?: import("../lib/gen").GenMeta;
@@ -1833,6 +1848,7 @@ function GenPanel({
   onCopyAll: () => void;
   /** The viewer's filters, less any batch grouping (serializeFiltersForPeek). */
   batchScope: string;
+  thumbUrl?: string | null;
 }) {
   const { data: remix } = useRemix(imageId, !!gen?.source);
   const [resolving, setResolving] = useState<"prompt" | "negative" | null>(null);
@@ -1964,7 +1980,7 @@ function GenPanel({
         </div>
       </div>
 
-      {gen.group_id && <BatchStrip groupId={gen.group_id} scope={batchScope} currentId={imageId} />}
+      {gen.group_id && <BatchStrip groupId={gen.group_id} scope={batchScope} currentId={imageId} currentThumb={thumbUrl} />}
     </section>
   );
 }
@@ -1977,26 +1993,57 @@ const BATCH_STRIP_MAX = 40;
  * batch: arrows then walk its members, like drilling into it in the gallery.
  * Nothing when the image is alone in its batch.
  */
-function BatchStrip({ groupId, scope, currentId }: { groupId: string; scope: string; currentId: string }) {
+function BatchStrip({
+  groupId,
+  scope,
+  currentId,
+  currentThumb,
+}: {
+  groupId: string;
+  scope: string;
+  currentId: string;
+  currentThumb?: string | null;
+}) {
   const location = useLocation();
   const query = useMemo(() => {
     const sp = new URLSearchParams(scope);
     sp.set("group_id", groupId);
     return sp.toString();
   }, [scope, groupId]);
-  const { data: members } = useQuery({
-    // Not under the feeds' key: their cache patches assume a paged feed.
-    queryKey: ["batch-strip", query],
+  const { data: fetched } = useQuery({
+    queryKey: [...BATCH_STRIP_KEY, query],
     queryFn: ({ signal }) =>
       api<ImageDoc[]>(`/api/v1/images?${query}&limit=${BATCH_STRIP_MAX}`, { signal }),
     staleTime: 60_000,
   });
+  // The open image is always in it, even past the members fetched.
+  const members = useMemo(
+    () =>
+      !fetched || fetched.some((m) => m._id === currentId)
+        ? fetched
+        : [{ _id: currentId, thumb_url: currentThumb ?? undefined } as ImageDoc, ...fetched],
+    [fetched, currentId, currentThumb],
+  );
   const current = useRef<HTMLAnchorElement>(null);
-  // The open image in view, without scrolling the panel itself.
+  const stripRef = useRef<HTMLDivElement>(null);
+  // The open image in view, without scrolling the panel itself; again when
+  // the strip gets its width (it loads in a hidden tab too).
   useLayoutEffect(() => {
-    const el = current.current;
-    const strip = el?.parentElement;
-    if (el && strip) strip.scrollLeft = el.offsetLeft - (strip.clientWidth - el.offsetWidth) / 2;
+    const strip = stripRef.current;
+    if (!strip) return;
+    const centre = () => {
+      const el = current.current;
+      if (el && strip.clientWidth) strip.scrollLeft = el.offsetLeft - (strip.clientWidth - el.offsetWidth) / 2;
+    };
+    centre();
+    let width = strip.clientWidth;
+    const ro = new ResizeObserver(() => {
+      if (strip.clientWidth === width) return;
+      width = strip.clientWidth;
+      centre();
+    });
+    ro.observe(strip);
+    return () => ro.disconnect();
   }, [members, currentId]);
   if (!members || members.length < 2) return null;
   return (
@@ -2004,11 +2051,11 @@ function BatchStrip({ groupId, scope, currentId }: { groupId: string; scope: str
       <div className="text-xs font-medium text-muted">
         This batch{" "}
         <span className="text-faint tabular-nums">
-          {members.length}
-          {members.length === BATCH_STRIP_MAX && "+"}
+          {fetched && fetched.length >= BATCH_STRIP_MAX ? `${BATCH_STRIP_MAX}+` : members.length}
         </span>
       </div>
-      <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:thin]">
+      {/* Relative: the thumbs' offsetLeft is measured from it. */}
+      <div ref={stripRef} className="relative -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:thin]">
         {members.map((m) => {
           const here = m._id === currentId;
           return (
