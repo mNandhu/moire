@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Copy, ExternalLink, Pencil, Tag as TagIcon, UserRound, Wand2 } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Button, ButtonAnchor, ButtonLink } from "../components/ui/Button";
+import { ScoreMark } from "../components/ui/ScoreMark";
 import { Skeleton } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
 import { useToast } from "../components/Toasts";
@@ -284,9 +285,7 @@ function BestOf({ c }: { c: Character }) {
             className="relative h-48 aspect-[3/4] shrink-0 rounded-lg overflow-hidden bg-raised hover:opacity-90"
           >
             <img src={b.thumb_url} alt="" loading="lazy" className="w-full h-full object-cover" />
-            <span className="absolute left-1.5 bottom-1.5 rounded bg-black/60 px-1.5 text-xs tabular-nums text-white">
-              {b.score}
-            </span>
+            <ScoreMark score={b.score} className="absolute left-2 bottom-1.5" />
           </button>
         ))}
       </div>
