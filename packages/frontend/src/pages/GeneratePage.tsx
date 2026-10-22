@@ -454,7 +454,7 @@ export default function GeneratePage() {
               setForm((f) => {
                 const out = { ...f, identityOff: { ...f.identityOff, [r.tag]: restoreOff(f.identityOff[r.tag], mine) } };
                 const cur = f.outfits[r.tag];
-                if (cur && was.pick) out.outfits = { ...f.outfits, [r.tag]: restoreWorn(cur, was.pick, tags) };
+                if (cur && was.pick && cur.id === was.pick.id) out.outfits = { ...f.outfits, [r.tag]: restoreWorn(cur, was.pick, tags) };
                 return out;
               });
           },

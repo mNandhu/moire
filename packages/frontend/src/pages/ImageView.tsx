@@ -1240,8 +1240,10 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
   const apart = tags.some((t) => t.kind === "ai" || t.kind === "character");
   // AI tags the prompt also names are underlined.
   const both = (t: FlowTag) => (t.kind === "ai" || t.kind === "character") && !!t.also?.includes("prompt");
-  const lead = apart ? shown.filter((t) => t.kind !== "prompt") : shown;
-  const promptOnly = apart ? shown.filter((t) => t.kind === "prompt") : [];
+  // (Boilerplate stays with its fold toggle, whichever kind it is.)
+  const apartTag = (t: FlowTag) => apart && t.kind === "prompt" && !folded.has(t.raw);
+  const lead = shown.filter((t) => !apartTag(t));
+  const promptOnly = shown.filter(apartTag);
   const marks = useTagMarks();
   const shownFacets = marks.tints
     ? (Object.keys(FACET_TINT) as Facet[]).filter((f) => shown.some((t) => facetOf(t.raw) === f))

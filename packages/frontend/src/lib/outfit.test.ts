@@ -40,6 +40,7 @@ describe("outfit picks", () => {
     const struck = toggleWorn(funeral, "long_coat");
     expect(wornTags(strikeWorn(struck, ["porkpie_hat", "long_coat"]))).toEqual([]);
     expect(strikeWorn(struck, ["long_coat"]).dropped).toEqual(["long_coat"]);
+    expect(strikeWorn(funeral, ["scarf"])).toEqual(funeral);
   });
 
   it("strikes, restores and adds tags for this batch only", () => {

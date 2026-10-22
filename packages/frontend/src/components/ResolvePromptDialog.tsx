@@ -39,6 +39,7 @@ export function ResolvePromptDialog({
   const { push } = useToast();
   const [field, setField] = useState<Side>(first);
   const [query, setQuery] = useState("");
+  const [missing, setMissing] = useState(false);
   const session = useRulesetSession({
     notify: push,
     onSaved: () => {
@@ -62,13 +63,21 @@ export function ResolvePromptDialog({
   useEffect(() => {
     if (!open || !sig) return;
     let live = true;
+    setMissing(false);
     fetchSignatures()
       .then((rows) => {
         const row = rows.find((r) => r.workflow_sig === sig);
         if (live && row) void selectRef.current(row);
-        else if (live) pushRef.current("This workflow isn't in the rules list yet", "error");
+        else if (live) {
+          setMissing(true);
+          pushRef.current("This workflow isn't in the rules list yet", "error");
+        }
       })
-      .catch((e) => pushRef.current(`Failed to load the workflow: ${String(e)}`, "error"));
+      .catch((e) => {
+        if (!live) return;
+        setMissing(true);
+        pushRef.current(`Failed to load the workflow: ${String(e)}`, "error");
+      });
     return () => {
       live = false;
     };
@@ -137,7 +146,9 @@ export function ResolvePromptDialog({
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node or a prompt word" aria-label="Search the graph" className="pl-8" />
         </div>
         <div className="max-h-[45vh] overflow-auto rounded-lg border border-line bg-canvas/60 p-2 font-mono text-xs">
-          {!selected || loading || graph == null ? (
+          {missing ? (
+            <div className="text-muted">No sample graph for this workflow.</div>
+          ) : !selected || loading || graph == null ? (
             <div className="space-y-2">
               <Skeleton className="h-4 w-1/2" />
               <Skeleton className="h-4 w-2/3" />

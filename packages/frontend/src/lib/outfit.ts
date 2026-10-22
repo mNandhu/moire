@@ -55,7 +55,10 @@ export function toggleWorn(p: OutfitPick, tag: string): OutfitPick {
 
 /** The pick with each of `tags` struck, the batch's own additions gone. Pure. */
 export function strikeWorn(p: OutfitPick, tags: readonly string[]): OutfitPick {
-  return tags.reduce((acc, t) => (acc.dropped.includes(t) && !acc.added?.includes(t) ? acc : toggleWorn(acc, t)), p);
+  return tags.reduce(
+    (acc, t) => (!acc.tags.includes(t) || (acc.dropped.includes(t) && !acc.added?.includes(t)) ? acc : toggleWorn(acc, t)),
+    p,
+  );
 }
 
 /** `cur` with `tags` back as `prev` had them (struck ones worn again, the

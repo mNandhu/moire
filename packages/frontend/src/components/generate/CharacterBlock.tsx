@@ -490,7 +490,10 @@ function CharacterRow({
         {expanded ? (
           <span className="min-w-0 flex-1" />
         ) : off && recipe ? (
-          <span className="min-w-0 flex-1 truncate text-xs text-faint">
+          <span
+            className="min-w-0 flex-1 truncate text-xs text-faint"
+            title={recipe.identity.filter((c) => !c.dropped).map((c) => c.tag).join(", ")}
+          >
             {recipe.identity
               .filter((c) => !c.dropped)
               .map((c, i) => (
