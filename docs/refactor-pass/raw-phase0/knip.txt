@@ -1,0 +1,54 @@
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Progress: resolved 32, reused 8, downloaded 5, added 0
+Progress: resolved 61, reused 18, downloaded 10, added 0
+Packages: +23
++++++++++++++++++++++++
+Progress: resolved 63, reused 18, downloaded 11, added 23, done
+Unused files (1)
+test-optimizations.js: test-optimizations.js
+Unused devDependencies (1)
+package.json: @vitest/coverage-v8
+Unused exports (30)
+src/components/ErrorScreen.tsx: ErrorPanel
+src/components/ShortcutOverlay.tsx: ShortcutOverlay
+src/components/Sidebar.tsx: SEARCH_KEYS
+src/components/TagPanel.tsx: TagImages
+src/components/generate/BatchResults.tsx: Tile, NoImageMark
+src/components/generate/CharacterBlock.tsx: GenderPick
+src/components/generate/ChipInput.tsx: ChipInput
+src/components/generate/OutfitCover.tsx: coverCaption
+src/components/generate/QueueFrames.tsx: framesOf, Frame
+src/components/generate/Remix.tsx: useRemixWorkflow
+src/components/ui/ScoreMark.tsx: MARKER_DIGIT
+src/components/ui/index.ts: ButtonAnchor, Section, Field, Skeleton, Spinner, MobileNavContext, StatCard
+src/hooks/useDocumentTitle.ts: APP_NAME
+src/hooks/useImageFeed.ts: imageFeedKey
+src/hooks/useImageLoadSlot.ts: imageLoadQueue
+src/lib/bulk.ts: DEFAULT_CONCURRENCY
+src/lib/character.ts: FEW_IMAGES
+src/lib/compose.ts: EMBEDDING_PREFIX
+src/lib/eta.ts: OVERRUN, FILL_CAP
+src/lib/feedCache.ts: IMAGE_FEED_PREFIX
+src/lib/generate.ts: waitingForScan
+src/lib/generatorSetup.ts: pathLabel
+src/lib/mergeSuggestions.ts: KIND_ORDER
+src/lib/onboarding.ts: isFullPath
+src/lib/promptOutline.ts: splitSpans, promptWord
+src/lib/queries.ts: TAG_FACETS_KEY, TAG_GROUPS_KEY
+src/lib/shortcuts.ts: SHORTCUT_GROUPS
+src/lib/tagColour.ts: CHIP_GROUND
+src/lib/tagGroups.ts: categoryLabel
+src/pages/settings/registry.tsx: SETTINGS_GROUPS
+Unused exported types (12)
+src/components/ConfirmDialog.tsx: ConfirmTone, ConfirmOptions
+src/components/generate/PromptBoard.tsx: LayerTag
+src/components/generate/QueueFrames.tsx: FrameState
+src/components/ui/index.ts: ButtonProps, PageWidth
+src/lib/backgroundTasks.ts: TaskKind
+src/lib/countTags.ts: CountMark
+src/lib/generate.ts: Progress, GeneratorTest, OutputRef, GeneratorOrigin, NodeRef, FoundPrompt, RequestState, RequestError, LoraPick
+src/lib/imageFilter.ts: TagLogic
+src/lib/libraryPlan.ts: CandidateStatus
+src/lib/tagBrowse.ts: TagCategory
+src/lib/workflows.ts: WorkflowVersion
+src/pages/settings/registry.tsx: SettingsGroup

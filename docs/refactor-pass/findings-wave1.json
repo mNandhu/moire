@@ -1,0 +1,1097 @@
+{
+ "results": [
+  {
+   "unit": "S8-genengine",
+   "health": "The generation engine is well documented and its pure helpers are tested, but generation_jobs.py (1505 lines) has grown into four modules and creates an import inversion (estimate and batches import back from jobs, with lazy imports to hide the cycle). api/generate.py is a 751-line grab-bag of eight unrelated route groups with business logic in put_comfyui and repeated error mapping. The prompt-text helpers in generation_compose are a second, weaker prompt parser sitting beside prompt_parse, and they sit directly in the path of the tag-weights plan. No hard bugs in the poll loop; two small real bugs (auto-name with escaped parens, cancelled requests drawn as done frames).",
+   "findings": [
+    {
+     "title": "Split generation_jobs.py by job and fix the jobs/estimate/batches import cycle",
+     "kind": "split",
+     "evidence": [
+      "packages/backend/src/moire/services/generation_jobs.py:86-190",
+      "packages/backend/src/moire/services/generation_jobs.py:196-278",
+      "packages/backend/src/moire/services/generation_jobs.py:280-425",
+      "packages/backend/src/moire/services/generation_jobs.py:428-471",
+      "packages/backend/src/moire/services/generation_jobs.py:830-940",
+      "packages/backend/src/moire/services/generation_estimate.py:218",
+      "packages/backend/src/moire/services/generation_estimate.py:425-426",
+      "packages/backend/src/moire/services/generation_batches.py:16"
+     ],
+     "problem": "One 1505-line file holds five jobs: (a) pure ComfyUI history parsing (outputs_from_history, history_result, model_loaded, run_seconds), (b) output-folder discovery and download (held_by, root_candidates, output_image_id, _place_outputs, _find_output_root, _fetch_missing, _write_atomic), (c) pure batch-input normalization (batch_shape, _parts, _resolve, _characters_input, _character_input, _outfit_input, characters_of, outfit_tags), (d) Generator persistence (load_generator, which even self-heals the builtin row), (e) the GenerationManager poll loop and actions. generation_estimate needs load_generator and batch_shape, so it imports them lazily inside functions (lines 218, 425-426) while generation_jobs imports generation_estimate at module top: an inverted dependency hidden by deferred imports. generation_batches also imports Invalid/Unavailable/load_generator from the manager module just to reach the model.",
+     "proposal": "Carve out, leaving the manager a thin orchestrator: (1) services/comfy_history.py with the four pure history functions (+ _ENDS); (2) services/generation_outputs.py with the output-placement code (held_by, root_candidates, output_image_id, place_outputs(client, files, settings), fetch_missing); (3) services/generation_inputs.py with batch_shape + the _parts/_resolve/_characters_input family + characters_of/outfit_tags (all pure, no manager); (4) services/generators_store.py with load_generator and the builtin refresh. Errors (Unavailable/Invalid/Rejected) move to a tiny generation_errors.py. Then estimate imports generators_store and generation_inputs at top level with no cycle, and generation_batches imports from the store, not the manager. Keep re-exports in generation_jobs for one step if tests import from it (tests import held_by/root_candidates from generation_jobs).",
+     "size": "M",
+     "risk": "low",
+     "leverage": 5,
+     "confidence": "high",
+     "tests_cover": "yes",
+     "invariants_touched": []
+    },
+    {
+     "title": "Extract a pure build_batch_inputs from queue_batch (radon D24) and derive the requeue key list from it",
+     "kind": "deepen",
+     "evidence": [
+      "packages/backend/src/moire/services/generation_jobs.py:1097-1181",
+      "packages/backend/src/moire/services/generation_jobs.py:1302-1341",
+      "packages/backend/src/moire/services/generation_jobs.py:1183-1264"
+     ],
+     "problem": "queue_batch does connection check, generator lookup, shape math, seed resolution, assembling the persisted `inputs` dict, two prompt-composition paths (layered parts vs legacy base/extra), the 50k composer cap, then locking and submit. The inputs schema is written in queue_batch and read back in requeue through a hand-copied 16-key tuple (1316-1334), so adding an input key to one and forgetting the other silently drops it on requeue. The legacy compose path is still live (start_test sends base/negative_base, and pre-layered batches requeue through it), so it cannot just be deleted. _insert_and_submit also embeds the batch auto-naming rules (1209-1228: single character names outfit, hide untouched Default).",
+     "proposal": "Add `build_batch_inputs(body, gen, settings, *, test) -> BatchPlan(inputs, sizes, seeds, name_words)` (pure, in the generation_inputs module from the previous finding) and `batch_name(body, inputs, gen_name, batch_id)` beside auto_name in generation_compose. queue_batch becomes: require connection, load generator, plan = build_batch_inputs(...), locked insert+submit. Put `REPLAY_KEYS` next to the function that writes inputs and have requeue use it, with a test asserting every key build_batch_inputs persists is in REPLAY_KEYS or explicitly derived (positive_text, negative_text, test, per_request, per_request_asked).",
+     "size": "M",
+     "risk": "med",
+     "leverage": 4,
+     "confidence": "high",
+     "tests_cover": "partial"
+    },
+    {
+     "title": "generation_compose holds a second, weaker prompt parser (prompt_terms, without_terms/_top_level_pieces) beside prompt_parse; escaped-paren auto-name bug",
+     "kind": "dedupe",
+     "evidence": [
+      "packages/backend/src/moire/services/generation_compose.py:57-74",
+      "packages/backend/src/moire/services/generation_compose.py:77-81",
+      "packages/backend/src/moire/services/generation_compose.py:103-134",
+      "packages/backend/src/moire/services/prompt_parse.py:41",
+      "packages/backend/src/moire/services/prompt_parse.py:122",
+      "packages/backend/src/moire/services/remix.py:22",
+      "packages/backend/src/moire/services/generator_setup.py:25",
+      "packages/frontend/src/lib/compose.ts:57-70",
+      "docs/tag-weights-plan.md:1-43"
+     ],
+     "problem": "CONTEXT says prompt parsing is owned by services/prompt_parse.py, yet generation_compose re-implements weight/bracket stripping with a regex (_WEIGHT) in prompt_terms and its own bracket-depth scanner in _top_level_pieces (without_terms then calls parse_prompt on each piece anyway). The regex version is wrong on escaped parens: `hu_tao_\\(genshin_impact\\)` has its trailing `)` stripped by `[)\\]]+$`, then backslashes removed, leaving `hu_tao_(genshin_impact` in the batch's auto name. display()/prompt_terms also turn every `_` into a space, ignoring the kaomoji rule (`^_^`) that formatTag and CONTEXT state. without_terms is prompt editing used by remix and generator_setup, not composition, so it is misfiled. The frontend mirrors prompt_terms too (compose.ts:57-70). The tag-weights plan adds a weight reader in reproject and a bumpWeight editor, so this will become a third/fourth place that knows `(x:1.2)` unless consolidated first.",
+     "proposal": "Reimplement prompt_terms(text, limit) as `[p.text for p in parse_prompt(text) if p.kind == 'tag'][:limit]` (parse_prompt already drops weights/brackets and handles escapes), then display via a shared kaomoji-aware `display_tag` (put it in services/tag_names.py as the backend twin of formatTag). Move without_terms and _top_level_pieces to prompt_parse.py (or a prompt_edit.py) and keep generation_compose to compose_parts/compose/auto_name. Update the frontend promptTerms to the same rule and the shared test cases (compose.test.ts / test_generation_compose.py) with an escaped-paren and a kaomoji case. When the weights session starts, the weight reading belongs in prompt_parse next to this.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 4,
+     "confidence": "high",
+     "tests_cover": "partial",
+     "blocks_tag_weights": true
+    },
+    {
+     "title": "api/generate.py is eight routers in one file, with service logic in put_comfyui and quadruplicated error mapping",
+     "kind": "boundary",
+     "evidence": [
+      "packages/backend/src/moire/api/generate.py:172-190",
+      "packages/backend/src/moire/api/generate.py:201-241",
+      "packages/backend/src/moire/api/generate.py:410-421",
+      "packages/backend/src/moire/api/generate.py:466-585",
+      "packages/backend/src/moire/api/generate.py:588-653",
+      "packages/backend/src/moire/api/generate.py:669-727",
+      "packages/backend/src/moire/main.py:198"
+     ],
+     "problem": "One router (mounted once at /generate) carries ComfyUI connection settings, generators, remix, character recipes, outfits (10 routes), prompt presets, LoRA presets, and batches. put_comfyui (201-241) is service work in a router: it registers/updates a Library, turns watching on, validates the PEM with ssl, checks output_root, resets output_root when the address changes, and decides when to reconfigure the manager; _settings_view imports another router's handler (api.libraries.list_libraries) to resolve a path. The `except Unavailable -> 503 / Invalid -> 400 / Rejected -> 422 body` mapping is hand-written in test_generator, queue_batch and requeue_batch. The prompt-preset and LoRA-preset route blocks (591-653) are identical line for line apart from the module.",
+     "proposal": "(1) Make api/generate/ a package of sub-routers (comfyui.py, generators.py, outfits.py, presets.py, batches.py) included from one __init__ router so main.py and URLs do not change. (2) Move put_comfyui's body into comfy_settings.apply_patch(patch) (or services/comfy_connection.py), returning whether the client must reconfigure; the router keeps only HTTP error translation. (3) Add one `queue_errors()` context manager or `raise_for_queue(e)` helper that maps Unavailable/Invalid/Rejected, used by the three sites. (4) Factor the preset CRUD into a `preset_router(module, error_cls)` builder used for both presets and lora-presets.",
+     "size": "M",
+     "risk": "low",
+     "leverage": 4,
+     "confidence": "high",
+     "tests_cover": "yes"
+    },
+    {
+     "title": "Route handlers call each other and build the full batch view just to 404; list/status do repeated queue_plan work",
+     "kind": "simplify",
+     "evidence": [
+      "packages/backend/src/moire/api/generate.py:700-751",
+      "packages/backend/src/moire/services/generation_batches.py:97-163",
+      "packages/backend/src/moire/services/generation_batches.py:292-340",
+      "packages/backend/src/moire/api/generate.py:297-306"
+     ],
+     "problem": "rename_batch, retry_request, cancel_batch and cancel_request call the route function get_batch(); cancel_batch calls it twice (once only as a 404 check at 741, then for the reply) and each call runs generation_batches.get_batch, which reads outputs, joins images, resolves the generator and runs queue_plan (a history read + a queue query) when anything is unfinished. list_generators calls generator_view per Generator, and each one with a test batch calls get_batch again, so the Generators list does N queue_plans. cancel_request on an unknown batch cancels nothing and then 404s only via the final get_batch.",
+     "proposal": "Add `generation_batches.batch_exists(id)` (a one-row select) for the 404 check and call generation_batches.get_batch (not the route function) for replies. Give generator_view a lighter `test_status(batch_id)` that reads just the test's request row and outputs instead of the whole batch view with an estimate plan.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 3,
+     "confidence": "high",
+     "tests_cover": "yes"
+    },
+    {
+     "title": "The Generator test gate lives in the 'read side' module and generator_view writes on GET",
+     "kind": "boundary",
+     "evidence": [
+      "packages/backend/src/moire/services/generation_batches.py:1-4",
+      "packages/backend/src/moire/services/generation_batches.py:240-284",
+      "packages/backend/src/moire/services/generation_batches.py:292-340",
+      "packages/backend/src/moire/api/generate.py:297-306",
+      "packages/backend/src/moire/api/generate.py:400-407"
+     ],
+     "problem": "generation_batches claims to be the read side but also holds start_test (queues work and writes generators.test/ready) and generator_view, which flips generators.ready=True when it notices the test image arrived (316-322) as a side effect of GET /generators and GET /generators/{id}. The gate's rule (ready only after a test image reached the library, per CONTEXT) is therefore only evaluated when someone views the list, and the logic sits between presentation code. Callers wanting ready get a mutation by reading.",
+     "proposal": "Move start_test and a `settle_test(generator_id)` (the flip) into services/generator_test.py. Call settle_test from the manager's _finalize/_sync path for requests of a test batch (or from a tick hook) and keep generator_view purely read-only. Keep behaviour identical for clients; update the integration test that polls GET /generators/{id} to still see ready flip after a tick.",
+     "size": "M",
+     "risk": "med",
+     "leverage": 3,
+     "confidence": "med",
+     "tests_cover": "yes"
+    },
+    {
+     "title": "Request/batch state vocabulary is spelled out in five places",
+     "kind": "dedupe",
+     "evidence": [
+      "packages/backend/src/moire/services/generation_jobs.py:61-62",
+      "packages/backend/src/moire/services/generation_batches.py:39",
+      "packages/backend/src/moire/services/generation_batches.py:123",
+      "packages/backend/src/moire/services/generation_batches.py:405",
+      "packages/backend/src/moire/services/generation_estimate.py:359",
+      "packages/backend/src/moire/services/generation_jobs.py:1370"
+     ],
+     "problem": "UNFINISHED and IN_COMFY are defined in generation_jobs; generation_batches re-spells the same tuple as _OPEN (defined mid-file at line 405, after its first use in a function above) and as inline literals at 39 and 123; generation_estimate does it inline again at 359; the failed/lost pair and the retryable set (1370) are inline too. A new state (a 'replaced' like state was already added and needed _VISIBLE) must be found by grep.",
+     "proposal": "One small generation_states.py: UNFINISHED, IN_COMFY, FAILED = ('failed','lost'), RETRYABLE, VISIBLE-excluded 'replaced'; import it in all four modules. Falls out naturally from splitting generation_jobs.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 2,
+     "confidence": "high",
+     "tests_cover": "yes"
+    },
+    {
+     "title": "Cancelled requests render as 'done' frames in the queue card",
+     "kind": "bug",
+     "evidence": [
+      "packages/backend/src/moire/services/generation_batches.py:405-422",
+      "packages/backend/src/moire/services/generation_batches.py:343-402"
+     ],
+     "problem": "_frames maps failed/lost to 'failed', running to 'making', _OPEN to 'waiting', and everything else (including 'cancelled') falls through to 'done' frames with thumb None. Cancelling one request of an active batch (POST .../requests/{id}/cancel) therefore shows n finished-looking empty frames, and active_summary counts it in `finished` without a distinct state. Low confidence it is unintended, since no test or comment covers a cancelled frame.",
+     "proposal": "Add a `cancelled` branch in _frames returning {'state': 'cancelled', 'thumb': None} (or drop cancelled requests from frames) and have the queue card style it; add a test of active_summary after a single-request cancel.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 2,
+     "confidence": "low",
+     "tests_cover": "no"
+    },
+    {
+     "title": "Rejected duplicates ComfyRejected, and non-ComfyUI failures are raised as ComfyRejected",
+     "kind": "naming",
+     "evidence": [
+      "packages/backend/src/moire/services/generation_jobs.py:77-83",
+      "packages/backend/src/moire/services/comfy_client.py:45-52",
+      "packages/backend/src/moire/services/generation_jobs.py:1028-1048",
+      "packages/backend/src/moire/services/generation_jobs.py:1249-1253"
+     ],
+     "problem": "Rejected and ComfyRejected are the same class by shape (message, node_errors), and _insert_and_submit translates one into the other field by field. _submit also raises ComfyRejected('Its workflow was deleted', []) and ComfyRejected(str(GraphError), []) for failures ComfyUI never saw, so the client module's exception means two things and the failed request's error doc says type 'rejected' for them.",
+     "proposal": "Make Rejected the single type (define it in generation_errors, have ComfyRejected subclass it, or re-raise ComfyRejected as-is and drop the translation). Raise a distinct `GraphInvalid(Rejected)` for the deleted-workflow and GraphError cases so _fail_request can record a truthful type.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 2,
+     "confidence": "med",
+     "tests_cover": "partial"
+    },
+    {
+     "title": "Test-only wrappers in generation_estimate and an unused on_state hook in the client",
+     "kind": "dead",
+     "evidence": [
+      "packages/backend/src/moire/services/generation_estimate.py:135-145",
+      "packages/backend/src/moire/services/comfy_client.py:239-274",
+      "docs/refactor-pass/leads.txt:27-28"
+     ],
+     "problem": "warm_estimate and load_cost are one-line wrappers over _warm and _Memo(...).load with no src caller (vulture confirmed by grep; only test_generation_estimate.py uses them). ComfyClient.events(on_state=...) is never passed by GenerationManager._ws_loop (only a test passes it), so the connect/drop callbacks are dead in production. The 'dead' cost is small, but they make the public surface of estimate look bigger than the real one (plan, for_new, queue_plan, forget, history).",
+     "proposal": "Delete the two wrappers and point the tests at plan() or the underscore functions (or rename _warm to a public name if the tests really want the ladder alone). Drop on_state from events() and its test, or use it in _ws_loop to set `connected` earlier than the poll.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 1,
+     "confidence": "high",
+     "tests_cover": "yes"
+    }
+   ],
+   "cross_cutting_hints": [
+    "packages/backend/src/moire/services/outfits.py: clean_tags is imported into generation_jobs and re-validated in _outfit_input; confirm the router's OutfitIn max_length and the service agree (api/generate.py:79).",
+    "packages/frontend/src/lib/compose.ts:57-70 and packages/frontend/src/lib/batchName.ts mirror generation_compose.prompt_terms/auto_name; change them together with the backend (tag-weights path via lib/promptOutline.ts unwrap/readTerm).",
+    "packages/backend/src/moire/services/comfy_models.py:32-44 calls client.object_info per class on every refresh and generation_jobs._node_info reads the whole /object_info separately; worth checking whether they could share one cached read.",
+    "packages/backend/src/moire/api/activity.py:107 reads get_generation_manager() state directly (manager.progress/started), another consumer of the manager internals beside api/generate.py:283.",
+    "packages/backend/src/moire/services/batch_pool.py is used only by scanner.py:673 (generic, fine) but CONTEXT lists it under Scan, outside the generation slice; no change needed."
+   ]
+  },
+  {
+   "unit": "S2-imageview",
+   "health": "The slice is dominated by pages/ImageView.tsx, a 2166-line file with about 15 components and 6 jobs (stage and navigation, preload, phone sheet gestures, tag run, generation panel, batch strip, rating editor) and no test of its own. The small lib/ helpers (sheetSnap, viewportFit, historyNav, rating, countTags) are pure, tested and healthy. Shared pieces (character query hooks, Chip/MonthChart, the optimistic-patch recipe) sit in the wrong files, which causes odd imports and copy-paste. TagFlow, tagDetail and PromptBlock are exactly where tag weights will land, so splitting them first is the cheapest prep.",
+   "findings": [
+    {
+     "title": "Split ImageView.tsx into stage hook, details sheet and panel files",
+     "kind": "split",
+     "evidence": [
+      "packages/frontend/src/pages/ImageView.tsx:119-1050",
+      "packages/frontend/src/pages/ImageView.tsx:1052-1148",
+      "packages/frontend/src/pages/ImageView.tsx:1477-1653",
+      "packages/frontend/src/pages/ImageView.tsx:1848-1999",
+      "packages/frontend/src/pages/ImageView.tsx:2009-2098",
+      "packages/frontend/src/pages/ImageView.tsx:2100-2166"
+     ],
+     "problem": "One 2166-line file holds the page (a ~930-line component with about 25 hooks), DetailTabs, TagsSection, AddTags, TagFlow, PromptBlock (ResizeObserver fitting), GenPanel, BatchStrip and RatingEditor. The page body alone fuses commit-on-decode, neighbour preload, feed paging, keyboard, swipe, the phone sheet drag machine and curation. No test touches it, and the tag-weights work (weights on tag runs and the Prompt tab) must edit TagFlow and tagDetail inside this file.",
+     "proposal": "Cut along existing seams, in this order. (1) Move TagFlow, GroupHeading, KIND_TEXT/KIND_NOUN, tagDetail, UNSURE_*, GROUPS, RUN_TEXT, PANEL_GROUND to components/imageview/TagFlow.tsx (about 280 lines); tag weights edit only this. (2) Move PromptBlock, PanelFit, GuessedBadge, GenPanel, ResourceRow, MetaChip, CopyButton to components/imageview/GenPanel.tsx. (3) Move BatchStrip and RatingEditor to their own files. (4) Extract hooks: useImageStepper(filters, routeId) returning {displayId, pending, index, list, goPrev, goNext, hasMore}, which owns the commit-on-decode effect, preload effect, page-ahead effects and navigateToImage (lines 246-263, 369-574); and useDetailsSheet(phone) returning {infoOpen, setInfoOpen, sheet, setSheet, dragY, sheetDrag, asideRef}, which owns lines 141-215 with snapSheet. ImageView then reads as layout plus wiring at about 450 lines. Pure move, no behaviour change.",
+     "size": "M",
+     "risk": "low",
+     "leverage": 5,
+     "confidence": "high",
+     "tests_cover": "no",
+     "blocks_tag_weights": true,
+     "invariants_touched": []
+    },
+    {
+     "title": "Optimistic patch/undo recipe copied three times; hoist into feedCache",
+     "kind": "dedupe",
+     "evidence": [
+      "packages/frontend/src/pages/ImageView.tsx:315-335",
+      "packages/frontend/src/pages/ImageView.tsx:2117-2135",
+      "packages/frontend/src/pages/AllImagesPage.tsx:602-619",
+      "packages/frontend/src/lib/feedCache.ts:144-176"
+     ],
+     "problem": "Score in ImageView (applyScore), rating in RatingEditor, and score in AllImagesPage.triageScore each hand-write the same sequence: cancelQueries on the doc key, patchImageEverywhere, await the API, patch again to beat a racing refetch, undo on failure. The 're-patch on success' trick is only explained in comments, so a fourth writer (e.g. a weight edit) will omit it. Note AllImagesPage's version skips cancelQueries, so the three already differ.",
+     "proposal": "Add to lib/feedCache.ts (or lib/imageMutations.ts) `async function writeImageField(qc, id, fields: Partial<ImageDoc>, write: () => Promise<unknown>, docId = id): Promise<void>` that does cancelQueries, patchImageEverywhere, await write, re-patch, and on throw calls undo and rethrows. Callers keep only their toast and refresh. One test in feedCache.test.ts covers the race and undo for all three.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 4,
+     "confidence": "high",
+     "tests_cover": "partial",
+     "blocks_tag_weights": false,
+     "invariants_touched": []
+    },
+    {
+     "title": "Character query hooks live in a component file imported by 10 modules",
+     "kind": "boundary",
+     "evidence": [
+      "packages/frontend/src/components/ImageCharacters.tsx:18-45",
+      "packages/frontend/src/App.tsx:11",
+      "packages/frontend/src/components/TagPanel.tsx:17",
+      "packages/frontend/src/components/SearchPalette.tsx:8",
+      "packages/frontend/src/components/NewCharacterDialog.tsx:10",
+      "packages/frontend/src/components/generate/CharacterBlock.tsx:9",
+      "packages/frontend/src/pages/TagsPage.tsx:51",
+      "packages/frontend/src/pages/OutfitsPage.tsx:7",
+      "packages/frontend/src/pages/CharacterPage.tsx:12",
+      "packages/frontend/src/pages/GeneratePage.tsx:23"
+     ],
+     "problem": "charactersQuery, useCharacters, usePrefetchCharacters and useCharacterLookup are shared server-state, which lib/queries.ts exists for (its header says so), yet they sit in components/ImageCharacters.tsx. TagPanel, five pages, App and generate/* import a view component to get a hook, creating component-to-component and page-to-component dependencies and pulling the component's heavy imports (SaveOutfitDialog, WornOutfits) into each. ImageCharacters.tsx also imports TAGS_KEY from lib/queries, so the split is half done.",
+     "proposal": "Move the four exports plus charactersQuery into lib/queries.ts (or lib/characterQueries.ts re-exported from queries), keeping names. Update the 10 import lines. ImageCharacters.tsx keeps only the component and its skeleton. ImageCharacters.test.tsx keeps passing since the component still exports ImageCharacters.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 3,
+     "confidence": "high",
+     "tests_cover": "partial",
+     "blocks_tag_weights": false,
+     "invariants_touched": []
+    },
+    {
+     "title": "TagPanel doubles as a shared-widget module; image grid and Made-with block cloned in CharacterPage",
+     "kind": "dedupe",
+     "evidence": [
+      "packages/frontend/src/components/TagPanel.tsx:230-273",
+      "packages/frontend/src/components/TagPanel.tsx:301-367",
+      "packages/frontend/src/components/TagPanel.tsx:374-443",
+      "packages/frontend/src/pages/CharacterPage.tsx:11",
+      "packages/frontend/src/pages/CharacterPage.tsx:46",
+      "packages/frontend/src/pages/CharacterPage.tsx:260-267",
+      "packages/frontend/src/pages/CharacterPage.tsx:288-340",
+      "packages/frontend/src/pages/CharacterPage.tsx:481-535",
+      "docs/refactor-pass/leads.txt:95-96"
+     ],
+     "problem": "jscpd flags TagPanel 360-430 against CharacterPage 288-332: TagImages and CharacterPage.Images are the same pinnable thumbnail grid with open-in-viewer, PendingVeil, PinButton and More button (differing only in columns, page size, noun). The LoRA/Embedding/Workflow ChipRow block is a second parallel copy (TagPanel 230-273 vs CharacterPage 481-535), as is the open-image navigate (TagPanel 396-399 vs CharacterPage useOpenImage). CharacterPage imports Chip, ChipRow and MonthChart from TagPanel, so a panel file is the library for a page. galleryHref is defined three times (TagPanel:40, CharacterPage:46, lib/search.ts:80). knip also flags TagImages as an unused export.",
+     "proposal": "Create components/tagstats/ with PinnableImageGrid({filters, pinned, noun, onPin(id,unpin), pageSize, cols}) (absorbs TagImages, CharacterPage.Images and useOpenImage, which becomes a hook in hooks/useOpenImage.ts), MadeWithChips({loras, embeddings, workflows, baseFilter, share}) and move Chip, ChipRow, MonthChart there. Put one galleryHref(patch) in lib/imageFilter.ts and use it in all three places. TagPanel and CharacterPage then import from tagstats/. Keep CharacterPage's extra lora tooltip as a render prop or title formatter on the lora entries.",
+     "size": "M",
+     "risk": "low",
+     "leverage": 3,
+     "confidence": "high",
+     "tests_cover": "no",
+     "blocks_tag_weights": false,
+     "invariants_touched": []
+    },
+    {
+     "title": "countTags re-implements prompt term splitting and weight stripping beside promptOutline",
+     "kind": "dedupe",
+     "evidence": [
+      "packages/frontend/src/lib/countTags.ts:44-54",
+      "packages/frontend/src/lib/countTags.ts:71-97",
+      "packages/frontend/src/lib/promptOutline.ts:28-60",
+      "packages/frontend/src/lib/promptOutline.ts:62-135",
+      "packages/frontend/src/pages/GeneratePage.tsx:70",
+      "docs/tag-weights-plan.md:21"
+     ],
+     "problem": "Two frontend parsers of the same prompt grammar. countTags.terms/groupTracker/normalise splits on commas with its own bracket depth (counts {} and ignores the backslash escape), strips weight with /:[\\d.]+$/ and canonicalises; promptOutline.splitSpans/unwrap/readTerm does the same with escape handling, ( and [ only, and a different WEIGHT regex (signed, whitespace). A term like `kafka_\\(honkai\\)` or a lone escaped paren is read differently by the two, so a count tag can be flagged or skipped on text the board reads as plain. The tag-weights plan already calls out that promptOutline unwrap must be ported to the backend and tested against a shared fixture; countTags is a third copy that will drift when weights change the grammar.",
+     "proposal": "Rebuild countTags.terms() on promptOutline.promptTerms(): filter kind==='tag' and group-wrapped terms out via a flag, use term.name for normalise (adding the digit-underscore fix `2_girls` to 2girls only), and keep offsets from start/end. Delete groupTracker, normalise's bracket/weight regexes and terms(). Keep fixCountTags/followCast, which only need ranges. Then the shared-fixture test for the weight rule covers both.",
+     "size": "M",
+     "risk": "med",
+     "leverage": 3,
+     "confidence": "med",
+     "tests_cover": "yes",
+     "blocks_tag_weights": true,
+     "invariants_touched": []
+    },
+    {
+     "title": "Global keydown ignores modifier keys: Ctrl/Cmd+1..5, Alt+Arrow hijacked",
+     "kind": "bug",
+     "evidence": [
+      "packages/frontend/src/pages/ImageView.tsx:578-621",
+      "packages/frontend/src/lib/shortcuts.ts:44-45",
+      "packages/frontend/src/lib/shortcuts.ts:63-64"
+     ],
+     "problem": "onKey tests e.key only. Ctrl+1..5 (browser tab switch), Cmd+0 (reset zoom) score the image and call preventDefault; Alt+ArrowLeft/Right (browser back/forward) and Ctrl+ArrowLeft are swallowed as prev/next; Ctrl+X / Cmd+X (cut) quarantines the image while a non-input element is focused. Escape also closes the view even while a Picker or dialog is open if the focus is not in a form field (the rating Picker popup, ConfirmDialog from Re-tag).",
+     "proposal": "At the top of onKey add `if (e.ctrlKey || e.metaKey || e.altKey) return;` and skip when e.defaultPrevented (so an open Picker/dialog that handled Escape wins). Put the guard in a shared helper in lib/dom.ts (`isPlainKey(e)`) since AllImagesPage's triage handler has the same shape (shortcuts.ts lists the same keys).",
+     "size": "S",
+     "risk": "low",
+     "leverage": 3,
+     "confidence": "med",
+     "tests_cover": "no",
+     "blocks_tag_weights": false,
+     "invariants_touched": []
+    },
+    {
+     "title": "Original-file URL built by hand five times in ImageView",
+     "kind": "dedupe",
+     "evidence": [
+      "packages/frontend/src/pages/ImageView.tsx:381",
+      "packages/frontend/src/pages/ImageView.tsx:406",
+      "packages/frontend/src/pages/ImageView.tsx:451",
+      "packages/frontend/src/pages/ImageView.tsx:514",
+      "packages/frontend/src/pages/ImageView.tsx:949-951"
+     ],
+     "problem": "`/api/v1/images/${encodeURIComponent(id)}/file` is spelled five times, and the resolve-then-set-src-and-decode sequence appears three times (current-image resolve effect at 404-417, commit-on-decode at 451-466, neighbour preload at 514-523). The fifth (download link) already has a different fallback shape. imageMutations has `forImage(id, suffix)` for the same family of URLs but it is private, and lib/queries already hand-builds `/thumb-url` the same way.",
+     "proposal": "Export `imageFileUrl(id)` (and `imageUrl(id, suffix)` generalising forImage) from lib/media.ts, and add `loadImage(id, {priority}): Promise<{src, img}>` there that resolves, sets src and awaits decode(). The three effects call it; the page keeps only their cancel/timer logic. Folds neatly into the useImageStepper extraction in the split finding.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 2,
+     "confidence": "high",
+     "tests_cover": "no",
+     "blocks_tag_weights": false,
+     "invariants_touched": []
+    },
+    {
+     "title": "imageMutations holds tag and character writes, contradicting its 'per-image' contract; JSON boilerplate repeated",
+     "kind": "naming",
+     "evidence": [
+      "packages/frontend/src/lib/imageMutations.ts:1-9",
+      "packages/frontend/src/lib/imageMutations.ts:61-82",
+      "packages/frontend/src/lib/imageMutations.ts:98-136",
+      "packages/frontend/src/lib/imageMutations.ts:12-23"
+     ],
+     "problem": "CONTEXT.md defines imageMutations as 'every write the UI can make to one Image', mirroring services/image_tags.py. Half the file is not that: setTagThumbnail, clearTagThumbnail, updateCharacter, setTagFocus, createCharacter, deleteCharacter and bulkManualTags write tag or character state or many images. Also setTagThumbnail has two stacked doc comments (the first is stale), and 5 functions repeat headers+JSON.stringify by hand while only post() factors it out (post can't do PATCH/PUT). The header comment narrates history ('were split three ways').",
+     "proposal": "Split into lib/imageMutations.ts (rating, score, quarantine, purge, applyTags, removeTags, bulkManualTags) and lib/tagMutations.ts (thumbnail, focus, character CRUD); update 6 or so import sites. Generalise post to `send(method, url, body?)` so the PATCH/PUT/DELETE ones shrink to one line each. Trim the history-style header and the duplicate docstring.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 2,
+     "confidence": "high",
+     "tests_cover": "no",
+     "blocks_tag_weights": false,
+     "invariants_touched": [
+      "Per-image mutations (CONTEXT.md Frontend)"
+     ]
+    },
+    {
+     "title": "Rating vocabulary spread over three places; ratingBadgeClass has a phantom 'safe'",
+     "kind": "drift",
+     "evidence": [
+      "packages/frontend/src/pages/ImageView.tsx:2160-2166",
+      "packages/frontend/src/lib/rating.ts:32-57",
+      "packages/frontend/src/pages/CharacterPage.tsx:44"
+     ],
+     "problem": "CONTEXT.md says a Rating is one of -, general, sensitive, questionable, explicit, normalised in one place on the backend. The frontend lists the set at the end of ImageView (RATING_OPTIONS), again as switch cases in rating.ts (which also accepts a non-existent 'safe'), and again as RATING_ORDER in CharacterPage. A new rating or a rename needs three edits and the type is plain string everywhere.",
+     "proposal": "In lib/rating.ts define `export const RATINGS = ['general','sensitive','questionable','explicit'] as const; type Rating`, a RATING_OPTIONS derived from it (with the '-' => Unrated option), and a single `RATING_STYLE: Record<Rating,{badge,dot}>` replacing the two switch functions (ratingBadgeClass/ratingDotClass become lookups). Drop 'safe'. CharacterPage imports RATINGS for its order. rating.test.ts already covers the pure part.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 2,
+     "confidence": "high",
+     "tests_cover": "yes",
+     "blocks_tag_weights": false,
+     "invariants_touched": [
+      "Rating (CONTEXT.md)"
+     ]
+    },
+    {
+     "title": "Two hand-rolled localStorage external stores for view prefs (useTagMarks vs DETAIL_TAB_KEY)",
+     "kind": "dedupe",
+     "evidence": [
+      "packages/frontend/src/hooks/useTagMarks.ts:329-376",
+      "packages/frontend/src/pages/ImageView.tsx:1052-1061",
+      "packages/frontend/src/pages/ImageView.tsx:1096-1106",
+      "packages/frontend/src/hooks/useDensity.ts"
+     ],
+     "problem": "useTagMarks implements read/write/subscribe/storage-event sync with try/catch around localStorage; DetailTabs repeats the try/catch read/write by hand with useState (so it does not sync across tabs and a second consumer would diverge), and useDensity (S1) is a likely third. Each copy re-solves the private-mode failure case.",
+     "proposal": "Add hooks/useLocalPref.ts: `createLocalPref<T>(key, parse, default)` returning {use(), set()} built on useSyncExternalStore with the storage listener, and port useTagMarks (keeping its exported setTagMarks and test) and DetailTabs' tab choice to it. Only worth doing if useDensity confirms a third caller; verify before starting.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 2,
+     "confidence": "low",
+     "tests_cover": "partial",
+     "blocks_tag_weights": false,
+     "invariants_touched": []
+    }
+   ],
+   "cross_cutting_hints": [
+    "packages/frontend/src/pages/AllImagesPage.tsx:602-619 repeats the optimistic score recipe and has a global-keydown handler with the same missing modifier guard (S1 should check).",
+    "packages/frontend/src/lib/queries.ts:69 hand-builds an /api/v1/images/:id/ URL like ImageView does; an imageUrl(id, suffix) helper could serve both.",
+    "packages/frontend/src/hooks/useDensity.ts: check whether it is a third localStorage external-store copy next to useTagMarks.",
+    "packages/frontend/src/pages/CharacterPage.tsx:44 RATING_ORDER and :46 galleryHref duplicate lib-level concepts (rating set, gallery link builder).",
+    "packages/frontend/src/lib/countTags.ts is a Generate-page concern living in an ImageView slice; S-slice for GeneratePage should own its test review.",
+    "packages/frontend/src/components/ImageCharacters.tsx:70-74 filters characters by tag names in the component; same name-matching rule probably exists in lib/character.ts and services/characters.py (S3/S4 could check for drift).",
+    "packages/frontend/src/pages/ImageView.tsx:1413 hardcodes PANEL_GROUND #15141c, a copy of the tailwind surface token; lib/tagColour.tagMarkStyle takes it as a parameter so any theme change breaks outline colours silently."
+   ]
+  },
+  {
+   "unit": "L4-invariants",
+   "health": "Most CLAUDE.md rules audit clean. I found no write to images.tags, the flags, rating or image_tags rows outside services/image_tags.py. Every tag writer that owns its transaction invalidates tag_index after commit. There are no ad hoc DB connections and no writes under the read-only conn helpers (checked with a script). Thumbnail URLs go only through thumb_version. All media routes have a HEAD twin. Every route is under API_PREFIX. There are no native select/datalist elements, no content-visibility, and no em dash anywhere in packages/ or docs. Rating goes through normalize_rating only. The real problems are one data-loss bug in the scanner (a missing library root wipes the library), two drifts in what is meant to be a single implementation (the tag write path and the feed filter), a hot-path projection that is ignored, and a few smaller rule slips.",
+   "findings": [
+    {
+     "title": "Scan of a library whose root is missing deletes every image and its curation",
+     "kind": "bug",
+     "evidence": [
+      "packages/backend/src/moire/services/scanner.py:549-566",
+      "packages/backend/src/moire/services/scanner.py:706-725",
+      "packages/backend/src/moire/services/scanner.py:332-348",
+      "packages/backend/src/moire/api/libraries.py:174-186",
+      "packages/backend/src/moire/api/libraries.py:41-55",
+      "packages/backend/src/moire/services/library_watch.py:360"
+     ],
+     "problem": "The scan discovers files with os.walk(root_path), which yields nothing for a missing or unmounted root and raises no error. discovered_image_ids is then empty, so reconcile_stale marks every existing row stale. The stale-removal block deletes them all, cascading away image_tags, manual tags, ratings and scores. Only the watcher checks root.is_dir() (library_watch.py:360). The manual POST /rescan, _rescan_libraries_around and update-path scans call scan_library_async with no check. A second hole: image_id_for failures are swallowed with 'except Exception: pass' (scanner.py:560-565), so a file that was ingested but not recorded as discovered is also treated as stale and deleted.",
+     "proposal": "In scan _run, right after reading the current path (scanner.py:549), fail the scan with scan_error 'library folder not found' if not Path(current).is_dir(), before any walk or delete. Also skip stale removal when discovery produced zero files but the DB holds rows, or when any discovery error occurred (make the id_for failure add the file to a discovered_errors flag that disables reconcile). Add a test in test_scanner_db_integration.py: a library with rows plus a nonexistent root keeps its rows.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 5,
+     "confidence": "high",
+     "tests_cover": "no",
+     "invariants_touched": [
+      "Image _id",
+      "tag-state",
+      "writer discipline"
+     ]
+    },
+    {
+     "title": "Bulk prompt-tag write is a second, hand-synced copy of the tag-state write",
+     "kind": "invariant",
+     "evidence": [
+      "packages/backend/src/moire/services/image_tags.py:331-350",
+      "packages/backend/src/moire/services/image_tags.py:595-621",
+      "packages/backend/src/moire/services/image_tags.py:43-52",
+      "packages/backend/src/moire/services/image_tags.py:197-207",
+      "packages/backend/src/moire/services/reproject.py:65-100",
+      "docs/tag-weights-plan.md:23-27"
+     ],
+     "problem": "_persist_statements claims to be the one place the array, flags and join rows are built, but replace_prompt_many_sync builds its own UPDATE with hard-coded bindparams b_has_tags, b_has_ai_tags and b_has_prompt_tags, plus its own delete and insert. initial_tag_fields hard-codes the same three flags again. Adding a flag, or the planned per-image prompt weights, to recompute_flags and _persist_statements would silently not be written by the reprojection path, which is the path that extracts prompt terms and so would carry the weights.",
+     "proposal": "Make the three entry points (_persist_statements, replace_prompt_many_sync, initial_tag_fields) all derive their column set from one source: have recompute_flags return a dict whose keys drive the bindparams (values(**{k: bindparam('b_'+k) for k in FLAG_KEYS})) and initial_tag_fields = {k: False for k in FLAG_KEYS}. Before the weights work, give the bulk function a single row-builder (image_id, tags, extras) -> dict so a new prompt_weights column is added once. Add a test asserting bulk and single paths produce identical rows for the same input.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 4,
+     "confidence": "high",
+     "tests_cover": "partial",
+     "invariants_touched": [
+      "services/image_tags.py is the only tag mutator",
+      "tags/flags/join rows in one transaction"
+     ],
+     "blocks_tag_weights": true
+    },
+    {
+     "title": "find_image ignores its projection, so every thumb/file request loads the whole image row",
+     "kind": "invariant",
+     "evidence": [
+      "packages/backend/src/moire/services/image_tags.py:300-313",
+      "packages/backend/src/moire/api/images.py:163",
+      "packages/backend/src/moire/api/images.py:265",
+      "packages/backend/src/moire/api/images.py:297",
+      "packages/backend/src/moire/api/images.py:313",
+      "packages/backend/src/moire/services/ai_jobs.py:347"
+     ],
+     "problem": "find_image documents 'projection is accepted but ignored' and does select(t.images), pulling tags, gen and ai JSON columns. Six hot callers (GET/HEAD /thumb, /file, /thumb-url, ai_jobs) pass {'thumb_key':1} or {'path':1} expecting a minimal read. The grid fires one thumb request per tile, so each pays a full-row fetch and JSON decode. This breaks the 'column select(...) projections' rule on the hottest read path, and the Mongo-style dict argument is a leftover.",
+     "proposal": "Change find_image to accept columns: Sequence[str] | None, select only those t.images.c[...] (all columns when None), and update the six call sites; drop the Mongo-style dict. Keep row_to_doc for the full-row case. Optionally add one helper find_image_cols(image_id, *cols) returning a Row so thumb routes skip dict conversion.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 4,
+     "confidence": "high",
+     "tests_cover": "partial",
+     "invariants_touched": [
+      "list/lookup responses use column projections"
+     ]
+    },
+    {
+     "title": "/images/groups re-declares the feed query parameters that feed_filter exists to share, and drops group_id",
+     "kind": "dedupe",
+     "evidence": [
+      "packages/backend/src/moire/api/images.py:51-103",
+      "packages/backend/src/moire/api/images.py:455-516"
+     ],
+     "problem": "feed_filter's docstring says one parameter set serves every 'which images match' route so they cannot drift. list_images and /ids use it, but list_groups copies all 23 Query params and the FeedFilter construction by hand. The copy already drifted: group_id is absent, so a group_id filter is silently ignored by the grouped view. Any new filter axis (and the tag-weights filters later) must be added in two places.",
+     "proposal": "Change list_groups to take f: FeedFilter = Depends(feed_filter) plus offset/limit, and delete the manual construction and the try/except. If ignoring group_id in the grouped view is intended, drop it explicitly with dataclasses.replace(f, group_id=None) and comment why.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 3,
+     "confidence": "high",
+     "tests_cover": "yes"
+    },
+    {
+     "title": "Image id lookup by hand-rolled id_candidates loops; set_tag_thumbnail skips the slash/backslash tolerance",
+     "kind": "invariant",
+     "evidence": [
+      "packages/backend/src/moire/api/tags.py:373-380",
+      "packages/backend/src/moire/api/tags.py:391-393",
+      "packages/backend/src/moire/api/images.py:527-537",
+      "packages/backend/src/moire/api/rules.py:358-368",
+      "packages/backend/src/moire/services/scanner.py:303-312",
+      "packages/backend/src/moire/services/image_tags.py:283-297"
+     ],
+     "problem": "CLAUDE.md says ID lookups normalise / vs \\\\. resolve_image_id(conn, id) is the async resolver, yet images.py:/workflow, rules.py:/preview and scanner.py each re-implement 'for candidate in id_candidates' with their own SELECT. set_tag_thumbnail does not tolerate variants at all: it does t.images.c._id == image_id on the body value and then stores that raw spelling in tag_meta.thumb_image_id, so a variant spelling gives a 404 or a pin that never joins.",
+     "proposal": "Use image_tags.resolve_image_id(conn, image_id) in set_tag_thumbnail (and store the resolved id), in get_image_workflow and in rules.preview_ruleset (select image_gen_raw by the resolved id; image_gen_raw._id equals images._id). Add a sync twin resolve_image_id_sync for scanner.py:303 so id_candidates is only used inside image_tags.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 3,
+     "confidence": "med",
+     "tests_cover": "partial",
+     "invariants_touched": [
+      "Image _id slash/backslash normalisation"
+     ]
+    },
+    {
+     "title": "SORT_KEY / SCORE_KEY are defined twice (image_feed.py and schema.py); CLAUDE.md names a deleted nextCursorOf",
+     "kind": "drift",
+     "evidence": [
+      "packages/backend/src/moire/services/image_feed.py:70-81",
+      "packages/backend/src/moire/database/schema.py:499-511",
+      "packages/frontend/src/lib/imageFilter.ts:236-255",
+      "CLAUDE.md (Frontend layout, hooks/useImageFeed bullet)"
+     ],
+     "problem": "The feed's order expressions must match the expression indexes character for character for SQLite to use them. They are written once in image_feed.py (SORT_KEY, SCORE_KEY) and again in schema.py (_recent, _score, _newest, _top), kept equal by comment only, and no test checks it. Separately, the frontend no longer has nextCursorOf: the server builds the cursor and the client reads X-Next-Cursor. CLAUDE.md still says SORTS and nextCursorOf must agree, so the documented agreement point is gone and the real invariant (SORTS vs schema indexes) is undocumented.",
+     "proposal": "Define the key expressions once in database/schema.py (SORT_RECENT, SORT_SCORE) and import them in image_feed.py for SORT_KEY/SCORE_KEY. Add a test that runs EXPLAIN QUERY PLAN on the newest/oldest/top first page and asserts the ix_images_* index is used. Update CLAUDE.md to say the cursor is server-built and the agreement is SORTS vs schema.py.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 3,
+     "confidence": "high",
+     "tests_cover": "no",
+     "invariants_touched": [
+      "Feed SORTS vs schema.py expression indexes"
+     ]
+    },
+    {
+     "title": "Unbounded write transactions: scanner stale delete, clear_ai_all, rename_manual",
+     "kind": "invariant",
+     "evidence": [
+      "packages/backend/src/moire/services/scanner.py:711-722",
+      "packages/backend/src/moire/services/image_tags.py:531-546",
+      "packages/backend/src/moire/services/image_tags.py:449-469",
+      "packages/backend/src/moire/services/image_tags.py:426-443"
+     ],
+     "problem": "CLAUDE.md requires small, often-committed write transactions on single-writer SQLite. The scanner's stale removal deletes every stale image (cascading image_tags) in one tx with an IN list of all ids, so a library with more than ~32k stale rows also exceeds SQLite's bound-variable limit and fails. clear_ai_all loads every image row (tags JSON included) and rewrites all of them in one async_tx. rename_manual and bulk_manual (up to 10000 ids) do the same. Each holds the write lock for the whole run and stalls the scanner, AI worker and every other writer, which busy_timeout then turns into 'database is locked'.",
+     "proposal": "Chunk each by 500: scanner stale removal loops over stale_image_ids[i:i+500] with its own sync_tx; clear_ai_all and rename_manual iterate id chunks (select ids first, then one async_tx per chunk) and call _dirty_tag_index once at the end. Keep bulk_manual atomic but cap or chunk above ~2000. Pass sets to stale delete via chunking only, no new abstraction.",
+     "size": "M",
+     "risk": "med",
+     "leverage": 3,
+     "confidence": "med",
+     "tests_cover": "partial",
+     "invariants_touched": [
+      "writer discipline, small scanner write transactions"
+     ]
+    },
+    {
+     "title": "Original files are served 'immutable' for a year at an unversioned URL",
+     "kind": "invariant",
+     "evidence": [
+      "packages/backend/src/moire/api/images.py:156-183",
+      "packages/backend/src/moire/api/images.py:225-228",
+      "packages/frontend/src/pages/ImageView.tsx:381",
+      "packages/frontend/src/pages/ImageView.tsx:451"
+     ],
+     "problem": "Thumbnails are versioned with ?v= and only served immutable when v is present, because an unversioned URL must be revalidated. GET /{id}/file sets Cache-Control: public, max-age=31536000, immutable on a URL with no version, built by hand in 5 places in ImageView. If a file on disk is replaced (an edited or overwritten image at the same path, a rescan picking up new bytes), the browser keeps the old original for a year and never revalidates, despite FileResponse providing an ETag.",
+     "proposal": "Serve originals with the same rule as thumbs: immutable only when a ?v= (size+mtime hash, reuse thumb_version's hashing on the original's stat) is present, otherwise 'no-cache' so the ETag answers with a 304. Add originalUrl(id) in lib/media.ts replacing the 5 inline template strings; the version can come from the item payload or be omitted in the first slice (no-cache with ETag is already cheap).",
+     "size": "S",
+     "risk": "low",
+     "leverage": 2,
+     "confidence": "med",
+     "tests_cover": "no",
+     "invariants_touched": [
+      "Media delivery versioning"
+     ]
+    },
+    {
+     "title": "Native window.confirm still reachable through useRulesetSession default in ResolvePromptDialog",
+     "kind": "invariant",
+     "evidence": [
+      "packages/frontend/src/hooks/useRulesetSession.ts:58-59",
+      "packages/frontend/src/hooks/useRulesetSession.ts:75-78",
+      "packages/frontend/src/components/ResolvePromptDialog.tsx:43-49",
+      "packages/frontend/src/hooks/useUnsavedChangesGuard.ts:20-21",
+      "packages/frontend/src/components/ConfirmDialog.tsx:103-106"
+     ],
+     "problem": "CLAUDE.md bans browser-drawn menus and Dialog.tsx notes that native confirm() was replaced. useRulesetSession defaults confirmDiscard to a window.confirm wrapper, and ResolvePromptDialog calls useRulesetSession without passing confirmDiscard (RulesPage passes useConfirm). Discarding unsaved ruleset edits in the resolve dialog therefore shows the native browser dialog. useUnsavedChangesGuard has the same default, but all three callers pass confirm.",
+     "proposal": "Make confirmDiscard required in useRulesetSession (and confirmLeave in useUnsavedChangesGuard), drop both native fallbacks, and pass useConfirm() from ResolvePromptDialog. The compiler then prevents any future caller from reaching window.confirm.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 2,
+     "confidence": "high",
+     "tests_cover": "partial",
+     "invariants_touched": [
+      "No native browser menus/dialogs"
+     ]
+    },
+    {
+     "title": "Deprecated POST /tags/ai/{image_id} has no caller",
+     "kind": "dead",
+     "evidence": [
+      "packages/backend/src/moire/api/tags.py:515-523",
+      "packages/frontend/src/lib/queries.ts",
+      "packages/frontend/src/lib/imageMutations.ts"
+     ],
+     "problem": "The route's own comment says 'Deprecated route retained for convenience; internal AI tagging is implemented under /ai/*'. grep of packages/frontend/src for 'tags/ai/' finds nothing, and the AI jobs router already enqueues the same job. It is a second spelling of an existing operation under the wrong router (a tags router doing ai_jobs work).",
+     "proposal": "Delete the route and its local import of get_ai_job_manager; if a test references it, point the test at the /ai/ endpoint.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 1,
+     "confidence": "med",
+     "tests_cover": "no"
+    }
+   ],
+   "cross_cutting_hints": [
+    "packages/frontend/src/pages/LibrariesPage.tsx:119 uses a raw fetch('/api/v1/libraries/{id}/progress') in a page instead of lib/queries (the only component-level fetch found; boundary nit).",
+    "packages/backend/src/moire/services/library_nesting.py:180: adopt_nested_copies invalidates tag_index only after all chunks and only if something was dropped; an exception mid-way leaves already-committed chunks without invalidation (bounded by the 30s TTL).",
+    "packages/backend/src/moire/api/tags.py:515 and ai_jobs: ai_tag route enqueues ids without id_candidates resolution (ai_jobs.py:347 does find_image, so it is covered downstream).",
+    "packages/backend/src/moire/services/image_feed.py:176-182: FeedFilter validates tags length but only feed_where canonicalises; any other consumer of f.tags (tag_match_groups callers, _drive_by_rarest at line 353) must canonicalise separately, as it currently does at two sites.",
+    "packages/frontend/src/pages/ImageView.tsx is about 2100 lines and builds /file endpoint URLs inline in 5 places (381, 406, 451, 514, 950); belongs to the frontend size/split lens.",
+    "packages/backend/src/moire/services/tag_focus.py:80-90 and services/face_detect.py:300-312 select images by raw _id without id_candidates; ids there come from DB-sourced values so it is safe, noted only for completeness."
+   ]
+  },
+  {
+   "unit": "S7-prompts",
+   "health": "The backend extraction path is well layered (capture, pure extract, reprojection) and heavily tested, but gen_metadata.py has grown to 1073 lines with four unrelated jobs, and the \"settings + aliases + rulesets feed extract\" recipe is assembled by hand in two places. On the frontend there is no single prompt grammar: five separate comma/bracket splitters (one backend, four frontend) disagree on which brackets nest. That is the main risk for the tag-weights plan, whose claim that promptOutline already implements the weight rule is not true.",
+   "findings": [
+    {
+     "title": "Prompt weight rule exists nowhere yet; plan's premise is wrong and parsers disagree on brackets",
+     "kind": "drift",
+     "evidence": [
+      "docs/tag-weights-plan.md:25",
+      "packages/frontend/src/lib/promptOutline.ts:77-90",
+      "packages/frontend/src/lib/promptOutline.ts:104-131",
+      "packages/backend/src/moire/services/prompt_parse.py:160-266",
+      "packages/backend/src/moire/services/prompt_parse.py:269-284",
+      "packages/backend/src/moire/services/gen_metadata.py:243-257"
+     ],
+     "problem": "The plan says the backend should port promptOutline's unwrap/readTerm rule (explicit weight, x1.1 per paren layer, /1.1 per bracket layer, group weight inherited). But readTerm/unwrap only read an explicit `:w` (or the enclosing group's explicit weight); they never multiply per layer, and splitSpans/closeOf ignore `{}` while the backend `_scan` treats `{`/`}` as groups. The backend `_scan` does track the bracket stack but `_clean` strips the weight and `Piece` carries only (text, kind), and `tokenize_prompt` reduces pieces to a sorted set of names, so weight information is discarded at three layers. Porting 'the frontend rule' would copy a rule that does not exist and bake in a frontend/backend mismatch (`((a))` is 1.21 in ComfyUI, `weight` undefined in the board).",
+     "proposal": "Define the weight semantics once, backend first: give `_scan` a third tuple field (the open-bracket stack snapshot or a computed multiplier) and add `weight: float | None` to `Piece` (explicit `:w` wins, else 1.1^parens / 1.1^-brackets, `{}` as 1.05 per ComfyUI/A1111 convention or explicitly 1.0, group members inherit). Add `tokenize_prompt_weighted() -> dict[name, weight]` next to `tokenize_prompt` (keep the latter for `prompt_terms`). Put the table of (text, name, weight) cases in one shared JSON fixture (e.g. packages/backend/tests/fixtures/prompt_weights.json) read by both test_prompt_parse.py and a promptOutline vitest, and make `readTerm` compute the same layer multiplier (then `bumpWeight` in promptEdit can reuse it). Fix the plan text step 1 accordingly.",
+     "size": "M",
+     "risk": "med",
+     "leverage": 5,
+     "confidence": "high",
+     "tests_cover": "partial",
+     "blocks_tag_weights": true,
+     "depends_on": "Finding 'Decompose _scan' makes this much easier; do together.",
+     "invariants_touched": [
+      "prompt tags: prompt_terms mirrors tags",
+      "canonical_name is the one spelling rule"
+     ]
+    },
+    {
+     "title": "Three more ad-hoc prompt splitters in the frontend duplicate promptOutline",
+     "kind": "dedupe",
+     "evidence": [
+      "packages/frontend/src/lib/promptRepeats.ts:11-58",
+      "packages/frontend/src/lib/promptOutline.ts:28-51",
+      "packages/frontend/src/lib/compose.ts:49-61",
+      "packages/frontend/src/lib/promptEdit.ts:10-21",
+      "packages/frontend/src/components/generate/PromptInput.tsx:6",
+      "packages/frontend/src/components/generate/PromptRepeats.tsx:5"
+     ],
+     "problem": "promptOutline.splitSpans, promptRepeats.topTerms, compose.promptTerms and promptEdit.termAt each re-implement 'split a prompt at commas/newlines while respecting groups' with different rules: topTerms nests `([{`, `<lora:..>` and skips escapes; splitSpans nests only `([`, no `<>`; compose.promptTerms does not nest at all (a comma inside `(a, b:1.2)` splits it and a regex strips brackets); termAt ignores groups. keyOf in promptRepeats and readTerm in promptOutline both derive a tag name from written text with different canonicalisation (canonicalName vs lowercase+underscore). A prompt that parses one way in the board and another way in the repeat-remover is a drift bug waiting to happen, and bumpWeight (plan step 5) would add a fifth.",
+     "proposal": "Make `promptOutline.promptTerms` the one frontend term model: add `top: boolean` (not inside a group, no weight/bracket) and `key: string` (canonicalName+lowercase) to PromptTerm, and a `separatorsBetween(text, terms)` helper. Re-express prefixRepeats/tagRepeats/withoutTerms over `promptTerms(text).filter(t => t.top)` (withoutTerms keeps its separator logic but reads spans from terms), and make compose.promptTerms (limit 2, batch auto-name) `promptTerms(text).filter(kind tag).slice(0,limit).map(t => t.written)`. Leave termAt (caret-local, intentionally lenient) but have bumpWeight use promptTerms spans. Add `{}` and `<lora>` cases to promptOutline.test.ts before moving anything.",
+     "size": "M",
+     "risk": "med",
+     "leverage": 4,
+     "confidence": "high",
+     "tests_cover": "yes",
+     "blocks_tag_weights": true,
+     "invariants_touched": []
+    },
+    {
+     "title": "Decompose prompt_parse._scan (complexity D30) and make it return group context",
+     "kind": "split",
+     "evidence": [
+      "packages/backend/src/moire/services/prompt_parse.py:160-266",
+      "docs/refactor-pass/leads.txt:67-70",
+      "packages/backend/src/moire/services/prompt_parse.py:322-339"
+     ],
+     "problem": "`_scan` is 106 lines with 21 branches, 83 statements and nested closures (flush/emit) mixing five concerns: atom recognition at piece start (emoticon, BREAK/AND keyword, escape, embedding token, `<network>` token), separator handling, Danbooru qualifier glue, bracket stack, and the `[from:to:w]` colon rule. It returns `(text, in_group: bool)`, throwing away which brackets enclose the piece, which is exactly what weights need.",
+     "proposal": "Extract `_atom_at(text, i, has_text) -> tuple[str, int] | None` (emoticon, embedding, network token; returns raw text and end) and `_skip_at(text, i) -> int` (keyword, escaped comma) so the main loop only owns buf/stack/separators/brackets. Change the return type to a small `RawPiece(text, stack: tuple[str, ...])` (in_group = bool(stack)) so `Piece.weight` can be computed in `_parse_cached`. Keep the 339-line module whole; the split is within it. test_prompt_parse.py is a table test, so behaviour is pinned.",
+     "size": "M",
+     "risk": "med",
+     "leverage": 4,
+     "confidence": "high",
+     "tests_cover": "yes",
+     "blocks_tag_weights": true,
+     "depends_on": "pairs with the weight-rule finding",
+     "invariants_touched": []
+    },
+    {
+     "title": "Extraction inputs assembled by hand in two places; preview and reprojection can disagree; positive_only read by raw SQL",
+     "kind": "invariant",
+     "evidence": [
+      "packages/backend/src/moire/services/reproject.py:35-62",
+      "packages/backend/src/moire/services/reproject.py:165-207",
+      "packages/backend/src/moire/api/rules.py:372-381",
+      "packages/backend/src/moire/services/ai_settings.py:27-31",
+      "packages/backend/src/moire/services/ai_settings.py:74-97",
+      "packages/backend/src/moire/services/extraction_settings.py:36-66"
+     ],
+     "problem": "What `gen_metadata.extract` needs (ruleset, keywords, prompt_positive_only, then apply_aliases to prompt_terms) is gathered in `reproject._reproject_where`; the rules preview endpoint re-gathers only keywords and passes no positive_only and no aliases, though its docstring says the result is 'what reproject would write'. So the preview's `gen.prompt_terms` differs from stored data whenever positive_only is off or a merge/split rule applies. Separately, an extraction setting (`prompt_positive_only`) lives in the tagger's 'ai' doc with its default hardcoded twice (ai_settings DEFAULT_AI_SETTINGS and `reproject._prompt_positive_only`'s `.get(..., True)`), read through a hand-written SELECT that bypasses ai_settings. Weights (plan) will add another post-extract step (aliases must carry weights through merge/split) that would also have to be added in both places.",
+     "proposal": "In extraction_settings add `@dataclass ExtractionConfig(keywords, positive_only, aliases)` with `load_sync()` (reproject thread) and `async load()` (preview), reading the 'ai' flag via one shared reader. Add `gen_metadata.derive(raw, ruleset, config) -> dict | None` (extract + apply aliases) and have both reproject and rules preview call it. Delete `reproject._prompt_positive_only/_load_aliases` and the duplicated default. Leave the setting's storage location (ai doc) alone; only the read path moves.",
+     "size": "M",
+     "risk": "low",
+     "leverage": 4,
+     "confidence": "high",
+     "tests_cover": "partial",
+     "blocks_tag_weights": true,
+     "invariants_touched": [
+      "Generation metadata: extract is the single derivation point"
+     ]
+    },
+    {
+     "title": "One malformed graph aborts a whole reprojection: extract is not total and the loop has no per-row guard",
+     "kind": "bug",
+     "evidence": [
+      "packages/backend/src/moire/services/gen_metadata.py:723-733",
+      "packages/backend/src/moire/services/gen_metadata.py:746-750",
+      "packages/backend/src/moire/services/reproject.py:186-211",
+      "packages/backend/src/moire/services/reproject.py:267-273"
+     ],
+     "problem": "`_find_sampler` does `inp = node.get('inputs', {})` then `'positive' in inp`; a node with `\"inputs\": null` (or a list) raises TypeError, and `parse_comfyui` calls `.get` on it unguarded (AttributeError). Other helpers (`_resolve_text`, `comfy_loras`) do check `isinstance(inp, dict)`, so the module's own convention is 'never raise on hostile graphs' (resolve_path says 'Never raises'). In `_reproject_where` there is no try/except around `gen_metadata.extract`, so the exception propagates out of the run; `_tracked` only logs it. Every image after the bad row stays underived until the next restart/rescan, which then hits the same row first. Also `_empty` shallow-copies `_EMPTY`, so `loras`, `embeddings`, `guessed`, `guess_paths` are shared mutable objects across calls (currently safe only because each caller reassigns before mutating).",
+     "proposal": "In `_find_sampler`/`parse_comfyui` use `inp = node.get('inputs'); if not isinstance(inp, dict): continue`. In `_reproject_where` wrap the extract+aliases step in try/except Exception, log with the image id, and `continue` (counting it as advanced). Make `_empty` build fresh lists/dicts (`copy.deepcopy(_EMPTY)`). Add a test_gen_metadata case with `{'3': {'class_type': 'KSampler', 'inputs': None}}` and a reproject test with one poisoned raw.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 3,
+     "confidence": "med",
+     "tests_cover": "no",
+     "blocks_tag_weights": false,
+     "invariants_touched": []
+    },
+    {
+     "title": "gen_metadata.py (1073 lines) fuses four jobs; callers reach into a private function",
+     "kind": "split",
+     "evidence": [
+      "packages/backend/src/moire/services/gen_metadata.py:240-400",
+      "packages/backend/src/moire/services/gen_metadata.py:411-575",
+      "packages/backend/src/moire/services/gen_metadata.py:578-720",
+      "packages/backend/src/moire/services/gen_metadata.py:859-1000",
+      "packages/backend/src/moire/api/rules.py:161-180",
+      "packages/backend/src/moire/services/generator_setup.py:131-132",
+      "packages/backend/src/moire/services/generator_discovery.py:190",
+      "packages/backend/src/moire/services/generator_discovery.py:257",
+      "packages/backend/src/moire/services/generator_discovery.py:504"
+     ],
+     "problem": "One file holds (a) raw capture + format sniffing, (b) workflow identity (workflow_sig, node_types, editor_node_types, similarity, match_workflow_file, describe_signatures) used only by api/rules.py and generator_setup, (c) ComfyUI graph text resolution (display nodes, _resolve_text, ckpt walk), (d) LoRA/embedding extraction and (e) user ruleset pinning, plus the extract() dispatcher. Block (b) has no dependency on extraction at all. generator_discovery calls `gen_metadata._resolve_text` three times, so a 'private' function is in practice a public API with three callers and the leading underscore hides it from refactors. The module's own docstring promises 'pure parsers turning embedded data into gen.* fields'; (b) is not that.",
+     "proposal": "Move lines 240-400 to `services/workflow_identity.py` (re-export `workflow_sig` from gen_metadata for the scanner call at scanner.py:480 or update that one import); move 411-575 to `services/comfy_text.py` with public `resolve_text(prompt_json, ref, shown=None)` and `display_cache`/`displayed_text` (this is also where text_eval is already a sibling, which gives the comfy text stack one home); optionally 578-720 to `services/gen_loras.py`. Leave capture, parse_a1111, rules and extract() in gen_metadata (about 450 lines). Pure move plus renaming `_resolve_text` to `resolve_text`; update CONTEXT.md names (`gen_metadata._resolve_text`, `gen_metadata.comfy_loras`, `pin_value`).",
+     "size": "M",
+     "risk": "low",
+     "leverage": 3,
+     "confidence": "high",
+     "tests_cover": "yes",
+     "blocks_tag_weights": false,
+     "invariants_touched": []
+    },
+    {
+     "title": "app_settings JSON-row read/upsert is hand-written in 8 modules; extraction_settings has it 4 times",
+     "kind": "dedupe",
+     "evidence": [
+      "packages/backend/src/moire/services/extraction_settings.py:36-66",
+      "packages/backend/src/moire/services/extraction_settings.py:85-92",
+      "packages/backend/src/moire/services/reproject.py:53-62",
+      "packages/backend/src/moire/services/ai_settings.py:74-107",
+      "packages/backend/src/moire/services/tag_settings.py:85-110",
+      "packages/backend/src/moire/services/onboarding.py:26-44",
+      "packages/backend/src/moire/services/comfy_settings.py:83-95",
+      "packages/backend/src/moire/services/tag_migrations.py:47-58"
+     ],
+     "problem": "`select(app_settings.doc).where(_id == ROW)` and the sqlite `insert ... on_conflict_do_update(set_={'doc': excluded.doc})` are copied into ai_settings, tag_settings, extraction_settings (three identical selects, sync and async variants), onboarding, comfy_settings, tag_migrations and the scanner stamp. Only the row id and defaults differ. This is how reproject came to read the 'ai' row with its own SELECT and its own default.",
+     "proposal": "Add `services/app_settings.py` with `async read(row) -> dict | None`, `read_sync(row)`, `async write(row, doc)` (upsert replace) and `write_sync`, using the `*_conn/*_tx` helpers. Convert extraction_settings and reproject first (in this slice), then the other modules opportunistically. Interface is four functions; the deletion test says it concentrates the upsert idiom in one place.",
+     "size": "M",
+     "risk": "low",
+     "leverage": 3,
+     "confidence": "high",
+     "tests_cover": "partial",
+     "blocks_tag_weights": false,
+     "invariants_touched": []
+    },
+    {
+     "title": "Same signatures query inlined in 3 components plus 2 manual fetches; ruleset API sits in lib/gen.ts with raw fetch",
+     "kind": "boundary",
+     "evidence": [
+      "packages/frontend/src/lib/gen.ts:79-139",
+      "packages/frontend/src/lib/api.ts:1-11",
+      "packages/frontend/src/components/TagPanel.tsx:70-74",
+      "packages/frontend/src/pages/CharacterPage.tsx:435-439",
+      "packages/frontend/src/pages/AllImagesPage.tsx:145-150",
+      "packages/frontend/src/pages/RulesPage.tsx:122-129",
+      "packages/frontend/src/components/ResolvePromptDialog.tsx:67"
+     ],
+     "problem": "lib/api.ts says `api<T>()` is the one fetch-JSON helper, but gen.ts defines its own private `getJson` and four more hand-rolled fetch+ok-check blocks (saveRuleset, deleteRuleset, previewRuleset, fetchWorkflow). The `[\"rules-signatures\"]` useQuery with `staleTime: 60_000` is copy-pasted in TagPanel, CharacterPage and AllImagesPage (string key repeated, one with `enabled`), while RulesPage and ResolvePromptDialog call fetchSignatures() imperatively into local state, so they never share the cache and RulesPage's edits do not refresh the other three. The file name `gen.ts` also hides that it is mostly the Rules API (GenMeta is the only 'gen' content).",
+     "proposal": "Move the ruleset/signature/workflow functions and their types (Ruleset, RuleFields, SignatureRow, PreviewResult, WorkflowPayload, workflowClipboardText) to `lib/rules.ts` over `api()`; keep GenMeta in gen.ts. Add `useSignatures({enabled})` plus `SIGNATURES_KEY` to lib/queries (like TAG_SETTINGS_KEY) and use it in the three components; have saveRuleset/deleteRuleset callers invalidate the key. Update gen.test.ts and the useRulesetSession mock path.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 3,
+     "confidence": "high",
+     "tests_cover": "partial",
+     "blocks_tag_weights": false,
+     "invariants_touched": [
+      "component doing raw fetch / queries belong in lib/queries"
+     ]
+    },
+    {
+     "title": "BoilerplateSection and PromptGuessSection are the same chip-list editor written twice",
+     "kind": "dedupe",
+     "evidence": [
+      "packages/frontend/src/pages/settings/sections/BoilerplateSection.tsx:26-28",
+      "packages/frontend/src/pages/settings/sections/BoilerplateSection.tsx:41-96",
+      "packages/frontend/src/pages/settings/sections/BoilerplateSection.tsx:190-196",
+      "packages/frontend/src/pages/settings/sections/PromptGuessSection.tsx:19-20",
+      "packages/frontend/src/pages/settings/sections/PromptGuessSection.tsx:121-205"
+     ],
+     "problem": "Both implement: `sameList`, draft-state seeded from server via useEffect, `dirty` + useUnsavedChangesGuard, a pill list with a remove X button (identical class strings), a comma-separated add form, a Reset to defaults / Save changes footer with identical markup, and the save toast flow. PromptGuessSection even has the pills inside a `KeywordList` subcomponent while BoilerplateSection inlines the same thing. A third chip-list setting would be a third copy. (The entry normalisation rules differ and legitimately stay per-section.)",
+     "proposal": "Extract `components/settings/ChipListEditor.tsx` (props: entries, onChange, normalize(piece) -> string | null, label, placeholder, renderChip?) and `components/settings/SaveBar.tsx` (dirty, saving, atDefaults, onReset, onSave), plus `lib/lists.ts` `sameList`. Both sections shrink to their query hook, normalizer and preview. Keep `hooks/useUnsavedChangesGuard` as is.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 2,
+     "confidence": "high",
+     "tests_cover": "no",
+     "blocks_tag_weights": false,
+     "invariants_touched": []
+    }
+   ],
+   "cross_cutting_hints": [
+    "packages/backend/src/moire/services/tag_settings.py:57-82 and packages/frontend/src/lib/boilerplate.ts:15-24,55-62: the boilerplate entry normalisation (space/underscore, lowercase, bare-* rejection) is implemented on both sides by hand ('matching lives in the frontend'); BoilerplateSection.add re-validates what clean_boilerplate re-validates on save. A shared fixture or returning the server-cleaned list would stop drift.",
+    "packages/backend/src/moire/services/scanner.py:60-90 and services/onboarding.py, comfy_settings.py, tag_migrations.py: more copies of the app_settings upsert (see finding 7) outside this slice.",
+    "packages/frontend/src/lib/promptOutline.ts:28 splitSpans and :159 promptWord are exported but only used inside the module / tests (knip lead at leads.txt:134); de-export splitSpans, keep promptWord only if the board needs it.",
+    "packages/backend/src/moire/services/text_eval.py:25 comment 'Literal string nodes: (class_type predicate, widget holding the text)' is stale (it describes _LITERAL_KEYS only). text_eval._text_concat/_show_text and gen_metadata._resolve_text/_is_display/_CONCAT_INPUT are two parallel graph text walkers with separate cycle guards; if they keep growing, fold the concat/display handling into text_eval's handler table (only worth it with a third caller).",
+    "packages/backend/src/moire/services/generator_discovery.py:190,257,504 calls the private gen_metadata._resolve_text (see finding 6).",
+    "packages/frontend/src/pages/settings/sections/PromptTagsSection.tsx:20 uses Checkbox `hint=` and several sections use long description/helper paragraphs; memory rule 'no UI subtext' may apply, worth a pass in the settings area owner's slice."
+   ]
+  },
+  {
+   "unit": "L1-jobs",
+   "health": "Moire has about eight background-work mechanisms, and most of their differences are real. Scan, reproject and the watcher run on threads, because they are sync SQLite and filesystem work. AI jobs, model downloads, face finding and generation run on asyncio. Scan progress (library columns) and generation (its tables, with ComfyUI as the source of truth) are kept in the database; AI jobs, downloads, faces and the activity registry live only in memory and are lost on restart. A generic Job framework would fail the deletion test, because the queueing, cancellation and persistence rules really differ. The duplication is at the edges: \"ended\" signalling, progress shapes, download byte sums, spawn helpers and state vocabularies. services/activity.py is the one seam worth deepening. Two real defects turned up: a retag can silently strip AI tags, and async routes block the event loop on thread joins.",
+   "findings": [
+    {
+     "title": "Retag of an image a running AI job already passed wipes its AI tags and reports success",
+     "kind": "bug",
+     "evidence": [
+      "packages/backend/src/moire/api/ai.py:149-156",
+      "packages/backend/src/moire/services/ai_jobs.py:160-195",
+      "packages/backend/src/moire/services/ai_jobs.py:306-313",
+      "packages/backend/src/moire/services/ai_jobs.py:220-229",
+      "packages/frontend/src/lib/ai.ts:270-275",
+      "packages/frontend/src/hooks/useAiTagging.ts:76-78"
+     ],
+     "problem": "`_in_flight` holds every id of a job until the whole job ends (ai_jobs.py:311-313), not until that image is tagged. `/tag` with `retag` first runs `image_tags.clear_ai` on each id, then calls `enqueue(force=req.force)`. The frontend never sends `force` (lib/ai.ts:270-275). Scenario: a 200-image 'tag untagged' job is at image 150, and the user re-tags image 5, which that job already tagged. clear_ai wipes its AI tags and rating, enqueue counts the id as skipped, and the 0-total job is marked done at once. useAiTagging then toasts 'AI tagging completed', and the image is left with no AI tags. `_in_flight` is also a set, not a refcount. A forced job overlapping another job loses its claim when the first job ends, and cancelling a queued job (ai_jobs.py:226-228) releases ids that another job still holds.",
+     "proposal": "Two fixes, each small. (1) In `_worker_loop`, discard each id from `_in_flight` right after its `_tag_one` (or its failure), so 'in flight' means 'not yet processed'. Leave only the unprocessed tail to the `finally`. (2) In `api/ai.py` `ai_tag`, pass `force=True` whenever `req.retag` is set, because a retag has already destroyed state and must run. Optionally make `_in_flight` a `collections.Counter` so overlapping forced jobs release correctly.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 4,
+     "confidence": "high",
+     "tests_cover": "partial",
+     "invariants_touched": [
+      "Tag-state single owner (clear_ai then no replace_ai)"
+     ],
+     "blocks_tag_weights": false
+    },
+    {
+     "title": "Reproject has five entry points with different guarantees; only reproject_all is serialized",
+     "kind": "invariant",
+     "evidence": [
+      "packages/backend/src/moire/services/reproject.py:165-168",
+      "packages/backend/src/moire/services/reproject.py:267-356",
+      "packages/backend/src/moire/services/reproject.py:290-317",
+      "packages/backend/src/moire/services/tag_rename.py:237",
+      "packages/backend/src/moire/services/tag_rename.py:291-293",
+      "packages/backend/src/moire/services/tag_rename.py:397",
+      "packages/backend/src/moire/api/rules.py:306",
+      "packages/backend/src/moire/api/rules.py:335-347",
+      "packages/backend/src/moire/services/scanner.py:767-777"
+     ],
+     "problem": "Four `*_async` spawners (reproject.py:276-356) are near-copies of 'threading.Thread(target=_tracked, ...)'. Only `reproject_all_async` coalesces, and its docstring names the hazard: overlapping runs that read rulesets, aliases and keywords at different moments (reproject.py:165-168) can leave rows derived with older settings. The same hazard applies to the other entry points. `reproject_by_sig_async` spawns a new thread on every ruleset save or delete (rules.py:335-347). Post-scan library runs overlap. `tag_rename` runs `reproject_ids` inline through to_thread (tag_rename.py:237, 293, 397), untracked by activity and not serialized against anything. Example: a merge rule saved while a full reproject is in flight. The full run loaded aliases before the merge, so it can write `prompt:` tags for the merged-away name back onto images after the merge's own reprojection has removed them.",
+     "proposal": "Add one module-level `threading.Lock` (`_run_lock`) that `_reproject_where` takes before it loads settings and releases after its last `_flush_batch`. Runs then serialize, and each reads the settings that were current when it started. Replace the four spawners with `_spawn(name: str, work, *args, library_id: str | None = None, **kw)`, which starts the daemon thread around `_tracked`. Keep the coalescing loop only for `reproject_all_async`. Route tag_rename's inline calls through `activity.track('reproject')` so a merge shows progress. The tag-weights extraction step can then add weight reading inside `_reproject_where` without touching five call shapes.",
+     "size": "M",
+     "risk": "med",
+     "leverage": 4,
+     "confidence": "med",
+     "tests_cover": "partial",
+     "invariants_touched": [
+      "Writer discipline (small batched tx)",
+      "Prompt tags owned by reprojection",
+      "Merge rule applied by reprojection"
+     ],
+     "blocks_tag_weights": true,
+     "depends_on": ""
+    },
+    {
+     "title": "'Ended' is counted four ways; the activity router reaches into each manager's internals",
+     "kind": "deepen",
+     "evidence": [
+      "packages/backend/src/moire/services/activity.py:22-24",
+      "packages/backend/src/moire/services/activity.py:77-80",
+      "packages/backend/src/moire/services/scanner.py:360-366",
+      "packages/backend/src/moire/services/scanner.py:795-796",
+      "packages/backend/src/moire/services/ai_jobs.py:131-133",
+      "packages/backend/src/moire/services/ai_jobs.py:194",
+      "packages/backend/src/moire/services/ai_jobs.py:224",
+      "packages/backend/src/moire/services/ai_jobs.py:310",
+      "packages/backend/src/moire/services/face_detect.py:194-195",
+      "packages/backend/src/moire/services/face_detect.py:283",
+      "packages/backend/src/moire/api/activity.py:78-94",
+      "packages/backend/src/moire/api/activity.py:107-134",
+      "packages/frontend/src/hooks/useBackgroundTasks.ts:50-75",
+      "packages/frontend/src/pages/settings/sections/CharactersSection.tsx:49-55"
+     ],
+     "problem": "activity.py already owns an `_ended` per-kind counter. Next to it are three hand-rolled ones: `scanner._scans_ended`, `AIJobManager.finished` (incremented by hand at three exit paths) and `face_detect.drains`. The router merges all four by hand (api/activity.py:129-134). It also builds each item by reading internals: `job.image_ids()`, `job.throughput()`, `manager.started`, `manager.current`, `face_detect.progress()` and the `drains` global. Downloads have no ended count at all. So CharactersSection keeps its own busy-to-idle effect (49-55) to refresh TAGS_KEY when the face model arrives, duplicating what `useRefreshOnFinish` does centrally for the other kinds.",
+     "proposal": "Deepen services/activity.py with `note_ended(kind: str) -> None` (thread-safe, same `_ended` dict). Scanner, ai_jobs and face_detect call it instead of keeping their own counters. ModelDownloadManager `_runner` calls it in its `finally` with kind `model_download` or `face_download` (pass the kind through `start`). Delete `_scans_ended`/`scans_ended`, `AIJobManager.finished` and `face_detect.drains`; the router's `ended` becomes `activity.ended()`. Move the per-mechanism item projection beside its state, following the `model_status_view` precedent: `AIJob.activity_item()`, and `face_detect.activity_items(cache_dir)`. Frontend: add `face_download` to the TAGS_KEY kinds in useRefreshOnFinish and delete CharactersSection's wasBusy effect.",
+     "size": "M",
+     "risk": "low",
+     "leverage": 3,
+     "confidence": "high",
+     "tests_cover": "partial",
+     "invariants_touched": [],
+     "blocks_tag_weights": false
+    },
+    {
+     "title": "Async routes block the event loop on scan/watch thread joins",
+     "kind": "bug",
+     "evidence": [
+      "packages/backend/src/moire/api/libraries.py:131-138",
+      "packages/backend/src/moire/api/libraries.py:126-128",
+      "packages/backend/src/moire/api/libraries.py:268-276",
+      "packages/backend/src/moire/services/scanner.py:810-826",
+      "packages/backend/src/moire/services/library_watch.py:371-395",
+      "packages/backend/src/moire/services/library_watch.py:405-417",
+      "packages/backend/src/moire/main.py:83-84"
+     ],
+     "problem": "`remove_library` is `async def` and calls `cancel_scan` (a `th.join` of up to 0.5 s) and `stop_watch` (a join of up to 1 s) directly on the loop. `create_library` and `update_library` call `start_watch`, which joins the old watch thread while holding `_lock` (library_watch.py:381-384). A scan thread rarely exits within 0.5 s, because run_pool leaves running futures to finish. So deleting a big library mid-scan stalls every request, including thumbnails and the activity poll, for up to 1.5 s. main.py:83-84 deliberately runs `stop_all` off the loop for exactly this reason, so the routes are inconsistent with it.",
+     "proposal": "In api/libraries.py, wrap these calls in `await anyio.to_thread.run_sync(...)`: `cancel_scan`, `stop_watch`, and `start_watch` (only when replacing an existing watch). The alternative is to give `cancel_scan` and `stop_watch` a signal-only mode (`wait=False`) for async callers. Prefer the to_thread form for delete: it can then wait for the scan thread to actually end (longer join), which also closes the late-batch race noted in the hints.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 3,
+     "confidence": "high",
+     "tests_cover": "no",
+     "invariants_touched": [
+      "Writer discipline"
+     ],
+     "blocks_tag_weights": false
+    },
+    {
+     "title": "Model download progress is summed three ways with different rules",
+     "kind": "dedupe",
+     "evidence": [
+      "packages/backend/src/moire/api/activity.py:30-41",
+      "packages/frontend/src/pages/settings/sections/ModelSection.tsx:35-38",
+      "packages/frontend/src/pages/settings/sections/CharactersSection.tsx:62-65",
+      "packages/backend/src/moire/services/ai_tagger_download.py:98-117"
+     ],
+     "problem": "The activity router's `_download` sums bytes over only the files whose size is known, a rule test_activity_integration pins down. ModelSection and CharactersSection each re-sum all files from `as_dict().files`, counting a null total as 0. They also compute pct by hand rather than with `taskPct`. The tagger and face downloads share one ModelDownloadManager, yet three readers derive progress from its raw per-file list, and the numbers can disagree between the sidebar and the settings page.",
+     "proposal": "Move `_download`'s rule into `ModelDownloadState.progress() -> tuple[int, int] | None` and emit it from `as_dict()` as top-level `done`/`total`. api/activity.py then just forwards them. Both settings sections read `dl.done`/`dl.total` and use `taskPct` from lib/backgroundTasks.ts (or a `downloadPct` beside it, with a test) instead of their own reduces.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 3,
+     "confidence": "high",
+     "tests_cover": "partial",
+     "invariants_touched": [],
+     "blocks_tag_weights": false
+    },
+    {
+     "title": "scan_library_async._run is a 270-line closure; cancel is a string-matched RuntimeError checked inline four times",
+     "kind": "split",
+     "evidence": [
+      "packages/backend/src/moire/services/scanner.py:502-807",
+      "packages/backend/src/moire/services/scanner.py:536-543",
+      "packages/backend/src/moire/services/scanner.py:575-577",
+      "packages/backend/src/moire/services/scanner.py:681-683",
+      "packages/backend/src/moire/services/scanner.py:786-791",
+      "packages/backend/src/moire/services/scanner.py:369-371"
+     ],
+     "problem": "The leads flag C901 35 and 130 statements. One closure handles slot wait, path refresh, the walk, loading known rows, pool and writer setup, progress throttling, reconcile and delete, the stamp, finalize, nested adoption and the post-scan reproject trigger. Cancellation raises `RuntimeError(\"cancelled\")`, is detected by `str(e) == \"cancelled\"`, and 'library deleted while queued' reuses the same string. `with _scan_lock: if library_id in _cancel_scans: raise` is written out four times, although `_is_cancel_requested` exists.",
+     "proposal": "Add `class _Cancelled(Exception)` and `_check_cancel(library_id)`, which uses `_is_cancel_requested`. Extract pure or near-pure steps: `_wait_for_slot(library_id) -> Path` (536-553), `_walk(library_id, root, nested) -> (files, discovered_ids)` (555-571), `_load_known(library_id, stamp) -> Known | None` (582-599), `_reconcile(library_id, discovered, nested)` (689-736), and `_after_scan(library_id, wrote_any: bool)` (753-785). `_run` keeps the counters, `_on_complete` and the try/finally slot bookkeeping. `_walk` and `_reconcile` become directly testable alongside `reconcile_stale`.",
+     "size": "M",
+     "risk": "med",
+     "leverage": 3,
+     "confidence": "high",
+     "tests_cover": "partial",
+     "invariants_touched": [
+      "Writer discipline (scanner batches)",
+      "Tag index invalidated after reconcile tx"
+     ],
+     "blocks_tag_weights": false
+    },
+    {
+     "title": "GenerationManager fuses connection, poll state machine, output placement and batch building",
+     "kind": "split",
+     "evidence": [
+      "packages/backend/src/moire/services/generation_jobs.py:474-1490",
+      "packages/backend/src/moire/services/generation_jobs.py:505-636",
+      "packages/backend/src/moire/services/generation_jobs.py:86-147",
+      "packages/backend/src/moire/services/generation_jobs.py:830-940",
+      "packages/backend/src/moire/services/generation_jobs.py:196-425",
+      "packages/backend/src/moire/services/generation_jobs.py:1097-1181"
+     ],
+     "problem": "The file is 1505 lines. `queue_batch` is radon D(24) because it assembles the whole `inputs` doc inline (1109-1174) from pure helpers that live 900 lines above it. Output placement (`held_by`, `root_candidates`, `output_image_id`, `_write_atomic`, `_place_outputs`, `_find_output_root`, `_fetch_missing`) is a self-contained filesystem and library concern that only needs `client.view` and the settings. The ComfyUI connection (configure, check, _up/_down, _set_up, the websocket loop, _on_event) is a third job sharing the same object.",
+     "proposal": "Make three moves and leave the poll/sync/submit/cancel state machine in place. (1) New `services/generation_inputs.py` with a pure `plan_batch(gen, body, settings) -> BatchPlan(inputs, sizes, seeds, name_words)`, holding lines 1109-1174 plus `batch_shape`, `_parts`, `_resolve`, `characters_of`, `_characters_input`, `_character_input`, `_outfit_input`, `outfit_tags` and `_sampling_input`. `queue_batch` and `requeue` then call it, and generation_batches imports `characters_of` from there. (2) New `services/generation_outputs.py` with `place_outputs(client, files, settings) -> (ids, fetch)` and `fetch_missing(client, library_id, files)`. (3) Optionally, a `ComfyConnection` holding client, connected, error, websocket, progress and started, which the manager composes.",
+     "size": "L",
+     "risk": "med",
+     "leverage": 3,
+     "confidence": "med",
+     "tests_cover": "yes",
+     "invariants_touched": [],
+     "blocks_tag_weights": false
+    },
+    {
+     "title": "AIJob bookkeeping: jobs never pruned, ids stashed via setattr, tagger idle loop started by the wrong owner, no stop",
+     "kind": "simplify",
+     "evidence": [
+      "packages/backend/src/moire/services/ai_jobs.py:63-64",
+      "packages/backend/src/moire/services/ai_jobs.py:83-88",
+      "packages/backend/src/moire/services/ai_jobs.py:127",
+      "packages/backend/src/moire/services/ai_jobs.py:181-184",
+      "packages/backend/src/moire/services/ai_jobs.py:135-139",
+      "packages/backend/src/moire/services/ai_jobs.py:250-254",
+      "packages/backend/src/moire/main.py:47-55",
+      "packages/backend/src/moire/main.py:80-85"
+     ],
+     "problem": "`_jobs` only grows. Every one-image 'Tag with AI' and every bulk job stays in memory for the life of the process, along with its full id list, while `list_jobs` shows at most 20. The id list is attached with `setattr(job, \"_ids\", ...)` and read back with `getattr(job, \"_ids\", [])` in three places. `public()` filters underscore keys only so that this hack does not leak. `AIJobManager.start()` also starts the *TaggerManager's* `idle_unload_loop` and keeps no reference to the task. `set_idle_unload_s` is synced in two places (main.py:50-55 and ai_jobs.py:251-254). Shutdown stops the watchers and generation but not the AI worker or the idle loop.",
+     "proposal": "Make `ids: list[str] = field(default_factory=list, repr=False)` a real AIJob field, have `public()` drop it explicitly, and delete `image_ids()`'s getattr. After each job ends, trim `_jobs` to the newest N finished jobs (for example 50) plus all active ones. Move the idle loop's start into `TaggerManager.start(idle_unload_s)`, keep the task on the manager, and call it from the lifespan. Add `AIJobManager.stop()` (cancel the worker task) and call it in the lifespan shutdown beside `get_generation_manager().stop()`.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 2,
+     "confidence": "high",
+     "tests_cover": "partial",
+     "invariants_touched": [],
+     "blocks_tag_weights": false
+    },
+    {
+     "title": "Generation request-state vocabulary spelled five times",
+     "kind": "dedupe",
+     "evidence": [
+      "packages/backend/src/moire/services/generation_jobs.py:61-62",
+      "packages/backend/src/moire/services/generation_batches.py:39",
+      "packages/backend/src/moire/services/generation_batches.py:123",
+      "packages/backend/src/moire/services/generation_batches.py:405-416",
+      "packages/backend/src/moire/services/generation_estimate.py:359"
+     ],
+     "problem": "`UNFINISHED = (\"pending\", \"queued\", \"running\")` exists in generation_jobs. generation_batches redefines it as `_OPEN` and also inlines the same tuple twice, and generation_estimate inlines it too. `(\"failed\", \"lost\")` also appears twice in generation_batches. A new state (such as the existing `replaced`) has to be added in every spot, or a batch's state, the queue frames and the estimate drift apart.",
+     "proposal": "Keep `UNFINISHED` and add `FAILED = (\"failed\", \"lost\")` in generation_jobs, which generation_batches already imports. Replace `_OPEN` and the inline tuples in generation_batches.py:39, 123 and 405-416 and generation_estimate.py:359 with these constants.",
+     "size": "S",
+     "risk": "low",
+     "leverage": 2,
+     "confidence": "high",
+     "tests_cover": "yes",
+     "invariants_touched": [],
+     "blocks_tag_weights": false
+    },
+    {
+     "title": "Dead helpers: scanner.file_hash and ai_tagger_download._download_if_missing",
+     "kind": "dead",
+     "evidence": [
+      "packages/backend/src/moire/services/scanner.py:19",
+      "packages/backend/src/moire/services/scanner.py:141-146",
+      "packages/backend/src/moire/services/ai_tagger_download.py:59-71"
+     ],
+     "problem": "A grep over packages/ and scripts/ finds no caller of `file_hash`; its `hashlib` import at scanner.py:19 has no other use. `_download_if_missing` is a self-described 'back-compat helper' with no caller. It duplicates `_download_one` without progress, atomic rename or cancel, so anyone who reuses it gets a non-atomic download.",
+     "proposal": "Delete `file_hash` and the `hashlib` import from scanner.py, and delete `_download_if_missing` from ai_tagger_download.py. (`face_detect.idle` and `generation_jobs.reset_for_tests` are flagged by vulture but tests use them; keep them.)",
+     "size": "S",
+     "risk": "low",
+     "leverage": 1,
+     "confidence": "high",
+     "tests_cover": "no",
+     "invariants_touched": [],
+     "blocks_tag_weights": false
+    }
+   ],
+   "cross_cutting_hints": [
+    "packages/backend/src/moire/api/libraries.py:131-170 + services/scanner.py:615-630: a library deleted mid-scan can get orphan image rows and thumbnails. `images.library_id` has no FK to libraries (schema.py), `cancel_scan` waits only 0.5 s, `_on_complete` can still flush a batch after cancel, and the ThreadPoolExecutor exit waits for running workers that call `put_thumb` after `delete_by_prefix`. `_commit_batch` never checks that the library still exists.",
+    "packages/backend/src/moire/api/libraries.py:131-170: `remove_library` assembles the delete transaction inline in the router (boundary). A `services/libraries.delete_library` would own cancel, stop, delete and invalidate.",
+    "packages/frontend/src/lib/backgroundTasks.ts:10-25: `kind: TaskKind | string` widens to plain string, so the TaskKind union checks nothing (knip also flags TaskKind as unused).",
+    "packages/frontend/src/hooks/useAiTagging.ts:37-44 + hooks/useBackgroundTasks.ts:24-31 + hooks/useAiStatus.ts:12-19: an open image's AI job is polled through /ai/jobs/:id (1.5 s) and /activity (1.5 s), and /ai/status (2 s) when the settings page is open, all carrying the same status, done and total. useAiTagging could read the active job from the activity items and fetch /ai/jobs/:id only once at the end for its error.",
+    "packages/backend/src/moire/api/activity.py:107-127: the 'generate' item appears whenever ComfyUI's whole queue is non-empty (`queue_remaining` includes other clients' prompts), so the sidebar can say 'Generating' when Moire queued nothing.",
+    "packages/backend/src/moire/services/generation_jobs.py:86-91 vs services/storage_fs.py: a second atomic-write helper; check whether storage_fs's can take a dot-prefixed staging name."
+   ]
+  }
+ ]
+}

@@ -1,0 +1,149 @@
+# Phase 0 static-tool leads (jscpd, ruff C901/PLR, radon D+, vulture 60% w/o FastAPI routes, knip). Hints only, verify before trusting.
+packages/backend/src/moire/api/images.py:348-356  CLONE 9 lines, same as packages/backend/src/moire/api/images.py:368-376
+packages/backend/src/moire/api/images.py:368-376  CLONE 9 lines, same as packages/backend/src/moire/api/images.py:348-356
+packages/backend/src/moire/api/images.py:461-477  CLONE 17 lines, same as packages/backend/src/moire/api/images.py:56-72
+packages/backend/src/moire/api/images.py:487-506  CLONE 20 lines, same as packages/backend/src/moire/api/images.py:81-100
+packages/backend/src/moire/api/images.py:528-542  CLONE 15 lines, same as packages/backend/src/moire/api/rules.py:359-373
+packages/backend/src/moire/api/images.py:56-72  CLONE 17 lines, same as packages/backend/src/moire/api/images.py:461-477
+packages/backend/src/moire/api/images.py:81-100  CLONE 20 lines, same as packages/backend/src/moire/api/images.py:487-506
+packages/backend/src/moire/api/rules.py:359-373  CLONE 15 lines, same as packages/backend/src/moire/api/images.py:528-542
+packages/backend/src/moire/main.py:137  DEAD? vulture: unused function '_timing_and_rate_limit' (60% confidence)
+packages/backend/src/moire/models/image.py:21  DEAD? vulture: unused class 'ImageQuery' (60% confidence)
+packages/backend/src/moire/models/library.py:46  DEAD? vulture: unused method '_strip_quotes' (60% confidence)
+packages/backend/src/moire/models/library.py:59  DEAD? vulture: unused method '_drop_blank' (60% confidence)
+packages/backend/src/moire/models/library.py:68  DEAD? vulture: unused class 'Library' (60% confidence)
+packages/backend/src/moire/models/library.py:82  DEAD? vulture: unused method '_strip_quotes' (60% confidence)
+packages/backend/src/moire/services/ai_jobs.py:240  COMPLEXITY PLR0912 Too many branches (13 > 12)
+packages/backend/src/moire/services/ai_jobs.py:240  COMPLEXITY PLR0915 Too many statements (52 > 50)
+packages/backend/src/moire/services/ai_tagger_download.py:268  COMPLEXITY PLR0912 Too many branches (14 > 12)
+packages/backend/src/moire/services/ai_tagger_download.py:268  COMPLEXITY PLR0915 Too many statements (52 > 50)
+packages/backend/src/moire/services/ai_tagger_download.py:59  DEAD? vulture: unused function '_download_if_missing' (60% confidence)
+packages/backend/src/moire/services/attire.py:329  DEAD? vulture: unused function 'category_of' (60% confidence)
+packages/backend/src/moire/services/attire.py:335  DEAD? vulture: unused function 'all_tags' (60% confidence)
+packages/backend/src/moire/services/characters.py:611  COMPLEXITY radon D(23) page
+packages/backend/src/moire/services/danbooru_tags.py:208  DEAD? vulture: unused function 'reset_for_tests' (60% confidence)
+packages/backend/src/moire/services/face_detect.py:353  DEAD? vulture: unused function 'idle' (60% confidence)
+packages/backend/src/moire/services/gen_metadata.py:484  COMPLEXITY radon D(28) _resolve_text
+packages/backend/src/moire/services/generation_estimate.py:135  DEAD? vulture: unused function 'warm_estimate' (60% confidence)
+packages/backend/src/moire/services/generation_estimate.py:141  DEAD? vulture: unused function 'load_cost' (60% confidence)
+packages/backend/src/moire/services/generation_jobs.py:1097  COMPLEXITY radon D(24) GenerationManager.queue_batch
+packages/backend/src/moire/services/generation_jobs.py:1502  DEAD? vulture: unused function 'reset_for_tests' (60% confidence)
+packages/backend/src/moire/services/generator_discovery.py:205  COMPLEXITY radon D(21) text_inputs
+packages/backend/src/moire/services/generator_discovery.py:376  COMPLEXITY radon D(27) discover
+packages/backend/src/moire/services/generator_discovery.py:516  COMPLEXITY PLR0912 Too many branches (14 > 12)
+packages/backend/src/moire/services/generator_discovery.py:516  COMPLEXITY radon D(23) check_slots
+packages/backend/src/moire/services/generator_graph.py:177  COMPLEXITY PLR0912 Too many branches (15 > 12)
+packages/backend/src/moire/services/generator_graph.py:177  COMPLEXITY radon D(22) splice_loras
+packages/backend/src/moire/services/generator_graph.py:255  COMPLEXITY radon D(22) drop_missing
+packages/backend/src/moire/services/generator_setup.py:294  COMPLEXITY PLR0912 Too many branches (14 > 12)
+packages/backend/src/moire/services/generator_setup.py:294  COMPLEXITY radon D(29) clean_slots
+packages/backend/src/moire/services/generator_setup.py:462  COMPLEXITY radon D(25) carry_slots
+packages/backend/src/moire/services/image_feed.py:195  COMPLEXITY C901 `feed_where` is too complex (36 > 15)
+packages/backend/src/moire/services/image_feed.py:195  COMPLEXITY PLR0912 Too many branches (38 > 12)
+packages/backend/src/moire/services/image_feed.py:195  COMPLEXITY PLR0915 Too many statements (71 > 50)
+packages/backend/src/moire/services/image_feed.py:195  COMPLEXITY radon F(48) feed_where
+packages/backend/src/moire/services/library_discover.py:105  DEAD? vulture: unused attribute 'conflict_path' (60% confidence)
+packages/backend/src/moire/services/library_discover.py:105  DEAD? vulture: unused attribute 'note' (60% confidence)
+packages/backend/src/moire/services/library_discover.py:109  DEAD? vulture: unused attribute 'conflict_path' (60% confidence)
+packages/backend/src/moire/services/library_discover.py:109  DEAD? vulture: unused attribute 'note' (60% confidence)
+packages/backend/src/moire/services/library_discover.py:116  DEAD? vulture: unused attribute 'conflict_path' (60% confidence)
+packages/backend/src/moire/services/library_discover.py:116  DEAD? vulture: unused attribute 'note' (60% confidence)
+packages/backend/src/moire/services/library_discover.py:123  DEAD? vulture: unused attribute 'note' (60% confidence)
+packages/backend/src/moire/services/library_discover.py:136  DEAD? vulture: unused attribute 'conflict_path' (60% confidence)
+packages/backend/src/moire/services/library_discover.py:136  DEAD? vulture: unused attribute 'note' (60% confidence)
+packages/backend/src/moire/services/library_discover.py:186  DEAD? vulture: unused attribute 'subdir_count' (60% confidence)
+packages/backend/src/moire/services/library_discover.py:187  DEAD? vulture: unused attribute 'loose_image_count' (60% confidence)
+packages/backend/src/moire/services/library_discover.py:192  DEAD? vulture: unused attribute 'fell_back_to_root' (60% confidence)
+packages/backend/src/moire/services/library_watch.py:110  COMPLEXITY C901 `_write_loop` is too complex (16 > 15)
+packages/backend/src/moire/services/library_watch.py:110  COMPLEXITY PLR0912 Too many branches (15 > 12)
+packages/backend/src/moire/services/library_watch.py:110  COMPLEXITY radon D(21) _write_loop
+packages/backend/src/moire/services/library_watch.py:301  COMPLEXITY PLR0912 Too many branches (14 > 12)
+packages/backend/src/moire/services/lora_presets.py:78-87  CLONE 10 lines, same as packages/backend/src/moire/services/prompt_presets.py:96-105
+packages/backend/src/moire/services/lora_presets.py:99-110  CLONE 12 lines, same as packages/backend/src/moire/services/prompt_presets.py:114-125
+packages/backend/src/moire/services/outfits.py:151  COMPLEXITY radon D(22) worn
+packages/backend/src/moire/services/prompt_board.py:93  COMPLEXITY C901 `_section` is too complex (24 > 15)
+packages/backend/src/moire/services/prompt_board.py:93  COMPLEXITY PLR0912 Too many branches (23 > 12)
+packages/backend/src/moire/services/prompt_board.py:93  COMPLEXITY radon E(39) _section
+packages/backend/src/moire/services/prompt_parse.py:160  COMPLEXITY C901 `_scan` is too complex (24 > 15)
+packages/backend/src/moire/services/prompt_parse.py:160  COMPLEXITY PLR0912 Too many branches (21 > 12)
+packages/backend/src/moire/services/prompt_parse.py:160  COMPLEXITY PLR0915 Too many statements (83 > 50)
+packages/backend/src/moire/services/prompt_parse.py:160  COMPLEXITY radon D(30) _scan
+packages/backend/src/moire/services/prompt_presets.py:114-125  CLONE 12 lines, same as packages/backend/src/moire/services/lora_presets.py:99-110
+packages/backend/src/moire/services/prompt_presets.py:96-105  CLONE 10 lines, same as packages/backend/src/moire/services/lora_presets.py:78-87
+packages/backend/src/moire/services/recipes.py:382  COMPLEXITY radon D(27) clean
+packages/backend/src/moire/services/remix.py:200  COMPLEXITY radon E(35) remix_view
+packages/backend/src/moire/services/scanner.py:141  DEAD? vulture: unused function 'file_hash' (60% confidence)
+packages/backend/src/moire/services/scanner.py:502  COMPLEXITY C901 `scan_library_async` is too complex (37 > 15)
+packages/backend/src/moire/services/scanner.py:502  COMPLEXITY PLR0915 Too many statements (142 > 50)
+packages/backend/src/moire/services/scanner.py:524  COMPLEXITY C901 `_run` is too complex (35 > 15)
+packages/backend/src/moire/services/scanner.py:524  COMPLEXITY PLR0912 Too many branches (24 > 12)
+packages/backend/src/moire/services/scanner.py:524  COMPLEXITY PLR0915 Too many statements (130 > 50)
+packages/backend/src/moire/services/tag_descriptions.py:62  DEAD? vulture: unused function 'reset_for_tests' (60% confidence)
+packages/backend/src/moire/services/tag_index.py:132  DEAD? vulture: unused function 'reset_for_tests' (60% confidence)
+packages/backend/src/moire/web_ui.py:69  DEAD? vulture: unused function '_ui_fallback' (60% confidence)
+packages/frontend/package.json  DEAD? knip Unused devDependencies: @vitest/coverage-v8
+packages/frontend/src/components/CharacterEditDialog.tsx:145-172  CLONE 28 lines, same as packages/frontend/src/components/TagEditDialog.tsx:63-89
+packages/frontend/src/components/CharacterEditDialog.tsx:149-175  CLONE 27 lines, same as packages/frontend/src/components/TagEditDialog.tsx:67-91
+packages/frontend/src/components/ConfirmDialog.tsx  DEAD? knip Unused exported types: ConfirmTone, ConfirmOptions
+packages/frontend/src/components/ErrorScreen.tsx  DEAD? knip Unused exports: ErrorPanel
+packages/frontend/src/components/RenameTagDialog.tsx:115-124  CLONE 10 lines, same as packages/frontend/src/components/generate/ChipInput.tsx:83-92
+packages/frontend/src/components/ShortcutOverlay.tsx  DEAD? knip Unused exports: ShortcutOverlay
+packages/frontend/src/components/Sidebar.tsx  DEAD? knip Unused exports: SEARCH_KEYS
+packages/frontend/src/components/TagEditDialog.tsx:63-89  CLONE 28 lines, same as packages/frontend/src/components/CharacterEditDialog.tsx:145-172
+packages/frontend/src/components/TagEditDialog.tsx:67-91  CLONE 27 lines, same as packages/frontend/src/components/CharacterEditDialog.tsx:149-175
+packages/frontend/src/components/TagPanel.tsx  DEAD? knip Unused exports: TagImages
+packages/frontend/src/components/TagPanel.tsx:360-430  CLONE 71 lines, same as packages/frontend/src/pages/CharacterPage.tsx:288-332
+packages/frontend/src/components/TagPanel.tsx:409-423  CLONE 15 lines, same as packages/frontend/src/pages/CharacterPage.tsx:313-327
+packages/frontend/src/components/TagSearchInput.tsx:98-107  CLONE 10 lines, same as packages/frontend/src/components/generate/RunControls.tsx:187-195
+packages/frontend/src/components/generate/BatchResults.tsx  DEAD? knip Unused exports: Tile, NoImageMark
+packages/frontend/src/components/generate/CharacterBlock.tsx  DEAD? knip Unused exports: GenderPick
+packages/frontend/src/components/generate/CharacterBlock.tsx:252-276  CLONE 25 lines, same as packages/frontend/src/components/generate/Outfit.tsx:156-181
+packages/frontend/src/components/generate/ChipInput.tsx  DEAD? knip Unused exports: ChipInput
+packages/frontend/src/components/generate/ChipInput.tsx:72-83  CLONE 12 lines, same as packages/frontend/src/components/generate/RunControls.tsx:186-195
+packages/frontend/src/components/generate/ChipInput.tsx:83-92  CLONE 10 lines, same as packages/frontend/src/components/RenameTagDialog.tsx:115-124
+packages/frontend/src/components/generate/Layers.tsx:214-235  CLONE 22 lines, same as packages/frontend/src/components/generate/StyleLayer.tsx:99-120
+packages/frontend/src/components/generate/Outfit.tsx:156-181  CLONE 25 lines, same as packages/frontend/src/components/generate/CharacterBlock.tsx:252-276
+packages/frontend/src/components/generate/OutfitCover.tsx  DEAD? knip Unused exports: coverCaption
+packages/frontend/src/components/generate/PromptBoard.tsx  DEAD? knip Unused exported types: LayerTag
+packages/frontend/src/components/generate/QueueFrames.tsx  DEAD? knip Unused exported types: FrameState
+packages/frontend/src/components/generate/QueueFrames.tsx  DEAD? knip Unused exports: framesOf, Frame
+packages/frontend/src/components/generate/Remix.tsx  DEAD? knip Unused exports: useRemixWorkflow
+packages/frontend/src/components/generate/RunControls.tsx:186-195  CLONE 12 lines, same as packages/frontend/src/components/generate/ChipInput.tsx:72-83
+packages/frontend/src/components/generate/RunControls.tsx:187-195  CLONE 10 lines, same as packages/frontend/src/components/TagSearchInput.tsx:98-107
+packages/frontend/src/components/generate/StyleLayer.tsx:99-120  CLONE 22 lines, same as packages/frontend/src/components/generate/Layers.tsx:214-235
+packages/frontend/src/components/ui/ScoreMark.tsx  DEAD? knip Unused exports: MARKER_DIGIT
+packages/frontend/src/components/ui/index.ts  DEAD? knip Unused exported types: ButtonProps, PageWidth
+packages/frontend/src/components/ui/index.ts  DEAD? knip Unused exports: ButtonAnchor, Section, Field, Skeleton, Spinner, MobileNavContext, StatCard
+packages/frontend/src/hooks/useDocumentTitle.ts  DEAD? knip Unused exports: APP_NAME
+packages/frontend/src/hooks/useImageFeed.ts  DEAD? knip Unused exports: imageFeedKey
+packages/frontend/src/hooks/useImageLoadSlot.ts  DEAD? knip Unused exports: imageLoadQueue
+packages/frontend/src/lib/backgroundTasks.ts  DEAD? knip Unused exported types: TaskKind
+packages/frontend/src/lib/bulk.ts  DEAD? knip Unused exports: DEFAULT_CONCURRENCY
+packages/frontend/src/lib/character.ts  DEAD? knip Unused exports: FEW_IMAGES
+packages/frontend/src/lib/compose.ts  DEAD? knip Unused exports: EMBEDDING_PREFIX
+packages/frontend/src/lib/countTags.ts  DEAD? knip Unused exported types: CountMark
+packages/frontend/src/lib/eta.ts  DEAD? knip Unused exports: OVERRUN, FILL_CAP
+packages/frontend/src/lib/feedCache.ts  DEAD? knip Unused exports: IMAGE_FEED_PREFIX
+packages/frontend/src/lib/generate.ts  DEAD? knip Unused exported types: Progress, GeneratorTest, OutputRef, GeneratorOrigin, NodeRef, FoundPrompt, RequestState, RequestError, LoraPick
+packages/frontend/src/lib/generate.ts  DEAD? knip Unused exports: waitingForScan
+packages/frontend/src/lib/generatorSetup.ts  DEAD? knip Unused exports: pathLabel
+packages/frontend/src/lib/imageFilter.ts  DEAD? knip Unused exported types: TagLogic
+packages/frontend/src/lib/libraryPlan.ts  DEAD? knip Unused exported types: CandidateStatus
+packages/frontend/src/lib/mergeSuggestions.ts  DEAD? knip Unused exports: KIND_ORDER
+packages/frontend/src/lib/onboarding.ts  DEAD? knip Unused exports: isFullPath
+packages/frontend/src/lib/promptOutline.ts  DEAD? knip Unused exports: splitSpans, promptWord
+packages/frontend/src/lib/queries.ts  DEAD? knip Unused exports: TAG_FACETS_KEY, TAG_GROUPS_KEY
+packages/frontend/src/lib/shortcuts.ts  DEAD? knip Unused exports: SHORTCUT_GROUPS
+packages/frontend/src/lib/tagBrowse.ts  DEAD? knip Unused exported types: TagCategory
+packages/frontend/src/lib/tagColour.ts  DEAD? knip Unused exports: CHIP_GROUND
+packages/frontend/src/lib/tagGroups.ts  DEAD? knip Unused exports: categoryLabel
+packages/frontend/src/lib/workflows.ts  DEAD? knip Unused exported types: WorkflowVersion
+packages/frontend/src/pages/CharacterPage.tsx:288-332  CLONE 71 lines, same as packages/frontend/src/components/TagPanel.tsx:360-430
+packages/frontend/src/pages/CharacterPage.tsx:313-327  CLONE 15 lines, same as packages/frontend/src/components/TagPanel.tsx:409-423
+packages/frontend/src/pages/settings/registry.tsx  DEAD? knip Unused exported types: SettingsGroup
+packages/frontend/src/pages/settings/registry.tsx  DEAD? knip Unused exports: SETTINGS_GROUPS
+packages/frontend/src/pages/settings/sections/BoilerplateSection.tsx:1-12  CLONE 12 lines, same as packages/frontend/src/pages/settings/sections/PromptGuessSection.tsx:2-13
+packages/frontend/src/pages/settings/sections/BoilerplateSection.tsx:181-198  CLONE 18 lines, same as packages/frontend/src/pages/settings/sections/PromptGuessSection.tsx:118-139
+packages/frontend/src/pages/settings/sections/PromptGuessSection.tsx:118-139  CLONE 18 lines, same as packages/frontend/src/pages/settings/sections/BoilerplateSection.tsx:181-198
+packages/frontend/src/pages/settings/sections/PromptGuessSection.tsx:2-13  CLONE 12 lines, same as packages/frontend/src/pages/settings/sections/BoilerplateSection.tsx:1-12
+packages/frontend/test-optimizations.js  DEAD? knip Unused files: test-optimizations.js

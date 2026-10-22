@@ -19,7 +19,8 @@ So the weight stays out of the tag string and is stored beside it.
 
 ## Proposed shape
 
-1. **Extraction (`services/reproject.py`).** Read each prompt term's weight while it is being extracted. Count `(x:1.2)` as 1.2, each `(...)` layer as ×1.1 and each `[...]` layer as ÷1.1, and give a group's members the group's weight. This is the same rule as the frontend's `lib/promptOutline.ts` `unwrap` / `readTerm`, so port it and test both against one shared fixture list.
+1. **Extraction (`services/prompt_parse.py`, used by `reproject.py`).** Read each prompt term's weight while it is being extracted. Count `(x:1.2)` as 1.2, each `(...)` layer as ×1.1 and each `[...]` layer as ÷1.1, and give a group's members the group's weight. Decide `{...}` at the start (×1.05 as in A1111, or 1.0); today the backend treats `{}` as a group and the frontend does not.
+   - **Correction (refactor pass, 2026-10-22):** this rule does not exist anywhere yet. `lib/promptOutline.ts` `unwrap` / `readTerm` read only an explicit `:w` (or the enclosing group's), never ×1.1 per layer, and ignore `{}`. So there is nothing to port. Define the rule once, backend first, in `prompt_parse` (`_scan` already tracks the bracket stack, but `_clean` drops the weight, `Piece` is only `(text, kind)` and `tokenize_prompt` reduces pieces to a set of names). Then make `readTerm` compute the same thing. Put the cases in one shared JSON fixture (e.g. `packages/backend/tests/fixtures/prompt_weights.json`) read by both `test_prompt_parse.py` and a `promptOutline` vitest.
 2. **Storage.** Add `prompt_weights` (JSON `{tag: weight}`, only for weights other than 1) on `images`, or as a `weight` column on `image_tags` rows with `base` set to the prompt tag. The `image_tags` column is better if we want "images where smile > 1.2" filters later. The JSON column is simpler if we only display weights. Choose one at the start of the session.
    - No migration machinery: the data isn't critical. Drop the DB, or run a reproject ("re-read prompts") after the schema change.
    - Writes go only through `services/image_tags.py` (the single-writer rule).
@@ -33,6 +34,17 @@ So the weight stays out of the tag string and is stored beside it.
    - It wraps the text as `(term:1.05)`, removes the wrapper when the weight returns to 1, and keeps the selection on the term.
    - Make it a pure helper in `lib/promptEdit.ts` (`bumpWeight(text, start, end, delta) -> {text, start, end}`) with tests, wired into `PromptInput.tsx`'s `onKeyDown`.
    - Add the keys to `lib/shortcuts.ts` (a "Generate" group).
+
+## Prerequisites from the refactor pass (2026-10-22)
+
+The refactor pass (`docs/refactor-pass/findings-wave1.json`) found these in this plan's path. Do them before, or at the start of, the weights session:
+
+- **One bulk tag write path.** `image_tags.replace_prompt_many_sync` (the reproject path, the one that would carry weights) builds its own UPDATE with hard-coded flag bindparams, beside `_persist_statements`; `initial_tag_fields` hard-codes the flags a third time. A `prompt_weights` column added to the single-image path would silently be skipped by reproject. Derive all three from one column source, with a test that bulk and single writes produce identical rows.
+- **One prompt splitter per side.** Besides `promptOutline`, the frontend splits prompts in `countTags.terms`, `promptRepeats.topTerms`, `compose.promptTerms` and `promptEdit.termAt`, each with different bracket and escape rules. The backend has a second, regex-based parser in `generation_compose.prompt_terms` (it mangles escaped parens in batch auto-names). Fold these onto `promptOutline.promptTerms` and `prompt_parse.parse_prompt` before adding weights, or `bumpWeight` becomes a fifth copy.
+- **`prompt_parse._scan` (complexity 30).** Return the enclosing bracket stack instead of only `in_group: bool`, so `Piece.weight` can be computed.
+- **One extraction config.** `reproject._reproject_where` and the rules preview gather extraction inputs (keywords, positive_only, aliases) separately and already disagree. Weights would add a step to both. Share a single `ExtractionConfig` and `derive()`.
+- **Serialize reproject runs.** Only `reproject_all_async` coalesces. Overlapping runs can write stale `prompt:` tags, and weights would inherit the race.
+- **Split `ImageView.tsx` first.** The weights UI edits `TagFlow` and the Prompt tab, both inside the 2166-line page. Move `TagFlow` and `GenPanel` out first, as a pure move.
 
 ## Order
 

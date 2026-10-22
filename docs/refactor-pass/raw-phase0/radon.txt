@@ -1,0 +1,31 @@
+Installed 4 packages in 15ms
+src/moire/services/generator_discovery.py
+    F 376:0 discover - D (27)
+    F 516:0 check_slots - D (23)
+    F 205:0 text_inputs - D (21)
+src/moire/services/gen_metadata.py
+    F 484:0 _resolve_text - D (28)
+src/moire/services/characters.py
+    F 611:0 page - D (23)
+src/moire/services/generator_setup.py
+    F 294:0 clean_slots - D (29)
+    F 462:0 carry_slots - D (25)
+src/moire/services/recipes.py
+    F 382:0 clean - D (27)
+src/moire/services/library_watch.py
+    F 110:0 _write_loop - D (21)
+src/moire/services/prompt_board.py
+    F 93:0 _section - E (39)
+src/moire/services/generator_graph.py
+    F 177:0 splice_loras - D (22)
+    F 255:0 drop_missing - D (22)
+src/moire/services/remix.py
+    F 200:0 remix_view - E (35)
+src/moire/services/generation_jobs.py
+    M 1097:4 GenerationManager.queue_batch - D (24)
+src/moire/services/prompt_parse.py
+    F 160:0 _scan - D (30)
+src/moire/services/outfits.py
+    F 151:0 worn - D (22)
+src/moire/services/image_feed.py
+    F 195:0 feed_where - F (48)
