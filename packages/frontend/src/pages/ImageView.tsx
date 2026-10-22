@@ -1235,9 +1235,13 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
     shown.some((t) => t.kind === k),
   );
   const folded = new Set(boilerplate.map((t) => t.raw));
-  // Tags only the prompt gave sit apart, under their own heading.
-  const lead = shown.filter((t) => t.kind !== "prompt");
-  const promptOnly = shown.filter((t) => t.kind === "prompt");
+  // Tags only the prompt gave sit apart, under their own heading, once the
+  // AI has tagged the image (before that every prompt tag is "only" there).
+  const apart = tags.some((t) => t.kind === "ai" || t.kind === "character");
+  // AI tags the prompt also names are underlined.
+  const both = (t: FlowTag) => (t.kind === "ai" || t.kind === "character") && !!t.also?.includes("prompt");
+  const lead = apart ? shown.filter((t) => t.kind !== "prompt") : shown;
+  const promptOnly = apart ? shown.filter((t) => t.kind === "prompt") : [];
   const marks = useTagMarks();
   const shownFacets = marks.tints
     ? (Object.keys(FACET_TINT) as Facet[]).filter((f) => shown.some((t) => facetOf(t.raw) === f))
@@ -1260,7 +1264,9 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
               >
                 <Link
                   to={tagPageHref(t)}
-                  className={`rounded px-0.5 -mx-0.5 ${TAG_TINT_CLASS} hover:bg-raised hover:underline ${KIND_TEXT[t.kind]}`}
+                  className={`rounded px-0.5 -mx-0.5 ${TAG_TINT_CLASS} hover:bg-raised hover:underline ${KIND_TEXT[t.kind]} ${
+                    both(t) ? "underline decoration-1 decoration-current/40 underline-offset-4" : ""
+                  }`}
                   style={{
                     ...tagMarkStyle(t.raw, facetOf(t.raw), PANEL_GROUND, marks),
                     ...(t.confidence != null ? { opacity: 0.45 + 0.55 * t.confidence } : {}),
@@ -1319,6 +1325,9 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
           </span>
         ))}
         {shown.some((t) => t.confidence != null) && <span>fainter = less confident</span>}
+        {shown.some(both) && (
+          <span className="underline decoration-1 decoration-current/40 underline-offset-4">also in the prompt</span>
+        )}
         {shownFacets.map((f) => (
           <span key={f} className="rounded px-1 text-muted" style={{ backgroundColor: FACET_TINT[f] }}>
             {FACET_LABEL[f]}
