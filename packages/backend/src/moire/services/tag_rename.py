@@ -56,9 +56,27 @@ def _target_name(to: str, *, prompt: bool) -> str:
     return name
 
 
+async def _base_in_use(conn, tag: str) -> bool:
+    """Whether a source other than ``tag`` still carries its base name, so
+    the name's page (pin, focus, character settings) stays where it is."""
+    it = t.image_tags
+    return (
+        await conn.execute(
+            sa.select(it.c.tag)
+            .where(
+                it.c.base == tag_index.pin_key(tag),
+                it.c.tag != image_tags.canonical_tag(tag),
+            )
+            .limit(1)
+        )
+    ).scalar() is not None
+
+
 async def _move_thumbnail(conn, old: str, new: str) -> None:
     """Carry a pinned mosaic thumbnail over to the target if it has none.
     Pins are keyed by name (``tag_index.pin_key``), not by source."""
+    if await _base_in_use(conn, old):
+        return
     old, new = tag_index.pin_key(old), tag_index.pin_key(new)
     if old == new:
         return
@@ -94,6 +112,8 @@ async def _move_thumbnail(conn, old: str, new: str) -> None:
 async def _move_character(conn, old: str, new: str) -> None:
     """Carry a character's settings (name, colour, avatar centre, whether it
     is one) over to the target if it has none, keyed like pins."""
+    if await _base_in_use(conn, old):
+        return
     old, new = tag_index.pin_key(old), tag_index.pin_key(new)
     if old == new:
         return

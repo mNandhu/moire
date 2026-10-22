@@ -301,3 +301,29 @@ async def test_suggestions_leave_out_names_a_rule_leads_to(
     body = (await client.get("/tags/merge-suggestions")).json()
     assert body == {"available": True, "suggestions": []}
     danbooru_tags.reset_for_tests()
+
+
+async def test_renaming_one_source_keeps_the_pin_of_a_base_still_in_use(client, seed):
+    seed("L1:a", tags=("foo",))
+    seed("L1:b", tags=("manual:foo",))
+    await client.post("/tags/thumbnail/foo", json={"image_id": "L1:a"})
+    async with db.async_tx() as conn:
+        await conn.execute(sa.insert(t.characters).values(tag="foo"))
+    resp = await client.post("/tags/rename", json={"tag": "manual:foo", "to": "bar"})
+    assert resp.status_code == 200, resp.text
+    async with db.async_conn() as conn:
+        pins = (await conn.execute(sa.select(t.tag_meta.c.tag))).scalars().all()
+        chars = (await conn.execute(sa.select(t.characters.c.tag))).scalars().all()
+    # The AI tag `foo` still exists and keeps its page settings.
+    assert pins == ["foo"]
+    assert chars == ["foo"]
+
+
+async def test_a_prompt_rule_keeps_the_pin_of_a_base_still_in_use(client, seed):
+    seed("L1:a", tags=("foo", "prompt:foo"))
+    await client.post("/tags/thumbnail/foo", json={"image_id": "L1:a"})
+    resp = await client.post("/tags/rename", json={"tag": "prompt:foo", "to": "bar"})
+    assert resp.status_code == 200, resp.text
+    async with db.async_conn() as conn:
+        pins = (await conn.execute(sa.select(t.tag_meta.c.tag))).scalars().all()
+    assert pins == ["foo"]

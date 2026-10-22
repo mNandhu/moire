@@ -13,8 +13,8 @@ Housekeeping, not findings:
 ## P0. Bugs (verify with a failing test first)
 
 - [ ] **SCAN-UI** Library `scan_error` is never shown in the UI (bug, S)
-- [x] **L1.1** Retag of an image a running AI job already passed wipes its AI tags and reports success (bug, S, L4), done
-- [ ] **S3.1** Renaming a source-specific tag moves the cover, focus and character settings of the shared base name (bug, S, L4)
+- [x] **L1.1** Retag of an image a running AI job already passed wipes its AI tags and reports success (bug, S, L4), done 369087a
+- [x] **S3.1** Renaming a source-specific tag moves the cover, focus and character settings of the shared base name (bug, S, L4), done
 - [ ] **S12.3** Deleting a hand-made character leaves its outfits, Default edits and hides behind (bug, S, L3)
 - [ ] **S6.3** AI worker loop dies on any error outside the per-image try, leaving the job 'running' and every later job queued forever (bug, S, L3)
 - [ ] **S6.2** A failed model download is swallowed: download_wd_tagger returns paths and the load fails with a bare FileNotFoundError (bug, S, L3)
