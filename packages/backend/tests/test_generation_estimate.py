@@ -158,6 +158,9 @@ def test_pending_requests_run_batch_after_batch():
         Row(state="pending", batch_id=2, idx=2, inputs={}),
         Row(state="pending", batch_id=3, idx=0, inputs={"test": True}),
     ]
-    got = [(r.batch_id, r.idx) for r in _run_order(rows)]
+    got = [(r.batch_id, r.idx) for r in _run_order(rows, current=2)]
     # A test run first, then the rest of the batch being made, then the oldest.
     assert got == [(2, 0), (3, 0), (2, 1), (2, 2), (1, 1), (1, 2)]
+    # Not knowing which is being made (a restart): oldest first.
+    got = [(r.batch_id, r.idx) for r in _run_order(rows)]
+    assert got == [(2, 0), (3, 0), (1, 1), (1, 2), (2, 1), (2, 2)]

@@ -108,7 +108,9 @@ async def background_activity():
     gen = manager.status()
     if gen.get("busy"):
         try:
-            eta = (await generation_estimate.queue_plan(manager.started))["total"]
+            eta = (
+                await generation_estimate.queue_plan(manager.started, manager.current)
+            )["total"]
         except Exception:
             # The estimate is extra; the activity list still answers.
             logger.exception("Couldn't estimate the generation queue")

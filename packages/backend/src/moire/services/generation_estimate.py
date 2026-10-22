@@ -309,15 +309,15 @@ async def _last_checkpoint(gens: _Generators) -> str | None:
     return _job(gen, row.generator_id, row.inputs or {}, 1).checkpoint
 
 
-def _run_order(rows: list) -> list:
+def _run_order(rows: list, current: int | None = None) -> list:
     """``rows`` (running, then queued, then pending, each batch's in ``idx``
     order) in the order they'll run. One request is in ComfyUI at a time
     (``GenerationManager._submit_next``) and batches go one after another:
-    a test run's pending first, then the rest of the batch being made, then
-    the oldest batch's. Pure."""
+    a test run's pending first, then the rest of the batch being made
+    (``current``, ``GenerationManager.current``), then the oldest batch's.
+    Pure."""
     head = [row for row in rows if row.state != "pending"]
     pending = [row for row in rows if row.state == "pending"]
-    current = head[-1].batch_id if head else None
     # Stable: each batch's stay in idx order.
     pending.sort(
         key=lambda row: (
@@ -329,7 +329,9 @@ def _run_order(rows: list) -> list:
     return head + pending
 
 
-async def queue_plan(started: dict[str, float]) -> dict[str, Any]:
+async def queue_plan(
+    started: dict[str, float], current: int | None = None
+) -> dict[str, Any]:
     """Seconds left on the queue: per active batch (``batches``), and the
     total (``total``). A running request counts what's left of its estimate
     (``started`` is when ComfyUI began each prompt). Each running or waiting
@@ -368,7 +370,7 @@ async def queue_plan(started: dict[str, float]) -> dict[str, Any]:
                 )
             )
         ).fetchall()
-    rows = _run_order(rows)
+    rows = _run_order(rows, current)
     jobs = [
         _job(
             await gens.get(row.generator_id),

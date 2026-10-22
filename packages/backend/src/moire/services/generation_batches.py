@@ -122,7 +122,9 @@ async def get_batch(batch_id: int, manager: GenerationManager) -> dict[str, Any]
     gen = await load_generator(batch.generator_id)
     unfinished = any(q.state in ("pending", "queued", "running") for q in reqs)
     expected = (
-        (await generation_estimate.queue_plan(manager.started))["requests"]
+        (await generation_estimate.queue_plan(manager.started, manager.current))[
+            "requests"
+        ]
         if unfinished
         else {}
     )

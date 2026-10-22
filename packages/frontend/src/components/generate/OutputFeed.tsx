@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { batchRunTime, durationLabel, isWaiting, turnLabel } from "../../lib/batches";
 import { BATCHES_KEY, STATUS_KEY, batchKey, useBatch, useBatches, useComfyStatus, type Batch } from "../../lib/generate";
 import { batchLeft, leftLabel } from "../../lib/eta";
+import { queueLegs } from "../../lib/queueClock";
 import { BatchResults } from "./BatchResults";
 
 /** Batches shown in the output column. */
@@ -68,15 +69,18 @@ function BatchPanel({ id }: { id: number }) {
  */
 export function OutputFeed() {
   const { data: status } = useComfyStatus();
-  // Enough to get past every batch still waiting its turn.
-  const waiting = status?.active.filter(isWaiting).length ?? 0;
-  const { data } = useBatches(SHOWN + waiting);
+  // Waiting its turn: in the queue, nothing made, and not the one in front
+  // (which may sit queued in ComfyUI a moment before it runs).
+  const active = (status?.active ?? []).filter((a) => !a.test);
+  const front = queueLegs(active).legs[0]?.id;
+  const behind = new Set(active.filter((a) => isWaiting(a) && a._id !== front).map((a) => a._id));
+  // Enough to get past every one of them.
+  const { data } = useBatches(SHOWN + behind.size);
   const started = data
     ?.filter((b) => {
       // Cancelled with nothing made: nothing to show (Generations lists it).
       if (b.state === "cancelled" && b.images === 0) return false;
-      const turn = status?.active.find((a) => a._id === b._id);
-      return !(turn && isWaiting(turn));
+      return !behind.has(b._id);
     })
     .slice(0, SHOWN);
   if (!started?.length) return null;

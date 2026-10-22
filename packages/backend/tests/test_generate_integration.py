@@ -927,3 +927,8 @@ async def test_cancelling_a_batch_already_sent_keeps_it(client, comfy, seed):
     r = await client.post(f"/generate/batches/{b['_id']}/cancel")
     # In ComfyUI's hands, so it may be running already: kept, cancelled.
     assert r.json()["requests"][0]["state"] == "cancelled"
+
+
+async def test_cancelling_a_batch_that_isnt_there_is_404(client, comfy, seed):
+    r = await client.post("/generate/batches/999/cancel")
+    assert r.status_code == 404

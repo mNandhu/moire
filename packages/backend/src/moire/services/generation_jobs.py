@@ -487,6 +487,10 @@ class GenerationManager:
         # When ComfyUI started running each prompt (our clock): the run-time
         # estimate counts down from it.
         self.started: dict[str, float] = {}
+        # The batch being made: it goes on before older ones (a retry) and
+        # newer ones. Set only when this picks a batch (not a test run, not
+        # one that slipped in while parking); after a restart, oldest first.
+        self.current: int | None = None
         self._loop_task: asyncio.Task | None = None
         self._ws_task: asyncio.Task | None = None
         self._wake = asyncio.Event()
@@ -670,16 +674,17 @@ class GenerationManager:
             await self._submit_next()
             return await self._has_unfinished()
 
-    async def _has_unfinished(self) -> bool:
+    async def _has_unfinished(self, besides: int | None = None) -> bool:
+        """Some request is still to finish (in a batch other than `besides`)."""
+        r = t.generation_requests
+        where = [r.c.state.in_(UNFINISHED)]
+        if besides is not None:
+            where.append(r.c.batch_id != besides)
         async with async_conn() as conn:
-            n = (
-                await conn.execute(
-                    sa.select(sa.func.count())
-                    .select_from(t.generation_requests)
-                    .where(t.generation_requests.c.state.in_(UNFINISHED))
-                )
-            ).scalar()
-        return bool(n)
+            row = (
+                await conn.execute(sa.select(r.c._id).where(*where).limit(1))
+            ).first()
+        return row is not None
 
     async def _sync(self, running: set[str], pending: set[str]) -> None:
         assert self.client is not None
@@ -950,9 +955,9 @@ class GenerationManager:
 
     async def _submit_next(self) -> None:
         """With nothing of ours in ComfyUI, submit the lowest pending request
-        of the first batch in line: test runs first, then the batch last sent
-        (so a retry on an old batch waits for the one being made), then the
-        oldest. A batch is done before the next starts."""
+        of the first batch in line: test runs first, then the batch being
+        made (so a retry on an old batch waits for it), then the oldest. A
+        batch is done before the next starts."""
         r, b = t.generation_requests, t.generation_batches
         async with async_conn() as conn:
             busy = (
@@ -962,33 +967,33 @@ class GenerationManager:
             ).first()
             if busy:
                 return
-            last = (
+            row = (
                 await conn.execute(
-                    sa.select(r.c.batch_id)
-                    .where(r.c.queued_at.is_not(None))
-                    .order_by(r.c.queued_at.desc())
-                    .limit(1)
-                )
-            ).scalar()
-            rows = (
-                await conn.execute(
-                    sa.select(r.c.batch_id, sa.func.min(r.c.idx).label("idx"))
+                    sa.select(
+                        r.c.batch_id,
+                        sa.func.min(r.c.idx).label("idx"),
+                        sa.func.json_extract(b.c.inputs, "$.test").label("test"),
+                    )
                     .select_from(r.join(b, b.c._id == r.c.batch_id))
                     .where(r.c.state == "pending")
                     .group_by(r.c.batch_id)
-                    .order_by(TEST_FIRST, r.c.batch_id != (last or -1), r.c.batch_id)
+                    .order_by(
+                        TEST_FIRST, r.c.batch_id != (self.current or -1), r.c.batch_id
+                    )
+                    .limit(1)
                 )
-            ).fetchall()
-        # A rejected one fails and the next in line goes instead.
-        for row in rows:
-            try:
-                await self._submit(row.batch_id, row.idx)
-                return
-            except ComfyRejected as e:
-                await self._fail_request(row.batch_id, row.idx, e)
-            except (ComfyUnreachable, ComfyError) as e:
-                self._down(str(e))
-                return
+            ).first()
+        if row is None:
+            return
+        if not row.test:
+            self.current = row.batch_id
+        try:
+            await self._submit(row.batch_id, row.idx)
+        except ComfyRejected as e:
+            # That one fails; the next tick goes on with the same batch.
+            await self._fail_request(row.batch_id, row.idx, e)
+        except (ComfyUnreachable, ComfyError) as e:
+            self._down(str(e))
 
     async def _fail_request(self, batch_id: int, idx: int, e: ComfyRejected) -> None:
         first = e.node_errors[0] if e.node_errors else {}
@@ -1250,21 +1255,13 @@ class GenerationManager:
             await self._delete_batch(batch_id)
             self._down(str(e))
             raise Unavailable(str(e)) from e
-        if not inputs.get("test") and await self._others_unfinished(batch_id):
+        if inputs.get("test"):
+            return batch_id
+        if await self._has_unfinished(besides=batch_id):
             await self._park(batch_id, pid)
+        else:
+            self.current = batch_id
         return batch_id
-
-    async def _others_unfinished(self, batch_id: int) -> bool:
-        r = t.generation_requests
-        async with async_conn() as conn:
-            row = (
-                await conn.execute(
-                    sa.select(r.c._id)
-                    .where(r.c.batch_id != batch_id, r.c.state.in_(UNFINISHED))
-                    .limit(1)
-                )
-            ).first()
-        return row is not None
 
     async def _park(self, batch_id: int, pid: str) -> None:
         """Take a batch's first request back out of ComfyUI's queue to wait
@@ -1282,9 +1279,10 @@ class GenerationManager:
             if pid in running or await self.client.history(pid) is not None:
                 return
         except (ComfyUnreachable, ComfyError) as e:
-            # Deleted but can't tell whether it ran first: waiting again risks
-            # making it twice, staying would call it lost.
+            # Can't tell whether it ran first. Left as sent: at worst it's
+            # called lost (and can be retried), never made twice.
             self._down(str(e))
+            return
         r = t.generation_requests
         async with async_tx() as conn:
             await conn.execute(

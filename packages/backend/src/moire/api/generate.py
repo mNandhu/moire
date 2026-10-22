@@ -280,7 +280,7 @@ async def put_lora_choice(body: LoraChoice):
 async def status():
     """Connection, global busy, and the queue card's active batches."""
     m = get_generation_manager()
-    queue = await generation_estimate.queue_plan(m.started)
+    queue = await generation_estimate.queue_plan(m.started, m.current)
     active = await generation_batches.active_summary(m)
     for a in active:
         # Seconds left on the batch; None when some request can't be told.
@@ -738,6 +738,7 @@ async def retry_request(batch_id: int, request_id: int, body: RetryIn):
 
 @router.post("/batches/{batch_id}/cancel")
 async def cancel_batch(batch_id: int):
+    await get_batch(batch_id)  # 404 for one that isn't there
     # Null when it never ran and so was deleted.
     if await get_generation_manager().cancel(batch_id):
         return None

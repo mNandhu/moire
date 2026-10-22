@@ -3,7 +3,7 @@
  * browser never talks to ComfyUI; everything goes through `/api/v1/generate`.
  */
 import { testState } from "./workflow";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 import type { NewEstimate } from "./eta";
 
@@ -801,6 +801,8 @@ export function useBatches(limit = 50) {
   return useQuery({
     queryKey: [...BATCHES_KEY, limit],
     queryFn: ({ signal }) => api<BatchSummary[]>(`${BASE}/batches?limit=${limit}`, { signal }),
+    // A new limit is a new key: keep showing the last list until it loads.
+    placeholderData: keepPreviousData,
     refetchInterval: (q) => (q.state.data?.some((b) => b.state === "running" || b.arriving > 0) ? 2000 : false),
   });
 }
