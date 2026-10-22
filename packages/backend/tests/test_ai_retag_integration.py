@@ -39,3 +39,17 @@ async def test_plain_tag_keeps_existing_ai_tags(client, seed):
     row = _row("L1:b.png")
     assert row.tags == ["1girl"]
     assert row.rating == "general"
+
+
+async def test_retag_runs_even_when_another_job_holds_the_image(client, seed):
+    from moire.services.ai_jobs import get_ai_job_manager
+
+    seed("L1:c.png", tags=("1girl",), rating="general")
+    jm = get_ai_job_manager()
+    jm._in_flight["L1:c.png"] += 1  # a running job that already passed it
+    try:
+        resp = await client.post("/ai/tag", json={"ids": ["L1:c.png"], "retag": True})
+    finally:
+        jm._in_flight["L1:c.png"] -= 1
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["queued"] == 1

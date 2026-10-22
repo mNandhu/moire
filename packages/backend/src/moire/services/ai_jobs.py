@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections import deque
+from collections import Counter, deque
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -127,7 +127,8 @@ class AIJobManager:
         self._jobs: dict[str, AIJob] = {}
         self._worker_task: asyncio.Task | None = None
         # Prevent queueing the same image many times across jobs.
-        self._in_flight: set[str] = set()
+        # Claims per image id, held from enqueue until that image is processed.
+        self._in_flight: Counter[str] = Counter()
         # Jobs that have ended, however: the activity poll compares it to
         # notice a job that came and went between two polls.
         self.finished = 0
@@ -183,8 +184,7 @@ class AIJobManager:
         # Store ids on the job object (private field via attribute)
         setattr(job, "_ids", list(accepted))
         # Track in-flight ids so we don't queue duplicates across jobs.
-        for image_id in accepted:
-            self._in_flight.add(image_id)
+        self._in_flight.update(accepted)
 
         if accepted:
             await self._queue.put(job)
@@ -222,10 +222,7 @@ class AIJobManager:
             removed = await self._queue.remove(job_id)
             job.status = "cancelled"
             self.finished += 1
-            # Release in-flight ids.
-            ids: list[str] = getattr(job, "_ids", [])
-            for image_id in ids:
-                self._in_flight.discard(image_id)
+            self._release(getattr(job, "_ids", []))
             return removed
 
         # If running, request cancellation (best-effort).
@@ -246,6 +243,7 @@ class AIJobManager:
 
             job.status = "running"
             ids: list[str] = getattr(job, "_ids", [])
+            released = 0  # ids[:released] are processed and their claims dropped
             try:
                 settings = await get_ai_settings()
                 # Keep runtime idle timeout in sync
@@ -297,6 +295,8 @@ class AIJobManager:
                             logger.warning("AI tagging failed for %s: %s", image_id, e)
                             job.failed += 1
                             job.errors.append({"image_id": image_id, "error": str(e)})
+                        self._release([image_id])
+                        released = i + 1
                 finally:
                     if pending is not None:
                         _discard(pending)
@@ -308,9 +308,14 @@ class AIJobManager:
                 if job.started_at is not None:
                     job.finished_at = time.time()
                 self.finished += 1
-                # Release in-flight ids
-                for image_id in ids:
-                    self._in_flight.discard(image_id)
+                self._release(ids[released:])
+
+    def _release(self, ids: list[str]) -> None:
+        """Drop one claim per id, so an id another job also holds stays claimed."""
+        self._in_flight.subtract(ids)
+        for image_id in ids:
+            if self._in_flight[image_id] <= 0:
+                del self._in_flight[image_id]
 
     async def _prepare_model(self, job: AIJob, repo: str, cache_dir: str) -> bool:
         """Load the tagger model before the first image, through the shared

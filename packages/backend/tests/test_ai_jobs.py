@@ -292,3 +292,35 @@ async def test_a_finished_job_reports_its_rate(monkeypatch):
     view = job.public()
     assert job.finished_at >= job.started_at
     assert view["rate"] > 0 and "eta_s" not in view
+
+
+async def test_a_tagged_image_is_released_before_its_job_ends(monkeypatch):
+    events: list[str] = []
+    mgr = _job_manager(monkeypatch, events)
+    worker = asyncio.create_task(mgr._worker_loop())
+    job = await mgr.enqueue(ids=["a", "b", "c"])
+    try:
+        while "tag-start:b" not in events:
+            await asyncio.sleep(0.005)
+        # `a` is tagged while the job is still running: a new job takes it.
+        again = await mgr.enqueue(ids=["a", "c"])
+        assert (again.total, again.skipped) == (1, 1)
+        for _ in range(200):
+            if again.status == "done":
+                break
+            await asyncio.sleep(0.01)
+    finally:
+        worker.cancel()
+    assert job.status == "done" and again.status == "done"
+    assert not mgr._in_flight
+
+
+async def test_overlapping_claims_are_counted():
+    mgr = AIJobManager()  # no worker: both jobs stay queued
+    first = await mgr.enqueue(ids=["x"])
+    forced = await mgr.enqueue(ids=["x"], force=True)
+    await mgr.cancel(forced.id)
+    # The first job still holds `x`.
+    assert (await mgr.enqueue(ids=["x"])).skipped == 1
+    await mgr.cancel(first.id)
+    assert not mgr._in_flight
