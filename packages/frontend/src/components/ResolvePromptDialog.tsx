@@ -95,13 +95,23 @@ export function ResolvePromptDialog({
   const matches = useMemo(() => (graph && query.trim() ? collectMatches(graph, query) : []), [graph, query]);
   const pinned = fields[field as RuleField] ?? [];
   const pin = (path: string) => session.pinPath(field, path);
+  // The field's guess, first: a row up top to pin it in one click, and the
+  // tree scrolled to where it sits.
+  const guessPath = gen.guessed?.includes(field) ? (gen.guess_paths?.[field] ?? null) : null;
+  const guessValue = graph != null && guessPath ? valueAt(graph, guessPath) : undefined;
+  const tree = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!guessPath || graph == null) return;
+    const leaf = tree.current?.querySelector(`[data-graph-path="${CSS.escape(guessPath)}"]`);
+    leaf?.scrollIntoView?.({ block: "center" });
+  }, [guessPath, graph]);
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
       title="Resolve prompt"
-      className="max-w-xl"
+      className="max-w-2xl"
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -141,11 +151,22 @@ export function ResolvePromptDialog({
             ))}
           </div>
         )}
+        {guessPath && guessValue !== undefined && !pinned.includes(guessPath) && (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-400/5 px-2.5 py-1.5">
+            <span className="shrink-0 text-2xs text-amber-300">Guessed</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-xs text-emerald-300" title={String(guessValue)}>
+              {JSON.stringify(guessValue)}
+            </span>
+            <Button size="sm" onClick={() => pin(guessPath)} title={`Pin ${guessPath}`}>
+              Use this
+            </Button>
+          </div>
+        )}
         <div className="relative">
           <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node or a prompt word" aria-label="Search the graph" className="pl-8" />
         </div>
-        <div className="max-h-[45vh] overflow-auto rounded-lg border border-line bg-canvas/60 p-2 font-mono text-xs">
+        <div ref={tree} className="max-h-[55vh] overflow-auto rounded-lg border border-line bg-canvas/60 p-2 font-mono text-xs">
           {missing ? (
             <div className="text-muted">No sample graph for this workflow.</div>
           ) : !selected || loading || graph == null ? (
@@ -171,4 +192,14 @@ export function ResolvePromptDialog({
       </div>
     </Dialog>
   );
+}
+
+/** The value at a dot-path (`12.inputs.text`) in the graph, else undefined. */
+function valueAt(graph: unknown, path: string): unknown {
+  let at: unknown = graph;
+  for (const k of path.split(".")) {
+    if (at == null || typeof at !== "object") return undefined;
+    at = (at as Record<string, unknown>)[k];
+  }
+  return at;
 }

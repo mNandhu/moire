@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "../../lib/cn";
 
 /**
@@ -16,6 +17,9 @@ import { cn } from "../../lib/cn";
  * Escape and Tab are handled at the document (capture phase) so they work from
  * either place. Only the topmost open dialog reacts, so a confirm opened over a
  * dialog closes alone.
+ *
+ * Rendered into <body>: a transformed ancestor (the image view's sliding side
+ * panel) would otherwise make `fixed` mean "fixed to the panel".
  */
 const openStack: object[] = [];
 
@@ -99,7 +103,7 @@ export function Dialog({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       className={cn(
         "fixed inset-0 z-[950] flex justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in",
@@ -133,7 +137,8 @@ export function Dialog({
         {children && <div className={title || description ? "mt-4" : ""}>{children}</div>}
         {footer && <div className="mt-5 flex justify-end gap-2">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
