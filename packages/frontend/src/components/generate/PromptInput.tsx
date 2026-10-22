@@ -171,7 +171,9 @@ export function PromptInput({
   }, []);
   // A flash shows until its glow is over (its note a while longer), then the
   // copy behind goes back to marks only.
-  const [flashing, setFlashing] = useState<PromptFlash | null>(null);
+  // With the text it was made for: once the prompt is edited its offsets
+  // (and an undo that puts the old prompt back) no longer hold, so it goes.
+  const [flashing, setFlashing] = useState<(PromptFlash & { text: string }) | null>(null);
   const [noteAt, setNoteAt] = useState<{ left: number; top: number } | null>(null);
   const flashRef = useRef<HTMLSpanElement | null>(null);
   useEffect(() => {
@@ -179,11 +181,15 @@ export function PromptInput({
       setFlashing(null);
       return;
     }
-    setFlashing(flash);
+    // The page sets the prompt and the flash together, so `value` is the
+    // text the flash was made for.
+    setFlashing({ ...flash, text: value });
     const t = setTimeout(() => setFlashing(null), flash.note ? NOTE_MS : 2400);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flash]);
-  const lit = flashing && flashing.ranges.every((r) => r.end <= value.length) ? flashing.ranges : [];
+  const current = flashing?.text === value ? flashing : null;
+  const lit = current?.ranges ?? [];
   const hasMarks = marks.length > 0 || lit.length > 0;
   useLayoutEffect(syncBack, [syncBack, hasMarks, className]);
   useLayoutEffect(syncScroll, [syncScroll, value, marksKey]);
@@ -369,13 +375,13 @@ export function PromptInput({
           style={at ? { left: at.left, top: at.top } : undefined}
         />
       )}
-      {flashing?.note && noteAt && !mark && (
+      {current?.note && noteAt && !mark && (
         <div
           role="status"
           className="absolute z-30 flex w-max max-w-xs animate-fade-in items-center gap-2 rounded-lg border border-brand-700/60 bg-raised px-2.5 py-2 text-xs text-neutral-200 shadow-panel"
           style={{ left: noteAt.left, top: noteAt.top }}
         >
-          {flashing.note}
+          {current.note}
         </div>
       )}
       {mark && bubbleAt && (
