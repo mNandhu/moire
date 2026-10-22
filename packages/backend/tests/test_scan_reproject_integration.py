@@ -3,6 +3,7 @@ other tests stub past: a real disk scan (sync, multithreaded → SQLite) and
 reprojection (the sole writer of the promoted gen_* columns + image_gen_terms +
 prompt: tags). Without these, the model/pterms feed filters would be unverified."""
 
+import os
 import time
 
 import pytest
@@ -195,6 +196,80 @@ async def test_full_scan_indexes_images_and_rescan_preserves_tag_state(
     row = await _img(target)
     assert "manual:keeper" in row.tags  # survived the rescan upsert
     assert row.has_tags is True
+
+
+async def _scanned_library(client, lib_dir):
+    resp = await client.post("/libraries", json={"path": str(lib_dir)})
+    assert resp.status_code == 200, resp.text
+    lib_id = resp.json()["_id"]
+    _wait_scan(lib_id)
+    return lib_id
+
+
+async def _rescan(client, lib_id):
+    await client.post(f"/libraries/{lib_id}/rescan")
+    _wait_scan(lib_id)
+    async with db.async_conn() as conn:
+        lib = (
+            await conn.execute(
+                sa.select(t.libraries).where(t.libraries.c._id == lib_id)
+            )
+        ).first()
+        ids = set(
+            (
+                await conn.execute(
+                    sa.select(t.images.c._id).where(t.images.c.library_id == lib_id)
+                )
+            ).scalars()
+        )
+    return lib, ids
+
+
+async def test_rescan_of_a_missing_folder_keeps_the_library(client, tmp_path):
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    _write_png(lib_dir / "a.png")
+    lib_id = await _scanned_library(client, lib_dir)
+
+    lib_dir.rename(tmp_path / "moved")  # unplugged drive, renamed folder
+    lib, ids = await _rescan(client, lib_id)
+
+    assert ids == {f"{lib_id}:a.png"}
+    assert "not found" in lib.scan_error
+
+
+async def test_rescan_of_an_emptied_folder_keeps_the_library(client, tmp_path):
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    _write_png(lib_dir / "a.png")
+    lib_id = await _scanned_library(client, lib_dir)
+
+    (lib_dir / "a.png").unlink()  # an unmounted drive's mount point is empty
+    lib, ids = await _rescan(client, lib_id)
+
+    assert ids == {f"{lib_id}:a.png"}
+    assert "empty" in lib.scan_error
+
+
+@pytest.mark.skipif(os.name != "posix" or os.geteuid() == 0, reason="needs chmod")
+async def test_rescan_keeps_images_in_unreadable_folders_only(client, tmp_path):
+    lib_dir = tmp_path / "lib"
+    (lib_dir / "locked").mkdir(parents=True)
+    _write_png(lib_dir / "gone.png")
+    _write_png(lib_dir / "stay.png")
+    _write_png(lib_dir / "locked" / "b.png")
+    lib_id = await _scanned_library(client, lib_dir)
+
+    (lib_dir / "gone.png").unlink()
+    (lib_dir / "locked").chmod(0)
+    try:
+        lib, ids = await _rescan(client, lib_id)
+    finally:
+        (lib_dir / "locked").chmod(0o755)
+
+    # The truly deleted file goes; the unreadable folder's image is kept.
+    assert ids == {f"{lib_id}:stay.png", f"{lib_id}:locked{os.sep}b.png"}
+    assert "could not be read" in lib.scan_error
 
 
 async def test_full_scan_captures_a1111_exif_from_a_real_jpeg(client, tmp_path):

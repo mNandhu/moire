@@ -5,6 +5,7 @@ images that vanished from disk).
 Raw generation-metadata capture used to live here; it moved to
 ``gen_metadata.read_gen_raw``, see ``test_gen_raw_capture.py``."""
 
+import os
 from pathlib import Path
 
 
@@ -65,3 +66,27 @@ def test_reconcile_stale_keeps_everything_when_all_discovered():
     existing = [{"_id": "L1:a.jpg"}, {"_id": "L1:b.jpg"}]
     discovered = {"L1:a.jpg", "L1:b.jpg"}
     assert scanner.reconcile_stale(discovered, existing) == ([], [])
+
+
+def test_reconcile_stale_never_flags_images_in_unread_folders():
+    existing = [{"_id": "L1:gone.jpg"}, {"_id": f"L1:locked{os.sep}a.jpg"}]
+    stale_ids, _ = scanner.reconcile_stale(set(), existing, [f"L1:locked{os.sep}"])
+    assert stale_ids == ["L1:gone.jpg"]
+
+
+def test_unread_prefixes_scope_errors_to_their_folder(tmp_path):
+    err = PermissionError(13, "denied", str(tmp_path / "locked"))
+    assert scanner.unread_prefixes("L1", tmp_path, [err]) == [f"L1:locked{os.sep}"]
+    # An error with no usable path (or on the root itself) covers the library.
+    assert scanner.unread_prefixes("L1", tmp_path, [OSError("odd")]) == ["L1:"]
+    root_err = OSError(5, "io", str(tmp_path))
+    assert scanner.unread_prefixes("L1", tmp_path, [root_err]) == ["L1:"]
+
+
+def test_stale_guard_blocks_deletes_on_untrusted_discovery(tmp_path):
+    assert scanner.stale_guard(tmp_path, discovered=3, existing=5) is None
+    # A gone root, or an empty one while the library has images: keep everything.
+    assert scanner.stale_guard(tmp_path / "missing", 0, 5)
+    assert scanner.stale_guard(tmp_path, discovered=0, existing=5)
+    # A library that was already empty may stay empty.
+    assert scanner.stale_guard(tmp_path, discovered=0, existing=0) is None

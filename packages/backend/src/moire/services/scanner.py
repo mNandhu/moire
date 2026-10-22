@@ -330,10 +330,13 @@ def remove_single_image(library_id: str, image_id: str) -> None:
 
 
 def reconcile_stale(
-    discovered_ids: set[str], existing_docs: list[dict]
+    discovered_ids: set[str],
+    existing_docs: list[dict],
+    unread_prefixes: list[str] | tuple[str, ...] = (),
 ) -> tuple[list[str], list[str]]:
     """Given the ids seen this scan and the docs already in the DB, return
     ``(stale_image_ids, stale_thumb_keys)``: images that no longer exist on disk.
+    Ids under ``unread_prefixes`` (folders the walk could not read) are never stale.
 
     Pure set math, extracted from the scan loop because it *deletes* images and so
     is the highest-risk part to get wrong.
@@ -341,11 +344,48 @@ def reconcile_stale(
     stale_ids: list[str] = []
     stale_thumb_keys: list[str] = []
     for doc in existing_docs:
-        if doc["_id"] not in discovered_ids:
+        if doc["_id"] not in discovered_ids and not doc["_id"].startswith(
+            tuple(unread_prefixes)
+        ):
             stale_ids.append(doc["_id"])
             if doc.get("thumb_key"):
                 stale_thumb_keys.append(doc["thumb_key"])
     return stale_ids, stale_thumb_keys
+
+
+def stale_guard(root_path: Path, discovered: int, existing: int) -> str | None:
+    """Why this scan must not delete any stale image, or None when it may.
+
+    Deleting an image drops its tags, ratings and scores, so only a discovery we
+    can trust may delete. Not trusted: a root that vanished mid-scan, or a root
+    that is suddenly empty while the library has images (an unmounted drive's
+    mount point is an empty folder).
+    """
+    if not root_path.is_dir():
+        return "library folder disappeared during the scan"
+    if discovered == 0 and existing > 0:
+        return "library folder is empty (is the drive connected?)"
+    return None
+
+
+def unread_prefixes(
+    library_id: str, root_path: Path, errors: list[OSError]
+) -> list[str]:
+    """Image-id prefixes of the folders the walk could not read.
+
+    Their images were not seen, not deleted, so they must not count as stale.
+    An error without a usable path covers the whole library.
+    """
+    prefixes: list[str] = []
+    for err in errors:
+        try:
+            rel = Path(err.filename).relative_to(root_path)
+        except (TypeError, ValueError):
+            return [f"{library_id}:"]
+        if rel == Path("."):
+            return [f"{library_id}:"]
+        prefixes.append(f"{library_id}:{rel}{os.sep}")
+    return prefixes
 
 
 # --- Async scanning with progress tracking ---
@@ -531,6 +571,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
         failed = 0
         failed_samples: list[dict] = []
         discovered_image_ids: set[str] = set()
+        scan_note: str | None = None
         has_slot = False
         try:
             while not _scan_slots.acquire(timeout=0.5):
@@ -551,12 +592,21 @@ def scan_library_async(library_id: str, root: str) -> dict:
             if current is None:
                 raise RuntimeError("cancelled")  # library deleted while queued
             root_path = Path(current)
+            # os.walk of a missing root yields nothing without raising, which
+            # would make every image look deleted: fail the scan instead.
+            if not root_path.is_dir():
+                raise RuntimeError(f"Library folder not found: {root_path}")
 
             # Discover image files, leaving out the folders of libraries
             # inside this one: their files are theirs (services/library_nesting).
+            # Folders the walk cannot read are recorded, so their images are
+            # kept rather than reconciled away as deleted (unread_prefixes).
             nested = library_nesting.nested_roots(library_id, root_path)
             files: list[Path] = []
-            for dirpath, dirnames, filenames in os.walk(root_path):
+            walk_errors: list[OSError] = []
+            for dirpath, dirnames, filenames in os.walk(
+                root_path, onerror=walk_errors.append
+            ):
                 dirnames[:] = library_nesting.skip_dirs(dirpath, dirnames, nested)
                 for fname in filenames:
                     p = Path(dirpath) / fname
@@ -566,9 +616,9 @@ def scan_library_async(library_id: str, root: str) -> dict:
                             discovered_image_ids.add(
                                 image_id_for(library_id, root_path, p)
                             )
-                        except Exception:
-                            # Best-effort; path math can fail on unusual inputs
-                            pass
+                        except Exception as e:
+                            # No filename, so it guards the whole library.
+                            walk_errors.append(OSError(str(e)))
             total = len(files)
             _lib_set(library_id, {"scan_total": total, "scan_done": 0})
 
@@ -704,9 +754,30 @@ def scan_library_async(library_id: str, root: str) -> dict:
                 if r._id not in nested_copies
             ]
 
+            unread = unread_prefixes(library_id, root_path, walk_errors)
+            if unread:
+                logger.warning(
+                    "Scan of library %s could not read %d folders, keeping their images: %s",
+                    library_id,
+                    len(walk_errors),
+                    walk_errors[0],
+                )
+                scan_note = "Some folders could not be read; their images were kept"
             stale_image_ids, stale_thumb_keys = reconcile_stale(
-                discovered_image_ids, existing_docs
+                discovered_image_ids, existing_docs, unread
             )
+            keep_reason = stale_guard(
+                root_path, len(discovered_image_ids), len(existing_docs)
+            )
+            if keep_reason and stale_image_ids:
+                logger.warning(
+                    "Scan of library %s kept %d missing images: %s",
+                    library_id,
+                    len(stale_image_ids),
+                    keep_reason,
+                )
+                scan_note = f"Kept {len(stale_image_ids)} images: {keep_reason}"
+                stale_image_ids, stale_thumb_keys = [], []
 
             # Remove stale images (image_tags / image_gen_terms cascade via FK).
             if stale_image_ids:
@@ -747,6 +818,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
                     "last_scanned": datetime.utcnow().isoformat(),
                     "scan_failed_count": failed,
                     "scan_failed_samples": failed_samples,
+                    "scan_error": scan_note,
                 },
             )
 

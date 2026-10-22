@@ -235,6 +235,8 @@ async def test_scan_reconcile_dirties_the_index(client, tmp_path):
     lib_dir.mkdir()
     doomed = lib_dir / "doomed.png"
     Image.new("RGB", (8, 8)).save(doomed, "PNG")
+    # A survivor: a scan that finds no files at all keeps everything.
+    Image.new("RGB", (8, 8)).save(lib_dir / "survivor.png", "PNG")
 
     resp = await client.post("/libraries", json={"path": str(lib_dir)})
     lib_id = resp.json()["_id"]
