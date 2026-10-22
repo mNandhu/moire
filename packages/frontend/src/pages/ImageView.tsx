@@ -77,6 +77,8 @@ import { FACET_LABEL, FACET_TINT, TAG_TINT_CLASS, tagMarkStyle, type Facet } fro
 import { useTagMarks } from "../hooks/useTagMarks";
 import { isFormField } from "../lib/dom";
 import { fitLines } from "../lib/fitLines";
+import { snapSheet } from "../lib/sheetSnap";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { MARKER_DIGIT } from "../components/ui/ScoreMark";
 import { Input } from "../components/ui/Input";
@@ -109,6 +111,10 @@ const IMAGE_DOC_STALE_MS = 30_000;
 // to decode. Past this we show it regardless rather than appear stuck.
 const MAX_HOLD_MS = 2000;
 
+// The phone's details sheet: how much of it shows at rest, below the image.
+const SHEET_PEEK = "45dvh";
+const SHEET_PEEK_FRACTION = 0.45;
+
 export default function ImageView() {
   // `routeId` is where the URL points; `id` is the image actually on screen.
   // They diverge only while a not-yet-decoded image is being waited on; see
@@ -134,6 +140,75 @@ export default function ImageView() {
   const [infoOpen, setInfoOpen] = useState(
     () => window.matchMedia?.("(min-width: 1024px)")?.matches ?? true,
   );
+  // On a phone the panel is a sheet over the image's lower part: resting at
+  // a peek, under the image, or pulled up to read; dragged by its top.
+  const phone = useMediaQuery("(max-width: 639px)");
+  const [sheet, setSheet] = useState<"peek" | "full">("peek");
+  const asideRef = useRef<HTMLElement>(null);
+  const [dragY, setDragY] = useState<number | null>(null);
+  const dragRef = useRef<{ y0: number; from: number; y: number; t: number; v: number; moved: boolean } | null>(null);
+  const justDragged = useRef(false);
+  // Down from fully open, px: open, peek, closed.
+  const sheetStops = () => {
+    const h = asideRef.current?.offsetHeight ?? window.innerHeight;
+    return [0, h - window.innerHeight * SHEET_PEEK_FRACTION, h];
+  };
+  const sheetDrag: React.HTMLAttributes<HTMLDivElement> = phone
+    ? {
+        style: { touchAction: "none" },
+        onPointerDown: (e) => {
+          if (e.button) return;
+          const stops = sheetStops();
+          dragRef.current = {
+            y0: e.clientY,
+            from: sheet === "full" ? stops[0] : stops[1],
+            y: e.clientY,
+            t: e.timeStamp,
+            v: 0,
+            moved: false,
+          };
+        },
+        onPointerMove: (e) => {
+          const d = dragRef.current;
+          if (!d) return;
+          const dy = e.clientY - d.y0;
+          // A tap on a header button stays a tap.
+          if (!d.moved) {
+            if (Math.abs(dy) < 6) return;
+            d.moved = true;
+            e.currentTarget.setPointerCapture(e.pointerId);
+          }
+          const dt = e.timeStamp - d.t;
+          if (dt > 0) d.v = (e.clientY - d.y) / dt;
+          d.y = e.clientY;
+          d.t = e.timeStamp;
+          setDragY(Math.max(0, d.from + dy));
+        },
+        onPointerUp: (e) => {
+          const d = dragRef.current;
+          dragRef.current = null;
+          if (!d?.moved) return;
+          justDragged.current = true;
+          // Held still before letting go: no flick.
+          const v = e.timeStamp - d.t > 80 ? 0 : d.v;
+          const stop = snapSheet(Math.max(0, d.from + e.clientY - d.y0), v, sheetStops());
+          setDragY(null);
+          if (stop === 2) setInfoOpen(false);
+          else setSheet(stop === 0 ? "full" : "peek");
+        },
+        onPointerCancel: () => {
+          dragRef.current = null;
+          setDragY(null);
+        },
+        // The click that ends a drag isn't a press of what it started on.
+        onClickCapture: (e) => {
+          if (!justDragged.current) return;
+          justDragged.current = false;
+          e.preventDefault();
+          e.stopPropagation();
+        },
+      }
+    : {};
   // The details panel's scroller and its content, for PromptBlock to fit the
   // prompt into the room left over (see PanelFit).
   const [panelScroller, setPanelScroller] = useState<HTMLDivElement | null>(null);
@@ -645,7 +720,9 @@ export default function ImageView() {
       {/* Image stage. Swipes count only here: one that starts in the details
           drawer is a scroll, not a step to the next image. */}
       <div
-        className="flex-1 h-full flex items-center justify-center relative overflow-hidden [container-type:size]"
+        className="flex-1 h-full flex items-center justify-center relative overflow-hidden [container-type:size] transition-[padding] duration-300 ease-out"
+        // The image sits above the resting sheet, not under it.
+        style={phone && infoOpen ? { paddingBottom: SHEET_PEEK } : undefined}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
@@ -661,7 +738,10 @@ export default function ImageView() {
         {/* Reopen details panel (overlay when collapsed) */}
         {!infoOpen && (
           <button
-            onClick={() => setInfoOpen(true)}
+            onClick={() => {
+              setSheet("peek");
+              setInfoOpen(true);
+            }}
             className={`absolute top-4 right-4 z-50 ${OVERLAY_BTN}`}
             title="Show details"
             aria-label="Show details"
@@ -782,16 +862,48 @@ export default function ImageView() {
       </div>
       {/* Details sidebar: docked on desktop, slide-over drawer on mobile */}
       <aside
+        ref={asideRef}
         role="region"
         aria-label="Image details"
-        className={`fixed lg:static inset-y-0 right-0 z-[60] h-dvh lg:h-full w-full sm:w-[380px] lg:w-[400px] lg:shrink-0 flex flex-col border-l border-line bg-surface shadow-xl shadow-black/30 lg:shadow-none transition-transform duration-300 ease-out lg:transition-none ${
-          infoOpen ? "translate-x-0 lg:flex" : "translate-x-full lg:hidden"
-        }`}
+        className={
+          phone
+            ? "fixed inset-x-0 bottom-0 z-[60] h-[92dvh] flex flex-col rounded-t-2xl border-t border-line-strong bg-surface shadow-xl shadow-black/50 transition-transform duration-300 ease-out"
+            : `fixed lg:static inset-y-0 right-0 z-[60] h-dvh lg:h-full w-full sm:w-[380px] lg:w-[400px] lg:shrink-0 flex flex-col border-l border-line bg-surface shadow-xl shadow-black/30 lg:shadow-none transition-transform duration-300 ease-out lg:transition-none ${
+                infoOpen ? "translate-x-0 lg:flex" : "translate-x-full lg:hidden"
+              }`
+        }
+        style={
+          phone
+            ? {
+                transform:
+                  dragY != null
+                    ? `translateY(${dragY}px)`
+                    : !infoOpen
+                      ? "translateY(100%)"
+                      : sheet === "peek"
+                        ? `translateY(calc(100% - ${SHEET_PEEK}))`
+                        : "none",
+                transition: dragY != null ? "none" : undefined,
+              }
+            : undefined
+        }
       >
+        {phone && (
+          <div {...sheetDrag} className="flex shrink-0 justify-center pt-1.5">
+            <button
+              type="button"
+              onClick={() => setSheet(sheet === "full" ? "peek" : "full")}
+              className="flex h-5 w-16 items-center justify-center"
+              aria-label={sheet === "full" ? "Lower details" : "Raise details"}
+            >
+              <span className="h-1 w-10 rounded-full bg-line-strong" />
+            </button>
+          </div>
+        )}
         {data && (
           <>
             {/* Header: filename + quick actions */}
-            <div className="flex items-start justify-between gap-2 px-4 py-3 border-b border-line shrink-0">
+            <div {...sheetDrag} className="flex items-start justify-between gap-2 px-4 py-3 max-sm:pt-1 border-b border-line shrink-0">
               <div className="min-w-0">
                 <div
                   className="text-sm font-semibold truncate"
