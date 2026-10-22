@@ -8,10 +8,30 @@
 
 const BOUNDARY = new Set([" ", "_", "-", ":", "/", "."]);
 
-/** Relevance of `query` within `target`, or null when not a subsequence. */
+// Word separators a query may add or leave out: `high leg` finds
+// `highleg_leotard`, `highleg` finds `high_leg`.
+const SEPARATORS = /[ _-]+/g;
+// A match that needed separators ignored ranks under one that didn't.
+const LOOSE_PENALTY = 10;
+
+/** Relevance of `query` within `target`, or null when not a subsequence,
+ * even with word separators ignored on both sides. */
 export function fuzzyScore(query: string, target: string): number | null {
-  const q = query.toLowerCase();
-  const t = target.toLowerCase();
+  const strict = score(query, target);
+  if (strict !== null) return strict;
+  const q = query.replace(SEPARATORS, "");
+  const t = target.replace(SEPARATORS, "");
+  if (q === query && t === target) return null;
+  const loose = score(q, t);
+  return loose === null ? null : loose - LOOSE_PENALTY;
+}
+
+// Any separator matches any other: `blue eyes` is `blue_eyes`.
+const sameSeparator = (s: string) => s.toLowerCase().replace(/[_-]/g, " ");
+
+function score(query: string, target: string): number | null {
+  const q = sameSeparator(query);
+  const t = sameSeparator(target);
   if (!q) return 0;
   if (q.length > t.length) return null;
 

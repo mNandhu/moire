@@ -40,6 +40,11 @@ describe("filterTags", () => {
     expect(filterTags(rows, "", bp).map((r) => r.tag)).toEqual(["blue_eyes", "cat"]);
     expect(filterTags(rows, "", null)).toHaveLength(3);
   });
+  it("ignores word breaks", () => {
+    const more = [tag("highleg_leotard", 2), tag("high_heels", 4)];
+    expect(filterTags(more, "high leg", null).map((r) => r.tag)).toEqual(["highleg_leotard"]);
+    expect(filterTags(more, "highheels", null).map((r) => r.tag)).toEqual(["high_heels"]);
+  });
 });
 
 describe("sortTags", () => {

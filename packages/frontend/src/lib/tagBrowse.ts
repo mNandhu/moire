@@ -79,11 +79,14 @@ export function filterTags(
   isBoilerplate: ((tag: string) => boolean) | null,
 ): BrowseTag[] {
   const needle = tagQueryText(query.trim());
-  return rows.filter(
-    (r) =>
-      !(isBoilerplate && isBoilerplate(r.tag)) &&
-      (!needle || formatTag(r.tag).toLowerCase().includes(needle)),
-  );
+  // Word breaks don't count: `high leg` finds `highleg leotard`.
+  const squeezed = needle.replace(/[\s-]+/g, "");
+  return rows.filter((r) => {
+    if (isBoilerplate && isBoilerplate(r.tag)) return false;
+    if (!needle) return true;
+    const name = formatTag(r.tag).toLowerCase();
+    return name.includes(needle) || name.replace(/[\s-]+/g, "").includes(squeezed);
+  });
 }
 
 /** A new array in `sort` order; ties fall back to the name. */

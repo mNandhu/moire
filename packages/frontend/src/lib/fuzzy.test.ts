@@ -37,6 +37,15 @@ describe("fuzzyScore", () => {
     const midword = fuzzyScore("foo", "barfoobar")!;
     expect(boundary).toBeGreaterThan(midword);
   });
+
+  it("ignores word separators the query adds or leaves out", () => {
+    expect(fuzzyScore("high leg", "highleg_leotard")).not.toBeNull();
+    expect(fuzzyScore("highleg", "high_leg")).not.toBeNull();
+    expect(fuzzyScore("high-leg", "highleg leotard")).not.toBeNull();
+    expect(fuzzyScore("high leg", "bow")).toBeNull();
+    // A loose match ranks under a strict one.
+    expect(fuzzyScore("high leg", "high_leg")!).toBeGreaterThan(fuzzyScore("high leg", "highleg")!);
+  });
 });
 
 describe("fuzzyRank", () => {
