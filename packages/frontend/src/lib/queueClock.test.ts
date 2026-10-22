@@ -35,6 +35,14 @@ describe("queueLegs", () => {
   });
 });
 
+describe("queueLegs without server times", () => {
+  it("starts the running batch now even when it isn't listed first", () => {
+    const { legs } = queueLegs([b(1, 2, 0, 60), { ...b(2, 2, 0, 30), running: true }]);
+    expect(legs.map((l) => [l.id, l.start, l.end])).toEqual([[2, 0, 30], [1, 30, 90]]);
+    expect(legs[1].guess).toBe(false);
+  });
+});
+
 describe("legClock", () => {
   it("runs a leg's start and end down to zero", () => {
     const { legs } = queueLegs([b(1, 1, 0, 60), b(2, 1, 0, 30)]);

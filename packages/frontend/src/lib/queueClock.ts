@@ -30,7 +30,9 @@ export function queueLegs(active: readonly ActiveBatch[]): { legs: Leg[]; total:
   const perRequest = left ? known.reduce((n, a) => n + (a.eta ?? 0), 0) / left : 1;
   const legs: Leg[] = [];
   let cursor = 0;
-  for (const a of active) {
+  // The one being made first, so a guessed start never counts what's behind it.
+  const order = [...active].sort((x, y) => Number(!!y.running) - Number(!!x.running));
+  for (const a of order) {
     const seconds = a.eta ?? Math.max(0, a.requests - a.finished) * perRequest;
     const timed = a.starts_in != null && a.done_in != null;
     const start = timed ? a.starts_in! : cursor;
@@ -44,7 +46,7 @@ export function queueLegs(active: readonly ActiveBatch[]): { legs: Leg[]; total:
       running: !!a.running,
       step: a.progress?.max ? a.progress.value / a.progress.max : 0,
       seconds,
-      guess: !timed || a.eta == null,
+      guess: a.eta == null,
       start,
       end,
     });

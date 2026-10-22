@@ -7,24 +7,31 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 
 export type FrameState = "done" | "making" | "waiting";
 
-/** A batch's frames: on the one being made, its done images, the one in
- * the works and the rest; on a waiting batch, only what it has left. */
-export function framesOf(l: LiveLeg): { state: FrameState; key: number }[] {
-  const out: { state: FrameState; key: number }[] = [];
-  for (let i = l.running ? 0 : l.finished; i < l.requests; i++) {
-    out.push({ key: i, state: i < l.finished ? "done" : l.running && i === l.finished ? "making" : "waiting" });
+/** Frames drawn per batch at most; the rest are a count. */
+const MAX_FRAMES = 12;
+
+/** A batch's frames: on the one being made, its done images (the last few),
+ * the one in the works and the rest; on a waiting batch, only what it has
+ * left. At most `max`, with how many more there are. */
+export function framesOf(l: LiveLeg, max = MAX_FRAMES): { frames: { state: FrameState; key: number }[]; more: number } {
+  const all: { state: FrameState; key: number }[] = [];
+  // Of a long run's done images, the last two say enough.
+  const from = l.running ? Math.max(0, l.finished - 2) : l.finished;
+  for (let i = from; i < l.requests; i++) {
+    all.push({ key: i, state: i < l.finished ? "done" : l.running && i === l.finished ? "making" : "waiting" });
   }
-  return out;
+  return { frames: all.slice(0, max), more: Math.max(0, all.length - max) };
 }
 
-/** One image of the queue: its thumbnail once done, filling while made. */
-export function Frame({ state, leg, i, className }: { state: FrameState; leg: LiveLeg; i: number; className?: string }) {
+/** One image of the queue, `size` rem tall at its batch's shape: its
+ * thumbnail once done (when the library has it), filling while made. */
+export function Frame({ state, leg, i, size = 3, className }: { state: FrameState; leg: LiveLeg; i: number; size?: number; className?: string }) {
   const thumb = state === "done" ? leg.thumbs[i] : undefined;
   return (
     <span
-      style={{ width: `${3 * leg.aspect}rem` }}
+      style={{ width: `${size * leg.aspect}rem`, height: `${size}rem` }}
       className={cn(
-        "relative block h-12 shrink-0 overflow-hidden rounded-md",
+        "relative block shrink-0 overflow-hidden rounded-md",
         state === "done" && "bg-brand-500/70",
         state === "making" && "bg-brand-500/15 ring-1 ring-inset ring-brand-400",
         state === "waiting" && cn("border border-line-strong bg-raised/40", leg.guess && "border-dashed"),
@@ -39,17 +46,31 @@ export function Frame({ state, leg, i, className }: { state: FrameState; leg: Li
   );
 }
 
+/** A batch's frames in a row, then "+N" for the ones not drawn. */
+export function FrameRow({ leg, size, max, className, frameClass }: { leg: LiveLeg; size?: number; max?: number; className?: string; frameClass?: string }) {
+  const { frames, more } = framesOf(leg, max);
+  return (
+    <span className={cn("flex items-center gap-1", className)}>
+      {frames.map((f) => (
+        <Frame key={f.key} state={f.state} leg={leg} i={f.key} size={size} className={frameClass} />
+      ))}
+      {more > 0 && <span className="pl-0.5 text-2xs tabular-nums text-faint">+{more}</span>}
+    </span>
+  );
+}
+
 /** "0:47 left" on the batch being made, "in 1:32" on the rest. */
-export const legWhen = (l: LiveLeg) => (l.running ? `${countdown(l.left)} left` : `in ${countdown(l.startsIn)}`);
+export const legWhen = (l: LiveLeg, paused = false) =>
+  paused ? (l.running ? "Paused" : "Waiting") : l.running ? `${countdown(l.left)} left` : `in ${countdown(l.startsIn)}`;
 
 /**
  * The queue on the Generations page: every image to make as an empty frame
  * at its batch's shape, filling in with the thumbnail as it lands, and a
  * countdown for the whole queue and each batch. A batch whose time is a
- * guess has dashed frames.
+ * guess has dashed frames. While ComfyUI can't be reached it stays, paused.
  */
 export function QueueFrames() {
-  const q = useLiveQueue();
+  const q = useLiveQueue(200);
   if (!q) return null;
   return (
     <section
@@ -59,7 +80,7 @@ export function QueueFrames() {
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
         <div className="flex items-baseline gap-2">
           <span className="font-mono text-4xl font-semibold leading-none tabular-nums text-neutral-50">{countdown(q.left)}</span>
-          <span className="text-sm text-muted">to go</span>
+          <span className="text-sm text-muted">{q.paused ? "paused, ComfyUI can't be reached" : "to go"}</span>
         </div>
         <span className="text-xs tabular-nums text-faint">
           {plural(q.images, "image")}, {plural(q.legs.length, "batch", "batches")}
@@ -68,14 +89,10 @@ export function QueueFrames() {
       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-3">
         {q.legs.map((l) => (
           <Link key={l.id} to={`/generations/${l.id}`} className="group min-w-24">
-            <span className="flex gap-1">
-              {framesOf(l).map((f) => (
-                <Frame key={f.key} state={f.state} leg={l} i={f.key} />
-              ))}
-            </span>
+            <FrameRow leg={l} />
             <span className="mt-1 flex w-0 min-w-full items-baseline gap-1.5 text-2xs">
               <span className={cn("min-w-0 truncate", l.running ? "text-white" : "text-muted group-hover:text-neutral-100")}>{l.name}</span>
-              <span className={cn("shrink-0 font-mono tabular-nums", l.running ? "text-brand-200" : "text-faint")}>{legWhen(l)}</span>
+              <span className={cn("shrink-0 font-mono tabular-nums", l.running ? "text-brand-200" : "text-faint")}>{legWhen(l, q.paused)}</span>
             </span>
           </Link>
         ))}

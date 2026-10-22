@@ -166,10 +166,23 @@ function BatchCard({ b, phase }: { b: BatchSummary; phase: Phase }) {
       >
         <div className="relative bg-canvas" style={{ aspectRatio: coverAspect(b.width, b.height) }}>
           <Cover b={b} at={Math.min(at, Math.max(0, n - 1))} onAt={setAt} warm={warm} phase={phase} />
-          {b.state !== "done" && b.state !== "running" && (
-            <Badge tone={stateTone(b.state)} className="absolute left-2 top-2 shadow-panel">
-              {STATE_LABEL[b.state]}
-            </Badge>
+          {/* Without images the cover says it; with some, a running batch
+              gets a spinner, the rest their state. */}
+          {n > 0 && b.state === "running" ? (
+            <span
+              aria-label={phase}
+              className="absolute left-2 top-2 rounded-full bg-black/60 p-1 text-white shadow-panel"
+            >
+              <Loader2 size={13} className="animate-spin" />
+            </span>
+          ) : (
+            b.state !== "done" &&
+            b.state !== "running" &&
+            !(n === 0 && b.state === "paused") && (
+              <Badge tone={stateTone(b.state)} className="absolute left-2 top-2 shadow-panel">
+                {STATE_LABEL[b.state]}
+              </Badge>
+            )
           )}
         </div>
         <div className="px-3 py-2">
@@ -190,10 +203,14 @@ export default function GenerationsPage() {
   useDocumentTitle("Generations");
   const { data, isLoading } = useBatches(200);
   const { data: status } = useComfyStatus();
-  const live = (status?.active ?? []).filter((a) => !a.test);
   // Batches take turns: the one ComfyUI is making now, the rest wait.
-  const runningId = (live.find((a) => a.running) ?? live[0])?._id;
-  const queued = useMemo(() => new Set(live.filter((a) => a._id !== runningId).map((a) => a._id)), [live, runningId]);
+  // Keyed on the poll's own array so the grid isn't redrawn every second.
+  const active = status?.active;
+  const { runningId, queued } = useMemo(() => {
+    const live = (active ?? []).filter((a) => !a.test);
+    const runningId = (live.find((a) => a.running) ?? live[0])?._id;
+    return { runningId, queued: new Set(live.filter((a) => a._id !== runningId).map((a) => a._id)) };
+  }, [active]);
   const [q, setQ] = useState("");
   const [show, setShow] = useState<Show>("all");
 

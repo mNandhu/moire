@@ -26,6 +26,8 @@ export type LiveLeg = Leg & {
 
 export type LiveQueue = {
   legs: LiveLeg[];
+  /** ComfyUI can't be reached: the batches wait, their times stand still. */
+  paused: boolean;
   /** Seconds until the whole queue is done. */
   left: number;
   /** Images still to make. */
@@ -35,17 +37,20 @@ export type LiveQueue = {
 /**
  * The ComfyUI queue (test runs left out) with every time run on to now: the
  * status poll's times tick down each second between polls. Null when nothing
- * is queued or ComfyUI can't be reached.
+ * is queued. `limit` is how many recent batches to read shapes and
+ * thumbnails from (match the page's own batch list to share its query).
  */
-export function useLiveQueue(): LiveQueue | null {
+export function useLiveQueue(limit = 50): LiveQueue | null {
   const { data: status, dataUpdatedAt } = useComfyStatus();
-  const { data: batches } = useBatches(200);
+  const { data: batches } = useBatches(limit);
   const now = useNow();
   const { legs, total } = queueLegs((status?.active ?? []).filter((a) => !a.test));
-  if (!status?.connected || !legs.length) return null;
-  const elapsed = Math.max(0, (now - dataUpdatedAt) / 1000);
+  if (!status || !legs.length) return null;
+  const paused = !status.connected;
+  const elapsed = paused ? 0 : Math.max(0, (now - dataUpdatedAt) / 1000);
   const byId = new Map((batches ?? []).map((b) => [b._id, b]));
   return {
+    paused,
     left: Math.max(0, total - elapsed),
     images: legs.reduce((n, l) => n + Math.max(0, l.requests - l.finished), 0),
     legs: legs.map((l) => {

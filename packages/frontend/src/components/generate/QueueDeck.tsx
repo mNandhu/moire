@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { cn } from "../../lib/cn";
 import { countdown } from "../../lib/queueClock";
-import { Frame, framesOf, legWhen } from "./QueueFrames";
+import { FrameRow, legWhen } from "./QueueFrames";
 import { useLiveQueue, type LiveLeg } from "./useLiveQueue";
 
 const url = (l: LiveLeg) => `/generations/${l.id}`;
@@ -48,7 +48,7 @@ export function QueueDeck() {
           <span className="flex-1">
             +{rest.length} more {rest.length === 1 ? "batch" : "batches"}
           </span>
-          <span className="font-mono tabular-nums">all done in {countdown(q.left)}</span>
+          <span className="font-mono tabular-nums">{q.paused ? "paused" : `all done in ${countdown(q.left)}`}</span>
         </Tab>
       )}
       {after && (
@@ -56,18 +56,14 @@ export function QueueDeck() {
           <span className="min-w-0 flex-1 truncate">
             <span className="text-faint">Next</span> {after.name}
           </span>
-          <span className="shrink-0 font-mono tabular-nums">{legWhen(after)}</span>
+          <span className="shrink-0 font-mono tabular-nums">{legWhen(after, q.paused)}</span>
         </Tab>
       )}
       <Link to={url(head)} className="relative flex items-center gap-3 rounded-xl border border-brand-400/40 bg-surface px-3 py-2 shadow-panel hover:border-brand-400/70">
-        <span className="flex shrink-0 gap-0.5">
-          {framesOf(head).map((f) => (
-            <Frame key={f.key} state={f.state} leg={head} i={f.key} className="h-8 rounded" />
-          ))}
-        </span>
+        <FrameRow leg={head} size={2} max={6} className="shrink-0 gap-0.5" frameClass="rounded" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm text-neutral-100">{head.name}</span>
-          <span className="block font-mono text-xs tabular-nums text-brand-200">{legWhen(head)}</span>
+          <span className="block font-mono text-xs tabular-nums text-brand-200">{legWhen(head, q.paused)}</span>
         </span>
       </Link>
     </div>
