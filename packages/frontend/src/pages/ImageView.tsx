@@ -1248,7 +1248,7 @@ function TagsSection({
       {!hasTags && <div className="text-xs text-faint">No tags yet.</div>}
       {/* Adding sits where the tags end, as one more pill in the run. One
           place either way, so the open field survives the first tag. */}
-      <TagFlow tags={tags} trailing={<AddTags id={id} onAdded={onChange} />} />
+      <TagFlow key={id} tags={tags} trailing={<AddTags id={id} onAdded={onChange} />} />
     </section>
   );
 }
@@ -1427,13 +1427,40 @@ const RUN_TEXT = "text-sm leading-8";
 
 const FACET_ORDER = Object.keys(FACET_LABEL) as Facet[];
 
-/** A tag group's heading: a quiet caption with its count. */
-function GroupHeading({ label, count }: { label: string; count: number }) {
-  return (
-    <div className="mb-0.5 flex items-baseline gap-1.5 text-2xs uppercase tracking-wide text-faint">
+// How far a tag outside the picked facet fades.
+const UNPICKED_OPACITY = 0.2;
+
+/** A tag group's heading: a quiet caption with its count. With `onPick`,
+ * a toggle that fades every other group's tags. */
+function GroupHeading({
+  label,
+  count,
+  picked,
+  onPick,
+}: {
+  label: string;
+  count: number;
+  picked?: boolean;
+  onPick?: () => void;
+}) {
+  const body = (
+    <>
       {label}
       <span className="tabular-nums text-line-strong">{count}</span>
-    </div>
+    </>
+  );
+  const cls = "mb-0.5 flex items-baseline gap-1.5 text-2xs uppercase tracking-wide";
+  if (!onPick) return <div className={`${cls} text-faint`}>{body}</div>;
+  return (
+    <button
+      type="button"
+      aria-pressed={picked}
+      onClick={onPick}
+      title={picked ? "Show all tags" : `Pick out the ${label} tags`}
+      className={`${cls} ${picked ? "text-neutral-100" : "text-faint hover:text-neutral-200"}`}
+    >
+      {body}
+    </button>
   );
 }
 
@@ -1466,6 +1493,11 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
   // Ungrouped, your own tags are told apart by colour alone: key it.
   const keyMine = !groups && kept.some((t) => t.kind === "manual");
   const marks = useTagMarks();
+  // A facet picked from the key or a heading: the other tags fade, so its
+  // own stand out where they are.
+  const [picked, setPicked] = useState<Facet | null>(null);
+  const pick = (f: Facet) => setPicked((p) => (p === f ? null : f));
+  const fade = (raw: string) => (picked && facetOf(raw) !== picked ? UNPICKED_OPACITY : 1);
   // Facet groups when there is no prompt/AI split to show; one run if every
   // tag lands in the same one (facets still loading, or all "other").
   const byFacet = useMemo(() => {
@@ -1499,7 +1531,7 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
             className={`rounded px-0.5 -mx-0.5 ${TAG_TINT_CLASS} hover:bg-raised hover:underline ${KIND_TEXT[t.kind]}`}
             style={{
               ...tagMarkStyle(t.raw, facetOf(t.raw), PANEL_GROUND, marks),
-              ...(unsure(t) ? { opacity: UNSURE_OPACITY } : {}),
+              opacity: (unsure(t) ? UNSURE_OPACITY : 1) * fade(t.raw),
             }}
           >
             {t.label}
@@ -1574,7 +1606,12 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
         <>
           {byFacet.map(([f, list]) => (
             <div key={f ?? "other"}>
-              <GroupHeading label={f ? FACET_LABEL[f] : "other"} count={list.length} />
+              <GroupHeading
+                label={f ? FACET_LABEL[f] : "other"}
+                count={list.length}
+                picked={!!f && picked === f}
+                onPick={f ? () => pick(f) : undefined}
+              />
               <div className={RUN_TEXT}>{run(list)}</div>
             </div>
           ))}
@@ -1592,9 +1629,19 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
           {keyMine && <span className={KIND_TEXT.manual}>yours</span>}
           {shown.some(unsure) && <span style={{ opacity: UNSURE_OPACITY }}>fainter = less confident</span>}
           {shownFacets.map((f) => (
-            <span key={f} className="rounded px-1 text-neutral-200" style={{ backgroundColor: FACET_TINT[f] }}>
+            <button
+              key={f}
+              type="button"
+              aria-pressed={picked === f}
+              onClick={() => pick(f)}
+              title={picked === f ? "Show all tags" : `Pick out the ${FACET_LABEL[f]} tags`}
+              className={`rounded px-1 text-neutral-200 transition-opacity ${
+                picked === f ? "ring-1 ring-neutral-300" : picked ? "opacity-50 hover:opacity-100" : ""
+              }`}
+              style={{ backgroundColor: FACET_TINT[f] }}
+            >
               {FACET_LABEL[f]}
-            </span>
+            </button>
           ))}
         </div>
       )}
