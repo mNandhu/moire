@@ -1,6 +1,7 @@
 /** Batch display helpers shared by the Generations list, its rows and the
  * run panel's recent batches. Pure. */
-import type { Batch, BatchState, BatchSummary, GenRequest, Output } from "./generate";
+import { etaLabel, leftLabel } from "./eta";
+import type { ActiveBatch, Batch, BatchState, BatchSummary, GenRequest, Output } from "./generate";
 
 export const STATE_LABEL: Record<BatchState, string> = {
   running: "Running",
@@ -114,4 +115,18 @@ export function coverAspect(width: number | null, height: number | null): number
 export function scrubIndex(x: number, width: number, n: number): number {
   if (n <= 1 || width <= 0) return 0;
   return Math.min(n - 1, Math.max(0, Math.floor((x / width) * n)));
+}
+
+type Turn = Pick<ActiveBatch, "running" | "finished" | "starts_in" | "done_in">;
+
+/** Nothing of it has started: it waits for its first turn. */
+export function isWaiting(a: Turn): boolean {
+  return !a.running && a.finished === 0;
+}
+
+/** When a queued batch starts or is done, its turns among the others counted:
+ * "starts in about 2m", "about 9m left". Null when there's no number. */
+export function turnLabel(a: Turn): string | null {
+  if (isWaiting(a)) return a.starts_in != null && a.starts_in >= 3 ? `starts in ${etaLabel(a.starts_in)}` : null;
+  return a.done_in != null ? leftLabel({ seconds: a.done_in, over: false }) : null;
 }

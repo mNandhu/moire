@@ -5,9 +5,11 @@ import {
   coverAspect,
   dayLabel,
   durationLabel,
+  isWaiting,
   resultGrid,
   resultSlots,
   scrubIndex,
+  turnLabel,
   whenLabel,
 } from "./batches";
 
@@ -91,5 +93,24 @@ describe("batch covers", () => {
     expect(scrubIndex(250, 200, 4)).toBe(3);
     expect(scrubIndex(-5, 200, 4)).toBe(0);
     expect(scrubIndex(120, 200, 1)).toBe(0);
+  });
+});
+
+describe("isWaiting / turnLabel", () => {
+  it("says when a batch that hasn't started yet starts", () => {
+    const a = { running: false, finished: 0, starts_in: 150, done_in: 600 };
+    expect(isWaiting(a)).toBe(true);
+    expect(turnLabel(a)).toBe("starts in about 2m 30s");
+    // Next up, or no number: nothing to say beyond Queued.
+    expect(turnLabel({ ...a, starts_in: 0 })).toBeNull();
+    expect(turnLabel({ ...a, starts_in: null })).toBeNull();
+  });
+
+  it("says when a started batch is done, its turns counted", () => {
+    const a = { running: false, finished: 1, starts_in: 0, done_in: 600 };
+    expect(isWaiting(a)).toBe(false);
+    expect(turnLabel(a)).toBe("about 10m left");
+    expect(isWaiting({ ...a, finished: 0, running: true })).toBe(false);
+    expect(turnLabel({ ...a, done_in: null })).toBeNull();
   });
 });

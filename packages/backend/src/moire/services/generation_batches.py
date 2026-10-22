@@ -379,6 +379,8 @@ async def active_summary(manager: GenerationManager) -> list[dict[str, Any]]:
                     1 for q in rs if q.state not in ("pending", "queued", "running")
                 ),
                 "failed": sum(1 for q in rs if q.state in ("failed", "lost")),
+                # ComfyUI is making one of its images now.
+                "running": current is not None,
                 "progress": manager.progress.get(current.prompt_id)
                 if current is not None and current.prompt_id
                 else None,

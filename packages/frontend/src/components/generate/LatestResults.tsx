@@ -1,13 +1,14 @@
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { BATCHES_KEY, STATUS_KEY, batchKey, useBatch, useBatches, type Batch } from "../../lib/generate";
+import { BATCHES_KEY, STATUS_KEY, batchKey, useBatch, useBatches, useComfyStatus, type Batch } from "../../lib/generate";
 import { BatchResults } from "./BatchResults";
-import { batchRunTime, durationLabel } from "../../lib/batches";
+import { batchRunTime, durationLabel, turnLabel } from "../../lib/batches";
 import { batchLeft, leftLabel } from "../../lib/eta";
 
 function Latest({ id }: { id: number }) {
   const qc = useQueryClient();
   const { data: b } = useBatch(id);
+  const { data: status } = useComfyStatus();
   if (!b) return null;
   const changed = (next?: Batch) => {
     if (next) qc.setQueryData(batchKey(id), next);
@@ -17,7 +18,11 @@ function Latest({ id }: { id: number }) {
   };
   const done = b.requests.filter((q) => !["pending", "queued", "running"].includes(q.state)).length;
   const took = batchRunTime(b.requests);
+  // Batches take turns, so with others queued its own time left isn't when
+  // it's done: the queue's word for it first.
+  const turn = status?.active.find((a) => a._id === id);
   const left = batchLeft(b.requests);
+  const leftText = turn ? turnLabel(turn) : left && leftLabel(left);
   return (
     // No card: a frame sized to the column sat wider than a portrait batch.
     // Headed like Recent batches under it, so the column reads as one list.
@@ -31,9 +36,9 @@ function Latest({ id }: { id: number }) {
             {done} / {b.requests.length}
           </span>
         )}
-        {left ? (
-          <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted">{leftLabel(left)}</span>
-        ) : took && (
+        {leftText ? (
+          <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted">{leftText}</span>
+        ) : !turn && took && (
           <span
             className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted"
             title={took.perImage != null && took.images > 1 ? `${durationLabel(took.perImage)} per image` : undefined}

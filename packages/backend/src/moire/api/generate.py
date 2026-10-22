@@ -285,6 +285,9 @@ async def status():
     for a in active:
         # Seconds left on the batch; None when some request can't be told.
         a["eta"] = queue["batches"].get(a["_id"])
+        # Seconds until it starts and is done, its turns among the others counted.
+        a["starts_in"] = queue["starts"].get(a["_id"])
+        a["done_in"] = queue["ends"].get(a["_id"])
     return {**m.status(), "active": active, "eta": queue["total"]}
 
 

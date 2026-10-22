@@ -302,7 +302,10 @@ export function SamplingControl({
 export function QueueCard({ active, connected }: { active: ActiveBatch[]; connected: boolean }) {
   const shown = active.filter((a) => !a.test);
   if (!shown.length) return null;
-  const [head, ...rest] = shown;
+  // Batches take turns: lead with the one ComfyUI is making now.
+  const head = shown.find((a) => a.running) ?? shown[0];
+  const rest = shown.filter((a) => a !== head);
+  const left = head.done_in !== undefined ? head.done_in : head.eta;
   const step = head.progress && head.progress.max ? head.progress.value / head.progress.max : 0;
   const pct = head.requests ? ((head.finished + step) / head.requests) * 100 : 0;
   return (
@@ -317,9 +320,7 @@ export function QueueCard({ active, connected }: { active: ActiveBatch[]; connec
         <span className="tabular-nums text-xs text-muted">
           {head.finished} / {head.requests}
         </span>
-        {head.eta != null && head.eta >= 1 && (
-          <span className="whitespace-nowrap tabular-nums text-xs text-muted">{etaLabel(head.eta)} left</span>
-        )}
+        {left != null && left >= 1 && <span className="whitespace-nowrap tabular-nums text-xs text-muted">{etaLabel(left)} left</span>}
         {!connected && <span className="text-xs text-muted">Paused</span>}
       </div>
       <ProgressBar value={pct} className="mt-2" />

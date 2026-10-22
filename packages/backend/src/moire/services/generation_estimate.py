@@ -332,7 +332,10 @@ async def queue_plan(started: dict[str, float]) -> dict[str, Any]:
     (``started`` is when ComfyUI began each prompt). Each running or waiting
     request also gets its full estimate (``requests``), for the tile that
     fills as it runs, and ``last`` is the checkpoint loaded once the queue
-    is through."""
+    is through. Batches take turns, so a batch's own seconds aren't when it
+    is done: ``starts`` / ``ends`` are seconds from now until its first
+    request starts and its last one ends, in run order (None past a request
+    with no estimate)."""
     gens, runs = await _history()
     r, b = t.generation_requests, t.generation_batches
     async with async_conn() as conn:
@@ -379,21 +382,32 @@ async def queue_plan(started: dict[str, float]) -> dict[str, Any]:
     now = time.time()
     per_batch: dict[int, float | None] = {}
     expected: dict[int, float | None] = {}
+    starts: dict[int, float | None] = {}
+    ends: dict[int, float | None] = {}
     total: float | None = 0.0
     for row, s in zip(rows, seconds):
         expected[row._id] = s
+        starts.setdefault(row.batch_id, total)
         left = s
         if s is not None and row.state == "running" and row.prompt_id in started:
             left = max(0.0, s - (now - started[row.prompt_id]))
         if left is None:
             per_batch[row.batch_id] = None
             total = None
-            continue
-        if per_batch.get(row.batch_id, 0.0) is not None:
-            per_batch[row.batch_id] = per_batch.get(row.batch_id, 0.0) + left
-        if total is not None:
-            total += left
-    return {"batches": per_batch, "requests": expected, "total": total, "last": loaded}
+        else:
+            if per_batch.get(row.batch_id, 0.0) is not None:
+                per_batch[row.batch_id] = per_batch.get(row.batch_id, 0.0) + left
+            if total is not None:
+                total += left
+        ends[row.batch_id] = total
+    return {
+        "batches": per_batch,
+        "requests": expected,
+        "starts": starts,
+        "ends": ends,
+        "total": total,
+        "last": loaded,
+    }
 
 
 async def for_new(

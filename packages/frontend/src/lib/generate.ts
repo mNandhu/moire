@@ -42,6 +42,12 @@ export type ActiveBatch = {
   progress: Progress;
   /** Seconds left on it; null when some request has no estimate. */
   eta?: number | null;
+  /** ComfyUI is making one of its images now. */
+  running?: boolean;
+  /** Seconds until its first image starts and its last is done, its turns
+   * among the other batches counted; null when some estimate is missing. */
+  starts_in?: number | null;
+  done_in?: number | null;
 };
 
 export type ComfyStatus = {

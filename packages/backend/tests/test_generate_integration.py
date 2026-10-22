@@ -758,10 +758,26 @@ async def test_estimate_learns_from_runs_and_counts_checkpoint_loads(
     assert [q["expected"] for q in got["requests"]] == [10, 10]
     ahead = (await client.post("/generate/estimate", json=body)).json()["ahead"]
     assert ahead == pytest.approx(20, abs=1)
+
     await tick()
     items = (await client.get("/activity")).json()["items"]
     gen = next(i for i in items if i["kind"] == "generate")
     assert gen["eta_s"] == pytest.approx(20, abs=1)
+
+    # Batches take turns: a second one starts after the first's first image
+    # and is done last, though its own work is only 20s.
+    c = (await client.post("/generate/batches", json={**body, "count": 2})).json()
+    await tick()
+    active = {
+        a["_id"]: a for a in (await client.get("/generate/status")).json()["active"]
+    }
+    first, second = active[b["_id"]], active[c["_id"]]
+    assert second["eta"] == pytest.approx(20, abs=1)
+    assert first["starts_in"] == pytest.approx(0, abs=1)
+    assert first["done_in"] == pytest.approx(30, abs=1)
+    assert second["starts_in"] == pytest.approx(10, abs=1)
+    assert second["done_in"] == pytest.approx(40, abs=1)
+    assert first["running"] is False and second["running"] is False
 
 
 async def test_a_failed_setup_at_startup_is_retried(temp_db, monkeypatch):
