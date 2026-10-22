@@ -173,10 +173,9 @@ function WaitingCell({
       : elapsed != null
         ? clock(elapsed)
         : null;
+  // Waiting in Moiré's queue or ComfyUI's reads the same: queued.
   const caption = !running
-    ? req.state === "queued"
-      ? "Queued"
-      : "Waiting"
+    ? "Queued"
     : run
       ? run.phase === "on-time"
         ? "left"
