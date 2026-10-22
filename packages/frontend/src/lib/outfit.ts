@@ -18,6 +18,8 @@ export type OutfitPick = {
   tags: string[];
   /** Tags struck for this batch (restorable). */
   dropped: string[];
+  /** Tags added for this batch: removing one takes it away, not strikes it. */
+  added?: string[];
 };
 
 /** Character page key -> what they wear; absent wears nothing. */
@@ -35,8 +37,17 @@ export function wornTags(p: OutfitPick | undefined): string[] {
   return p.tags.filter((t) => !off.has(t));
 }
 
-/** The pick with `tag` struck, or back if it was. Pure. */
+/** The pick with `tag` struck, or back if it was; one added for this
+ * batch goes instead. Pure. */
 export function toggleWorn(p: OutfitPick, tag: string): OutfitPick {
+  if (p.added?.includes(tag)) {
+    return {
+      ...p,
+      tags: p.tags.filter((t) => t !== tag),
+      dropped: p.dropped.filter((t) => t !== tag),
+      added: p.added.filter((t) => t !== tag),
+    };
+  }
   return p.dropped.includes(tag)
     ? { ...p, dropped: p.dropped.filter((t) => t !== tag) }
     : { ...p, dropped: [...p.dropped, tag] };
@@ -47,7 +58,7 @@ export function addWorn(p: OutfitPick, tag: string): OutfitPick {
   const t = canonicalName(tag);
   if (!t) return p;
   if (p.tags.includes(t)) return { ...p, dropped: p.dropped.filter((x) => x !== t) };
-  return { ...p, tags: [...p.tags, t] };
+  return { ...p, tags: [...p.tags, t], added: [...(p.added ?? []), t] };
 }
 
 /** What the queue body sends for a pick; null wears nothing. Pure. */
@@ -75,7 +86,8 @@ export function validOutfits(v: unknown): Outfits {
     const p = raw as Record<string, unknown>;
     const tags = strs(p.tags);
     const dropped = strs(p.dropped) ?? [];
-    if (isStr(p.id) && p.id && isStr(p.name) && tags) out[k] = { id: p.id, name: p.name, tags, dropped };
+    const added = (strs(p.added) ?? []).filter((t) => tags?.includes(t));
+    if (isStr(p.id) && p.id && isStr(p.name) && tags) out[k] = { id: p.id, name: p.name, tags, dropped, ...(added.length ? { added } : {}) };
   }
   return out;
 }

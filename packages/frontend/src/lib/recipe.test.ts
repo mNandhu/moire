@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Recipe } from "./generate";
-import { characterInput, characterTags, toggleDropped } from "./recipe";
+import { characterInput, characterTags, toggleDropped, toggleOff } from "./recipe";
 
 const recipe: Recipe = {
   tag: "hu_tao_(genshin_impact)",
@@ -34,6 +34,16 @@ describe("recipe", () => {
     });
     const missing = { ...recipe, lora: { ...recipe.lora!, file: null } };
     expect(characterInput(missing, "Hu Tao").lora).toBeNull();
+  });
+
+  it("leaves out tags struck for this batch", () => {
+    expect(characterTags(recipe, ["red_eyes"])).toEqual(["hu_tao_(genshin_impact)", "fang"]);
+    expect(characterInput(recipe, "Hu Tao", ["fang"]).tags).toEqual(["hu_tao_(genshin_impact)", "red_eyes"]);
+  });
+
+  it("toggles a strike for this batch", () => {
+    expect(toggleOff(undefined, "fang")).toEqual(["fang"]);
+    expect(toggleOff(["fang", "red_eyes"], "fang")).toEqual(["red_eyes"]);
   });
 
   it("toggles a drop", () => {

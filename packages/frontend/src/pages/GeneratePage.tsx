@@ -46,15 +46,13 @@ import {
   useLoraPresets,
   usePresets,
   useRecipes,
-  putRecipe,
-  recipeKey,
-  type Recipe,
   type CharacterInput,
   type Generator,
   type NodeError,
 } from "../lib/generate";
 import {
   insertBlock,
+  keepOff,
   MAX_CHARACTERS,
   loadDraft,
   nameWords,
@@ -80,7 +78,7 @@ import { AddLayer, EmbeddingLayer, LayerRow, NegativeLayer, PresetControl, TextL
 import { characterPageQuery, useTagAggregate } from "../lib/queries";
 import { characterColours, displayName, mixColours } from "../lib/character";
 import { useAmbientTint } from "../lib/ambient";
-import { characterInput, characterTags, toggleDropped } from "../lib/recipe";
+import { characterInput, characterTags, toggleOff } from "../lib/recipe";
 import { keepPicked, outfitInput, pickOf, toggleWorn, wornTags, type OutfitPick } from "../lib/outfit";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
@@ -220,6 +218,7 @@ export default function GeneratePage() {
       ...f,
       characters: tags,
       outfits: keepPicked(f.outfits, tags),
+      identityOff: keepOff(f.identityOff, tags),
       fresh: [...f.fresh, ...tags.filter((t) => !f.characters.includes(t))].filter((t) => tags.includes(t)),
     }));
   // Characters just picked (here or from a character page) start wearing
@@ -309,7 +308,7 @@ export default function GeneratePage() {
   // Each block as it would be sent; null until its recipe has loaded.
   const inputs = form.characters.map((tag, i) => {
     const r = recipes[i];
-    return r && r.tag === tag ? { ...characterInput(r, labels[i]), outfit: outfitInput(form.outfits[tag]) } : null;
+    return r && r.tag === tag ? { ...characterInput(r, labels[i], form.identityOff[tag]), outfit: outfitInput(form.outfits[tag]) } : null;
   });
   const characters = inputs.every((c) => c) ? (inputs as CharacterInput[]) : null;
   const oneWorn = form.characters.length === 1 ? form.outfits[form.characters[0]] : undefined;
@@ -398,7 +397,7 @@ export default function GeneratePage() {
   const parts = toParts(form, presets, loraPresets);
   const positive = previewText(
     parts.positive,
-    recipes.flatMap((r) => (r ? [characterTags(r), wornTags(form.outfits[r.tag])] : [])),
+    recipes.flatMap((r) => (r ? [characterTags(r, form.identityOff[r.tag]), wornTags(form.outfits[r.tag])] : [])),
   );
   const negative = previewText(parts.negative, []);
   const countFix = counts?.expected?.length
@@ -423,19 +422,10 @@ export default function GeneratePage() {
     />
   );
   // What the other layers already say, for the prompt board. A character's
-  // tags strike out there as they do in their card: identity in the recipe,
-  // outfit for this batch.
-  const toggleIdentity = (r: Recipe, tag: string) => {
-    const c = r.identity.find((x) => x.tag === tag);
-    if (!c) return;
-    const patch = c.added
-      ? { added: r.identity.filter((x) => x.added && x.tag !== tag).map((x) => x.tag) }
-      : { dropped: toggleDropped(r, tag) };
-    putRecipe(r.tag, patch).then(
-      (next) => qc.setQueryData(recipeKey(next.tag), next),
-      (e) => toast.push(e instanceof Error ? e.message : "Couldn't change the recipe", "error"),
-    );
-  };
+  // tags strike out there as they do in their card, for this batch only:
+  // the recipe itself changes in its Edit dialog.
+  const toggleIdentity = (character: string, tag: string) =>
+    setForm((f) => ({ ...f, identityOff: { ...f.identityOff, [character]: toggleOff(f.identityOff[character], tag) } }));
   const boardLayers: BoardLayer[] = [
     ...parts.positive.flatMap((p, i) =>
       p.kind === "text" && p.role !== "prompt" && p.text?.trim()
@@ -453,7 +443,13 @@ export default function GeneratePage() {
           character: entry,
           tags: [
             { tag: r.tag, self: true },
-            ...r.identity.map((c) => ({ tag: c.tag, dropped: c.dropped, onToggle: () => toggleIdentity(r, c.tag) })),
+            ...r.identity
+              .filter((c) => !c.dropped)
+              .map((c) => ({
+                tag: c.tag,
+                dropped: !!form.identityOff[r.tag]?.includes(c.tag),
+                onToggle: () => toggleIdentity(r.tag, c.tag),
+              })),
             ...(pick?.tags ?? []).map((t) => ({
               tag: t,
               dropped: pick!.dropped.includes(t),
@@ -555,6 +551,8 @@ export default function GeneratePage() {
                       onChange={setCharacters}
                       outfits={form.outfits}
                       onOutfit={setOutfit}
+                      identityOff={form.identityOff}
+                      onIdentityOff={toggleIdentity}
                       prompt={form.prompt}
                       onPrompt={(v) => set("prompt", v)}
                       adding={addingCharacter}

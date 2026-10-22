@@ -34,6 +34,22 @@ describe("outfit picks", () => {
     expect(addWorn(struck, "long_coat")).toEqual(funeral);
   });
 
+  it("removes a tag added for this batch instead of striking it", () => {
+    const added = addWorn(funeral, "black shorts");
+    expect(added.added).toEqual(["black_shorts"]);
+    const gone = toggleWorn(added, "black_shorts");
+    expect(gone.tags).toEqual(["porkpie_hat", "long_coat"]);
+    expect(gone.dropped).toEqual([]);
+    expect(gone.added).toEqual([]);
+    // The outfit's own tags still strike.
+    expect(toggleWorn(added, "long_coat").dropped).toEqual(["long_coat"]);
+  });
+
+  it("keeps a stored pick's added tags that it still lists", () => {
+    const stored = { ...funeral, tags: [...funeral.tags, "black_shorts"], added: ["black_shorts", "stray"] };
+    expect(validOutfits({ a: stored }).a.added).toEqual(["black_shorts"]);
+  });
+
   it("sends nothing when every tag is struck", () => {
     expect(outfitInput(funeral)).toEqual({ id: "o1", name: "Funeral director", tags: ["porkpie_hat", "long_coat"] });
     expect(outfitInput(toggleWorn(toggleWorn(funeral, "porkpie_hat"), "long_coat"))).toBeNull();

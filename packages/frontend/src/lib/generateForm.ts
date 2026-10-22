@@ -57,6 +57,9 @@ export type GenerateForm = {
   characters: string[];
   /** What each picked character wears; absent wears nothing. */
   outfits: Outfits;
+  /** Per character: identity tags struck for this batch only (the recipe
+   * keeps them). */
+  identityOff: Record<string, string[]>;
   /** Characters just picked, still to start in what Settings says new
    * characters wear (an outfit chosen for one meanwhile wins). */
   fresh: string[];
@@ -87,6 +90,7 @@ export const DEFAULT_FORM: GenerateForm = {
   loras: [],
   characters: [],
   outfits: {},
+  identityOff: {},
   fresh: [],
   width: 832,
   height: 1216,
@@ -404,6 +408,19 @@ export function formFromRemix(
   };
 }
 
+/** Struck identity tags of characters still in the prompt; malformed or
+ * empty entries dropped (a draft is stored data). Pure. */
+export function keepOff(v: unknown, characters: readonly string[]): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  if (!v || typeof v !== "object" || Array.isArray(v)) return out;
+  for (const c of characters) {
+    const tags = (v as Record<string, unknown>)[c];
+    const list = Array.isArray(tags) ? [...new Set(tags.filter(isStr))] : [];
+    if (list.length) out[c] = list;
+  }
+  return out;
+}
+
 const DRAFT_KEY = "moire.generate.draft";
 
 /** The saved draft merged over defaults; defaults when storage is empty,
@@ -423,6 +440,7 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     if (Array.isArray(d.characters)) out.characters = [...new Set<string>(d.characters.filter(isStr))].slice(0, MAX_CHARACTERS);
     else if (isStr(d.character)) out.characters = [d.character];
     out.outfits = keepPicked(validOutfits(d.outfits), out.characters);
+    out.identityOff = keepOff(d.identityOff, out.characters);
     if (Array.isArray(d.fresh)) out.fresh = d.fresh.filter((t: unknown) => isStr(t) && out.characters.includes(t));
     if (isStr(d.name) || d.name === null) out.name = d.name;
     if (isStr(d.workflow) && d.workflow) out.workflow = d.workflow;
@@ -517,11 +535,11 @@ function endRemix(f: GenerateForm): GenerateForm {
  * says new characters wear (a character page's Generate). A remix it was
  * is over. Pure. */
 export function withCharacter(f: GenerateForm, tag: string): GenerateForm {
-  return { ...endRemix(f), characters: [tag], outfits: {}, fresh: [tag] };
+  return { ...endRemix(f), characters: [tag], outfits: {}, identityOff: {}, fresh: [tag] };
 }
 
 /** The draft with `tag` as its one character, wearing `pick` (an outfit's
  * Use in Generate). A remix it was is over. Pure. */
 export function wearingOutfit(f: GenerateForm, tag: string, pick: OutfitPick): GenerateForm {
-  return { ...endRemix(f), characters: [tag], outfits: { [tag]: pick }, fresh: [] };
+  return { ...endRemix(f), characters: [tag], outfits: { [tag]: pick }, identityOff: {}, fresh: [] };
 }

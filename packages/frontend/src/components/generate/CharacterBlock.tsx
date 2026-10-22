@@ -283,18 +283,22 @@ function AddTagInput({ onAdd, taken }: { onAdd: (tag: string) => void; taken: Re
 /**
  * A recipe's editable parts: identity tags (drop a computed one, add your
  * own) and the character LoRA. Changes are saved to the recipe at once, so
- * the composer and the character page show the same thing.
+ * the composer and the character page show the same thing. With `off`
+ * (Generate's card), a tag's X strikes it for this batch only, and tags
+ * are added in the Edit dialog instead.
  */
 export function RecipeEditor({
   recipe,
   label,
   installedLoras,
   rejectedLoras,
+  off,
 }: {
   recipe: Recipe;
   label: string;
   installedLoras: readonly string[];
   rejectedLoras?: ReadonlySet<string>;
+  off?: { tags: readonly string[]; toggle: (tag: string) => void };
 }) {
   const chipBorderStyle = useChipBorderStyle();
   const qc = useQueryClient();
@@ -317,7 +321,35 @@ export function RecipeEditor({
           >
             {displayWord(recipe.tag)}
           </span>
-          {recipe.identity.map((c) => (
+          {off
+            ? recipe.identity
+                .filter((c) => !c.dropped)
+                .map((c) => {
+                  const struck = off.tags.includes(c.tag);
+                  return (
+                    <span
+                      key={c.tag}
+                      title={struck ? "Left out of this batch" : undefined}
+                      style={struck ? undefined : chipBorderStyle(c.tag)}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-md border pl-2 pr-1 py-0.5 text-sm",
+                        struck ? "border-line/60 text-faint line-through" : "border-line bg-raised text-neutral-100",
+                      )}
+                    >
+                      {displayWord(c.tag)}
+                      <button
+                        type="button"
+                        onClick={() => off.toggle(c.tag)}
+                        aria-label={`${struck ? "Bring back" : "Leave out"} ${displayWord(c.tag)}`}
+                        title={struck ? "Bring back" : "Leave out of this batch"}
+                        className="rounded p-0.5 text-muted no-underline hover:bg-line hover:text-neutral-100"
+                      >
+                        {struck ? <Undo2 size={13} /> : <X size={13} />}
+                      </button>
+                    </span>
+                  );
+                })
+            : recipe.identity.map((c) => (
             <span
               key={c.tag}
               title={c.dropped ? "Dropped from this recipe" : c.added ? "Added by you" : undefined}
@@ -346,7 +378,7 @@ export function RecipeEditor({
               </button>
             </span>
           ))}
-          <AddTagInput taken={taken} onAdd={(tag) => !taken.has(tag) && patch.mutate({ added: [...added, tag] })} />
+          {!off && <AddTagInput taken={taken} onAdd={(tag) => !taken.has(tag) && patch.mutate({ added: [...added, tag] })} />}
         </div>
         {note && <p className="mt-1.5 text-xs text-faint">{note}</p>}
       </div>
@@ -378,9 +410,12 @@ function CharacterRow({
   onOutfit,
   prompt,
   onPrompt,
+  off,
 }: {
   value: string | null;
   onChange: (tag: string | null) => void;
+  /** Identity tags struck for this batch, and the toggle. */
+  off?: { tags: readonly string[]; toggle: (tag: string) => void };
   installedLoras: readonly string[];
   rejectedLoras: ReadonlySet<string>;
   taken?: readonly string[];
@@ -413,7 +448,7 @@ function CharacterRow({
     );
   }
   const { name } = displayName(entry ?? { tag: value });
-  const kept = recipe?.identity.filter((c) => !c.dropped).map((c) => displayWord(c.tag)) ?? [];
+  const kept = recipe?.identity.filter((c) => !c.dropped && !off?.tags.includes(c.tag)).map((c) => displayWord(c.tag)) ?? [];
   const lora = recipe?.lora;
   return (
     <Card className="px-3.5 py-2 hover:border-line-strong">
@@ -494,14 +529,14 @@ function CharacterRow({
       {onOutfit && <WearsLine character={value} outfit={outfit} onOutfit={onOutfit} folded={!expanded} />}
       {recipe && prompt !== undefined && onPrompt && (
         <PromptRepeats
-          repeats={tagRepeats([...characterTags(recipe), ...wornTags(outfit)], prompt)}
+          repeats={tagRepeats([...characterTags(recipe, off?.tags), ...wornTags(outfit)], prompt)}
           prompt={prompt}
           onPrompt={onPrompt}
         />
       )}
       {expanded && recipe && (
         <div className="mt-2 space-y-4 border-t border-line pb-2 pt-3">
-          <RecipeEditor recipe={recipe} label={name} installedLoras={installedLoras} rejectedLoras={rejectedLoras} />
+          <RecipeEditor recipe={recipe} label={name} installedLoras={installedLoras} rejectedLoras={rejectedLoras} off={off} />
           {outfit && onOutfit && <OutfitFold character={value} outfit={outfit} onOutfit={onOutfit} />}
           <Link to={characterHref(value)} className="inline-block text-xs text-muted hover:text-neutral-100">
             {recipe.count.toLocaleString()} {recipe.count === 1 ? "image" : "images"} · character page
@@ -601,9 +636,14 @@ export function CharacterLayer({
   onOutfit,
   prompt,
   onPrompt,
+  identityOff,
+  onIdentityOff,
 }: {
   value: readonly string[];
   onChange: (tags: string[]) => void;
+  /** Per character, identity tags struck for this batch; and the toggle. */
+  identityOff?: Record<string, string[]>;
+  onIdentityOff?: (character: string, tag: string) => void;
   outfits?: Outfits;
   onOutfit?: (character: string, pick: OutfitPick | null) => void;
   prompt?: string;
@@ -642,6 +682,7 @@ export function CharacterLayer({
           onOutfit={onOutfit && ((p) => onOutfit(tag, p))}
           prompt={prompt}
           onPrompt={onPrompt}
+          off={onIdentityOff && { tags: identityOff?.[tag] ?? [], toggle: (t) => onIdentityOff(tag, t) }}
         />
       ))}
       {adding && value.length < MAX_CHARACTERS && (

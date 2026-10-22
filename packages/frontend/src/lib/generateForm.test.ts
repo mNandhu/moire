@@ -121,6 +121,12 @@ it("replaceCharacter changes, removes, and never shows a tag twice", () => {
 });
 
 describe("loadDraft", () => {
+  it("keeps batch strikes only for characters still picked", () => {
+    const f = draft({ characters: ["a"], identityOff: { a: ["x", "x", 3], b: ["y"] } });
+    expect(f.identityOff).toEqual({ a: ["x"] });
+    expect(draft({ characters: ["a"], identityOff: "junk" }).identityOff).toEqual({});
+  });
+
   it("falls back to defaults on bad storage", () => {
     expect(loadDraft({ getItem: () => "not json" })).toEqual(DEFAULT_FORM);
     expect(
