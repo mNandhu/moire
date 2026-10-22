@@ -522,22 +522,21 @@ export default function GeneratePage() {
     <>
       {/* On the right: which Generator this page runs, then one status, with
           ComfyUI's state and the Generator's test run folded into a word. */}
-      <PageHeader
-        title="Generate"
-        width="wide"
-        actions={
-          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm">
-            {generators && generators.length > 0 ? (
-              <WorkflowPicker generators={generators} value={gen?._id ?? "builtin"} onChange={chooseWorkflow} />
-            ) : (
-              <span className="text-muted">
-                Workflow <span className="font-medium text-neutral-100">Built-in</span>
-              </span>
-            )}
-            <ComfyStatusLine ready={gen ? ready : undefined} />
-          </div>
-        }
-      />
+      <PageHeader title="Generate" width="wide">
+        {/* The toolbar slot, not actions: on a phone it is a row of its own,
+            the workflow at its start (the name cut short if it must), the
+            status at its end. */}
+        <div className="flex min-w-0 items-center justify-end gap-x-4 text-sm max-md:justify-between">
+          {generators && generators.length > 0 ? (
+            <WorkflowPicker generators={generators} value={gen?._id ?? "builtin"} onChange={chooseWorkflow} />
+          ) : (
+            <span className="text-muted">
+              Workflow <span className="font-medium text-neutral-100">Built-in</span>
+            </span>
+          )}
+          <ComfyStatusLine ready={gen ? ready : undefined} />
+        </div>
+      </PageHeader>
       <PageBody width="wide" className="pb-0">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_30rem] lg:items-start">
           {/* From lg the run bar pins to the bottom of the view; long layers scroll above it. A phone has no room to spare for it. */}

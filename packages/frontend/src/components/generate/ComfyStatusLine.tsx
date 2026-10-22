@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "../../lib/cn";
 import { STATUS_KEY, testConnection, useComfySettings, useComfyStatus } from "../../lib/generate";
-import { Button } from "../ui";
+import { RotateCw } from "lucide-react";
 
 /**
  * One status for generating: a dot and a word ("Ready", "Generating",
@@ -29,7 +29,7 @@ export function ComfyStatusLine({ withActions = true, ready }: { withActions?: b
         ? (["bg-amber-400", "Needs a test run"] as const)
         : (["bg-emerald-400", ready ? "Ready" : "Connected"] as const);
   return (
-    <div role={down ? "alert" : undefined} className="flex flex-wrap items-center gap-2 text-sm">
+    <div role={down ? "alert" : undefined} className="flex shrink-0 items-center gap-2 text-sm">
       <span className={cn("h-2 w-2 rounded-full", tone)} />
       <span className={down ? "text-red-200" : "text-neutral-100"} title={down ? status.error ?? undefined : undefined}>
         {label}
@@ -39,9 +39,16 @@ export function ComfyStatusLine({ withActions = true, ready }: { withActions?: b
       </span>
       {down && withActions && (
         <>
-          <Button size="sm" onClick={() => retry.mutate()} disabled={retry.isPending}>
-            Retry
-          </Button>
+          <button
+            type="button"
+            onClick={() => retry.mutate()}
+            disabled={retry.isPending}
+            title="Retry"
+            aria-label="Retry"
+            className="-mx-1 rounded-md p-1 text-muted hover:bg-raised hover:text-neutral-100 disabled:opacity-60"
+          >
+            <RotateCw size={14} className={cn(retry.isPending && "animate-spin")} />
+          </button>
           <Link to="/settings?section=comfyui" className="text-xs text-muted hover:text-neutral-100">
             Settings
           </Link>

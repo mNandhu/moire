@@ -42,6 +42,7 @@ export function WorkflowPicker({
   return (
     <div className="flex min-w-0 max-w-full items-center gap-2">
       <Picker
+        className="min-w-0"
         aria-label="Workflow"
         value={value}
         options={options}

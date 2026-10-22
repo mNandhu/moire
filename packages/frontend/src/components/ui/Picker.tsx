@@ -190,7 +190,9 @@ export function Picker({
         className={cn(
           !trigger &&
             "w-full h-9 rounded-lg bg-canvas border border-line px-3 text-sm text-left flex items-center gap-2 hover:border-line-strong focus-visible:border-brand-500/70 transition-colors disabled:opacity-50",
-          trigger && "block disabled:cursor-default",
+          // A button sizes to its content even as a block: capped, so a
+          // custom trigger can cut its label short in a narrow spot.
+          trigger && "block max-w-full disabled:cursor-default",
         )}
       >
         {trigger ? (
