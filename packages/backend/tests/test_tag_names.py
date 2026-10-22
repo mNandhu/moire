@@ -29,3 +29,11 @@ def test_apply_aliases_maps_dedupes_and_sorts():
 def test_apply_aliases_without_rules_is_identity():
     terms = ["b", "a"]
     assert tn.apply_aliases(terms, {}) is terms
+
+
+def test_apply_aliases_splits_one_term_into_several():
+    out = tn.apply_aliases(
+        ["long_white_hair", "long_hair", "smile"],
+        {"long_white_hair": ["long_hair", "white_hair"]},
+    )
+    assert out == ["long_hair", "smile", "white_hair"]

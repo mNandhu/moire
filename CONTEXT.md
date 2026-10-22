@@ -28,8 +28,15 @@ belongs in this file.
   deterministic vocabulary). Manual tags are rewritten once
   (`image_tags.rename_manual`). Prompt tags are rebuilt by reprojection, so a
   merge is stored as a **Merge rule** (`tag_aliases`, `from -> to`, kept one
-  hop) that reprojection applies to the extracted terms. Owned by
-  `services/tag_rename.py`.
+  hop) that reprojection applies to the extracted terms. A **Split rule**
+  (`tag_splits`, `from -> [to, ...]`) reads one prompt name as several
+  (`long_white_hair` -> `long_hair`, `white_hair`); a name has one rule, merge
+  or split. Owned by `services/tag_rename.py`.
+- **Suggested merge**: a merge or split rule for a prompt tag that isn't a
+  Danbooru tag, read from Danbooru's list: its alias, a respelling, colour
+  plus thing as one tag, a split per describing word, or the colour dropped.
+  Only suggested; the user accepts them on the Tags page.
+  (`services/tag_canon.py`)
 - **Tag-state**: the invariant binding `tags` to its summary flags:
   `has_tags` (any *curatable* tag, meaning a non-`prompt:` tag, so prompt-only images
   stay "Untagged"), `has_ai_tags` (any tag that is *neither* `manual:` nor

@@ -13,8 +13,13 @@
 A rename keeps the tag's kind: ``manual:a`` becomes ``manual:b``, never an AI
 tag. "Merge" is just a rename onto a name that already exists.
 
+A **split** rule reads one prompt name as several (``long_white_hair`` ->
+``long_hair``, ``white_hair``), kept in ``tag_splits``; Danbooru-backed
+suggestions for both come from :mod:`tag_canon`.
+
 Rules are kept resolved, one hop each: renaming ``b -> c`` repoints an existing
-``a -> b`` to ``a -> c``, and a rule that would loop is refused.
+``a -> b`` to ``a -> c`` (and a split's ``b`` the same way), a target with a
+split of its own stands for its split, and a rule that would loop is refused.
 """
 
 from __future__ import annotations
@@ -23,11 +28,10 @@ import time
 
 import anyio
 import sqlalchemy as sa
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import image_tags, reproject, tag_index
+from . import danbooru_tags, image_tags, reproject, tag_canon, tag_index
 from .tag_names import canonical_name
 
 
@@ -94,15 +98,89 @@ async def _move_character(conn, old: str, new: str) -> None:
         await conn.execute(sa.delete(c).where(c.c.tag == old))
 
 
-async def _images_with(tag: str) -> list[str]:
+async def _images_with(tags: list[str], *, every: bool = False) -> list[str]:
+    """Images carrying any of ``tags`` (with ``every``, all of them)."""
+    if not tags:
+        return []
+    it = t.image_tags
+    stmt = sa.select(it.c.image_id).where(it.c.tag.in_(tags)).group_by(it.c.image_id)
+    if every:
+        stmt = stmt.having(sa.func.count(sa.distinct(it.c.tag)) == len(set(tags)))
     async with async_conn() as conn:
-        return list(
-            (
-                await conn.execute(
-                    sa.select(t.image_tags.c.image_id).where(t.image_tags.c.tag == tag)
-                )
-            ).scalars()
+        return list((await conn.execute(stmt)).scalars())
+
+
+async def _load_rules(conn) -> dict[str, tuple[list[str], float | None]]:
+    """Every prompt rule as ``from -> ([to, ...], created_at)``: a merge has
+    one target, a split several."""
+    rules = {
+        r.from_name: ([r.to_name], r.created_at)
+        for r in await conn.execute(sa.select(t.tag_aliases))
+    }
+    for r in await conn.execute(sa.select(t.tag_splits)):
+        rules[r.from_name] = (list(r.to_names), r.created_at)
+    return rules
+
+
+async def _put_rule(
+    conn, name: str, targets: list[str], created_at: float | None
+) -> None:
+    """Store ``name -> targets`` in the table its shape belongs to, dropping
+    any rule for ``name`` in the other (and in both when ``targets`` is
+    empty)."""
+    await conn.execute(
+        sa.delete(t.tag_aliases).where(t.tag_aliases.c.from_name == name)
+    )
+    await conn.execute(sa.delete(t.tag_splits).where(t.tag_splits.c.from_name == name))
+    if len(targets) == 1:
+        await conn.execute(
+            sa.insert(t.tag_aliases).values(
+                from_name=name, to_name=targets[0], created_at=created_at
+            )
         )
+    elif targets:
+        await conn.execute(
+            sa.insert(t.tag_splits).values(
+                from_name=name, to_names=targets, created_at=created_at
+            )
+        )
+
+
+async def _write_rule(conn, name: str, targets: list[str]) -> list[str]:
+    """Store the rule ``name -> targets`` and return its targets as stored.
+
+    Rules stay one hop: a target that has a rule of its own stands for that
+    rule's targets, and rules that pointed at ``name`` now point where it
+    goes. A rule that would lead back to ``name`` is refused."""
+    if targets == [name]:
+        raise RenameError("new name is the same as the old one")
+    rules = await _load_rules(conn)
+    resolved = list(
+        dict.fromkeys(x for to in targets for x in rules.get(to, ([to], None))[0])
+    )
+    if name in resolved:
+        through = next(to for to in targets if name in rules.get(to, ([to], None))[0])
+        raise RenameError(
+            f"{through} is already merged into {name}; remove that rule first"
+        )
+    for src, (to, created_at) in rules.items():
+        if name in to and src != name:
+            repointed = [x for y in to for x in (resolved if y == name else [y])]
+            await _put_rule(
+                conn,
+                src,
+                [x for x in dict.fromkeys(repointed) if x != src],
+                created_at,
+            )
+    await _put_rule(conn, name, resolved, time.time())
+    if len(resolved) == 1:
+        await _move_thumbnail(
+            conn, image_tags.to_prompt(name), image_tags.to_prompt(resolved[0])
+        )
+        await _move_character(
+            conn, image_tags.to_prompt(name), image_tags.to_prompt(resolved[0])
+        )
+    return resolved
 
 
 async def rename_tag(tag: str, to: str) -> dict:
@@ -128,84 +206,109 @@ async def rename_tag(tag: str, to: str) -> dict:
     old_name = image_tags.base_of(tag)
     new_name = _target_name(to, prompt=True)
     async with async_tx() as conn:
-        rules = {
-            r.from_name: r.to_name
-            for r in (
-                await conn.execute(
-                    sa.select(t.tag_aliases.c.from_name, t.tag_aliases.c.to_name)
-                )
-            ).fetchall()
-        }
-        if new_name == old_name:
-            raise RenameError("new name is the same as the old one")
-        if rules.get(new_name) == old_name:
-            raise RenameError(
-                f"{new_name} is already merged into {old_name}; remove that rule first"
-            )
-        # Keep rules one hop: a target that is itself merged away resolves to
-        # where it went.
-        new_name = rules.get(new_name, new_name)
-        # Rules already pointing at the old name follow it to the new one.
-        await conn.execute(
-            sa.update(t.tag_aliases)
-            .where(t.tag_aliases.c.to_name == old_name)
-            .values(to_name=new_name)
-        )
-        stmt = sqlite_insert(t.tag_aliases).values(
-            from_name=old_name, to_name=new_name, created_at=time.time()
-        )
-        await conn.execute(
-            stmt.on_conflict_do_update(
-                index_elements=[t.tag_aliases.c.from_name],
-                set_={"to_name": new_name, "created_at": stmt.excluded.created_at},
-            )
-        )
-        await _move_thumbnail(conn, tag, image_tags.to_prompt(new_name))
-        await _move_character(conn, tag, image_tags.to_prompt(new_name))
+        resolved = await _write_rule(conn, old_name, [new_name])
 
-    affected = await _images_with(tag)
+    affected = await _images_with([tag])
     await anyio.to_thread.run_sync(reproject.reproject_ids, affected)
     tag_index.invalidate()
     return {
         "kind": "prompt",
         "from": tag,
-        "to": image_tags.to_prompt(new_name),
+        # Merging onto a name that is split stands for its split.
+        "to": image_tags.to_prompt(resolved[0]),
+        "to_all": [image_tags.to_prompt(x) for x in resolved],
         "images": len(affected),
     }
 
 
-async def list_aliases() -> list[dict]:
+async def add_rules(rules: list[tuple[str, list[str]]]) -> dict:
+    """Store several prompt rules at once (accepted suggestions): one
+    transaction, then one reprojection of every image they touch. A rule
+    that can't be kept (a loop, an empty name) is skipped, not fatal."""
+    added: list[str] = []
+    skipped: list[str] = []
+    async with async_tx() as conn:
+        for name, targets in rules:
+            try:
+                name = _target_name(name, prompt=True)
+                await _write_rule(
+                    conn,
+                    name,
+                    list(dict.fromkeys(_target_name(x, prompt=True) for x in targets)),
+                )
+            except RenameError:
+                skipped.append(name)
+                continue
+            added.append(name)
+    affected = await _images_with([image_tags.to_prompt(n) for n in added])
+    await anyio.to_thread.run_sync(reproject.reproject_ids, affected)
+    tag_index.invalidate()
+    return {"rules": len(added), "skipped": skipped, "images": len(affected)}
+
+
+async def merge_suggestions() -> dict:
+    """Prompt tags in the library that Danbooru names otherwise, read by
+    :mod:`tag_canon`, most used first. Tags with a rule already are left
+    out. Empty until Danbooru's list is downloaded (a fetch starts here)."""
+    tags = await danbooru_tags.load()
+    it = t.image_tags
     async with async_conn() as conn:
         rows = (
             await conn.execute(
-                sa.select(t.tag_aliases).order_by(t.tag_aliases.c.created_at.desc())
+                sa.select(it.c.base, sa.func.count().label("n"))
+                .where(it.c.tag.like(f"{image_tags.PROMPT_PREFIX}%"))
+                .group_by(it.c.base)
             )
         ).fetchall()
+        ruled = await _load_rules(conn)
+    counts = {r.base: r.n for r in rows if r.base not in ruled}
+    found = await anyio.to_thread.run_sync(tag_canon.suggest_all, list(counts), tags)
+    return {
+        "available": bool(tags.tags),
+        "fetching": danbooru_tags.fetching(),
+        "suggestions": sorted(
+            (
+                {
+                    "from": s.name,
+                    "to": list(s.to),
+                    "kind": s.kind,
+                    "images": counts[s.name],
+                }
+                for s in found
+            ),
+            key=lambda s: (-s["images"], s["from"]),
+        ),
+    }
+
+
+async def list_aliases() -> list[dict]:
+    """Merge and split rules, newest first. ``to`` is a list (one name for a
+    merge)."""
+    async with async_conn() as conn:
+        rules = await _load_rules(conn)
     return [
-        {"from": r.from_name, "to": r.to_name, "created_at": r.created_at} for r in rows
+        {"from": name, "to": to, "created_at": created_at}
+        for name, (to, created_at) in sorted(
+            rules.items(), key=lambda kv: -(kv[1][1] or 0)
+        )
     ]
 
 
 async def delete_alias(from_name: str) -> dict | None:
-    """Drop a merge rule and reproject the images it had merged, so the
+    """Drop a merge or split rule and reproject the images it touched, so the
     original name comes back. ``None`` if there was no such rule."""
     from_name = canonical_name(from_name)
     async with async_tx() as conn:
-        to_name = (
-            await conn.execute(
-                sa.select(t.tag_aliases.c.to_name).where(
-                    t.tag_aliases.c.from_name == from_name
-                )
-            )
-        ).scalar()
-        if to_name is None:
+        rule = (await _load_rules(conn)).get(from_name)
+        if rule is None:
             return None
-        await conn.execute(
-            sa.delete(t.tag_aliases).where(t.tag_aliases.c.from_name == from_name)
-        )
-    # Every image the rule touched now carries the target tag; re-deriving
-    # those gives each its own prompt's name back.
-    affected = await _images_with(image_tags.to_prompt(to_name))
+        await _put_rule(conn, from_name, [], None)
+    # Every image the rule touched carries all its targets; re-deriving those
+    # gives each its own prompt's names back.
+    targets = rule[0]
+    affected = await _images_with(
+        [image_tags.to_prompt(x) for x in targets], every=True
+    )
     await anyio.to_thread.run_sync(reproject.reproject_ids, affected)
     tag_index.invalidate()
-    return {"from": from_name, "to": to_name, "images": len(affected)}
+    return {"from": from_name, "to": targets, "images": len(affected)}

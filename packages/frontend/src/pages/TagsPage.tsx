@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Tag as TagIcon, Slash, Search, GitMerge, Undo2, LayoutGrid, List, UserPlus } from "lucide-react";
+import { Tag as TagIcon, Slash, Search, GitMerge, Undo2, LayoutGrid, List, UserPlus, Wand2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -12,7 +12,9 @@ import { cn } from "../lib/cn";
 import { api } from "../lib/api";
 import { smallThumb } from "../lib/media";
 import {
+  MERGE_SUGGESTIONS_KEY,
   TAG_ALIASES_KEY,
+  addTagRules,
   deleteTagAlias,
   renameTag,
   useAiCoverage,
@@ -21,6 +23,7 @@ import {
   useTagAliases,
   useTagBrowse,
   useTagDescriptions,
+  useMergeSuggestions,
   type TagAgg,
 } from "../lib/queries";
 import { descriptionKey, formatTag, tagName } from "../lib/tags";
@@ -40,6 +43,7 @@ import {
 } from "../lib/tagBrowse";
 import { useToast } from "../components/Toasts";
 import { RenameTagDialog } from "../components/RenameTagDialog";
+import { MergeSuggestions } from "../components/MergeSuggestions";
 import { TagPanel } from "../components/TagPanel";
 import { Mosaic, type Sample } from "../components/TagMosaic";
 import { FaceCrop } from "../components/CharacterAvatar";
@@ -141,12 +145,16 @@ export default function TagsPage() {
   const [renaming, setRenaming] = useState<TagAgg | null>(null);
   const [showRules, setShowRules] = useState(false);
   const { data: aliases } = useTagAliases();
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const { data: suggested } = useMergeSuggestions();
+  const suggestions = suggested?.suggestions;
   // Stored per-kind tags, so the dialog can tell a rename from a merge.
   const { data: stored } = useTagAggregate({ includePrompt: true });
 
   const afterTagWrite = () => {
     invalidateFeeds(queryClient);
     queryClient.invalidateQueries({ queryKey: TAG_ALIASES_KEY });
+    queryClient.invalidateQueries({ queryKey: MERGE_SUGGESTIONS_KEY });
   };
 
   const onRename = async (tag: string, to: string) => {
@@ -155,7 +163,7 @@ export default function TagsPage() {
       afterTagWrite();
       setSelected(tagName(res.to));
       push(
-        `${res.kind === "prompt" ? "Merged" : "Renamed"} “${formatTag(res.from)}” into “${formatTag(res.to)}” on ${res.images.toLocaleString()} images`,
+        `${res.kind === "prompt" ? "Merged" : "Renamed"} “${formatTag(res.from)}” into “${(res.to_all ?? [res.to]).map(formatTag).join(" + ")}” on ${res.images.toLocaleString()} images`,
         "success",
       );
       return true;
@@ -169,9 +177,24 @@ export default function TagsPage() {
     try {
       const res = await deleteTagAlias(from);
       afterTagWrite();
-      push(`Removed rule “${formatTag(res.from)}” → “${formatTag(res.to)}”`, "success");
+      push(`Removed rule “${formatTag(res.from)}” → “${res.to.map(formatTag).join(" + ")}”`, "success");
     } catch (e) {
       push(`Couldn't remove the rule: ${String(e)}`, "error");
+    }
+  };
+
+  const onAcceptSuggestions = async (rules: { from: string; to: string[] }[]) => {
+    try {
+      const res = await addTagRules(rules);
+      afterTagWrite();
+      if (res.rules >= rules.length) setShowSuggestions(false);
+      push(
+        `Merged ${res.rules.toLocaleString()} ${res.rules === 1 ? "tag" : "tags"} on ${res.images.toLocaleString()} images` +
+          (res.skipped.length ? `; ${res.skipped.length.toLocaleString()} would loop and were skipped` : ""),
+        res.skipped.length ? "info" : "success",
+      );
+    } catch (e) {
+      push(`Merge failed: ${String(e)}`, "error");
     }
   };
 
@@ -259,6 +282,15 @@ export default function TagsPage() {
                 : `Show boilerplate (${boilerplateCount.toLocaleString()})`}
             </Button>
           )}
+          {!!suggestions?.length && (
+            <Button
+              active={showSuggestions}
+              onClick={() => setShowSuggestions((v) => !v)}
+              title="Prompt tags Danbooru names otherwise"
+            >
+              <Wand2 size={15} /> Suggested merges ({suggestions.length.toLocaleString()})
+            </Button>
+          )}
           {!!aliases?.length && (
             <Button
               active={showRules}
@@ -270,13 +302,17 @@ export default function TagsPage() {
           )}
         </div>
 
+        {showSuggestions && !!suggestions?.length && (
+          <MergeSuggestions suggestions={suggestions} onAccept={onAcceptSuggestions} />
+        )}
+
         {showRules && !!aliases?.length && (
           <div className="mb-6 rounded-xl border border-white/5 bg-surface shadow-panel divide-y divide-white/5">
             {aliases.map((a) => (
               <div key={a.from} className="flex items-center gap-3 px-4 py-2 text-sm">
                 <span className="truncate text-muted">{formatTag(a.from)}</span>
                 <span className="text-faint">→</span>
-                <span className="truncate font-medium">{formatTag(a.to)}</span>
+                <span className="truncate font-medium">{a.to.map(formatTag).join(" + ")}</span>
                 <Button
                   size="sm"
                   variant="ghost"

@@ -41,13 +41,19 @@ def _load_rulesets() -> dict[str, dict]:
     return {r.sig: (r.doc or {}) for r in rows}
 
 
-def _load_aliases() -> dict[str, str]:
-    """The prompt-tag merge rules (``from -> to``), see services/tag_rename.py."""
+def _load_aliases() -> dict[str, str | list[str]]:
+    """The prompt-tag merge and split rules (``from -> to`` or
+    ``from -> [to, ...]``), see services/tag_rename.py."""
     with sync_conn() as conn:
         rows = conn.execute(
             sa.select(t.tag_aliases.c.from_name, t.tag_aliases.c.to_name)
         ).fetchall()
-    return {r.from_name: r.to_name for r in rows}
+        splits = conn.execute(
+            sa.select(t.tag_splits.c.from_name, t.tag_splits.c.to_names)
+        ).fetchall()
+    return {r.from_name: r.to_name for r in rows} | {
+        r.from_name: list(r.to_names) for r in splits
+    }
 
 
 def _prompt_positive_only() -> bool:

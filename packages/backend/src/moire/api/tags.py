@@ -453,6 +453,27 @@ async def list_aliases():
     return await tag_rename.list_aliases()
 
 
+class TagRule(BaseModel):
+    from_: str = Field(alias="from")
+    to: list[str] = Field(min_length=1, max_length=8)
+
+
+class TagRules(BaseModel):
+    rules: list[TagRule] = Field(max_length=2000)
+
+
+@router.post("/aliases")
+async def add_aliases(body: TagRules):
+    """Store several merge / split rules at once (accepted suggestions)."""
+    return await tag_rename.add_rules([(r.from_, r.to) for r in body.rules])
+
+
+@router.get("/merge-suggestions")
+async def merge_suggestions():
+    """Prompt tags Danbooru names otherwise, as rules to accept (tag_canon)."""
+    return JSONResponse(await tag_rename.merge_suggestions())
+
+
 @router.delete("/aliases/{from_name:path}")
 async def delete_alias(from_name: str):
     res = await tag_rename.delete_alias(from_name)

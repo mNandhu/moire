@@ -230,6 +230,17 @@ tag_aliases = sa.Table(
     sa.Column("created_at", sa.Float),
 )
 
+# Prompt-tag split rules: one name read as several (``long_white_hair`` ->
+# ``long_hair``, ``white_hair``). A name has a rule here or in tag_aliases,
+# never both (services/tag_rename.py).
+tag_splits = sa.Table(
+    "tag_splits",
+    metadata,
+    sa.Column("from_name", sa.Text, primary_key=True),
+    sa.Column("to_names", sa.JSON, nullable=False),
+    sa.Column("created_at", sa.Float),
+)
+
 # User prompt-extraction rulesets, keyed by workflow signature.
 gen_rulesets = sa.Table(
     "gen_rulesets",

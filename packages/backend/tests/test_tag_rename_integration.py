@@ -137,9 +137,107 @@ async def test_rules_stay_one_hop_and_refuse_loops(client, seed):
     # b1 -> c1 repoints a1 -> c1 rather than chaining a1 -> b1 -> c1.
     await client.post("/tags/rename", json={"tag": "prompt:b1", "to": "c1"})
     rules = {r["from"]: r["to"] for r in (await client.get("/tags/aliases")).json()}
-    assert rules == {"a1": "c1", "b1": "c1"}
+    assert rules == {"a1": ["c1"], "b1": ["c1"]}
     assert await _tags("L1:a") == ["prompt:c1"]
 
     # c1 -> a1 would loop through the existing a1 -> c1 rule.
     resp = await client.post("/tags/rename", json={"tag": "prompt:c1", "to": "a1"})
     assert resp.status_code == 422
+
+
+async def _rules(client):
+    return {r["from"]: r["to"] for r in (await client.get("/tags/aliases")).json()}
+
+
+async def test_split_rule_reads_one_prompt_name_as_several(client, seed):
+    seed("L1:a", tags=())
+    seed("L1:b", tags=())
+    _raw("L1:a", "long white hair, smile")
+    _raw("L1:b", "long hair, white hair")
+    reproject.reproject_library("L1")
+    resp = await client.post(
+        "/tags/aliases",
+        json={
+            "rules": [{"from": "long white hair", "to": ["long hair", "white_hair"]}]
+        },
+    )
+    assert resp.json() == {"rules": 1, "skipped": [], "images": 1}
+    assert await _tags("L1:a") == [
+        "prompt:long_hair",
+        "prompt:smile",
+        "prompt:white_hair",
+    ]
+    reproject.reproject_library("L1")
+    assert "prompt:long_white_hair" not in await _tags("L1:a")
+    assert await _rules(client) == {"long_white_hair": ["long_hair", "white_hair"]}
+
+    # Undo: only images carrying every target are re-derived; both get their
+    # own prompt's names back.
+    resp = await client.delete("/tags/aliases/long_white_hair")
+    assert resp.json()["to"] == ["long_hair", "white_hair"]
+    assert resp.json()["images"] == 2
+    assert await _tags("L1:a") == ["prompt:long_white_hair", "prompt:smile"]
+    assert await _tags("L1:b") == ["prompt:long_hair", "prompt:white_hair"]
+
+
+async def test_split_targets_follow_a_later_merge(client, seed):
+    seed("L1:a", tags=())
+    _raw("L1:a", "x1, y1")
+    reproject.reproject_library("L1")
+    await client.post(
+        "/tags/aliases", json={"rules": [{"from": "a1", "to": ["b1", "c1"]}]}
+    )
+    await client.post("/tags/aliases", json={"rules": [{"from": "b1", "to": ["d1"]}]})
+    assert await _rules(client) == {"a1": ["d1", "c1"], "b1": ["d1"]}
+    # Merging onto a split name stands for its split.
+    resp = await client.post("/tags/rename", json={"tag": "prompt:x1", "to": "a1"})
+    assert resp.json()["to_all"] == ["prompt:d1", "prompt:c1"]
+    assert await _tags("L1:a") == ["prompt:c1", "prompt:d1", "prompt:y1"]
+
+
+async def test_a_name_has_one_rule_and_loops_through_splits_are_refused(client, seed):
+    seed("L1:a", tags=())
+    await client.post(
+        "/tags/aliases", json={"rules": [{"from": "a1", "to": ["b1", "c1"]}]}
+    )
+    await client.post("/tags/aliases", json={"rules": [{"from": "a1", "to": ["e1"]}]})
+    assert await _rules(client) == {"a1": ["e1"]}
+    await client.post(
+        "/tags/aliases", json={"rules": [{"from": "a1", "to": ["b1", "c1"]}]}
+    )
+    resp = await client.post(
+        "/tags/aliases",
+        json={"rules": [{"from": "c1", "to": ["a1"]}, {"from": "f1", "to": ["g1"]}]},
+    )
+    assert resp.json() == {"rules": 1, "skipped": ["c1"], "images": 0}
+    assert await _rules(client) == {"a1": ["b1", "c1"], "f1": ["g1"]}
+
+
+async def test_merge_suggestions_read_prompt_tags_against_danbooru(
+    client, seed, tmp_path, monkeypatch
+):
+    from moire.services import danbooru_tags
+
+    path = tmp_path / "danbooru-tags.csv"
+    path.write_text(
+        "long_hair,0,500,\nwhite_hair,0,500,\nheart_pasties,0,500,\n"
+        'fellatio,0,500,"blowjob"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(danbooru_tags, "list_path", lambda: path)
+    monkeypatch.setattr(danbooru_tags, "ensure_fresh", lambda: None)
+    danbooru_tags.reset_for_tests()
+    seed("L1:a", tags=())
+    _raw("L1:a", "long white hair, black heart pasties, blowjob, long hair, sparkles")
+    reproject.reproject_library("L1")
+    await client.post(
+        "/tags/aliases", json={"rules": [{"from": "blowjob", "to": ["fellatio"]}]}
+    )
+
+    body = (await client.get("/tags/merge-suggestions")).json()
+    assert body["available"] is True
+    assert {s["from"]: (s["to"], s["kind"]) for s in body["suggestions"]} == {
+        "long_white_hair": (["long_hair", "white_hair"], "split"),
+        "black_heart_pasties": (["heart_pasties"], "strip"),
+    }
+    danbooru_tags.reset_for_tests()
