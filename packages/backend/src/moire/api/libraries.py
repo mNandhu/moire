@@ -125,7 +125,7 @@ async def add_library(body: LibraryIn):
     # one sits inside hands over its copies of these files.
     scan_library_async(lib_id, body.path)
     if watch_enabled:
-        library_watch.start_watch(lib_id, body.path)
+        await anyio.to_thread.run_sync(library_watch.start_watch, lib_id, body.path)  # type: ignore[attr-defined]
     return {"_id": lib_id, "path": body.path, "name": body.name or body.path}
 
 
@@ -134,8 +134,9 @@ async def remove_library(library_id: str):
     # Shown as deleting until it's gone: a big library takes a while.
     with activity.track("delete", library_id=library_id):
         # Cancel an in-flight scan first to avoid the scan recreating rows/files after deletion.
-        cancel_scan(library_id)
-        library_watch.stop_watch(library_id)
+        # Both join a thread, so off the loop (as main.py's shutdown does).
+        await anyio.to_thread.run_sync(cancel_scan, library_id)  # type: ignore[attr-defined]
+        await anyio.to_thread.run_sync(library_watch.stop_watch, library_id)  # type: ignore[attr-defined]
 
         async with async_tx() as conn:
             gone_path = (
@@ -271,7 +272,9 @@ async def update_library(library_id: str, body: LibraryUpdate):
     watch_enabled = update_doc.get("watch_enabled", old._mapping.get("watch_enabled"))
     if path_changed or "watch_enabled" in update_doc:
         if watch_enabled:
-            library_watch.start_watch(library_id, new_path)
+            await anyio.to_thread.run_sync(
+                library_watch.start_watch, library_id, new_path
+            )  # type: ignore[attr-defined]
         else:
-            library_watch.stop_watch(library_id)
+            await anyio.to_thread.run_sync(library_watch.stop_watch, library_id)  # type: ignore[attr-defined]
     return result
