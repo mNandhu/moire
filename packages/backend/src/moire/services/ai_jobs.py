@@ -309,6 +309,7 @@ class AIJobManager:
                 logger.exception("AI job %s failed", job.id)
                 job.status = "error"
                 job.error = str(e)
+                job.failed += len(ids) - released
             finally:
                 job.current = None
                 if job.started_at is not None:

@@ -350,5 +350,6 @@ async def test_a_job_error_outside_the_images_does_not_stop_the_worker(monkeypat
     finally:
         worker.cancel()
     assert first.status == "error" and "locked" in first.error
+    assert first.failed == 1
     assert second.status == "done"
     assert not mgr._in_flight

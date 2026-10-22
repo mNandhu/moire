@@ -135,8 +135,9 @@ async def remove_library(library_id: str):
     with activity.track("delete", library_id=library_id):
         # Cancel an in-flight scan first to avoid the scan recreating rows/files after deletion.
         # Both join a thread, so off the loop (as main.py's shutdown does).
-        await anyio.to_thread.run_sync(cancel_scan, library_id)  # type: ignore[attr-defined]
+        # The watcher goes first, so it can't start a new scan meanwhile.
         await anyio.to_thread.run_sync(library_watch.stop_watch, library_id)  # type: ignore[attr-defined]
+        await anyio.to_thread.run_sync(cancel_scan, library_id)  # type: ignore[attr-defined]
 
         async with async_tx() as conn:
             gone_path = (
@@ -272,9 +273,9 @@ async def update_library(library_id: str, body: LibraryUpdate):
     watch_enabled = update_doc.get("watch_enabled", old._mapping.get("watch_enabled"))
     if path_changed or "watch_enabled" in update_doc:
         if watch_enabled:
-            await anyio.to_thread.run_sync(
+            await anyio.to_thread.run_sync(  # type: ignore[attr-defined]
                 library_watch.start_watch, library_id, new_path
-            )  # type: ignore[attr-defined]
+            )
         else:
             await anyio.to_thread.run_sync(library_watch.stop_watch, library_id)  # type: ignore[attr-defined]
     return result

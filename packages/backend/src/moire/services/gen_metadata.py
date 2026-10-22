@@ -210,7 +210,6 @@ def read_gen_raw(img: Any) -> dict | None:
 
 def _empty(**over: Any) -> dict[str, Any]:
     g = copy.deepcopy(_EMPTY)
-    g["prompt_terms"] = []
     g.update(over)
     return g
 
@@ -567,7 +566,9 @@ def _resolve_ckpt(
         return None
     seen.add(key)
 
-    inputs = node.get("inputs", {})
+    inputs = node.get("inputs")
+    if not isinstance(inputs, dict):
+        return None
     for name_key in ("ckpt_name", "base_ckpt_name", "model_name", "unet_name"):
         v = inputs.get(name_key)
         if isinstance(v, str) and v:
@@ -767,7 +768,8 @@ def parse_comfyui(
             if isinstance(node, dict) and "Checkpoint" in str(
                 node.get("class_type", "")
             ):
-                ck = node.get("inputs", {}).get("ckpt_name")
+                inp = node.get("inputs")
+                ck = inp.get("ckpt_name") if isinstance(inp, dict) else None
                 if isinstance(ck, str) and ck:
                     g["model"] = ck
                     break

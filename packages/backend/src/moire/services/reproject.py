@@ -200,9 +200,9 @@ def _reproject_where(
                 prompt_positive_only=positive_only,
                 guess_keywords=keywords,
             )
-        except Exception:
+        except Exception as e:
             # One hostile graph must not leave every later row underived.
-            logger.exception("Reprojection skipped %s", row._id)
+            logger.warning("Reprojection skipped %s: %r", row._id, e)
             continue
         if g is None:
             continue
