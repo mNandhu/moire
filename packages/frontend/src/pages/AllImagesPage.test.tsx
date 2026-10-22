@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { ToastProvider } from "../components/Toasts";
 import AllImagesPage from "./AllImagesPage";
+import { ShortcutHelp } from "../components/ShortcutOverlay";
 
 // Opening a tile navigates; spying on the router hook is the cheapest way to
 // assert that without mounting the ImageView route.
@@ -57,6 +58,7 @@ function renderPage(url = "/") {
       <ToastProvider>
         <MemoryRouter initialEntries={[url]}>
           <AllImagesPage />
+          <ShortcutHelp />
         </MemoryRouter>
       </ToastProvider>
     </QueryClientProvider>,
@@ -157,7 +159,7 @@ describe("AllImagesPage", () => {
       await screen.findByRole("dialog", { name: "Keyboard shortcuts" }),
     ).toBeInTheDocument();
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(document.body, { key: "Escape" });
     await waitFor(() =>
       expect(
         screen.queryByRole("dialog", { name: "Keyboard shortcuts" }),
@@ -249,9 +251,10 @@ describe("AllImagesPage", () => {
     await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
 
     // Reading "Q: quarantined" in the overlay and pressing Q used to switch
-    // the feed underneath it, invisibly.
-    fireEvent.keyDown(window, { key: "q" });
-    fireEvent.keyDown(window, { key: "s" });
+    // the feed underneath it, invisibly. Keys come from an element, as in a
+    // browser, so the dialog sees them on their way to the window.
+    fireEvent.keyDown(document.body, { key: "q" });
+    fireEvent.keyDown(document.body, { key: "s" });
 
     expect(screen.queryAllByLabelText("Select")).toHaveLength(0);
     expect(
@@ -267,7 +270,7 @@ describe("AllImagesPage", () => {
     fireEvent.keyDown(window, { key: "?" });
     await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(document.body, { key: "Escape" });
     await waitFor(() =>
       expect(
         screen.queryByRole("dialog", { name: "Keyboard shortcuts" }),

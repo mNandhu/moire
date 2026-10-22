@@ -20,6 +20,7 @@ import WorkflowSetupPage from "./pages/WorkflowSetupPage";
 import BatchPage from "./pages/BatchPage";
 import WelcomePage from "./pages/WelcomePage";
 import { ONBOARDING_KEY, fetchOnboarding } from "./lib/onboarding";
+import { ShortcutHelp } from "./components/ShortcutOverlay";
 
 // ImageView opens over the gallery rather than replacing it: opening a thumbnail
 // pushes `/image/:id` with `state.backgroundLocation` set to the gallery location
@@ -78,6 +79,7 @@ export default function RootRoutes() {
           <Route path="/image/:id" element={<ImageView />} />
         </Routes>
       )}
+      <ShortcutHelp />
     </OverlayOpenContext.Provider>
   );
 }

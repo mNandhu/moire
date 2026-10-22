@@ -1,82 +1,58 @@
-import { useEffect } from "react";
-import { SEARCH_KEYS } from "./Sidebar";
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { Dialog } from "./ui/Dialog";
+import { isFormField } from "../lib/dom";
+import { OPEN_SHORTCUTS_EVENT, shortcutGroups } from "../lib/shortcuts";
 
 /**
- * Keyboard reference for the gallery, opened with `?`.
- *
- * The triage shortcuts (0-5 to score, X to quarantine, arrows to move) are the
- * fastest way to use this app and were entirely undiscoverable. Nothing on
- * screen mentioned them, so the feature effectively didn't exist for anyone who
- * hadn't read the source.
+ * Keyboard reference, opened with `?` on any page (lib/shortcuts.ts holds the
+ * keys). Mounted once at the root, so an image opened by link has it too. A
+ * Dialog, so the keys it lists don't act on the page under it while it's open.
  */
-const GROUPS: { title: string; keys: [string, string][] }[] = [
-  {
-    title: "Navigate",
-    keys: [
-      ["← → ↑ ↓", "Move between tiles"],
-      ["Enter", "Open the focused image"],
-      ["Esc", "Back out of whatever is open"],
-      ["PgUp / PgDn", "Scroll a page"],
-      ["Home / End", "Jump to start or end"],
-    ],
-  },
-  {
-    title: "Triage",
-    keys: [
-      ["0 – 5", "Score the focused image"],
-      ["X / Del", "Quarantine (or restore) it"],
-    ],
-  },
-  {
-    title: "Select",
-    keys: [
-      ["S", "Toggle selection mode"],
-      ["Click a tile", "Add or remove it, while in the mode"],
-      ["Esc", "Leave selection mode"],
-    ],
-  },
-  {
-    title: "View",
-    keys: [
-      ["+ / -", "Larger / smaller thumbnails"],
-      [SEARCH_KEYS, "Search everything"],
-      ["/", "Focus the tag search"],
-      ["?", "This help"],
-    ],
-  },
-];
+export function ShortcutHelp() {
+  const [open, setOpen] = useState(false);
+  const { pathname } = useLocation();
 
-export function ShortcutOverlay({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" || e.key === "?") onClose();
+      if (e.key !== "?" || e.ctrlKey || e.metaKey || e.altKey || isFormField(e.target)) return;
+      e.preventDefault();
+      setOpen((v) => !v);
     };
+    const onOpen = () => setOpen(true);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    window.addEventListener(OPEN_SHORTCUTS_EVENT, onOpen);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener(OPEN_SHORTCUTS_EVENT, onOpen);
+    };
+  }, []);
 
+  return <ShortcutOverlay open={open} onClose={() => setOpen(false)} pathname={pathname} />;
+}
+
+export function ShortcutOverlay({ open, onClose, pathname }: { open: boolean; onClose: () => void; pathname: string }) {
   return (
-    <div
-      className="fixed inset-0 z-[900] flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm motion-safe:animate-fade-in"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Keyboard shortcuts"
+    <Dialog
+      open={open}
+      onClose={onClose}
+      ariaLabel="Keyboard shortcuts"
+      className="max-w-2xl rounded-2xl border-line-strong bg-surface p-6"
     >
       <div
-        className="w-full max-w-2xl rounded-2xl border border-line-strong bg-surface p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          // `?` again closes it; the window listener can't see keys from inside.
+          if (e.key === "?") onClose();
+        }}
       >
         <div className="flex items-baseline justify-between mb-5">
           <h2 className="text-lg font-bold tracking-tight">Keyboard shortcuts</h2>
           <span className="text-xs text-faint">Esc to close</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
-          {GROUPS.map((g) => (
+          {shortcutGroups(pathname).map((g) => (
             <div key={g.title}>
-              <div className="text-2xs font-semibold uppercase tracking-wider text-faint mb-2">
-                {g.title}
-              </div>
+              <div className="text-2xs font-semibold uppercase tracking-wider text-faint mb-2">{g.title}</div>
               <dl className="space-y-1.5">
                 {g.keys.map(([key, desc]) => (
                   <div key={key} className="flex items-baseline justify-between gap-3">
@@ -93,6 +69,6 @@ export function ShortcutOverlay({ onClose }: { onClose: () => void }) {
           ))}
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }

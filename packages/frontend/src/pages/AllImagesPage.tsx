@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { VirtualizedGrid } from "../components/VirtualizedGrid";
 import { GallerySkeleton } from "../components/GallerySkeleton";
 import { DensityControl } from "../components/DensityControl";
-import { ShortcutOverlay } from "../components/ShortcutOverlay";
+import { openShortcutHelp } from "../lib/shortcuts";
 import { useToast } from "../components/Toasts";
 import { SHORTCUT_HINT_KEY } from "../lib/onboarding";
 import { useConfirm } from "../components/ConfirmDialog";
@@ -300,7 +300,6 @@ export default function AllImagesPage() {
     }
   };
   const density = useDensity();
-  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Keyboard triage: index of the focused tile (-1 = none). Disabled in
   // selection mode and in the grouped view (tiles there are batch reps).
@@ -440,27 +439,12 @@ export default function AllImagesPage() {
   }, [push]);
 
   // Global shortcuts: S selection mode, F/"/" focus search, N no-tags,
-  // A no-AI-tags, Q quarantined, +/- zoom, ? help.
+  // A no-AI-tags, Q quarantined, +/- zoom (? help is global: ShortcutHelp).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (overlayOpen) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (isFormField(e.target)) return;
-
-      if (e.key === "?") {
-        e.preventDefault();
-        setShowShortcuts((v) => !v);
-        return;
-      }
-      if (e.key === "Escape" && showShortcuts) {
-        setShowShortcuts(false);
-        return;
-      }
-      // Everything past here mutates state the help overlay is covering. The
-      // triage handler already bailed on `showShortcuts`; this one did not, so
-      // reading "Q: quarantined" in the overlay and pressing Q switched the
-      // feed underneath it, invisibly.
-      if (showShortcuts) return;
 
       if (e.key === "+" || e.key === "=") {
         e.preventDefault();
@@ -522,7 +506,6 @@ export default function AllImagesPage() {
     density,
     selectionMode,
     setSelectionMode,
-    showShortcuts,
     overlayOpen,
   ]);
 
@@ -605,7 +588,7 @@ export default function AllImagesPage() {
   const onOpenTile = useCallback((id: string) => openTileRef.current(id), []);
 
   // --- Keyboard triage on the focused tile -----------------------------------
-  const triageEnabled = !selectionMode && !groupMode && !showShortcuts;
+  const triageEnabled = !selectionMode && !groupMode;
 
   // Optimistically patch the feed cache so a score/quarantine shows instantly.
   // Patches every cached feed, not just the current filter; the same image can
@@ -862,7 +845,7 @@ export default function AllImagesPage() {
               size="icon"
               variant="ghost"
               className="hidden md:inline-flex"
-              onClick={() => setShowShortcuts(true)}
+              onClick={openShortcutHelp}
               aria-label="Keyboard shortcuts"
               title="Keyboard shortcuts (?)"
             >
@@ -1350,9 +1333,6 @@ export default function AllImagesPage() {
       <div ref={sentinelRef} className="h-8" />
       </div>
 
-      {showShortcuts && (
-        <ShortcutOverlay onClose={() => setShowShortcuts(false)} />
-      )}
     </div>
   );
 }
