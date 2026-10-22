@@ -49,33 +49,6 @@ _POSE = frozenset({"sex_acts", "sexual_positions", "simulated_sex_acts"})
 _COUNT = re.compile(
     r"^(solo|solo_focus|no_humans|(\d+\+?|multiple_)(girls?|boys?|others?)|(male|female|other)_focus)$"
 )
-# Builds the groups file under sex acts: how a body looks, not what it does.
-_BUILD = frozenset(
-    {
-        "muscular",
-        "muscular_male",
-        "muscular_female",
-        "toned",
-        "toned_male",
-        "toned_female",
-        "curvy",
-        "plump",
-        "fat",
-        "fat_man",
-        "skinny",
-        "petite",
-        "mature_female",
-        "mature_male",
-        "old_man",
-        "old_woman",
-        "pregnant",
-        "big_belly",
-        "minigirl",
-        "miniboy",
-        "giant",
-        "giantess",
-    }
-)
 # Tags the groups file somewhere a prompt doesn't mean them.
 OVERRIDES = {
     "portrait": "framing",
@@ -84,6 +57,29 @@ OVERRIDES = {
     "outdoors": "background",
     "indoors": "background",
     "scenery": "background",
+    # Builds the groups file under sex acts: how a body looks, not what it does.
+    "muscular": "body",
+    "muscular_male": "body",
+    "muscular_female": "body",
+    "toned": "body",
+    "toned_male": "body",
+    "toned_female": "body",
+    "curvy": "body",
+    "plump": "body",
+    "fat": "body",
+    "fat_man": "body",
+    "skinny": "body",
+    "petite": "body",
+    "mature_female": "body",
+    "mature_male": "body",
+    "old_man": "body",
+    "old_woman": "body",
+    "pregnant": "body",
+    "big_belly": "body",
+    "minigirl": "body",
+    "miniboy": "body",
+    "giant": "body",
+    "giantess": "body",
 }
 # Unlisted names that still say where (`night_sky`, `simple_background`).
 _PLACE_WORDS = re.compile(
@@ -98,8 +94,6 @@ def _section(
         return OVERRIDES[tag]
     if tag in characters or category in (CHARACTER, COPYRIGHT):
         return "subject"
-    if tag in _BUILD:
-        return "body"
     if category == ARTIST:
         return "style"
     if category == META:
@@ -148,11 +142,11 @@ def _section(
     if entry:
         if groups & _STYLE:
             return "style"
-        # Primary group only: `pectorals` is also listed under sex acts.
-        if entry[1] in _POSE:
-            return "pose"
+        # A body part first: `pectorals` is also listed under sex acts.
         if entry[0] == "body":
             return "body"
+        if groups & _POSE:
+            return "pose"
         return "other"
     if _PLACE_WORDS.search(tag):
         return "background"

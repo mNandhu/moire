@@ -242,6 +242,8 @@ function composerState(f: GenerateForm): Record<string, unknown> {
     ...Object.fromEntries(COMPOSER_KEYS.map((k) => [k, f[k]])),
     // The LoRAs themselves are in the batch's inputs; their presets are not.
     loraPresets: Object.fromEntries(f.loras.filter((l) => l.preset).map((l) => [l.name, l.preset])),
+    // Batch-only strikes, so Edit and queue strikes the same tags again.
+    identityOff: f.identityOff,
   };
 }
 
@@ -338,6 +340,7 @@ export function formFromBatch(i: BatchInputs, name: string | null, workflow = "b
       const p = pickFromInput(c.outfit);
       return p ? [[c.tag, p]] : [];
     })),
+    identityOff: keepOff(i.composer?.identityOff, chars.map((c) => c.tag)),
     width: i.width ?? DEFAULT_FORM.width,
     height: i.height ?? DEFAULT_FORM.height,
     seed: i.seed.mode === "fixed" ? { ...i.seed } : { mode: "random", value: null },

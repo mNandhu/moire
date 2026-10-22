@@ -22,7 +22,7 @@ export function useLiveSeconds(server: number | null | undefined, live: boolean)
 
   useEffect(() => {
     if (!live || server == null) return;
-    const id = window.setInterval(() => setNow(performance.now()), 250);
+    const id = window.setInterval(() => setNow(performance.now()), 1000);
     return () => window.clearInterval(id);
   }, [live, server == null]); // eslint-disable-line react-hooks/exhaustive-deps
 

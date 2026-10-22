@@ -160,7 +160,10 @@ function WaitingCell({
   const late = run?.phase === "late";
   // Every cell of a running request develops together (one request makes
   // all its images at once); only the first carries Cancel.
-  const fill = run ? run.fill : steps ?? 0;
+  // ComfyUI's steps when it sends them, else the time: one number for the
+  // tile and its bar.
+  const progress = steps ?? run?.fill ?? null;
+  const fill = progress ?? 0;
   const big = !running
     ? null
     : run
@@ -180,7 +183,7 @@ function WaitingCell({
         : late
           ? "Taking longer than usual"
           : "Finishing up"
-      : "Running";
+      : (stepsLabel(req) ?? "Running");
   const tip = [stepsLabel(req), run && req.expected ? `Usually about ${clock(req.expected)}` : null].filter(Boolean).join(" · ");
   return (
     <div
@@ -244,7 +247,7 @@ function WaitingCell({
       </div>
       {running && (
         <div className="relative">
-          <RunBar value={steps ?? (run ? run.fill : null)} striped={!!run && run.phase !== "on-time"} late={late} />
+          <RunBar value={progress} striped={!!run && run.phase !== "on-time"} late={late} />
         </div>
       )}
     </div>

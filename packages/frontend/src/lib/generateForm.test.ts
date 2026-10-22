@@ -108,6 +108,13 @@ describe("style LoRAs", () => {
     expect(f.loras.map((l) => l.preset?.id ?? null)).toEqual(["g", null, "x"]);
   });
 
+  it("brings a character's batch-only strikes back with the batch", () => {
+    const struck = { ...form, characters: ["a"], identityOff: { a: ["red_eyes"] } };
+    const sent = toQueueBody(struck, "builtin", [{ tag: "a", label: "A", tags: ["a"], lora: null }], presets, loraPresets);
+    const f = formFromBatch({ ...({} as BatchInputs), ...sent, seed: sent.seed, composer: sent.composer } as BatchInputs, null);
+    expect(f.identityOff).toEqual({ a: ["red_eyes"] });
+  });
+
   it("keeps a draft's presets", () => {
     expect(draft({ loras: form.loras }).loras).toEqual(form.loras);
   });
