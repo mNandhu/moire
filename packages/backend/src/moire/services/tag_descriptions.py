@@ -18,6 +18,9 @@ logger = logging.getLogger("moire.tag_descriptions")
 PATH = Path(__file__).resolve().parents[1] / "data" / "tag_descriptions.json"
 
 _cache: dict[str, str] | None = None
+# The last merge, keyed by the two maps it used: the tag list is read once
+# per file, so a new download is a new alias map.
+_merged: tuple[dict[str, str], dict[str, str], dict[str, str]] | None = None
 
 
 def load() -> dict[str, str]:
@@ -34,6 +37,15 @@ def load() -> dict[str, str]:
     return _cache
 
 
+def served(aliases: dict[str, str]) -> dict[str, str]:
+    """:func:`with_aliases` over the shipped file, kept until the list changes."""
+    global _merged
+    descriptions = load()
+    if _merged is None or _merged[0] is not descriptions or _merged[1] is not aliases:
+        _merged = (descriptions, aliases, with_aliases(descriptions, aliases))
+    return _merged[2]
+
+
 def with_aliases(
     descriptions: dict[str, str], aliases: dict[str, str]
 ) -> dict[str, str]:
@@ -48,5 +60,6 @@ def with_aliases(
 
 
 def reset_for_tests() -> None:
-    global _cache
+    global _cache, _merged
     _cache = None
+    _merged = None

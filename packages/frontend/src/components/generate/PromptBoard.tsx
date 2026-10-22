@@ -109,7 +109,7 @@ function readFolded(): boolean {
 }
 const NO_OPTIONS: TagSuggestion[] = [];
 // TagSuggestList's own max-h-72, and about one row's height with its padding
-// (a described row adds about two lines).
+// (a described row adds its description's two clamped lines).
 const LIST_HEIGHT = 288;
 const ROW_HEIGHT = 36;
 const DESCRIBED_ROW_HEIGHT = 66;

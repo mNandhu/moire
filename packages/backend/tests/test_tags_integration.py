@@ -216,3 +216,32 @@ async def test_descriptions_fold_in_aliases_of_described_tags():
         "eyes_closed": "Both eyes are shut.",
         "smile": "A smile.",
     }
+
+
+async def test_descriptions_never_start_the_tag_list_download(client, monkeypatch):
+    from moire.services import danbooru_tags
+
+    def boom():
+        raise AssertionError("descriptions must not fetch Danbooru's list")
+
+    monkeypatch.setattr(danbooru_tags, "ensure_fresh", boom)
+    assert (await client.get("/tags/descriptions")).status_code == 200
+
+
+async def test_descriptions_merge_is_kept_until_the_alias_map_changes(
+    tmp_path, monkeypatch
+):
+    from moire.services import tag_descriptions
+
+    path = tmp_path / "tag_descriptions.json"
+    path.write_text('{"descriptions": {"closed_eyes": "Shut."}}')
+    monkeypatch.setattr(tag_descriptions, "PATH", path)
+    tag_descriptions.reset_for_tests()
+    try:
+        aliases = {"eyes_closed": "closed_eyes"}
+        first = tag_descriptions.served(aliases)
+        assert first == {"closed_eyes": "Shut.", "eyes_closed": "Shut."}
+        assert tag_descriptions.served(aliases) is first
+        assert tag_descriptions.served({}) == {"closed_eyes": "Shut."}
+    finally:
+        tag_descriptions.reset_for_tests()

@@ -114,6 +114,12 @@ def _load() -> TagList:
         return EMPTY
 
 
+async def load_present() -> TagList:
+    """The list if it has been downloaded, without starting a fetch: for
+    reads that only enrich (tag descriptions) and shouldn't download it."""
+    return await asyncio.to_thread(_load)
+
+
 async def load() -> TagList:
     """The downloaded list, read once per file; empty without one. Starts a
     fetch when it is missing or old."""

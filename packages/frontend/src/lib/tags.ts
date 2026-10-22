@@ -55,7 +55,14 @@ export function formatTag(raw: string): string {
 
 /** The key a tag's description is filed under: bare, underscored, lowercase. */
 export function descriptionKey(raw: string): string {
-  return tagName(raw).trim().replace(/\s+/g, "_").toLowerCase();
+  return canonicalName(tagName(raw)).toLowerCase();
+}
+
+/** Whether Danbooru likely has a wiki page for the tag: the tagger's own tags
+ * come from its vocabulary, and a described tag is one of its tags. A prompt
+ * word or a name you made up isn't. */
+export function onDanbooru(aiImages: number, description: string | undefined): boolean {
+  return aiImages > 0 || !!description;
 }
 
 /** The tag's page on Danbooru's wiki. */

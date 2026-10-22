@@ -55,7 +55,10 @@ export function Tooltip({
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(fn, ms);
   };
-  const show = () => later(() => setOpen(true), OPEN_DELAY);
+  // Nothing to say (a tag without a description, say): stay shut.
+  const show = () => {
+    if (content != null && content !== "") later(() => setOpen(true), OPEN_DELAY);
+  };
   const hide = () => later(() => setOpen(false), CLOSE_DELAY);
   useEffect(() => () => window.clearTimeout(timer.current), []);
 

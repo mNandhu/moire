@@ -156,7 +156,7 @@ export function TagSuggestList({
                       </Badge>
                     )}
                   </span>
-                  {description && <span className="block text-xs leading-snug text-muted">{description}</span>}
+                  {description && <span className="line-clamp-2 text-xs leading-snug text-muted">{description}</span>}
                 </span>
               </span>
               {s.count > 0 && (

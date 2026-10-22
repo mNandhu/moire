@@ -159,11 +159,10 @@ async def set_tag_settings(patch: TagSettingsPatch):
 @router.get("/descriptions")
 async def descriptions():
     """``tag -> one-sentence description`` for the tagger's general tags (a
-    shipped file), and their Danbooru aliases once that list is in."""
-    tags = await danbooru_tags.load()
-    return JSONResponse(
-        tag_descriptions.with_aliases(tag_descriptions.load(), tags.aliases)
-    )
+    shipped file), and their Danbooru aliases when that list is already in
+    (this never starts its download: the prompt board does)."""
+    tags = await danbooru_tags.load_present()
+    return JSONResponse(tag_descriptions.served(tags.aliases))
 
 
 @router.get("/samples")

@@ -19,8 +19,8 @@ import { cn } from "../lib/cn";
 import { useAmbientTint } from "../lib/ambient";
 import { fetchSignatures } from "../lib/gen";
 import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
-import { useBoilerplate, useCharacterPage, useTagDescription, useTagPlaces } from "../lib/queries";
-import { danbooruWikiUrl, formatTag, toPromptText } from "../lib/tags";
+import { useBoilerplate, useCharacterPage, useTagDescription, useTagDetail, useTagPlaces } from "../lib/queries";
+import { danbooruWikiUrl, formatTag, onDanbooru, toPromptText } from "../lib/tags";
 import { useChipBorderStyle } from "../hooks/useTagMarks";
 import { tagWorkflows } from "../lib/tagBrowse";
 import { formatUsedRange, groupWorkflows } from "../lib/workflows";
@@ -82,6 +82,8 @@ export default function CharacterPage({ route = "character" }: { route?: "charac
   const group = place?.group?.replace(/_tags$/, "").replace(/_/g, " ");
   const groupLine = group ? group.charAt(0).toUpperCase() + group.slice(1) : undefined;
   const description = useTagDescription(c?.tag);
+  // How many images the tagger gave it: whether Danbooru has a page for it.
+  const { data: detail } = useTagDetail(c && !c.made ? c.tag : null, "all");
 
   if (isError) {
     return (
@@ -102,15 +104,13 @@ export default function CharacterPage({ route = "character" }: { route?: "charac
       <PageHeader
         title={name}
         width="wide"
-        description={series ?? groupLine}
         actions={
           c && (
             <>
               <Button size="sm" onClick={() => setEditing(true)}>
                 <Pencil size={14} /> Edit
               </Button>
-              {/* Danbooru has a page for characters and the described tags; not for one made here or prompt filler. */}
-              {!c.made && (person || description) && (
+              {detail && onDanbooru(detail.sources.ai, description) && (
                 <ButtonAnchor size="sm" href={danbooruWikiUrl(c.tag)} title="Its page on Danbooru's wiki">
                   <BookOpen size={14} /> Danbooru
                 </ButtonAnchor>

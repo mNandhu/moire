@@ -691,11 +691,11 @@ function TagRow({
   );
 }
 
-/** A hover card with the tag's description, around a card or row. */
+/** A hover label with the tag's description, around a card or row. Always
+ * the same wrapper, so descriptions arriving late don't remount the cards. */
 function Described({ text, children }: { text: string | undefined; children: ReactNode }) {
-  if (!text) return <>{children}</>;
   return (
-    <Tooltip content={text} className="flex min-w-0">
+    <Tooltip content={text} bubble className="flex min-w-0">
       {children}
     </Tooltip>
   );

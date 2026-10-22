@@ -16,7 +16,7 @@ import { characterHref, tagHref } from "../lib/character";
 import { CharacterAvatar } from "./CharacterAvatar";
 import { useCharacterLookup } from "./ImageCharacters";
 import { TAGS_KEY, useBoilerplate, useTagDescription, useTagDetail } from "../lib/queries";
-import { danbooruWikiUrl, formatTag } from "../lib/tags";
+import { danbooruWikiUrl, formatTag, onDanbooru } from "../lib/tags";
 import { groupWorkflows, formatUsedRange } from "../lib/workflows";
 import { useImageFeed } from "../hooks/useImageFeed";
 import { usePinCover } from "../hooks/usePinCover";
@@ -195,8 +195,7 @@ export function TagPanel({
               </Button>
             );
           })}
-        {/* Danbooru has a page for the tagger's tags and the described ones; not for prompt filler or your own words. */}
-        {detail && (detail.sources.ai > 0 || description) && (
+        {detail && onDanbooru(detail.sources.ai, description) && (
           <ButtonAnchor size="sm" href={danbooruWikiUrl(tag)} title="Its page on Danbooru's wiki">
             <BookOpen size={14} /> Danbooru
           </ButtonAnchor>

@@ -4,6 +4,7 @@ import {
   bulkTagNames,
   danbooruWikiUrl,
   descriptionKey,
+  onDanbooru,
   formatSearchTag,
   formatTag,
   planRename,
@@ -213,5 +214,13 @@ describe("descriptionKey", () => {
       "https://danbooru.donmai.us/wiki_pages/keyboard_(computer)",
     );
     expect(danbooruWikiUrl("+_+")).toBe("https://danbooru.donmai.us/wiki_pages/%2B_%2B");
+  });
+});
+
+describe("onDanbooru", () => {
+  it("is the tagger's tags and the described ones, not prompt filler", () => {
+    expect(onDanbooru(3, undefined)).toBe(true);
+    expect(onDanbooru(0, "A stray lock of hair.")).toBe(true);
+    expect(onDanbooru(0, undefined)).toBe(false);
   });
 });

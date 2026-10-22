@@ -321,7 +321,8 @@ class Endpoint:
             self.model = r.json()["data"][0]["id"]
         return self.model
 
-    async def describe(self, batch: list[dict]) -> list[dict]:
+    async def describe(self, batch: list[dict]) -> list[dict] | None:
+        """The model's items, or None when the request kept failing."""
         lines = []
         for j in batch:
             item = {"tag": j["tag"]}
@@ -354,9 +355,9 @@ class Endpoint:
             except (httpx.HTTPError, KeyError, ValueError) as e:
                 if attempt == 2:
                     print(f"  batch of {len(batch)} failed: {e!r}", file=sys.stderr)
-                    return []
+                    return None
                 await asyncio.sleep(2 * (attempt + 1))
-        return []
+        return None
 
 
 _DASH = re.compile(r"\s*[\u2014\u2013]\s*")
@@ -369,6 +370,10 @@ def tidy(text: str) -> str:
 async def run_batch(ep: Endpoint, batch: list[dict], sink) -> None:
     """Ask, keep the items whose tag came back intact, re-split on misses."""
     items = await ep.describe(batch)
+    if items is None:
+        # The server failed, not the answer: splitting would only multiply the
+        # requests. A re-run asks for these again.
+        return
     by_tag = {i.get("tag"): i for i in items if isinstance(i, dict)}
     missed = []
     for j in batch:
