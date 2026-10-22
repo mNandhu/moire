@@ -19,6 +19,7 @@ from ..services import (
     image_tags,
     prompt_board,
     tag_categories,
+    tag_descriptions,
     tag_focus,
     tag_index,
     tag_rename,
@@ -153,6 +154,16 @@ async def set_tag_settings(patch: TagSettingsPatch):
         return await tag_settings.set_boilerplate(patch.boilerplate)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.get("/descriptions")
+async def descriptions():
+    """``tag -> one-sentence description`` for the tagger's general tags (a
+    shipped file), and their Danbooru aliases once that list is in."""
+    tags = await danbooru_tags.load()
+    return JSONResponse(
+        tag_descriptions.with_aliases(tag_descriptions.load(), tags.aliases)
+    )
 
 
 @router.get("/samples")

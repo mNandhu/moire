@@ -175,3 +175,44 @@ async def test_attire_and_facet_maps_know_the_library_garments(client, seed):
     assert (await client.get("/tags/attire")).json()[
         "blue_cotton_panties"
     ] == "sexual_attire"
+
+
+async def test_descriptions_serve_the_shipped_file(client, tmp_path, monkeypatch):
+    from moire.services import tag_descriptions
+
+    path = tmp_path / "tag_descriptions.json"
+    path.write_text(
+        '{"about": "x", "descriptions": {"ahoge": "A stray lock of hair."}}'
+    )
+    monkeypatch.setattr(tag_descriptions, "PATH", path)
+    tag_descriptions.reset_for_tests()
+    try:
+        resp = await client.get("/tags/descriptions")
+        assert resp.json()["ahoge"] == "A stray lock of hair."
+    finally:
+        tag_descriptions.reset_for_tests()
+
+
+async def test_descriptions_missing_file_is_empty(client, tmp_path, monkeypatch):
+    from moire.services import tag_descriptions
+
+    monkeypatch.setattr(tag_descriptions, "PATH", tmp_path / "absent.json")
+    tag_descriptions.reset_for_tests()
+    try:
+        assert (await client.get("/tags/descriptions")).json() == {}
+    finally:
+        tag_descriptions.reset_for_tests()
+
+
+async def test_descriptions_fold_in_aliases_of_described_tags():
+    from moire.services import tag_descriptions
+
+    got = tag_descriptions.with_aliases(
+        {"closed_eyes": "Both eyes are shut.", "smile": "A smile."},
+        {"eyes_closed": "closed_eyes", "grin_wide": "missing_tag", "smile": "other"},
+    )
+    assert got == {
+        "closed_eyes": "Both eyes are shut.",
+        "eyes_closed": "Both eyes are shut.",
+        "smile": "A smile.",
+    }
