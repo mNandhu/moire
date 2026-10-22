@@ -250,12 +250,18 @@ export function PresetControl({
   onChange,
   presets,
   label,
+  extra,
+  onPreview,
 }: {
   kind: Preset["kind"];
   value: PresetRef;
   onChange: (v: PresetRef) => void;
   presets: readonly Preset[] | undefined;
   label: string;
+  /** The layer's own text, shown after the preset's in the one-line preview. */
+  extra?: string;
+  /** Makes the preview a button (opening where `extra` is written). */
+  onPreview?: () => void;
 }) {
   const [dialog, setDialog] = useState<"edit" | "new" | null>(null);
   const mine = (presets ?? []).filter((p) => p.kind === kind);
@@ -286,9 +292,27 @@ export function PresetControl({
           className="w-full"
         />
       </div>
-      <span className="min-w-0 flex-1 truncate font-mono text-xs text-faint" title={text || undefined}>
-        {text}
-      </span>
+      {(() => {
+        const own = extra?.trim();
+        const full = [text, own].filter(Boolean).join(", ");
+        const body = (
+          <>
+            {text}
+            {text && own && ", "}
+            {own && <span className="text-muted">{own}</span>}
+          </>
+        );
+        const cls = "min-w-0 flex-1 truncate text-left font-mono text-xs text-faint";
+        return onPreview ? (
+          <button type="button" onClick={onPreview} className={cn(cls, "self-stretch hover:text-muted")} title={full || undefined}>
+            {body}
+          </button>
+        ) : (
+          <span className={cls} title={full || undefined}>
+            {body}
+          </span>
+        );
+      })()}
       {current && (
         <Button size="sm" variant="ghost" onClick={() => setDialog("edit")} title="Edit this preset">
           Edit
@@ -361,31 +385,50 @@ export function EmbeddingLayer({
   );
 }
 
-/** The negative prompt: a preset plus its own text, folded to one line. */
+/** The negative prompt: a preset plus its own text, folded to one line
+ * that shows both, like the Prefix row; unfolding (or the line) opens the text. */
 export function NegativeLayer({
   preset,
   onPreset,
   presets,
   children,
-  hasText,
+  text,
 }: {
   preset: PresetRef;
   onPreset: (v: PresetRef) => void;
   presets: readonly Preset[] | undefined;
   children: React.ReactNode;
-  hasText: boolean;
+  text: string;
 }) {
-  const [open, setOpen] = useState(hasText);
+  const [open, setOpen] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // Clicking the line is asking to write: land in the text.
+  const openToWrite = () => {
+    setOpen(true);
+    requestAnimationFrame(() => bodyRef.current?.querySelector("textarea")?.focus());
+  };
   return (
     <Card className="px-3.5 py-2">
       <div className="flex min-h-[2.25rem] items-center gap-3">
         <span className="w-[4.5rem] shrink-0 text-xs font-medium text-muted">Negative</span>
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          <PresetControl kind="negative" value={preset} onChange={onPreset} presets={presets} label="Negative preset" />
+          <PresetControl
+            kind="negative"
+            value={preset}
+            onChange={onPreset}
+            presets={presets}
+            label="Negative preset"
+            extra={open ? undefined : text}
+            onPreview={open ? undefined : openToWrite}
+          />
         </div>
         <ExpandButton open={open} onToggle={() => setOpen((v) => !v)} />
       </div>
-      {open && <div className="mt-2 border-t border-line pt-2">{children}</div>}
+      {open && (
+        <div ref={bodyRef} className="mt-2 border-t border-line pt-2">
+          {children}
+        </div>
+      )}
     </Card>
   );
 }

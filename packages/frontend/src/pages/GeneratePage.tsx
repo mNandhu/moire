@@ -662,7 +662,7 @@ export default function GeneratePage() {
                 preset={form.negativePreset}
                 onPreset={(v) => set("negativePreset", v)}
                 presets={presets}
-                hasText={!!form.negative.trim()}
+                text={form.negative}
               >
                 <PromptInput
                   label="Negative prompt"

@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { ImageOff, Loader2, RotateCcw, X } from "lucide-react";
+import { ImageOff, Loader2, RotateCcw, Undo2, X } from "lucide-react";
 import { resultGrid, resultSlots, type ResultSlot } from "../../lib/batches";
 import { cancelRequest, retryRequest, type Batch, type GenRequest, type Output } from "../../lib/generate";
 import { setQuarantine, setScore } from "../../lib/imageMutations";
@@ -27,7 +27,8 @@ export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; on
     const k = e.key.toLowerCase();
     if (k === "k") void act(() => setQuarantine(out.image_id, false));
     else if (k === "x") void act(() => setQuarantine(out.image_id, true));
-    else if (/^[1-5]$/.test(k)) void act(() => setScore(out.image_id, Number(k)));
+    // A rejected image is out; it takes a score once restored.
+    else if (/^[1-5]$/.test(k) && !out.quarantined) void act(() => setScore(out.image_id, Number(k)));
   };
   if (!out.in_library) {
     return (
@@ -48,48 +49,61 @@ export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; on
       </div>
     );
   }
+  const rejected = !!out.quarantined;
   return (
     <div
       tabIndex={0}
       onKeyDown={onKeyDown}
-      title="K keep · X reject · 1 to 5 score"
-      className={cn(
-        "group relative overflow-hidden rounded-lg bg-raised outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
-        out.quarantined && "opacity-60",
-      )}
+      title={rejected ? "K restore" : "K keep · X reject · 1 to 5 score"}
+      className="group relative overflow-hidden rounded-lg bg-raised outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
       style={{ aspectRatio: ratio }}
     >
       <Link to={`/image/${encodeURIComponent(out.image_id)}`} state={withBackgroundLocation(location)} tabIndex={-1}>
-        {out.thumb_url && <img src={out.thumb_url} alt="" loading="lazy" className="h-full w-full object-cover" />}
+        {out.thumb_url && (
+          <img
+            src={out.thumb_url}
+            alt=""
+            loading="lazy"
+            className={cn("h-full w-full object-cover transition-[opacity,filter]", rejected && "opacity-40 grayscale")}
+          />
+        )}
       </Link>
-      {out.quarantined && (
-        <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-black/60 px-2 py-1 text-xs">
-          <span className="text-red-200">Rejected</span>
-          <button type="button" className="text-neutral-100 hover:underline" onClick={() => act(() => setQuarantine(out.image_id, false))}>
-            Restore
-          </button>
-        </div>
+      {/* Rejected reads as a state on the picture, not a bar across it. */}
+      {rejected && (
+        <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-full bg-black/65 px-2 py-0.5 text-2xs font-medium text-red-200">
+          Rejected
+        </span>
       )}
       {/* Scored, the mark stays at rest as on the gallery's tiles; the rest
           of the bar comes with the pointer. */}
       <div
         className={cn(
           "absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100",
-          !out.score && "opacity-0",
+          (rejected || !out.score) && "opacity-0",
         )}
       >
-        <ScorePicker value={out.score ?? 0} onSet={(n) => act(() => setScore(out.image_id, n))} size="sm" quiet />
-        <span className="flex-1" />
-        {!out.quarantined && (
+        {rejected ? (
           <button
             type="button"
-            aria-label="Reject"
-            title="Reject"
-            onClick={() => act(() => setQuarantine(out.image_id, true))}
-            className="rounded p-0.5 text-neutral-300 opacity-0 hover:text-red-300 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100"
+            onClick={() => act(() => setQuarantine(out.image_id, false))}
+            className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs text-neutral-100 hover:text-white"
           >
-            <X size={15} />
+            <Undo2 size={13} /> Restore
           </button>
+        ) : (
+          <>
+            <ScorePicker value={out.score ?? 0} onSet={(n) => act(() => setScore(out.image_id, n))} size="sm" quiet />
+            <span className="flex-1" />
+            <button
+              type="button"
+              aria-label="Reject"
+              title="Reject"
+              onClick={() => act(() => setQuarantine(out.image_id, true))}
+              className="rounded p-0.5 text-neutral-300 opacity-0 hover:text-red-300 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100"
+            >
+              <X size={15} />
+            </button>
+          </>
         )}
       </div>
     </div>
@@ -338,12 +352,13 @@ export function BatchResults({
   const ratio = batch.inputs.width && batch.inputs.height ? batch.inputs.width / batch.inputs.height : 2 / 3;
   const slots = resultSlots(batch);
   const { cols, rows } = resultGrid(slots.length, variant, ratio);
-  // Size cells so the rows fit the view's height; the output column also
-  // leaves room for its header and the recent batches under it.
+  // Size cells so the rows fit the view's height (the output column leaves
+  // room for what sits above them); the column's width caps them too, so a
+  // single portrait fills it rather than sitting between empty bands.
   const cell =
     variant === "page"
       ? `calc((100vh - 12rem) / ${Math.min(rows, 2)} * ${ratio})`
-      : `max(6rem, calc((100dvh - 26rem) / ${rows} * ${ratio}))`;
+      : `max(6rem, calc((100dvh - 17rem) / ${rows} * ${ratio}))`;
   return (
     <div className={cn("grid gap-2", (variant === "panel" || cols === 1) && "justify-center")} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, ${cell}))` }}>
       {slots.map((s) => (

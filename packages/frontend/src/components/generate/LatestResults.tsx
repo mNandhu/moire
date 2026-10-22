@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Card } from "../ui";
 import { BATCHES_KEY, STATUS_KEY, batchKey, useBatch, useBatches, type Batch } from "../../lib/generate";
 import { BatchResults } from "./BatchResults";
 import { batchRunTime, durationLabel } from "../../lib/batches";
@@ -20,8 +19,10 @@ function Latest({ id }: { id: number }) {
   const took = batchRunTime(b.requests);
   const left = batchLeft(b.requests);
   return (
-    <Card className="p-3.5">
-      <div className="mb-2.5 flex items-center gap-2 text-sm">
+    // No card: a frame sized to the column sat wider than a portrait batch.
+    // Headed like Recent batches under it, so the column reads as one list.
+    <section aria-label="Latest batch">
+      <div className="mb-1.5 flex items-center gap-2 px-2 text-sm">
         <span className="min-w-0 truncate font-medium text-neutral-100" title={b.name}>
           {b.name}
         </span>
@@ -46,7 +47,7 @@ function Latest({ id }: { id: number }) {
         </Link>
       </div>
       <BatchResults batch={b} onChanged={changed} variant="panel" />
-    </Card>
+    </section>
   );
 }
 
