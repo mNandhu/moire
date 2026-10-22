@@ -31,7 +31,7 @@ red_eyes,0,{P},
 black_eyes,0,{P},dark_eyes
 plugsuit_(evangelion),0,{P},plugsuit
 forest,0,{P},
-rare_thing,0,3,
+rare_thing,0,3,"red_roses"
 """.splitlines()
 )
 
@@ -52,6 +52,8 @@ def test_tags_and_odd_names_are_left_alone():
 def test_alias_reads_as_its_tag_but_not_an_artist():
     assert _s("body_suit") == (("bodysuit",), "alias")
     assert _s("2d") is None
+    # An alias of a rare tag falls through to the other stages.
+    assert _s("red_roses") == (("red_rose",), "respell")
 
 
 def test_respell_singular_join_and_colour_synonym():

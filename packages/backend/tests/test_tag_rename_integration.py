@@ -161,7 +161,7 @@ async def test_split_rule_reads_one_prompt_name_as_several(client, seed):
             "rules": [{"from": "long white hair", "to": ["long hair", "white_hair"]}]
         },
     )
-    assert resp.json() == {"rules": 1, "skipped": [], "images": 1}
+    assert resp.json() == {"rules": 1, "skipped": [], "images": 1, "background": False}
     assert await _tags("L1:a") == [
         "prompt:long_hair",
         "prompt:smile",
@@ -218,6 +218,7 @@ async def test_a_name_has_one_rule_and_loops_through_splits_are_refused(client, 
             }
         ],
         "images": 0,
+        "background": False,
     }
     assert await _rules(client) == {"a1": ["b1", "c1"], "f1": ["g1"]}
 
@@ -266,3 +267,37 @@ async def test_a_character_is_not_split_or_suggested(client, seed):
         "/tags/aliases", json={"rules": [{"from": "red_hood", "to": ["hood"]}]}
     )
     assert resp.json()["rules"] == 1
+
+
+async def test_replacing_a_rule_reprojects_the_images_it_had_merged(client, seed):
+    seed("L1:a", tags=())
+    _raw("L1:a", "a1")
+    reproject.reproject_library("L1")
+    await client.post("/tags/aliases", json={"rules": [{"from": "a1", "to": ["b1"]}]})
+    assert await _tags("L1:a") == ["prompt:b1"]
+    resp = await client.post(
+        "/tags/aliases", json={"rules": [{"from": "a1", "to": ["c1", "d1"]}]}
+    )
+    assert resp.json()["images"] == 1
+    assert await _tags("L1:a") == ["prompt:c1", "prompt:d1"]
+
+
+async def test_suggestions_leave_out_names_a_rule_leads_to(
+    client, seed, tmp_path, monkeypatch
+):
+    from moire.services import danbooru_tags
+
+    path = tmp_path / "danbooru-tags.csv"
+    path.write_text('grey_hair,0,500,"silver_hair"\n', encoding="utf-8")
+    monkeypatch.setattr(danbooru_tags, "list_path", lambda: path)
+    danbooru_tags.reset_for_tests()
+    seed("L1:a", tags=())
+    _raw("L1:a", "grey hair")
+    reproject.reproject_library("L1")
+    # The user prefers silver_hair: Danbooru's alias mustn't undo that.
+    await client.post(
+        "/tags/aliases", json={"rules": [{"from": "grey_hair", "to": ["silver_hair"]}]}
+    )
+    body = (await client.get("/tags/merge-suggestions")).json()
+    assert body == {"available": True, "suggestions": []}
+    danbooru_tags.reset_for_tests()

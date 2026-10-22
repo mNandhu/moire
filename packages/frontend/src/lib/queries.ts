@@ -331,7 +331,13 @@ export function deleteTagAlias(from: string): Promise<{ from: string; to: string
 /** Store several merge / split rules at once. A rule that would loop is skipped. */
 export function addTagRules(
   rules: { from: string; to: string[] }[],
-): Promise<{ rules: number; skipped: { from: string; reason: string }[]; images: number }> {
+): Promise<{
+  rules: number;
+  skipped: { from: string; reason: string }[];
+  images: number;
+  /** Many images: they are updated in the background (shown as activity). */
+  background: boolean;
+}> {
   return api("/api/v1/tags/aliases", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -347,11 +353,14 @@ type MergeSuggestions = { available: boolean; suggestions: MergeSuggestion[] };
 export const MERGE_SUGGESTIONS_KEY = ["merge-suggestions"] as const;
 
 /** Prompt tags Danbooru names otherwise, most used first. Empty until the
- * server has Danbooru's list (the prompt board downloads it). */
+ * server has Danbooru's list (the prompt board downloads it). Costly to
+ * build and slow to change, so not refetched on every visit; a rule write
+ * invalidates it. */
 export function useMergeSuggestions() {
   return useQuery({
     queryKey: MERGE_SUGGESTIONS_KEY,
     queryFn: ({ signal }) => api<MergeSuggestions>("/api/v1/tags/merge-suggestions", { signal }),
+    staleTime: 5 * 60_000,
   });
 }
 

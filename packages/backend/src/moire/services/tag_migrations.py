@@ -22,6 +22,7 @@ the marker is written only after everything else.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from typing import Any, Callable
@@ -166,6 +167,36 @@ def migrate_image_faces_mtime() -> None:
         t.image_faces.create(conn)
 
 
+def migrate_tag_rules() -> None:
+    """Merge rules (``tag_aliases``, one ``to_name``) became ``tag_rules``,
+    whose ``to_names`` list also holds splits. The old table (and the
+    short-lived ``tag_splits``) is read raw, copied over and dropped. The
+    rules themselves are unchanged, so nothing is reprojected."""
+    with sync_tx() as conn:
+        present = set(sa.inspect(conn).get_table_names())
+        rows: list[dict] = []
+        if "tag_aliases" in present:
+            rows += [
+                {"from_name": f, "to_names": [to], "created_at": at}
+                for f, to, at in conn.execute(
+                    sa.text("SELECT from_name, to_name, created_at FROM tag_aliases")
+                )
+            ]
+        if "tag_splits" in present:
+            rows += [
+                {"from_name": f, "to_names": json.loads(to), "created_at": at}
+                for f, to, at in conn.execute(
+                    sa.text("SELECT from_name, to_names, created_at FROM tag_splits")
+                )
+            ]
+        for row in rows:
+            conn.execute(
+                sqlite_insert(t.tag_rules).values(**row).on_conflict_do_nothing()
+            )
+        for name in ("tag_aliases", "tag_splits"):
+            conn.execute(sa.text(f"DROP TABLE IF EXISTS {name}"))
+
+
 _MIGRATIONS = (
     ("tag_underscores", migrate_tag_underscores, True),
     ("prompt_parser_v2", None, True),
@@ -181,6 +212,7 @@ _MIGRATIONS = (
     ("gen_embeddings_v2", None, True),
     ("image_faces_mtime", migrate_image_faces_mtime, False),
     ("gen_prompt_loras", None, True),
+    ("tag_rules", migrate_tag_rules, False),
 )
 
 

@@ -7,15 +7,15 @@
   rewrite of the stored tag (:func:`image_tags.rename_manual`).
 - **Prompt tags** are rebuilt from the embedded prompt on every reprojection,
   so a one-time rewrite would be undone. A merge is stored as a rule in
-  ``tag_aliases`` (``from -> to``) that reprojection applies to the extracted
+  ``tag_rules`` (``from -> [to]``) that reprojection applies to the extracted
   terms, and the affected images are reprojected now.
 
 A rename keeps the tag's kind: ``manual:a`` becomes ``manual:b``, never an AI
 tag. "Merge" is just a rename onto a name that already exists.
 
-A **split** rule reads one prompt name as several (``long_white_hair`` ->
-``long_hair``, ``white_hair``), kept in ``tag_splits``; Danbooru-backed
-suggestions for both come from :mod:`tag_canon`.
+A **split** is the same rule with several targets (``long_white_hair`` ->
+``long_hair``, ``white_hair``). Danbooru-backed suggestions for both come
+from :mod:`tag_canon`.
 
 Rules are kept resolved, one hop each: renaming ``b -> c`` repoints an existing
 ``a -> b`` to ``a -> c`` (and a split's ``b`` the same way), a target with a
@@ -31,7 +31,14 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import danbooru_tags, image_tags, reproject, tag_canon, tag_index
+from . import (
+    danbooru_tags,
+    image_tags,
+    reproject,
+    tag_canon,
+    tag_categories,
+    tag_index,
+)
 from .tag_names import canonical_name
 
 
@@ -113,57 +120,51 @@ async def _images_with(tags: list[str], *, every: bool = False) -> list[str]:
 async def _load_rules(conn) -> dict[str, tuple[list[str], float | None]]:
     """Every prompt rule as ``from -> ([to, ...], created_at)``: a merge has
     one target, a split several."""
-    rules = {
-        r.from_name: ([r.to_name], r.created_at)
-        for r in await conn.execute(sa.select(t.tag_aliases))
+    return {
+        r.from_name: (list(r.to_names), r.created_at)
+        for r in await conn.execute(sa.select(t.tag_rules))
     }
-    for r in await conn.execute(sa.select(t.tag_splits)):
-        rules[r.from_name] = (list(r.to_names), r.created_at)
-    return rules
 
 
 async def _put_rule(
     conn, name: str, targets: list[str], created_at: float | None
 ) -> None:
-    """Store ``name -> targets`` in the table its shape belongs to, dropping
-    any rule for ``name`` in the other (and in both when ``targets`` is
-    empty)."""
-    await conn.execute(
-        sa.delete(t.tag_aliases).where(t.tag_aliases.c.from_name == name)
-    )
-    await conn.execute(sa.delete(t.tag_splits).where(t.tag_splits.c.from_name == name))
-    if len(targets) == 1:
+    """Store ``name -> targets``, or drop its rule when ``targets`` is empty."""
+    await conn.execute(sa.delete(t.tag_rules).where(t.tag_rules.c.from_name == name))
+    if targets:
         await conn.execute(
-            sa.insert(t.tag_aliases).values(
-                from_name=name, to_name=targets[0], created_at=created_at
-            )
-        )
-    elif targets:
-        await conn.execute(
-            sa.insert(t.tag_splits).values(
+            sa.insert(t.tag_rules).values(
                 from_name=name, to_names=targets, created_at=created_at
             )
         )
 
 
-def _character_rows():
-    """Character pages, not names the user said aren't one."""
+async def _character_names() -> frozenset[str]:
+    """Names (lowercased) that are characters: the tagger's listed ones and
+    the user's character pages, less those the user says aren't one. Read
+    before a write transaction: loading the vocabulary reads the settings."""
+    names = set((await tag_categories.load()).names)
     c = t.characters
-    return sa.select(c.c.tag).where(sa.or_(c.c.kind.is_(None), c.c.kind != "general"))
-
-
-async def _is_character(conn, name: str) -> bool:
-    key = tag_index.pin_key(image_tags.to_prompt(name))
-    stmt = _character_rows().where(t.characters.c.tag == key)
-    return (await conn.execute(stmt)).scalar() is not None
+    async with async_conn() as conn:
+        rows = (await conn.execute(sa.select(c.c.tag, c.c.kind))).fetchall()
+    for tag, kind in rows:
+        if kind == "general":
+            names.discard(tag.lower())
+        else:
+            names.add(tag.lower())
+    return frozenset(names)
 
 
 async def _write_rule(
-    conn, name: str, targets: list[str], rules: dict | None = None
+    conn,
+    name: str,
+    targets: list[str],
+    characters: frozenset[str],
+    rules: dict | None = None,
 ) -> list[str]:
     """Store the rule ``name -> targets`` and return its targets as stored.
     ``rules`` (from :func:`_load_rules`) is kept up to date in place, so a
-    batch reads them once.
+    batch reads them once; ``characters`` is :func:`_character_names`.
 
     Rules stay one hop: a target that has a rule of its own stands for that
     rule's targets, and rules that pointed at ``name`` now point where it
@@ -181,7 +182,7 @@ async def _write_rule(
         raise RenameError(
             f"{through} is already merged into {name}; remove that rule first"
         )
-    if len(resolved) > 1 and await _is_character(conn, name):
+    if len(resolved) > 1 and name.lower() in characters:
         raise RenameError(f"{name} is a character, so it can't be split")
     for src, (to, created_at) in list(rules.items()):
         if name in to and src != name:
@@ -227,8 +228,10 @@ async def rename_tag(tag: str, to: str) -> dict:
 
     old_name = image_tags.base_of(tag)
     new_name = _target_name(to, prompt=True)
+    characters = await _character_names()
     async with async_tx() as conn:
-        resolved = await _write_rule(conn, old_name, [new_name])
+        resolved = await _write_rule(conn, old_name, [new_name], characters)
+    _forget_suggestions()
 
     affected = await _images_with([tag])
     await anyio.to_thread.run_sync(reproject.reproject_ids, affected)
@@ -243,45 +246,88 @@ async def rename_tag(tag: str, to: str) -> dict:
     }
 
 
+# More images than this are reprojected in the background (shown as
+# activity), so a big batch doesn't hold the request.
+_SYNC_REPROJECT = 500
+
+
 async def add_rules(rules: list[tuple[str, list[str]]]) -> dict:
     """Store several prompt rules at once (accepted suggestions): one
     transaction, then one reprojection of every image they touch. A rule
     that can't be kept (a loop, an empty name) is skipped with its reason,
-    not fatal."""
+    not fatal. ``background`` says the images are still being updated."""
     added: list[str] = []
     skipped: list[dict] = []
+    # A rule that replaces one: its images carry the old targets, not the name.
+    replaced: list[list[str]] = []
+    characters = await _character_names()
     async with async_tx() as conn:
         stored = await _load_rules(conn)
         for name, targets in rules:
             try:
                 name = _target_name(name, prompt=True)
+                before = stored.get(name)
                 await _write_rule(
                     conn,
                     name,
                     list(dict.fromkeys(_target_name(x, prompt=True) for x in targets)),
+                    characters,
                     stored,
                 )
             except RenameError as exc:
                 skipped.append({"from": name, "reason": str(exc)})
                 continue
             added.append(name)
-    affected = await _images_with([image_tags.to_prompt(n) for n in added])
-    await anyio.to_thread.run_sync(reproject.reproject_ids, affected)
-    tag_index.invalidate()
-    return {"rules": len(added), "skipped": skipped, "images": len(affected)}
+            if before is not None:
+                replaced.append(before[0])
+    _forget_suggestions()
+    affected = set(await _images_with([image_tags.to_prompt(n) for n in added]))
+    for old in replaced:
+        affected.update(
+            await _images_with([image_tags.to_prompt(x) for x in old], every=True)
+        )
+    background = len(affected) > _SYNC_REPROJECT
+    if background:
+        reproject.reproject_ids_async(sorted(affected))
+    else:
+        await anyio.to_thread.run_sync(reproject.reproject_ids, sorted(affected))
+        tag_index.invalidate()
+    return {
+        "rules": len(added),
+        "skipped": skipped,
+        "images": len(affected),
+        "background": background,
+    }
+
+
+# Suggestions are costly (every prompt name through the resolver) and only
+# change with the library's prompt tags, so they are kept a while rather than
+# dropped on every tag write (a scan writes all the time). A rule write drops
+# them, being what the list answers to.
+_SUGGESTIONS_TTL = 120.0
+_suggested: tuple[object, float, dict] | None = None
+
+
+def _forget_suggestions() -> None:
+    global _suggested
+    _suggested = None
 
 
 async def merge_suggestions() -> dict:
     """Prompt tags in the library that Danbooru names otherwise, read by
-    :mod:`tag_canon`, most used first. Tags with a rule already, and
-    characters, are left out. Empty until Danbooru's list has been
-    downloaded (by the prompt board): browsing tags never fetches it.
-    Kept until the next tag write or a new list, like the tag index."""
+    :mod:`tag_canon`, most used first. Left out: tags with a rule already,
+    names a rule leads to (the user chose them), and characters. Empty until
+    Danbooru's list has been downloaded (by the prompt board): browsing tags
+    never fetches it."""
+    global _suggested
     tags = await danbooru_tags.load_present()
-    cached = tag_index.read_derived("merge-suggestions")
-    if cached is not None and cached[0] is tags:
-        return cached[1]
-    gen = tag_index.current_generation()
+    cached = _suggested
+    if (
+        cached is not None
+        and cached[0] is tags
+        and time.monotonic() - cached[1] < _SUGGESTIONS_TTL
+    ):
+        return cached[2]
     it = t.image_tags
     async with async_conn() as conn:
         rows = (
@@ -291,9 +337,14 @@ async def merge_suggestions() -> dict:
                 .group_by(it.c.base)
             )
         ).fetchall()
-        ruled = set(await _load_rules(conn))
-        ruled.update((await conn.execute(_character_rows())).scalars())
-    counts = {r.base: r.n for r in rows if r.base not in ruled}
+        rules = await _load_rules(conn)
+    characters = await _character_names()
+    ruled = set(rules) | {x for to, _ in rules.values() for x in to}
+    counts = {
+        r.base: r.n
+        for r in rows
+        if r.base not in ruled and r.base.lower() not in characters
+    }
     found = await anyio.to_thread.run_sync(tag_canon.suggest_all, list(counts), tags)
     out = {
         "available": bool(tags.tags),
@@ -310,7 +361,7 @@ async def merge_suggestions() -> dict:
             key=lambda s: (-s["images"], s["from"]),
         ),
     }
-    tag_index.store_derived("merge-suggestions", gen, (tags, out))
+    _suggested = (tags, time.monotonic(), out)
     return out
 
 
@@ -336,6 +387,7 @@ async def delete_alias(from_name: str) -> dict | None:
         if rule is None:
             return None
         await _put_rule(conn, from_name, [], None)
+    _forget_suggestions()
     # Every image the rule touched carries all its targets; re-deriving those
     # gives each its own prompt's names back.
     targets = rule[0]

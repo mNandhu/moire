@@ -56,15 +56,11 @@ def canonical_name(name: str) -> str:
     return _WS.sub("_", s)
 
 
-def apply_aliases(terms: list[str], aliases: dict[str, str | list[str]]) -> list[str]:
-    """Map prompt terms through the user's merge rules (``from -> to``, or
-    ``from -> [to, ...]`` for a split), then sort and dedupe, the stored shape
-    of ``gen.prompt_terms``. One hop: rules are kept resolved (no
-    ``a -> b -> c`` chains) by their writer."""
+def apply_aliases(terms: list[str], aliases: dict[str, list[str]]) -> list[str]:
+    """Map prompt terms through the user's rules (``from -> [to, ...]``: one
+    target merges, several split), then sort and dedupe, the stored shape of
+    ``gen.prompt_terms``. One hop: rules are kept resolved (no ``a -> b -> c``
+    chains) by their writer."""
     if not aliases:
         return terms
-    out: set[str] = set()
-    for term in terms:
-        to = aliases.get(term, term)
-        out.update((to,) if isinstance(to, str) else to)
-    return sorted(out)
+    return sorted({to for term in terms for to in aliases.get(term, (term,))})

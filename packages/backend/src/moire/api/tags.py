@@ -459,7 +459,8 @@ class TagRule(BaseModel):
 
 
 class TagRules(BaseModel):
-    rules: list[TagRule] = Field(max_length=2000)
+    # Every suggestion at once must fit: a library rarely has this many.
+    rules: list[TagRule] = Field(max_length=50_000)
 
 
 @router.post("/aliases")

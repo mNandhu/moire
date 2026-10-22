@@ -118,10 +118,10 @@ class Resolver:
         if name in self.tags.aliases:
             tag = self.tags.aliases[name]
             # Artists collect odd aliases (``2d``); a prompt word isn't one.
+            # The later stages may still read it.
             category, posts = self.tags.tags[tag]
-            if category == ARTIST or posts < MIN_POSTS:
-                return None
-            return Suggestion(name, (tag,), "alias")
+            if category != ARTIST and posts >= MIN_POSTS:
+                return Suggestion(name, (tag,), "alias")
         words = name.split("_")
         for alt in _respellings(words):
             if (tag := self._general(alt, alias=False)) is not None:

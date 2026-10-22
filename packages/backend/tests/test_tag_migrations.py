@@ -70,3 +70,42 @@ async def test_fresh_install_reprojects_once(temp_db, monkeypatch):
     assert calls == [True]  # once, forced: steps may add derived tables
     tag_migrations.run_pending()
     assert calls == [True]
+
+
+async def test_rules_migration_moves_merges_and_splits_into_one_table(temp_db):
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.text(
+                "CREATE TABLE tag_aliases (from_name TEXT PRIMARY KEY,"
+                " to_name TEXT NOT NULL, created_at FLOAT)"
+            )
+        )
+        conn.execute(
+            sa.text("INSERT INTO tag_aliases VALUES ('blonde', 'blonde_hair', 1.0)")
+        )
+        conn.execute(
+            sa.text(
+                "CREATE TABLE tag_splits (from_name TEXT PRIMARY KEY,"
+                " to_names JSON NOT NULL, created_at FLOAT)"
+            )
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO tag_splits VALUES"
+                " ('long_white_hair', '[\"long_hair\", \"white_hair\"]', 2.0)"
+            )
+        )
+
+    tag_migrations.migrate_tag_rules()
+    with db.sync_conn() as conn:
+        rows = {
+            r.from_name: list(r.to_names) for r in conn.execute(sa.select(t.tag_rules))
+        }
+        tables = set(sa.inspect(conn).get_table_names())
+    assert rows == {
+        "blonde": ["blonde_hair"],
+        "long_white_hair": ["long_hair", "white_hair"],
+    }
+    assert not tables & {"tag_aliases", "tag_splits"}
+    # Run again (nothing left to move): a no-op.
+    tag_migrations.migrate_tag_rules()

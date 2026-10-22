@@ -21,7 +21,7 @@ def test_canonical_name_leaves_lora_tokens_alone():
 
 def test_apply_aliases_maps_dedupes_and_sorts():
     out = tn.apply_aliases(
-        ["blonde", "blonde_hair", "smile"], {"blonde": "blonde_hair"}
+        ["blonde", "blonde_hair", "smile"], {"blonde": ["blonde_hair"]}
     )
     assert out == ["blonde_hair", "smile"]
 

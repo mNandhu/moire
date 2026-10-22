@@ -219,22 +219,11 @@ image_embeddings = sa.Table(
     sa.Column("negative", sa.Boolean, primary_key=True),
 )
 
-# Prompt-tag merge rules (Tags page): `from_name` -> `to_name`, canonical bare
-# names. Applied to `gen.prompt_terms` on every reprojection, so a merge survives
-# re-extraction. Kept resolved (no chains) by services/tag_rename.py.
-tag_aliases = sa.Table(
-    "tag_aliases",
-    metadata,
-    sa.Column("from_name", sa.Text, primary_key=True),
-    sa.Column("to_name", sa.Text, nullable=False),
-    sa.Column("created_at", sa.Float),
-)
-
-# Prompt-tag split rules: one name read as several (``long_white_hair`` ->
-# ``long_hair``, ``white_hair``). A name has a rule here or in tag_aliases,
-# never both (services/tag_rename.py).
-tag_splits = sa.Table(
-    "tag_splits",
+# Prompt-tag rules (services/tag_rename.py): reprojection reads ``from_name``
+# as ``to_names``. One target is a merge (``blonde`` -> ``blonde_hair``),
+# several a split (``long_white_hair`` -> ``long_hair``, ``white_hair``).
+tag_rules = sa.Table(
+    "tag_rules",
     metadata,
     sa.Column("from_name", sa.Text, primary_key=True),
     sa.Column("to_names", sa.JSON, nullable=False),

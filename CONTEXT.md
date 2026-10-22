@@ -27,11 +27,10 @@ belongs in this file.
   one (a merge). The kind is kept. AI tags are never renamed (fixed,
   deterministic vocabulary). Manual tags are rewritten once
   (`image_tags.rename_manual`). Prompt tags are rebuilt by reprojection, so a
-  merge is stored as a **Merge rule** (`tag_aliases`, `from -> to`, kept one
-  hop) that reprojection applies to the extracted terms. A **Split rule**
-  (`tag_splits`, `from -> [to, ...]`) reads one prompt name as several
-  (`long_white_hair` -> `long_hair`, `white_hair`); a name has one rule, merge
-  or split. Owned by `services/tag_rename.py`.
+  merge is stored as a **Merge rule** (`tag_rules`, `from -> [to]`, kept one
+  hop) that reprojection applies to the extracted terms. A **Split rule** is
+  the same row with several targets (`long_white_hair` -> `long_hair`,
+  `white_hair`). Owned by `services/tag_rename.py`.
 - **Suggested merge**: a merge or split rule for a prompt tag that isn't a
   Danbooru tag, read from Danbooru's list: its alias, a respelling, colour
   plus thing as one tag, a split per describing word, or the colour dropped.

@@ -190,6 +190,7 @@ export default function TagsPage() {
       if (res.rules >= rules.length) setShowSuggestions(false);
       push(
         `Merged ${res.rules.toLocaleString()} ${res.rules === 1 ? "tag" : "tags"} on ${res.images.toLocaleString()} images` +
+          (res.background ? ", updating them in the background" : "") +
           (res.skipped.length
             ? `; skipped ${res.skipped
                 .slice(0, 3)
