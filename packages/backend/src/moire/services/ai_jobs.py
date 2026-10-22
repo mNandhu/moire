@@ -303,6 +303,12 @@ class AIJobManager:
 
                 if job.status != "cancelled":
                     job.status = "done" if job.failed == 0 else "error"
+            except Exception as e:
+                # Outside the per-image guard (settings read, setup): fail this
+                # job, keep the worker alive for the next.
+                logger.exception("AI job %s failed", job.id)
+                job.status = "error"
+                job.error = str(e)
             finally:
                 job.current = None
                 if job.started_at is not None:

@@ -324,3 +324,31 @@ async def test_overlapping_claims_are_counted():
     assert (await mgr.enqueue(ids=["x"])).skipped == 1
     await mgr.cancel(first.id)
     assert not mgr._in_flight
+
+
+async def test_a_job_error_outside_the_images_does_not_stop_the_worker(monkeypatch):
+    events: list[str] = []
+    mgr = _job_manager(monkeypatch, events)
+    calls = 0
+
+    async def flaky_settings():
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("database is locked")
+        return {}
+
+    monkeypatch.setattr(ai_jobs, "get_ai_settings", flaky_settings)
+    worker = asyncio.create_task(mgr._worker_loop())
+    first = await mgr.enqueue(ids=["a"])
+    second = await mgr.enqueue(ids=["b"])
+    try:
+        for _ in range(200):
+            if second.status == "done":
+                break
+            await asyncio.sleep(0.01)
+    finally:
+        worker.cancel()
+    assert first.status == "error" and "locked" in first.error
+    assert second.status == "done"
+    assert not mgr._in_flight
