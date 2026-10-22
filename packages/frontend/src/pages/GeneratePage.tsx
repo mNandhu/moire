@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleAlert, FlaskConical, Loader2, Lock, Wand2 } from "lucide-react";
+import { CircleAlert, FlaskConical, Loader2, Lock, Sparkles, Wand2 } from "lucide-react";
 import { Badge, Button, ButtonLink, Card, EmptyState, PageBody, PageHeader, Tooltip } from "../components/ui";
 import { bareTagPool } from "../components/generate/ChipInput";
 import {
@@ -69,11 +69,11 @@ import {
 } from "../lib/generateForm";
 import { PromptRepeats } from "../components/generate/PromptRepeats";
 import { prefixRepeats } from "../lib/promptRepeats";
-import { checkCountTags, fixCountTags, type Kind } from "../lib/countTags";
+import { checkCountTags, countRanges, expectedTags, fixCountTags, followCast, type Kind } from "../lib/countTags";
 import { queueTitle } from "../lib/eta";
 import { cn } from "../lib/cn";
 import { countText, type CountMode } from "../lib/requests";
-import { PromptInput } from "../components/generate/PromptInput";
+import { PromptInput, type PromptFlash } from "../components/generate/PromptInput";
 import { AddLayer, EmbeddingLayer, LayerRow, NegativeLayer, PresetControl, TextLayer } from "../components/generate/Layers";
 import { characterPageQuery, useTagAggregate } from "../lib/queries";
 import { characterColours, displayName, mixColours } from "../lib/character";
@@ -184,6 +184,11 @@ function TestRunCard({ gen, checkpoint, disabled }: { gen: Generator; checkpoint
 
 /** A prompt part's layer, named on the prompt board. */
 const LAYER_LABEL: Record<string, string> = { prefix: "Prefix", style: "Style", text: "Text", preset: "Preset" };
+
+/** "Eula", "Eula and Furina", "Eula, Furina and Zhongli". */
+function andList(names: readonly string[]): string {
+  return names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
 
 export default function GeneratePage() {
   useDocumentTitle("Generate");
@@ -377,6 +382,59 @@ export default function GeneratePage() {
     [form.prompt, genders],
   );
 
+  // The cast's count tags (1girl, solo / 1girl, 1boy / 2girls...) follow the
+  // picked characters into the prompt, unless the user wrote their own.
+  // Null while a recipe is loading or a gender can't be told.
+  const castKey =
+    form.characters.length === 0
+      ? ""
+      : genders && !(JSON.parse(genders) as (Kind | null)[]).includes(null)
+        ? expectedTags(JSON.parse(genders) as Kind[]).join(",")
+        : null;
+  const lastCast = useRef<string[] | null>(null);
+  const [flash, setFlash] = useState<PromptFlash | null>(null);
+  const [boardGlow, setBoardGlow] = useState<number | null>(null);
+  // Before paint: the old tags against the new cast would show the check's
+  // amber outline for a frame.
+  useLayoutEffect(() => {
+    if (castKey == null) return;
+    const after = castKey ? castKey.split(",") : [];
+    const before = lastCast.current;
+    lastCast.current = after;
+    // The page opening on a saved draft isn't a change of cast.
+    if (before == null) return;
+    const was = form.prompt;
+    const next = followCast(was, before, after);
+    if (next == null) return;
+    set("prompt", next);
+    const undo = () => set("prompt", was);
+    // The words lit with a note to undo them, and the Subject box if it's open.
+    setBoardGlow(Date.now());
+    setFlash({
+      key: Date.now(),
+      ranges: countRanges(next).filter((r) => after.includes(r.tag)),
+      note: (
+        <>
+          <Sparkles size={13} className="shrink-0 text-brand-300" />
+          <span className="min-w-0 flex-1">For {andList(labels)}</span>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              undo();
+              setFlash(null);
+            }}
+            className="rounded px-1.5 py-0.5 text-brand-200 hover:bg-line"
+          >
+            Undo
+          </button>
+        </>
+      ),
+    });
+    // Only a change of cast moves the tags; typing in the prompt doesn't.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [castKey]);
+
   // How long the form's batch would take, for the next-batch card.
   const estimate = useNextEstimate(gen?.ready && connected ? toEstimateBody(form, gen._id) : null, {
     busy: !!status?.active.length,
@@ -422,6 +480,7 @@ export default function GeneratePage() {
       className="text-[15px] leading-relaxed focus-visible:shadow-none"
       marks={counts?.marks}
       fix={countFix}
+      flash={flash}
     />
   );
   // What the other layers already say, for the prompt board. A character's
@@ -604,7 +663,13 @@ export default function GeneratePage() {
                         )}
                       </div>
                       {promptEditor}
-                      <PromptBoard prompt={form.prompt} onPrompt={(v) => set("prompt", v)} layers={boardLayers} pool={pool} />
+                      <PromptBoard
+                        prompt={form.prompt}
+                        onPrompt={(v) => set("prompt", v)}
+                        layers={boardLayers}
+                        pool={pool}
+                        glow={boardGlow != null ? { key: boardGlow, box: "subject" } : null}
+                      />
                     </Card>
                   ) : blk.kind === "style" && !bar.loras ? (
                     <LayerRow label="Style" className="opacity-60">

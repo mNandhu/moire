@@ -181,3 +181,30 @@ export function fixCountTags(prompt: string, expected: readonly string[]): strin
   if (!placed && words) return out.trim() ? `${words}, ${out.trimStart()}` : words;
   return out;
 }
+
+/** Where the count tags sit in `prompt` (outside weighted groups), spelled as
+ * stored. */
+export function countRanges(prompt: string): { start: number; end: number; tag: string }[] {
+  return terms(prompt).flatMap((t) => {
+    const tag = normalise(t.text);
+    return parse(tag) ? [{ start: t.start, end: t.end, tag }] : [];
+  });
+}
+
+const sameSet = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((x) => b.includes(x));
+
+/**
+ * The prompt with its count tags following the cast: when the cast's set
+ * goes from `before` to `after`, tags that are still `before` (or no count
+ * tags at all) become `after`, where they stood or at the start. Count tags
+ * the user wrote themselves (anything but `before`) are theirs: left alone,
+ * and the check flags them if they don't fit. Null when nothing changes.
+ */
+export function followCast(prompt: string, before: readonly string[], after: readonly string[]): string | null {
+  const now = countRanges(prompt).map((r) => r.tag);
+  if (now.length && !sameSet(now, before)) return null;
+  if (sameSet(now, after)) return null;
+  const out = fixCountTags(prompt, after);
+  return after.length ? out : out.trimStart();
+}

@@ -329,6 +329,8 @@ export type OutfitPrefill = {
 export type OutfitBody = { name: string; character: string; tags: string[]; shared: boolean; image_id: string | null };
 
 /** A character's computed recipe with the user's edits on top. */
+export type Gender = "girl" | "boy" | "other";
+
 export type Recipe = {
   tag: string;
   aliases: string[];
@@ -337,8 +339,12 @@ export type Recipe = {
   identity: { tag: string; dropped: boolean; added: boolean }[];
   /** The images identity was read from (solo ones when there are enough). */
   identity_images: number;
-  /** From the count tags on their images; null when it can't be told. */
-  gender: "girl" | "boy" | "other" | null;
+  /** Set by the user, else from the count tags on their images; null when
+   * it can't be told and isn't set. */
+  gender: Gender | null;
+  /** What their images say, apart from the user's. */
+  gender_read: Gender | null;
+  gender_set: boolean;
   /** Attire signature tags: the default outfit (shown in phase 4). */
   outfit: string[];
   /** `file` is the installed file the stem resolves to; null when not installed. */
@@ -367,7 +373,7 @@ export type PromptPart = {
 };
 
 /** A recipe edit: dropped tags; lora a stem / file, "" none, null computed; strength or null. */
-export type RecipePatch = Partial<{ dropped: string[]; added: string[]; lora: string | null; strength: number | null }>;
+export type RecipePatch = Partial<{ dropped: string[]; added: string[]; lora: string | null; strength: number | null; gender: Gender | null }>;
 
 export type BatchInputs = {
   base: string;

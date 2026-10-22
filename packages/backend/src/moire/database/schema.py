@@ -318,6 +318,17 @@ recipe_additions = sa.Table(
     sa.Column("updated_at", sa.Float),
 )
 
+# A character's gender as the user set it (girl / boy / other), keyed like
+# recipe_edits; it wins over the one read from their images' count tags. Its
+# own table for the same reason as recipe_additions.
+recipe_genders = sa.Table(
+    "recipe_genders",
+    metadata,
+    sa.Column("tag", sa.Text, primary_key=True),
+    sa.Column("gender", sa.Text, nullable=False),
+    sa.Column("updated_at", sa.Float),
+)
+
 # Saved prompt snippets for the composer's Prefix (kind "positive") and
 # Negative (kind "negative") layers. String ids; a batch records the text it
 # sent, so editing or deleting a preset never changes an old batch.

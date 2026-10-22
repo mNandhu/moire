@@ -148,6 +148,17 @@ async def _edit(key: str) -> dict[str, Any] | None:
     return dict(row._mapping) if row else None
 
 
+async def _gender(key: str) -> str | None:
+    async with async_conn() as conn:
+        return (
+            await conn.execute(
+                sa.select(t.recipe_genders.c.gender).where(
+                    t.recipe_genders.c.tag == key
+                )
+            )
+        ).scalar()
+
+
 async def _added(key: str) -> list[str]:
     async with async_conn() as conn:
         tags = (
@@ -297,7 +308,8 @@ async def recipe(tag: str) -> dict | None:
     if found is None:
         return None
     key, names, key_of, rows = found
-    count, sig_images, sig, gender = await _signature(names, key_of, rows)
+    count, sig_images, sig, read = await _signature(names, key_of, rows)
+    set_gender = await _gender(key)
     identity, outfit = split_signature(sig)
     total = await _visible_count()
     candidates = lora_candidates(
@@ -316,8 +328,11 @@ async def recipe(tag: str) -> dict | None:
         "identity": chips,
         # The images identity was read from: few means it's a guess.
         "identity_images": sig_images,
-        # girl / boy / other from their images' count tags; None when unclear.
-        "gender": gender,
+        # girl / boy / other: the user's, else from their images' count
+        # tags (``gender_read``); None when unclear and not set.
+        "gender": set_gender or read,
+        "gender_read": read,
+        "gender_set": set_gender is not None,
         "outfit": outfit,
         "lora": None
         if stem is None
@@ -368,8 +383,14 @@ def clean(patch: dict) -> dict:
     """A recipe edit from the API. ``dropped`` a list of tags; ``added`` the
     identity tags the user added (replaces the list); ``lora`` a stem
     or file name ("" = no LoRA, null = back to the computed pick);
-    ``strength`` a number or null."""
+    ``strength`` a number or null; ``gender`` girl, boy or other, or null
+    (back to the one their images say)."""
     out: dict[str, Any] = {}
+    if "gender" in patch:
+        g = patch["gender"]
+        if g is not None and g not in characters.GENDERS:
+            raise RecipeError("gender must be girl, boy, other or null")
+        out["gender"] = g
     if "dropped" in patch:
         d = patch["dropped"]
         if not isinstance(d, list) or not all(isinstance(x, str) for x in d):
@@ -404,8 +425,20 @@ async def update(tag: str, patch: dict) -> dict | None:
     key = found[0]
     values = clean(patch)
     added = values.pop("added", None)
+    has_gender = "gender" in values
+    gender = values.pop("gender", None)
     now = time.time()
     async with async_tx() as conn:
+        if has_gender:
+            g = t.recipe_genders
+            if gender is None:
+                await conn.execute(sa.delete(g).where(g.c.tag == key))
+            else:
+                row = {"gender": gender, "updated_at": now}
+                stmt = sqlite_insert(g).values(tag=key, **row)
+                await conn.execute(
+                    stmt.on_conflict_do_update(index_elements=["tag"], set_=row)
+                )
         if values:
             values["updated_at"] = now
             stmt = sqlite_insert(t.recipe_edits).values(tag=key, **values)

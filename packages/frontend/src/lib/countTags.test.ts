@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkCountTags, expectedTags, fixCountTags } from "./countTags";
+import { checkCountTags, countRanges, expectedTags, fixCountTags, followCast } from "./countTags";
 
 const flagged = (prompt: string, kinds: Parameters<typeof checkCountTags>[1]) =>
   checkCountTags(prompt, kinds).marks.map((m) => m.text);
@@ -78,5 +78,45 @@ describe("fixCountTags", () => {
     expect(flagged("(1girl, solo, smile:1.2), park", ["girl", "girl"])).toEqual([]);
     expect(fixCountTags("(smile, solo, rain:1.2), 1girl", ["2girls"])).toBe("(smile, solo, rain:1.2), 2girls");
     expect(flagged("[a, (b, solo), c], 1girl", ["girl", "girl"])).toEqual(["1girl"]);
+  });
+});
+
+describe("followCast", () => {
+  const one = ["1girl", "solo"];
+  const two = ["1girl", "1boy"];
+
+  it("adds the cast's tags at the start of a prompt without any", () => {
+    expect(followCast("smile, outdoors", [], one)).toBe("1girl, solo, smile, outdoors");
+    expect(followCast("", [], one)).toBe("1girl, solo");
+  });
+
+  it("swaps its own tags where they stood as the cast changes", () => {
+    expect(followCast("smile, 1girl, solo, outdoors", one, two)).toBe("smile, 1girl, 1boy, outdoors");
+    expect(followCast("1girl, 1boy, smile", two, ["2girls", "multiple_girls"])).toBe("2girls, multiple_girls, smile");
+    // Order and spelling don't matter for telling they're its own.
+    expect(followCast("solo, 1 girl, smile", one, two)).toBe("1girl, 1boy, smile");
+  });
+
+  it("takes them out when the cast is emptied", () => {
+    expect(followCast("1girl, solo, smile", one, [])).toBe("smile");
+  });
+
+  it("leaves count tags the user wrote", () => {
+    expect(followCast("3girls, smile", one, two)).toBeNull();
+    expect(followCast("1girl, smile", one, two)).toBeNull();
+  });
+
+  it("is null when nothing changes", () => {
+    expect(followCast("1girl, solo, smile", [], one)).toBeNull();
+    expect(followCast("smile", [], [])).toBeNull();
+  });
+});
+
+describe("countRanges", () => {
+  it("finds the count tags with their offsets, groups left out", () => {
+    expect(countRanges("(1girl:1.2), smile, (2girls, hug), solo")).toEqual([
+      { start: 0, end: 11, tag: "1girl" },
+      { start: 35, end: 39, tag: "solo" },
+    ]);
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { caretOffset } from "../../lib/caret";
 import { cn } from "../../lib/cn";
 import { useTagBrowse } from "../../lib/queries";
@@ -11,6 +11,13 @@ const LIST_W = 320;
 
 export type PromptMark = { start: number; end: number; reason: string };
 const NO_MARKS: readonly PromptMark[] = [];
+
+/** Words the app just wrote into the prompt: lit up and fading (a new `key`
+ * replays it), with an optional note at the first of them for a while. */
+export type PromptFlash = { key: number; ranges: readonly { start: number; end: number }[]; note?: ReactNode };
+
+// How long a flash's note stays up.
+const NOTE_MS = 5000;
 
 /**
  * Free-text prompt with tag and embedding suggestions for the term at the
@@ -60,6 +67,7 @@ export function PromptInput({
   placeholder,
   marks = NO_MARKS,
   fix,
+  flash,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -74,6 +82,7 @@ export function PromptInput({
    * caret in it) opens a bubble with the reason and `fix`. */
   marks?: readonly PromptMark[];
   fix?: { label: string; apply: () => void } | null;
+  flash?: PromptFlash | null;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -160,7 +169,22 @@ export function PromptInput({
     back.style.left = `${el.offsetLeft}px`;
     back.scrollTop = el.scrollTop;
   }, []);
-  const hasMarks = marks.length > 0;
+  // A flash shows until its glow is over (its note a while longer), then the
+  // copy behind goes back to marks only.
+  const [flashing, setFlashing] = useState<PromptFlash | null>(null);
+  const [noteAt, setNoteAt] = useState<{ left: number; top: number } | null>(null);
+  const flashRef = useRef<HTMLSpanElement | null>(null);
+  useEffect(() => {
+    if (!flash?.ranges.length) {
+      setFlashing(null);
+      return;
+    }
+    setFlashing(flash);
+    const t = setTimeout(() => setFlashing(null), flash.note ? NOTE_MS : 2400);
+    return () => clearTimeout(t);
+  }, [flash]);
+  const lit = flashing && flashing.ranges.every((r) => r.end <= value.length) ? flashing.ranges : [];
+  const hasMarks = marks.length > 0 || lit.length > 0;
   useLayoutEffect(syncBack, [syncBack, hasMarks, className]);
   useLayoutEffect(syncScroll, [syncScroll, value, marksKey]);
   useEffect(() => {
@@ -232,10 +256,33 @@ export function PromptInput({
     }
   };
 
+  useLayoutEffect(() => {
+    const span = flashRef.current;
+    const el = ref.current;
+    if (!flashing?.note || !span || !el) {
+      setNoteAt(null);
+      return;
+    }
+    // The note is at most 20rem wide (max-w-xs).
+    const room = (wrapRef.current?.clientWidth ?? el.clientWidth) - 320;
+    setNoteAt({
+      left: Math.max(0, Math.min(span.offsetLeft, room)),
+      top: el.offsetTop + span.offsetTop - el.scrollTop + span.offsetHeight + 4,
+    });
+  }, [flashing]);
+  // Marks and lit words in text order, for the copy behind.
+  const segments = [
+    ...marks.map((m, i) => ({ start: m.start, end: m.end, mark: i })),
+    ...lit.map((r) => ({ start: r.start, end: r.end, mark: -1 })),
+  ]
+    .sort((a, b) => a.start - b.start)
+    .filter((sg, i, all) => i === 0 || sg.start >= all[i - 1].end);
+  const firstLit = segments.findIndex((sg) => sg.mark < 0);
+
   const mark = shown != null && !open ? marks[shown] : null;
   return (
     <div ref={wrapRef} className="relative" onMouseLeave={() => setShown(null)}>
-      {marks.length > 0 && (
+      {segments.length > 0 && (
         <div
           ref={backRef}
           aria-hidden
@@ -244,20 +291,30 @@ export function PromptInput({
             className,
           )}
         >
-          {marks.map((m, i) => (
+          {segments.map((m, i) => (
             <span key={`${m.start}:${m.end}`}>
-              {value.slice(i ? marks[i - 1].end : 0, m.start)}
-              <span
-                ref={(el) => {
-                  markRefs.current[i] = el;
-                }}
-                className="rounded-sm bg-amber-400/10 shadow-[0_0_0_1px_rgb(251_191_36/0.8)]"
-              >
-                {value.slice(m.start, m.end)}
-              </span>
+              {value.slice(i ? segments[i - 1].end : 0, m.start)}
+              {m.mark >= 0 ? (
+                <span
+                  ref={(el) => {
+                    markRefs.current[m.mark] = el;
+                  }}
+                  className="rounded-sm bg-amber-400/10 shadow-[0_0_0_1px_rgb(251_191_36/0.8)]"
+                >
+                  {value.slice(m.start, m.end)}
+                </span>
+              ) : (
+                <span
+                  key={flashing?.key}
+                  ref={i === firstLit ? flashRef : undefined}
+                  className="rounded-sm animate-written-glow"
+                >
+                  {value.slice(m.start, m.end)}
+                </span>
+              )}
             </span>
           ))}
-          {value.slice(marks[marks.length - 1].end)}
+          {value.slice(segments[segments.length - 1].end)}
           {/* A trailing newline only takes up a line with something after it. */}
           {"\u200b"}
         </div>
@@ -311,6 +368,15 @@ export function PromptInput({
           className="mt-0 w-80"
           style={at ? { left: at.left, top: at.top } : undefined}
         />
+      )}
+      {flashing?.note && noteAt && !mark && (
+        <div
+          role="status"
+          className="absolute z-30 flex w-max max-w-xs animate-fade-in items-center gap-2 rounded-lg border border-brand-700/60 bg-raised px-2.5 py-2 text-xs text-neutral-200 shadow-panel"
+          style={{ left: noteAt.left, top: noteAt.top }}
+        >
+          {flashing.note}
+        </div>
       )}
       {mark && bubbleAt && (
         <div

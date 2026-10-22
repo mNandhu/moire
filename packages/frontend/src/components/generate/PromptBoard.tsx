@@ -27,7 +27,7 @@ import { descriptionKey } from "../../lib/tags";
 import { useToast } from "../Toasts";
 
 /** A board box: a server section, or one the prompt's own syntax decides. */
-type BoxKey = BoardSection | "prose" | "resources";
+export type BoxKey = BoardSection | "prose" | "resources";
 
 // `expected` boxes read as Missing when empty; `always` ones just show.
 const BOXES: { key: BoxKey; label: string; expected?: boolean; always?: boolean }[] = [
@@ -286,6 +286,7 @@ function GroupBox({
   onClear,
   tone,
   describe,
+  glow,
 }: {
   label: string;
   box: BoxKey;
@@ -304,6 +305,9 @@ function GroupBox({
   tone?: string;
   /** A tag's description, shown under it in the suggestions. */
   describe: (id: string) => string | undefined;
+  /** Lights the box up once (a new value replays it): the app just wrote
+   * its tags. */
+  glow?: number;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -346,6 +350,7 @@ function GroupBox({
         input.current?.focus();
       }}
     >
+      {glow != null && <span key={glow} aria-hidden className="pointer-events-none absolute inset-0 rounded-lg animate-written-glow" />}
       <div className="mb-1.5 flex min-h-5 items-center gap-1.5 text-xs font-medium text-muted">
         {label}
         {missing && <span className="text-amber-300">Missing</span>}
@@ -452,12 +457,16 @@ export function PromptBoard({
   onPrompt,
   layers,
   pool,
+  glow,
 }: {
   prompt: string;
   onPrompt: (v: string) => void;
   layers: readonly BoardLayer[];
   /** Library tags with their image counts. */
   pool: readonly TagSuggestion[];
+  /** A box to light up once, when the app just wrote its tags (a new key
+   * replays it). */
+  glow?: { key: number; box: BoxKey } | null;
 }) {
   const boilerplate = useBoilerplate();
   const { push } = useToast();
@@ -591,6 +600,7 @@ export function PromptBoard({
       onClear={clearable(k) ? () => clear(k, label) : undefined}
       tone={tone}
       describe={describe}
+      glow={glow?.box === k ? glow.key : undefined}
     />
   );
   const unknown = byBox.get("unknown")?.length ?? 0;

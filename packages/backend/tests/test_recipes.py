@@ -188,6 +188,23 @@ async def test_recipe_edit_and_queue(client, comfy, seed, monkeypatch):  # noqa:
         "/generate/recipes/hu_tao_(genshin_impact)", json={"strength": "x"}
     )
     assert bad.status_code == 400
+    # A gender set by hand wins over the images' until it's cleared.
+    r = (
+        await client.put(
+            "/generate/recipes/hu_tao_(genshin_impact)", json={"gender": "boy"}
+        )
+    ).json()
+    assert (r["gender"], r["gender_read"], r["gender_set"]) == ("boy", "girl", True)
+    r = (
+        await client.put(
+            "/generate/recipes/hu_tao_(genshin_impact)", json={"gender": None}
+        )
+    ).json()
+    assert (r["gender"], r["gender_set"]) == ("girl", False)
+    bad = await client.put(
+        "/generate/recipes/hu_tao_(genshin_impact)", json={"gender": "cat"}
+    )
+    assert bad.status_code == 400
     assert (await client.get("/generate/recipes/nobody")).status_code == 404
 
     await make_ready(client, comfy, seed)

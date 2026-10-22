@@ -378,7 +378,12 @@ async def remove_made(tag: str) -> bool:
     if not await is_made(tag, rows):
         return False
     async with async_tx() as conn:
-        for table in (t.characters, t.recipe_edits, t.recipe_additions):
+        for table in (
+            t.characters,
+            t.recipe_edits,
+            t.recipe_additions,
+            t.recipe_genders,
+        ):
             await conn.execute(sa.delete(table).where(table.c.tag == tag))
     tag_index.invalidate()
     return True

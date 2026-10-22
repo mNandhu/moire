@@ -26,6 +26,7 @@ def test_expected_tables_exist():
         "lora_choices",
         "recipe_edits",
         "recipe_additions",
+        "recipe_genders",
         "prompt_presets",
         "lora_presets",
         "outfits",

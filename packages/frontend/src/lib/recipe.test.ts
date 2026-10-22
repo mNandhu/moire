@@ -8,6 +8,8 @@ const recipe: Recipe = {
   count: 12,
   identity_images: 12,
   gender: "girl",
+  gender_read: "girl",
+  gender_set: false,
   identity: [
     { tag: "red_eyes", dropped: false, added: false },
     { tag: "smile", dropped: true, added: false },

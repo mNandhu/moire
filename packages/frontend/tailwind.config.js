@@ -80,12 +80,18 @@ module.exports = {
         stripes: {
           to: { backgroundPosition: "24px 0" },
         },
+        // Words the app just wrote into a prompt, lit and fading out.
+        "written-glow": {
+          "0%, 40%": { backgroundColor: "rgb(167 139 250 / 0.35)", boxShadow: "0 0 0 1px rgb(167 139 250 / 0.9), 0 0 12px rgb(167 139 250 / 0.6)" },
+          "100%": { backgroundColor: "rgb(167 139 250 / 0)", boxShadow: "0 0 0 1px rgb(167 139 250 / 0), 0 0 12px rgb(167 139 250 / 0)" },
+        },
       },
       animation: {
         shimmer: "shimmer 1.6s infinite",
         "fade-in": "fade-in 240ms ease both",
         aurora: "aurora 14s ease-in-out infinite",
         stripes: "stripes 0.8s linear infinite",
+        "written-glow": "written-glow 2.4s ease-out both",
       },
     },
   },

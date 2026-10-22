@@ -11,7 +11,7 @@ import { cn } from "../../lib/cn";
 import { characterHref, displayName, fewImagesNote, type CharacterEntry } from "../../lib/character";
 import { useChipBorderStyle } from "../../hooks/useTagMarks";
 import { displayWord } from "../../lib/compose";
-import { putRecipe, recipeKey, useRecipe, type Recipe, type RecipePatch } from "../../lib/generate";
+import { putRecipe, recipeKey, useRecipe, type Gender, type Recipe, type RecipePatch } from "../../lib/generate";
 import { characterTags, toggleDropped } from "../../lib/recipe";
 import { tagRepeats } from "../../lib/promptRepeats";
 import { PromptRepeats } from "./PromptRepeats";
@@ -280,6 +280,72 @@ function AddTagInput({ onAdd, taken }: { onAdd: (tag: string) => void; taken: Re
   );
 }
 
+/** Saves a change to a character's recipe and puts the result in the cache. */
+function useRecipePatch(tag: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (p: RecipePatch) => putRecipe(tag, p),
+    onSuccess: (r) => qc.setQueryData(recipeKey(r.tag), r),
+  });
+}
+
+const GENDERS: { value: Gender; label: string }[] = [
+  { value: "girl", label: "Girl" },
+  { value: "boy", label: "Boy" },
+  { value: "other", label: "Other" },
+];
+
+/** Girl / boy / other, for the count tags Generate writes (1girl, 1boy...).
+ * Picking the one already set by hand goes back to what their images say;
+ * amber while it's unknown. */
+export function GenderPick({ recipe, onPick, small }: { recipe: Recipe; onPick: (g: Gender | null) => void; small?: boolean }) {
+  const unknown = recipe.gender == null;
+  const read = recipe.gender_read ? GENDERS.find((g) => g.value === recipe.gender_read)?.label.toLowerCase() : null;
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Gender"
+      title={
+        recipe.gender_set
+          ? `Set by you${read ? `; their images say ${read}` : ""}`
+          : unknown
+            ? "Their images don't say. Pick one so the prompt gets the right count tags"
+            : "Read from their images"
+      }
+      className={cn(
+        "inline-flex shrink-0 gap-0.5 rounded-lg border p-0.5",
+        unknown ? "border-dashed border-amber-500/60 bg-amber-500/5" : "border-line bg-canvas",
+      )}
+    >
+      {GENDERS.map((g) => {
+        const on = recipe.gender === g.value;
+        return (
+          <button
+            key={g.value}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => onPick(on && recipe.gender_set ? null : g.value)}
+            className={cn(
+              "rounded-md font-medium transition-colors",
+              small ? "px-1.5 py-0.5 text-xs" : "px-2.5 py-1 text-sm",
+              on
+                ? recipe.gender_set
+                  ? "bg-brand-600 text-white"
+                  : "bg-line text-neutral-100"
+                : unknown
+                  ? "text-amber-200 hover:bg-amber-500/10"
+                  : "text-muted hover:bg-line hover:text-neutral-100",
+            )}
+          >
+            {g.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * A recipe's editable parts: identity tags (drop a computed one, add your
  * own) and the character LoRA. Changes are saved to the recipe at once, so
@@ -301,17 +367,17 @@ export function RecipeEditor({
   off?: { tags: readonly string[]; toggle: (tag: string) => void };
 }) {
   const chipBorderStyle = useChipBorderStyle();
-  const qc = useQueryClient();
-  const patch = useMutation({
-    mutationFn: (p: RecipePatch) => putRecipe(recipe.tag, p),
-    onSuccess: (r) => qc.setQueryData(recipeKey(r.tag), r),
-  });
+  const patch = useRecipePatch(recipe.tag);
   const added = recipe.identity.filter((c) => c.added).map((c) => c.tag);
   // Only about computed tags: the ones you added aren't a guess.
   const note = recipe.identity.some((c) => !c.added) ? fewImagesNote(recipe.identity_images) : null;
   const taken = useMemo(() => new Set([recipe.tag, ...recipe.identity.map((c) => c.tag)]), [recipe]);
   return (
     <>
+      <div>
+        <FieldLabel>Gender</FieldLabel>
+        <GenderPick recipe={recipe} onPick={(gender) => patch.mutate({ gender })} />
+      </div>
       <div>
         <FieldLabel>Identity</FieldLabel>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -435,6 +501,7 @@ function CharacterRow({
   const { data: everyone } = useCharacters();
   const entry = useMemo(() => everyone?.find((c) => c.tag === value) ?? null, [everyone, value]);
   const { data: recipe } = useRecipe(value);
+  const genderPatch = useRecipePatch(value ?? "");
   const label = <span className="w-[4.5rem] shrink-0 text-xs font-medium text-muted">Character</span>;
 
   if (!value) {
@@ -486,6 +553,7 @@ function CharacterRow({
             </span>
           )}
         />
+        {recipe && recipe.gender == null && <GenderPick recipe={recipe} onPick={(gender) => genderPatch.mutate({ gender })} small />}
         {/* Folded, each tag strikes on a click, as the outfit's do; open, the Identity row below has them (and the x). */}
         {expanded ? (
           <span className="min-w-0 flex-1" />
