@@ -19,6 +19,7 @@ import {
 } from "../../lib/queries";
 import { CharacterAvatar } from "../CharacterAvatar";
 import { TagSuggestList, type TagSuggestion } from "../TagSuggestList";
+import { useDropSide } from "../../hooks/useDropSide";
 import { Tooltip } from "../ui";
 import { useToast } from "../Toasts";
 
@@ -104,6 +105,16 @@ function readFolded(): boolean {
   }
 }
 const NO_OPTIONS: TagSuggestion[] = [];
+// TagSuggestList's own max-h-72.
+const LIST_HEIGHT = 288;
+
+/** Focus the next part's field after `from`, or let go of the last one. */
+function focusNextPart(from: HTMLInputElement) {
+  const all = [...document.querySelectorAll<HTMLInputElement>("input[data-part-input]")];
+  const next = all[all.indexOf(from) + 1];
+  if (next) next.focus();
+  else from.blur();
+}
 const tagOf = (t: Placed) => t.place?.alias_of ?? t.name;
 const pretty = (g?: string) => (g ? g.replace(/_tags$/, "").replace(/_/g, " ") : "");
 const compact = (n: number) => (n >= 1_000_000 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
@@ -283,8 +294,12 @@ function GroupBox({
   tone?: string;
 }) {
   const input = useRef<HTMLInputElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  // On a phone the keyboard leaves little room below: the list goes up then,
+  // off the next box, which can be tapped straight away.
+  const side = useDropSide(boxRef, open, LIST_HEIGHT);
   // Nothing is highlighted until the arrows move into the list, so Enter
   // adds what was typed.
   const [active, setActive] = useState(-1);
@@ -305,6 +320,7 @@ function GroupBox({
   const missing = gap && BOXES.find((b) => b.key === box)?.expected;
   return (
     <div
+      ref={boxRef}
       className={cn(
         "group/box relative rounded-lg border px-3 py-2 transition-colors",
         addable && "cursor-text hover:border-line-strong",
@@ -354,6 +370,10 @@ function GroupBox({
             ref={input}
             value={q}
             aria-label={`Add to ${label}`}
+            data-part-input
+            // Empty, Enter moves on to the next part (the phone keyboard's
+            // Next), so filling them in turn needs no tap in between.
+            enterKeyHint={q.trim() ? "enter" : "next"}
             onChange={(e) => {
               setQ(e.target.value);
               setActive(-1);
@@ -373,7 +393,8 @@ function GroupBox({
                 add(matches[Math.max(0, active)]._id);
               } else if (e.key === "Enter") {
                 e.preventDefault();
-                add(active >= 0 && matches[active] ? matches[active]._id : q);
+                if (active < 0 && !q.trim()) focusNextPart(e.currentTarget);
+                else add(active >= 0 && matches[active] ? matches[active]._id : q);
               } else if (e.key === ",") {
                 e.preventDefault();
                 add(q);
@@ -389,7 +410,15 @@ function GroupBox({
         )}
       </div>
       {open && matches.length > 0 && (
-        <TagSuggestList matches={matches} active={active} onActive={setActive} onPick={(m) => add(m._id)} thumbOf={thumbOf} className="left-0 top-full z-30" />
+        <TagSuggestList
+          matches={matches}
+          active={active}
+          onActive={setActive}
+          onPick={(m) => add(m._id)}
+          thumbOf={thumbOf}
+          className={cn("left-0 z-30", side.up ? "bottom-full mt-0 mb-1" : "top-full")}
+          style={{ maxHeight: side.max }}
+        />
       )}
     </div>
   );
