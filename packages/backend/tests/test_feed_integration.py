@@ -94,6 +94,16 @@ async def test_no_ai_tags_filter(client, seed):
     assert await _ids(client, no_ai_tags=1) == ["L1:b"]
 
 
+async def test_ai_tagged_filter(client, seed):
+    seed("L1:a", tags=("1girl",))  # AI tag
+    seed("L1:b", tags=("manual:fav",))  # manual only
+    seed("L1:c", tags=("prompt:1girl", "smile"))  # prompt + AI
+    assert set(await _ids(client, ai_tagged=1)) == {"L1:a", "L1:c"}
+    assert await _ids(client, ai_tagged=1, tags="smile") == ["L1:c"]
+    r = await client.get("/images", params={"ai_tagged": 1, "no_ai_tags": 1})
+    assert r.status_code == 422
+
+
 async def test_no_tags_filter(client, seed):
     seed("L1:a", tags=("1girl",))
     seed("L1:b", tags=())  # untagged

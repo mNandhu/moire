@@ -127,6 +127,7 @@ class FeedFilter:
     library_id: str | None = None
     no_tags: int | None = None
     no_ai_tags: int | None = None
+    ai_tagged: int | None = None
     quarantined: int | None = None
     needs_mapping: int | None = None
     pterms: list[str] | None = None
@@ -163,6 +164,10 @@ class FeedFilter:
             raise FeedFilterError("logic must be 'and' or 'or'")
         if self.plogic not in ("and", "or"):
             raise FeedFilterError("plogic must be 'and' or 'or'")
+        if self.ai_tagged == 1 and (self.no_ai_tags == 1 or self.no_tags == 1):
+            raise FeedFilterError(
+                "ai_tagged=1 cannot be combined with no_ai_tags or no_tags"
+            )
         if self.outfit and len(self.outfit) > 10:
             raise FeedFilterError("too many outfits (max 10)")
         if self.tags:
@@ -207,6 +212,8 @@ def feed_where(f: FeedFilter):
             conds.append(t.images.c.has_tags.is_(False))
         if f.no_ai_tags == 1:
             conds.append(t.images.c.has_ai_tags.is_(False))
+    if f.ai_tagged == 1:
+        conds.append(t.images.c.has_ai_tags.is_(True))
     if f.library_id:
         conds.append(t.images.c.library_id == f.library_id)
     # Quarantined images leave the default feed. Treat missing/NULL as not

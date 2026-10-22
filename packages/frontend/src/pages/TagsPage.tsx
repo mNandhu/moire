@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Tag as TagIcon, Slash, Search, GitMerge, Undo2, LayoutGrid, List, UserPlus, Wand2 } from "lucide-react";
+import { Tag as TagIcon, Slash, Search, GitMerge, Undo2, LayoutGrid, List, UserPlus, Wand2, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -359,6 +359,16 @@ export default function TagsPage() {
                     : "Not yet AI-tagged"
                 }
                 to="/?no_ai_tags=1"
+              />
+              <SpecialTile
+                title="AI tagged"
+                subtitle={
+                  cov
+                    ? `${cov.ai_tagged.toLocaleString()} ${cov.ai_tagged === 1 ? "image" : "images"} AI-tagged`
+                    : "Tagged by the AI"
+                }
+                to="/?ai_tagged=1"
+                icon={<Sparkles size={16} className="text-brand-300" />}
               />
             </div>
 
@@ -768,7 +778,18 @@ function LoadingGrid({ view }: { view: TagView }) {
   );
 }
 
-function SpecialTile({ title, subtitle, to }: { title: string; subtitle: string; to: string }) {
+function SpecialTile({
+  title,
+  subtitle,
+  to,
+  icon,
+}: {
+  title: string;
+  subtitle: string;
+  to: string;
+  /** Defaults to a struck-out tag: something missing. */
+  icon?: ReactNode;
+}) {
   return (
     <Link
       to={to}
@@ -777,8 +798,12 @@ function SpecialTile({ title, subtitle, to }: { title: string; subtitle: string;
     >
       <div className="flex items-center gap-2 font-semibold">
         <span className="relative inline-flex items-center justify-center w-5 h-5">
-          <TagIcon size={16} />
-          <Slash size={16} className="absolute inset-0 text-brand-300" />
+          {icon ?? (
+            <>
+              <TagIcon size={16} />
+              <Slash size={16} className="absolute inset-0 text-brand-300" />
+            </>
+          )}
         </span>
         {title}
       </div>

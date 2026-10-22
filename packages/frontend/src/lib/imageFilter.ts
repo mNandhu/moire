@@ -55,6 +55,8 @@ export type Filters = {
   libraryId?: string;
   noTags: boolean;
   noAiTags: boolean;
+  /** Only images with AI tags; ignored beside noTags / noAiTags. */
+  aiTagged: boolean;
   // View only quarantined images instead of the default (quarantine-excluded)
   // feed. Off = default feed (quarantined hidden).
   quarantined: boolean;
@@ -99,6 +101,7 @@ export const DEFAULT_FILTERS: Filters = {
   libraryId: undefined,
   noTags: false,
   noAiTags: false,
+  aiTagged: false,
   quarantined: false,
   promptTerms: [],
   promptLogic: "and",
@@ -138,6 +141,7 @@ export function parseFilters(sp: URLSearchParams): Filters {
     libraryId: sp.get("library_id") || undefined,
     noTags: sp.get("no_tags") === "1",
     noAiTags: sp.get("no_ai_tags") === "1",
+    aiTagged: sp.get("ai_tagged") === "1" && sp.get("no_ai_tags") !== "1" && sp.get("no_tags") !== "1",
     quarantined: sp.get("quarantined") === "1",
     promptTerms: sp.getAll("pterms"),
     promptLogic: sp.get("plogic") === "or" ? "or" : "and",
@@ -176,6 +180,7 @@ export function serializeFilters(filters: Filters): URLSearchParams {
   if (filters.libraryId) sp.set("library_id", filters.libraryId);
   if (filters.noTags) sp.set("no_tags", "1");
   if (filters.noAiTags) sp.set("no_ai_tags", "1");
+  if (filters.aiTagged && !filters.noAiTags && !filters.noTags) sp.set("ai_tagged", "1");
   if (filters.quarantined) sp.set("quarantined", "1");
   filters.promptTerms.forEach((t) => sp.append("pterms", t));
   if (filters.promptTerms.length && filters.promptLogic)
@@ -284,6 +289,7 @@ export function hasActiveFilter(f: Filters): boolean {
     !!f.libraryId ||
     f.noTags ||
     f.noAiTags ||
+    f.aiTagged ||
     f.quarantined ||
     f.promptTerms.length > 0 ||
     !!f.model ||
@@ -366,6 +372,7 @@ export function activeFilterChips(
   }
   if (f.noTags) add("noTags", "Untagged", { noTags: false });
   if (f.noAiTags) add("noAiTags", "No AI tags", { noAiTags: false });
+  if (f.aiTagged && !f.noAiTags && !f.noTags) add("aiTagged", "AI tagged", { aiTagged: false });
   if (f.quarantined) add("quarantined", "Quarantined", { quarantined: false });
   for (const term of f.promptTerms) {
     add(`prompt:${term}`, `Prompt: ${term}`, {

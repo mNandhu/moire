@@ -29,6 +29,7 @@ describe("Image filter URL round-trip", () => {
       libraryId: "lib123",
       noTags: false,
       noAiTags: true,
+      aiTagged: false,
       quarantined: true,
       promptTerms: ["cyberpunk", "neon"],
       promptLogic: "or",
@@ -65,6 +66,14 @@ describe("parseFilters", () => {
     const f = parseFilters(new URLSearchParams("no_tags=1&no_ai_tags=1"));
     expect(f.noTags).toBe(true);
     expect(f.noAiTags).toBe(true);
+  });
+
+  it("reads ai_tagged, unless a no-tags toggle contradicts it", () => {
+    expect(parseFilters(new URLSearchParams("ai_tagged=1")).aiTagged).toBe(true);
+    expect(parseFilters(new URLSearchParams("ai_tagged=1&no_ai_tags=1")).aiTagged).toBe(false);
+    const sp = serializeFilters({ ...DEFAULT_FILTERS, aiTagged: true });
+    expect(sp.get("ai_tagged")).toBe("1");
+    expect(serializeFilters({ ...DEFAULT_FILTERS, aiTagged: true, noTags: true }).has("ai_tagged")).toBe(false);
   });
 
   it("migrates the legacy singular `tag` param", () => {
