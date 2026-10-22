@@ -18,6 +18,7 @@ import { Picker } from "../components/ui/Picker";
 import { ResolvePromptDialog } from "../components/ResolvePromptDialog";
 import { getBackgroundLocation } from "../lib/backgroundLocation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "../lib/api";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -35,10 +36,16 @@ import {
   Workflow,
   X,
 } from "lucide-react";
-import { resolveMediaUrl } from "../lib/media";
+import { resolveMediaUrl, smallThumb } from "../lib/media";
 import { useToast } from "../components/Toasts";
 import { ImageCharacters } from "../components/ImageCharacters";
-import { parseFilters, serializeFilters, fetchImage } from "../lib/imageFilter";
+import {
+  parseFilters,
+  serializeFilters,
+  serializeFiltersForPeek,
+  fetchImage,
+  type ImageDoc,
+} from "../lib/imageFilter";
 import { useImageFeed } from "../hooks/useImageFeed";
 import { useAiTagging } from "../hooks/useAiTagging";
 import { useBackgroundTasks } from "../hooks/useBackgroundTasks";
@@ -890,6 +897,7 @@ export default function ImageView() {
                         width={data.width}
                         height={data.height}
                         onCopyAll={() => void copyWorkflow()}
+                        batchScope={serializeFiltersForPeek(filters)}
                       />
                     }
                     tags={
@@ -1704,12 +1712,15 @@ function GenPanel({
   width,
   height,
   onCopyAll,
+  batchScope,
 }: {
   imageId: string;
   gen?: import("../lib/gen").GenMeta;
   width?: number;
   height?: number;
   onCopyAll: () => void;
+  /** The viewer's filters, less any batch grouping (serializeFiltersForPeek). */
+  batchScope: string;
 }) {
   const { data: remix } = useRemix(imageId, !!gen?.source);
   const [resolving, setResolving] = useState<"prompt" | "negative" | null>(null);
@@ -1840,7 +1851,77 @@ function GenPanel({
           <MetaChip label="Height" value={height} />
         </div>
       </div>
+
+      {gen.group_id && <BatchStrip groupId={gen.group_id} scope={batchScope} currentId={imageId} />}
     </section>
+  );
+}
+
+const BATCH_STRIP_MAX = 40;
+
+/**
+ * The rest of the image's batch (same workflow, same prompt: its seeds and
+ * reruns), as a strip of thumbnails. Picking one steps the viewer into the
+ * batch: arrows then walk its members, like drilling into it in the gallery.
+ * Nothing when the image is alone in its batch.
+ */
+function BatchStrip({ groupId, scope, currentId }: { groupId: string; scope: string; currentId: string }) {
+  const location = useLocation();
+  const query = useMemo(() => {
+    const sp = new URLSearchParams(scope);
+    sp.set("group_id", groupId);
+    return sp.toString();
+  }, [scope, groupId]);
+  const { data: members } = useQuery({
+    // Not under the feeds' key: their cache patches assume a paged feed.
+    queryKey: ["batch-strip", query],
+    queryFn: ({ signal }) =>
+      api<ImageDoc[]>(`/api/v1/images?${query}&limit=${BATCH_STRIP_MAX}`, { signal }),
+    staleTime: 60_000,
+  });
+  const current = useRef<HTMLAnchorElement>(null);
+  // The open image in view, without scrolling the panel itself.
+  useLayoutEffect(() => {
+    const el = current.current;
+    const strip = el?.parentElement;
+    if (el && strip) strip.scrollLeft = el.offsetLeft - (strip.clientWidth - el.offsetWidth) / 2;
+  }, [members, currentId]);
+  if (!members || members.length < 2) return null;
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-medium text-muted">
+        This batch{" "}
+        <span className="text-faint tabular-nums">
+          {members.length}
+          {members.length === BATCH_STRIP_MAX && "+"}
+        </span>
+      </div>
+      <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:thin]">
+        {members.map((m) => {
+          const here = m._id === currentId;
+          return (
+            <Link
+              key={m._id}
+              ref={here ? current : undefined}
+              to={`/image/${encodeURIComponent(m._id)}?${query}`}
+              // Like the arrows: in place, and still over the gallery.
+              replace
+              state={location.state}
+              aria-current={here ? "true" : undefined}
+              title={m.path?.split(/[\\/]/).pop()}
+              className={`relative h-16 w-12 shrink-0 overflow-hidden rounded-md bg-raised transition-opacity ${
+                here ? "" : "opacity-70 hover:opacity-100"
+              }`}
+            >
+              {m.thumb_url && (
+                <img src={smallThumb(m.thumb_url)} alt="" loading="lazy" className="h-full w-full object-cover" />
+              )}
+              {here && <span className="absolute inset-0 rounded-md ring-2 ring-inset ring-brand-400" />}
+            </Link>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
