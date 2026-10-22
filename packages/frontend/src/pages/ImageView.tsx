@@ -80,7 +80,7 @@ import { fitLines } from "../lib/fitLines";
 import { snapSheet } from "../lib/sheetSnap";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { MARKER_DIGIT } from "../components/ui/ScoreMark";
+import { ScorePicker } from "../components/ui/ScoreMark";
 import { Input } from "../components/ui/Input";
 import { useConfirm } from "../components/ConfirmDialog";
 import { Tooltip } from "../components/ui/Tooltip";
@@ -1372,45 +1372,6 @@ function AddTags({ id, onAdded }: { id: string; onAdded: () => void }) {
         {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
       </button>
     </form>
-  );
-}
-
-/**
- * The score editor: the same grease-pencil digits the gallery tiles show, so
- * marking a score looks like the mark it leaves. The chosen digit is drawn in
- * amber; clicking it again clears the score.
- */
-function ScorePicker({
-  value,
-  onSet,
-}: {
-  value: number;
-  onSet: (n: number) => void;
-}) {
-  return (
-    <div className="inline-flex items-center gap-0.5" role="radiogroup" aria-label="Score">
-      {[1, 2, 3, 4, 5].map((n) => {
-        const on = n === value;
-        return (
-          <button
-            key={n}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            aria-label={`Set score ${n}`}
-            title={on ? "Clear score" : `Score ${n}`}
-            onClick={() => onSet(on ? 0 : n)}
-            className={
-              on
-                ? `${MARKER_DIGIT} text-[24px] w-7 h-8`
-                : "font-marker text-[22px] leading-none w-7 h-8 text-white/30 hover:text-amber-200/80 transition-colors"
-            }
-          >
-            {n}
-          </button>
-        );
-      })}
-    </div>
   );
 }
 

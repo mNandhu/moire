@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { ImageOff, Loader2, RotateCcw, Star, X } from "lucide-react";
+import { ImageOff, Loader2, RotateCcw, X } from "lucide-react";
 import { resultGrid, resultSlots, type ResultSlot } from "../../lib/batches";
 import { cancelRequest, retryRequest, type Batch, type GenRequest, type Output } from "../../lib/generate";
 import { setQuarantine, setScore } from "../../lib/imageMutations";
@@ -9,6 +9,7 @@ import { cn } from "../../lib/cn";
 import { clock, runProgress } from "../../lib/eta";
 import { useLiveSeconds } from "../../hooks/useLiveSeconds";
 import { useToast } from "../Toasts";
+import { ScorePicker } from "../ui/ScoreMark";
 
 export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; onChanged: () => void }) {
   const location = useLocation();
@@ -69,18 +70,15 @@ export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; on
           </button>
         </div>
       )}
-      <div className="absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100">
-        {[1, 2, 3, 4, 5].map((n) => (
-          <button
-            key={n}
-            type="button"
-            aria-label={`Score ${n}`}
-            onClick={() => act(() => setScore(out.image_id, n))}
-            className="text-neutral-300 hover:text-amber-300"
-          >
-            <Star size={14} className={cn((out.score ?? 0) >= n && "fill-amber-300 text-amber-300")} />
-          </button>
-        ))}
+      {/* Scored, the mark stays at rest as on the gallery's tiles; the rest
+          of the bar comes with the pointer. */}
+      <div
+        className={cn(
+          "absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100",
+          !out.score && "opacity-0",
+        )}
+      >
+        <ScorePicker value={out.score ?? 0} onSet={(n) => act(() => setScore(out.image_id, n))} size="sm" quiet />
         <span className="flex-1" />
         {!out.quarantined && (
           <button
@@ -88,7 +86,7 @@ export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; on
             aria-label="Reject"
             title="Reject"
             onClick={() => act(() => setQuarantine(out.image_id, true))}
-            className="rounded p-0.5 text-neutral-300 hover:text-red-300"
+            className="rounded p-0.5 text-neutral-300 opacity-0 hover:text-red-300 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100"
           >
             <X size={15} />
           </button>
