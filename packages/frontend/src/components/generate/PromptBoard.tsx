@@ -105,12 +105,14 @@ function readFolded(): boolean {
   }
 }
 const NO_OPTIONS: TagSuggestion[] = [];
-// TagSuggestList's own max-h-72.
+// TagSuggestList's own max-h-72, and about one row's height with its padding.
 const LIST_HEIGHT = 288;
+const ROW_HEIGHT = 36;
 
-/** Focus the next part's field after `from`, or let go of the last one. */
+/** Focus the next part's field after `from` in its board, or let go of the last one. */
 function focusNextPart(from: HTMLInputElement) {
-  const all = [...document.querySelectorAll<HTMLInputElement>("input[data-part-input]")];
+  const board = from.closest("[data-part-board]") ?? document;
+  const all = [...board.querySelectorAll<HTMLInputElement>("input[data-part-input]")];
   const next = all[all.indexOf(from) + 1];
   if (next) next.focus();
   else from.blur();
@@ -297,9 +299,6 @@ function GroupBox({
   const boxRef = useRef<HTMLDivElement>(null);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
-  // On a phone the keyboard leaves little room below: the list goes up then,
-  // off the next box, which can be tapped straight away.
-  const side = useDropSide(boxRef, open, LIST_HEIGHT);
   // Nothing is highlighted until the arrows move into the list, so Enter
   // adds what was typed.
   const [active, setActive] = useState(-1);
@@ -309,6 +308,10 @@ function GroupBox({
     const query = q.trim().replace(/_/g, " ");
     return query ? fuzzyRank(query, options, (o) => o._id.replace(/_/g, " "), LIST_ROWS) : options.slice(0, LIST_ROWS);
   }, [open, q, options]);
+  // On a phone the keyboard leaves little room below: the list goes up then,
+  // off the next box, which can be tapped straight away. Sized by what it
+  // holds, so a short list that fits below stays there.
+  const side = useDropSide(boxRef, open, Math.min(LIST_HEIGHT, matches.length * ROW_HEIGHT + 8));
   const add = (name: string) => {
     if (!name.trim()) return;
     onAdd(name);
@@ -581,7 +584,7 @@ export function PromptBoard({
     (b) => b.expected && !byBox.has(b.key) && !theirs.some((l) => l.terms.some((t) => t.box === b.key && !t.dropped && !t.self)),
   );
   return (
-    <div className="mt-3" aria-label="Prompt board">
+    <div className="mt-3" aria-label="Prompt board" data-part-board>
       <button
         type="button"
         aria-expanded={!folded}

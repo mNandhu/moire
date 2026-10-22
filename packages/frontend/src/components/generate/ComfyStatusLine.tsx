@@ -29,12 +29,13 @@ export function ComfyStatusLine({ withActions = true, ready }: { withActions?: b
         ? (["bg-amber-400", "Needs a test run"] as const)
         : (["bg-emerald-400", ready ? "Ready" : "Connected"] as const);
   return (
-    <div role={down ? "alert" : undefined} className="flex shrink-0 items-center gap-2 text-sm">
-      <span className={cn("h-2 w-2 rounded-full", tone)} />
-      <span className={down ? "text-red-200" : "text-neutral-100"} title={down ? status.error ?? undefined : undefined}>
+    <div role={down ? "alert" : undefined} className="flex min-w-0 items-center gap-2 text-sm">
+      <span className={cn("h-2 w-2 shrink-0 rounded-full", tone)} />
+      <span className={cn("shrink-0", down ? "text-red-200" : "text-neutral-100")} title={down ? status.error ?? undefined : undefined}>
         {label}
       </span>
-      <span className="hidden sm:inline text-faint" title={`ComfyUI at ${address}`}>
+      {/* A long address gives way, not the page's width. */}
+      <span className="hidden min-w-0 truncate text-faint sm:inline" title={`ComfyUI at ${address}`}>
         ComfyUI <span className="font-mono">{address}</span>
       </span>
       {down && withActions && (
@@ -45,11 +46,11 @@ export function ComfyStatusLine({ withActions = true, ready }: { withActions?: b
             disabled={retry.isPending}
             title="Retry"
             aria-label="Retry"
-            className="-mx-1 rounded-md p-1 text-muted hover:bg-raised hover:text-neutral-100 disabled:opacity-60"
+            className="-mx-1 shrink-0 rounded-md p-1 text-muted hover:bg-raised hover:text-neutral-100 disabled:opacity-60"
           >
             <RotateCw size={14} className={cn(retry.isPending && "animate-spin")} />
           </button>
-          <Link to="/settings?section=comfyui" className="text-xs text-muted hover:text-neutral-100">
+          <Link to="/settings?section=comfyui" className="shrink-0 text-xs text-muted hover:text-neutral-100">
             Settings
           </Link>
         </>

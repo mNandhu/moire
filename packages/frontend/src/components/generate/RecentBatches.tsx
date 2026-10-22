@@ -2,8 +2,7 @@ import { Link } from "react-router-dom";
 import { batchLine, stateTone, STATE_LABEL, whenLabel } from "../../lib/batches";
 import { useBatches, type BatchSummary } from "../../lib/generate";
 import { Badge } from "../ui";
-import { ImageOff, Loader2, TriangleAlert } from "lucide-react";
-import { cn } from "../../lib/cn";
+import { NoImageMark } from "./BatchResults";
 
 const THUMB_H = 36;
 
@@ -27,15 +26,10 @@ function Thumbs({ b }: { b: BatchSummary }) {
         ))
       ) : (
         // No images: say why in the thumb's place rather than a blank square.
-        <span
-          className={cn(
-            "flex items-center justify-center rounded border border-dashed",
-            b.state === "failed" ? "border-red-900/70 text-red-300/80" : "border-line text-faint",
-          )}
+        <NoImageMark
+          why={b.state === "failed" ? "failed" : b.state === "running" ? "running" : "missing"}
           style={{ width: w, height: THUMB_H }}
-        >
-          {b.state === "failed" ? <TriangleAlert size={13} /> : b.state === "running" ? <Loader2 size={13} className="animate-spin" /> : <ImageOff size={13} />}
-        </span>
+        />
       )}
     </span>
   );

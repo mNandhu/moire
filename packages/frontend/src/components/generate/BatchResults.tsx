@@ -402,12 +402,15 @@ function PanelResults({
   ratio: number;
   onChanged: (b?: Batch) => void;
 }) {
-  const [picked, setPicked] = useState(0);
-  const at = Math.min(picked, slots.length - 1);
-  if (at < 0) return null;
+  // The pick follows its image, not its place: cells come and go as a
+  // running batch's requests finish.
+  const [picked, setPicked] = useState<string | null>(null);
+  const keys = slots.map(slotKey);
+  const at = Math.max(0, picked ? keys.indexOf(picked) : 0);
   const s = slots[at];
+  if (!s) return null;
   const many = slots.length > 1;
-  const step = (d: number) => setPicked((at + d + slots.length) % slots.length);
+  const step = (d: number) => setPicked(keys[(at + d + slots.length) % slots.length]);
   return (
     <div
       className="[container-type:inline-size]"
@@ -417,8 +420,10 @@ function PanelResults({
         step(e.key === "ArrowLeft" ? -1 : 1);
       }}
     >
-      <div className="mx-auto" style={{ width: `min(100cqw, (100dvh - 22rem) * ${ratio})` }} title={cellTitle(s)}>
-        <SlotCell key={slotKey(s, at)} batch={batch} s={s} ratio={ratio} onChanged={onChanged} />
+      <div className="mx-auto" style={{ width: `min(100cqw, max(6rem, (100dvh - 22rem) * ${ratio}))` }} title={cellTitle(s)}>
+        {/* Unkeyed: stepping swaps the image in place, so focus (and the
+            arrow keys with it) stays on the tile. */}
+        <SlotCell batch={batch} s={s} ratio={ratio} onChanged={onChanged} />
       </div>
       {many && (
         <div className="mt-2 flex flex-wrap justify-center gap-1.5" role="tablist" aria-label="Images in this batch">
@@ -429,7 +434,7 @@ function PanelResults({
               role="tab"
               aria-selected={i === at}
               title={cellTitle(x)}
-              onClick={() => setPicked(i)}
+              onClick={() => setPicked(keys[i])}
               className={cn(
                 "relative h-14 overflow-hidden rounded-md transition-opacity",
                 i === at ? "ring-2 ring-brand-400" : "opacity-70 ring-1 ring-line hover:opacity-100",
@@ -447,30 +452,51 @@ function PanelResults({
 
 /** A slot in the strip: the image, a loader, or a failure mark. */
 function StripThumb({ s }: { s: ResultSlot }) {
-  if (s.kind === "image") {
-    return s.out.thumb_url ? (
+  if (s.kind === "image" && s.out.thumb_url) {
+    return (
       <img
         src={smallThumb(s.out.thumb_url)}
         alt=""
         loading="lazy"
         className={cn("h-full w-full object-cover", s.out.quarantined && "opacity-40 grayscale")}
       />
-    ) : (
-      <span className="flex h-full w-full items-center justify-center bg-raised text-faint">
-        <ImageOff size={13} />
-      </span>
-    );
-  }
-  if (s.kind === "waiting") {
-    return (
-      <span className="flex h-full w-full items-center justify-center bg-raised text-muted">
-        {s.req.state === "running" ? <Loader2 size={13} className="animate-spin" /> : <span className="h-full w-full animate-pulse bg-raised/40" />}
-      </span>
     );
   }
   return (
-    <span className="flex h-full w-full items-center justify-center border border-dashed border-red-900/70 text-red-300/80">
-      <TriangleAlert size={13} />
+    <NoImageMark
+      why={s.kind === "failed" ? "failed" : s.kind === "waiting" ? (s.req.state === "running" ? "running" : "waiting") : "missing"}
+      className="h-full w-full"
+    />
+  );
+}
+
+/** In place of a thumbnail that isn't there, why: failed, on its way, or missing. */
+export function NoImageMark({
+  why,
+  className,
+  style,
+}: {
+  why: "failed" | "running" | "waiting" | "missing";
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <span
+      className={cn(
+        "flex items-center justify-center rounded border border-dashed",
+        why === "failed" ? "border-red-900/70 text-red-300/80" : "border-line text-faint",
+        why === "waiting" && "animate-pulse",
+        className,
+      )}
+      style={style}
+    >
+      {why === "failed" ? (
+        <TriangleAlert size={13} />
+      ) : why === "running" ? (
+        <Loader2 size={13} className="animate-spin" />
+      ) : why === "missing" ? (
+        <ImageOff size={13} />
+      ) : null}
     </span>
   );
 }

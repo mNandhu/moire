@@ -292,27 +292,7 @@ export function PresetControl({
           className="w-full"
         />
       </div>
-      {(() => {
-        const own = extra?.trim();
-        const full = [text, own].filter(Boolean).join(", ");
-        const body = (
-          <>
-            {text}
-            {text && own && ", "}
-            {own && <span className="text-muted">{own}</span>}
-          </>
-        );
-        const cls = "min-w-0 flex-1 truncate text-left font-mono text-xs text-faint";
-        return onPreview ? (
-          <button type="button" onClick={onPreview} className={cn(cls, "self-stretch hover:text-muted")} title={full || undefined}>
-            {body}
-          </button>
-        ) : (
-          <span className={cls} title={full || undefined}>
-            {body}
-          </span>
-        );
-      })()}
+      <PresetPreview text={text} extra={extra} onClick={onPreview} />
       {current && (
         <Button size="sm" variant="ghost" onClick={() => setDialog("edit")} title="Edit this preset">
           Edit
@@ -330,6 +310,29 @@ export function PresetControl({
         }}
       />
     </>
+  );
+}
+
+/** A preset's text on one line, then the layer's own; a button when
+ * clicking it opens where the own text is written. */
+function PresetPreview({ text, extra, onClick }: { text: string; extra?: string; onClick?: () => void }) {
+  const own = extra?.trim();
+  const full = [text, own].filter(Boolean).join(", ");
+  const Tag = onClick ? "button" : "span";
+  return (
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      title={full || undefined}
+      className={cn(
+        "min-w-0 flex-1 truncate text-left font-mono text-xs text-faint",
+        onClick && "self-stretch hover:text-muted",
+      )}
+    >
+      {text}
+      {text && own && ", "}
+      {own && <span className="text-muted">{own}</span>}
+    </Tag>
   );
 }
 

@@ -160,7 +160,8 @@ export default function ImageView() {
         onPointerDown: (e) => {
           // A drag on touch ends without a click to clear this; a new press does.
           justDragged.current = false;
-          if (e.button) return;
+          // Typing and picking in a field aren't drags.
+          if (e.button || (e.target as HTMLElement).closest("input, textarea, select, [contenteditable]")) return;
           const stops = sheetStops();
           dragRef.current = {
             y0: e.clientY,
@@ -972,8 +973,9 @@ export default function ImageView() {
             <div
               // At peek the sheet's lower part is below the screen, so the
               // whole of it drags: a swipe up pulls it up to read, not a
-              // scroll of content that can't be reached.
-              {...(sheet === "peek" ? sheetDrag : {})}
+              // scroll of content that can't be reached. Sideways stays the
+              // browser's, for the batch strip and other rows that scroll.
+              {...(sheet === "peek" && phone ? { ...sheetDrag, style: { touchAction: "pan-x" } } : {})}
               ref={setPanelScroller}
               className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable]"
             >
