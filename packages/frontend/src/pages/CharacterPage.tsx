@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, ExternalLink, Pencil, Tag as TagIcon, UserRound, Wand2 } from "lucide-react";
+import { BookOpen, Copy, ExternalLink, Pencil, Tag as TagIcon, UserRound, Wand2 } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
-import { Button, ButtonLink } from "../components/ui/Button";
+import { Button, ButtonAnchor, ButtonLink } from "../components/ui/Button";
 import { Skeleton } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
 import { useToast } from "../components/Toasts";
@@ -19,8 +19,8 @@ import { cn } from "../lib/cn";
 import { useAmbientTint } from "../lib/ambient";
 import { fetchSignatures } from "../lib/gen";
 import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
-import { useBoilerplate, useCharacterPage, useTagPlaces } from "../lib/queries";
-import { formatTag, toPromptText } from "../lib/tags";
+import { useBoilerplate, useCharacterPage, useTagDescription, useTagPlaces } from "../lib/queries";
+import { danbooruWikiUrl, formatTag, toPromptText } from "../lib/tags";
 import { useChipBorderStyle } from "../hooks/useTagMarks";
 import { tagWorkflows } from "../lib/tagBrowse";
 import { formatUsedRange, groupWorkflows } from "../lib/workflows";
@@ -81,6 +81,7 @@ export default function CharacterPage({ route = "character" }: { route?: "charac
   const place = !person && c ? places?.names[c.tag] : undefined;
   const group = place?.group?.replace(/_tags$/, "").replace(/_/g, " ");
   const groupLine = group ? group.charAt(0).toUpperCase() + group.slice(1) : undefined;
+  const description = useTagDescription(c?.tag);
 
   if (isError) {
     return (
@@ -108,6 +109,12 @@ export default function CharacterPage({ route = "character" }: { route?: "charac
               <Button size="sm" onClick={() => setEditing(true)}>
                 <Pencil size={14} /> Edit
               </Button>
+              {/* Danbooru has a page for characters and the described tags; not for one made here or prompt filler. */}
+              {!c.made && (person || description) && (
+                <ButtonAnchor size="sm" href={danbooruWikiUrl(c.tag)} title="Its page on Danbooru's wiki">
+                  <BookOpen size={14} /> Danbooru
+                </ButtonAnchor>
+              )}
               {!c.made && (
                 <ButtonLink size="sm" variant="primary" to={`/?${serializeFilters(characterFilters(c.tag, c.aliases))}`}>
                   <ExternalLink size={14} /> Open in gallery
@@ -128,7 +135,7 @@ export default function CharacterPage({ route = "character" }: { route?: "charac
           </div>
         ) : (
           <>
-            <Profile c={c} accent={colours[0]} person={person} />
+            <Profile c={c} accent={colours[0]} person={person} name={name} subtitle={series ?? groupLine} description={description} />
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
               <div className="space-y-8 min-w-0">
                 {c.best.length > 0 && <BestOf c={c} />}
@@ -164,9 +171,23 @@ function Avatar({ c, size, accent }: { c: Character; size: string; accent?: stri
   );
 }
 
-/** The avatar, how much of the library they're in, other names, their look
- * (a character's only). */
-function Profile({ c, accent, person }: { c: Character; accent?: string; person: boolean }) {
+/** The avatar beside the name (and series or tag group) and description, how
+ * much of the library they're in, other names, their look (a character's only). */
+function Profile({
+  c,
+  accent,
+  person,
+  name,
+  subtitle,
+  description,
+}: {
+  c: Character;
+  accent?: string;
+  person: boolean;
+  name: string;
+  subtitle?: string | null;
+  description?: string;
+}) {
   const chipBorderStyle = useChipBorderStyle();
   const isBoilerplate = useBoilerplate();
   const { push } = useToast();
@@ -193,6 +214,11 @@ function Profile({ c, accent, person }: { c: Character; accent?: string; person:
     <section className="flex flex-col sm:flex-row gap-5 sm:items-center">
       <Avatar c={c} size="h-28 w-28" accent={accent} />
       <div className="min-w-0 space-y-3">
+        <div>
+          <h2 className="text-2xl font-semibold leading-tight break-words">{name}</h2>
+          {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
+          {description && <p className="mt-2 max-w-prose text-sm leading-snug text-neutral-200">{description}</p>}
+        </div>
         <p className="text-sm text-muted tabular-nums">
           {c.count.toLocaleString()} {c.count === 1 ? "image" : "images"}
           {range && ` · ${range}`}

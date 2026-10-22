@@ -74,3 +74,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 export function ButtonLink({ variant, size, active, className, ...rest }: LinkProps & Look) {
   return <Link className={buttonClasses({ variant, size, active }, className)} {...rest} />;
 }
+
+/** A Button that leaves the app: an external link, opened in a new tab. */
+export function ButtonAnchor({ variant, size, active, className, ...rest }: React.AnchorHTMLAttributes<HTMLAnchorElement> & Look) {
+  return <a target="_blank" rel="noreferrer" className={buttonClasses({ variant, size, active }, className)} {...rest} />;
+}

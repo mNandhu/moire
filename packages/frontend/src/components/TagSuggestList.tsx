@@ -86,6 +86,7 @@ export function TagSuggestList({
   onPick,
   thumbOf,
   noteOf,
+  descriptionOf,
   className,
   style,
 }: {
@@ -96,6 +97,8 @@ export function TagSuggestList({
   thumbOf?: (id: string) => string | null;
   /** A short label for a row (e.g. a character known only to the tagger). */
   noteOf?: (id: string) => string | null;
+  /** The tag's one-sentence description, shown under its name. */
+  descriptionOf?: (id: string) => string | undefined;
   className?: string;
   style?: React.CSSProperties;
 }) {
@@ -108,53 +111,61 @@ export function TagSuggestList({
       style={style}
       role="listbox"
     >
-      {matches.map((s, i) => (
-        <li key={s._id} role="option" aria-selected={i === active}>
-          <button
-            type="button"
-            onMouseEnter={() => onActive(i)}
-            onMouseDown={(e) => {
-              // mousedown (not click) so it fires before input blur.
-              e.preventDefault();
-              onPick(s);
-            }}
-            className={cn(
-              "flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-sm",
-              i === active ? "bg-brand-900/30" : "hover:bg-neutral-800/60",
-            )}
-          >
-            <span className="flex items-center gap-2 min-w-0">
-              {thumbOf && <Thumb url={thumbOf(s._id)} />}
-              <span className="truncate text-neutral-100">
-                {resourceLabel(s._id)?.name ?? formatSearchTag(s._id)}
+      {matches.map((s, i) => {
+        const description = descriptionOf?.(s._id);
+        return (
+          <li key={s._id} role="option" aria-selected={i === active}>
+            <button
+              type="button"
+              onMouseEnter={() => onActive(i)}
+              onMouseDown={(e) => {
+                // mousedown (not click) so it fires before input blur.
+                e.preventDefault();
+                onPick(s);
+              }}
+              className={cn(
+                "flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-sm",
+                i === active ? "bg-brand-900/30" : "hover:bg-neutral-800/60",
+              )}
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                {thumbOf && <Thumb url={thumbOf(s._id)} />}
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="truncate text-neutral-100">
+                      {resourceLabel(s._id)?.name ?? formatSearchTag(s._id)}
+                    </span>
+                    {resourceLabel(s._id) && (
+                      <Badge tone="warning" className="text-2xs shrink-0">
+                        {resourceLabel(s._id)!.kind}
+                      </Badge>
+                    )}
+                    {isManual(s._id) && (
+                      <Badge tone="success" className="text-2xs shrink-0">
+                        manual
+                      </Badge>
+                    )}
+                    {noteOf?.(s._id) && (
+                      <Badge tone="neutral" className="text-2xs shrink-0">
+                        {noteOf(s._id)}
+                      </Badge>
+                    )}
+                    {isPrompt(s._id) && (
+                      <Badge tone="info" className="text-2xs shrink-0">
+                        prompt
+                      </Badge>
+                    )}
+                  </span>
+                  {description && <span className="block text-xs leading-snug text-muted">{description}</span>}
+                </span>
               </span>
-              {resourceLabel(s._id) && (
-                <Badge tone="warning" className="text-2xs shrink-0">
-                  {resourceLabel(s._id)!.kind}
-                </Badge>
+              {s.count > 0 && (
+                <span className="tabular-nums text-xs text-faint shrink-0">{s.count.toLocaleString()}</span>
               )}
-              {isManual(s._id) && (
-                <Badge tone="success" className="text-2xs shrink-0">
-                  manual
-                </Badge>
-              )}
-              {noteOf?.(s._id) && (
-                <Badge tone="neutral" className="text-2xs shrink-0">
-                  {noteOf(s._id)}
-                </Badge>
-              )}
-              {isPrompt(s._id) && (
-                <Badge tone="info" className="text-2xs shrink-0">
-                  prompt
-                </Badge>
-              )}
-            </span>
-            {s.count > 0 && (
-              <span className="tabular-nums text-xs text-faint shrink-0">{s.count.toLocaleString()}</span>
-            )}
-          </button>
-        </li>
-      ))}
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }

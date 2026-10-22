@@ -17,6 +17,7 @@ import {
   type BoilerplateMatcher,
 } from "./boilerplate";
 import { api } from "./api";
+import { descriptionKey } from "./tags";
 import { fetchAiCoverage } from "./ai";
 import type { BrowseTag, TagDetail, TagSource } from "./tagBrowse";
 import type { CharacterPage } from "./character";
@@ -394,4 +395,23 @@ export function useBoardOffers({ enabled = true, list }: { enabled?: boolean; li
     staleTime: TAG_MAP_STALE_MS,
     placeholderData: keepPreviousData,
   });
+}
+
+/** `tag -> one-sentence description` for the tagger's general tags: a file
+ * shipped with the app (and its Danbooru aliases). Not under TAGS_KEY,
+ * which every tag write invalidates. */
+export function useTagDescriptions() {
+  return useQuery({
+    queryKey: ["tag-descriptions"],
+    queryFn: ({ signal }) => api<Record<string, string>>("/api/v1/tags/descriptions", { signal }),
+    // Aliases join once the server has Danbooru's list, so look again now and then.
+    staleTime: TAG_MAP_STALE_MS,
+    gcTime: Infinity,
+  });
+}
+
+/** One tag's description (any spelling: prefixed, spaced, any case), if it has one. */
+export function useTagDescription(tag: string | null | undefined): string | undefined {
+  const { data } = useTagDescriptions();
+  return tag ? data?.[descriptionKey(tag)] : undefined;
 }

@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Pencil, Tag as TagIcon, UserRound, X } from "lucide-react";
+import { BookOpen, ExternalLink, Pencil, Tag as TagIcon, UserRound, X } from "lucide-react";
 import { Badge } from "./ui/Badge";
-import { Button, ButtonLink } from "./ui/Button";
+import { Button, ButtonAnchor, ButtonLink } from "./ui/Button";
 import { Skeleton } from "./ui/Skeleton";
 import { Mosaic, type Sample } from "./TagMosaic";
 import { useToast } from "./Toasts";
@@ -15,8 +15,8 @@ import { updateCharacter } from "../lib/imageMutations";
 import { characterHref, tagHref } from "../lib/character";
 import { CharacterAvatar } from "./CharacterAvatar";
 import { useCharacterLookup } from "./ImageCharacters";
-import { TAGS_KEY, useBoilerplate, useTagDetail } from "../lib/queries";
-import { formatTag } from "../lib/tags";
+import { TAGS_KEY, useBoilerplate, useTagDescription, useTagDetail } from "../lib/queries";
+import { danbooruWikiUrl, formatTag } from "../lib/tags";
 import { groupWorkflows, formatUsedRange } from "../lib/workflows";
 import { useImageFeed } from "../hooks/useImageFeed";
 import { usePinCover } from "../hooks/usePinCover";
@@ -63,6 +63,7 @@ export function TagPanel({
   const characterOf = useCharacterLookup();
   const character = detail?.category === "character" ? characterOf.get(tag) : undefined;
   const isBoilerplate = useBoilerplate();
+  const description = useTagDescription(tag);
   const { data: signatures } = useQuery({
     queryKey: ["rules-signatures"],
     queryFn: fetchSignatures,
@@ -149,6 +150,8 @@ export function TagPanel({
         </button>
       </div>
 
+      {description && <p className="text-sm leading-snug text-neutral-200">{description}</p>}
+
       {/* A character's avatar heads the panel; a tag shows a collage. */}
       {detail?.category !== "character" && (
         <Link to={tagHref(tag)} title="Open the tag's page" className="block rounded-lg overflow-hidden hover:opacity-90">
@@ -192,6 +195,12 @@ export function TagPanel({
               </Button>
             );
           })}
+        {/* Danbooru has a page for the tagger's tags and the described ones; not for prompt filler or your own words. */}
+        {detail && (detail.sources.ai > 0 || description) && (
+          <ButtonAnchor size="sm" href={danbooruWikiUrl(tag)} title="Its page on Danbooru's wiki">
+            <BookOpen size={14} /> Danbooru
+          </ButtonAnchor>
+        )}
       </div>
 
       {detail && (

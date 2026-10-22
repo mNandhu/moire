@@ -53,6 +53,16 @@ export function formatTag(raw: string): string {
   return KAOMOJIS.has(name) ? name : name.replace(/_/g, " ");
 }
 
+/** The key a tag's description is filed under: bare, underscored, lowercase. */
+export function descriptionKey(raw: string): string {
+  return tagName(raw).trim().replace(/\s+/g, "_").toLowerCase();
+}
+
+/** The tag's page on Danbooru's wiki. */
+export function danbooruWikiUrl(raw: string): string {
+  return `https://danbooru.donmai.us/wiki_pages/${encodeURIComponent(descriptionKey(raw))}`;
+}
+
 /**
  * Text to match a typed query against a tag's display form: `blue_eyes` and
  * `blue eyes` are the same tag, so either spelling finds it.

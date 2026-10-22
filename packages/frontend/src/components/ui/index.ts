@@ -1,4 +1,4 @@
-export { Button, ButtonLink } from "./Button";
+export { Button, ButtonAnchor, ButtonLink } from "./Button";
 export type { ButtonProps } from "./Button";
 export { Card, Section } from "./Card";
 export { Input, Field } from "./Input";

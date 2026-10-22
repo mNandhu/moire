@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   adherenceGroups,
   bulkTagNames,
+  danbooruWikiUrl,
+  descriptionKey,
   formatSearchTag,
   formatTag,
   planRename,
@@ -196,5 +198,20 @@ describe("adherenceGroups", () => {
   it("is null with only one side to compare", () => {
     expect(adherenceGroups(tagFlow(["prompt:neon", "manual:fav"]))).toBeNull();
     expect(adherenceGroups(tagFlow(["solo", "manual:fav"], ai))).toBeNull();
+  });
+});
+
+describe("descriptionKey", () => {
+  it("files any spelling under the bare, underscored, lowercase name", () => {
+    expect(descriptionKey("prompt:Blue Eyes")).toBe("blue_eyes");
+    expect(descriptionKey("manual:hime_cut")).toBe("hime_cut");
+    expect(descriptionKey("ahoge")).toBe("ahoge");
+  });
+
+  it("links the Danbooru wiki page, escaped", () => {
+    expect(danbooruWikiUrl("prompt:keyboard (computer)")).toBe(
+      "https://danbooru.donmai.us/wiki_pages/keyboard_(computer)",
+    );
+    expect(danbooruWikiUrl("+_+")).toBe("https://danbooru.donmai.us/wiki_pages/%2B_%2B");
   });
 });

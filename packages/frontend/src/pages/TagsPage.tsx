@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Tag as TagIcon, Slash, Search, GitMerge, Undo2, LayoutGrid, List, UserPlus } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -20,9 +20,10 @@ import {
   useTagAggregate,
   useTagAliases,
   useTagBrowse,
+  useTagDescriptions,
   type TagAgg,
 } from "../lib/queries";
-import { formatTag, tagName } from "../lib/tags";
+import { descriptionKey, formatTag, tagName } from "../lib/tags";
 import { invalidateFeeds } from "../lib/feedCache";
 import { OverlayOpenContext } from "../lib/backgroundLocation";
 import {
@@ -44,7 +45,10 @@ import { Mosaic, type Sample } from "../components/TagMosaic";
 import { FaceCrop } from "../components/CharacterAvatar";
 import { useCharacterLookup, useCharacters } from "../components/ImageCharacters";
 import { NewCharacterDialog } from "../components/NewCharacterDialog";
+import { Tooltip } from "../components/ui/Tooltip";
 import { CARD_ZOOM, characterHref, displayName, focusPosition, inkOn, type CharacterEntry } from "../lib/character";
+
+type Describe = (tag: string) => string | undefined;
 
 // A spine for a character with no colour of its own.
 const SPINE_NEUTRAL = "#8a8797";
@@ -88,6 +92,8 @@ export default function TagsPage() {
     [setParams, selected],
   );
   const isBoilerplate = useBoilerplate();
+  const { data: descriptions } = useTagDescriptions();
+  const describe = useCallback<Describe>((tag) => descriptions?.[descriptionKey(tag)], [descriptions]);
 
   useEffect(() => {
     try {
@@ -199,7 +205,7 @@ export default function TagsPage() {
   const shownCount = shelf.length + general.length;
   const [creating, setCreating] = useState(false);
   const onSelect = (tag: string) => (made.includes(tag) ? navigate(characterHref(tag)) : setSelected(tag));
-  const sectionProps = { view, source, selected, onSelect, epoch: tags };
+  const sectionProps = { view, source, selected, onSelect, epoch: tags, describe };
   return (
     <>
       <PageHeader
@@ -429,6 +435,7 @@ function TagSection({
   selected,
   onSelect,
   epoch,
+  describe,
 }: {
   title: string | null;
   rows: BrowseTag[];
@@ -437,6 +444,7 @@ function TagSection({
   selected: string | null;
   onSelect: (tag: string) => void;
   epoch: unknown;
+  describe: Describe;
 }) {
   const [visible, setVisible] = useState(PAGE[view]);
   // A new filter or view starts the section from its first page again.
@@ -452,11 +460,13 @@ function TagSection({
         </h2>
       )}
       {view === "grid" ? (
-        <TagGrid rows={shown} source={source} selected={selected} onSelect={onSelect} epoch={epoch} />
+        <TagGrid rows={shown} source={source} selected={selected} onSelect={onSelect} epoch={epoch} describe={describe} />
       ) : (
         <div className="rounded-xl border border-white/5 bg-surface shadow-panel overflow-hidden divide-y divide-white/5">
           {shown.map((t) => (
-            <TagRow key={t.tag} tag={t} max={max} active={t.tag === selected} onSelect={onSelect} />
+            <Described key={t.tag} text={describe(t.tag)}>
+              <TagRow tag={t} max={max} active={t.tag === selected} onSelect={onSelect} />
+            </Described>
           ))}
         </div>
       )}
@@ -478,12 +488,14 @@ function TagGrid({
   selected,
   onSelect,
   epoch,
+  describe,
 }: {
   rows: BrowseTag[];
   source: TagSource;
   selected: string | null;
   onSelect: (tag: string) => void;
   epoch: unknown;
+  describe: Describe;
 }) {
   const [samples, setSamples] = useState<Record<string, Sample[]>>({});
   const characters = useCharacterLookup();
@@ -524,13 +536,14 @@ function TagGrid({
             onSelect={onSelect}
           />
         ) : (
-          <NumeralCard
-            key={t.tag}
-            tag={t}
-            samples={samples[galleryTag(t.tag, source)]}
-            selected={t.tag === selected}
-            onSelect={onSelect}
-          />
+          <Described key={t.tag} text={describe(t.tag)}>
+            <NumeralCard
+              tag={t}
+              samples={samples[galleryTag(t.tag, source)]}
+              selected={t.tag === selected}
+              onSelect={onSelect}
+            />
+          </Described>
         ),
       )}
     </div>
@@ -615,7 +628,7 @@ function NumeralCard({
       type="button"
       onClick={() => onSelect(t.tag)}
       aria-pressed={selected}
-      className={cn(CARD, "bg-sheen", cardState(selected))}
+      className={cn(CARD, "bg-sheen w-full", cardState(selected))}
     >
       <Mosaic samples={samples} cover={t.thumb_url} focus={t.focus} focusImage={t.thumb_image_id} className="aspect-[3/4]" smallCells />
       <div className="relative overflow-hidden px-3 pt-2.5 pb-3">
@@ -675,6 +688,16 @@ function TagRow({
       </span>
       <span className="text-sm text-muted tabular-nums text-right">{tag.count.toLocaleString()}</span>
     </button>
+  );
+}
+
+/** A hover card with the tag's description, around a card or row. */
+function Described({ text, children }: { text: string | undefined; children: ReactNode }) {
+  if (!text) return <>{children}</>;
+  return (
+    <Tooltip content={text} className="flex min-w-0">
+      {children}
+    </Tooltip>
   );
 }
 

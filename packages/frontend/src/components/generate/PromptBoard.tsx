@@ -13,6 +13,8 @@ import {
   useBoardOffers,
   useBoilerplate,
   useTagBrowse,
+  useTagDescription,
+  useTagDescriptions,
   useTagPlaces,
   type BoardSection,
   type TagPlace,
@@ -21,6 +23,7 @@ import { CharacterAvatar } from "../CharacterAvatar";
 import { TagSuggestList, type TagSuggestion } from "../TagSuggestList";
 import { useDropSide } from "../../hooks/useDropSide";
 import { Tooltip } from "../ui";
+import { descriptionKey } from "../../lib/tags";
 import { useToast } from "../Toasts";
 
 /** A board box: a server section, or one the prompt's own syntax decides. */
@@ -105,9 +108,11 @@ function readFolded(): boolean {
   }
 }
 const NO_OPTIONS: TagSuggestion[] = [];
-// TagSuggestList's own max-h-72, and about one row's height with its padding.
+// TagSuggestList's own max-h-72, and about one row's height with its padding
+// (a described row adds about two lines).
 const LIST_HEIGHT = 288;
 const ROW_HEIGHT = 36;
+const DESCRIBED_ROW_HEIGHT = 66;
 
 /** Focus the next part's field after `from` in its board, or let go of the last one. */
 function focusNextPart(from: HTMLInputElement) {
@@ -134,6 +139,7 @@ function TagPreview({ term, count, swap }: { term: Placed; count: number | undef
   const p = term.place;
   const tag = p?.alias_of ?? term.name;
   const tagged = term.kind === "tag";
+  const description = useTagDescription(tagged ? tag : null);
   const { data, isPending } = useQuery({
     // The Tags page's pick: shuffled, one image per batch while it can.
     queryKey: [...TAGS_KEY, "samples", `any:${tag}`, 4],
@@ -167,6 +173,7 @@ function TagPreview({ term, count, swap }: { term: Placed; count: number | undef
           </a>
         ) : null}
       </div>
+      {description && <p className="text-xs leading-snug text-neutral-200">{description}</p>}
       {p?.alias_of && (
         <div className="flex items-center gap-2 text-xs text-amber-200">
           Alias of {p.alias_of.replace(/_/g, " ")}
@@ -278,6 +285,7 @@ function GroupBox({
   swapOf,
   onClear,
   tone,
+  describe,
 }: {
   label: string;
   box: BoxKey;
@@ -294,6 +302,8 @@ function GroupBox({
   /** Takes out the Prompt's tags here and strikes the layers' (absent when there are none). */
   onClear?: () => void;
   tone?: string;
+  /** A tag's description, shown under it in the suggestions. */
+  describe: (id: string) => string | undefined;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -311,7 +321,8 @@ function GroupBox({
   // On a phone the keyboard leaves little room below: the list goes up then,
   // off the next box, which can be tapped straight away. Sized by what it
   // holds, so a short list that fits below stays there.
-  const side = useDropSide(boxRef, open, Math.min(LIST_HEIGHT, matches.length * ROW_HEIGHT + 8));
+  const listHeight = matches.reduce((h, m) => h + (describe(m._id) ? DESCRIBED_ROW_HEIGHT : ROW_HEIGHT), 8);
+  const side = useDropSide(boxRef, open, Math.min(LIST_HEIGHT, listHeight));
   const add = (name: string) => {
     if (!name.trim()) return;
     onAdd(name);
@@ -419,6 +430,7 @@ function GroupBox({
           onActive={setActive}
           onPick={(m) => add(m._id)}
           thumbOf={thumbOf}
+          descriptionOf={describe}
           className={cn("left-0 z-30", side.up ? "bottom-full mt-0 mb-1" : "top-full")}
           style={{ maxHeight: side.max }}
         />
@@ -449,6 +461,8 @@ export function PromptBoard({
 }) {
   const boilerplate = useBoilerplate();
   const { push } = useToast();
+  const { data: descriptions } = useTagDescriptions();
+  const describe = useCallback((id: string) => descriptions?.[descriptionKey(id)], [descriptions]);
   const latest = useRef(prompt);
   latest.current = prompt;
   const terms = useMemo(() => promptTerms(prompt), [prompt]);
@@ -576,6 +590,7 @@ export function PromptBoard({
       swapOf={swapOf}
       onClear={clearable(k) ? () => clear(k, label) : undefined}
       tone={tone}
+      describe={describe}
     />
   );
   const unknown = byBox.get("unknown")?.length ?? 0;
