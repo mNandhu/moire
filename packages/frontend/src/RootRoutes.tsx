@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, type ComponentType } from "react";
 import { Navigate, Routes, Route, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { OverlayOpenContext, getBackgroundLocation } from "./lib/backgroundLocation";
@@ -10,23 +10,55 @@ import { useTrackHistory } from "./hooks/useHistoryNav";
 import { ONBOARDING_KEY, fetchOnboarding } from "./lib/onboarding";
 import { ShortcutHelp } from "./components/ShortcutOverlay";
 
+// A tab opened before a rebuild asks for chunks the build deleted: reload
+// once for the new ones rather than show an error page.
+const RELOADED_KEY = "moire.chunk-reload";
+function lazyPage<T extends ComponentType>(load: () => Promise<{ default: T }>) {
+  return lazy(() =>
+    load().then(
+      (m) => {
+        try {
+          sessionStorage.removeItem(RELOADED_KEY);
+        } catch {
+          // Storage refused: nothing to clear.
+        }
+        return m;
+      },
+      (e) => {
+        let reloaded = true;
+        try {
+          reloaded = sessionStorage.getItem(RELOADED_KEY) === "1";
+          if (!reloaded) sessionStorage.setItem(RELOADED_KEY, "1");
+        } catch {
+          // Without storage a reload could loop; show the error instead.
+        }
+        if (!reloaded) {
+          window.location.reload();
+          return new Promise<never>(() => {});
+        }
+        throw e;
+      },
+    ),
+  );
+}
+
 // Pages off the gallery's path load on first visit, so the first paint
 // doesn't wait for Generate's code. The gallery and the image view (it opens
 // over the gallery, instantly) stay in the main bundle.
-const OverviewPage = lazy(() => import("./pages/OverviewPage"));
-const LibrariesPage = lazy(() => import("./pages/LibrariesPage"));
-const CharacterPage = lazy(() => import("./pages/CharacterPage"));
-const SettingsPage = lazy(() => import("./pages/SettingsPage"));
-const AITaggingPage = lazy(() => import("./pages/AITaggingPage"));
-const RulesPage = lazy(() => import("./pages/RulesPage"));
-const GeneratePage = lazy(() => import("./pages/GeneratePage"));
-const GenerationsPage = lazy(() => import("./pages/GenerationsPage"));
-const OutfitsPage = lazy(() => import("./pages/OutfitsPage"));
-const WorkflowSetupPage = lazy(() => import("./pages/WorkflowSetupPage"));
-const BatchPage = lazy(() => import("./pages/BatchPage"));
-const WelcomePage = lazy(() => import("./pages/WelcomePage"));
-const TagsPage = lazy(() => import("./pages/TagsPage"));
-const TagGroupPage = lazy(() => import("./pages/TagsPage").then((m) => ({ default: m.TagGroupPage })));
+const OverviewPage = lazyPage(() => import("./pages/OverviewPage"));
+const LibrariesPage = lazyPage(() => import("./pages/LibrariesPage"));
+const CharacterPage = lazyPage(() => import("./pages/CharacterPage"));
+const SettingsPage = lazyPage(() => import("./pages/SettingsPage"));
+const AITaggingPage = lazyPage(() => import("./pages/AITaggingPage"));
+const RulesPage = lazyPage(() => import("./pages/RulesPage"));
+const GeneratePage = lazyPage(() => import("./pages/GeneratePage"));
+const GenerationsPage = lazyPage(() => import("./pages/GenerationsPage"));
+const OutfitsPage = lazyPage(() => import("./pages/OutfitsPage"));
+const WorkflowSetupPage = lazyPage(() => import("./pages/WorkflowSetupPage"));
+const BatchPage = lazyPage(() => import("./pages/BatchPage"));
+const WelcomePage = lazyPage(() => import("./pages/WelcomePage"));
+const TagsPage = lazyPage(() => import("./pages/TagsPage"));
+const TagGroupPage = lazyPage(() => import("./pages/TagsPage").then((m) => ({ default: m.TagGroupPage })));
 
 // ImageView opens over the gallery rather than replacing it: opening a thumbnail
 // pushes `/image/:id` with `state.backgroundLocation` set to the gallery location
