@@ -1,11 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Undo2, X } from "lucide-react";
+import { ChevronDown, Eraser, ExternalLink, Undo2, X } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { fuzzyRank } from "../../lib/fuzzy";
 import { api } from "../../lib/api";
 import { smallThumb } from "../../lib/media";
-import type { CharacterEntry } from "../../lib/character";
+import { tagHref, type CharacterEntry } from "../../lib/character";
 import type { Sample } from "../TagMosaic";
 import { appendPiece, appendTag, promptTerms, removeSpan, replaceName, type PromptTerm } from "../../lib/promptOutline";
 import {
@@ -20,6 +20,7 @@ import {
 import { CharacterAvatar } from "../CharacterAvatar";
 import { TagSuggestList, type TagSuggestion } from "../TagSuggestList";
 import { Tooltip } from "../ui";
+import { useToast } from "../Toasts";
 
 /** A board box: a server section, or one the prompt's own syntax decides. */
 type BoxKey = BoardSection | "prose" | "resources";
@@ -71,7 +72,15 @@ export type LayerTag = { tag: string; dropped?: boolean; onToggle?: () => void; 
 /** A layer other than the Prompt: a character (their recipe's tags, shown
  * in each box beside their avatar) or a text layer (prefix, preset). What
  * it covers keeps a part from reading as missing. */
-export type BoardLayer = { key: string; label: string; character?: CharacterEntry; text?: string; tags?: LayerTag[] };
+export type BoardLayer = {
+  key: string;
+  label: string;
+  character?: CharacterEntry;
+  text?: string;
+  tags?: LayerTag[];
+  /** Strikes several of its tags at once (one state update, so none is lost); returns the undo. */
+  onStrike?: (tags: string[]) => () => void;
+};
 
 type Placed = PromptTerm & { box: BoxKey; place?: TagPlace; dropped?: boolean; self?: boolean; onToggle?: () => void };
 type Cover = { layer: BoardLayer; terms: Placed[] };
@@ -124,7 +133,7 @@ function TagPreview({ term, count, swap }: { term: Placed; count: number | undef
   });
   return (
     <div className="w-[17rem] space-y-2">
-      <div className="flex items-baseline gap-2">
+      <div className="flex items-center gap-2">
         <span className="font-medium text-neutral-50">{term.written}</span>
         {term.weight != null && <span className="text-xs text-amber-300">{term.weight}</span>}
         {tagged && (
@@ -132,6 +141,18 @@ function TagPreview({ term, count, swap }: { term: Placed; count: number | undef
             {count ? `${count.toLocaleString()} ${count === 1 ? "image" : "images"}` : "Not in library"}
           </span>
         )}
+        {tagged && count ? (
+          <a
+            href={tagHref(tag)}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`Open the ${term.written} tag page`}
+            title="Open the tag page"
+            className="-mr-0.5 shrink-0 rounded p-0.5 text-faint hover:bg-white/10 hover:text-neutral-100"
+          >
+            <ExternalLink size={13} />
+          </a>
+        ) : null}
       </div>
       {p?.alias_of && (
         <div className="flex items-center gap-2 text-xs text-amber-200">
@@ -214,17 +235,17 @@ function Chip({
  * name, else the layer's name. */
 function CoverRow({ cover, counts }: { cover: Cover; counts: Map<string, number> }) {
   const c = cover.layer.character;
+  const shown = cover.terms.filter((t) => !t.self);
+  const allOff = shown.length > 0 && shown.every((t) => t.dropped);
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className={cn("flex flex-wrap items-center gap-1.5 transition-opacity", allOff && "opacity-50")}>
       <span className="inline-flex items-center gap-1.5 pr-0.5 text-xs text-muted">
         {c && <CharacterAvatar src={c.thumb_url} face={c.face} focus={c.focus} aspect={c.aspect} letter={cover.layer.label} className="h-5 w-5 ring-1 ring-line" />}
         {cover.layer.label}
       </span>
-      {cover.terms
-        .filter((t) => !t.self)
-        .map((t) => (
-          <Chip key={t.name} term={t} counts={counts} onRemove={t.onToggle} />
-        ))}
+      {shown.map((t) => (
+        <Chip key={t.name} term={t} counts={counts} onRemove={t.onToggle} />
+      ))}
     </div>
   );
 }
@@ -242,6 +263,7 @@ function GroupBox({
   onAdd,
   onRemove,
   swapOf,
+  onClear,
   tone,
 }: {
   label: string;
@@ -256,6 +278,8 @@ function GroupBox({
   onAdd: (name: string) => void;
   onRemove: (t: Placed) => void;
   swapOf: (t: Placed) => { label: string; run: () => void } | undefined;
+  /** Takes out the Prompt's tags here and strikes the layers' (absent when there are none). */
+  onClear?: () => void;
   tone?: string;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -276,12 +300,13 @@ function GroupBox({
     setQ("");
     setActive(-1);
   };
-  const gap = terms.length === 0 && !covers.some((c) => c.terms.some((t) => !t.dropped));
+  // A character's own tag is filed under Subject but doesn't say how many.
+  const gap = terms.length === 0 && !covers.some((c) => c.terms.some((t) => !t.dropped && !t.self));
   const missing = gap && BOXES.find((b) => b.key === box)?.expected;
   return (
     <div
       className={cn(
-        "relative rounded-lg border px-3 py-2 transition-colors",
+        "group/box relative rounded-lg border px-3 py-2 transition-colors",
         addable && "cursor-text hover:border-line-strong",
         open ? "border-brand-600/70 bg-canvas/80" : (tone ?? (missing ? "border-dashed border-amber-500/40 bg-amber-500/5" : "border-line bg-canvas/60")),
       )}
@@ -294,6 +319,17 @@ function GroupBox({
       <div className="mb-1.5 flex min-h-5 items-center gap-1.5 text-xs font-medium text-muted">
         {label}
         {missing && <span className="text-amber-300">Missing</span>}
+        {onClear && (
+          <button
+            type="button"
+            onClick={onClear}
+            aria-label={`Clear ${label}`}
+            title={`Clear ${label}`}
+            className="ml-auto rounded p-1 text-faint opacity-0 transition-opacity hover:bg-white/10 hover:text-neutral-100 focus-visible:opacity-100 group-hover/box:opacity-100 [@media(hover:none)]:opacity-100"
+          >
+            <Eraser size={13} />
+          </button>
+        )}
       </div>
       {covers.length > 0 && (
         <div className="mb-1.5 space-y-1.5">
@@ -380,6 +416,9 @@ export function PromptBoard({
   pool: readonly TagSuggestion[];
 }) {
   const boilerplate = useBoilerplate();
+  const { push } = useToast();
+  const latest = useRef(prompt);
+  latest.current = prompt;
   const terms = useMemo(() => promptTerms(prompt), [prompt]);
   // The page rebuilds `layers` every render; parse them again only when
   // what they say changes.
@@ -462,9 +501,32 @@ export function PromptBoard({
   const byBox = new Map<BoxKey, Placed[]>();
   for (const t of mine) byBox.set(t.box, [...(byBox.get(t.box) ?? []), t]);
   const coversOf = (k: BoxKey) => theirs.flatMap((l) => {
-    const ts = l.terms.filter((t) => t.box === k);
+    // The character's own tag is filed here but never drawn: a row of only
+    // that would be an avatar and a name with nothing after them.
+    const ts = l.terms.filter((t) => t.box === k && !t.self);
     return ts.length ? [{ layer: l.layer, terms: ts }] : [];
   });
+  // Clear: this box's Prompt tags come out (last first, so the spans hold)
+  // and every layer tag still on is struck for this batch.
+  const live = (k: BoxKey) => theirs.map((l) => ({ layer: l.layer, tags: l.terms.filter((t) => t.box === k && !t.dropped && !t.self && t.onToggle).map((t) => t.name) }));
+  const clearable = (k: BoxKey) => ADDABLE.has(k) && ((byBox.get(k)?.length ?? 0) > 0 || live(k).some((l) => l.tags.length > 0));
+  const clear = (k: BoxKey, label: string) => {
+    let text = prompt;
+    for (const t of [...(byBox.get(k) ?? [])].sort((a, b) => b.start - a.start)) text = removeSpan(text, t.start, t.end);
+    if (text !== prompt) onPrompt(text);
+    const undos = live(k).flatMap((l) => (l.tags.length && l.layer.onStrike ? [l.layer.onStrike(l.tags)] : []));
+    const before = prompt;
+    push(`Cleared ${label}`, {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          // Text typed since stays: only an untouched prompt is put back.
+          if (text !== before && latest.current === text) onPrompt(before);
+          for (const undo of undos) undo();
+        },
+      },
+    });
+  };
   const box = (k: BoxKey, label: string, tone?: string) => (
     <GroupBox
       key={k}
@@ -480,13 +542,14 @@ export function PromptBoard({
       onAdd={add}
       onRemove={remove}
       swapOf={swapOf}
+      onClear={clearable(k) ? () => clear(k, label) : undefined}
       tone={tone}
     />
   );
   const unknown = byBox.get("unknown")?.length ?? 0;
   const shown = BOXES.filter((b) => b.expected || b.always || byBox.has(b.key) || theirs.some((l) => l.terms.some((t) => t.box === b.key)));
   const missing = BOXES.filter(
-    (b) => b.expected && !byBox.has(b.key) && !theirs.some((l) => l.terms.some((t) => t.box === b.key && !t.dropped)),
+    (b) => b.expected && !byBox.has(b.key) && !theirs.some((l) => l.terms.some((t) => t.box === b.key && !t.dropped && !t.self)),
   );
   return (
     <div className="mt-3" aria-label="Prompt board">

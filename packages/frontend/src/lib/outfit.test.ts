@@ -7,6 +7,8 @@ import {
   pickFromInput,
   pickOf,
   suggestOutfitName,
+  restoreWorn,
+  strikeWorn,
   toggleWorn,
   validOutfits,
   wornTags,
@@ -25,6 +27,21 @@ const funeral = pickOf({
 });
 
 describe("outfit picks", () => {
+  it("restores struck and removed tags, keeping what was added since", () => {
+    const before = addWorn(funeral, "black shorts");
+    const struck = strikeWorn(before, ["porkpie_hat", "black_shorts"]);
+    const later = addWorn(struck, "scarf");
+    const back = restoreWorn(later, before, ["porkpie_hat", "black_shorts"]);
+    expect(wornTags(back)).toEqual(["porkpie_hat", "long_coat", "black_shorts", "scarf"]);
+    expect(back.added).toEqual(["black_shorts", "scarf"]);
+  });
+
+  it("strikes several tags at once, leaving struck ones struck", () => {
+    const struck = toggleWorn(funeral, "long_coat");
+    expect(wornTags(strikeWorn(struck, ["porkpie_hat", "long_coat"]))).toEqual([]);
+    expect(strikeWorn(struck, ["long_coat"]).dropped).toEqual(["long_coat"]);
+  });
+
   it("strikes, restores and adds tags for this batch only", () => {
     const struck = toggleWorn(funeral, "long_coat");
     expect(wornTags(struck)).toEqual(["porkpie_hat"]);

@@ -78,8 +78,8 @@ import { AddLayer, EmbeddingLayer, LayerRow, NegativeLayer, PresetControl, TextL
 import { characterPageQuery, useTagAggregate } from "../lib/queries";
 import { characterColours, displayName, mixColours } from "../lib/character";
 import { useAmbientTint } from "../lib/ambient";
-import { characterInput, characterTags, toggleOff } from "../lib/recipe";
-import { keepPicked, outfitInput, pickOf, toggleWorn, wornTags, type OutfitPick } from "../lib/outfit";
+import { characterInput, characterTags, restoreOff, strikeOff, toggleOff } from "../lib/recipe";
+import { keepPicked, outfitInput, pickOf, restoreWorn, strikeWorn, toggleWorn, wornTags, type OutfitPick } from "../lib/outfit";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
 import { PromptBoard, type BoardLayer } from "../components/generate/PromptBoard";
@@ -441,6 +441,23 @@ export default function GeneratePage() {
           key: `character:${r.tag}`,
           label: displayName(entry ?? { tag: r.tag }).name,
           character: entry,
+          onStrike: (tags: string[]) => {
+            const was = { off: form.identityOff[r.tag], pick: form.outfits[r.tag] };
+            const mine = tags.filter((t) => r.identity.some((c) => c.tag === t));
+            setForm((f) => {
+              const out = { ...f, identityOff: { ...f.identityOff, [r.tag]: strikeOff(f.identityOff[r.tag], mine) } };
+              const cur = f.outfits[r.tag];
+              if (cur) out.outfits = { ...f.outfits, [r.tag]: strikeWorn(cur, tags.filter((t) => cur.tags.includes(t))) };
+              return out;
+            });
+            return () =>
+              setForm((f) => {
+                const out = { ...f, identityOff: { ...f.identityOff, [r.tag]: restoreOff(f.identityOff[r.tag], mine) } };
+                const cur = f.outfits[r.tag];
+                if (cur && was.pick) out.outfits = { ...f.outfits, [r.tag]: restoreWorn(cur, was.pick, tags) };
+                return out;
+              });
+          },
           tags: [
             { tag: r.tag, self: true },
             ...r.identity

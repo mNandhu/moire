@@ -36,3 +36,13 @@ export function toggleOff(off: readonly string[] | undefined, tag: string): stri
   const now = off ?? [];
   return now.includes(tag) ? now.filter((t) => t !== tag) : [...now, tag];
 }
+
+/** Identity tags struck for this batch after striking each of `tags`. Pure. */
+export function strikeOff(off: readonly string[] | undefined, tags: readonly string[]): string[] {
+  return [...new Set([...(off ?? []), ...tags])];
+}
+
+/** Identity tags struck after bringing each of `tags` back. Pure. */
+export function restoreOff(off: readonly string[] | undefined, tags: readonly string[]): string[] {
+  return (off ?? []).filter((t) => !tags.includes(t));
+}

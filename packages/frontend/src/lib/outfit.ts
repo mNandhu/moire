@@ -53,6 +53,20 @@ export function toggleWorn(p: OutfitPick, tag: string): OutfitPick {
     : { ...p, dropped: [...p.dropped, tag] };
 }
 
+/** The pick with each of `tags` struck, the batch's own additions gone. Pure. */
+export function strikeWorn(p: OutfitPick, tags: readonly string[]): OutfitPick {
+  return tags.reduce((acc, t) => (acc.dropped.includes(t) && !acc.added?.includes(t) ? acc : toggleWorn(acc, t)), p);
+}
+
+/** `cur` with `tags` back as `prev` had them (struck ones worn again, the
+ * batch's own additions returned), anything done since kept. Pure. */
+export function restoreWorn(cur: OutfitPick, prev: OutfitPick, tags: readonly string[]): OutfitPick {
+  const back = new Set(tags);
+  const all = [...prev.tags, ...cur.tags.filter((t) => !prev.tags.includes(t))];
+  const added = [...new Set([...(prev.added ?? []), ...(cur.added ?? [])])].filter((t) => all.includes(t));
+  return { ...cur, tags: all, dropped: cur.dropped.filter((t) => !back.has(t)), ...(added.length ? { added } : {}) };
+}
+
 /** The pick with `tag` added for this batch (once). Pure. */
 export function addWorn(p: OutfitPick, tag: string): OutfitPick {
   const t = canonicalName(tag);
