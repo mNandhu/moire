@@ -7,7 +7,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import tag_index
+from moire.services import attire, tag_index
 
 pytestmark = pytest.mark.asyncio
 
@@ -245,3 +245,13 @@ async def test_descriptions_merge_is_kept_until_the_alias_map_changes(
         assert tag_descriptions.served({}) == {"closed_eyes": "Shut."}
     finally:
         tag_descriptions.reset_for_tests()
+
+
+async def test_tag_groups_route(client, seed):
+    seed("L1:a", tags=("serafuku", "prompt:pastel_pink_dolphin_shorts", "manual:fav"))
+    body = (await client.get("/tags/groups")).json()
+    assert body["tags"]["serafuku"] == attire.group_of("serafuku")
+    assert body["tags"]["pastel_pink_dolphin_shorts"] == "attire"
+    assert "fav" not in body["tags"]
+    assert body["categories"]["attire"] == "attire_and_body_accessories"
+    assert set(body["categories"]) == set(body["tags"].values())

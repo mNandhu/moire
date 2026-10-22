@@ -15,7 +15,8 @@ import { updateCharacter } from "../lib/imageMutations";
 import { characterHref, tagHref } from "../lib/character";
 import { CharacterAvatar } from "./CharacterAvatar";
 import { useCharacterLookup } from "./ImageCharacters";
-import { TAGS_KEY, useBoilerplate, useTagDescription, useTagDetail } from "../lib/queries";
+import { TAGS_KEY, useBoilerplate, useTagDescription, useTagDetail, useTagGroups } from "../lib/queries";
+import { groupHref, groupLabel, groupOf } from "../lib/tagGroups";
 import { danbooruWikiUrl, formatTag, onDanbooru } from "../lib/tags";
 import { groupWorkflows, formatUsedRange } from "../lib/workflows";
 import { useImageFeed } from "../hooks/useImageFeed";
@@ -64,6 +65,8 @@ export function TagPanel({
   const character = detail?.category === "character" ? characterOf.get(tag) : undefined;
   const isBoilerplate = useBoilerplate();
   const description = useTagDescription(tag);
+  const { data: groups } = useTagGroups();
+  const group = groupOf(groups, tag);
   const { data: signatures } = useQuery({
     queryKey: ["rules-signatures"],
     queryFn: fetchSignatures,
@@ -124,6 +127,15 @@ export function TagPanel({
           <h2 className="text-lg font-semibold leading-tight break-words flex items-center gap-2 flex-wrap">
             {formatTag(tag)}
             {detail?.category === "character" && <Badge className="text-2xs">Character</Badge>}
+            {group && (
+              <Link
+                to={groupHref(group)}
+                title={`Every tag in ${groupLabel(group)}`}
+                className="rounded-md border border-line px-1.5 py-0.5 text-2xs font-normal text-muted hover:border-line-strong hover:text-neutral-100"
+              >
+                {groupLabel(group)}
+              </Link>
+            )}
           </h2>
           <p className="text-xs text-muted mt-1 tabular-nums">
             {detail ? (

@@ -96,6 +96,25 @@ async def get_tag_facets():
     return JSONResponse((await _tag_maps())[1])
 
 
+@router.get("/groups")
+async def get_tag_groups():
+    """``tags``: ``tag -> group`` (attire, headwear, posture, ...) for the
+    library's tags; ``categories``: each of those groups' top-level category.
+    The group pages list a group's tags from it. Kept until a tag write."""
+    cached = tag_index.read_derived("tag-groups")
+    if cached is None:
+        gen = tag_index.current_generation()
+        async with async_conn() as conn:
+            bases = list(
+                (
+                    await conn.execute(sa.select(t.image_tags.c.base).distinct())
+                ).scalars()
+            )
+        cached = await asyncio.to_thread(attire.library_groups, (b for b in bases if b))
+        tag_index.store_derived("tag-groups", gen, cached)
+    return JSONResponse(cached)
+
+
 class PlaceBody(BaseModel):
     names: list[str] = Field(max_length=1000)
 

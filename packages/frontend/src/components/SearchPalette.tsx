@@ -16,6 +16,7 @@ import {
   imageModelsQuery,
   useLibraries,
   useTagBrowse,
+  useTagGroups,
 } from "../lib/queries";
 import { useBatches, useGenerators } from "../lib/generate";
 import {
@@ -26,6 +27,7 @@ import {
   resourceItems,
   searchSections,
   tagItems,
+  groupItems,
   workflowItems,
   type SearchGroup,
   type SearchItem,
@@ -91,6 +93,7 @@ function SearchBody({ onClose }: { onClose: () => void }) {
   const characters = useCharacters();
   // Lists that rarely change between opens: refetched at most once a minute.
   const tags = useTagBrowse("all", { staleTime: 60_000 });
+  const groups = useTagGroups();
   const workflows = useGenerators();
   const batches = useBatches();
   const libraries = useLibraries({ poll: false });
@@ -104,6 +107,7 @@ function SearchBody({ onClose }: { onClose: () => void }) {
       ...PAGES.map((p) => p.item),
       ...characterItems(characters.data ?? NONE),
       ...tagItems(tags.data ?? NONE),
+      ...groupItems(groups.data),
       ...workflowItems(workflows.data ?? NONE),
       ...generationItems(batches.data ?? NONE),
       ...libraryItems(libraries.data ?? NONE),
@@ -111,7 +115,7 @@ function SearchBody({ onClose }: { onClose: () => void }) {
       ...resourceItems("embeddings", embeddings.data ?? NONE),
       ...resourceItems("checkpoints", (models.data ?? NONE).map((m) => ({ name: m.model, count: m.count }))),
     ],
-    [characters.data, tags.data, workflows.data, batches.data, libraries.data, loras.data, embeddings.data, models.data],
+    [characters.data, tags.data, groups.data, workflows.data, batches.data, libraries.data, loras.data, embeddings.data, models.data],
   );
   const sections = useMemo(() => searchSections(query, items), [query, items]);
   const flat = useMemo(() => sections.flatMap((s) => s.items), [sections]);

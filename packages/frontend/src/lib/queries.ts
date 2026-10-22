@@ -8,6 +8,7 @@
  * a write invalidates the key once and every reader refreshes.
  */
 
+import type { TagGroups } from "./tagGroups";
 import { viewerTimeZone } from "./activity";
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -225,6 +226,18 @@ export function useTagFacets() {
   return useQuery({
     queryKey: TAG_FACETS_KEY,
     queryFn: ({ signal }) => api<Record<string, Facet>>("/api/v1/tags/facets", { signal }),
+    staleTime: TAG_MAP_STALE_MS,
+    gcTime: TAG_MAP_STALE_MS,
+  });
+}
+
+export const TAG_GROUPS_KEY = [...TAGS_KEY, "groups"] as const;
+
+/** The library's tags by tag group (lib/tagGroups.ts), for the group pages. */
+export function useTagGroups() {
+  return useQuery({
+    queryKey: TAG_GROUPS_KEY,
+    queryFn: ({ signal }) => api<TagGroups>("/api/v1/tags/groups", { signal }),
     staleTime: TAG_MAP_STALE_MS,
     gcTime: TAG_MAP_STALE_MS,
   });

@@ -10,6 +10,7 @@ import { formatTag, tagQueryText } from "./tags";
 import { libraryGalleryHref, type Library } from "./queries";
 import { DEFAULT_FILTERS, serializeFilters, type Filters } from "./imageFilter";
 import type { BrowseTag } from "./tagBrowse";
+import { groupHref, groupOptions, type TagGroups } from "./tagGroups";
 import type { BatchSummary, Generator } from "./generate";
 
 export type SearchGroup =
@@ -17,6 +18,7 @@ export type SearchGroup =
   | "settings"
   | "characters"
   | "tags"
+  | "groups"
   | "workflows"
   | "generations"
   | "libraries"
@@ -30,6 +32,7 @@ export const GROUP_LABEL: Record<SearchGroup, string> = {
   settings: "Settings",
   characters: "Characters",
   tags: "Tags",
+  groups: "Tag groups",
   workflows: "Workflows",
   generations: "Generations",
   libraries: "Libraries",
@@ -45,6 +48,7 @@ const LIMIT: Record<SearchGroup, number> = {
   settings: 3,
   characters: 5,
   tags: 6,
+  groups: 3,
   workflows: 4,
   generations: 4,
   libraries: 3,
@@ -107,6 +111,19 @@ export function tagItems(rows: readonly BrowseTag[]): SearchItem[] {
       href: tagHref(t.tag),
       thumb: t.thumb_url,
     }));
+}
+
+/** Tag groups (attire, headwear, ...) with how many library tags each holds. */
+export function groupItems(groups: TagGroups | undefined): SearchItem[] {
+  if (!groups) return [];
+  return groupOptions(groups).map((o) => ({
+    key: `group:${o.value}`,
+    group: "groups",
+    label: o.label,
+    detail: o.group,
+    hint: `${o.hint} ${o.hint === "1" ? "tag" : "tags"}`,
+    href: groupHref(o.value),
+  }));
 }
 
 export function workflowItems(rows: readonly Generator[]): SearchItem[] {

@@ -5,7 +5,7 @@ import App from "./App";
 import OverviewPage from "./pages/OverviewPage";
 import AllImagesPage from "./pages/AllImagesPage";
 import LibrariesPage from "./pages/LibrariesPage";
-import TagsPage from "./pages/TagsPage";
+import TagsPage, { TagGroupPage } from "./pages/TagsPage";
 import CharacterPage from "./pages/CharacterPage";
 import SettingsPage from "./pages/SettingsPage";
 import AITaggingPage from "./pages/AITaggingPage";
@@ -59,6 +59,7 @@ export default function RootRoutes() {
           <Route path="overview" element={<OverviewPage />} />
           <Route path="libraries" element={<LibrariesPage />} />
           <Route path="tags" element={<TagsPage />} />
+          <Route path="tags/groups/:group" element={<TagGroupPage />} />
           <Route path="tags/:tag" element={<CharacterPage route="tag" />} />
           <Route path="characters/:tag" element={<CharacterPage />} />
           <Route path="ai-tagging" element={<AITaggingPage />} />

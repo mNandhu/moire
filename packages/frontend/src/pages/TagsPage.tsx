@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Tag as TagIcon, Slash, Search, GitMerge, Undo2, LayoutGrid, List, UserPlus, Wand2, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
@@ -23,6 +23,7 @@ import {
   useTagAliases,
   useTagBrowse,
   useTagDescriptions,
+  useTagGroups,
   useMergeSuggestions,
   type TagAgg,
 } from "../lib/queries";
@@ -50,6 +51,8 @@ import { FaceCrop } from "../components/CharacterAvatar";
 import { useCharacterLookup, useCharacters } from "../components/ImageCharacters";
 import { NewCharacterDialog } from "../components/NewCharacterDialog";
 import { Tooltip } from "../components/ui/Tooltip";
+import { Picker } from "../components/ui/Picker";
+import { groupHref, groupLabel, groupOf, groupOptions } from "../lib/tagGroups";
 import { CARD_ZOOM, characterHref, displayName, focusPosition, inkOn, type CharacterEntry } from "../lib/character";
 
 type Describe = (tag: string) => string | undefined;
@@ -70,7 +73,14 @@ function readView(): TagView {
   }
 }
 
-export default function TagsPage() {
+/** `/tags/groups/:group`: the Tags page narrowed to one tag group. */
+export function TagGroupPage() {
+  const { group = "" } = useParams();
+  return <TagsPage key={group} group={group} />;
+}
+
+export default function TagsPage({ group }: { group?: string } = {}) {
+  const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [view, setView] = useState<TagView>(readView);
   const [sort, setSort] = useState<TagSort>("count");
@@ -108,10 +118,25 @@ export default function TagsPage() {
   }, [view]);
 
   const tagsQuery = useTagBrowse(source);
-  // null = still loading; a failed load reads as empty.
-  const tags: BrowseTag[] | null = useMemo(
-    () => tagsQuery.data ?? (tagsQuery.isError ? [] : null),
-    [tagsQuery.data, tagsQuery.isError],
+  const groupsQuery = useTagGroups();
+  const groups = groupsQuery.data;
+  // null = still loading; a failed load reads as empty. On a group page,
+  // only that group's tags (loading until the group map is in too).
+  const tags: BrowseTag[] | null = useMemo(() => {
+    const all = tagsQuery.data ?? (tagsQuery.isError ? [] : null);
+    if (!group || !all) return all;
+    if (!groups) return groupsQuery.isError ? [] : null;
+    return all.filter((t) => groupOf(groups, t.tag) === group);
+  }, [tagsQuery.data, tagsQuery.isError, group, groups, groupsQuery.isError]);
+  const groupPicker = groups && (
+    <Picker
+      value={group ?? ""}
+      options={groupOptions(groups)}
+      onChange={(g) => navigate(groupHref(g))}
+      placeholder="Tag groups"
+      aria-label="Open a tag group"
+      searchable
+    />
   );
   const { data: cov } = useAiCoverage();
 
@@ -208,7 +233,6 @@ export default function TagsPage() {
   // a rename), which is when the mosaics should be fetched again.
   // Characters made by hand have no images (so no Tags-page row); they join
   // the shelf and open their page.
-  const navigate = useNavigate();
   const { data: everyone } = useCharacters();
   const made = useMemo(
     () => (everyone ?? []).filter((c) => c.count === 0).map((c) => c.tag),
@@ -217,7 +241,7 @@ export default function TagsPage() {
   const madeRows: BrowseTag[] = useMemo(
     () =>
       filterTags(
-        (source === "all" ? made : []).map((tag) => ({
+        (source === "all" && !group ? made : []).map((tag) => ({
           tag,
           count: 0,
           category: "character" as const,
@@ -238,13 +262,19 @@ export default function TagsPage() {
   return (
     <>
       <PageHeader
-        title="Tags"
+        title={group ? groupLabel(group) : "Tags"}
         count={tags?.length}
         width="wide"
         actions={
-          <Button size="sm" onClick={() => setCreating(true)}>
-            <UserPlus size={14} /> New character
-          </Button>
+          group ? (
+            <ButtonLink size="sm" variant="ghost" to="/tags">
+              All tags
+            </ButtonLink>
+          ) : (
+            <Button size="sm" onClick={() => setCreating(true)}>
+              <UserPlus size={14} /> New character
+            </Button>
+          )
         }
       />
       {creating && <NewCharacterDialog open onClose={() => setCreating(false)} />}
@@ -261,6 +291,7 @@ export default function TagsPage() {
             />
           </div>
           <ViewSwitch value={view} onChange={setView} />
+          {groupPicker}
           <DropdownMenu
             label={`Sort: ${SORT_LABEL[sort]}`}
             aria-label="Sort tags"
@@ -288,7 +319,7 @@ export default function TagsPage() {
                 : `Show boilerplate (${boilerplateCount.toLocaleString()})`}
             </Button>
           )}
-          {!!suggestions?.length && (
+          {!group && !!suggestions?.length && (
             <Button
               active={showSuggestions}
               onClick={() => setShowSuggestions((v) => !v)}
@@ -297,7 +328,7 @@ export default function TagsPage() {
               <Wand2 size={15} /> Suggested merges ({suggestions.length.toLocaleString()})
             </Button>
           )}
-          {!!aliases?.length && (
+          {!group && !!aliases?.length && (
             <Button
               active={showRules}
               onClick={() => setShowRules((v) => !v)}
@@ -341,7 +372,7 @@ export default function TagsPage() {
         >
           <div className="min-w-0 space-y-6">
             {/* Shortcuts to what still needs work */}
-            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3">
+            {!group && <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3">
               <SpecialTile
                 title="Untagged"
                 subtitle={
@@ -370,7 +401,7 @@ export default function TagsPage() {
                 to="/?ai_tagged=1"
                 icon={<Sparkles size={16} className="text-brand-300" />}
               />
-            </div>
+            </div>}
 
             {tags === null ? (
               <LoadingGrid view={view} />

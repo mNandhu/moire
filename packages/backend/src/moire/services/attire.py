@@ -339,6 +339,29 @@ def all_tags(category: str | None = None) -> dict[str, str]:
     }
 
 
+def library_groups(names: Iterable[str]) -> dict[str, dict[str, str]]:
+    """The group page's map: ``tags`` is ``tag -> group`` for each of
+    ``names`` (the library's tags) that has one, ``categories`` is ``group ->
+    top-level category`` for those groups, so a page can list a group's
+    siblings."""
+    listed = _load()
+    tags: dict[str, str] = {}
+    for name in names:
+        key = _key(name)
+        if key not in tags and (group := group_of(key)):
+            tags[key] = group
+    primary: dict[str, str] = {}
+    for category, group, _also in listed.values():
+        primary.setdefault(group, category)
+    worn = "attire_and_body_accessories"
+    categories = {
+        g: primary.get(g)
+        or (worn if g in ATTIRE_GROUPS or g == EXPOSURE_GROUP else "more")
+        for g in set(tags.values())
+    }
+    return {"tags": tags, "categories": categories}
+
+
 def unlisted_attire(names: Iterable[str]) -> dict[str, str]:
     """``tag -> attire group`` for the unlisted garments among ``names`` (the
     tagger's vocabulary, the library's tags): coloured or otherwise

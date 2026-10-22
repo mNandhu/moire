@@ -24,6 +24,7 @@ import { TagSuggestList, type TagSuggestion } from "../TagSuggestList";
 import { useDropSide } from "../../hooks/useDropSide";
 import { Tooltip } from "../ui";
 import { descriptionKey } from "../../lib/tags";
+import { groupHref } from "../../lib/tagGroups";
 import { useToast } from "../Toasts";
 
 /** A board box: a server section, or one the prompt's own syntax decides. */
@@ -204,7 +205,11 @@ function TagPreview({ term, count, swap }: { term: Placed; count: number | undef
           <span className="text-amber-300">Not a Danbooru tag, used in your library</span>
         ) : (
           <>
-            {p?.group && <span>{pretty(p.group)}</span>}
+            {p?.group && (
+              <a href={groupHref(p.group)} target="_blank" rel="noreferrer" className="hover:text-neutral-100 hover:underline">
+                {pretty(p.group)}
+              </a>
+            )}
             {p?.posts != null && <span>{compact(p.posts)} on Danbooru</span>}
           </>
         )}
