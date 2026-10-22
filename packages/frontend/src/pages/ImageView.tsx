@@ -1,10 +1,12 @@
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { createPortal, flushSync } from "react-dom";
 import {
   Link,
   useLocation,
@@ -53,10 +55,12 @@ import {
 import { accentFromBlurhash } from "../lib/blurhash";
 import { pickRating, ratingBadgeClass } from "../lib/rating";
 import {
+  adherenceGroups,
   tagFlow,
   tagName,
   toPromptText,
   type FlowTag,
+  type TagGroup,
   type TagKind,
 } from "../lib/tags";
 import { characterHref, tagHref } from "../lib/character";
@@ -65,8 +69,8 @@ import { libraryPageHref, useBoilerplate, useLibraries, useTagFacets } from "../
 import { FACET_LABEL, FACET_TINT, TAG_TINT_CLASS, tagMarkStyle, type Facet } from "../lib/tagColour";
 import { useTagMarks } from "../hooks/useTagMarks";
 import { isFormField } from "../lib/dom";
+import { fitLines } from "../lib/fitLines";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { Button } from "../components/ui/Button";
 import { MARKER_DIGIT } from "../components/ui/ScoreMark";
 import { Input } from "../components/ui/Input";
 import { useConfirm } from "../components/ConfirmDialog";
@@ -122,6 +126,14 @@ export default function ImageView() {
   // the stage, so a phone opens on the image, not on a wall of metadata.
   const [infoOpen, setInfoOpen] = useState(
     () => window.matchMedia?.("(min-width: 1024px)")?.matches ?? true,
+  );
+  // The details panel's scroller and its content, for PromptBlock to fit the
+  // prompt into the room left over (see PanelFit).
+  const [panelScroller, setPanelScroller] = useState<HTMLDivElement | null>(null);
+  const [panelContent, setPanelContent] = useState<HTMLDivElement | null>(null);
+  const panelFit = useMemo(
+    () => (panelScroller && panelContent ? { scroller: panelScroller, content: panelContent } : null),
+    [panelScroller, panelContent],
   );
   // Which image has actually painted. Tracked by id rather than as a boolean
   // so it resets with every navigation (a write-once flag would let one failed
@@ -598,6 +610,7 @@ export default function ImageView() {
 
   const fileName = data?.path ? data.path.split(/[\\/]/).pop() : "";
   const rating = pickRating(data);
+  const flowTags = data ? tagFlow(data.tags, data.ai) : [];
   const accent = accentFromBlurhash(data?.blurhash);
   // Has the image currently on screen painted?
   const imgLoaded = !!id && loadedId === id;
@@ -824,62 +837,163 @@ export default function ImageView() {
             {/* Scrollable body */}
             {/* Flat sections split by rules: the sidebar is already a panel,
                 so boxing each section again read as cards inside a card. */}
-            <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-line">
-              {/* Who is in it, first, like a photo app's people */}
-              <ImageCharacters imageId={data._id} tags={data.tags} quarantined={!!data.quarantined} />
+            <div ref={setPanelScroller} className="flex-1 min-h-0 overflow-y-auto">
+              <PanelFit.Provider value={panelFit}>
+                <div ref={setPanelContent}>
+                  <div className="divide-y divide-line border-b border-line">
+                    {/* Who is in it, first, like a photo app's people */}
+                    <ImageCharacters imageId={data._id} tags={data.tags} quarantined={!!data.quarantined} />
 
-              {/* Curation (Moiré-specific) */}
-              <Section title="Curation">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm text-neutral-300">Rating</span>
-                  <RatingEditor
-                    id={data._id}
-                    docId={id!}
-                    value={rating}
-                    onDone={refreshImage}
+                    {/* Curation in one row: rating, score, quarantine. Its
+                        controls say what they are, so the row needs no labels. */}
+                    <div className="flex items-center justify-between gap-2 px-4 py-2.5">
+                      <RatingEditor
+                        id={data._id}
+                        docId={id!}
+                        value={rating}
+                        onDone={refreshImage}
+                      />
+                      <div className="flex items-center gap-1">
+                        <ScorePicker value={score} onSet={applyScore} />
+                        <button
+                          type="button"
+                          onClick={() => void toggleQuarantine()}
+                          aria-pressed={quarantined}
+                          title={quarantined ? "Restore (X)" : "Quarantine (X)"}
+                          aria-label={quarantined ? "Restore" : "Quarantine"}
+                          className={`ml-1 p-2 rounded-lg transition-colors ${
+                            quarantined
+                              ? "bg-amber-900/40 text-amber-200 hover:bg-amber-900/60"
+                              : "text-muted hover:text-white hover:bg-raised"
+                          }`}
+                        >
+                          <Ban size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <DetailTabs
+                    hasGen={!!data.gen?.source}
+                    tagCount={flowTags.length}
+                    generation={
+                      <GenPanel
+                        imageId={data._id}
+                        gen={data.gen}
+                        width={data.width}
+                        height={data.height}
+                        onCopyAll={() => void copyWorkflow()}
+                      />
+                    }
+                    tags={
+                      // Keyed: an AI job belongs to the image it was started on.
+                      <TagsSection
+                        key={data._id}
+                        id={data._id}
+                        onCopyAll={() => void copyAllTags()}
+                        onChange={onTagsChanged}
+                        tags={flowTags}
+                      />
+                    }
                   />
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm text-neutral-300">Score</span>
-                  <ScorePicker value={score} onSet={applyScore} />
-                </div>
-                <Button
-                  onClick={() => void toggleQuarantine()}
-                  className={
-                    quarantined
-                      ? "w-full bg-amber-900/40 border-amber-800 text-amber-100 hover:bg-amber-900/60 hover:border-amber-700"
-                      : "w-full"
-                  }
-                  title={quarantined ? "Restore (X)" : "Quarantine (X)"}
-                >
-                  <Ban size={14} /> {quarantined ? "Restore" : "Quarantine"}
-                </Button>
-              </Section>
-
-              {/* Generation data */}
-              <GenPanel
-                imageId={data._id}
-                gen={data.gen}
-                width={data.width}
-                height={data.height}
-                onCopyAll={() => void copyWorkflow()}
-              />
-
-              {/* Tags: kept last; can be long, so it never pushes Curation
-                  and Generation data below the fold. Keyed: an AI job
-                  belongs to the image it was started on. */}
-              <TagsSection
-                key={data._id}
-                id={data._id}
-                onCopyAll={() => void copyAllTags()}
-                onChange={onTagsChanged}
-                tags={tagFlow(data.tags, data.ai)}
-              />
+              </PanelFit.Provider>
             </div>
           </>
         )}
       </aside>
     </div>
+  );
+}
+
+type DetailTab = "generation" | "tags";
+const DETAIL_TAB_KEY = "imageView:tab";
+
+function readDetailTab(): DetailTab {
+  try {
+    return localStorage.getItem(DETAIL_TAB_KEY) === "tags" ? "tags" : "generation";
+  } catch {
+    return "generation";
+  }
+}
+
+/**
+ * Generation data and tags as two tabs, so neither waits below the other.
+ * Generation first: most people come back to an image for its recipe. The
+ * last tab picked sticks across images and visits, so a tagging session
+ * stays on Tags. An image with no generation data shows its tags alone.
+ */
+/** Where a tab's actions go: the tab bar's right end (null: no bar). */
+const TabActionsSlot = React.createContext<HTMLElement | null>(null);
+
+/** A tab's actions ("Copy all", "Remix"), drawn at the tab bar's right end,
+ * or as a row of their own when the panel has no tab bar. */
+function TabActions({ children }: { children: React.ReactNode }) {
+  const slot = React.useContext(TabActionsSlot);
+  if (slot) return createPortal(children, slot);
+  return <div className="flex items-center justify-end gap-1">{children}</div>;
+}
+
+/** An icon-only action in a tab's action row. */
+const TAB_ACTION = "p-2 rounded-lg text-muted hover:text-white hover:bg-raised transition-colors";
+
+function DetailTabs({
+  hasGen,
+  tagCount,
+  generation,
+  tags,
+}: {
+  hasGen: boolean;
+  tagCount: number;
+  generation: React.ReactNode;
+  tags: React.ReactNode;
+}) {
+  const [picked, setPicked] = useState<DetailTab>(readDetailTab);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const tab: DetailTab = hasGen ? picked : "tags";
+  const pick = (next: DetailTab) => {
+    setPicked(next);
+    try {
+      localStorage.setItem(DETAIL_TAB_KEY, next);
+    } catch {
+      // Non-fatal; the choice just won't survive a reload.
+    }
+  };
+  if (!hasGen) return <>{tags}</>;
+  const tabs: { id: DetailTab; label: string; count?: number }[] = [
+    { id: "generation", label: "Generation" },
+    { id: "tags", label: "Tags", count: tagCount },
+  ];
+  return (
+    <>
+      {/* Sticks under the panel header while its tab scrolls. */}
+      <div className="sticky top-0 z-10 flex items-center gap-1 pl-2 pr-3 border-b border-line bg-surface">
+      <div role="tablist" aria-label="Image details" className="flex gap-1">
+        {tabs.map((t) => {
+          const on = t.id === tab;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => pick(t.id)}
+              className={`inline-flex items-center gap-1.5 px-3 py-2.5 text-sm border-b-2 -mb-px transition-colors ${
+                on ? "border-brand-400 text-neutral-50 font-medium" : "border-transparent text-muted hover:text-neutral-100"
+              }`}
+            >
+              {t.label}
+              {!!t.count && <span className="text-xs text-faint tabular-nums">{t.count}</span>}
+            </button>
+          );
+        })}
+      </div>
+      <div ref={setSlot} className="ml-auto flex items-center gap-1" />
+      </div>
+      <TabActionsSlot.Provider value={slot}>
+        <div role="tabpanel">{tab === "generation" ? generation : tags}</div>
+      </TabActionsSlot.Provider>
+    </>
   );
 }
 
@@ -936,44 +1050,43 @@ function TagsSection({
     : aiJobLabel(job ?? (jobId ? { status: "queued" } : null));
 
   return (
-    <Section
-      title="Tags"
-      right={
-        <div className="flex items-center gap-3">
-          {/* While it runs, the status line below says so. */}
-          {!busy &&
-            (aiTagged ? (
-              <button
-                type="button"
-                onClick={() => void retag()}
-                className={HEADER_ACTION}
-                title="Remove its AI tags and rating, and tag it again"
-              >
-                <RotateCcw size={12} /> Re-tag with AI
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void start([id])}
-                className={HEADER_ACTION}
-                title="Tag this image with the AI tagger"
-              >
-                <Sparkles size={12} /> Tag with AI
-              </button>
-            ))}
-          {hasTags && (
+    <section className="px-4 py-4 space-y-3">
+      <TabActions>
+        {/* While it runs, the status line below says so. */}
+        {!busy &&
+          (aiTagged ? (
             <button
               type="button"
-              onClick={onCopyAll}
-              className={HEADER_ACTION}
-              title="Copy all tags as prompt text"
+              onClick={() => void retag()}
+              className={TAB_ACTION}
+              title="Re-tag with AI: remove its AI tags and rating, and tag it again"
+              aria-label="Re-tag with AI"
             >
-              <Copy size={12} /> Copy all
+              <RotateCcw size={15} />
             </button>
-          )}
-        </div>
-      }
-    >
+          ) : (
+            // Untagged, tagging is the thing to do here: worth its words.
+            <button
+              type="button"
+              onClick={() => void start([id])}
+              className={HEADER_ACTION}
+              title="Tag this image with the AI tagger"
+            >
+              <Sparkles size={12} /> Tag with AI
+            </button>
+          ))}
+        {hasTags && (
+          <button
+            type="button"
+            onClick={onCopyAll}
+            className={TAB_ACTION}
+            title="Copy all tags as prompt text"
+            aria-label="Copy all tags"
+          >
+            <Copy size={15} />
+          </button>
+        )}
+      </TabActions>
       {(busy || modelView) && (
         <AiTagStatus
           label={(busy ? jobLabel : modelView?.title) ?? "Tagging…"}
@@ -986,7 +1099,7 @@ function TagsSection({
       {/* Adding sits where the tags end, as one more pill in the run. One
           place either way, so the open field survives the first tag. */}
       <TagFlow tags={tags} trailing={<AddTags id={id} onAdded={onChange} />} />
-    </Section>
+    </section>
   );
 }
 
@@ -1153,43 +1266,14 @@ function ScorePicker({
   );
 }
 
-// Card shell used by the details sidebar: a titled, bordered panel with an
-// optional right-aligned control (e.g. the rating editor).
-function Section({
-  title,
-  right,
-  children,
-}: {
-  title: string;
-  right?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="px-4 py-4 space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        {right}
-      </div>
-      {children}
-    </section>
-  );
-}
-
 const KIND_TEXT: Record<TagKind, string> = {
   character: "text-brand-300 font-semibold",
   ai: "text-neutral-100",
   manual: "text-emerald-300",
-  // Prompt tags are the bulk on most images; in a link-blue they turned the
-  // whole run into what looked like a wall of hyperlinks.
-  prompt: "text-muted",
+  // Not coloured apart: once AI-tagged, prompt-only tags sit under their own
+  // heading, and before that every tag is one. Grey here read as "unsure".
+  prompt: "text-neutral-100",
 };
-const KIND_LABEL: Record<TagKind, string> = {
-  character: "character",
-  ai: "AI",
-  manual: "yours",
-  prompt: "prompt",
-};
-
 const KIND_NOUN: Record<TagKind, string> = {
   character: "Character",
   ai: "AI tag",
@@ -1207,18 +1291,50 @@ function tagDetail(t: FlowTag): string {
   return parts.join(" · ");
 }
 
+// One step, not a fade by confidence: a fade made sure tags look half-unsure
+// and blurred into everything else drawn lighter. Below this, a tag is dimmed.
+const UNSURE_BELOW = 0.5;
+const UNSURE_OPACITY = 0.55;
+const unsure = (t: FlowTag) => t.confidence != null && t.confidence < UNSURE_BELOW;
+
 // The side panel's background (tailwind `surface`): what a rainbow-outlined
 // tag paints inside its border.
 const PANEL_GROUND = "#15141c";
 
+// Prompt adherence groups, in reading order. The swatch colours the group's
+// share of the summary bar: what the prompt got in brand, what the
+// tagger added in a quieter brand, what the prompt missed in amber.
+const GROUPS: { id: TagGroup; label: string; swatch: string }[] = [
+  { id: "matched", label: "Prompted and seen", swatch: "bg-brand-400" },
+  { id: "unprompted", label: "Seen, not prompted", swatch: "bg-brand-400/35" },
+  { id: "missed", label: "Prompted, not seen", swatch: "bg-amber-400/80" },
+  { id: "mine", label: "Your tags", swatch: "bg-emerald-400/80" },
+];
+
 /**
- * An image's tags as one comma-separated run, like a prompt: dense, easy to
- * read top to bottom and to copy. Kind shows as text colour (legend below);
- * a less confident AI tag is fainter. A faint tint groups tags by facet (look,
- * outfit, pose...), and hair and eye tags are outlined in their colour
- * (lib/tagColour.ts). Each tag opens its tag page (a character's, its
- * character page), where its cover is framed too.
+ * An image's tags as comma-separated runs, like a prompt: dense, easy to read
+ * top to bottom and to copy. With both a prompt and AI tags, they split by
+ * prompt adherence (lib/tags.ts adherenceGroups) under a bar of how much of
+ * the prompt the tagger saw, and a tint marks each tag's facet (look,
+ * outfit, pose...); otherwise by facet, under headings. An unsure AI tag is dimmed one step, and hair and eye tags are
+ * outlined in their colour (lib/tagColour.ts). Each tag opens its tag page (a
+ * character's, its character page).
  */
+// Tag runs: roomier than body text, so a long list reads as tags, not a wall.
+const RUN_TEXT = "text-sm leading-8";
+
+const FACET_ORDER = Object.keys(FACET_LABEL) as Facet[];
+
+/** A tag group's heading: a quiet caption with its count. */
+function GroupHeading({ label, count }: { label: string; count: number }) {
+  return (
+    <div className="mb-0.5 flex items-baseline gap-1.5 text-2xs uppercase tracking-wide text-faint">
+      {label}
+      <span className="tabular-nums text-line-strong">{count}</span>
+    </div>
+  );
+}
+
 function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNode }) {
   const { data: facets } = useTagFacets();
   const facetOf = (raw: string): Facet | null => facets?.[tagName(raw).toLowerCase()] ?? null;
@@ -1230,112 +1346,143 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
     [tags, isBoilerplate],
   );
   const [showBoilerplate, setShowBoilerplate] = useState(false);
+  const groups = useMemo(() => adherenceGroups(kept), [kept]);
   const shown = showBoilerplate ? [...kept, ...boilerplate] : kept;
-  const kinds = (Object.keys(KIND_LABEL) as TagKind[]).filter((k) =>
-    shown.some((t) => t.kind === k),
-  );
-  const folded = new Set(boilerplate.map((t) => t.raw));
-  // Tags only the prompt gave sit apart, under their own heading, once the
-  // AI has tagged the image (before that every prompt tag is "only" there).
-  const apart = tags.some((t) => t.kind === "ai" || t.kind === "character");
-  // AI tags the prompt also names are underlined.
-  const both = (t: FlowTag) => (t.kind === "ai" || t.kind === "character") && !!t.also?.includes("prompt");
-  // (Boilerplate stays with its fold toggle, whichever kind it is.)
-  const apartTag = (t: FlowTag) => apart && t.kind === "prompt" && !folded.has(t.raw);
-  const lead = shown.filter((t) => !apartTag(t));
-  const promptOnly = shown.filter(apartTag);
+  // Ungrouped, your own tags are told apart by colour alone: key it.
+  const keyMine = !groups && kept.some((t) => t.kind === "manual");
   const marks = useTagMarks();
-  const shownFacets = marks.tints
+  // Facet groups when there is no prompt/AI split to show; one run if every
+  // tag lands in the same one (facets still loading, or all "other").
+  const byFacet = useMemo(() => {
+    if (groups) return null;
+    const out = new Map<Facet | null, FlowTag[]>();
+    for (const f of [...FACET_ORDER, null]) out.set(f, []);
+    for (const t of kept) out.get(facets?.[tagName(t.raw).toLowerCase()] ?? null)!.push(t);
+    const filled = [...out].filter(([, list]) => list.length);
+    return filled.length > 1 ? filled : null;
+  }, [groups, kept, facets]);
+  // Under facet headings the tints need no key.
+  const shownFacets = marks.tints && !byFacet
     ? (Object.keys(FACET_TINT) as Facet[]).filter((f) => shown.some((t) => facetOf(t.raw) === f))
     : [];
-  const run = (list: FlowTag[]) => (
+  const run = (list: FlowTag[]) =>
+    list.map((t, i) => (
+      <React.Fragment key={t.raw}>
+        <Tooltip
+          bubble
+          side="up"
+          className="inline"
+          content={
+            <>
+              <div className="font-medium">{t.label}</div>
+              <div className="text-xs text-muted">{tagDetail(t)}</div>
+            </>
+          }
+        >
+          <Link
+            to={tagPageHref(t)}
+            className={`rounded px-0.5 -mx-0.5 ${TAG_TINT_CLASS} hover:bg-raised hover:underline ${KIND_TEXT[t.kind]}`}
+            style={{
+              ...tagMarkStyle(t.raw, facetOf(t.raw), PANEL_GROUND, marks),
+              ...(unsure(t) ? { opacity: UNSURE_OPACITY } : {}),
+            }}
+          >
+            {t.label}
+          </Link>
+        </Tooltip>
+        {i < list.length - 1 && <span className="text-line-strong">, </span>}
+      </React.Fragment>
+    ));
+  const boilerplateToggle = boilerplate.length > 0 && (
+    <button
+      type="button"
+      onClick={() => setShowBoilerplate((v) => !v)}
+      aria-expanded={showBoilerplate}
+      title={
+        showBoilerplate
+          ? "Fold boilerplate tags away"
+          : `Show ${boilerplate.length} boilerplate ${boilerplate.length === 1 ? "tag" : "tags"} (set in Settings)`
+      }
+      className="inline-flex items-center h-5 px-1.5 rounded-full border border-line text-2xs text-faint hover:text-neutral-100 hover:border-line-strong align-middle"
+    >
+      {showBoilerplate ? "fold boilerplate" : `+${boilerplate.length} boilerplate`}
+    </button>
+  );
+  // What every layout ends on: boilerplate (folded, or shown dimmed after
+  // its toggle) and the add-tags pill.
+  const tail = (
     <>
-        {list.map((t, i) => (
-          <React.Fragment key={t.raw}>
-            <span className={folded.has(t.raw) ? "opacity-50" : undefined}>
-              <Tooltip
-                bubble
-                side="up"
-                className="inline"
-                content={
-                  <>
-                    <div className="font-medium">{t.label}</div>
-                    <div className="text-xs text-muted">{tagDetail(t)}</div>
-                  </>
-                }
-              >
-                <Link
-                  to={tagPageHref(t)}
-                  className={`rounded px-0.5 -mx-0.5 ${TAG_TINT_CLASS} hover:bg-raised hover:underline ${KIND_TEXT[t.kind]} ${
-                    both(t) ? "underline decoration-1 decoration-current/40 underline-offset-4" : ""
-                  }`}
-                  style={{
-                    ...tagMarkStyle(t.raw, facetOf(t.raw), PANEL_GROUND, marks),
-                    ...(t.confidence != null ? { opacity: 0.45 + 0.55 * t.confidence } : {}),
-                  }}
-                >
-                  {t.label}
-                </Link>
-              </Tooltip>
-            </span>
-            {i < list.length - 1 && <span className="text-line-strong">, </span>}
-          </React.Fragment>
-        ))}
+      {boilerplateToggle}
+      {showBoilerplate && <span className="opacity-50"> {run(boilerplate)}</span>}
+      {boilerplate.length > 0 && trailing && " "}
+      {trailing}
     </>
   );
+  const asked = groups ? groups.matched.length + groups.missed.length : 0;
   return (
-    <div className="space-y-2">
-      {/* A div, not a p: the trailing add-tags field is a form. */}
-      <div className="text-[13px] leading-7">
-        {run(lead)}
-        {boilerplate.length > 0 && (
-          <>
-            {lead.length > 0 && <span className="text-line-strong"> </span>}
-            <button
-              type="button"
-              onClick={() => setShowBoilerplate((v) => !v)}
-              aria-expanded={showBoilerplate}
-              title={
-                showBoilerplate
-                  ? "Fold boilerplate tags away"
-                  : `Show ${boilerplate.length} boilerplate ${boilerplate.length === 1 ? "tag" : "tags"} (set in Settings)`
-              }
-              className="inline-flex items-center h-5 px-1.5 rounded-full border border-line text-2xs text-faint hover:text-neutral-100 hover:border-line-strong align-middle"
-            >
-              {showBoilerplate ? "fold boilerplate" : `+${boilerplate.length} boilerplate`}
-            </button>
-          </>
-        )}
-        {trailing && (
-          <>
-            {lead.length + boilerplate.length > 0 && <span className="text-line-strong"> </span>}
-            {trailing}
-          </>
-        )}
-      </div>
-      {promptOnly.length > 0 && (
-        <div>
-          <div className="mb-0.5 text-2xs uppercase tracking-wide text-faint">Only in the prompt</div>
-          <div className="text-[13px] leading-7">{run(promptOnly)}</div>
+    <div className="space-y-4">
+      {groups ? (
+        <>
+          {/* How much of the prompt shows in the image, and what came unasked. */}
+          {asked > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex items-baseline justify-between gap-2 text-xs">
+                <span className="text-neutral-200">
+                  <span className="text-sm font-semibold tabular-nums">{groups.matched.length}</span>
+                  <span className="text-muted"> of {asked} prompted tags seen</span>
+                </span>
+                {groups.unprompted.length > 0 && (
+                  <span className="text-faint tabular-nums">+{groups.unprompted.length} unprompted</span>
+                )}
+              </div>
+              <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
+                {GROUPS.filter((g) => g.id !== "mine").map((g) =>
+                  groups[g.id].length ? (
+                    <div key={g.id} className={g.swatch} style={{ flexGrow: groups[g.id].length }} />
+                  ) : null,
+                )}
+              </div>
+            </div>
+          )}
+          {GROUPS.map((g) =>
+            groups[g.id].length ? (
+              <div key={g.id}>
+                <GroupHeading label={g.label} count={groups[g.id].length} />
+                <div className={RUN_TEXT}>{run(groups[g.id])}</div>
+              </div>
+            ) : null,
+          )}
+          {/* A div, not a p: the trailing add-tags field is a form. */}
+          <div className={RUN_TEXT}>{tail}</div>
+        </>
+      ) : byFacet ? (
+        <>
+          {byFacet.map(([f, list]) => (
+            <div key={f ?? "other"}>
+              <GroupHeading label={f ? FACET_LABEL[f] : "other"} count={list.length} />
+              <div className={RUN_TEXT}>{run(list)}</div>
+            </div>
+          ))}
+          <div className={RUN_TEXT}>{tail}</div>
+        </>
+      ) : (
+        <div className={RUN_TEXT}>
+          {run(kept)}
+          {kept.length > 0 && " "}
+          {tail}
         </div>
       )}
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-2xs text-faint">
-        {kinds.map((k) => (
-          // The label is in its kind's colour: the key needs no swatch.
-          <span key={k} className={KIND_TEXT[k]}>
-            {KIND_LABEL[k]}
-          </span>
-        ))}
-        {shown.some((t) => t.confidence != null) && <span>fainter = less confident</span>}
-        {shown.some(both) && (
-          <span className="underline decoration-1 decoration-current/40 underline-offset-4">also in the prompt</span>
-        )}
-        {shownFacets.map((f) => (
-          <span key={f} className="rounded px-1 text-muted" style={{ backgroundColor: FACET_TINT[f] }}>
-            {FACET_LABEL[f]}
-          </span>
-        ))}
-      </div>
+      {(keyMine || shown.some(unsure) || shownFacets.length > 0) && (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-2xs text-faint">
+          {keyMine && <span className={KIND_TEXT.manual}>yours</span>}
+          {shown.some(unsure) && <span style={{ opacity: UNSURE_OPACITY }}>fainter = less confident</span>}
+          {shownFacets.map((f) => (
+            <span key={f} className="rounded px-1 text-neutral-200" style={{ backgroundColor: FACET_TINT[f] }}>
+              {FACET_LABEL[f]}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1411,19 +1558,74 @@ function CopyButton({ text, label }: { text?: string | null; label: string }) {
   );
 }
 
-// Prompt / negative-prompt text with a collapse-by-default "Show more".
-function PromptBlock({ text }: { text: string }) {
+/** The details panel's scroller and the content inside it. */
+const PanelFit = React.createContext<{ scroller: HTMLElement; content: HTMLElement } | null>(null);
+
+// "Show more" and its top margin.
+const TOGGLE_HEIGHT = 20;
+
+/**
+ * Prompt / negative-prompt text. With `fit` (the prompt: what most people
+ * open an image for), it shows as many lines as fill the panel without making
+ * it scroll, so a short panel isn't left empty below a clipped prompt nor a
+ * full one pushed into scrolling; past that, "Show more". Otherwise 3 lines.
+ */
+function PromptBlock({ text, fit = false }: { text: string; fit?: boolean }) {
   const [expanded, setExpanded] = useState(false);
+  const [lines, setLines] = useState<number | null>(fit ? null : 3);
+  const panel = React.useContext(PanelFit);
+  const block = useRef<HTMLDivElement>(null);
+  const para = useRef<HTMLParagraphElement>(null);
+  useLayoutEffect(() => {
+    const box = block.current;
+    const p = para.current;
+    if (!box || !p || expanded) return;
+    const measure = () => {
+      const lineHeight = parseFloat(getComputedStyle(p).lineHeight) || 20;
+      if (!fit || !panel) {
+        setLines(p.scrollHeight > 3 * lineHeight + 1 ? 3 : null);
+        return;
+      }
+      // What the rest of the panel takes, whatever this block shows now.
+      const others = panel.content.offsetHeight - box.offsetHeight;
+      setLines(
+        fitLines({
+          available: panel.scroller.clientHeight - others,
+          lineHeight,
+          fullHeight: p.scrollHeight,
+          toggleHeight: TOGGLE_HEIGHT,
+        }),
+      );
+    };
+    measure();
+    // Again when the panel resizes or its other content lands or folds
+    // (characters, the outfit board, the workflow line); this block's own
+    // resize measures the same. Committed at once: the observer runs before
+    // the frame paints, a plain update after it, which showed the old clamp
+    // pushed down for a frame.
+    const ro = new ResizeObserver(() => flushSync(measure));
+    ro.observe(p);
+    if (fit && panel) {
+      ro.observe(panel.scroller);
+      ro.observe(panel.content);
+    }
+    return () => ro.disconnect();
+  }, [text, expanded, fit, panel]);
+  const clamped = !expanded && lines != null;
   return (
-    <div>
+    <div ref={block}>
       <p
-        className={`text-sm text-neutral-300 whitespace-pre-wrap break-words ${
-          expanded ? "" : "line-clamp-3"
-        }`}
+        ref={para}
+        className="text-sm text-neutral-300 whitespace-pre-wrap break-words"
+        style={
+          clamped
+            ? { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden" }
+            : undefined
+        }
       >
         {text}
       </p>
-      {text.length > 140 && (
+      {(clamped || expanded) && (
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
@@ -1501,21 +1703,20 @@ function GenPanel({
   return (
     <section className="px-4 py-4 space-y-4">
       {resolving && <ResolvePromptDialog open onClose={() => setResolving(null)} gen={gen} field={resolving} onSaved={reread} />}
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">Generation data</h2>
-        <div className="flex items-center gap-3">
-          {!info.workflow && editRule}
-          <button
-            type="button"
-            onClick={onCopyAll}
-            className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
-            title="Copy all generation data"
-          >
-            <Copy size={12} /> Copy all
-          </button>
-          <RemixButton info={info} />
-        </div>
-      </div>
+      <TabActions>
+        {!info.workflow && editRule}
+        <RemixButton info={info} />
+        {/* Copy sits last in every tab's actions. */}
+        <button
+          type="button"
+          onClick={onCopyAll}
+          className={TAB_ACTION}
+          title="Copy all generation data"
+          aria-label="Copy all generation data"
+        >
+          <Copy size={15} />
+        </button>
+      </TabActions>
 
       {info.workflow && (
         <div className="space-y-1.5 border-y border-line py-2">
@@ -1569,7 +1770,7 @@ function GenPanel({
             </div>
             <CopyButton text={gen.prompt} label="Prompt" />
           </div>
-          <PromptBlock text={gen.prompt} />
+          <PromptBlock text={gen.prompt} fit />
         </div>
       )}
 

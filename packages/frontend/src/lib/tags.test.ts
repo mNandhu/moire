@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  adherenceGroups,
   bulkTagNames,
   formatSearchTag,
   formatTag,
@@ -169,5 +170,25 @@ describe("planRename", () => {
   });
   it("treats the other spelling of the same name as no change", () => {
     expect(planRename("manual:my_pick", "my pick", known).ok).toBe(false);
+  });
+});
+
+describe("adherenceGroups", () => {
+  const ai = {
+    general_tags: [["solo", 0.9], ["tassel", 0.6]] as [string, number][],
+    character_tags: [["zhongli", 0.95]] as [string, number][],
+  };
+
+  it("splits tags by what the prompt asked for and the tagger saw", () => {
+    const g = adherenceGroups(tagFlow(["zhongli", "solo", "tassel", "prompt:solo", "prompt:neon", "manual:fav"], ai))!;
+    expect(g.matched.map((t) => t.raw)).toEqual(["solo"]);
+    expect(g.unprompted.map((t) => t.raw)).toEqual(["zhongli", "tassel"]);
+    expect(g.missed.map((t) => t.raw)).toEqual(["prompt:neon"]);
+    expect(g.mine.map((t) => t.raw)).toEqual(["manual:fav"]);
+  });
+
+  it("is null with only one side to compare", () => {
+    expect(adherenceGroups(tagFlow(["prompt:neon", "manual:fav"]))).toBeNull();
+    expect(adherenceGroups(tagFlow(["solo", "manual:fav"], ai))).toBeNull();
   });
 });

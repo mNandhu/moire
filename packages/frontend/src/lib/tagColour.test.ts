@@ -47,25 +47,25 @@ describe("tagMarkStyle", () => {
 
   it("rings a coloured tag and tints by facet", () => {
     expect(tagMarkStyle("red_hair", "look", ground)).toEqual({
-      "--tag-tint": "rgb(251 113 133 / 0.10)",
+      "--tag-tint": "rgb(251 113 133 / 0.15)",
       boxShadow: "inset 0 0 0 1px hsl(355 70% 52%)",
     });
   });
 
   it("tints alone when there is no colour, nothing when neither", () => {
-    expect(tagMarkStyle("serafuku", "outfit", ground)).toEqual({ "--tag-tint": "rgb(252 211 77 / 0.08)" });
+    expect(tagMarkStyle("serafuku", "outfit", ground)).toEqual({ "--tag-tint": "rgb(252 211 77 / 0.11)" });
     expect(tagMarkStyle("1girl", null, ground)).toBeUndefined();
   });
 
   it("paints a rainbow border under the fill for multicolour tags", () => {
     const style = tagMarkStyle("multicolored_hair", "look", ground);
     expect(style?.border).toBe("1px solid transparent");
-    expect(String(style?.background)).toMatch(/^linear-gradient\(rgb\(251 113 133 \/ 0.10\).*linear-gradient\(#15141c, #15141c\) padding-box, conic-gradient/);
+    expect(String(style?.background)).toMatch(/^linear-gradient\(rgb\(251 113 133 \/ 0.15\).*linear-gradient\(#15141c, #15141c\) padding-box, conic-gradient/);
   });
 
   it("leaves out what Settings turned off", () => {
     expect(tagMarkStyle("red_hair", "look", ground, { outlines: false, tints: true })).toEqual({
-      "--tag-tint": "rgb(251 113 133 / 0.10)",
+      "--tag-tint": "rgb(251 113 133 / 0.15)",
     });
     expect(tagMarkStyle("multicolored_hair", "look", ground, { outlines: false, tints: false })).toBeUndefined();
     expect(tagMarkStyle("red_hair", "look", ground, { outlines: true, tints: false })).toEqual({

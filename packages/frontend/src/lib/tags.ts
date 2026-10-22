@@ -177,6 +177,27 @@ export function tagFlow(tags: readonly string[] = [], ai?: AiTagMeta | null): Fl
   ];
 }
 
+/** How a tag sits between the prompt and what the tagger saw. */
+export type TagGroup = "matched" | "unprompted" | "missed" | "mine";
+
+/**
+ * An image's flow tags split by prompt adherence: tags the prompt asked for
+ * and the tagger saw, ones it saw unasked, prompt tags it didn't see, and
+ * the user's own. Only meaningful when the image has both AI and prompt
+ * tags; otherwise null (one kind alone has nothing to compare). Order
+ * within each group is the flow's.
+ */
+export function adherenceGroups(tags: readonly FlowTag[]): Record<TagGroup, FlowTag[]> | null {
+  const seen = (t: FlowTag) => t.kind === "ai" || t.kind === "character";
+  if (!tags.some(seen) || !tags.some((t) => t.kind === "prompt" || t.also?.includes("prompt"))) return null;
+  const out: Record<TagGroup, FlowTag[]> = { matched: [], unprompted: [], missed: [], mine: [] };
+  for (const t of tags) {
+    if (seen(t)) out[t.also?.includes("prompt") ? "matched" : "unprompted"].push(t);
+    else out[t.kind === "prompt" ? "missed" : "mine"].push(t);
+  }
+  return out;
+}
+
 
 /**
  * Bare manual-tag names for a bulk edit, from TagSearchInput chips: a picked

@@ -107,13 +107,13 @@ export const FACET_LABEL: Record<Facet, string> = {
   framing: "framing",
 };
 
-/** A faint wash per facet, quiet enough that the text colour (the tag's kind) still leads. */
+/** A wash per facet: visible on the dark panel, light enough that the text colour (the tag's kind) still reads. */
 export const FACET_TINT: Record<Facet, string> = {
-  look: "rgb(251 113 133 / 0.10)",
-  outfit: "rgb(252 211 77 / 0.08)",
-  pose: "rgb(52 211 153 / 0.08)",
-  scene: "rgb(56 189 248 / 0.09)",
-  framing: "rgb(167 139 250 / 0.10)",
+  look: "rgb(251 113 133 / 0.15)",
+  outfit: "rgb(252 211 77 / 0.11)",
+  pose: "rgb(52 211 153 / 0.11)",
+  scene: "rgb(56 189 248 / 0.13)",
+  framing: "rgb(167 139 250 / 0.15)",
 };
 
 const RAINBOW =
