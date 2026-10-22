@@ -266,6 +266,9 @@ export default function GeneratePage() {
   const bar = runBarOf(gen);
   // ?workflow=<id> (Use this workflow): choose it once the list has it.
   const [params, setParams] = useSearchParams();
+  // Writing in the form: on a phone the keyboard is up, and a pinned Queue
+  // bar would ride above it, over the field being typed in.
+  const [writing, setWriting] = useState(false);
   const asked = params.get("workflow");
   const hasSampling = bar.sampling;
   /** Switching workflows: settings tied to the old graph go; an empty
@@ -538,9 +541,13 @@ export default function GeneratePage() {
         </div>
       </PageHeader>
       <PageBody width="wide" className="pb-0">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_30rem] lg:items-start">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_30rem] lg:items-start">
           {/* From lg the run bar pins to the bottom of the view; long layers scroll above it. A phone has no room to spare for it. */}
-          <div className="flex min-w-0 flex-col gap-4 lg:min-h-[calc(100dvh-5.5rem)]">
+          <div
+            className="flex min-w-0 flex-col gap-4 lg:min-h-[calc(100dvh-5.5rem)]"
+            onFocus={(e) => setWriting((e.target as HTMLElement).matches("input:not([type=checkbox]):not([type=radio]), textarea, [contenteditable]"))}
+            onBlur={() => setWriting(false)}
+          >
             {form.remix && <RemixStrip remix={form.remix} seed={form.seed} onClear={() => set("remix", null)} />}
             <div className="flex flex-col" aria-label="Positive prompt">
               {form.blocks.map((blk, i) => (
@@ -762,7 +769,7 @@ export default function GeneratePage() {
                 <div className="hidden lg:block">{runButton}</div>
               </Card>
             </div>
-            <div className="lg:hidden sticky bottom-0 z-[5] -mx-2 bg-gradient-to-t from-canvas from-60% to-transparent px-2 pb-3 pt-4">
+            <div className={cn("lg:hidden -mx-2 px-2 pb-3 pt-4", !writing && "sticky bottom-0 z-[5] bg-gradient-to-t from-canvas from-60% to-transparent")}>
               {runButton}
             </div>
           </div>
