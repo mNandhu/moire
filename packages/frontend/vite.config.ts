@@ -9,6 +9,15 @@ export default defineConfig({
     // Moiré is one process. Gitignored; `uv build` still includes it.
     outDir: "../backend/src/moire/web",
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Libraries change less often than the app: their own chunk stays
+        // cached across releases.
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom", "@tanstack/react-query"],
+        },
+      },
+    },
   },
   test: {
     environment: "jsdom",

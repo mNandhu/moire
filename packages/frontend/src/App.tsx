@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { SearchPalette } from "./components/SearchPalette";
@@ -214,7 +214,10 @@ export default function App() {
               with the content. */}
           <div ref={scrollRef} className="flex-1 overflow-auto overscroll-none">
             <PageErrorBoundary resetKey={loc.pathname}>
-              <Outlet />
+              {/* Lazy pages (RootRoutes) load in here; the shell stays. */}
+              <Suspense fallback={null}>
+                <Outlet />
+              </Suspense>
             </PageErrorBoundary>
           </div>
         </div>

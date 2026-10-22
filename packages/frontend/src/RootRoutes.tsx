@@ -1,26 +1,32 @@
+import { Suspense, lazy } from "react";
 import { Navigate, Routes, Route, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { OverlayOpenContext, getBackgroundLocation } from "./lib/backgroundLocation";
 import App from "./App";
-import OverviewPage from "./pages/OverviewPage";
 import AllImagesPage from "./pages/AllImagesPage";
-import LibrariesPage from "./pages/LibrariesPage";
-import TagsPage, { TagGroupPage } from "./pages/TagsPage";
-import CharacterPage from "./pages/CharacterPage";
-import SettingsPage from "./pages/SettingsPage";
-import AITaggingPage from "./pages/AITaggingPage";
-import RulesPage from "./pages/RulesPage";
 import ImageView from "./pages/ImageView";
 import { useRefreshOnFinish } from "./hooks/useBackgroundTasks";
 import { useTrackHistory } from "./hooks/useHistoryNav";
-import GeneratePage from "./pages/GeneratePage";
-import GenerationsPage from "./pages/GenerationsPage";
-import OutfitsPage from "./pages/OutfitsPage";
-import WorkflowSetupPage from "./pages/WorkflowSetupPage";
-import BatchPage from "./pages/BatchPage";
-import WelcomePage from "./pages/WelcomePage";
 import { ONBOARDING_KEY, fetchOnboarding } from "./lib/onboarding";
 import { ShortcutHelp } from "./components/ShortcutOverlay";
+
+// Pages off the gallery's path load on first visit, so the first paint
+// doesn't wait for Generate's code. The gallery and the image view (it opens
+// over the gallery, instantly) stay in the main bundle.
+const OverviewPage = lazy(() => import("./pages/OverviewPage"));
+const LibrariesPage = lazy(() => import("./pages/LibrariesPage"));
+const CharacterPage = lazy(() => import("./pages/CharacterPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const AITaggingPage = lazy(() => import("./pages/AITaggingPage"));
+const RulesPage = lazy(() => import("./pages/RulesPage"));
+const GeneratePage = lazy(() => import("./pages/GeneratePage"));
+const GenerationsPage = lazy(() => import("./pages/GenerationsPage"));
+const OutfitsPage = lazy(() => import("./pages/OutfitsPage"));
+const WorkflowSetupPage = lazy(() => import("./pages/WorkflowSetupPage"));
+const BatchPage = lazy(() => import("./pages/BatchPage"));
+const WelcomePage = lazy(() => import("./pages/WelcomePage"));
+const TagsPage = lazy(() => import("./pages/TagsPage"));
+const TagGroupPage = lazy(() => import("./pages/TagsPage").then((m) => ({ default: m.TagGroupPage })));
 
 // ImageView opens over the gallery rather than replacing it: opening a thumbnail
 // pushes `/image/:id` with `state.backgroundLocation` set to the gallery location
@@ -73,7 +79,14 @@ export default function RootRoutes() {
           <Route path="outfits" element={<OutfitsPage />} />
         </Route>
         <Route path="/image/:id" element={<ImageView />} />
-        <Route path="/welcome" element={<WelcomePage />} />
+        <Route
+          path="/welcome"
+          element={
+            <Suspense fallback={null}>
+              <WelcomePage />
+            </Suspense>
+          }
+        />
       </Routes>
       {backgroundLocation && (
         <Routes>
