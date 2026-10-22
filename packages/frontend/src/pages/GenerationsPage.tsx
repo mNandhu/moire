@@ -1,9 +1,10 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { History, ImageOff, Layers, Loader2, Search } from "lucide-react";
+import { QueueFrames } from "../components/generate/QueueFrames";
 import { Badge, EmptyState, Input, PageBody, PageHeader } from "../components/ui";
 import { batchLine, coverAspect, dayLabel, scrubIndex, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
-import { useBatches, type BatchSummary } from "../lib/generate";
+import { useBatches, useComfyStatus, type BatchSummary } from "../lib/generate";
 import { cn } from "../lib/cn";
 import { fuzzyRank } from "../lib/fuzzy";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -15,6 +16,17 @@ type Show = "all" | "running" | "failed";
 // different shapes pack without gaps while staying in reading order.
 const MIN_COL = 190;
 const GAP = 12;
+
+/** What a batch without images is doing: being made now, waiting its turn in
+ * ComfyUI's queue, or made and waiting for the download and library scan. */
+type Phase = "Running" | "Queued" | "Paused" | "Arriving";
+
+function phaseOf(b: BatchSummary, runningId: number | undefined, queued: Set<number>): Phase {
+  if (b.state === "paused") return "Paused";
+  if (b._id === runningId) return "Running";
+  if (queued.has(b._id)) return "Queued";
+  return b.arriving > 0 ? "Arriving" : "Running";
+}
 
 /** One card in the masonry grid, spanning its own measured height. */
 function MasonryItem({ children }: { children: ReactNode }) {
@@ -36,7 +48,7 @@ function MasonryItem({ children }: { children: ReactNode }) {
   );
 }
 
-function Masonry({ items }: { items: BatchSummary[] }) {
+function Masonry({ items, runningId, queued }: { items: BatchSummary[]; runningId: number | undefined; queued: Set<number> }) {
   return (
     <ul
       className="grid"
@@ -44,7 +56,7 @@ function Masonry({ items }: { items: BatchSummary[] }) {
     >
       {items.map((b) => (
         <MasonryItem key={b._id}>
-          <BatchCard b={b} />
+          <BatchCard b={b} phase={phaseOf(b, runningId, queued)} />
         </MasonryItem>
       ))}
     </ul>
@@ -56,13 +68,16 @@ function Masonry({ items }: { items: BatchSummary[] }) {
  * Moving the pointer across it (or arrow keys on the card) flips through the
  * images, a strip per image, with a thin bar showing where you are.
  */
-function Cover({ b, at, onAt, warm }: { b: BatchSummary; at: number; onAt: (i: number) => void; warm: boolean }) {
+function Cover({ b, at, onAt, warm, phase }: { b: BatchSummary; at: number; onAt: (i: number) => void; warm: boolean; phase: Phase }) {
   const urls = b.thumbs;
   if (!urls.length) {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-2 text-center text-xs text-faint">
         {b.state === "running" || b.state === "paused" || b.arriving > 0 ? (
-          <Loader2 size={20} className="animate-spin" />
+          <>
+            <Loader2 size={20} className="animate-spin" />
+            {phase}
+          </>
         ) : (
           <>
             <ImageOff size={18} />
@@ -129,7 +144,7 @@ function DeckEdges({ n }: { n: number }) {
   );
 }
 
-function BatchCard({ b }: { b: BatchSummary }) {
+function BatchCard({ b, phase }: { b: BatchSummary; phase: Phase }) {
   const [at, setAt] = useState(0);
   const [warm, setWarm] = useState(false);
   const n = b.thumbs.length;
@@ -150,8 +165,8 @@ function BatchCard({ b }: { b: BatchSummary }) {
         className="group relative block overflow-hidden rounded-xl border border-line bg-surface transition-colors hover:border-line-strong"
       >
         <div className="relative bg-canvas" style={{ aspectRatio: coverAspect(b.width, b.height) }}>
-          <Cover b={b} at={Math.min(at, Math.max(0, n - 1))} onAt={setAt} warm={warm} />
-          {b.state !== "done" && (
+          <Cover b={b} at={Math.min(at, Math.max(0, n - 1))} onAt={setAt} warm={warm} phase={phase} />
+          {b.state !== "done" && b.state !== "running" && (
             <Badge tone={stateTone(b.state)} className="absolute left-2 top-2 shadow-panel">
               {STATE_LABEL[b.state]}
             </Badge>
@@ -174,6 +189,11 @@ function BatchCard({ b }: { b: BatchSummary }) {
 export default function GenerationsPage() {
   useDocumentTitle("Generations");
   const { data, isLoading } = useBatches(200);
+  const { data: status } = useComfyStatus();
+  const live = (status?.active ?? []).filter((a) => !a.test);
+  // Batches take turns: the one ComfyUI is making now, the rest wait.
+  const runningId = (live.find((a) => a.running) ?? live[0])?._id;
+  const queued = useMemo(() => new Set(live.filter((a) => a._id !== runningId).map((a) => a._id)), [live, runningId]);
   const [q, setQ] = useState("");
   const [show, setShow] = useState<Show>("all");
 
@@ -200,6 +220,7 @@ export default function GenerationsPage() {
     <>
       <PageHeader title="Generations" count={data?.length} countLabel="batches" width="wide" />
       <PageBody width="wide">
+        <QueueFrames />
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <div className="relative w-64 max-w-full">
             <Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
@@ -230,7 +251,7 @@ export default function GenerationsPage() {
             {groups.map((g) => (
               <section key={g.day}>
                 <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">{g.day}</h2>
-                <Masonry items={g.items} />
+                <Masonry items={g.items} runningId={runningId} queued={queued} />
               </section>
             ))}
           </div>
