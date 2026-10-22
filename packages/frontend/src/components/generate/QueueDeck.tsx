@@ -1,23 +1,62 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown, X } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { countdown } from "../../lib/queueClock";
+import { BATCHES_KEY, STATUS_KEY, cancelBatch, useComfyStatus } from "../../lib/generate";
 import { FrameRow, legWhen } from "./QueueFrames";
 import { useLiveQueue, type LiveLeg } from "./useLiveQueue";
 
 const url = (l: LiveLeg) => `/generations/${l.id}`;
 
-function Tab({ depth, children, to }: { depth: number; children: ReactNode; to?: string }) {
-  const cls = cn(
-    "-mb-1.5 flex items-baseline gap-2 rounded-t-lg border border-b-0 border-line px-3 pb-2.5 pt-1 text-2xs",
-    depth === 1 ? "bg-raised text-muted" : "bg-raised/50 text-faint",
-    to && "hover:text-neutral-100",
+/** How long a batch that just joined the queue glows. */
+const ARRIVAL_MS = 1600;
+
+/** Takes a batch out of the queue; inside a link, so it keeps the click. */
+function CancelX({ id, className }: { id: number; className?: string }) {
+  const qc = useQueryClient();
+  const cancel = useMutation({
+    mutationFn: () => cancelBatch(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: STATUS_KEY });
+      void qc.invalidateQueries({ queryKey: BATCHES_KEY });
+    },
+  });
+  return (
+    <button
+      type="button"
+      aria-label="Cancel batch"
+      title="Cancel batch"
+      disabled={cancel.isPending}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        cancel.mutate();
+      }}
+      className={cn("shrink-0 rounded p-0.5 text-faint hover:bg-red-500/15 hover:text-red-300 touch:p-1.5", className)}
+    >
+      <X size={12} />
+    </button>
   );
-  const style = { marginInline: depth * 8 };
+}
+
+function Tab({ depth, children, to, onClick, lit }: { depth: number; children: ReactNode; to?: string; onClick?: () => void; lit?: boolean }) {
+  const cls = cn(
+    "-mb-1.5 flex items-center gap-2 rounded-t-lg border border-b-0 border-line px-3 pb-2.5 pt-1 text-left text-2xs",
+    depth === 1 ? "bg-raised text-muted" : "bg-raised/50 text-faint",
+    (to || onClick) && "hover:text-neutral-100",
+    lit && "animate-arrive",
+  );
+  const style: CSSProperties = { marginInline: depth * 8 };
   return to ? (
     <Link to={to} style={style} className={cls}>
       {children}
     </Link>
+  ) : onClick ? (
+    <button type="button" onClick={onClick} style={style} className={cn(cls, "w-[calc(100%-32px)]")}>
+      {children}
+    </button>
   ) : (
     <div style={style} className={cls}>
       {children}
@@ -25,13 +64,40 @@ function Tab({ depth, children, to }: { depth: number; children: ReactNode; to?:
   );
 }
 
+/** Batches that just joined the queue, for a moment; none for what was
+ * already queued when the page opened (`ready`: the queue is known). */
+function useArrivals(ids: number[], ready: boolean): Set<number> {
+  const seen = useRef<Set<number> | null>(null);
+  const [fresh, setFresh] = useState<ReadonlySet<number>>(new Set());
+  const key = ids.join(",");
+  useEffect(() => {
+    if (!ready) return;
+    const now = key ? key.split(",").map(Number) : [];
+    const before = seen.current;
+    seen.current = new Set(now);
+    const added = before ? now.filter((id) => !before.has(id)) : [];
+    if (added.length) setFresh(new Set(added));
+  }, [key, ready]);
+  useEffect(() => {
+    if (!fresh.size) return;
+    const t = setTimeout(() => setFresh(new Set()), ARRIVAL_MS);
+    return () => clearTimeout(t);
+  }, [fresh]);
+  return fresh as Set<number>;
+}
+
 /**
  * The Generate page's queue as a deck: the batch being made in front (its
  * frames filling in, its time left), the next one and a count of the rest
- * peeking out behind it. An empty slot when nothing is queued.
+ * peeking out behind it; the count unfolds into a tab per batch. Each can be
+ * cancelled from here. A batch just queued glows where it lands. An empty
+ * slot when nothing is queued.
  */
 export function QueueDeck() {
   const q = useLiveQueue();
+  const { isSuccess } = useComfyStatus();
+  const [open, setOpen] = useState(false);
+  const fresh = useArrivals(q?.legs.map((l) => l.id) ?? [], isSuccess);
   // Always there, so it doesn't pop in with the first batch and out with the last.
   if (!q) {
     return (
@@ -41,30 +107,47 @@ export function QueueDeck() {
     );
   }
   const [head, after, ...rest] = q.legs;
+  const unfolded = open && rest.length > 0;
   return (
     <div>
       {rest.length > 0 && (
-        <Tab depth={2}>
-          <span className="flex-1">
-            +{rest.length} more {rest.length === 1 ? "batch" : "batches"}
-          </span>
+        <Tab depth={2} onClick={() => setOpen((o) => !o)} lit={!unfolded && rest.some((l) => fresh.has(l.id))}>
+          <span className="flex-1">{unfolded ? "Show less" : `+${rest.length} more ${rest.length === 1 ? "batch" : "batches"}`}</span>
           <span className="font-mono tabular-nums">{q.paused ? "paused" : `all done in ${countdown(q.left)}`}</span>
+          <ChevronDown size={12} className={cn("transition-transform", unfolded && "rotate-180")} />
         </Tab>
       )}
+      {/* Furthest back on top, like the deck's own order. */}
+      {unfolded &&
+        [...rest].reverse().map((l) => (
+          <Tab key={l.id} depth={2} to={url(l)} lit={fresh.has(l.id)}>
+            <span className="min-w-0 flex-1 truncate">{l.name}</span>
+            <span className="shrink-0 font-mono tabular-nums">{legWhen(l, q.paused)}</span>
+            <CancelX id={l.id} className="-my-1" />
+          </Tab>
+        ))}
       {after && (
-        <Tab depth={1} to={url(after)}>
+        <Tab depth={1} to={url(after)} lit={fresh.has(after.id)}>
           <span className="min-w-0 flex-1 truncate">
             <span className="text-faint">Next</span> {after.name}
           </span>
           <span className="shrink-0 font-mono tabular-nums">{legWhen(after, q.paused)}</span>
+          <CancelX id={after.id} className="-my-1" />
         </Tab>
       )}
-      <Link to={url(head)} className="relative flex items-center gap-3 rounded-xl border border-brand-400/40 bg-surface px-3 py-2 shadow-panel hover:border-brand-400/70">
+      <Link
+        to={url(head)}
+        className={cn(
+          "relative flex items-center gap-3 rounded-xl border border-brand-400/40 bg-surface px-3 py-2 shadow-panel hover:border-brand-400/70",
+          fresh.has(head.id) && "animate-arrive",
+        )}
+      >
         <FrameRow leg={head} size={2} max={6} className="shrink-0 gap-0.5" frameClass="rounded" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm text-neutral-100">{head.name}</span>
           <span className="block font-mono text-xs tabular-nums text-brand-200">{legWhen(head, q.paused)}</span>
         </span>
+        <CancelX id={head.id} />
       </Link>
     </div>
   );

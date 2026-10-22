@@ -1,11 +1,14 @@
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { batchRunTime, durationLabel, isWaiting, turnLabel } from "../../lib/batches";
 import { BATCHES_KEY, STATUS_KEY, batchKey, useBatch, useBatches, useComfyStatus, type Batch } from "../../lib/generate";
-import { BatchResults } from "./BatchResults";
-import { batchRunTime, durationLabel, turnLabel } from "../../lib/batches";
 import { batchLeft, leftLabel } from "../../lib/eta";
+import { BatchResults } from "./BatchResults";
 
-function Latest({ id }: { id: number }) {
+/** Batches shown in the output column. */
+const SHOWN = 3;
+
+function BatchPanel({ id }: { id: number }) {
   const qc = useQueryClient();
   const { data: b } = useBatch(id);
   const { data: status } = useComfyStatus();
@@ -18,15 +21,14 @@ function Latest({ id }: { id: number }) {
   };
   const done = b.requests.filter((q) => !["pending", "queued", "running"].includes(q.state)).length;
   const took = batchRunTime(b.requests);
-  // Batches take turns, so with others queued its own time left isn't when
-  // it's done: the queue's word for it first.
+  // With others queued its own time left isn't when it's done: the queue's
+  // word for it first.
   const turn = status?.active.find((a) => a._id === id);
   const left = batchLeft(b.requests);
   const leftText = turn ? turnLabel(turn) : left && leftLabel(left);
   return (
     // No card: a frame sized to the column sat wider than a portrait batch.
-    // Headed like Recent batches under it, so the column reads as one list.
-    <section aria-label="Latest batch">
+    <section aria-label={b.name}>
       <div className="mb-1.5 flex items-center gap-2 px-2 text-sm">
         <span className="min-w-0 truncate font-medium text-neutral-100" title={b.name}>
           {b.name}
@@ -38,13 +40,16 @@ function Latest({ id }: { id: number }) {
         )}
         {leftText ? (
           <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted">{leftText}</span>
-        ) : !turn && took && (
-          <span
-            className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted"
-            title={took.perImage != null && took.images > 1 ? `${durationLabel(took.perImage)} per image` : undefined}
-          >
-            {durationLabel(took.total)}
-          </span>
+        ) : (
+          !turn &&
+          took && (
+            <span
+              className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted"
+              title={took.perImage != null && took.images > 1 ? `${durationLabel(took.perImage)} per image` : undefined}
+            >
+              {durationLabel(took.total)}
+            </span>
+          )
         )}
         <span className="flex-1" />
         <Link to={`/generations/${b._id}`} className="shrink-0 text-xs text-muted hover:text-neutral-100">
@@ -56,9 +61,31 @@ function Latest({ id }: { id: number }) {
   );
 }
 
-/** The newest batch's images, arriving as they're made, under the Queue button. */
-export function LatestResults() {
-  const { data } = useBatches(1);
-  const id = data?.[0]?._id;
-  return id != null ? <Latest key={id} id={id} /> : null;
+/**
+ * The output column under the queue deck: the last few batches that have
+ * started, newest on top, each with its images big as they're made. A batch
+ * still waiting its turn is only in the deck.
+ */
+export function OutputFeed() {
+  const { data } = useBatches(SHOWN + 6);
+  const { data: status } = useComfyStatus();
+  const started = data
+    ?.filter((b) => {
+      const turn = status?.active.find((a) => a._id === b._id);
+      return !(turn && isWaiting(turn));
+    })
+    .slice(0, SHOWN);
+  if (!started?.length) return null;
+  return (
+    <>
+      {started.map((b) => (
+        <BatchPanel key={b._id} id={b._id} />
+      ))}
+      <div className="flex justify-center">
+        <Link to="/generations" className="text-xs text-muted hover:text-neutral-100">
+          All generations
+        </Link>
+      </div>
+    </>
+  );
 }

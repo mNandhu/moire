@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleAlert, FlaskConical, Loader2, Lock, Sparkles, Wand2 } from "lucide-react";
+import { Check, CircleAlert, FlaskConical, Loader2, Lock, Sparkles, Wand2 } from "lucide-react";
 import { Badge, Button, ButtonLink, Card, EmptyState, PageBody, PageHeader, Tooltip } from "../components/ui";
 import { bareTagPool } from "../components/generate/ChipInput";
 import {
@@ -21,10 +21,9 @@ import { WorkflowPicker } from "../components/generate/WorkflowPicker";
 import { RemixStrip, type RemixState } from "../components/generate/Remix";
 import { canRunTest, countModeOf, defaultBatchSize, forWorkflow, runBarOf, testState } from "../lib/workflow";
 import { useCharacters } from "../components/ImageCharacters";
-import { LatestResults } from "../components/generate/LatestResults";
 import { useNextEstimate } from "../components/generate/NextBatch";
-import { RecentBatches } from "../components/generate/RecentBatches";
 import { QueueDeck } from "../components/generate/QueueDeck";
+import { OutputFeed } from "../components/generate/OutputFeed";
 import { autoBatchName } from "../lib/batchName";
 import {
   BATCHES_KEY,
@@ -349,12 +348,19 @@ export default function GeneratePage() {
   const setupLink = gen?.kind === "custom" ? { text: "Open its setup", to: `/generate/workflows/${gen._id}` } : undefined;
   const connected = !!status?.connected;
 
+  const [justQueued, setJustQueued] = useState(false);
+  useEffect(() => {
+    if (!justQueued) return;
+    const t = setTimeout(() => setJustQueued(false), 1500);
+    return () => clearTimeout(t);
+  }, [justQueued]);
   const queue = useMutation({
     mutationFn: () =>
       queueBatch(forWorkflow(toQueueBody(form, gen?._id ?? "builtin", characters ?? [], presets, loraPresets), bar)),
     onMutate: () => setRejected(null),
-    onSuccess: (b) => {
-      toast.push(`Queued ${b.name}`, "success");
+    // No toast: the button says so and the batch glows where it lands in the deck.
+    onSuccess: () => {
+      setJustQueued(true);
       set("name", null);
       void qc.invalidateQueries({ queryKey: STATUS_KEY });
       void qc.invalidateQueries({ queryKey: BATCHES_KEY });
@@ -573,9 +579,21 @@ export default function GeneratePage() {
       onClick={() => queue.mutate()}
       title={queueTitle(estimate)}
     >
-      {queue.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-      Queue {countText(form.count, countMode)}
-      {estimate?.seconds != null && <span className="font-normal tabular-nums opacity-70">~{etaShort(estimate.seconds)}</span>}
+      {queue.isPending ? (
+        <Loader2 size={16} className="animate-spin" />
+      ) : justQueued ? (
+        <Check size={16} />
+      ) : (
+        <Wand2 size={16} />
+      )}
+      {justQueued && !queue.isPending ? (
+        "Queued"
+      ) : (
+        <>
+          Queue {countText(form.count, countMode)}
+          {estimate?.seconds != null && <span className="font-normal tabular-nums opacity-70">~{etaShort(estimate.seconds)}</span>}
+        </>
+      )}
     </Button>
   );
 
@@ -843,8 +861,7 @@ export default function GeneratePage() {
             aria-label="Output"
           >
             <QueueDeck />
-            <LatestResults />
-            <RecentBatches onOpen={(id) => navigate(`/generations/${id}`)} />
+            <OutputFeed />
           </aside>
         </div>
       </PageBody>

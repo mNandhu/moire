@@ -370,7 +370,11 @@ export function BatchResults({
 }) {
   const ratio = batch.inputs.width && batch.inputs.height ? batch.inputs.width / batch.inputs.height : 2 / 3;
   const slots = resultSlots(batch);
-  if (variant === "panel") return <PanelResults batch={batch} slots={slots} ratio={ratio} onChanged={onChanged} />;
+  if (variant === "panel") {
+    // Cells still waiting their turn are the queue deck's to show.
+    const made = slots.filter((s) => s.kind !== "waiting" || s.req.state === "running");
+    return <PanelResults batch={batch} slots={made} ratio={ratio} onChanged={onChanged} />;
+  }
   const { cols, rows } = resultGrid(slots.length);
   // Rows fit the view's height.
   const cell = `calc((100vh - 12rem) / ${Math.min(rows, 2)} * ${ratio})`;
@@ -389,7 +393,8 @@ export function BatchResults({
  * The output column's batch: one cell big, as wide as the column allows
  * under the view's height, and the same size whatever the batch's count, so
  * results and loaders never resize the column. A batch of more than one gets
- * a strip of small ones under it to pick from (or ← →).
+ * a strip of small ones under it to pick from (or ← →); until one is picked,
+ * the big one follows the image being made, else the last one made.
  */
 function PanelResults({
   batch,
@@ -406,7 +411,9 @@ function PanelResults({
   // running batch's requests finish.
   const [picked, setPicked] = useState<string | null>(null);
   const keys = slots.map(slotKey);
-  const at = Math.max(0, picked ? keys.indexOf(picked) : 0);
+  const making = slots.findIndex((x) => x.kind === "waiting");
+  const newest = making >= 0 ? making : slots.length - 1;
+  const at = Math.max(0, picked ? keys.indexOf(picked) : newest);
   const s = slots[at];
   if (!s) return null;
   const many = slots.length > 1;
