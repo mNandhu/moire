@@ -486,9 +486,32 @@ function CharacterRow({
             </span>
           )}
         />
-        <span className="min-w-0 flex-1 truncate text-xs text-faint" title={kept.join(", ")}>
-          {kept.join(", ")}
-        </span>
+        {/* Folded, each tag strikes on a click, as the outfit's do; open, the Identity row below has them (and the x). */}
+        {expanded ? (
+          <span className="min-w-0 flex-1" />
+        ) : off && recipe ? (
+          <span className="min-w-0 flex-1 truncate text-xs text-faint">
+            {recipe.identity
+              .filter((c) => !c.dropped)
+              .map((c, i) => (
+                <span key={c.tag}>
+                  {i > 0 && ", "}
+                  <button
+                    type="button"
+                    onClick={() => off.toggle(c.tag)}
+                    title={off.tags.includes(c.tag) ? "Bring back" : "Leave out of this batch"}
+                    className={cn("rounded-sm hover:text-neutral-100", off.tags.includes(c.tag) && "text-faint/60 line-through")}
+                  >
+                    {displayWord(c.tag)}
+                  </button>
+                </span>
+              ))}
+          </span>
+        ) : (
+          <span className="min-w-0 flex-1 truncate text-xs text-faint" title={kept.join(", ")}>
+            {kept.join(", ")}
+          </span>
+        )}
         {lora &&
           (lora.file ? (
             <span className="shrink-0 font-mono text-xs text-neutral-300" title="Character LoRA">
