@@ -2,11 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, Dices, Minus, Pencil, Plus, RotateCcw } from "lucide-react";
 import { cn } from "../../lib/cn";
-import { etaLabel } from "../../lib/eta";
 import { countHint, countLabel, randomSeed, type CountMode } from "../../lib/requests";
 import { ShapeIcon, SIZE_GROUP, useSizePresets } from "../SizeFilter";
-import { Input, Picker, ProgressBar, Tooltip, type PickerOption } from "../ui";
-import type { ActiveBatch, Sampling } from "../../lib/generate";
+import { Input, Picker, Tooltip, type PickerOption } from "../ui";
+import type { Sampling } from "../../lib/generate";
 import { samplerLabel, samplingLabel } from "../../lib/generateForm";
 
 export function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
@@ -299,40 +298,6 @@ export function SamplingControl({
 }
 
 /** The compact queue card: the running batch, progress, how many wait. */
-export function QueueCard({ active, connected }: { active: ActiveBatch[]; connected: boolean }) {
-  const shown = active.filter((a) => !a.test);
-  if (!shown.length) return null;
-  // Batches take turns: lead with the one ComfyUI is making now.
-  const head = shown.find((a) => a.running) ?? shown[0];
-  const rest = shown.filter((a) => a !== head);
-  const left = head.done_in !== undefined ? head.done_in : head.eta;
-  const step = head.progress && head.progress.max ? head.progress.value / head.progress.max : 0;
-  const pct = head.requests ? ((head.finished + step) / head.requests) * 100 : 0;
-  return (
-    <Link
-      to={`/generations/${head._id}`}
-      aria-label={`Queue: ${head.name}, ${head.finished} of ${head.requests} requests done${rest.length ? `, ${rest.length} more waiting` : ""}`}
-      className="block rounded-lg border border-line bg-neutral-950/60 px-3 py-2.5 hover:border-line-strong"
-    >
-      <div className="flex items-center gap-2 text-sm">
-        <span className={cn("h-2 w-2 shrink-0 rounded-full", connected ? "bg-emerald-400 animate-pulse" : "bg-neutral-500")} />
-        <span className="flex-1 truncate text-neutral-100">{head.name}</span>
-        <span className="tabular-nums text-xs text-muted">
-          {head.finished} / {head.requests}
-        </span>
-        {left != null && left >= 1 && <span className="whitespace-nowrap tabular-nums text-xs text-muted">{etaLabel(left)} left</span>}
-        {!connected && <span className="text-xs text-muted">Paused</span>}
-      </div>
-      <ProgressBar value={pct} className="mt-2" />
-      {rest.length > 0 && (
-        <div className="mt-1.5 text-xs text-faint">
-          {rest.length} more {rest.length === 1 ? "batch" : "batches"} queued
-        </div>
-      )}
-    </Link>
-  );
-}
-
 export type Size = { width: number; height: number };
 
 /** Single pick of the gallery's size presets (shape + its usual pixels). */

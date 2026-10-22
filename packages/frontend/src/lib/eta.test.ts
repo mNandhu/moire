@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { batchLeft, clock, estimateNotes, etaLabel, etaShort, leftLabel, queueTitle, roundEta, runProgress } from "./eta";
+import { batchLeft, clock, etaLabel, etaShort, leftLabel, queueTitle, roundEta, runProgress } from "./eta";
 
 describe("roundEta", () => {
   it("rounds to 5s under a minute, 10s under ten, else the minute", () => {
@@ -72,31 +72,20 @@ describe("batchLeft", () => {
   });
 });
 
-describe("estimateNotes / queueTitle", () => {
+describe("queueTitle", () => {
   const e = { seconds: 70, load: 20, ahead: 118, basis: "exact" as const, samples: 8 };
 
-  it("words the next batch's time, its load and the queue ahead", () => {
-    expect(estimateNotes(e, "illustriousXL")).toEqual({
-      time: "about 1m 10s",
-      notes: ["Includes about 20s to load illustriousXL.", "Starts after about 2m of work already queued."],
-      basis: "From the last 8 runs with these settings",
-    });
+  it("words the next batch's time and the queue ahead", () => {
     expect(queueTitle(e)).toBe("Should take about 1m 10s, after about 2m already queued");
   });
 
   it("leaves out what doesn't apply", () => {
     const plain = { ...e, load: null, ahead: 0, basis: "generator" as const };
-    expect(estimateNotes(plain, null)).toEqual({
-      time: "about 1m 10s",
-      notes: [],
-      basis: "Scaled from runs on other checkpoints",
-    });
     expect(queueTitle(plain)).toBe("Should take about 1m 10s");
   });
 
   it("says nothing before there are runs to go on", () => {
     const none = { seconds: null, load: null, ahead: 0, basis: null, samples: 0 };
-    expect(estimateNotes(none, "x")).toBeNull();
     expect(queueTitle(none)).toBeUndefined();
   });
 });

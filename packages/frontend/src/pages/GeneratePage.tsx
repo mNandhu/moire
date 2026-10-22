@@ -10,7 +10,6 @@ import {
   FixedValue,
   SamplingControl,
   CountStepper,
-  QueueCard,
   SeedControl,
   SizePicker,
   stemOf,
@@ -23,8 +22,9 @@ import { RemixStrip, type RemixState } from "../components/generate/Remix";
 import { canRunTest, countModeOf, defaultBatchSize, forWorkflow, runBarOf, testState } from "../lib/workflow";
 import { useCharacters } from "../components/ImageCharacters";
 import { LatestResults } from "../components/generate/LatestResults";
-import { NextBatch, useNextEstimate } from "../components/generate/NextBatch";
+import { useNextEstimate } from "../components/generate/NextBatch";
 import { RecentBatches } from "../components/generate/RecentBatches";
+import { QueueDeck } from "../components/generate/QueueDeck";
 import { autoBatchName } from "../lib/batchName";
 import {
   BATCHES_KEY,
@@ -41,7 +41,6 @@ import {
   DEFAULT_OUTFIT,
   DEFAULT_OUTFIT_NAME,
   useComfyStatus,
-  useBatches,
   useGenerators,
   useLoraPresets,
   usePresets,
@@ -70,7 +69,7 @@ import {
 import { PromptRepeats } from "../components/generate/PromptRepeats";
 import { prefixRepeats } from "../lib/promptRepeats";
 import { checkCountTags, countRanges, expectedTags, fixCountTags, followCast, type Kind } from "../lib/countTags";
-import { queueTitle } from "../lib/eta";
+import { etaShort, queueTitle } from "../lib/eta";
 import { cn } from "../lib/cn";
 import { countText, type CountMode } from "../lib/requests";
 import { PromptInput, type PromptFlash } from "../components/generate/PromptInput";
@@ -199,7 +198,6 @@ export default function GeneratePage() {
   const { data: settings } = useComfySettings();
   const { data: models } = useComfyModels();
   const { data: generators } = useGenerators();
-  const { data: newest } = useBatches(1);
   const { data: presets } = usePresets();
   const { data: loraPresets } = useLoraPresets();
   const { data: tagAgg } = useTagAggregate({ includePrompt: true });
@@ -577,6 +575,7 @@ export default function GeneratePage() {
     >
       {queue.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
       Queue {countText(form.count, countMode)}
+      {estimate?.seconds != null && <span className="font-normal tabular-nums opacity-70">~{etaShort(estimate.seconds)}</span>}
     </Button>
   );
 
@@ -843,21 +842,7 @@ export default function GeneratePage() {
             className="space-y-4 pb-6 lg:sticky lg:top-[5.5rem] lg:max-h-[calc(100dvh-5.5rem)] lg:overflow-y-auto"
             aria-label="Output"
           >
-            {/* Narrow screens: the Queue button's tooltip says it instead. */}
-            <div className="hidden lg:block">
-              <NextBatch
-                estimate={estimate}
-                generator={gen?.name ?? "Built-in"}
-                checkpoint={form.checkpoint}
-                count={countText(form.count, countMode)}
-                width={form.width}
-                height={form.height}
-              />
-            </div>
-            {status && (
-              // Other batches still running or waiting; the newest shows below with its images.
-              <QueueCard active={status.active.filter((x) => x._id !== newest?.[0]?._id)} connected={connected} />
-            )}
+            <QueueDeck />
             <LatestResults />
             <RecentBatches onOpen={(id) => navigate(`/generations/${id}`)} />
           </aside>

@@ -107,30 +107,6 @@ export type NewEstimate = {
   samples: number;
 };
 
-const BASIS: Record<NonNullable<NewEstimate["basis"]>, (n: number) => string> = {
-  exact: (n) => `From the last ${n === 1 ? "run" : `${n} runs`} with these settings`,
-  checkpoint: () => "Scaled from this checkpoint's runs at other sizes or steps",
-  generator: () => "Scaled from runs on other checkpoints",
-};
-
-/**
- * What the next-batch card says: the time, notes on a checkpoint load and
- * work already queued, and where the number comes from. Null when there's
- * no number (no runs to go on yet).
- */
-export function estimateNotes(
-  e: NewEstimate | null | undefined,
-  checkpoint: string | null,
-): { time: string; notes: string[]; basis: string | null } | null {
-  if (!e || e.seconds == null) return null;
-  const notes: string[] = [];
-  if (e.load != null && e.load >= 1) {
-    notes.push(`Includes ${etaLabel(e.load)} to load ${checkpoint ?? "the checkpoint"}.`);
-  }
-  if (e.ahead != null && e.ahead >= 1) notes.push(`Starts after ${etaLabel(e.ahead)} of work already queued.`);
-  return { time: etaLabel(e.seconds), notes, basis: e.basis ? BASIS[e.basis](e.samples) : null };
-}
-
 /** The Queue button's tooltip: "Should take about 1m 10s, after about 2m
  * already queued". Undefined without a number. */
 export function queueTitle(e: NewEstimate | null | undefined): string | undefined {
