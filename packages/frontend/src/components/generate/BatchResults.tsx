@@ -1,13 +1,13 @@
 import { Link, useLocation } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { ImageOff, Loader2, RotateCcw, Star, X } from "lucide-react";
-import { ProgressBar } from "../ui";
 import { resultGrid, resultSlots, type ResultSlot } from "../../lib/batches";
 import { cancelRequest, retryRequest, type Batch, type GenRequest, type Output } from "../../lib/generate";
 import { setQuarantine, setScore } from "../../lib/imageMutations";
 import { withBackgroundLocation } from "../../lib/backgroundLocation";
 import { cn } from "../../lib/cn";
-import { developing, leftLabel } from "../../lib/eta";
+import { clock, runProgress } from "../../lib/eta";
+import { useLiveSeconds } from "../../hooks/useLiveSeconds";
 import { useToast } from "../Toasts";
 
 export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; onChanged: () => void }) {
@@ -102,19 +102,41 @@ function cellTitle(s: ResultSlot): string {
   return `Request ${s.number}, seed ${s.req.seed}`;
 }
 
-/** The first cell's line: time left (or an overrun) when there's an
- * estimate, else ComfyUI's step count, or where it waits. */
-function waitingLabel(req: GenRequest, dev: ReturnType<typeof developing>): string {
-  if (dev) return leftLabel({ seconds: Math.max(0, (req.expected ?? 0) - (req.elapsed ?? 0)), over: dev.over });
-  if (req.state === "running") return stepsLabel(req) ?? "Running";
-  return req.state === "queued" ? "Queued" : "Waiting";
-}
-
 /** ComfyUI's own progress: "3 12 / 28" (node, then step of steps). */
 function stepsLabel(req: GenRequest): string | null {
   if (!req.progress) return null;
   const steps = `${req.progress.value} / ${req.progress.max}`;
   return req.progress.node ? `${req.progress.node} ${steps}` : steps;
+}
+
+// The drifting colour under a generating tile: warm and violet on time,
+// amber once it overruns.
+const AURORA = {
+  calm: "radial-gradient(55% 45% at 30% 25%, rgb(251 191 136 / 0.32), transparent 70%), radial-gradient(50% 45% at 72% 78%, rgb(129 140 248 / 0.34), transparent 70%), radial-gradient(40% 35% at 70% 30%, rgb(232 121 249 / 0.18), transparent 70%)",
+  late: "radial-gradient(55% 45% at 30% 25%, rgb(251 191 36 / 0.30), transparent 70%), radial-gradient(50% 45% at 72% 78%, rgb(249 115 22 / 0.26), transparent 70%), radial-gradient(40% 35% at 70% 30%, rgb(244 63 94 / 0.14), transparent 70%)",
+};
+
+/** The tile's bar: ComfyUI's steps when it sends them, else the time
+ * against the estimate; stripes once the estimate is passed or without one. */
+function RunBar({ value, striped, late }: { value: number | null; striped: boolean; late: boolean }) {
+  return (
+    <div className="relative h-1 overflow-hidden rounded-full bg-white/10">
+      {striped || value == null ? (
+        <div
+          className={cn("absolute inset-0 animate-stripes", late ? "opacity-90" : "opacity-60")}
+          style={{
+            backgroundImage: `repeating-linear-gradient(-45deg, ${late ? "rgb(251 191 36 / 0.85)" : "rgb(167 139 250 / 0.7)"} 0 6px, transparent 6px 12px)`,
+            backgroundSize: "24px 100%",
+          }}
+        />
+      ) : (
+        <div
+          className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-brand-600 to-brand-300 shadow-[0_0_8px_rgb(167_139_250/0.8)] transition-[width] duration-300 ease-linear"
+          style={{ width: `${Math.max(2, value * 100)}%` }}
+        />
+      )}
+    </div>
+  );
 }
 
 function WaitingCell({
@@ -132,54 +154,97 @@ function WaitingCell({
 }) {
   const cancel = useMutation({ mutationFn: () => cancelRequest(batch._id, req._id), onSuccess: (b) => onChanged(b) });
   const running = req.state === "running";
-  const pct = req.progress && req.progress.max ? (req.progress.value / req.progress.max) * 100 : 0;
-  // With an estimate, the tile develops like an instant photo as the time
-  // passes; without one it pulses.
-  const dev = running ? developing(req.expected, req.elapsed) : null;
+  const elapsed = useLiveSeconds(running ? req.elapsed : null, running);
+  const run = running ? runProgress(req.expected, elapsed) : null;
+  const steps = req.progress && req.progress.max ? req.progress.value / req.progress.max : null;
+  const late = run?.phase === "late";
+  // Every cell of a running request develops together (one request makes
+  // all its images at once); only the first carries Cancel.
+  const fill = run ? run.fill : steps ?? 0;
+  const big = !running
+    ? null
+    : run
+      ? run.phase === "on-time"
+        ? clock(Math.ceil(run.left))
+        : `+${clock(run.over)}`
+      : elapsed != null
+        ? clock(elapsed)
+        : null;
+  const caption = !running
+    ? req.state === "queued"
+      ? "Queued"
+      : "Waiting"
+    : run
+      ? run.phase === "on-time"
+        ? "left"
+        : late
+          ? "Taking longer than usual"
+          : "Finishing up"
+      : "Running";
+  const tip = [stepsLabel(req), run && req.expected ? `Usually about ${clock(req.expected)}` : null].filter(Boolean).join(" · ");
   return (
     <div
       className={cn(
-        "relative flex flex-col justify-end overflow-hidden rounded-lg p-2",
-        running ? "border border-brand-700/70 bg-raised" : "bg-raised/50",
+        "relative flex flex-col overflow-hidden rounded-lg p-2 [container-type:inline-size]",
+        running ? cn("border bg-raised", late ? "border-amber-600/60" : "border-brand-700/70") : "bg-raised/50",
       )}
       style={{ aspectRatio: ratio }}
+      title={tip || undefined}
     >
-      {dev ? (
-        <div
-          aria-hidden
-          className="absolute inset-0 transition-[opacity,filter] duration-1000 ease-linear"
-          style={{
-            opacity: 0.1 + dev.fill * 0.9,
-            filter: `saturate(${0.2 + dev.fill * 0.8})`,
-            background:
-              "radial-gradient(120% 80% at 30% 20%, rgb(251 191 136 / 0.3), transparent 60%), radial-gradient(90% 70% at 75% 85%, rgb(129 140 248 / 0.28), transparent 65%), linear-gradient(to bottom, rgb(255 255 255 / 0.09), rgb(255 255 255 / 0.03))",
-          }}
-        />
+      {running ? (
+        <>
+          <div
+            aria-hidden
+            className="absolute inset-0 transition-[opacity,filter] duration-1000 ease-linear"
+            style={{ opacity: 0.6 + fill * 0.4, filter: `saturate(${0.5 + fill * 0.5})` }}
+          >
+            <div className="absolute -inset-1/4 animate-aurora" style={{ background: late ? AURORA.late : AURORA.calm }} />
+          </div>
+          {/* Developing from the bottom up: the part still to come stays dim,
+              its edge a soft line of light. */}
+          <div
+            aria-hidden
+            className="absolute inset-x-0 top-0 bg-gradient-to-b from-canvas/60 via-canvas/30 to-transparent transition-[height] duration-1000 ease-linear"
+            style={{ height: `${(1 - fill) * 100}%` }}
+          />
+          <div aria-hidden className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
+        </>
       ) : (
-        <div className={cn("absolute inset-0", running ? "animate-pulse bg-brand-900/10" : "bg-raised/40")} />
+        <div aria-hidden className="absolute inset-0 animate-pulse bg-raised/40" />
       )}
       {first && (
-        <div className="relative space-y-1.5">
-          <div className="flex items-center gap-1.5 text-xs">
-            <span
-              className={cn("leading-tight", running ? "text-neutral-100" : "text-muted")}
-              title={dev ? (stepsLabel(req) ?? undefined) : undefined}
-            >
-              {waitingLabel(req, dev)}
-            </span>
-            <span className="flex-1" />
-            <button
-              type="button"
-              aria-label="Cancel"
-              title="Cancel"
-              onClick={() => cancel.mutate()}
-              disabled={cancel.isPending}
-              className="rounded p-0.5 text-muted hover:bg-line hover:text-neutral-100"
-            >
-              <X size={13} />
-            </button>
-          </div>
-          {running && <ProgressBar value={pct} />}
+        <button
+          type="button"
+          aria-label="Cancel"
+          title="Cancel"
+          onClick={() => cancel.mutate()}
+          disabled={cancel.isPending}
+          className="absolute right-1.5 top-1.5 z-10 rounded p-0.5 text-muted hover:bg-black/30 hover:text-neutral-100"
+        >
+          <X size={13} />
+        </button>
+      )}
+      <div className="relative flex flex-1 flex-col items-center justify-center gap-0.5 text-center">
+        {big && (
+          <span
+            className={cn(
+              "font-semibold tabular-nums leading-none tracking-tight drop-shadow",
+              "text-[clamp(1rem,22cqw,2rem)]",
+              late ? "text-amber-200" : "text-neutral-50",
+            )}
+          >
+            {big}
+          </span>
+        )}
+        {(first || running) && (
+          <span className={cn("text-xs leading-tight", late ? "text-amber-200/90" : running ? "text-neutral-200" : "text-muted")}>
+            {caption}
+          </span>
+        )}
+      </div>
+      {running && (
+        <div className="relative">
+          <RunBar value={steps ?? (run ? run.fill : null)} striped={!!run && run.phase !== "on-time"} late={late} />
         </div>
       )}
     </div>

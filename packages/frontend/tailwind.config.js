@@ -70,10 +70,22 @@ module.exports = {
           from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        // A generating tile's colour drifting under it.
+        aurora: {
+          "0%, 100%": { transform: "translate(0, 0) rotate(0deg) scale(1)" },
+          "33%": { transform: "translate(6%, -4%) rotate(8deg) scale(1.08)" },
+          "66%": { transform: "translate(-5%, 5%) rotate(-6deg) scale(0.96)" },
+        },
+        // An overrunning bar's stripes sliding along.
+        stripes: {
+          to: { backgroundPosition: "24px 0" },
+        },
       },
       animation: {
         shimmer: "shimmer 1.6s infinite",
         "fade-in": "fade-in 240ms ease both",
+        aurora: "aurora 14s ease-in-out infinite",
+        stripes: "stripes 0.8s linear infinite",
       },
     },
   },

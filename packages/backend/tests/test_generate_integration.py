@@ -805,3 +805,17 @@ def test_slot_value_is_the_graphs_own_value():
     assert slot_value(graph, ["86", "link"]) is None
     assert slot_value(graph, ["9", "value"]) is None
     assert slot_value(graph, None) is None
+
+
+async def test_running_time_counts_without_the_websocket(client, comfy, seed):
+    # The start event never arrives (the websocket is down or reconnecting):
+    # the queue poll still marks when the request started.
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x", "count": 1})).json()
+    pid = comfy.order[-1]
+    comfy.pending.remove(pid)
+    comfy.running.append(pid)
+    await tick()
+    q = (await client.get(f"/generate/batches/{b['_id']}")).json()["requests"][0]
+    assert q["state"] == "running"
+    assert q["elapsed"] is not None and q["elapsed"] >= 0

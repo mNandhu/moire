@@ -35,15 +35,34 @@ export const OVERRUN = 1.3;
 /** A running request's fill stops here until it ends: it never looks done early. */
 export const FILL_CAP = 0.95;
 
-/** How far along a running request is: `fill` 0 to {@link FILL_CAP}, and
- * whether it has run well past its estimate. Null without an estimate. */
-export function developing(
+/** Where a running request is against its estimate: on time, past it but
+ * not by much (finishing), or well past it (late). */
+export type RunPhase = "on-time" | "finishing" | "late";
+
+/** How far along a running request is: `fill` 0 to {@link FILL_CAP},
+ * seconds `left` (0 once past the estimate), seconds `over` it, and the
+ * phase. Null without an estimate. */
+export function runProgress(
   expected: number | null | undefined,
   elapsed: number | null | undefined,
-): { fill: number; over: boolean } | null {
+): { fill: number; left: number; over: number; phase: RunPhase } | null {
   if (!expected || expected <= 0) return null;
   const e = Math.max(0, elapsed ?? 0);
-  return { fill: Math.min(FILL_CAP, e / expected), over: e > expected * OVERRUN };
+  return {
+    fill: Math.min(FILL_CAP, e / expected),
+    left: Math.max(0, expected - e),
+    over: Math.max(0, e - expected),
+    phase: e <= expected ? "on-time" : e <= expected * OVERRUN ? "finishing" : "late",
+  };
+}
+
+/** A live clock to the second: "0:07", "2:30", "1:02:03". */
+export function clock(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
 
 const UNFINISHED = new Set(["pending", "queued", "running"]);
@@ -64,7 +83,7 @@ export function batchLeft(
     if (q.expected == null) return null;
     if (q.state === "running") {
       seconds += Math.max(0, q.expected - (q.elapsed ?? 0));
-      over ||= !!developing(q.expected, q.elapsed)?.over;
+      over ||= runProgress(q.expected, q.elapsed)?.phase === "late";
     } else {
       seconds += q.expected;
     }

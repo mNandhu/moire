@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { batchLeft, developing, estimateNotes, etaLabel, etaShort, leftLabel, queueTitle, roundEta } from "./eta";
+import { batchLeft, clock, estimateNotes, etaLabel, etaShort, leftLabel, queueTitle, roundEta, runProgress } from "./eta";
 
 describe("roundEta", () => {
   it("rounds to 5s under a minute, 10s under ten, else the minute", () => {
@@ -24,16 +24,26 @@ describe("etaShort / etaLabel", () => {
   });
 });
 
-describe("developing", () => {
-  it("fills with elapsed time, capped short of done", () => {
-    expect(developing(20, 5)).toEqual({ fill: 0.25, over: false });
-    expect(developing(20, 22)).toEqual({ fill: 0.95, over: false });
-    expect(developing(20, 27)).toEqual({ fill: 0.95, over: true });
+describe("runProgress", () => {
+  it("fills with the time, never full, and counts past the estimate", () => {
+    expect(runProgress(20, 5)).toEqual({ fill: 0.25, left: 15, over: 0, phase: "on-time" });
+    expect(runProgress(20, 22)).toEqual({ fill: 0.95, left: 0, over: 2, phase: "finishing" });
+    expect(runProgress(20, 27)).toEqual({ fill: 0.95, left: 0, over: 7, phase: "late" });
+    expect(runProgress(20, null)).toEqual({ fill: 0, left: 20, over: 0, phase: "on-time" });
   });
 
-  it("is null without an estimate", () => {
-    expect(developing(null, 3)).toBeNull();
-    expect(developing(0, 3)).toBeNull();
+  it("needs an estimate", () => {
+    expect(runProgress(null, 3)).toBeNull();
+    expect(runProgress(0, 3)).toBeNull();
+  });
+});
+
+describe("clock", () => {
+  it("reads to the second", () => {
+    expect(clock(7.9)).toBe("0:07");
+    expect(clock(150)).toBe("2:30");
+    expect(clock(3723)).toBe("1:02:03");
+    expect(clock(-4)).toBe("0:00");
   });
 });
 

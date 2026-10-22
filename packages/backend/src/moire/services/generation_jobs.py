@@ -691,6 +691,10 @@ class GenerationManager:
         for row in rows:
             pid = row.prompt_id
             if pid in running:
+                # The websocket's execution_start sets the start time; a
+                # missed event (reconnect, restart) would leave the request
+                # with no elapsed time, so the poll sets it too.
+                self.started.setdefault(pid, time.time())
                 if row.state != "running":
                     await self._set_state(row._id, "running")
                 continue
