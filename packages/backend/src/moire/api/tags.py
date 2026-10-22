@@ -56,8 +56,8 @@ class TagSettingsPatch(BaseModel):
 _maps_lock = asyncio.Lock()
 
 
-async def _tag_maps() -> tuple[dict[str, str], dict[str, str]]:
-    """The attire and facet maps over the tagger's vocabulary plus every tag in
+async def _tag_maps() -> tuple[dict[str, str], dict[str, str], dict]:
+    """The attire and facet maps (and the library's tag groups) over the tagger's vocabulary plus every tag in
     the library (free-form prompt tags like ``pastel_pink_dolphin_shorts``
     included). Classifying ~10k names takes tens of milliseconds, so they are
     built together in a thread and kept until a tag write or a new
@@ -67,17 +67,24 @@ async def _tag_maps() -> tuple[dict[str, str], dict[str, str]]:
         vocab = await tag_categories.load()
         cached = tag_index.read_derived("tag-maps")
         if cached is not None and cached[0] is vocab.general:
-            return cached[1], cached[2]
+            return cached[1], cached[2], cached[3]
         async with async_conn() as conn:
             bases = (
                 await conn.execute(sa.select(t.image_tags.c.base).distinct())
             ).scalars()
-            names = list(dict.fromkeys([*vocab.general, *(b for b in bases if b)]))
-        attire_map, facet_map = await asyncio.to_thread(
-            lambda: (attire.attire_tags(names), attire.facets(names))
+            library = [b for b in bases if b]
+            names = list(dict.fromkeys([*vocab.general, *library]))
+        attire_map, facet_map, groups = await asyncio.to_thread(
+            lambda: (
+                attire.attire_tags(names),
+                attire.facets(names),
+                attire.library_groups(library),
+            )
         )
-        tag_index.store_derived("tag-maps", gen, (vocab.general, attire_map, facet_map))
-        return attire_map, facet_map
+        tag_index.store_derived(
+            "tag-maps", gen, (vocab.general, attire_map, facet_map, groups)
+        )
+        return attire_map, facet_map, groups
 
 
 @router.get("/attire")
@@ -100,19 +107,9 @@ async def get_tag_facets():
 async def get_tag_groups():
     """``tags``: ``tag -> group`` (attire, headwear, posture, ...) for the
     library's tags; ``categories``: each of those groups' top-level category.
-    The group pages list a group's tags from it. Kept until a tag write."""
-    cached = tag_index.read_derived("tag-groups")
-    if cached is None:
-        gen = tag_index.current_generation()
-        async with async_conn() as conn:
-            bases = list(
-                (
-                    await conn.execute(sa.select(t.image_tags.c.base).distinct())
-                ).scalars()
-            )
-        cached = await asyncio.to_thread(attire.library_groups, (b for b in bases if b))
-        tag_index.store_derived("tag-groups", gen, cached)
-    return JSONResponse(cached)
+    The group pages list a group's tags from it. Built with the attire and
+    facet maps, kept until a tag write."""
+    return JSONResponse((await _tag_maps())[2])
 
 
 class PlaceBody(BaseModel):

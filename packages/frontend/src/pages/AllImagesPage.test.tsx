@@ -264,6 +264,24 @@ describe("AllImagesPage", () => {
     expect(screen.queryByText("Quarantined Images")).not.toBeInTheDocument();
   });
 
+  it("? closes the help it opened, and doesn't open it over another dialog", async () => {
+    renderPage();
+    await awaitFeed();
+    fireEvent.keyDown(document.body, { key: "?" });
+    const help = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
+    fireEvent.keyDown(help, { key: "?" });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).not.toBeInTheDocument(),
+    );
+    const other = document.createElement("div");
+    other.setAttribute("role", "dialog");
+    other.setAttribute("aria-modal", "true");
+    document.body.appendChild(other);
+    fireEvent.keyDown(document.body, { key: "?" });
+    expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).not.toBeInTheDocument();
+    other.remove();
+  });
+
   it("Escape still closes the help overlay", async () => {
     renderPage();
     await awaitFeed();

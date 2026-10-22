@@ -1495,8 +1495,11 @@ function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.ReactNo
   const marks = useTagMarks();
   // A facet picked from the key or a heading: the other tags fade, so its
   // own stand out where they are.
-  const [picked, setPicked] = useState<Facet | null>(null);
+  const [chosen, setPicked] = useState<Facet | null>(null);
   const pick = (f: Facet) => setPicked((p) => (p === f ? null : f));
+  // Only while a tag of it is on show (with its button to undo it): once its
+  // last tag goes, or the layout drops the key, nothing stays faded.
+  const picked = chosen && shown.some((t) => facetOf(t.raw) === chosen) ? chosen : null;
   const fade = (raw: string) => (picked && facetOf(raw) !== picked ? UNPICKED_OPACITY : 1);
   // Facet groups when there is no prompt/AI split to show; one run if every
   // tag lands in the same one (facets still loading, or all "other").

@@ -25,9 +25,10 @@ function lazyPage<T extends ComponentType>(load: () => Promise<{ default: T }>) 
         return m;
       },
       (e) => {
-        let reloaded = true;
+        // Offline, the chunk may well exist: show the error, keep the tab.
+        let reloaded = !navigator.onLine;
         try {
-          reloaded = sessionStorage.getItem(RELOADED_KEY) === "1";
+          reloaded ||= sessionStorage.getItem(RELOADED_KEY) === "1";
           if (!reloaded) sessionStorage.setItem(RELOADED_KEY, "1");
         } catch {
           // Without storage a reload could loop; show the error instead.

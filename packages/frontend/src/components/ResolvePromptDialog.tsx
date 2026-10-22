@@ -154,7 +154,7 @@ export function ResolvePromptDialog({
         {guessPath && guessValue !== undefined && !pinned.includes(guessPath) && (
           <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-400/5 px-2.5 py-1.5">
             <span className="shrink-0 text-2xs text-amber-300">Guessed</span>
-            <span className="min-w-0 flex-1 truncate font-mono text-xs text-emerald-300" title={String(guessValue)}>
+            <span className="min-w-0 flex-1 truncate font-mono text-xs text-emerald-300" title={typeof guessValue === "string" ? guessValue : JSON.stringify(guessValue)}>
               {JSON.stringify(guessValue)}
             </span>
             <Button size="sm" onClick={() => pin(guessPath)} title={`Pin ${guessPath}`}>

@@ -4,6 +4,7 @@
  * from `/tags/groups`. Pure.
  */
 import type { PickerOption } from "../components/ui/Picker";
+import { canonicalName } from "./tags";
 
 export type TagGroups = {
   /** `tag -> group` for the library's tags. */
@@ -31,7 +32,7 @@ export function groupHref(group: string): string {
 
 /** The group a tag is in, if any. */
 export function groupOf(groups: TagGroups | undefined, tag: string): string | null {
-  return groups?.tags[tag.toLowerCase()] ?? null;
+  return groups?.tags[canonicalName(tag).toLowerCase()] ?? null;
 }
 
 /** Every group with how many of the library's tags it holds, under its

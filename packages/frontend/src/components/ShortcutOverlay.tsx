@@ -16,14 +16,27 @@ export function ShortcutHelp() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "?" || e.ctrlKey || e.metaKey || e.altKey || isFormField(e.target)) return;
+      // Not over another dialog (a confirm, a rename): one modal at a time.
+      // Its own `?` closes it (below).
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       e.preventDefault();
-      setOpen((v) => !v);
+      setOpen(true);
+    };
+    // `?` again closes it. The Dialog keeps keys from inside it off the
+    // window, so this listens at the document, on the way down.
+    const onKeyInside = (e: KeyboardEvent) => {
+      if (e.key === "?" && document.querySelector('[role="dialog"][aria-label="Keyboard shortcuts"]')) {
+        e.preventDefault();
+        setOpen(false);
+      }
     };
     const onOpen = () => setOpen(true);
+    document.addEventListener("keydown", onKeyInside, true);
     window.addEventListener("keydown", onKey);
     window.addEventListener(OPEN_SHORTCUTS_EVENT, onOpen);
     return () => {
       window.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKeyInside, true);
       window.removeEventListener(OPEN_SHORTCUTS_EVENT, onOpen);
     };
   }, []);
@@ -39,12 +52,7 @@ export function ShortcutOverlay({ open, onClose, pathname }: { open: boolean; on
       ariaLabel="Keyboard shortcuts"
       className="max-w-2xl rounded-2xl border-line-strong bg-surface p-6"
     >
-      <div
-        onKeyDown={(e) => {
-          // `?` again closes it; the window listener can't see keys from inside.
-          if (e.key === "?") onClose();
-        }}
-      >
+      <div>
         <div className="flex items-baseline justify-between mb-5">
           <h2 className="text-lg font-bold tracking-tight">Keyboard shortcuts</h2>
           <span className="text-xs text-faint">Esc to close</span>
