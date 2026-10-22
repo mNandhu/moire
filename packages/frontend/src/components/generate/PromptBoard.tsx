@@ -24,12 +24,13 @@ import { Tooltip } from "../ui";
 /** A board box: a server section, or one the prompt's own syntax decides. */
 type BoxKey = BoardSection | "prose" | "resources";
 
-const BOXES: { key: BoxKey; label: string; expected?: boolean }[] = [
+// `expected` boxes read as Missing when empty; `always` ones just show.
+const BOXES: { key: BoxKey; label: string; expected?: boolean; always?: boolean }[] = [
   { key: "subject", label: "Subject", expected: true },
   { key: "hair", label: "Hair", expected: true },
   { key: "eyes", label: "Eyes & gaze", expected: true },
   { key: "expression", label: "Expression", expected: true },
-  { key: "body", label: "Body" },
+  { key: "body", label: "Body", always: true },
   { key: "attire", label: "Attire", expected: true },
   { key: "pose", label: "Pose & action", expected: true },
   { key: "framing", label: "Framing", expected: true },
@@ -483,7 +484,7 @@ export function PromptBoard({
     />
   );
   const unknown = byBox.get("unknown")?.length ?? 0;
-  const shown = BOXES.filter((b) => b.expected || byBox.has(b.key) || theirs.some((l) => l.terms.some((t) => t.box === b.key)));
+  const shown = BOXES.filter((b) => b.expected || b.always || byBox.has(b.key) || theirs.some((l) => l.terms.some((t) => t.box === b.key)));
   const missing = BOXES.filter(
     (b) => b.expected && !byBox.has(b.key) && !theirs.some((l) => l.terms.some((t) => t.box === b.key && !t.dropped)),
   );

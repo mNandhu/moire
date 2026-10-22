@@ -44,6 +44,38 @@ _STYLE = frozenset(
     {"visual_aesthetic", "artistic_license", "colors", "year_tags", "fine_art_parody"}
 )
 _POSE = frozenset({"sex_acts", "sexual_positions", "simulated_sex_acts"})
+# Who and how many: the count tags. The groups file much else beside them
+# (`comic`, `pov`, `doll`, `ass_focus`), which goes by its other groups.
+_COUNT = re.compile(
+    r"^(solo|solo_focus|no_humans|(\d+\+?|multiple_)(girls?|boys?|others?)|(male|female|other)_focus)$"
+)
+# Builds the groups file under sex acts: how a body looks, not what it does.
+_BUILD = frozenset(
+    {
+        "muscular",
+        "muscular_male",
+        "muscular_female",
+        "toned",
+        "toned_male",
+        "toned_female",
+        "curvy",
+        "plump",
+        "fat",
+        "fat_man",
+        "skinny",
+        "petite",
+        "mature_female",
+        "mature_male",
+        "old_man",
+        "old_woman",
+        "pregnant",
+        "big_belly",
+        "minigirl",
+        "miniboy",
+        "giant",
+        "giantess",
+    }
+)
 # Tags the groups file somewhere a prompt doesn't mean them.
 OVERRIDES = {
     "portrait": "framing",
@@ -66,6 +98,8 @@ def _section(
         return OVERRIDES[tag]
     if tag in characters or category in (CHARACTER, COPYRIGHT):
         return "subject"
+    if tag in _BUILD:
+        return "body"
     if category == ARTIST:
         return "style"
     if category == META:
@@ -96,13 +130,26 @@ def _section(
     if facet == "pose":
         return "pose"
     if facet == "framing":
-        return "subject" if entry and entry[1] in _SUBJECT else "framing"
+        if _COUNT.match(tag):
+            return "subject"
+        if entry and entry[1] in _SUBJECT:
+            also = entry[2]
+            # `ass_focus` frames the picture; `penis` is a body part.
+            if entry[1] == "focus_tags" or any(
+                g.endswith("/image_composition") for g in also
+            ):
+                return "framing"
+            if any(g.startswith("body/") for g in also):
+                return "body"
+            return "other"
+        return "framing"
     if facet == "scene":
         return "lighting" if entry and entry[1] == "lighting" else "background"
     if entry:
         if groups & _STYLE:
             return "style"
-        if groups & _POSE:
+        # Primary group only: `pectorals` is also listed under sex acts.
+        if entry[1] in _POSE:
             return "pose"
         if entry[0] == "body":
             return "body"

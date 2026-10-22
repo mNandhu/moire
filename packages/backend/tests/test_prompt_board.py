@@ -78,6 +78,20 @@ def test_newest_full_list():
         ("wlop", "style"),
         ("absurdres", "quality"),
         ("xyzzy_tag", "unknown"),
+        # Builds the groups file under sex acts are body; the acts stay pose.
+        ("muscular_male", "body"),
+        ("curvy", "body"),
+        ("pectorals", "body"),
+        ("fellatio", "pose"),
+        # Only counts are Subject; the rest the count group lists goes by
+        # its other groups.
+        ("2girls", "subject"),
+        ("male_focus", "subject"),
+        ("pov", "framing"),
+        ("comic", "framing"),
+        ("ass_focus", "framing"),
+        ("penis", "body"),
+        ("doll", "other"),
     ],
 )
 def test_sections(name, section):
