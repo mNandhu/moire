@@ -49,6 +49,8 @@ const BOXES: { key: BoxKey; label: string; expected?: boolean; always?: boolean 
 ];
 // Boxes a tag can be typed into.
 const ADDABLE = new Set<BoxKey>(["subject", "hair", "eyes", "expression", "body", "attire", "pose", "framing", "background", "lighting", "style", "other"]);
+// Boxes a Clear empties: the typed-into ones and the not-Danbooru ones.
+const CLEARABLE = new Set<BoxKey>([...ADDABLE, "library", "unknown"]);
 
 const TONE: Record<BoxKey, string> = {
   subject: "border-sky-500/50 bg-sky-500/10 text-sky-100",
@@ -567,7 +569,7 @@ export function PromptBoard({
   // Clear: this box's Prompt tags come out (last first, so the spans hold)
   // and every layer tag still on is struck for this batch.
   const live = (k: BoxKey) => theirs.map((l) => ({ layer: l.layer, tags: l.terms.filter((t) => t.box === k && !t.dropped && !t.self && t.onToggle).map((t) => t.name) }));
-  const clearable = (k: BoxKey) => ADDABLE.has(k) && ((byBox.get(k)?.length ?? 0) > 0 || live(k).some((l) => l.tags.length > 0));
+  const clearable = (k: BoxKey) => CLEARABLE.has(k) && ((byBox.get(k)?.length ?? 0) > 0 || live(k).some((l) => l.tags.length > 0));
   const clear = (k: BoxKey, label: string) => {
     let text = prompt;
     for (const t of [...(byBox.get(k) ?? [])].sort((a, b) => b.start - a.start)) text = removeSpan(text, t.start, t.end);
