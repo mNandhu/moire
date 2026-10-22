@@ -1,11 +1,13 @@
 import { Link, useLocation } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { ImageOff, Loader2, RotateCcw, Undo2, X } from "lucide-react";
+import { useState } from "react";
+import { ImageOff, Loader2, RotateCcw, TriangleAlert, Undo2, X } from "lucide-react";
 import { resultGrid, resultSlots, type ResultSlot } from "../../lib/batches";
 import { cancelRequest, retryRequest, type Batch, type GenRequest, type Output } from "../../lib/generate";
 import { setQuarantine, setScore } from "../../lib/imageMutations";
 import { withBackgroundLocation } from "../../lib/backgroundLocation";
 import { cn } from "../../lib/cn";
+import { smallThumb } from "../../lib/media";
 import { clock, runProgress } from "../../lib/eta";
 import { useLiveSeconds } from "../../hooks/useLiveSeconds";
 import { useToast } from "../Toasts";
@@ -338,11 +340,24 @@ function FailedCell({
   );
 }
 
+/** One cell of a batch: the image, its loader, or what went wrong. */
+function SlotCell({ batch, s, ratio, onChanged }: { batch: Batch; s: ResultSlot; ratio: number; onChanged: (b?: Batch) => void }) {
+  return s.kind === "image" ? (
+    <Tile out={s.out} ratio={ratio} onChanged={() => onChanged()} />
+  ) : s.kind === "waiting" ? (
+    <WaitingCell batch={batch} req={s.req} first={s.first} ratio={ratio} onChanged={onChanged} />
+  ) : (
+    <FailedCell batch={batch} req={s.req} ratio={ratio} onChanged={onChanged} />
+  );
+}
+
+const slotKey = (s: ResultSlot, i: number) => (s.kind === "image" ? `${s.req._id}:${s.out.idx}` : `${s.req._id}:${s.kind}:${i}`);
+
 /**
- * A batch's images as one grid, every request's cells in order: images, the
- * running and waiting ones, failed ones with Retry. On a page a few images
- * stay big (one row fills the view, more wrap at four); in the output
- * column the cells shrink so the batch fits under the window's height.
+ * A batch's images. On a page, one grid of every request's cells in order:
+ * images, the running and waiting ones, failed ones with Retry; a few images
+ * stay big (one row fills the view, more wrap at four). In the output column,
+ * see `PanelResults`.
  */
 export function BatchResults({
   batch,
@@ -355,38 +370,107 @@ export function BatchResults({
 }) {
   const ratio = batch.inputs.width && batch.inputs.height ? batch.inputs.width / batch.inputs.height : 2 / 3;
   const slots = resultSlots(batch);
-  const { cols, rows } = resultGrid(slots.length, variant, ratio);
-  const grid = (cell: string) => ({ gridTemplateColumns: `repeat(${cols}, minmax(0, ${cell}))` });
-  const cells = slots.map((s) => (
-    <div key={s.kind === "image" ? `${s.req._id}:${s.out.idx}` : `${s.req._id}:${s.kind}:${slots.indexOf(s)}`} title={cellTitle(s)}>
-      {s.kind === "image" ? (
-        <Tile out={s.out} ratio={ratio} onChanged={() => onChanged()} />
-      ) : s.kind === "waiting" ? (
-        <WaitingCell batch={batch} req={s.req} first={s.first} ratio={ratio} onChanged={onChanged} />
-      ) : (
-        <FailedCell batch={batch} req={s.req} ratio={ratio} onChanged={onChanged} />
+  if (variant === "panel") return <PanelResults batch={batch} slots={slots} ratio={ratio} onChanged={onChanged} />;
+  const { cols, rows } = resultGrid(slots.length);
+  // Rows fit the view's height.
+  const cell = `calc((100vh - 12rem) / ${Math.min(rows, 2)} * ${ratio})`;
+  return (
+    <div className={cn("grid gap-2", cols === 1 && "justify-center")} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, ${cell}))` }}>
+      {slots.map((s, i) => (
+        <div key={slotKey(s, i)} title={cellTitle(s)}>
+          <SlotCell batch={batch} s={s} ratio={ratio} onChanged={onChanged} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The output column's batch: one cell big, as wide as the column allows
+ * under the view's height, and the same size whatever the batch's count, so
+ * results and loaders never resize the column. A batch of more than one gets
+ * a strip of small ones under it to pick from (or ← →).
+ */
+function PanelResults({
+  batch,
+  slots,
+  ratio,
+  onChanged,
+}: {
+  batch: Batch;
+  slots: ResultSlot[];
+  ratio: number;
+  onChanged: (b?: Batch) => void;
+}) {
+  const [picked, setPicked] = useState(0);
+  const at = Math.min(picked, slots.length - 1);
+  if (at < 0) return null;
+  const s = slots[at];
+  const many = slots.length > 1;
+  const step = (d: number) => setPicked((at + d + slots.length) % slots.length);
+  return (
+    <div
+      className="[container-type:inline-size]"
+      onKeyDown={(e) => {
+        if (!many || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+        e.preventDefault();
+        step(e.key === "ArrowLeft" ? -1 : 1);
+      }}
+    >
+      <div className="mx-auto" style={{ width: `min(100cqw, (100dvh - 22rem) * ${ratio})` }} title={cellTitle(s)}>
+        <SlotCell key={slotKey(s, at)} batch={batch} s={s} ratio={ratio} onChanged={onChanged} />
+      </div>
+      {many && (
+        <div className="mt-2 flex flex-wrap justify-center gap-1.5" role="tablist" aria-label="Images in this batch">
+          {slots.map((x, i) => (
+            <button
+              key={slotKey(x, i)}
+              type="button"
+              role="tab"
+              aria-selected={i === at}
+              title={cellTitle(x)}
+              onClick={() => setPicked(i)}
+              className={cn(
+                "relative h-14 overflow-hidden rounded-md transition-opacity",
+                i === at ? "ring-2 ring-brand-400" : "opacity-70 ring-1 ring-line hover:opacity-100",
+              )}
+              style={{ aspectRatio: ratio }}
+            >
+              <StripThumb s={x} />
+            </button>
+          ))}
+        </div>
       )}
     </div>
-  ));
-  if (variant === "page") {
-    // Rows fit the view's height.
-    return (
-      <div className={cn("grid gap-2", cols === 1 && "justify-center")} style={grid(`calc((100vh - 12rem) / ${Math.min(rows, 2)} * ${ratio})`)}>
-        {cells}
-      </div>
+  );
+}
+
+/** A slot in the strip: the image, a loader, or a failure mark. */
+function StripThumb({ s }: { s: ResultSlot }) {
+  if (s.kind === "image") {
+    return s.out.thumb_url ? (
+      <img
+        src={smallThumb(s.out.thumb_url)}
+        alt=""
+        loading="lazy"
+        className={cn("h-full w-full object-cover", s.out.quarantined && "opacity-40 grayscale")}
+      />
+    ) : (
+      <span className="flex h-full w-full items-center justify-center bg-raised text-faint">
+        <ImageOff size={13} />
+      </span>
     );
   }
-  // The output column keeps one stage height whatever the count: the height
-  // one image takes filling the column, capped by the view. Two, four and
-  // their loaders fit inside it, so the column doesn't jump from batch to
-  // batch and the recent batches stay put.
-  const stage = `min(100dvh - 20rem, 100cqw / ${ratio})`;
-  const cell = `max(4rem, min((100cqw - ${(cols - 1) * 0.5}rem) / ${cols}, (${stage} - ${(rows - 1) * 0.5}rem) / ${rows} * ${ratio}))`;
+  if (s.kind === "waiting") {
+    return (
+      <span className="flex h-full w-full items-center justify-center bg-raised text-muted">
+        {s.req.state === "running" ? <Loader2 size={13} className="animate-spin" /> : <span className="h-full w-full animate-pulse bg-raised/40" />}
+      </span>
+    );
+  }
   return (
-    <div className="[container-type:inline-size]">
-      <div className="grid content-center justify-center gap-2" style={{ ...grid(cell), minHeight: `calc(${stage})` }}>
-        {cells}
-      </div>
-    </div>
+    <span className="flex h-full w-full items-center justify-center border border-dashed border-red-900/70 text-red-300/80">
+      <TriangleAlert size={13} />
+    </span>
   );
 }
