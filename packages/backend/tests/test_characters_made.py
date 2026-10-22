@@ -89,19 +89,23 @@ async def test_making_a_character_twice_or_by_its_full_name_is_refused(
     assert again.status_code == 409
 
 
-async def test_deleting_a_made_character_drops_its_outfits(client):
+async def test_deleting_a_made_character_drops_its_own_outfits(client):
     from moire.database import db
     from moire.database import schema as t
 
     await client.post("/tags/characters", json={"tag": "my_oc"})
     async with db.async_tx() as conn:
-        await conn.execute(
-            sa.insert(t.outfits).values(
-                _id="o1", name="Coat", character="my_oc", shared=True, tags=["coat"]
+        for oid, shared in (("o1", True), ("o3", False)):
+            await conn.execute(
+                sa.insert(t.outfits).values(
+                    _id=oid, name="Coat", character="my_oc", shared=shared, tags=["c"]
+                )
             )
-        )
         await conn.execute(
             sa.insert(t.outfit_hidden).values(character="other", outfit_id="o1")
+        )
+        await conn.execute(
+            sa.insert(t.outfit_hidden).values(character="other", outfit_id="o3")
         )
         await conn.execute(
             sa.insert(t.outfit_hidden).values(character="my_oc", outfit_id="o2")
@@ -111,6 +115,11 @@ async def test_deleting_a_made_character_drops_its_outfits(client):
     resp = await client.delete("/tags/character", params={"tag": "my_oc"})
     assert resp.status_code == 200
     async with db.async_conn() as conn:
-        for table in (t.outfits, t.outfit_hidden, t.outfit_defaults, t.tag_meta):
+        for table in (t.outfit_defaults, t.tag_meta):
             rows = (await conn.execute(sa.select(table))).all()
             assert rows == [], table.name
+        outfits = (await conn.execute(sa.select(t.outfits.c._id))).scalars().all()
+        hidden = (await conn.execute(sa.select(t.outfit_hidden))).all()
+    # The shared outfit stays for everyone, with other characters' hides.
+    assert outfits == ["o1"]
+    assert hidden == [("other", "o1")]
