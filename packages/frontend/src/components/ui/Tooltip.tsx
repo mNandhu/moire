@@ -88,9 +88,12 @@ export function Tooltip({
         ref={triggerRef}
         className={cn("inline-flex", className)}
         aria-describedby={open ? id : undefined}
-        onMouseEnter={show}
-        onMouseLeave={hide}
-        onFocus={show}
+        // A bubble only labels, and a tap is a click: on touch it stays shut
+        // instead of popping up as the tap lands (the pointer events and the
+        // focus a tap gives a link). A real hover or keyboard focus opens it.
+        onPointerEnter={(e) => (!bubble || e.pointerType === "mouse") && show()}
+        onPointerLeave={hide}
+        onFocus={(e) => (!bubble || e.target.matches(":focus-visible")) && show()}
         onBlur={hide}
       >
         {children}
