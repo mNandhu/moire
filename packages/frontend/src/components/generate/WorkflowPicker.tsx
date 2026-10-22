@@ -40,7 +40,7 @@ export function WorkflowPicker({
   });
   // The page's status line says when the chosen one needs its test run.
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 max-w-full items-center gap-2">
       <Picker
         aria-label="Workflow"
         value={value}
@@ -57,12 +57,14 @@ export function WorkflowPicker({
         trigger={({ open }) => (
           <span
             className={cn(
-              "inline-flex h-8 items-center gap-2 rounded-lg border border-line bg-raised px-3 text-sm text-neutral-100 hover:border-line-strong",
+              "inline-flex h-8 max-w-full items-center gap-2 rounded-lg border border-line bg-raised px-3 text-sm text-neutral-100 hover:border-line-strong",
               open && "border-brand-500/70",
             )}
           >
-            {chosen?.name ?? "Built-in"}
-            <ChevronDown size={14} className={cn("text-faint transition-transform", open && "rotate-180")} />
+            <span className="truncate" title={chosen?.name}>
+              {chosen?.name ?? "Built-in"}
+            </span>
+            <ChevronDown size={14} className={cn("shrink-0 text-faint transition-transform", open && "rotate-180")} />
           </span>
         )}
         footer={
