@@ -62,7 +62,7 @@ export function CharacterEditDialog({
   const remove = async () => {
     const ok = await confirm({
       title: `Delete ${name || fromTag.name}?`,
-      message: "Their identity tags and LoRA go too.",
+      message: "Their identity tags, LoRA and outfits go too.",
       confirmLabel: "Delete",
       tone: "danger",
     });

@@ -372,8 +372,9 @@ async def create(tag: str, patch: dict) -> dict:
 
 
 async def remove_made(tag: str) -> bool:
-    """Forget a hand-made character and its recipe, only while no image
-    carries it (a library character is turned off with kind instead)."""
+    """Forget a hand-made character, its recipe, outfits and cover pin, only
+    while no image carries it (a library character is turned off with kind
+    instead)."""
     _, _, _, rows = await _named(tag)
     if not await is_made(tag, rows):
         return False
@@ -383,8 +384,20 @@ async def remove_made(tag: str) -> bool:
             t.recipe_edits,
             t.recipe_additions,
             t.recipe_genders,
+            t.tag_meta,
         ):
             await conn.execute(sa.delete(table).where(table.c.tag == tag))
+        owned = sa.select(t.outfits.c._id).where(t.outfits.c.character == tag)
+        await conn.execute(
+            sa.delete(t.outfit_hidden).where(
+                (t.outfit_hidden.c.character == tag)
+                | t.outfit_hidden.c.outfit_id.in_(owned)
+            )
+        )
+        await conn.execute(sa.delete(t.outfits).where(t.outfits.c.character == tag))
+        await conn.execute(
+            sa.delete(t.outfit_defaults).where(t.outfit_defaults.c.character == tag)
+        )
     tag_index.invalidate()
     return True
 

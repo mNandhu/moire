@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import asyncio
 
+import sqlalchemy as sa
+
 from moire.services import tag_index
 
 FERN = "fern_(sousou_no_frieren)"
@@ -85,3 +87,30 @@ async def test_making_a_character_twice_or_by_its_full_name_is_refused(
     assert made.json()["tag"] == "my_oc"
     again = await client.post("/tags/characters", json={"tag": "my oc"})
     assert again.status_code == 409
+
+
+async def test_deleting_a_made_character_drops_its_outfits(client):
+    from moire.database import db
+    from moire.database import schema as t
+
+    await client.post("/tags/characters", json={"tag": "my_oc"})
+    async with db.async_tx() as conn:
+        await conn.execute(
+            sa.insert(t.outfits).values(
+                _id="o1", name="Coat", character="my_oc", shared=True, tags=["coat"]
+            )
+        )
+        await conn.execute(
+            sa.insert(t.outfit_hidden).values(character="other", outfit_id="o1")
+        )
+        await conn.execute(
+            sa.insert(t.outfit_hidden).values(character="my_oc", outfit_id="o2")
+        )
+        await conn.execute(sa.insert(t.outfit_defaults).values(character="my_oc"))
+        await conn.execute(sa.insert(t.tag_meta).values(tag="my_oc"))
+    resp = await client.delete("/tags/character", params={"tag": "my_oc"})
+    assert resp.status_code == 200
+    async with db.async_conn() as conn:
+        for table in (t.outfits, t.outfit_hidden, t.outfit_defaults, t.tag_meta):
+            rows = (await conn.execute(sa.select(table))).all()
+            assert rows == [], table.name
