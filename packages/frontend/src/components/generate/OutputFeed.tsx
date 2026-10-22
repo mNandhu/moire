@@ -67,10 +67,14 @@ function BatchPanel({ id }: { id: number }) {
  * still waiting its turn is only in the deck.
  */
 export function OutputFeed() {
-  const { data } = useBatches(SHOWN + 6);
   const { data: status } = useComfyStatus();
+  // Enough to get past every batch still waiting its turn.
+  const waiting = status?.active.filter(isWaiting).length ?? 0;
+  const { data } = useBatches(SHOWN + waiting);
   const started = data
     ?.filter((b) => {
+      // Cancelled with nothing made: nothing to show (Generations lists it).
+      if (b.state === "cancelled" && b.images === 0) return false;
       const turn = status?.active.find((a) => a._id === b._id);
       return !(turn && isWaiting(turn));
     })

@@ -348,19 +348,22 @@ export default function GeneratePage() {
   const setupLink = gen?.kind === "custom" ? { text: "Open its setup", to: `/generate/workflows/${gen._id}` } : undefined;
   const connected = !!status?.connected;
 
+  // Counts presses, so each one starts the "Queued" moment over.
+  const [queuedTick, setQueuedTick] = useState(0);
   const [justQueued, setJustQueued] = useState(false);
   useEffect(() => {
-    if (!justQueued) return;
+    if (!queuedTick) return;
+    setJustQueued(true);
     const t = setTimeout(() => setJustQueued(false), 1500);
     return () => clearTimeout(t);
-  }, [justQueued]);
+  }, [queuedTick]);
   const queue = useMutation({
     mutationFn: () =>
       queueBatch(forWorkflow(toQueueBody(form, gen?._id ?? "builtin", characters ?? [], presets, loraPresets), bar)),
     onMutate: () => setRejected(null),
     // No toast: the button says so and the batch glows where it lands in the deck.
     onSuccess: () => {
-      setJustQueued(true);
+      setQueuedTick((n) => n + 1);
       set("name", null);
       void qc.invalidateQueries({ queryKey: STATUS_KEY });
       void qc.invalidateQueries({ queryKey: BATCHES_KEY });

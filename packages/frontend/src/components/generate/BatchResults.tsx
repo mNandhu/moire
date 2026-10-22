@@ -412,7 +412,8 @@ function PanelResults({
   const [picked, setPicked] = useState<string | null>(null);
   const keys = slots.map(slotKey);
   const making = slots.findIndex((x) => x.kind === "waiting");
-  const newest = making >= 0 ? making : slots.length - 1;
+  const lastMade = slots.map((x) => x.kind).lastIndexOf("image");
+  const newest = making >= 0 ? making : lastMade >= 0 ? lastMade : slots.length - 1;
   const at = Math.max(0, picked ? keys.indexOf(picked) : newest);
   const s = slots[at];
   if (!s) return null;

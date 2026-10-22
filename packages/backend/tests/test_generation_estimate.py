@@ -147,7 +147,7 @@ def test_what_a_batch_leaves_unset_is_the_graphs_own():
     assert _job(gen, "g", {}, None).steps is None
 
 
-def test_pending_requests_run_batch_after_batch_test_runs_first():
+def test_pending_requests_run_batch_after_batch():
     from types import SimpleNamespace as Row
 
     rows = [
@@ -159,4 +159,5 @@ def test_pending_requests_run_batch_after_batch_test_runs_first():
         Row(state="pending", batch_id=3, idx=0, inputs={"test": True}),
     ]
     got = [(r.batch_id, r.idx) for r in _run_order(rows)]
-    assert got == [(2, 0), (3, 0), (1, 1), (1, 2), (2, 1), (2, 2)]
+    # A test run first, then the rest of the batch being made, then the oldest.
+    assert got == [(2, 0), (3, 0), (2, 1), (2, 2), (1, 1), (1, 2)]

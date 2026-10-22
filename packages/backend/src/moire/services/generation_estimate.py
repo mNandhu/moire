@@ -313,11 +313,19 @@ def _run_order(rows: list) -> list:
     """``rows`` (running, then queued, then pending, each batch's in ``idx``
     order) in the order they'll run. One request is in ComfyUI at a time
     (``GenerationManager._submit_next``) and batches go one after another:
-    a test run's pending first, then the oldest batch's. Pure."""
+    a test run's pending first, then the rest of the batch being made, then
+    the oldest batch's. Pure."""
     head = [row for row in rows if row.state != "pending"]
     pending = [row for row in rows if row.state == "pending"]
+    current = head[-1].batch_id if head else None
     # Stable: each batch's stay in idx order.
-    pending.sort(key=lambda row: (not (row.inputs or {}).get("test"), row.batch_id))
+    pending.sort(
+        key=lambda row: (
+            not (row.inputs or {}).get("test"),
+            row.batch_id != current,
+            row.batch_id,
+        )
+    )
     return head + pending
 
 

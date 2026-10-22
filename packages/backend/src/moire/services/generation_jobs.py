@@ -950,8 +950,9 @@ class GenerationManager:
 
     async def _submit_next(self) -> None:
         """With nothing of ours in ComfyUI, submit the lowest pending request
-        of the first batch in line: test runs first, then the oldest. A batch
-        is done before the next starts."""
+        of the first batch in line: test runs first, then the batch last sent
+        (so a retry on an old batch waits for the one being made), then the
+        oldest. A batch is done before the next starts."""
         r, b = t.generation_requests, t.generation_batches
         async with async_conn() as conn:
             busy = (
@@ -961,13 +962,21 @@ class GenerationManager:
             ).first()
             if busy:
                 return
+            last = (
+                await conn.execute(
+                    sa.select(r.c.batch_id)
+                    .where(r.c.queued_at.is_not(None))
+                    .order_by(r.c.queued_at.desc())
+                    .limit(1)
+                )
+            ).scalar()
             rows = (
                 await conn.execute(
                     sa.select(r.c.batch_id, sa.func.min(r.c.idx).label("idx"))
                     .select_from(r.join(b, b.c._id == r.c.batch_id))
                     .where(r.c.state == "pending")
                     .group_by(r.c.batch_id)
-                    .order_by(TEST_FIRST, r.c.batch_id)
+                    .order_by(TEST_FIRST, r.c.batch_id != (last or -1), r.c.batch_id)
                 )
             ).fetchall()
         # A rejected one fails and the next in line goes instead.
@@ -1259,16 +1268,23 @@ class GenerationManager:
 
     async def _park(self, batch_id: int, pid: str) -> None:
         """Take a batch's first request back out of ComfyUI's queue to wait
-        its turn here. If ComfyUI has already started it, it runs."""
+        its turn here. If ComfyUI has already started (or even finished) it,
+        it stays and the poll loop follows it."""
         assert self.client is not None
         try:
             await self.client.delete_queued([pid])
-            running, _ = await self.client.queue()
         except (ComfyUnreachable, ComfyError) as e:
+            # Still in ComfyUI's queue: it runs once out of turn.
             self._down(str(e))
             return
-        if pid in running:
-            return
+        try:
+            running, _ = await self.client.queue()
+            if pid in running or await self.client.history(pid) is not None:
+                return
+        except (ComfyUnreachable, ComfyError) as e:
+            # Deleted but can't tell whether it ran first: waiting again risks
+            # making it twice, staying would call it lost.
+            self._down(str(e))
         r = t.generation_requests
         async with async_tx() as conn:
             await conn.execute(
@@ -1417,7 +1433,9 @@ class GenerationManager:
         return gone
 
     async def _ever_ran(self, batch_id: int) -> bool:
-        """Some request of the batch got as far as ComfyUI running it."""
+        """Some request of the batch may have run: it was sent to ComfyUI
+        (the DB lags ComfyUI by a tick, so a sent one may be running already)
+        or has a finished state. Parked requests were never sent."""
         r = t.generation_requests
         async with async_conn() as conn:
             row = (
@@ -1425,7 +1443,10 @@ class GenerationManager:
                     sa.select(r.c._id)
                     .where(
                         r.c.batch_id == batch_id,
-                        r.c.state.in_(("running", "done", "failed", "lost")),
+                        sa.or_(
+                            r.c.prompt_id.is_not(None),
+                            r.c.state.not_in(("pending", "cancelled")),
+                        ),
                     )
                     .limit(1)
                 )

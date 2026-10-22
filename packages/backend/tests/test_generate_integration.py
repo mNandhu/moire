@@ -886,3 +886,44 @@ async def test_cancelling_a_batch_that_never_ran_deletes_it(client, comfy, seed)
     r = await client.post(f"/generate/batches/{b['_id']}/cancel")
     assert r.status_code == 200 and r.json() is None
     assert (await client.get(f"/generate/batches/{b['_id']}")).status_code == 404
+
+
+async def test_a_retry_on_an_older_batch_waits_for_the_one_being_made(
+    client, comfy, seed
+):
+    await make_ready(client, comfy, seed)
+    a = (await client.post("/generate/batches", json={"base": "a"})).json()
+    comfy.fail(comfy.order[-1])
+    await tick()
+    await client.post("/generate/batches", json={"base": "b", "count": 3})
+    scanned(seed, comfy.finish(comfy.pending[0]))
+    await tick()
+    await client.post(
+        f"/generate/batches/{a['_id']}/requests/{a['requests'][0]['_id']}/retry",
+        json={},
+    )
+    ran = []
+    for _ in range(3):
+        pid = comfy.pending[0]
+        ran.append(comfy.prompts[pid]["6"]["inputs"]["text"])
+        scanned(seed, comfy.finish(pid))
+        await tick()
+    assert ran == ["b", "b", "a"]
+
+
+async def test_a_parked_prompt_that_already_ran_is_not_sent_again(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    await client.post("/generate/batches", json={"base": "a", "count": 2})
+    # ComfyUI makes B's first before the take-back lands: it's in history.
+    nxt = f"p{len(comfy.order) + 1}"
+    comfy.history[nxt] = {"outputs": {}, "status": {"status_str": "success"}}
+    b = (await client.post("/generate/batches", json={"base": "b"})).json()
+    assert b["requests"][0]["state"] == "queued"
+
+
+async def test_cancelling_a_batch_already_sent_keeps_it(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "a"})).json()
+    r = await client.post(f"/generate/batches/{b['_id']}/cancel")
+    # In ComfyUI's hands, so it may be running already: kept, cancelled.
+    assert r.json()["requests"][0]["state"] == "cancelled"
