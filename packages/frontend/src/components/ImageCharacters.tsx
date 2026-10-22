@@ -89,11 +89,7 @@ export function ImageCharacters({
   };
 
   return (
-    <section className="relative px-4 py-4 space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">Characters</h2>
-        <OutfitMenu imageId={imageId} characters={here} onSave={setSaving} />
-      </div>
+    <section className="relative px-4 py-3 lg:py-4 space-y-3">
       {saving && (
         <SaveOutfitDialog
           open
@@ -103,66 +99,77 @@ export function ImageCharacters({
           imageId={imageId}
         />
       )}
-      <div className="flex flex-wrap gap-x-4 gap-y-3">
-        {here.map((c) => {
-          const { name, series } = displayName(c);
-          const isAvatar = c.thumb_image_id === imageId;
-          const busy = pinning === c.tag;
-          const title = isAvatar
-            ? "This image is their avatar"
-            : quarantined
-              ? "Quarantined images can't be avatars"
-              : "Use as avatar";
-          return (
-            <div key={c.tag} className="group relative w-20">
-              <Link
-                to={characterHref(c.tag)}
-                title={`${formatTag(c.tag)}: ${c.count.toLocaleString()} ${c.count === 1 ? "image" : "images"}`}
-                className="flex flex-col items-center gap-1.5 text-center"
-              >
-                <span className="relative">
-                  <CharacterAvatar
-                    src={c.thumb_url}
-                    face={c.face}
-                    focus={c.focus}
-                    aspect={c.aspect}
-                    className={cn(
-                      "h-14 w-14 ring-1 ring-line group-hover:ring-brand-300",
-                      busy && "ring-2 ring-brand-400",
+      {/* Docked (lg), a photo app's people: a heading, then avatars over
+          names. In the drawer, one row of avatars beside their names, the
+          outfit menu at its end, to leave a phone's panel room for the rest. */}
+      <div className="flex items-center gap-2 lg:flex-col lg:items-stretch lg:gap-3">
+        <div className="flex items-center justify-between gap-2 max-lg:order-last max-lg:shrink-0">
+          <h2 className="text-sm font-semibold max-lg:hidden">Characters</h2>
+          <OutfitMenu imageId={imageId} characters={here} onSave={setSaving} />
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-3 max-lg:min-w-0 max-lg:flex-1 max-lg:gap-x-3 max-lg:gap-y-2">
+          {here.map((c) => {
+            const { name, series } = displayName(c);
+            const isAvatar = c.thumb_image_id === imageId;
+            const busy = pinning === c.tag;
+            const title = isAvatar
+              ? "This image is their avatar"
+              : quarantined
+                ? "Quarantined images can't be avatars"
+                : "Use as avatar";
+            return (
+              <div key={c.tag} className="group relative w-20 max-lg:w-auto max-lg:max-w-[11rem]">
+                <Link
+                  to={characterHref(c.tag)}
+                  title={`${formatTag(c.tag)}: ${c.count.toLocaleString()} ${c.count === 1 ? "image" : "images"}`}
+                  className="flex flex-col items-center gap-1.5 text-center max-lg:flex-row max-lg:gap-2 max-lg:text-left"
+                >
+                  <span className="relative">
+                    <CharacterAvatar
+                      src={c.thumb_url}
+                      face={c.face}
+                      focus={c.focus}
+                      aspect={c.aspect}
+                      className={cn(
+                        "h-14 w-14 max-lg:h-10 max-lg:w-10 shrink-0 ring-1 ring-line group-hover:ring-brand-300",
+                        busy && "ring-2 ring-brand-400",
+                      )}
+                    />
+                    {busy && (
+                      <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50">
+                        <Loader2 size={18} className="animate-spin text-white" />
+                      </span>
                     )}
-                  />
-                  {busy && (
-                    <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50">
-                      <Loader2 size={18} className="animate-spin text-white" />
+                  </span>
+                  <span className="flex w-full min-w-0 flex-col gap-0.5">
+                    <span className="text-xs leading-tight text-neutral-200 line-clamp-2 max-lg:line-clamp-1 break-words group-hover:text-white">
+                      {name}
                     </span>
+                    {series && (
+                      <span className="text-2xs leading-tight text-faint truncate">{series}</span>
+                    )}
+                  </span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => void pinAvatar(c)}
+                  disabled={isAvatar || quarantined || pinning !== null}
+                  aria-label={isAvatar ? `This image is ${name}'s avatar` : `Use as ${name}'s avatar`}
+                  aria-busy={busy}
+                  title={busy ? "Updating…" : title}
+                  className={cn(
+                    "absolute right-1.5 top-0 max-lg:right-auto max-lg:left-6 max-lg:-top-1.5 h-6 w-6 max-lg:h-5 max-lg:w-5 rounded-full inline-flex items-center justify-center transition-opacity",
+                    isAvatar || busy
+                      ? "bg-brand-500 text-white"
+                      : "bg-black/70 text-white/85 hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 touch:enabled:opacity-100 disabled:opacity-0 disabled:group-hover:opacity-40",
                   )}
-                </span>
-                <span className="w-full text-xs leading-tight text-neutral-200 line-clamp-2 break-words group-hover:text-white">
-                  {name}
-                </span>
-                {series && (
-                  <span className="-mt-1 w-full text-2xs leading-tight text-faint truncate">{series}</span>
-                )}
-              </Link>
-              <button
-                type="button"
-                onClick={() => void pinAvatar(c)}
-                disabled={isAvatar || quarantined || pinning !== null}
-                aria-label={isAvatar ? `This image is ${name}'s avatar` : `Use as ${name}'s avatar`}
-                aria-busy={busy}
-                title={busy ? "Updating…" : title}
-                className={cn(
-                  "absolute right-1.5 top-0 h-6 w-6 rounded-full inline-flex items-center justify-center transition-opacity",
-                  isAvatar || busy
-                    ? "bg-brand-500 text-white"
-                    : "bg-black/70 text-white/85 hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 touch:enabled:opacity-100 disabled:opacity-0 disabled:group-hover:opacity-40",
-                )}
-              >
-                <Pin size={12} />
-              </button>
-            </div>
-          );
-        })}
+                >
+                  <Pin size={12} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
       <WornOutfits
         // A new image starts folded to its first rows.

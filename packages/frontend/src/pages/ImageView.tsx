@@ -809,11 +809,12 @@ export default function ImageView() {
                 <button
                   type="button"
                   onClick={() => void copyPath()}
-                  title="Copy path"
-                  className="group mt-1 flex items-start gap-1 text-left text-xs text-faint hover:text-neutral-200"
+                  title={`${data.path}\nCopy path`}
+                  className="group mt-1 flex max-w-full items-center gap-1 text-left text-xs text-faint hover:text-neutral-200"
                 >
-                  <span className="break-all">{data.path}</span>
-                  <Copy size={11} className="mt-0.5 shrink-0 opacity-0 group-hover:opacity-100 touch:opacity-100" />
+                  {/* One line: the file name it ends on is the header above. */}
+                  <span className="truncate">{data.path}</span>
+                  <Copy size={11} className="shrink-0 opacity-0 group-hover:opacity-100 touch:opacity-100" />
                 </button>
               </div>
               <div className="flex items-center gap-1 shrink-0">
