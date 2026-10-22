@@ -4,6 +4,7 @@ A read-only discovery pass over the whole codebase, ahead of a refactor / dedupe
 
 ## Files
 
+- `TRACKER.md`: status of every item (open, done with commit, dropped). Update it in the fixing commit.
 - `README.md`: this file. Themes, priorities, work order.
 - `bugs.md`: bugs found along the way, with status.
 - `catalogue.md`: all 164 findings, full problem / proposal / evidence, by ID (`S2.3` = slice S2, finding 3).
