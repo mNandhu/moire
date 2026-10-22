@@ -331,7 +331,7 @@ export function deleteTagAlias(from: string): Promise<{ from: string; to: string
 /** Store several merge / split rules at once. A rule that would loop is skipped. */
 export function addTagRules(
   rules: { from: string; to: string[] }[],
-): Promise<{ rules: number; skipped: string[]; images: number }> {
+): Promise<{ rules: number; skipped: { from: string; reason: string }[]; images: number }> {
   return api("/api/v1/tags/aliases", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -342,18 +342,16 @@ export function addTagRules(
 /** How a suggestion reads the prompt tag (services/tag_canon.py stages). */
 export type MergeKind = "alias" | "respell" | "colour" | "split" | "strip";
 export type MergeSuggestion = { from: string; to: string[]; kind: MergeKind; images: number };
-type MergeSuggestions = { available: boolean; fetching: boolean; suggestions: MergeSuggestion[] };
+type MergeSuggestions = { available: boolean; suggestions: MergeSuggestion[] };
 
 export const MERGE_SUGGESTIONS_KEY = ["merge-suggestions"] as const;
 
 /** Prompt tags Danbooru names otherwise, most used first. Empty until the
- * server has Danbooru's list; asking starts its download, so look again
- * while that runs. */
+ * server has Danbooru's list (the prompt board downloads it). */
 export function useMergeSuggestions() {
   return useQuery({
     queryKey: MERGE_SUGGESTIONS_KEY,
     queryFn: ({ signal }) => api<MergeSuggestions>("/api/v1/tags/merge-suggestions", { signal }),
-    refetchInterval: (q) => (q.state.data?.fetching ? 5000 : false),
   });
 }
 

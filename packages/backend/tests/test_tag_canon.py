@@ -14,6 +14,9 @@ pasties,0,{P},
 rose,0,{P},
 red_rose,0,{P},
 blue_suit,0,{P},
+dress,0,{P},
+red_dress,0,{P},
+white_dress,0,{P},
 suit,0,{P},
 sweater,0,{P},
 red_sweater,0,{P},
@@ -60,6 +63,8 @@ def test_respell_singular_join_and_colour_synonym():
 
 def test_colour_plus_thing_as_one_tag():
     assert _s("dark_blue_suit") == (("blue_suit",), "colour")
+    # Two colours keep both, as a split.
+    assert _s("red_white_dress") == (("red_dress", "white_dress"), "split")
 
 
 def test_split_into_a_tag_per_describing_word():

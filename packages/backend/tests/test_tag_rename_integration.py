@@ -209,7 +209,16 @@ async def test_a_name_has_one_rule_and_loops_through_splits_are_refused(client, 
         "/tags/aliases",
         json={"rules": [{"from": "c1", "to": ["a1"]}, {"from": "f1", "to": ["g1"]}]},
     )
-    assert resp.json() == {"rules": 1, "skipped": ["c1"], "images": 0}
+    assert resp.json() == {
+        "rules": 1,
+        "skipped": [
+            {
+                "from": "c1",
+                "reason": "a1 is already merged into c1; remove that rule first",
+            }
+        ],
+        "images": 0,
+    }
     assert await _rules(client) == {"a1": ["b1", "c1"], "f1": ["g1"]}
 
 
@@ -241,3 +250,19 @@ async def test_merge_suggestions_read_prompt_tags_against_danbooru(
         "black_heart_pasties": (["heart_pasties"], "strip"),
     }
     danbooru_tags.reset_for_tests()
+
+
+async def test_a_character_is_not_split_or_suggested(client, seed):
+    async with db.async_tx() as conn:
+        await conn.execute(sa.insert(t.characters).values(tag="red_hood"))
+    resp = await client.post(
+        "/tags/aliases",
+        json={"rules": [{"from": "red_hood", "to": ["red_cape", "hood"]}]},
+    )
+    assert resp.json()["rules"] == 0
+    assert "character" in resp.json()["skipped"][0]["reason"]
+    # A plain merge still works.
+    resp = await client.post(
+        "/tags/aliases", json={"rules": [{"from": "red_hood", "to": ["hood"]}]}
+    )
+    assert resp.json()["rules"] == 1

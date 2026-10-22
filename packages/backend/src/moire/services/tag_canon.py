@@ -118,7 +118,8 @@ class Resolver:
         if name in self.tags.aliases:
             tag = self.tags.aliases[name]
             # Artists collect odd aliases (``2d``); a prompt word isn't one.
-            if self.tags.tags[tag][0] == ARTIST:
+            category, posts = self.tags.tags[tag]
+            if category == ARTIST or posts < MIN_POSTS:
                 return None
             return Suggestion(name, (tag,), "alias")
         words = name.split("_")
@@ -127,10 +128,11 @@ class Resolver:
                 return Suggestion(name, (tag,), "respell")
         if len(words) < 2:
             return None
+        heads = list(self._heads(words))
         return (
-            self._colour(name, words)
-            or self._split(name, words)
-            or self._strip(name, words)
+            self._colour(name, heads)
+            or self._split(name, heads)
+            or self._strip(name, words, heads)
         )
 
     def _heads(self, words: list[str]):
@@ -140,19 +142,21 @@ class Resolver:
             if head is not None:
                 yield words[:i], head
 
-    def _colour(self, name: str, words: list[str]) -> Suggestion | None:
-        for prefix, head in self._heads(words):
-            if not _all_colour(prefix):
-                continue
+    def _colour(self, name: str, heads) -> Suggestion | None:
+        for prefix, head in heads:
             colours = [w for w in prefix if w not in TONES]
-            for c in ("_".join(prefix), COLOUR_SYNONYMS.get(colours[-1], colours[-1])):
+            # Two colours (``red_white_dress``) can't share one tag: a split.
+            if not _all_colour(prefix) or len(colours) != 1:
+                continue
+            # The colour alone when the tone has no tag (``dark_blue_suit``).
+            for c in ("_".join(prefix), COLOUR_SYNONYMS.get(colours[0], colours[0])):
                 tag = self._general(f"{c}_{head}")
                 if tag is not None and tag != name:
                     return Suggestion(name, (tag,), "colour")
         return None
 
-    def _split(self, name: str, words: list[str]) -> Suggestion | None:
-        for prefix, head in self._heads(words):
+    def _split(self, name: str, heads) -> Suggestion | None:
+        for prefix, head in heads:
             last = head.split("_")[-1]
             parts: list[str] = []
             for group in _groups(prefix):
@@ -172,8 +176,8 @@ class Resolver:
                 return Suggestion(name, to, "split" if len(to) > 1 else "respell")
         return None
 
-    def _strip(self, name: str, words: list[str]) -> Suggestion | None:
-        for prefix, head in self._heads(words):
+    def _strip(self, name: str, words: list[str], heads) -> Suggestion | None:
+        for prefix, head in heads:
             rest = "_".join(words[len(prefix) :])
             if not _all_colour(prefix) or rest in SKIP_HEADS or head in SKIP_HEADS:
                 continue

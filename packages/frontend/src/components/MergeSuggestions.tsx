@@ -4,12 +4,18 @@ import { Button } from "./ui/Button";
 import { Checkbox } from "./ui/Checkbox";
 import { Tooltip } from "./ui/Tooltip";
 import { formatTag } from "../lib/tags";
-import { KIND_LABEL, KIND_TIP, defaultPicked, groupByKind } from "../lib/mergeSuggestions";
+import {
+  KIND_LABEL,
+  KIND_TIP,
+  defaultPicked,
+  groupByKind,
+  reconcilePicked,
+} from "../lib/mergeSuggestions";
 import type { MergeSuggestion } from "../lib/queries";
 
 /**
  * Danbooru-backed merge and split rules for prompt tags, to accept in bulk.
- * A new list (after a merge) starts again from its default ticks.
+ * A new list (a refetch, a merge) keeps the ticks of names already shown.
  */
 export function MergeSuggestions({
   suggestions,
@@ -22,7 +28,7 @@ export function MergeSuggestions({
   const [shown, setShown] = useState(suggestions);
   if (shown !== suggestions) {
     setShown(suggestions);
-    setPicked(defaultPicked(suggestions));
+    setPicked(reconcilePicked(picked, shown, suggestions));
   }
   const [busy, setBusy] = useState(false);
   const groups = useMemo(() => groupByKind(suggestions), [suggestions]);

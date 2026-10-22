@@ -24,6 +24,20 @@ export function defaultPicked(list: readonly MergeSuggestion[]): Set<string> {
   return new Set(list.filter((s) => s.kind !== "strip").map((s) => s.from));
 }
 
+/** Ticks for a new list: kept as the user left them for names already shown,
+ * the default for names new to it. */
+export function reconcilePicked(
+  picked: ReadonlySet<string>,
+  before: readonly MergeSuggestion[],
+  next: readonly MergeSuggestion[],
+): Set<string> {
+  const seen = new Set(before.map((s) => s.from));
+  const defaults = defaultPicked(next);
+  return new Set(
+    next.filter((s) => (seen.has(s.from) ? picked.has(s.from) : defaults.has(s.from))).map((s) => s.from),
+  );
+}
+
 /** The suggestions by kind, in {@link KIND_ORDER}, empty kinds left out. */
 export function groupByKind(
   list: readonly MergeSuggestion[],

@@ -190,7 +190,12 @@ export default function TagsPage() {
       if (res.rules >= rules.length) setShowSuggestions(false);
       push(
         `Merged ${res.rules.toLocaleString()} ${res.rules === 1 ? "tag" : "tags"} on ${res.images.toLocaleString()} images` +
-          (res.skipped.length ? `; ${res.skipped.length.toLocaleString()} would loop and were skipped` : ""),
+          (res.skipped.length
+            ? `; skipped ${res.skipped
+                .slice(0, 3)
+                .map((s) => `“${formatTag(s.from)}” (${s.reason})`)
+                .join(", ")}${res.skipped.length > 3 ? ` and ${res.skipped.length - 3} more` : ""}`
+            : ""),
         res.skipped.length ? "info" : "success",
       );
     } catch (e) {
