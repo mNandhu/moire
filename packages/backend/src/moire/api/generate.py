@@ -738,7 +738,9 @@ async def retry_request(batch_id: int, request_id: int, body: RetryIn):
 
 @router.post("/batches/{batch_id}/cancel")
 async def cancel_batch(batch_id: int):
-    await get_generation_manager().cancel(batch_id)
+    # Null when it never ran and so was deleted.
+    if await get_generation_manager().cancel(batch_id):
+        return None
     return await get_batch(batch_id)
 
 

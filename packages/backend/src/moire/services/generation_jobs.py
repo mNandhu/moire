@@ -5,9 +5,9 @@ ComfyUI's ``/queue`` and ``/history`` are the source of truth: a poll loop
 (:meth:`GenerationManager.tick`, about once a second) moves each request from
 queued to running to done / failed / cancelled / lost and records its outputs.
 The websocket only adds live step progress and wakes the loop early, so a
-missed event never loses state. One request per batch is in ComfyUI at a time;
-the rest wait here as pending, which keeps cancel simple and lets other
-batches interleave.
+missed event never loses state. One request of ours is in ComfyUI at a time
+and batches run one after another, oldest first (a test run goes ahead of
+them); the rest wait here as pending, which keeps cancel simple.
 
 The first request of a batch is submitted inside :meth:`queue_batch`: if
 ComfyUI rejects it, nothing is kept and the caller gets the node errors.
@@ -60,6 +60,10 @@ SETUP_RETRY = 60.0
 
 UNFINISHED = ("pending", "queued", "running")
 IN_COMFY = ("queued", "running")
+# Order key: a batch that is a workflow's test run before the others.
+TEST_FIRST = sa.desc(
+    sa.func.coalesce(sa.func.json_extract(t.generation_batches.c.inputs, "$.test"), 0)
+)
 
 
 class Unavailable(Exception):
@@ -945,22 +949,32 @@ class GenerationManager:
             )
 
     async def _submit_next(self) -> None:
-        """Submit the lowest pending request of every active batch that has
-        nothing in ComfyUI."""
-        r = t.generation_requests
-        busy = sa.select(r.c.batch_id).where(r.c.state.in_(IN_COMFY))
+        """With nothing of ours in ComfyUI, submit the lowest pending request
+        of the first batch in line: test runs first, then the oldest. A batch
+        is done before the next starts."""
+        r, b = t.generation_requests, t.generation_batches
         async with async_conn() as conn:
+            busy = (
+                await conn.execute(
+                    sa.select(r.c._id).where(r.c.state.in_(IN_COMFY)).limit(1)
+                )
+            ).first()
+            if busy:
+                return
             rows = (
                 await conn.execute(
                     sa.select(r.c.batch_id, sa.func.min(r.c.idx).label("idx"))
-                    .where(r.c.state == "pending", r.c.batch_id.not_in(busy))
+                    .select_from(r.join(b, b.c._id == r.c.batch_id))
+                    .where(r.c.state == "pending")
                     .group_by(r.c.batch_id)
-                    .order_by(r.c.batch_id)
+                    .order_by(TEST_FIRST, r.c.batch_id)
                 )
             ).fetchall()
+        # A rejected one fails and the next in line goes instead.
         for row in rows:
             try:
                 await self._submit(row.batch_id, row.idx)
+                return
             except ComfyRejected as e:
                 await self._fail_request(row.batch_id, row.idx, e)
             except (ComfyUnreachable, ComfyError) as e:
@@ -1216,8 +1230,10 @@ class GenerationManager:
                     for i, (n, sd) in enumerate(zip(sizes, seeds))
                 ],
             )
+        # Sent now so ComfyUI checks the graph (a rejection keeps nothing),
+        # then parked if other batches are ahead of it.
         try:
-            await self._submit(batch_id, 0)
+            pid = await self._submit(batch_id, 0)
         except ComfyRejected as e:
             await self._delete_batch(batch_id)
             raise Rejected(e.message, e.node_errors) from e
@@ -1225,7 +1241,41 @@ class GenerationManager:
             await self._delete_batch(batch_id)
             self._down(str(e))
             raise Unavailable(str(e)) from e
+        if not inputs.get("test") and await self._others_unfinished(batch_id):
+            await self._park(batch_id, pid)
         return batch_id
+
+    async def _others_unfinished(self, batch_id: int) -> bool:
+        r = t.generation_requests
+        async with async_conn() as conn:
+            row = (
+                await conn.execute(
+                    sa.select(r.c._id)
+                    .where(r.c.batch_id != batch_id, r.c.state.in_(UNFINISHED))
+                    .limit(1)
+                )
+            ).first()
+        return row is not None
+
+    async def _park(self, batch_id: int, pid: str) -> None:
+        """Take a batch's first request back out of ComfyUI's queue to wait
+        its turn here. If ComfyUI has already started it, it runs."""
+        assert self.client is not None
+        try:
+            await self.client.delete_queued([pid])
+            running, _ = await self.client.queue()
+        except (ComfyUnreachable, ComfyError) as e:
+            self._down(str(e))
+            return
+        if pid in running:
+            return
+        r = t.generation_requests
+        async with async_tx() as conn:
+            await conn.execute(
+                sa.update(r)
+                .where(r.c.batch_id == batch_id, r.c.prompt_id == pid)
+                .values(state="pending", prompt_id=None, queued_at=None)
+            )
 
     async def _delete_batch(self, batch_id: int) -> None:
         async with async_tx() as conn:
@@ -1354,11 +1404,33 @@ class GenerationManager:
             )
         generation_estimate.forget()
 
-    async def cancel(self, batch_id: int, request_id: int | None = None) -> None:
-        """Cancel a batch's unfinished requests, or just one of them."""
+    async def cancel(self, batch_id: int, request_id: int | None = None) -> bool:
+        """Cancel a batch's unfinished requests, or just one of them. A whole
+        batch cancelled before any of it ran leaves nothing to keep, so it is
+        deleted; returns whether it was."""
         async with self._tick_lock:
             await self._cancel(batch_id, request_id)
+            gone = request_id is None and not await self._ever_ran(batch_id)
+            if gone:
+                await self._delete_batch(batch_id)
         self._wake.set()
+        return gone
+
+    async def _ever_ran(self, batch_id: int) -> bool:
+        """Some request of the batch got as far as ComfyUI running it."""
+        r = t.generation_requests
+        async with async_conn() as conn:
+            row = (
+                await conn.execute(
+                    sa.select(r.c._id)
+                    .where(
+                        r.c.batch_id == batch_id,
+                        r.c.state.in_(("running", "done", "failed", "lost")),
+                    )
+                    .limit(1)
+                )
+            ).first()
+        return row is not None
 
     async def _cancel(self, batch_id: int, request_id: int | None) -> None:
         r = t.generation_requests

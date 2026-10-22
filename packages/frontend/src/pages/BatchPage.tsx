@@ -172,7 +172,16 @@ export default function BatchPage() {
     },
     onError: (e) => toast.push(e.message, "error"),
   });
-  const cancelAll = useMutation({ mutationFn: () => cancelBatch(batchId), onSuccess: (nb) => changed(nb) });
+  const cancelAll = useMutation({
+    mutationFn: () => cancelBatch(batchId),
+    onSuccess: (nb) => {
+      if (nb) return changed(nb);
+      // Never ran, so it's gone.
+      void qc.invalidateQueries({ queryKey: BATCHES_KEY });
+      void qc.invalidateQueries({ queryKey: STATUS_KEY });
+      navigate("/generations", { replace: true });
+    },
+  });
   const retryAll = useMutation({
     mutationFn: async () => {
       let last: Batch | undefined;

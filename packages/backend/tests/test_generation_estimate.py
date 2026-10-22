@@ -147,15 +147,16 @@ def test_what_a_batch_leaves_unset_is_the_graphs_own():
     assert _job(gen, "g", {}, None).steps is None
 
 
-def test_pending_requests_take_turns_between_batches():
+def test_pending_requests_run_batch_after_batch_test_runs_first():
     from types import SimpleNamespace as Row
 
     rows = [
-        Row(state="running", batch_id=2, idx=0),
-        Row(state="pending", batch_id=1, idx=1),
-        Row(state="pending", batch_id=1, idx=2),
-        Row(state="pending", batch_id=2, idx=1),
-        Row(state="pending", batch_id=2, idx=2),
+        Row(state="running", batch_id=2, idx=0, inputs={}),
+        Row(state="pending", batch_id=1, idx=1, inputs={}),
+        Row(state="pending", batch_id=1, idx=2, inputs={}),
+        Row(state="pending", batch_id=2, idx=1, inputs={}),
+        Row(state="pending", batch_id=2, idx=2, inputs={}),
+        Row(state="pending", batch_id=3, idx=0, inputs={"test": True}),
     ]
     got = [(r.batch_id, r.idx) for r in _run_order(rows)]
-    assert got == [(2, 0), (1, 1), (2, 1), (1, 2), (2, 2)]
+    assert got == [(2, 0), (3, 0), (1, 1), (1, 2), (2, 1), (2, 2)]

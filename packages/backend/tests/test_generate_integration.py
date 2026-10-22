@@ -344,7 +344,9 @@ async def test_live_loop_never_double_submits_or_loses(client, comfy, seed):
         if all(st != "running" for st in states):
             break
     assert states == ["done"] * 5
-    assert len(comfy.order) - sent_before == 10
+    # Ten images; a batch queued behind others is sent once to be checked,
+    # then taken back (deleted) until its turn.
+    assert len(comfy.order) - sent_before - len(comfy.deleted) == 10
 
 
 async def test_rejection_maps_errors_to_fields(client, comfy, seed):
@@ -768,8 +770,7 @@ async def test_estimate_learns_from_runs_and_counts_checkpoint_loads(
     gen = next(i for i in items if i["kind"] == "generate")
     assert gen["eta_s"] == pytest.approx(20, abs=1)
 
-    # Batches take turns: a second one starts after the first's first image
-    # and is done last, though its own work is only 20s.
+    # Batch after batch: a second one starts once the first is done.
     c = (await client.post("/generate/batches", json={**body, "count": 2})).json()
     await tick()
     active = {
@@ -778,8 +779,8 @@ async def test_estimate_learns_from_runs_and_counts_checkpoint_loads(
     first, second = active[b["_id"]], active[c["_id"]]
     assert second["eta"] == pytest.approx(20, abs=1)
     assert first["starts_in"] == pytest.approx(0, abs=1)
-    assert first["done_in"] == pytest.approx(30, abs=1)
-    assert second["starts_in"] == pytest.approx(10, abs=1)
+    assert first["done_in"] == pytest.approx(20, abs=1)
+    assert second["starts_in"] == pytest.approx(20, abs=1)
     assert second["done_in"] == pytest.approx(40, abs=1)
     assert first["running"] is False and second["running"] is False
 
@@ -839,3 +840,49 @@ async def test_running_time_counts_without_the_websocket(client, comfy, seed):
     q = (await client.get(f"/generate/batches/{b['_id']}")).json()["requests"][0]
     assert q["state"] == "running"
     assert q["elapsed"] is not None and q["elapsed"] >= 0
+
+
+async def test_batches_run_one_after_another(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    a = (await client.post("/generate/batches", json={"base": "a", "count": 2})).json()
+    b = (await client.post("/generate/batches", json={"base": "b", "count": 2})).json()
+    # B's first went to ComfyUI to be checked, then came back to wait for A.
+    assert [q["state"] for q in b["requests"]] == ["pending", "pending"]
+    assert len(comfy.pending) == 1
+    ran = []
+    for _ in range(4):
+        pid = comfy.pending[0]
+        ran.append(comfy.prompts[pid]["6"]["inputs"]["text"])
+        scanned(seed, comfy.finish(pid))
+        await tick()
+    assert ran == ["a", "a", "b", "b"]
+    for x in (a, b):
+        assert (await client.get(f"/generate/batches/{x['_id']}")).json()[
+            "state"
+        ] == "done"
+
+
+async def test_a_test_run_goes_ahead_of_waiting_batches(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    await client.post("/generate/batches", json={"base": "a", "count": 2})
+    await client.post("/generate/batches", json={"base": "b"})
+    r = await client.post("/generate/generators/builtin/test", json={})
+    assert r.status_code == 200, r.text
+    # The test stays in ComfyUI's queue, behind A's image being made.
+    assert len(comfy.pending) == 2
+    ran = []
+    for _ in range(4):
+        pid = comfy.pending[0]
+        ran.append(comfy.prompts[pid]["6"]["inputs"]["text"])
+        scanned(seed, comfy.finish(pid))
+        await tick()
+    assert ran[0] == "a" and ran[2:] == ["a", "b"]
+
+
+async def test_cancelling_a_batch_that_never_ran_deletes_it(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    await client.post("/generate/batches", json={"base": "a"})
+    b = (await client.post("/generate/batches", json={"base": "b", "count": 2})).json()
+    r = await client.post(f"/generate/batches/{b['_id']}/cancel")
+    assert r.status_code == 200 and r.json() is None
+    assert (await client.get(f"/generate/batches/{b['_id']}")).status_code == 404

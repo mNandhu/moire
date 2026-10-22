@@ -311,19 +311,14 @@ async def _last_checkpoint(gens: _Generators) -> str | None:
 
 def _run_order(rows: list) -> list:
     """``rows`` (running, then queued, then pending, each batch's in ``idx``
-    order) in the order they'll run. Each batch keeps one request in ComfyUI
-    (``GenerationManager._submit_next``), so pending work takes turns: every
-    batch's first pending request, then every batch's second, and so on.
-    Pure."""
+    order) in the order they'll run. One request is in ComfyUI at a time
+    (``GenerationManager._submit_next``) and batches go one after another:
+    a test run's pending first, then the oldest batch's. Pure."""
     head = [row for row in rows if row.state != "pending"]
-    rank: dict[int, int] = {}
-    turns = []
-    for row in rows:
-        if row.state == "pending":
-            n = rank.get(row.batch_id, 0)
-            rank[row.batch_id] = n + 1
-            turns.append((n, row.batch_id, row))
-    return head + [row for _, _, row in sorted(turns, key=lambda x: (x[0], x[1]))]
+    pending = [row for row in rows if row.state == "pending"]
+    # Stable: each batch's stay in idx order.
+    pending.sort(key=lambda row: (not (row.inputs or {}).get("test"), row.batch_id))
+    return head + pending
 
 
 async def queue_plan(started: dict[str, float]) -> dict[str, Any]:
@@ -332,8 +327,8 @@ async def queue_plan(started: dict[str, float]) -> dict[str, Any]:
     (``started`` is when ComfyUI began each prompt). Each running or waiting
     request also gets its full estimate (``requests``), for the tile that
     fills as it runs, and ``last`` is the checkpoint loaded once the queue
-    is through. Batches take turns, so a batch's own seconds aren't when it
-    is done: ``starts`` / ``ends`` are seconds from now until its first
+    is through. Batches wait for the ones ahead, so a batch's own seconds
+    aren't when it is done: ``starts`` / ``ends`` are seconds from now until its first
     request starts and its last one ends, in run order (None past a request
     with no estimate)."""
     gens, runs = await _history()

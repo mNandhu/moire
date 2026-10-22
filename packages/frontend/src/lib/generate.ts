@@ -599,7 +599,8 @@ export const estimateBatch = (body: EstimateBody, signal?: AbortSignal) =>
   });
 export const renameBatch = (id: number, name: string) => send<Batch>(`/batches/${id}`, "PATCH", { name });
 export const requeueBatch = (id: number) => send<Batch>(`/batches/${id}/requeue`, "POST");
-export const cancelBatch = (id: number) => send<Batch>(`/batches/${id}/cancel`, "POST");
+/** Null when the batch never ran: it is deleted rather than kept cancelled. */
+export const cancelBatch = (id: number) => send<Batch | null>(`/batches/${id}/cancel`, "POST");
 export const cancelRequest = (batchId: number, requestId: number) =>
   send<Batch>(`/batches/${batchId}/requests/${requestId}/cancel`, "POST");
 export const retryRequest = (batchId: number, requestId: number, single = false) =>
