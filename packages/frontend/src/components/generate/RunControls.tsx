@@ -377,6 +377,8 @@ export function SeedControl({ value, onChange }: { value: SeedValue; onChange: (
   // One field: Random on the left, and the fixed seed itself on the right, so
   // the number gets the whole remaining width instead of a sliver beside a
   // two-button toggle. Choosing Fixed (or clicking the number) edits it.
+  // On Random the two halves split the field evenly: a fresh form has no
+  // seed to show, and a lone "Fixed" at the left of a wide half read as empty.
   const toFixed = () => {
     if (!fixed) onChange({ mode: "fixed", value: value.value ?? randomSeed() });
     requestAnimationFrame(() => inputRef.current?.select());
@@ -391,7 +393,8 @@ export function SeedControl({ value, onChange }: { value: SeedValue; onChange: (
           title="A new seed for every request"
           onClick={() => onChange({ mode: "random", value: value.value })}
           className={cn(
-            "shrink-0 rounded-md px-2 text-xs",
+            "rounded-md px-2 text-xs",
+            fixed ? "shrink-0" : "flex-1",
             !fixed ? "bg-brand-600 text-white" : "text-muted hover:text-neutral-100",
           )}
         >
@@ -427,7 +430,7 @@ export function SeedControl({ value, onChange }: { value: SeedValue; onChange: (
             aria-pressed={false}
             title="Keep one seed (later runs count up from it)"
             onClick={toFixed}
-            className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2.5 text-xs text-muted hover:text-neutral-100"
+            className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-2.5 text-xs text-muted hover:text-neutral-100"
           >
             Fixed
             {value.value != null && <span className="truncate tabular-nums text-faint">{value.value}</span>}
