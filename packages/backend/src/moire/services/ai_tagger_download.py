@@ -365,6 +365,13 @@ async def download_wd_tagger(model_repo: str, *, cache_dir: str) -> tuple[str, s
     await dm.start(model_repo=model_repo, cache_dir=cache_dir)
     # Wait for completion; cancellation is supported via dm.cancel().
     await dm.wait(model_repo=model_repo, cache_dir=cache_dir)
+    # The runner keeps a failure on the state; raise it here, or the load
+    # would fail later on a missing file instead of the real cause.
+    st = dm.get_state(model_repo=model_repo, cache_dir=cache_dir)
+    if st.status == "error":
+        raise RuntimeError(st.error or "model download failed")
+    if st.status == "cancelled":
+        raise RuntimeError("model download was cancelled")
 
     csv_path, onnx_path = _expected_paths(model_repo=model_repo, cache_dir=cache_dir)
     return csv_path, onnx_path

@@ -16,8 +16,8 @@ Housekeeping, not findings:
 - [x] **L1.1** Retag of an image a running AI job already passed wipes its AI tags and reports success (bug, S, L4), done 369087a
 - [x] **S3.1** Renaming a source-specific tag moves the cover, focus and character settings of the shared base name (bug, S, L4), done 70c50d2
 - [x] **S12.3** Deleting a hand-made character leaves its outfits, Default edits and hides behind (bug, S, L3), done 474174e
-- [x] **S6.3** AI worker loop dies on any error outside the per-image try, leaving the job 'running' and every later job queued forever (bug, S, L3), done
-- [ ] **S6.2** A failed model download is swallowed: download_wd_tagger returns paths and the load fails with a bare FileNotFoundError (bug, S, L3)
+- [x] **S6.3** AI worker loop dies on any error outside the per-image try, leaving the job 'running' and every later job queued forever (bug, S, L3), done 685b606
+- [x] **S6.2** A failed model download is swallowed: download_wd_tagger returns paths and the load fails with a bare FileNotFoundError (bug, S, L3), done
 - [ ] **L3.2** Error toasts show raw JSON in ~25 places: three different error-to-text styles, errorText used only for onboarding/library flows (bug, M, L4)
 - [ ] **S13.2** Escape inside a Picker or DropdownMenu in a Dialog closes the whole Dialog (bug, S, L4)
 - [ ] **S1.1** Grouped gallery view is not refreshed or patched: flat feed always fetches, poll refetches the wrong query, removals skip groups (bug, S, L4)
