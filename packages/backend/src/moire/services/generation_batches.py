@@ -339,8 +339,10 @@ async def generator_view(
 
 
 async def active_summary(manager: GenerationManager) -> list[dict[str, Any]]:
-    """The queue card: every batch with work left, oldest first. Images count
-    what was asked (None per request when batch_size is unknown)."""
+    """The queue card: every batch with work left, oldest first. ``frames``
+    is one entry per image asked for, in request order: ``done`` (with its
+    thumbnail once in the library), ``failed``, ``making`` or ``waiting``.
+    A request whose batch_size is unknown counts as one image."""
     async with async_conn() as conn:
         batches = (
             await conn.execute(
@@ -354,13 +356,21 @@ async def active_summary(manager: GenerationManager) -> list[dict[str, Any]]:
             (
                 await conn.execute(
                     sa.select(
-                        _r.c.batch_id, _r.c.state, _r.c.images, _r.c.prompt_id
-                    ).where(_r.c.batch_id.in_(ids), _VISIBLE)
+                        _r.c._id,
+                        _r.c.batch_id,
+                        _r.c.state,
+                        _r.c.images,
+                        _r.c.prompt_id,
+                        _r.c.finished_at,
+                    )
+                    .where(_r.c.batch_id.in_(ids), _VISIBLE)
+                    .order_by(_r.c._id)
                 )
             ).fetchall()
             if ids
             else []
         )
+        outputs = await _outputs(conn, [q for q in reqs if q.state not in _OPEN])
     by_batch: dict[int, list[Any]] = {}
     for q in reqs:
         by_batch.setdefault(q.batch_id, []).append(q)
@@ -375,15 +385,36 @@ async def active_summary(manager: GenerationManager) -> list[dict[str, Any]]:
                 "test": bool(b.inputs.get("test")),
                 "state": batch_state([q.state for q in rs], manager.connected),
                 "requests": len(rs),
-                "finished": sum(
-                    1 for q in rs if q.state not in ("pending", "queued", "running")
-                ),
+                "finished": sum(1 for q in rs if q.state not in _OPEN),
                 "failed": sum(1 for q in rs if q.state in ("failed", "lost")),
                 # ComfyUI is making one of its images now.
                 "running": current is not None,
                 "progress": manager.progress.get(current.prompt_id)
                 if current is not None and current.prompt_id
                 else None,
+                "width": b.inputs.get("width"),
+                "height": b.inputs.get("height"),
+                "frames": [f for q in rs for f in _frames(q, outputs.get(q._id, []))],
             }
         )
     return out
+
+
+_OPEN = ("pending", "queued", "running")
+
+
+def _frames(q: Any, outs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """A request's images for the queue: one per image asked (or made, if
+    more), each with its state and, once in the library, its thumbnail."""
+    n = max(q.images or 1, len(outs))
+    if q.state in ("failed", "lost"):
+        return [{"state": "failed", "thumb": None}] * n
+    if q.state == "running":
+        return [{"state": "making", "thumb": None}] * n
+    if q.state in _OPEN:
+        return [{"state": "waiting", "thumb": None}] * n
+    thumbs = [o["thumb_url"] for o in outs]
+    return [
+        {"state": "done", "thumb": thumbs[i] if i < len(thumbs) else None}
+        for i in range(n)
+    ]

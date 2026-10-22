@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdown, legClock, queueLegs } from "./queueClock";
+import { countdown, imagesLeft, legClock, queueLegs } from "./queueClock";
 import type { ActiveBatch } from "./generate";
 
 const b = (id: number, requests: number, finished: number, eta: number | null): ActiveBatch => ({
@@ -40,6 +40,15 @@ describe("queueLegs without server times", () => {
     const { legs } = queueLegs([b(1, 2, 0, 60), { ...b(2, 2, 0, 30), running: true }]);
     expect(legs.map((l) => [l.id, l.start, l.end])).toEqual([[2, 0, 30], [1, 30, 90]]);
     expect(legs[1].guess).toBe(false);
+  });
+});
+
+describe("imagesLeft", () => {
+  it("counts the server's per-image frames, else a request each", () => {
+    const making = { state: "making" as const, thumb: null };
+    const done = { state: "done" as const, thumb: "/t" };
+    const { legs } = queueLegs([{ ...b(1, 2, 1, 30), frames: [done, done, making, making] }, b(2, 3, 0, 30)]);
+    expect(imagesLeft(legs)).toBe(5);
   });
 });
 

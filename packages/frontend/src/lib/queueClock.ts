@@ -1,4 +1,4 @@
-import type { ActiveBatch } from "./generate";
+import type { ActiveBatch, QueueFrame } from "./generate";
 
 export type Leg = {
   id: number;
@@ -16,6 +16,10 @@ export type Leg = {
    * Batches take turns, so the span holds the others' turns too. */
   start: number;
   end: number;
+  width: number | null;
+  height: number | null;
+  /** One per image asked; a request each when the server doesn't say. */
+  frames: QueueFrame[];
 };
 
 /**
@@ -49,11 +53,27 @@ export function queueLegs(active: readonly ActiveBatch[]): { legs: Leg[]; total:
       guess: a.eta == null,
       start,
       end,
+      width: a.width ?? null,
+      height: a.height ?? null,
+      frames: a.frames ?? requestFrames(a),
     });
   }
   // The one being made leads, then by when each starts.
   legs.sort((x, y) => Number(y.running) - Number(x.running) || x.start - y.start);
   return { legs, total: cursor };
+}
+
+/** A frame per request, from the counts alone. */
+function requestFrames(a: ActiveBatch): QueueFrame[] {
+  return Array.from({ length: a.requests }, (_, i) => ({
+    state: i < a.finished ? "done" : a.running && i === a.finished ? "making" : "waiting",
+    thumb: null,
+  }));
+}
+
+/** Images still to make: frames waiting or being made. Pure. */
+export function imagesLeft(legs: readonly Leg[]): number {
+  return legs.reduce((n, l) => n + l.frames.filter((f) => f.state === "waiting" || f.state === "making").length, 0);
 }
 
 /** Where a leg is `elapsed` seconds after the times were read: how long

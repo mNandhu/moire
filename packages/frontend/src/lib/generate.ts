@@ -48,7 +48,13 @@ export type ActiveBatch = {
    * among the other batches counted; null when some estimate is missing. */
   starts_in?: number | null;
   done_in?: number | null;
+  width?: number | null;
+  height?: number | null;
+  /** One per image asked, in request order, with its thumbnail once in the library. */
+  frames?: QueueFrame[];
 };
+
+export type QueueFrame = { state: "done" | "failed" | "making" | "waiting"; thumb: string | null };
 
 export type ComfyStatus = {
   configured: boolean;

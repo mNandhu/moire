@@ -110,6 +110,10 @@ async def test_eight_images_at_two_per_request(client, comfy, seed):
     assert [(a["name"], a["requests"], a["finished"]) for a in active] == [
         ("Built-in, red dress, night", 4, 0)
     ]
+    # A frame per image asked, at the batch's size, none made yet.
+    assert len(active[0]["frames"]) == 8
+    assert {f["state"] for f in active[0]["frames"]} == {"waiting"}
+    assert (active[0]["width"], active[0]["height"]) == (832, 1216)
     assert [q["images"] for q in batch["requests"]] == [2, 2, 2, 2]
     assert [q["seed"] for q in batch["requests"]] == [100, 101, 102, 103]
     assert [q["state"] for q in batch["requests"]] == [
