@@ -1,7 +1,7 @@
 import React, { createContext, useContext } from "react";
-import { Menu } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
+import { MoireMark } from "./Logo";
 
 /**
  * How wide a page's content runs. Forms and lists read best capped; browsers
@@ -70,14 +70,17 @@ export function PageHeader({
           WIDTH[width],
         )}
       >
+        {/* Phones have no sidebar to show the brand: the mark is the menu
+            button, as it is the expand button of the collapsed sidebar. */}
         {openNav && (
           <button
             type="button"
             onClick={openNav}
             aria-label="Open navigation"
-            className="md:hidden -ml-1 p-1.5 rounded-lg text-muted hover:text-neutral-100 hover:bg-raised"
+            title="Menu"
+            className="md:hidden -ml-1.5 p-1 rounded-lg hover:bg-raised"
           >
-            <Menu size={20} />
+            <MoireMark size={26} />
           </button>
         )}
         {/* Phones: the title takes what the actions leave and truncates,
