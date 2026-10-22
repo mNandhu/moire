@@ -160,6 +160,28 @@ async def test_place_route(client, tag_list):
     assert body["names"]["long_hair"]["section"] == "hair"
 
 
+def test_library_word_is_not_unknown():
+    p = prompt_board.place("xyzzy_tag", TAGS, frozenset(), frozenset({"xyzzy_tag"}))
+    assert p["section"] == "library"
+    # A listed tag stays where the lists put it.
+    assert (
+        place("long_hair")["section"]
+        == prompt_board.place("long_hair", TAGS, frozenset(), frozenset({"long_hair"}))[
+            "section"
+        ]
+    )
+
+
+@pytest.mark.asyncio
+async def test_place_route_library_word(client, seed, tag_list):
+    seed("L1:a", tags=("prompt:xyzzy_tag",))
+    body = (
+        await client.post("/tags/place", json={"names": ["xyzzy_tag", "plugh"]})
+    ).json()
+    assert body["names"]["xyzzy_tag"]["section"] == "library"
+    assert body["names"]["plugh"]["section"] == "unknown"
+
+
 @pytest.mark.asyncio
 async def test_place_route_without_list(client, tmp_path, monkeypatch):
     monkeypatch.setattr(danbooru_tags, "list_path", lambda: tmp_path / "missing.csv")

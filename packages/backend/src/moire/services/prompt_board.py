@@ -7,10 +7,12 @@ from the tag-group list through :mod:`attire`'s facets (look, outfit, pose,
 scene, framing), split finer by group, and from Danbooru's tag list
 (:mod:`danbooru_tags`): its category (characters, artists, meta) and its
 aliases. A name in neither list is **unknown**, which on the board is the
-place to look first: a typo, or a word the model has never seen.
+place to look first: a typo, or a word the model has never seen. One the
+library's images already carry is **library** instead: not Danbooru's, but
+a word in use (`adult`, `pinup`).
 
-Pure apart from the inputs the caller loads: the Danbooru list and the
-tagger's character names.
+Pure apart from the inputs the caller loads: the Danbooru list, the
+tagger's character names and the library's tag names.
 """
 
 from __future__ import annotations
@@ -35,6 +37,7 @@ SECTIONS = (
     "style",
     "other",
     "quality",
+    "library",
     "unknown",
 )
 
@@ -153,9 +156,15 @@ def _section(
     return None
 
 
-def place(name: str, tags: TagList, characters: frozenset[str]) -> dict:
+def place(
+    name: str,
+    tags: TagList,
+    characters: frozenset[str],
+    library: frozenset[str] = frozenset(),
+) -> dict:
     """Where one prompt tag goes, and what the lists know of it. An alias is
-    placed as its tag (``alias_of``)."""
+    placed as its tag (``alias_of``). ``library``: the library's tag names
+    (unprefixed), which turn an unknown name into a library one."""
     key = attire._key(name)
     tag = tags.resolve(key)
     entry = attire._load().get(tag)
@@ -173,7 +182,10 @@ def place(name: str, tags: TagList, characters: frozenset[str]) -> dict:
     if section is None:
         listed = entry is not None or known is not None or tag in characters
         # Without the Danbooru list nothing can be called unknown.
-        section = "other" if listed or not tags.tags else "unknown"
+        if listed or not tags.tags:
+            section = "other"
+        else:
+            section = "library" if tag in library or key in library else "unknown"
     out: dict = {"section": section}
     if tag != key:
         out["alias_of"] = tag
@@ -188,9 +200,12 @@ def place(name: str, tags: TagList, characters: frozenset[str]) -> dict:
 
 
 def place_all(
-    names: Iterable[str], tags: TagList, characters: frozenset[str]
+    names: Iterable[str],
+    tags: TagList,
+    characters: frozenset[str],
+    library: frozenset[str] = frozenset(),
 ) -> dict[str, dict]:
-    return {n: place(n, tags, characters) for n in dict.fromkeys(names)}
+    return {n: place(n, tags, characters, library) for n in dict.fromkeys(names)}
 
 
 # How many of the most posted tags each section offers, beside the library's.
@@ -224,12 +239,12 @@ def offers(
         # Only what the lists can place: not every stray prompt word.
         if (
             "alias_of" not in p
-            and p["section"] not in ("other", "unknown")
+            and p["section"] not in ("other", "library", "unknown")
             and key not in characters
             and tags.tags.get(key, (None,))[0] not in (CHARACTER, COPYRIGHT)
         ):
             out.setdefault(p["section"], {})[key] = p.get("posts", 0)
-    skip = {"quality", "unknown"}
+    skip = {"quality", "library", "unknown"}
     return {
         k: [[n, posts] for n, posts in sorted(v.items(), key=lambda kv: -kv[1])]
         for k, v in out.items()

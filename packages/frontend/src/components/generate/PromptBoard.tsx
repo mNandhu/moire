@@ -64,6 +64,7 @@ const TONE: Record<BoxKey, string> = {
   style: "border-orange-500/50 bg-orange-500/10 text-orange-100",
   other: "border-line-strong bg-raised text-neutral-200",
   quality: "border-line bg-raised text-faint",
+  library: "border-dashed border-amber-500/60 bg-amber-500/10 text-amber-100",
   unknown: "border-dashed border-red-500/60 bg-red-500/10 text-red-100",
   resources: "border-brand-500/50 bg-brand-500/10 text-brand-100",
   prose: "border-line bg-transparent text-muted italic",
@@ -197,6 +198,8 @@ function TagPreview({ term, count, swap }: { term: Placed; count: number | undef
       <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-faint">
         {term.box === "unknown" ? (
           <span className="text-red-300">Not a Danbooru tag</span>
+        ) : term.box === "library" ? (
+          <span className="text-amber-300">Not a Danbooru tag, used in your library</span>
         ) : (
           <>
             {p?.group && <span>{pretty(p.group)}</span>}
@@ -588,7 +591,7 @@ export function PromptBoard({
       label={label}
       box={k}
       terms={byBox.get(k) ?? []}
-      covers={k === "unknown" ? [] : coversOf(k)}
+      covers={k === "unknown" || k === "library" ? [] : coversOf(k)}
       counts={counts}
       repeats={repeats}
       options={(ADDABLE.has(k) && options.get(k)) || NO_OPTIONS}
@@ -604,6 +607,7 @@ export function PromptBoard({
     />
   );
   const unknown = byBox.get("unknown")?.length ?? 0;
+  const library = byBox.get("library")?.length ?? 0;
   const shown = BOXES.filter((b) => b.expected || b.always || byBox.has(b.key) || theirs.some((l) => l.terms.some((t) => t.box === b.key)));
   const missing = BOXES.filter(
     (b) => b.expected && !byBox.has(b.key) && !theirs.some((l) => l.terms.some((t) => t.box === b.key && !t.dropped && !t.self)),
@@ -624,6 +628,7 @@ export function PromptBoard({
               {mine.length} {mine.length === 1 ? "tag" : "tags"}
             </span>
             {unknown > 0 && <span className="text-red-300">{unknown} not known</span>}
+            {library > 0 && <span className="text-amber-300">{library} only in your library</span>}
             {missing.length > 0 && <span className="truncate text-amber-300">Missing {missing.map((b) => b.label).join(", ")}</span>}
           </span>
         )}
@@ -631,6 +636,7 @@ export function PromptBoard({
       {!folded && (
         <div className="mt-1.5 space-y-2">
           {unknown > 0 && box("unknown", `Not a known tag (${unknown})`, "border-red-500/40 bg-red-500/5")}
+          {library > 0 && box("library", `Only in your library (${library})`, "border-amber-500/40 bg-amber-500/5")}
           <div className="grid gap-2 sm:grid-cols-2">{shown.map((b) => box(b.key, b.label))}</div>
         </div>
       )}

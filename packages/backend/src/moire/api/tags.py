@@ -108,12 +108,32 @@ async def place_tags(body: PlaceBody):
     called unknown. ``fetching``: it is being downloaded."""
     tags = await danbooru_tags.load()
     vocab = await tag_categories.load()
+    library = frozenset(await _library_bases())
     placed = await asyncio.to_thread(
-        prompt_board.place_all, body.names, tags, vocab.names
+        prompt_board.place_all, body.names, tags, vocab.names, library
     )
     return JSONResponse(
         {"names": placed, "list": bool(tags.tags), "fetching": danbooru_tags.fetching()}
     )
+
+
+async def _library_bases() -> list[str]:
+    """Every tag name the library's images carry, prefix dropped. Kept until
+    the next tag write."""
+    gen = tag_index.current_generation()
+    cached = tag_index.read_derived("library-bases")
+    if cached is not None:
+        return cached
+    async with async_conn() as conn:
+        bases = [
+            b
+            for b in (
+                await conn.execute(sa.select(t.image_tags.c.base).distinct())
+            ).scalars()
+            if b
+        ]
+    tag_index.store_derived("library-bases", gen, bases)
+    return bases
 
 
 @router.get("/board")
@@ -127,14 +147,7 @@ async def board_offers():
     cached = tag_index.read_derived("board-offers")
     if cached is not None and cached[0] is tags and cached[1] is vocab:
         return JSONResponse(cached[2])
-    async with async_conn() as conn:
-        bases = [
-            b
-            for b in (
-                await conn.execute(sa.select(t.image_tags.c.base).distinct())
-            ).scalars()
-            if b
-        ]
+    bases = await _library_bases()
     out = await asyncio.to_thread(
         prompt_board.offers, vocab.general, tags, vocab.names, bases
     )

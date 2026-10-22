@@ -381,6 +381,7 @@ export type BoardSection =
   | "style"
   | "other"
   | "quality"
+  | "library"
   | "unknown";
 
 export type TagPlace = {
