@@ -24,6 +24,7 @@ Two source formats, two strategies:
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import math
@@ -208,7 +209,7 @@ def read_gen_raw(img: Any) -> dict | None:
 
 
 def _empty(**over: Any) -> dict[str, Any]:
-    g = dict(_EMPTY)
+    g = copy.deepcopy(_EMPTY)
     g["prompt_terms"] = []
     g.update(over)
     return g
@@ -726,7 +727,9 @@ def _find_sampler(prompt_json: dict[str, Any]) -> dict[str, Any] | None:
             continue
         ct = str(node.get("class_type", ""))
         if "Sampler" in ct or "sampler" in ct.lower():
-            inp = node.get("inputs", {})
+            inp = node.get("inputs")
+            if not isinstance(inp, dict):
+                continue
             # Prefer a node that actually carries conditioning links.
             if "positive" in inp or "latent_image" in inp or "seed" in inp:
                 return node
@@ -745,7 +748,7 @@ def parse_comfyui(
 
     sampler = _find_sampler(prompt_json)
     if sampler is not None:
-        inp = sampler.get("inputs", {})
+        inp = sampler["inputs"]  # a dict: _find_sampler checks it
         g["seed"] = _to_int(inp.get("seed", inp.get("noise_seed")))
         g["steps"] = _to_int(inp.get("steps"))
         g["cfg"] = _to_float(inp.get("cfg"))

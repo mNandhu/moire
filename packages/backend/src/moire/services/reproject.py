@@ -193,12 +193,17 @@ def _reproject_where(
             **(row.raw or {}),
         }
         ruleset = rulesets.get(row.workflow_sig)
-        g = gen_metadata.extract(
-            raw_doc,
-            ruleset,
-            prompt_positive_only=positive_only,
-            guess_keywords=keywords,
-        )
+        try:
+            g = gen_metadata.extract(
+                raw_doc,
+                ruleset,
+                prompt_positive_only=positive_only,
+                guess_keywords=keywords,
+            )
+        except Exception:
+            # One hostile graph must not leave every later row underived.
+            logger.exception("Reprojection skipped %s", row._id)
+            continue
         if g is None:
             continue
         # Merge rules rewrite the extracted terms before they become search

@@ -21,7 +21,7 @@ Housekeeping, not findings:
 - [ ] **L3.2** Error toasts show raw JSON in ~25 places: three different error-to-text styles, errorText used only for onboarding/library flows (bug, M, L4)
 - [ ] **S13.2** Escape inside a Picker or DropdownMenu in a Dialog closes the whole Dialog (bug, S, L4)
 - [ ] **S1.1** Grouped gallery view is not refreshed or patched: flat feed always fetches, poll refetches the wrong query, removals skip groups (bug, S, L4)
-- [x] **L1.4** Async routes block the event loop on scan/watch thread joins (bug, S, L3), done
+- [x] **L1.4** Async routes block the event loop on scan/watch thread joins (bug, S, L3), done 0818b57
 - [ ] **L2.1** promptOutline (board) and prompt_parse (tags) read the same prompt differently; an unclosed bracket makes the board see one term (bug, M, L5, TW)
 - [x] **L4.1** Scan of a library whose root is missing deletes every image and its curation (bug, S, L5), done 5c1bf8d
 - [ ] **S1.7** Model, LoRA and embedding filter counts include quarantined images, Size counts do not; three facet routes are near-copies (bug, S, L2)
@@ -29,7 +29,7 @@ Housekeeping, not findings:
 - [ ] **S2.6** Global keydown ignores modifier keys: Ctrl/Cmd+1..5, Alt+Arrow hijacked (bug, S, L3)
 - [ ] **S4.7** RenameTagDialog offers AI tags as merge targets when renaming a manual tag (bug, S, L2)
 - [ ] **S5.7** Moving a library while it is scanning leaves the scan on the old folder and nothing rescans (bug, S, L2)
-- [ ] **S7.5** One malformed graph aborts a whole reprojection: extract is not total and the loop has no per-row guard (bug, S, L3)
+- [x] **S7.5** One malformed graph aborts a whole reprojection: extract is not total and the loop has no per-row guard (bug, S, L3), done
 - [ ] **S8.8** Cancelled requests render as 'done' frames in the queue card (bug, S, L2)
 - [ ] **S9.3** JsonTree branch toggle opens and closes every sibling branch at once (bug, S, L3)
 
