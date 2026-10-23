@@ -86,7 +86,19 @@ export function DropdownMenu({
   }, [open]);
 
   return (
-    <div ref={ref} className="relative">
+    <div
+      ref={ref}
+      className="relative"
+      // Inside a Dialog the document listener above never sees keys (the
+      // dialog stops them at its backdrop), so close from here too.
+      onKeyDown={(e) => {
+        if (open && e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(false);
+        }
+      }}
+    >
       {trigger ? (
         <div
           role="button"

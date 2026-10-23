@@ -22,6 +22,8 @@ import { cn } from "../../lib/cn";
  * panel) would otherwise make `fixed` mean "fixed to the panel".
  */
 const openStack: object[] = [];
+// The trigger of an open popup, or anything inside its popup.
+const POPUP = '[aria-haspopup][aria-expanded="true"], [data-popup], [role="menu"]';
 
 export function Dialog({
   open,
@@ -65,6 +67,9 @@ export function Dialog({
       const panel = panelRef.current;
       const inside = !!panel && panel.contains(e.target as Node);
       if (!inside) e.stopPropagation();
+      // An open Picker list or DropdownMenu owns this Escape (it closes
+      // itself); the next one closes the dialog.
+      if (e.key === "Escape" && (e.target as Element).closest?.(POPUP)) return;
       if (e.key === "Escape") {
         e.stopPropagation();
         e.preventDefault();

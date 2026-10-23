@@ -210,6 +210,7 @@ export function Picker({
       {open && (
         <div
           ref={popRef}
+          data-popup
           className={cn(
             "absolute z-50 min-w-full w-max max-w-[min(32rem,calc(100vw-16px))] rounded-lg border border-line-strong bg-raised shadow-panel",
             side === "up" ? "bottom-full mb-1" : "mt-1",
