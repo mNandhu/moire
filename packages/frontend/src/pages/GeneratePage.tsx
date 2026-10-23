@@ -20,7 +20,7 @@ import { ComfyStatusLine } from "../components/generate/ComfyStatusLine";
 import { WorkflowPicker } from "../components/generate/WorkflowPicker";
 import { RemixStrip, type RemixState } from "../components/generate/Remix";
 import { canRunTest, countModeOf, defaultBatchSize, forWorkflow, runBarOf, testState } from "../lib/workflow";
-import { useCharacters } from "../components/ImageCharacters";
+import { useCharacters } from "../lib/queries";
 import { useNextEstimate } from "../components/generate/NextBatch";
 import { QueueDeck } from "../components/generate/QueueDeck";
 import { OutputFeed } from "../components/generate/OutputFeed";

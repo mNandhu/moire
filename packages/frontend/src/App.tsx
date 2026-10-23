@@ -9,7 +9,7 @@ import { MobileNavContext } from "./components/ui/PageHeader";
 import { cn } from "./lib/cn";
 import { restoreAmbient } from "./lib/ambient";
 import { useQueueTitle } from "./hooks/useQueueTitle";
-import { usePrefetchCharacters } from "./components/ImageCharacters";
+import { usePrefetchCharacters } from "./lib/queries";
 
 export default function App() {
   useQueueTitle();

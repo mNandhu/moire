@@ -15,7 +15,7 @@ import { DEFAULT_FILTERS, galleryHref, imageHref } from "../lib/imageFilter";
 import { updateCharacter } from "../lib/imageMutations";
 import { characterHref, tagHref } from "../lib/character";
 import { CharacterAvatar } from "./CharacterAvatar";
-import { useCharacterLookup } from "./ImageCharacters";
+import { useCharacterLookup } from "../lib/queries";
 import { TAGS_KEY, useBoilerplate, useTagDescription, useTagDetail, useTagGroups } from "../lib/queries";
 import { groupHref, groupLabel, groupOf } from "../lib/tagGroups";
 import { danbooruWikiUrl, formatTag, onDanbooru } from "../lib/tags";

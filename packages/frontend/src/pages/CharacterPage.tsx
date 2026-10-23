@@ -9,7 +9,7 @@ import { Skeleton } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
 import { useToast } from "../components/Toasts";
 import { Chip, ChipRow, MonthChart } from "../components/TagPanel";
-import { useCharacters } from "../components/ImageCharacters";
+import { useCharacters } from "../lib/queries";
 import { CharacterEditDialog } from "../components/CharacterEditDialog";
 import { TagEditDialog } from "../components/TagEditDialog";
 import { CharacterAvatar } from "../components/CharacterAvatar";

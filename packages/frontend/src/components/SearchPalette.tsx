@@ -5,7 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import { Box, FolderOpen, History, Layers, Plus, Puzzle, Search, Settings, Tags, Wand2 } from "lucide-react";
 import { Dialog } from "./ui/Dialog";
 import { CharacterAvatar } from "./CharacterAvatar";
-import { useCharacters } from "./ImageCharacters";
+import { useCharacters } from "../lib/queries";
 import { NAV } from "./Sidebar";
 import { SETTINGS_SECTIONS } from "../pages/settings/registry";
 import { cn } from "../lib/cn";

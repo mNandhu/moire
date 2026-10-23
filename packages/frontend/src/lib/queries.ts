@@ -17,3 +17,4 @@ export * from "./queries/images";
 export * from "./queries/tags";
 export * from "./queries/settings";
 export * from "./queries/board";
+export * from "./queries/characters";

@@ -6,7 +6,7 @@ import { Badge, Card } from "../ui";
 import { Picker, type PickerOption } from "../ui/Picker";
 import { Dialog } from "../ui/Dialog";
 import { CharacterAvatar } from "../CharacterAvatar";
-import { useCharacters } from "../ImageCharacters";
+import { useCharacters } from "../../lib/queries";
 import { cn } from "../../lib/cn";
 import { characterHref, displayName, fewImagesNote, type CharacterEntry } from "../../lib/character";
 import { useChipBorderStyle } from "../../hooks/useTagMarks";

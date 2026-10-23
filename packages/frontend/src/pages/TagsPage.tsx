@@ -50,7 +50,7 @@ import { MergeSuggestions } from "../components/MergeSuggestions";
 import { TagPanel } from "../components/TagPanel";
 import { Mosaic, type Sample } from "../components/TagMosaic";
 import { FaceCrop } from "../components/CharacterAvatar";
-import { useCharacterLookup, useCharacters } from "../components/ImageCharacters";
+import { useCharacterLookup, useCharacters } from "../lib/queries";
 import { NewCharacterDialog } from "../components/NewCharacterDialog";
 import { Tooltip } from "../components/ui/Tooltip";
 import { Picker } from "../components/ui/Picker";

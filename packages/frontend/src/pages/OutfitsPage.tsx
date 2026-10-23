@@ -4,7 +4,7 @@ import { Search, Shirt } from "lucide-react";
 import { Badge, DropdownMenu, EmptyState, Input, PageBody, PageHeader } from "../components/ui";
 import { Picker, type PickerOption } from "../components/ui/Picker";
 import { CharacterAvatar } from "../components/CharacterAvatar";
-import { useCharacterLookup } from "../components/ImageCharacters";
+import { useCharacterLookup } from "../lib/queries";
 import { OutfitThumb } from "../components/generate/Outfit";
 import { SaveOutfitDialog } from "../components/generate/SaveOutfitDialog";
 import { useOutfitActions } from "../components/generate/CharacterOutfits";

@@ -7,7 +7,7 @@ import { Button } from "./ui/Button";
 import { Field, Input } from "./ui/Input";
 import { Picker } from "./ui/Picker";
 import { useToast } from "./Toasts";
-import { useCharacters } from "./ImageCharacters";
+import { useCharacters } from "../lib/queries";
 import { TagSuggestList } from "./TagSuggestList";
 import { useSuggestNav, useTagMatches } from "../hooks/useSuggestNav";
 import { cn } from "../lib/cn";

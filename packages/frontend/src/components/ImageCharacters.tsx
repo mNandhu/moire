@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Pin } from "lucide-react";
-import { api } from "../lib/api";
 import { cn } from "../lib/cn";
-import { TAGS_KEY } from "../lib/queries";
+import { useCharacters } from "../lib/queries";
 import { useToast } from "./Toasts";
 import { formatTag, tagName } from "../lib/tags";
 import { characterHref, displayName, type CharacterEntry } from "../lib/character";
@@ -14,35 +12,6 @@ import { usePinCover } from "../hooks/usePinCover";
 import { SaveOutfitDialog } from "./generate/SaveOutfitDialog";
 import { OutfitMenu } from "./generate/OutfitCover";
 import { WornOutfits } from "./generate/WornOutfits";
-
-const charactersQuery = {
-  queryKey: [...TAGS_KEY, "characters"],
-  queryFn: ({ signal }: { signal: AbortSignal }) => api<CharacterEntry[]>("/api/v1/tags/characters", { signal }),
-  staleTime: 60_000,
-};
-
-/** Every character in the library; shared by the image view and character pages. */
-export function useCharacters() {
-  return useQuery(charactersQuery);
-}
-
-/** Loads the characters at startup: a cold list takes the server a second or
- * more, and the first image opened shouldn't wait on it. */
-export function usePrefetchCharacters() {
-  const qc = useQueryClient();
-  useEffect(() => {
-    void qc.prefetchQuery(charactersQuery);
-  }, [qc]);
-}
-
-/** Every character by each of its names (a bare alias included). */
-export function useCharacterLookup(): Map<string, CharacterEntry> {
-  const { data } = useCharacters();
-  return useMemo(
-    () => new Map((data ?? []).flatMap((c) => [c.tag, ...c.aliases].map((n) => [n, c] as const))),
-    [data],
-  );
-}
 
 /**
  * The characters in an image, the way a photo app shows the people in one:
