@@ -40,21 +40,21 @@ P0 review fixes: 924e1e1 (UI batch), e86ea57 (data and library batch). Review fi
 
 ## P1. Tag-weights prerequisites
 
-- [ ] **L2.1** promptOutline (board) and prompt_parse (tags) read the same prompt differently; an unclosed bracket makes the board see one term (bug, M, L5, TW; moved from P0: fixed by the one-parser-per-side work)
-- [ ] **L4.2** Bulk prompt-tag write is a second, hand-synced copy of the tag-state write (invariant, S, L4, TW)
-- [ ] **S7.1** Prompt weight rule exists nowhere yet; plan's premise is wrong and parsers disagree on brackets (drift, M, L5, TW)
-- [ ] **S7.2** Three more ad-hoc prompt splitters in the frontend duplicate promptOutline (dedupe, M, L4, TW)
-- [ ] **S2.5** countTags re-implements prompt term splitting and weight stripping beside promptOutline (dedupe, M, L3, TW)
-- [ ] **S8.3** generation_compose holds a second, weaker prompt parser (prompt_terms, without_terms/_top_level_pieces) beside prompt_parse; escaped-paren auto-name bug (dedupe, S, L4, TW)
-- [ ] **S7.3** Decompose prompt_parse._scan (complexity D30) and make it return group context (split, M, L4, TW)
-- [ ] **S7.4** Extraction inputs assembled by hand in two places; preview and reprojection can disagree; positive_only read by raw SQL (invariant, M, L4, TW)
-- [ ] **L1.2** Reproject has five entry points with different guarantees; only reproject_all is serialized (invariant, M, L4, TW)
-- [ ] **S3.7** Rule changes reproject synchronously in two of three paths while add_rules has a background threshold (invariant, S, L3)
-- [ ] **S2.1** Split ImageView.tsx into stage hook, details sheet and panel files (split, M, L5, TW)
-- [ ] **S4.8** tagFlow hides the prompt twin of an AI tag and toPromptText strips weights: both sit in the weights path (deepen, S, L4, TW)
-- [ ] **S10.1** PromptInput fuses suggestions, marked-term overlay and flash overlay; Ctrl+Up/Down would be eaten by the suggestion list (split, M, L5, TW)
-- [ ] **L2.5** Mirrored pure functions rely on comments and copy-pasted test cases instead of one fixture (drift, S, L3)
-- [ ] **S4.10** Cross-language mirrored vocabularies have no parity check (COLOURS, KAOMOJIS, canonicalName, Facet, merge KIND_ORDER) (drift, S, L2)
+- [x] **L2.1** promptOutline (board) and prompt_parse (tags) read the same prompt differently; an unclosed bracket makes the board see one term (bug, M, L5, TW; moved from P0: fixed by the one-parser-per-side work), done 7e0a30d
+- [x] **L4.2** Bulk prompt-tag write is a second, hand-synced copy of the tag-state write (invariant, S, L4, TW), done d2a8323
+- [ ] **S7.1** Prompt weight rule exists nowhere yet; plan's premise is wrong and parsers disagree on brackets (drift, M, L5, TW), left for the tag-weights session (it is the feature)
+- [x] **S7.2** Three more ad-hoc prompt splitters in the frontend duplicate promptOutline (dedupe, M, L4, TW), done f126a01, f965983
+- [x] **S2.5** countTags re-implements prompt term splitting and weight stripping beside promptOutline (dedupe, M, L3, TW), done 50549a9
+- [x] **S8.3** generation_compose holds a second, weaker prompt parser (prompt_terms, without_terms/_top_level_pieces) beside prompt_parse; escaped-paren auto-name bug (dedupe, S, L4, TW), done 0962a4c
+- [x] **S7.3** Decompose prompt_parse._scan (complexity D30) and make it return group context (split, M, L4, TW), done 7f77697
+- [x] **S7.4** Extraction inputs assembled by hand in two places; preview and reprojection can disagree; positive_only read by raw SQL (invariant, M, L4, TW), done 7036366
+- [x] **L1.2** Reproject has five entry points with different guarantees; only reproject_all is serialized (invariant, M, L4, TW), done bcee4ae
+- [x] **S3.7** Rule changes reproject synchronously in two of three paths while add_rules has a background threshold (invariant, S, L3), done c00be78 (frontend background note: aa26dd7)
+- [x] **S2.1** Split ImageView.tsx into stage hook, details sheet and panel files (split, M, L5, TW), done 6c15b42, 44f5c28 (steps 1-3; the stepper and details-sheet hooks not extracted)
+- [ ] **S4.8** tagFlow hides the prompt twin of an AI tag and toPromptText strips weights: both sit in the weights path (deepen, S, L4, TW), left for the tag-weights session (it is the feature)
+- [x] **S10.1** PromptInput fuses suggestions, marked-term overlay and flash overlay; Ctrl+Up/Down would be eaten by the suggestion list (split, M, L5, TW), done 29b6951
+- [x] **L2.5** Mirrored pure functions rely on comments and copy-pasted test cases instead of one fixture (drift, S, L3), done 7393a2c (auto-name cases: 146e2cb; kaomojis/compose/split_requests fixtures not done)
+- [x] **S4.10** Cross-language mirrored vocabularies have no parity check (COLOURS, KAOMOJIS, canonicalName, Facet, merge KIND_ORDER) (drift, S, L2), done 7e5ffa5
 
 ## P2. Frontend data layer and shared UI primitives
 
