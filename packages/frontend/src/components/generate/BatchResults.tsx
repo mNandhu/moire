@@ -1,9 +1,9 @@
 import { Link, useLocation } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { ImageOff, Loader2, RotateCcw, TriangleAlert, Undo2, X } from "lucide-react";
 import { resultGrid, resultSlots, type ResultSlot } from "../../lib/batches";
-import { cancelRequest, retryRequest, type Batch, type GenRequest, type Output } from "../../lib/generate";
+import { useCancelRequest, useRetryRequest } from "../../lib/batchActions";
+import type { Batch, GenRequest, Output } from "../../lib/generate";
 import { setQuarantine, setScore } from "../../lib/imageMutations";
 import { withBackgroundLocation } from "../../lib/backgroundLocation";
 import { cn } from "../../lib/cn";
@@ -173,7 +173,7 @@ function WaitingCell({
   ratio: number;
   onChanged: (b?: Batch) => void;
 }) {
-  const cancel = useMutation({ mutationFn: () => cancelRequest(batch._id, req._id), onSuccess: (b) => onChanged(b) });
+  const cancel = useCancelRequest(batch._id, req._id, onChanged);
   const running = req.state === "running";
   const elapsed = useLiveSeconds(running ? req.elapsed : null, running);
   const run = running ? runProgress(req.expected, elapsed) : null;
@@ -285,10 +285,7 @@ function FailedCell({
   ratio: number;
   onChanged: (b?: Batch) => void;
 }) {
-  const retry = useMutation({
-    mutationFn: (single: boolean) => retryRequest(batch._id, req._id, single),
-    onSuccess: (b) => onChanged(b),
-  });
+  const retry = useRetryRequest(batch._id, req._id, onChanged);
   const cancelled = req.state === "cancelled";
   const empty = req.state === "done";
   return (

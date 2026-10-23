@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, X } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { clockText } from "../../lib/format";
-import { cancelBatch, invalidateQueue, useComfyStatus } from "../../lib/generate";
-import { useToast } from "../Toasts";
+import { useCancelBatch } from "../../lib/batchActions";
+import { useComfyStatus } from "../../lib/generate";
 import { FrameRow, legWhen } from "./QueueFrames";
 import { useLiveQueue, type LiveLeg } from "./useLiveQueue";
 
@@ -16,16 +15,8 @@ const ARRIVAL_MS = 1600;
 
 /** Takes a batch out of the queue. */
 function CancelX({ id, className }: { id: number; className?: string }) {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const cancel = useMutation({
-    mutationFn: () => cancelBatch(id),
-    onSuccess: () => {
-      // With its panel in the output column, which polls on its own.
-      invalidateQueue(qc, id);
-    },
-    onError: (e) => toast.push(e.message, "error"),
-  });
+  // Its panel in the output column polls on its own.
+  const cancel = useCancelBatch(id);
   return (
     <button
       type="button"

@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
 import { batchRunTime, isWaiting, turnLabel } from "../../lib/batches";
 import { durationWords } from "../../lib/format";
-import { batchKey, invalidateQueue, useBatch, useBatches, useComfyStatus, type Batch } from "../../lib/generate";
+import { useBatchChanged } from "../../lib/batchActions";
+import { useBatch, useBatches, useComfyStatus } from "../../lib/generate";
 import { batchLeft, leftLabel } from "../../lib/eta";
 import { queueLegs } from "../../lib/queueClock";
 import { BatchResults } from "./BatchResults";
@@ -11,14 +11,10 @@ import { BatchResults } from "./BatchResults";
 const SHOWN = 3;
 
 function BatchPanel({ id }: { id: number }) {
-  const qc = useQueryClient();
   const { data: b } = useBatch(id);
+  const changed = useBatchChanged(id);
   const { data: status } = useComfyStatus();
   if (!b) return null;
-  const changed = (next?: Batch) => {
-    if (next) qc.setQueryData(batchKey(id), next);
-    invalidateQueue(qc, next ? undefined : id);
-  };
   const done = b.requests.filter((q) => !["pending", "queued", "running"].includes(q.state)).length;
   const took = batchRunTime(b.requests);
   // With others queued its own time left isn't when it's done: the queue's

@@ -1,22 +1,14 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { ArrowLeft, Check, Pencil } from "lucide-react";
 import { Badge, Button, ButtonLink, Card, Input, PageBody, PageHeader } from "../components/ui";
 import { batchRunTime, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
 import { durationWords } from "../lib/format";
 import { batchLeft, leftLabel } from "../lib/eta";
 import { displayWord } from "../lib/compose";
-import {
-  batchKey,
-  cancelBatch,
-  invalidateQueue,
-  renameBatch,
-  requeueBatch,
-  retryRequest,
-  useBatch,
-  type Batch,
-} from "../lib/generate";
+import { renameBatch, requeueBatch, useBatch, type Batch } from "../lib/generate";
+import { retryable, useBatchChanged, useCancelBatch, useRetryFailed } from "../lib/batchActions";
 import { formFromBatch, samplingLabel, saveDraft } from "../lib/generateForm";
 import { stemOf } from "../components/generate/RunControls";
 import { BatchResults } from "../components/generate/BatchResults";
@@ -152,16 +144,12 @@ function NameHeading({ b, onSaved }: { b: Batch; onSaved: (b: Batch) => void }) 
 export default function BatchPage() {
   const { id } = useParams();
   const batchId = Number(id);
-  const qc = useQueryClient();
   const navigate = useNavigate();
   const toast = useToast();
   const { data: b, isLoading, error } = useBatch(batchId);
   useDocumentTitle(b?.name);
 
-  const changed = (next?: Batch) => {
-    if (next) qc.setQueryData(batchKey(batchId), next);
-    invalidateQueue(qc, next ? undefined : batchId);
-  };
+  const changed = useBatchChanged(batchId);
   const requeue = useMutation({
     mutationFn: () => requeueBatch(batchId),
     onSuccess: (nb) => {
@@ -170,25 +158,9 @@ export default function BatchPage() {
     },
     onError: (e) => toast.push(e.message, "error"),
   });
-  const cancelAll = useMutation({
-    mutationFn: () => cancelBatch(batchId),
-    onSuccess: (nb) => {
-      if (nb) return changed(nb);
-      // Never ran, so it's gone: its own key is not refetched.
-      invalidateQueue(qc);
-      navigate("/generations", { replace: true });
-    },
-  });
-  const retryAll = useMutation({
-    mutationFn: async () => {
-      let last: Batch | undefined;
-      for (const q of b!.requests.filter((q) => q.state === "failed" || q.state === "lost")) {
-        last = await retryRequest(batchId, q._id);
-      }
-      return last;
-    },
-    onSuccess: (nb) => changed(nb),
-  });
+  // A batch that never ran is gone: back to the list.
+  const cancelAll = useCancelBatch(batchId, { onGone: () => navigate("/generations", { replace: true }) });
+  const retryAll = useRetryFailed(b, changed);
 
   if (isLoading) return <PageHeader title="Batch" />;
   if (error || !b) {
@@ -207,7 +179,7 @@ export default function BatchPage() {
   const outputs = b.requests.flatMap((q) => q.outputs);
   const took = batchRunTime(b.requests);
   const left = batchLeft(b.requests);
-  const failed = b.requests.filter((q) => q.state === "failed" || q.state === "lost");
+  const failed = retryable(b.requests);
   const running = b.requests.filter((q) => UNFINISHED.has(q.state)).length;
   const inLibrary = outputs.filter((o) => o.in_library).length;
   const perReq = b.inputs.per_request;
