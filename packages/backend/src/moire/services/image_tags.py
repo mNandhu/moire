@@ -42,14 +42,7 @@ RATINGS = ("-", "general", "sensitive", "questionable", "explicit")
 
 def initial_tag_fields() -> dict[str, Any]:
     """Tag-state column defaults for a freshly indexed image (insert payload)."""
-    return {
-        "tags": [],
-        "has_tags": False,
-        "has_ai_tags": False,
-        "has_prompt_tags": False,
-        "quarantined": False,
-        "score": 0,
-    }
+    return {**tag_state_values([]), "quarantined": False, "score": 0}
 
 
 # --- Tag prefix helpers (pure) ------------------------------------------------
@@ -207,6 +200,13 @@ def recompute_flags(tags: list[str]) -> dict[str, bool]:
     }
 
 
+def tag_state_values(tags: list[str]) -> dict[str, Any]:
+    """The ``images`` columns a tag write sets: the array and the flags it
+    implies. The one column source for every writer (single, bulk, insert
+    defaults), so a column added here reaches all of them."""
+    return {"tags": tags, **recompute_flags(tags)}
+
+
 def union_tags(existing: list[str], add: list[str]) -> list[str]:
     """Append tags not already present, preserving existing order (dedup)."""
     out = list(existing)
@@ -340,7 +340,7 @@ def _persist_statements(
     caller-owned sync path (:func:`rewrite_tags_sync`), so the invariant
     binding ``tags`` to its flags and its join rows exists in exactly one place.
     """
-    values: dict[str, Any] = {"tags": new_tags, **recompute_flags(new_tags)}
+    values = tag_state_values(new_tags)
     if extra:
         values.update(extra)
     statements = [
@@ -579,8 +579,9 @@ def replace_prompt_many_sync(
     array comes out the same are not written unless ``force``. Returns how
     many were written.
 
-    The bulk twin of :func:`_persist_statements` (same array + flags + join
-    rows), as one executemany per statement instead of three per image.
+    The bulk twin of :func:`_persist_statements` (same columns, from
+    :func:`tag_state_values`, and the same join rows), as one executemany per
+    statement instead of three per image.
     Deliberately does *not* invalidate the tag index: the caller owns the
     transaction, so only the caller knows when the write became visible
     (:func:`services.reproject._flush_batch` does, once per batch).
@@ -592,23 +593,20 @@ def replace_prompt_many_sync(
             changed.append((image_id, new))
     if not changed:
         return 0
+    # Bind names carry a ``b_`` prefix: one equal to a column name collides
+    # with that column in ``update().values()``.
+    params = [
+        {"b_id": image_id, **{f"b_{k}": v for k, v in tag_state_values(new).items()}}
+        for image_id, new in changed
+    ]
+    columns = tag_state_values([])
     conn.execute(
         sa.update(t.images)
         .where(t.images.c._id == sa.bindparam("b_id"))
         .values(
-            tags=sa.bindparam("b_tags", type_=t.images.c.tags.type),
-            has_tags=sa.bindparam("b_has_tags"),
-            has_ai_tags=sa.bindparam("b_has_ai_tags"),
-            has_prompt_tags=sa.bindparam("b_has_prompt_tags"),
+            **{k: sa.bindparam(f"b_{k}", type_=t.images.c[k].type) for k in columns}
         ),
-        [
-            {
-                "b_id": image_id,
-                "b_tags": new,
-                **{f"b_{k}": v for k, v in recompute_flags(new).items()},
-            }
-            for image_id, new in changed
-        ],
+        params,
     )
     conn.execute(
         sa.delete(t.image_tags).where(
