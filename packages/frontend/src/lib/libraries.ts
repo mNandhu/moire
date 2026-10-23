@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient, type QueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { api, apiJson, errorText } from "./api";
 import { IMAGE_FEED_PREFIX, IMAGE_GROUPS_PREFIX } from "./imageApi";
+import { galleryHref } from "./imageFilter";
 
 export type Library = {
   _id: string;
@@ -46,7 +47,7 @@ export function scanProblem(l: Library): { text: string; note: boolean } | null 
 }
 
 /** The gallery showing one library. */
-export const libraryGalleryHref = (id: string) => `/?${new URLSearchParams({ library_id: id })}`;
+export const libraryGalleryHref = (id: string) => galleryHref({ libraryId: id });
 
 /** The Libraries page with one library picked out (scrolled to, its folders open). */
 export const libraryPageHref = (id: string) => `/libraries?${new URLSearchParams({ library: id })}`;
