@@ -327,3 +327,61 @@ async def test_a_prompt_rule_keeps_the_pin_of_a_base_still_in_use(client, seed):
     async with db.async_conn() as conn:
         pins = (await conn.execute(sa.select(t.tag_meta.c.tag))).scalars().all()
     assert pins == ["foo"]
+
+
+async def test_every_rule_change_reprojects_big_sets_in_the_background(
+    client, seed, monkeypatch
+):
+    """Rename, add and delete share one policy: up to the threshold inline
+    (shown as activity), above it in the background, ``background`` saying
+    which."""
+    from moire.services import activity, tag_rename
+
+    seed("L1:a", tags=())
+    _raw("L1:a", "blonde")
+    reproject.reproject_library("L1")
+
+    tracked: list[str] = []
+    track = activity.track
+
+    def spy(kind, **kw):
+        tracked.append(kind)
+        return track(kind, **kw)
+
+    monkeypatch.setattr(activity, "track", spy)
+    resp = await client.post(
+        "/tags/rename", json={"tag": "prompt:blonde", "to": "blonde_hair"}
+    )
+    assert resp.json()["background"] is False
+    assert tracked == ["reproject"]
+    assert await _tags("L1:a") == ["prompt:blonde_hair"]
+
+    queued: list[list[str]] = []
+    monkeypatch.setattr(tag_rename, "_SYNC_REPROJECT", 0)
+    monkeypatch.setattr(reproject, "reproject_ids_async", queued.append)
+    resp = await client.delete("/tags/aliases/blonde")
+    assert resp.json()["background"] is True
+    resp = await client.post(
+        "/tags/rename", json={"tag": "prompt:blonde_hair", "to": "yellow"}
+    )
+    assert resp.json()["background"] is True
+    assert queued == [["L1:a"], ["L1:a"]]
+
+
+async def test_a_small_rule_change_does_not_wait_behind_a_running_reprojection(
+    client, seed, monkeypatch
+):
+    seed("L1:a", tags=())
+    _raw("L1:a", "blonde")
+    reproject.reproject_library("L1")
+    queued: list[list[str]] = []
+    monkeypatch.setattr(reproject, "reproject_ids_async", queued.append)
+    assert reproject._run_lock.acquire(timeout=5)
+    try:
+        resp = await client.post(
+            "/tags/rename", json={"tag": "prompt:blonde", "to": "blonde_hair"}
+        )
+    finally:
+        reproject._run_lock.release()
+    assert resp.json()["background"] is True
+    assert queued == [["L1:a"]]

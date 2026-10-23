@@ -254,8 +254,7 @@ async def rename_tag(tag: str, to: str) -> dict:
     _forget_suggestions()
 
     affected = await _images_with([tag])
-    await anyio.to_thread.run_sync(reproject.reproject_ids, affected)
-    tag_index.invalidate()
+    background = await _apply(affected)
     return {
         "kind": "prompt",
         "from": tag,
@@ -263,12 +262,31 @@ async def rename_tag(tag: str, to: str) -> dict:
         "to": image_tags.to_prompt(resolved[0]),
         "to_all": [image_tags.to_prompt(x) for x in resolved],
         "images": len(affected),
+        "background": background,
     }
 
 
-# More images than this are reprojected in the background (shown as
-# activity), so a big batch doesn't hold the request.
+# More images than this are reprojected in the background, so a big rule
+# change doesn't hold the request (or the writer) for minutes.
 _SYNC_REPROJECT = 500
+
+
+async def _apply(affected) -> bool:
+    """Reproject the images a rule change touched: up to
+    :data:`_SYNC_REPROJECT` before returning, more (or any, while another
+    reprojection runs and would make this one wait) in the background. Both
+    show as activity. Returns whether it went to the background (the
+    response's ``background``)."""
+    ids = sorted(affected)
+    background = len(ids) > _SYNC_REPROJECT or (bool(ids) and reproject.busy())
+    if background:
+        reproject.reproject_ids_async(ids)
+    elif ids:
+        await anyio.to_thread.run_sync(reproject.reproject_ids_tracked, ids)
+    # The rule write itself (moved cover pins, characters) is committed by
+    # now; a background run invalidates again per batch as it writes.
+    tag_index.invalidate()
+    return background
 
 
 async def add_rules(rules: list[tuple[str, list[str]]]) -> dict:
@@ -306,12 +324,7 @@ async def add_rules(rules: list[tuple[str, list[str]]]) -> dict:
         affected.update(
             await _images_with([image_tags.to_prompt(x) for x in old], every=True)
         )
-    background = len(affected) > _SYNC_REPROJECT
-    if background:
-        reproject.reproject_ids_async(sorted(affected))
-    else:
-        await anyio.to_thread.run_sync(reproject.reproject_ids, sorted(affected))
-        tag_index.invalidate()
+    background = await _apply(affected)
     return {
         "rules": len(added),
         "skipped": skipped,
@@ -414,6 +427,10 @@ async def delete_alias(from_name: str) -> dict | None:
     affected = await _images_with(
         [image_tags.to_prompt(x) for x in targets], every=True
     )
-    await anyio.to_thread.run_sync(reproject.reproject_ids, affected)
-    tag_index.invalidate()
-    return {"from": from_name, "to": targets, "images": len(affected)}
+    background = await _apply(affected)
+    return {
+        "from": from_name,
+        "to": targets,
+        "images": len(affected),
+        "background": background,
+    }

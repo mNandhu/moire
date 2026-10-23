@@ -137,6 +137,12 @@ def _write_gens(conn, gens: list[tuple[str, dict]]) -> None:
 _run_lock = threading.Lock()
 
 
+def busy() -> bool:
+    """Whether a reprojection is running now, so a new one would wait. A hint
+    for callers deciding whether to wait inline; ordering is the lock's."""
+    return _run_lock.locked()
+
+
 def _reproject_where(
     where,
     *,
@@ -258,6 +264,13 @@ def _tracked(work, *args, library_id: str | None = None, **kwargs) -> None:
             work(*args, task=task, **kwargs)
     except Exception:
         logger.exception("Reprojection failed")
+
+
+def reproject_ids_tracked(image_ids: list[str]) -> int:
+    """:func:`reproject_ids` inline, shown as activity like the background
+    runs. A failure propagates to the caller."""
+    with activity.track("reproject") as task:
+        return reproject_ids(image_ids, task=task)
 
 
 def _spawn(
