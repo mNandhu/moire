@@ -35,9 +35,29 @@ export async function httpError(r: Response): Promise<ApiError> {
  * throw an ApiError on non-2xx, parse JSON on success.
  */
 export async function api<T>(url: string, init?: RequestInit): Promise<T> {
+  return (await apiRaw(url, init)).json();
+}
+
+/** `api` for a write: `body`, when given, goes as JSON (stringified, with its
+ * Content-Type); `init` adds the rest (a signal). */
+export function apiJson<T>(url: string, method: string, body?: unknown, init?: RequestInit): Promise<T> {
+  return api<T>(url, jsonInit(method, body, init));
+}
+
+/** The RequestInit `apiJson` sends, for a caller that reads the Response
+ * itself. No body, no Content-Type. */
+export function jsonInit(method: string, body?: unknown, init: RequestInit = {}): RequestInit {
+  if (body === undefined) return { ...init, method };
+  const headers = { ...Object.fromEntries(new Headers(init.headers)), "Content-Type": "application/json" };
+  return { ...init, method, headers, body: JSON.stringify(body) };
+}
+
+/** The checked Response, for a caller that needs more than the JSON (a
+ * response header). Throws an ApiError on non-2xx like `api`. */
+export async function apiRaw(url: string, init?: RequestInit): Promise<Response> {
   const r = await fetch(url, init);
   if (!r.ok) throw await httpError(r);
-  return r.json();
+  return r;
 }
 
 /** The words to show for any caught error. An ApiError is already clean; a

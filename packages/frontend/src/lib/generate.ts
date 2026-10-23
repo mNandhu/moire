@@ -4,7 +4,7 @@
  */
 import { testState } from "./workflow";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
-import { api, httpError } from "./api";
+import { api, apiJson, httpError, jsonInit } from "./api";
 import type { NewEstimate } from "./eta";
 
 const BASE = "/api/v1/generate";
@@ -484,11 +484,7 @@ export class RejectedError extends Error {
 }
 
 async function send<T>(path: string, method: string, body?: unknown): Promise<T> {
-  const r = await fetch(`${BASE}${path}`, {
-    method,
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  const r = await fetch(`${BASE}${path}`, jsonInit(method, body));
   if (r.status === 422) {
     const j = await r.clone().json().catch(() => ({}));
     if (Array.isArray(j.node_errors)) throw new RejectedError(String(j.detail ?? "Rejected"), j.node_errors);
@@ -582,12 +578,7 @@ export const deleteLoraPreset = (id: string) =>
 export const queueBatch = (body: QueueBody) => send<Batch>("/batches", "POST", body);
 /** How long a batch would take if queued now, from past runs. */
 export const estimateBatch = (body: EstimateBody, signal?: AbortSignal) =>
-  api<NewEstimate>(`${BASE}/estimate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal,
-  });
+  apiJson<NewEstimate>(`${BASE}/estimate`, "POST", body, { signal });
 export const renameBatch = (id: number, name: string) => send<Batch>(`/batches/${id}`, "PATCH", { name });
 export const requeueBatch = (id: number) => send<Batch>(`/batches/${id}/requeue`, "POST");
 /** Null when the batch never ran: it is deleted rather than kept cancelled. */

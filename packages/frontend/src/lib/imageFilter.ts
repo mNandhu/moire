@@ -4,7 +4,7 @@
 //
 // See CONTEXT.md › Frontend › Image filter.
 
-import { httpError } from "./api";
+import { api, apiRaw } from "./api";
 
 export type ImageDoc = {
   _id: string;
@@ -248,8 +248,7 @@ export async function fetchImagesPage(
   opts: { cursor?: string | null; limit?: number; signal?: AbortSignal } = {},
 ): Promise<FeedPage> {
   const qs = buildImagesQuery(filters, opts);
-  const r = await fetch(`/api/v1/images?${qs}`, { signal: opts.signal });
-  if (!r.ok) throw await httpError(r);
+  const r = await apiRaw(`/api/v1/images?${qs}`, { signal: opts.signal });
   return {
     items: (await r.json()) as ImageDoc[],
     next: r.headers.get("X-Next-Cursor"),
@@ -258,30 +257,22 @@ export async function fetchImagesPage(
 
 /** Fetch one page of the grouped (batch-collapsed) view. Offset-paged because
  * grouping is a server-side aggregation, not cursor-pageable. */
-export async function fetchGroupsPage(
+export function fetchGroupsPage(
   filters: Filters,
   opts: { offset?: number; limit?: number; signal?: AbortSignal } = {},
 ): Promise<ImageDoc[]> {
   const sp = serializeFilters(filters);
   sp.set("limit", String(opts.limit ?? PAGE_LIMIT));
   sp.set("offset", String(opts.offset ?? 0));
-  const r = await fetch(`/api/v1/images/groups?${sp.toString()}`, {
-    signal: opts.signal,
-  });
-  if (!r.ok) throw await httpError(r);
-  return (await r.json()) as ImageDoc[];
+  return api<ImageDoc[]>(`/api/v1/images/groups?${sp.toString()}`, { signal: opts.signal });
 }
 
 /** Fetch a single Image document by id. Throws on non-OK response. */
-export async function fetchImage(
+export function fetchImage(
   id: string,
   opts: { signal?: AbortSignal } = {},
 ): Promise<ImageDoc> {
-  const r = await fetch(`/api/v1/images/${encodeURIComponent(id)}`, {
-    signal: opts.signal,
-  });
-  if (!r.ok) throw await httpError(r);
-  return (await r.json()) as ImageDoc;
+  return api<ImageDoc>(`/api/v1/images/${encodeURIComponent(id)}`, { signal: opts.signal });
 }
 
 /** Whether any filter axis is set (vs the empty default feed). */

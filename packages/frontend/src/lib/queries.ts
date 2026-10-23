@@ -17,7 +17,7 @@ import {
   compileBoilerplate,
   type BoilerplateMatcher,
 } from "./boilerplate";
-import { api } from "./api";
+import { api, apiJson } from "./api";
 import { descriptionKey } from "./tags";
 import { fetchAiCoverage } from "./ai";
 import type { BrowseTag, TagDetail, TagSource } from "./tagBrowse";
@@ -214,11 +214,7 @@ export function useTagSettings() {
 }
 
 export function saveTagSettings(boilerplate: string[]): Promise<TagSettings> {
-  return api<TagSettings>("/api/v1/tags/settings", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ boilerplate }),
-  });
+  return apiJson<TagSettings>("/api/v1/tags/settings", "POST", { boilerplate });
 }
 
 export type GuessKeywords = {
@@ -241,10 +237,9 @@ export function useGuessKeywords() {
 
 /** Saving re-reads every image's prompt in the background. */
 export function saveGuessKeywords(positive: string[], negative: string[]): Promise<GuessKeywords> {
-  return api<GuessKeywords>("/api/v1/rules/guess-keywords", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ guess_positive: positive, guess_negative: negative }),
+  return apiJson<GuessKeywords>("/api/v1/rules/guess-keywords", "PUT", {
+    guess_positive: positive,
+    guess_negative: negative,
   });
 }
 
@@ -287,11 +282,7 @@ export function useTagAliases() {
 /** Rename a manual tag, or merge a prompt tag (stored as a rule). `tag` is the
  * stored form, prefix included; `to` a bare name. */
 export function renameTag(tag: string, to: string): Promise<TagRenameResult> {
-  return api<TagRenameResult>("/api/v1/tags/rename", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tag, to }),
-  });
+  return apiJson<TagRenameResult>("/api/v1/tags/rename", "POST", { tag, to });
 }
 
 export function deleteTagAlias(
@@ -310,11 +301,7 @@ export function addTagRules(
   /** Many images: they are updated in the background (shown as activity). */
   background: boolean;
 }> {
-  return api("/api/v1/tags/aliases", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ rules }),
-  });
+  return apiJson("/api/v1/tags/aliases", "POST", { rules });
 }
 
 /** How a suggestion reads the prompt tag (services/tag_canon.py stages). */
@@ -387,12 +374,7 @@ export function useTagPlaces(names: readonly string[]) {
   return useQuery({
     queryKey: [...TAGS_KEY, "place", asked],
     queryFn: ({ signal }) =>
-      api<TagPlaces>("/api/v1/tags/place", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ names: asked ? asked.split("\n") : [] }),
-        signal,
-      }),
+      apiJson<TagPlaces>("/api/v1/tags/place", "POST", { names: asked ? asked.split("\n") : [] }, { signal }),
     enabled: asked !== "",
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,

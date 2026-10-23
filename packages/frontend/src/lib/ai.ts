@@ -3,7 +3,7 @@
 // polling cadence that used to be hand-rolled in three places now derives from
 // them. See CONTEXT.md › AI Job, Tagger / Model, AI Settings.
 import { formatDuration } from "./format";
-import { api } from "./api";
+import { api, apiJson } from "./api";
 
 
 export type AISettings = {
@@ -248,13 +248,7 @@ export function fetchAiSettings(): Promise<AISettings> {
 
 const POST = { method: "POST" } as const;
 
-function postJson<T>(url: string, body: unknown): Promise<T> {
-  return api<T>(url, {
-    ...POST,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
+const postJson = <T>(url: string, body: unknown) => apiJson<T>(url, "POST", body);
 
 /** Queue an AI tagging job for the given image ids; returns the job id. */
 /** Queue AI tagging. `retag` first clears the images' AI tags and rating. */

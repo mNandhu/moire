@@ -11,20 +11,10 @@
  * per-image writes; this is its mirror on the client.
  */
 
-import { api } from "./api";
+import { api, apiJson } from "./api";
 import type { CharacterPatch } from "./character";
 
-function post<T>(url: string, body?: unknown): Promise<T> {
-  return api<T>(url, {
-    method: "POST",
-    ...(body === undefined
-      ? {}
-      : {
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        }),
-  });
-}
+const post = <T>(url: string, body?: unknown) => apiJson<T>(url, "POST", body);
 
 const forImage = (id: string, suffix: string) =>
   `/api/v1/images/${encodeURIComponent(id)}/${suffix}`;
@@ -78,29 +68,20 @@ export function clearTagThumbnail(tag: string): Promise<unknown> {
 
 /** Set what the user decides for a character (any of its names); "" clears. */
 export function updateCharacter(tag: string, patch: CharacterPatch): Promise<unknown> {
-  return api(`/api/v1/tags/character?${new URLSearchParams({ tag })}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-  });
+  return apiJson(`/api/v1/tags/character?${new URLSearchParams({ tag })}`, "PATCH", patch);
 }
 
 /** Centre a plain tag's cover on a point (0..1); null puts it back. */
 export function setTagFocus(tag: string, focus: readonly [number, number] | null): Promise<unknown> {
-  return api(`/api/v1/tags/focus?${new URLSearchParams({ tag })}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ focus_x: focus ? focus[0] : "", focus_y: focus ? focus[1] : "" }),
+  return apiJson(`/api/v1/tags/focus?${new URLSearchParams({ tag })}`, "PUT", {
+    focus_x: focus ? focus[0] : "",
+    focus_y: focus ? focus[1] : "",
   });
 }
 
 /** Make a character by hand; returns its stored settings (with its tag). */
 export function createCharacter(body: { tag: string; name?: string; series?: string; color?: string }) {
-  return api<{ tag: string }>(`/api/v1/tags/characters`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  return post<{ tag: string }>(`/api/v1/tags/characters`, body);
 }
 
 /** Forget a character made by hand (only while no image has it). */

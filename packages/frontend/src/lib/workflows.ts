@@ -16,7 +16,7 @@
  */
 
 import type { SignatureRow } from "./gen";
-import { httpError } from "./api";
+import { apiJson } from "./api";
 
 /** What the browser extracts from a dropped `.json` (nothing else is sent). */
 export type WorkflowFile = {
@@ -235,12 +235,7 @@ export function workflowFilterName(
 }
 
 export async function putWorkflowName(id: string, name: string): Promise<void> {
-  const r = await fetch(`/api/v1/rules/workflows/${encodeURIComponent(id)}/name`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
-  if (!r.ok) throw await httpError(r);
+  await apiJson(`/api/v1/rules/workflows/${encodeURIComponent(id)}/name`, "PUT", { name });
 }
 
 // The server takes at most 500 files per request; a whole workflows folder
@@ -255,13 +250,11 @@ export async function importWorkflowFiles(
   let imported = 0;
   const known = new Set<string>();
   for (let i = 0; i < files.length; i += IMPORT_BATCH) {
-    const r = await fetch("/api/v1/rules/workflow-files", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(files.slice(i, i + IMPORT_BATCH)),
-    });
-    if (!r.ok) throw await httpError(r);
-    const res = (await r.json()) as { imported: number; known_ids?: string[] };
+    const res = await apiJson<{ imported: number; known_ids?: string[] }>(
+      "/api/v1/rules/workflow-files",
+      "POST",
+      files.slice(i, i + IMPORT_BATCH),
+    );
     imported += res.imported;
     for (const id of res.known_ids ?? []) known.add(id);
   }

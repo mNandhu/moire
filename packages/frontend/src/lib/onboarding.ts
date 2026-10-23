@@ -2,7 +2,7 @@
 // page, and the pure rules the setup steps follow (which paths may go in the
 // folder list, which libraries Continue creates, the tagging time estimate).
 
-import { api } from "./api";
+import { api, apiJson } from "./api";
 import type { DiscoverSource } from "./libraryPlan";
 
 export type OnboardingStatus = "pending" | "done" | "skipped";
@@ -24,11 +24,7 @@ export const fetchOnboarding = (signal?: AbortSignal) =>
   api<OnboardingInfo>("/api/v1/onboarding", { signal });
 
 export const putOnboarding = (status: OnboardingStatus) =>
-  api<{ status: OnboardingStatus }>("/api/v1/onboarding", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
-  });
+  apiJson<{ status: OnboardingStatus }>("/api/v1/onboarding", "PUT", { status });
 
 /** Set once by setup, cleared when the gallery has shown the "?" hint. */
 export const SHORTCUT_HINT_KEY = "onboarding:shortcut-hint";
