@@ -324,7 +324,7 @@ async def list_models(library_id: str | None = Query(default=None)):
     dropdown. Sorted by frequency."""
     stmt = (
         sa.select(t.images.c.gen_model, sa.func.count().label("count"))
-        .where(t.images.c.gen_model.isnot(None))
+        .where(t.images.c.gen_model.isnot(None), image_tags.not_quarantined())
         .group_by(t.images.c.gen_model)
         .order_by(sa.func.count().desc())
     )
@@ -341,13 +341,13 @@ async def list_loras(library_id: str | None = Query(default=None)):
     by frequency."""
     stmt = (
         sa.select(t.image_loras.c.name, sa.func.count().label("count"))
+        .join(t.images, t.images.c._id == t.image_loras.c.image_id)
+        .where(image_tags.not_quarantined())
         .group_by(t.image_loras.c.name)
         .order_by(sa.func.count().desc(), t.image_loras.c.name)
     )
     if library_id:
-        stmt = stmt.join(t.images, t.images.c._id == t.image_loras.c.image_id).where(
-            t.images.c.library_id == library_id
-        )
+        stmt = stmt.where(t.images.c.library_id == library_id)
     async with async_conn() as conn:
         rows = (await conn.execute(stmt)).fetchall()
     return [{"name": r.name, "count": r.count} for r in rows]
@@ -361,13 +361,13 @@ async def list_embeddings(library_id: str | None = Query(default=None)):
     count = sa.func.count(sa.distinct(e.c.image_id))
     stmt = (
         sa.select(e.c.name, count.label("count"))
+        .join(t.images, t.images.c._id == e.c.image_id)
+        .where(image_tags.not_quarantined())
         .group_by(e.c.name)
         .order_by(count.desc(), e.c.name)
     )
     if library_id:
-        stmt = stmt.join(t.images, t.images.c._id == e.c.image_id).where(
-            t.images.c.library_id == library_id
-        )
+        stmt = stmt.where(t.images.c.library_id == library_id)
     async with async_conn() as conn:
         rows = (await conn.execute(stmt)).fetchall()
     return [{"name": r.name, "count": r.count} for r in rows]

@@ -2,6 +2,10 @@
 exercised through the real ASGI app against a temp SQLite DB."""
 
 import pytest
+import sqlalchemy as sa
+
+from moire.database import db
+from moire.database import schema as t
 
 pytestmark = pytest.mark.asyncio
 
@@ -151,6 +155,36 @@ async def test_sizes_counts_every_preset(client, seed):
         rows[0]["orientation"] == "portrait" and rows[-1]["orientation"] == "landscape"
     )
     assert len(rows) == 15
+
+
+async def test_facet_counts_leave_quarantined_images_out(client, seed):
+    """Model, LoRA and embedding counts match their gallery link, which hides
+    quarantined images by default (as the Size counts already do)."""
+    gen = {"model": "sdxl", "workflow_sig": "s"}
+    seed("L1:a", gen=gen)
+    seed("L1:b", gen=gen)
+    seed("L1:q", gen=gen, quarantined=True)
+    with db.sync_tx() as conn:
+        for iid in ("L1:a", "L1:b", "L1:q"):
+            conn.execute(
+                sa.insert(t.image_loras).values(
+                    image_id=iid, name="style", strength=0.5
+                )
+            )
+            for negative in (False, True):
+                conn.execute(
+                    sa.insert(t.image_embeddings).values(
+                        image_id=iid, name="neg", negative=negative
+                    )
+                )
+    for path, key, name in (
+        ("/images/models", "model", "sdxl"),
+        ("/images/loras", "name", "style"),
+        ("/images/embeddings", "name", "neg"),
+    ):
+        for params in ({}, {"library_id": "L1"}):
+            rows = (await client.get(path, params=params)).json()
+            assert {r[key]: r["count"] for r in rows} == {name: 2}, (path, params)
 
 
 async def test_model_filter(client, seed):
