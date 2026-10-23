@@ -88,7 +88,7 @@ describe("patching keeps server cursors", () => {
 });
 
 describe("invalidateFeeds", () => {
-  it("invalidates the feed, the batch strip, the grouped view, the tag aggregates and the stats", () => {
+  it("invalidates the feed, the batch strip, the grouped view, the tag aggregates, the stats and the facet counts", () => {
     const qc = new QueryClient();
     const seen: unknown[] = [];
     qc.invalidateQueries = ((args: { queryKey: unknown }) => {
@@ -98,7 +98,7 @@ describe("invalidateFeeds", () => {
 
     invalidateFeeds(qc);
 
-    expect(seen).toEqual([["images"], ["batch-strip"], ["image-groups"], ["tags"], ["image-stats"]]);
+    expect(seen).toEqual([["images"], ["batch-strip"], ["image-groups"], ["tags"], ["image-stats"], ["image-models"], ["image-loras"], ["image-embeddings"]]);
   });
 });
 
@@ -139,6 +139,19 @@ describe("removeImagesFromFeeds", () => {
 
     const groups = qc.getQueryData(["image-groups", 60, {}]) as { pages: ImageDoc[][] };
     expect(groups.pages.map((p) => p.map((d) => d._id))).toEqual([["c"], []]);
+  });
+
+  it("keeps a batch tile for the refetch to re-pick", () => {
+    const qc = seededClient();
+    qc.setQueryData(["image-groups", 60, {}], {
+      pages: [[{ ...doc("a"), group_count: 12 }, doc("c")]],
+      pageParams: [0],
+    });
+
+    removeImagesFromFeeds(qc, ["a", "c"]);
+
+    const groups = qc.getQueryData(["image-groups", 60, {}]) as { pages: ImageDoc[][] };
+    expect(groups.pages.map((p) => p.map((d) => d._id))).toEqual([["a"]]);
   });
 });
 

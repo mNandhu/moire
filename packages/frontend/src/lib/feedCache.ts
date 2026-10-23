@@ -13,7 +13,7 @@
  */
 
 import type { InfiniteData, Query, QueryClient } from "@tanstack/react-query";
-import { IMAGE_STATS_KEY, TAGS_KEY } from "./queries";
+import { IMAGE_STATS_KEY, TAGS_KEY, imageEmbeddingsQuery, imageLorasQuery, imageModelsQuery } from "./queries";
 import type { FeedPage, ImageDoc } from "./imageFilter";
 
 /**
@@ -191,11 +191,17 @@ export function removeImagesFromFeeds(
   const keep = (page: ImageDoc[]) =>
     page.some((d) => drop.has(d._id)) ? page.filter((d) => !drop.has(d._id)) : page;
   patchFeeds(qc, (pages) => pages.map(keep));
-  // The grouped view holds the same tiles as plain arrays of representatives.
+  // The grouped view holds plain arrays of representatives. A batch tile stands
+  // for its other members too, so only a single-image tile goes; the refetch
+  // that follows picks a batch's new representative and count.
+  const keepGroup = (page: ImageDoc[]) =>
+    page.some((d) => drop.has(d._id) && (d.group_count ?? 1) <= 1)
+      ? page.filter((d) => !drop.has(d._id) || (d.group_count ?? 1) > 1)
+      : page;
   for (const q of groupQueries(qc)) {
     const old = q.state.data as GroupsData | undefined;
     if (!old) continue;
-    const pages = old.pages.map(keep);
+    const pages = old.pages.map(keepGroup);
     if (pages.some((p, i) => p !== old.pages[i])) patchData(q, { ...old, pages });
   }
 }
@@ -215,4 +221,6 @@ export function invalidateFeeds(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: IMAGE_GROUPS_PREFIX });
   qc.invalidateQueries({ queryKey: TAGS_KEY });
   qc.invalidateQueries({ queryKey: IMAGE_STATS_KEY });
+  // Facet counts leave quarantined images out, so quarantine moves them too.
+  for (const f of [imageModelsQuery, imageLorasQuery, imageEmbeddingsQuery]) qc.invalidateQueries({ queryKey: f.queryKey });
 }

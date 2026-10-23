@@ -890,19 +890,16 @@ def scan_library_async(library_id: str, root: str) -> dict:
 def restart_scan(library_id: str, root: str) -> dict:
     """Scan `root` for a library: start a scan, or, when one is already running
     (possibly on the old folder), cancel it and start a fresh one as it ends."""
-    with _scan_lock:
-        if library_id in _current_scans:
-            _rescan_after.add(library_id)
-            _cancel_scans.add(library_id)
-            return {"started": False, "status": "restarting"}
-    result = scan_library_async(library_id, root)
-    if not result.get("started"):
-        # Lost a race with a scan that began just now: restart it the same way.
+    while True:
         with _scan_lock:
-            _rescan_after.add(library_id)
-            _cancel_scans.add(library_id)
-        return {"started": False, "status": "restarting"}
-    return result
+            if library_id in _current_scans:
+                _rescan_after.add(library_id)
+                _cancel_scans.add(library_id)
+                return {"started": False, "status": "restarting"}
+        result = scan_library_async(library_id, root)
+        if result.get("started"):
+            return result
+        # A scan began (or ended) between the check and the start: look again.
 
 
 def cancel_scan(library_id: str, *, join_timeout_s: float = 0.5) -> bool:
@@ -916,6 +913,8 @@ def cancel_scan(library_id: str, *, join_timeout_s: float = 0.5) -> bool:
         if not running:
             return False
         _cancel_scans.add(library_id)
+        # A user cancel also drops a pending move-restart.
+        _rescan_after.discard(library_id)
         th = _scan_threads.get(library_id)
 
     # Best-effort: give the scan thread a moment to notice cancellation.

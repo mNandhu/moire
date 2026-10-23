@@ -413,7 +413,9 @@ def _frames(q: Any, outs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if q.state in ("failed", "lost"):
         return [{"state": "failed", "thumb": None}] * n
     if q.state == "cancelled":
-        return [{"state": "cancelled", "thumb": None}] * n
+        # What it made before the cancel stays done.
+        made = [{"state": "done", "thumb": o["thumb_url"]} for o in outs]
+        return made + [{"state": "cancelled", "thumb": None}] * (n - len(made))
     if q.state == "running":
         return [{"state": "making", "thumb": None}] * n
     if q.state in _OPEN:

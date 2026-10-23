@@ -49,10 +49,13 @@ export function scanLabel(l: Library): string {
   return `Scanning ${Math.min(pct, 99)}%`;
 }
 
-/** The last scan's failure or note; nothing while scanning or after a cancel. */
-export function scanProblem(l: Library): string | null {
+/** The last scan's failure, or its note about what it kept (`note`: the scan
+ * finished; the notes are scanner.py's "Kept ..." and "Some folders ...").
+ * Nothing while scanning or after a cancel. */
+export function scanProblem(l: Library): { text: string; note: boolean } | null {
   if (l.scanning || !l.scan_error || l.scan_error === "cancelled") return null;
-  return l.scan_error;
+  const text = l.scan_error;
+  return { text, note: text.startsWith("Kept ") || text.startsWith("Some folders could not be read") };
 }
 
 /** The gallery showing one library. */

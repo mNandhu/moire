@@ -603,3 +603,15 @@ async def test_moving_a_library_mid_scan_rescans_the_new_folder(
         await asyncio.sleep(0.05)
     _wait_scan(lib_id)
     assert ids == {f"{lib_id}:fresh.png"}
+
+
+def test_cancel_drops_a_pending_move_restart(monkeypatch):
+    """A user cancel after a mid-scan move must not start the rescan."""
+    monkeypatch.setattr(scanner, "_current_scans", {"L"})
+    monkeypatch.setattr(scanner, "_cancel_scans", set())
+    monkeypatch.setattr(scanner, "_rescan_after", set())
+    monkeypatch.setattr(scanner, "_scan_threads", {})
+    assert scanner.restart_scan("L", "/new")["status"] == "restarting"
+    assert "L" in scanner._rescan_after
+    assert scanner.cancel_scan("L") is True
+    assert "L" not in scanner._rescan_after

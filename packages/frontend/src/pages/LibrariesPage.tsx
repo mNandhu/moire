@@ -316,6 +316,7 @@ export default function LibrariesPage() {
   const renderCard = (l: Library, label: string) => {
         const deleting = isDeleting(l);
         const scanning = !deleting && !!(progress[l._id]?.scanning || l.scanning);
+        const problem = scanning ? null : scanProblem(l);
         const busy = scanning || rescanning.has(l._id);
         // One quiet line of facts instead of a row of same-weight badges.
         const facts = [
@@ -454,9 +455,9 @@ export default function LibrariesPage() {
               </div>
             </div>
 
-            {!scanning && scanProblem(l) && (
-              <div className="mt-2 text-xs text-red-400 break-words" title={scanProblem(l)!}>
-                {scanProblem(l)}
+            {problem && (
+              <div className={cn("mt-2 text-xs break-words", problem.note ? "text-amber-400" : "text-red-400")} title={problem.text}>
+                {problem.text}
               </div>
             )}
 

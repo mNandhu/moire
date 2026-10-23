@@ -945,3 +945,14 @@ async def test_cancelling_a_batch_already_sent_keeps_it(client, comfy, seed):
 async def test_cancelling_a_batch_that_isnt_there_is_404(client, comfy, seed):
     r = await client.post("/generate/batches/999/cancel")
     assert r.status_code == 404
+
+
+def test_a_cancelled_request_keeps_the_images_it_made():
+    from types import SimpleNamespace
+
+    from moire.services.generation_batches import _frames
+
+    q = SimpleNamespace(state="cancelled", images=4)
+    frames = _frames(q, [{"thumb_url": "/a"}, {"thumb_url": "/b"}])
+    assert [f["state"] for f in frames] == ["done", "done", "cancelled", "cancelled"]
+    assert [f["thumb"] for f in frames[:2]] == ["/a", "/b"]

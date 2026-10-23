@@ -1,7 +1,8 @@
-import { httpError } from "./api";
 // Generation metadata + curation as the frontend sees them. The structured
 // `gen.*` fields are extracted server-side (see services/gen_metadata.py); copy
 // of the original workflow is fetched on demand from the cold raw collection.
+
+import { httpError } from "./api";
 
 export type GenMeta = {
   source?: string | null;

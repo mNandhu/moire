@@ -1,9 +1,10 @@
-import { httpError } from "./api";
 // Image filter: the criteria selecting which Images the gallery shows, plus
 // its pure URL round-trip. parseFilters / serializeFilters are the single
 // source of truth so the URL and the Image feed query never drift.
 //
 // See CONTEXT.md › Frontend › Image filter.
+
+import { httpError } from "./api";
 
 export type ImageDoc = {
   _id: string;
