@@ -18,12 +18,12 @@ Housekeeping, not findings:
 - [x] **S12.3** Deleting a hand-made character leaves its outfits, Default edits and hides behind (bug, S, L3), done 474174e (shared outfits kept: c39ea88)
 - [x] **S6.3** AI worker loop dies on any error outside the per-image try, leaving the job 'running' and every later job queued forever (bug, S, L3), done 685b606
 - [x] **S6.2** A failed model download is swallowed: download_wd_tagger returns paths and the load fails with a bare FileNotFoundError (bug, S, L3), done c60f8ce
-- [ ] **L3.2** Error toasts show raw JSON in ~25 places: three different error-to-text styles, errorText used only for onboarding/library flows (bug, M, L4)
+- [x] **L3.2** Error toasts show raw JSON in ~25 places: three different error-to-text styles, errorText used only for onboarding/library flows (bug, M, L4), done 58a5424
 - [x] **S13.2** Escape inside a Picker or DropdownMenu in a Dialog closes the whole Dialog (bug, S, L4), done 1e8f76a
 - [x] **S1.1** Grouped gallery view is not refreshed or patched: flat feed always fetches, poll refetches the wrong query, removals skip groups (bug, S, L4), done 7265ec0
 - [x] **L1.4** Async routes block the event loop on scan/watch thread joins (bug, S, L3), done 0818b57
 - [x] **L4.1** Scan of a library whose root is missing deletes every image and its curation (bug, S, L5), done 5c1bf8d
-- [ ] **S1.7** Model, LoRA and embedding filter counts include quarantined images, Size counts do not; three facet routes are near-copies (bug, S, L2)
+- [x] **S1.7** Model, LoRA and embedding filter counts include quarantined images, Size counts do not; three facet routes are near-copies (bug, S, L2), done 48f2904
 - [x] **S13.7** Sidebar defines NavButton as a component inside render, remounting every link on each shell render (bug, S, L2), done 9cf0d2f
 - [x] **S2.6** Global keydown ignores modifier keys: Ctrl/Cmd+1..5, Alt+Arrow hijacked (bug, S, L3), done 2b2c81b
 - [x] **S4.7** RenameTagDialog offers AI tags as merge targets when renaming a manual tag (bug, S, L2), done 31d89d7
