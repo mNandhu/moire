@@ -72,7 +72,27 @@ describe("promptTerms", () => {
       ["dog", 1.25, false, "(dog:1.25)"],
       ["cat", 1.2, true, "(cat)"],
       ["dog", 1.2, true, "dog"],
-      ["smile", null, false, "smile:1.05"],
+      ["smile", 1.05, false, "smile:1.05"],
+    ]);
+  });
+
+  it("reads an unbracketed decimal weight, not a time or a ratio", () => {
+    expect(names("smile:1.05, 16:9, 12:00")).toEqual([
+      ["smile", 1.05, "tag"],
+      ["16:9", null, "tag"],
+      ["12:00", null, "tag"],
+    ]);
+  });
+
+  it("reads an emoticon last in a group as a member, not the group's weight", () => {
+    expect(names("(smile, :3)")).toEqual([
+      ["smile", null, "tag"],
+      [":3", null, "tag"],
+    ]);
+    expect(names("(cat:3), (dog, :d:1.1)")).toEqual([
+      ["cat", 3, "tag"],
+      ["dog", 1.1, "tag"],
+      [":d", 1.1, "tag"],
     ]);
   });
 

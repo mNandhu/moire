@@ -10,7 +10,7 @@
  * authority: both are checked against
  * `packages/backend/tests/fixtures/mirrored/prompt_terms.json`.
  */
-import { KAOMOJIS } from "./tags";
+import { KAOMOJIS, canonicalName } from "./tags";
 
 export type PromptTerm = {
   /** Canonical tag name: underscores, lowercase, no weight, escapes or edge
@@ -35,12 +35,13 @@ export type PromptTerm = {
 
 /** What separates terms, besides `BREAK` / `AND` and an escaped comma. */
 export const SEPARATORS = new Set([",", "\n", "|"]);
+const KEYWORDS = ["BREAK", "AND"];
 const OPEN = new Set(["(", "[", "{"]);
 const CLOSE = new Set([")", "]", "}"]);
 
 // A `:weight` suffix (`tag:1.2`), or only a decimal one (`smile:1.05`).
 const WEIGHT_TAIL = /\s*:\s*-?\d*\.?\d+\s*$/;
-const DECIMAL_WEIGHT_TAIL = /\s*:\s*-?\d*\.\d+\s*$/;
+const DECIMAL_WEIGHT_TAIL = /\s*:\s*(-?\d*\.\d+)\s*$/;
 const GROUP_WEIGHT = /:\s*(-?\d*\.?\d+)\s*$/;
 const EDGE_PUNCT = " \t.;:!?\"'`";
 const SETTINGS_KEY =
@@ -68,7 +69,8 @@ const NETWORK_PREFIX = /^(?:<(?:lora|lyco|lycoris|hypernet|embedding|wlr):|embed
 const EMBEDDING_TOKEN = /embedding:([^\s,()[\]{}<>|:]+)(?::(-?\d*\.?\d+)(?=\s*[)\]},]|\s*$))?/iy;
 const LEAD_JOINER = /^(?:and|or)\s+/i;
 const QUALIFIER = /\([^()]*\)/g;
-const WEIGHT_AHEAD = /^-?\d*\.?\d+\s*(?:[)\]},]|$)/;
+// Sticky: tested at an offset, so the rest of the prompt is never copied.
+const WEIGHT_AHEAD = /\s*-?\d*\.?\d+\s*(?:[)\]},]|$)/y;
 
 const isSpace = (c: string) => /\s/.test(c);
 const isAlnum = (c: string) => /[\p{L}\p{N}]/u.test(c);
@@ -90,6 +92,8 @@ type Group = {
   weight?: number;
   /** Terms inside it, nested ones included. */
   terms: number;
+  /** Where the last emoticon read in it starts. */
+  emoticon?: number;
 };
 
 /** A piece as scanned: its characters (escapes resolved), where each came
@@ -113,7 +117,7 @@ function qualifierEnd(text: string, i: number): number {
 
 /** Length of a `BREAK` / `AND` keyword standing alone at `i`, else 0. */
 function keywordAt(text: string, i: number): number {
-  for (const kw of ["BREAK", "AND"]) {
+  for (const kw of KEYWORDS) {
     const j = i + kw.length;
     if (text.startsWith(kw, i) && (i === 0 || !isAlnum(text[i - 1])) && (j === text.length || !isAlnum(text[j]))) {
       return kw.length;
@@ -121,6 +125,11 @@ function keywordAt(text: string, i: number): number {
   }
   return 0;
 }
+
+const sticky = (re: RegExp, text: string, i: number) => {
+  re.lastIndex = i;
+  return re.exec(text);
+};
 
 /** Length of the longest emoticon at `i` that ends at a boundary, else 0. */
 function emoticonAt(text: string, i: number): number {
@@ -133,18 +142,13 @@ function emoticonAt(text: string, i: number): number {
       SEPARATORS.has(text[j]) ||
       CLOSE.has(text[j]) ||
       isSpace(text[j]) ||
-      (text[j] === ":" && WEIGHT_AHEAD.test(text.slice(j + 1).trimStart()))
+      (text[j] === ":" && !!sticky(WEIGHT_AHEAD, text, j + 1))
     ) {
       return length;
     }
   }
   return 0;
 }
-
-const sticky = (re: RegExp, text: string, i: number) => {
-  re.lastIndex = i;
-  return re.exec(text);
-};
 
 /** The raw pieces of `text`, cut at separators and at group edges, as
  * `prompt_parse._scan` cuts them. */
@@ -181,6 +185,7 @@ function scan(text: string): Raw[] {
       }
       const length = emoticonAt(text, i);
       if (length) {
+        if (top()) top()!.emoticon = i;
         emit(i, text.slice(i, i + length));
         i += length;
         continue;
@@ -244,16 +249,17 @@ function scan(text: string): Raw[] {
       const g = stack.pop();
       if (g) {
         g.close = i;
-        // Only `(...)` carries a weight, written last: `(a, b:1.2)`.
+        // Only `(...)` carries a weight, written last: `(a, b:1.2)`. A last
+        // member that is an emoticon (`(a, :3)`) is a member, not a weight.
         const m = text[g.open] === "(" ? GROUP_WEIGHT.exec(text.slice(g.open + 1, i)) : null;
-        if (m && m.index > 0) g.weight = Number(m[1]);
+        if (m && m.index > 0 && g.emoticon !== g.open + 1 + m.index) g.weight = Number(m[1]);
       }
       i++;
       continue;
     }
     if (c === ":" && top() && text[top()!.open] === "[" && hasText) {
       // `[from:to:0.5]` (prompt editing): the two sides are separate pieces.
-      if (!WEIGHT_AHEAD.test(text.slice(i + 1).trimStart())) {
+      if (!sticky(WEIGHT_AHEAD, text, i + 1)) {
         flush();
         i++;
         continue;
@@ -299,6 +305,9 @@ function readTerm(text: string, p: Raw): PromptTerm | null {
   while (r > l && isSpace(chars[r - 1])) r--;
   const start = l;
   let end = r;
+  // Outside a group, a decimal weight written bare (`smile:1.05`) is the
+  // piece's own.
+  let own: number | undefined;
   const win = () => chars.slice(l, r).join("");
   const read = () =>
     collapse(win())
@@ -316,6 +325,7 @@ function readTerm(text: string, p: Raw): PromptTerm | null {
         r -= w[0].length;
         // Inside a group the weight is the group's, not this piece's.
         if (inGroup) end = r;
+        else own = Number(w[1]);
       }
       while (l < r && EDGE_PUNCT.includes(chars[l])) l++;
       while (r > l && EDGE_PUNCT.includes(chars[r - 1])) r--;
@@ -326,7 +336,7 @@ function readTerm(text: string, p: Raw): PromptTerm | null {
   const nameStart = p.from[l];
   const nameEnd = p.to[r - 1];
   const written = text.slice(nameStart, nameEnd);
-  let weight: number | undefined;
+  let weight = own;
   for (let g = p.group; g && weight === undefined; g = g.parent) weight = g.weight;
   const at = { start: p.from[start], end: p.to[end - 1], nameStart, nameEnd, weight, grouped: inGroup };
   const kind = classify(name, chars.join(""));
@@ -334,7 +344,7 @@ function readTerm(text: string, p: Raw): PromptTerm | null {
     if (/^<?embedding:/i.test(written)) return { name: written.replace(/^<|>$/g, ""), written, kind: "embedding", ...at };
     return { name: written, written, kind: "lora", ...at };
   }
-  return { name: name.replace(/\s+/g, "_"), written, kind, ...at };
+  return { name: canonicalName(name), written, kind, ...at };
 }
 
 /** Every term of a prompt, in order. A group holding one term alone (`(a:1.2)`,
