@@ -125,6 +125,21 @@ describe("removeImagesFromFeeds", () => {
     removeImagesFromFeeds(qc, []);
     expect(pagesOf(qc, ["images", 60, { tags: [] }])[0]).toHaveLength(2);
   });
+
+  it("drops them from the grouped view too", () => {
+    // Quarantine from selection mode in grouped view: the tile must leave the
+    // groups cache now, not when the later invalidation lands.
+    const qc = seededClient();
+    qc.setQueryData(["image-groups", 60, {}], {
+      pages: [[doc("a"), doc("c")], [doc("b")]],
+      pageParams: [0, 60],
+    });
+
+    removeImagesFromFeeds(qc, ["a", "b"]);
+
+    const groups = qc.getQueryData(["image-groups", 60, {}]) as { pages: ImageDoc[][] };
+    expect(groups.pages.map((p) => p.map((d) => d._id))).toEqual([["c"], []]);
+  });
 });
 
 describe("syncFeedsFromDoc", () => {

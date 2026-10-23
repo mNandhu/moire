@@ -67,7 +67,7 @@ import {
 } from "../hooks/useImageFeed";
 import { useScrollRestoration } from "../hooks/useScrollRestoration";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ImageDoc } from "../lib/imageFilter";
+import { PAGE_LIMIT, type ImageDoc } from "../lib/imageFilter";
 import { nextFocusIndex, isGridNavKey } from "../lib/gridNav";
 import { FETCH_AHEAD_PX, gridColumns } from "../lib/masonryLayout";
 import { runBulk } from "../lib/bulk";
@@ -120,10 +120,10 @@ export default function AllImagesPage() {
 
   // Image filter (URL is the single source of truth) and the Image feed it drives.
   const [filters, setFilters] = useFilters();
-  const feed = useImageFeed(filters);
   // Grouped (batch-collapsed) view: active only when collapsing AND not drilled
   // into a specific batch. Drilling in (groupId) shows that batch ungrouped.
   const groupMode = filters.group && !filters.groupId;
+  const feed = useImageFeed(filters, PAGE_LIMIT, !groupMode);
   const groups = useImageGroups(filters, groupMode);
   const activeFeed = groupMode ? groups : feed;
   const items = activeFeed.items;
@@ -347,8 +347,9 @@ export default function AllImagesPage() {
   // triggers a feed refresh lives on the Libraries page, which is unmounted
   // once the user is here, so the gallery must watch scan/watch state itself
   // and refetch the feed as images arrive, instead of needing a full reload.
-  const refetchFeedRef = useRef(feed.refetch);
-  refetchFeedRef.current = feed.refetch;
+  // The visible one: the grouped view when grouping, else the flat feed.
+  const refetchFeedRef = useRef(activeFeed.refetch);
+  refetchFeedRef.current = activeFeed.refetch;
   // Seed true so the first poll tick always does one fresh pull on mount;
   // covers a scan that finishes in the race window between the feed's
   // mount-refetch and tick 1, and sidesteps the 30s stale-cache window.

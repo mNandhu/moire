@@ -13,19 +13,28 @@ import {
  * Query key for the Image feed. Keyed by the Image filter so the gallery and
  * ImageView share one cache when they hold the same filter; paging in one is
  * visible to the other. See CONTEXT.md › Frontend › Image feed.
+ *
+ * `group` is left out: /images ignores it, so the flat cache is one entry on
+ * either side of the Group toggle.
  */
 export function imageFeedKey(filters: Filters, limit: number) {
-  return ["images", limit, filters] as const;
+  return ["images", limit, { ...filters, group: false }] as const;
 }
 
 /**
  * The Image feed: a cursor-paged stream of Images matching `filters`.
  * Wraps TanStack `useInfiniteQuery`; exposes the flattened `items` alongside
- * the usual query controls (`fetchNextPage`, `hasNextPage`, …).
+ * the usual query controls (`fetchNextPage`, `hasNextPage`, …). `enabled`
+ * false keeps it idle (the gallery's grouped view shows groups instead).
  */
-export function useImageFeed(filters: Filters, limit: number = PAGE_LIMIT) {
+export function useImageFeed(
+  filters: Filters,
+  limit: number = PAGE_LIMIT,
+  enabled: boolean = true,
+) {
   const query = useInfiniteQuery({
     queryKey: imageFeedKey(filters, limit),
+    enabled,
     queryFn: ({ pageParam, signal }) =>
       fetchImagesPage(filters, { cursor: pageParam, limit, signal }),
     initialPageParam: null as string | null,

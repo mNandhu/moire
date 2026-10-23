@@ -188,7 +188,16 @@ export function removeImagesFromFeeds(
 ): void {
   if (!ids.length) return;
   const drop = new Set(ids);
-  patchFeeds(qc, (pages) => pages.map((page) => page.filter((d) => !drop.has(d._id))));
+  const keep = (page: ImageDoc[]) =>
+    page.some((d) => drop.has(d._id)) ? page.filter((d) => !drop.has(d._id)) : page;
+  patchFeeds(qc, (pages) => pages.map(keep));
+  // The grouped view holds the same tiles as plain arrays of representatives.
+  for (const q of groupQueries(qc)) {
+    const old = q.state.data as GroupsData | undefined;
+    if (!old) continue;
+    const pages = old.pages.map(keep);
+    if (pages.some((p, i) => p !== old.pages[i])) patchData(q, { ...old, pages });
+  }
 }
 
 /** The image view's batch strip: a batch's members under the viewer's filters.
