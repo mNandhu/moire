@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
+import { useLocalPref } from "../../hooks/useLocalPref";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Eraser, ExternalLink, Undo2, X } from "lucide-react";
 import { cn } from "../../lib/cn";
@@ -103,14 +104,8 @@ const LIST_ROWS = 40;
 // Per viewer: whether the board is folded away. Until they choose, a phone
 // starts folded: one box per part, stacked, is a long scroll of empty slots.
 const FOLD_KEY = "moire.generate.boardFolded";
-function readFolded(): boolean {
-  const phone = () => window.matchMedia?.("(max-width: 639px)").matches ?? false;
-  try {
-    const stored = localStorage.getItem(FOLD_KEY);
-    return stored === null ? phone() : stored === "1";
-  } catch {
-    return phone();
-  }
+function phoneWidth(): boolean {
+  return window.matchMedia?.("(max-width: 639px)").matches ?? false;
 }
 const NO_OPTIONS: TagSuggestion[] = [];
 // TagSuggestList's own max-h-72, and about one row's height with its padding
@@ -516,15 +511,8 @@ export function PromptBoard({
   const counts = useMemo(() => new Map(pool.map((t) => [t._id, t.count])), [pool]);
 
   const [opened, setOpened] = useState(false);
-  const [folded, setFolded] = useState(readFolded);
-  const setFold = (v: boolean) => {
-    setFolded(v);
-    try {
-      localStorage.setItem(FOLD_KEY, v ? "1" : "0");
-    } catch {
-      // Storage off: it just won't be remembered.
-    }
-  };
+  const [phoneStart] = useState(phoneWidth);
+  const [folded, setFold] = useLocalPref(FOLD_KEY, phoneStart);
   const { data: offers } = useBoardOffers({ enabled: opened, list: places?.list });
   const { data: browse } = useTagBrowse("all", { enabled: opened });
   const thumbs = useMemo(() => new Map((browse ?? []).map((b) => [b.tag, b.thumb_url])), [browse]);

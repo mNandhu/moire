@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
+import { readLocalPref, writeLocalPref } from "../lib/localPref";
 import { parseFilters, serializeFilters, type Filters } from "../lib/imageFilter";
 
 const GROUP_PREF_KEY = "gallery_group_pref";
@@ -19,8 +20,7 @@ export function useFilters(): [Filters, (next: Filters) => void] {
     const parsed = parseFilters(searchParams);
     // If group is not explicitly in URL, restore from localStorage
     if (!searchParams.has("group")) {
-      const stored = localStorage.getItem(GROUP_PREF_KEY);
-      if (stored === "1") {
+      if (readLocalPref(GROUP_PREF_KEY) === "1") {
         parsed.group = true;
       }
     }
@@ -30,7 +30,7 @@ export function useFilters(): [Filters, (next: Filters) => void] {
   const setFilters = useCallback(
     (next: Filters) => {
       // Save group preference to localStorage whenever it changes
-      localStorage.setItem(GROUP_PREF_KEY, next.group ? "1" : "0");
+      writeLocalPref(GROUP_PREF_KEY, next.group ? "1" : "0");
       setSearchParams(serializeFilters(next), { replace: true });
     },
     [setSearchParams],

@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useLocalPref } from "../hooks/useLocalPref";
 import {
   Link,
   useLocation,
@@ -1007,14 +1008,6 @@ export default function ImageView() {
 type DetailTab = "generation" | "tags";
 const DETAIL_TAB_KEY = "imageView:tab";
 
-function readDetailTab(): DetailTab {
-  try {
-    return localStorage.getItem(DETAIL_TAB_KEY) === "tags" ? "tags" : "generation";
-  } catch {
-    return "generation";
-  }
-}
-
 /**
  * Generation data and tags as two tabs, so neither waits below the other.
  * Generation first: most people come back to an image for its recipe. The
@@ -1034,17 +1027,11 @@ function DetailTabs({
   generation: React.ReactNode;
   tags: React.ReactNode;
 }) {
-  const [picked, setPicked] = useState<DetailTab>(readDetailTab);
+  const [picked, pick] = useLocalPref<DetailTab>(DETAIL_TAB_KEY, "generation", {
+    parse: (raw) => (raw === "tags" ? "tags" : "generation"),
+  });
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const tab: DetailTab = hasGen ? picked : "tags";
-  const pick = (next: DetailTab) => {
-    setPicked(next);
-    try {
-      localStorage.setItem(DETAIL_TAB_KEY, next);
-    } catch {
-      // Non-fatal; the choice just won't survive a reload.
-    }
-  };
   if (!hasGen) return <>{tags}</>;
   const tabs: { id: DetailTab; label: string; count?: number }[] = [
     { id: "generation", label: "Generation" },

@@ -1,4 +1,5 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useLocalPref } from "./hooks/useLocalPref";
 import { Outlet, useLocation } from "react-router-dom";
 import { useHotkeys } from "./hooks/useHotkeys";
 import { Sidebar } from "./components/Sidebar";
@@ -14,9 +15,7 @@ export default function App() {
   useQueueTitle();
   usePrefetchCharacters();
   const [status, setStatus] = useState("loading");
-  const [collapsed, setCollapsed] = useState(
-    () => localStorage.getItem("sidebar:collapsed") === "1",
-  );
+  const [collapsed, setCollapsed] = useLocalPref("sidebar:collapsed", false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   // A result on the same path ("/?lora=…") doesn't close the drawer, so
@@ -76,10 +75,6 @@ export default function App() {
     ],
     { capture: true, fields: true, overlay: "ignore" },
   );
-
-  useEffect(() => {
-    localStorage.setItem("sidebar:collapsed", collapsed ? "1" : "0");
-  }, [collapsed]);
 
   useEffect(() => {
     restoreAmbient();

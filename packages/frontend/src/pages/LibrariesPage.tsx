@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useLocalPref, KEY_SET } from "../hooks/useLocalPref";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import {
@@ -50,6 +51,7 @@ import {
 } from "../lib/libraryTree";
 
 const COLLAPSED_KEY = "libraries:collapsedFolders";
+const NO_KEYS: Set<string> = new Set();
 const libraryName = (l: Library) => l.name || l.path;
 
 /** `ids` added to (or taken out of) a set, as a new set. */
@@ -173,29 +175,21 @@ export default function LibrariesPage() {
   // Libraries grouped by the folders they share. Collapsed folders are a
   // view preference, so localStorage is enough (and may be unavailable).
   const tree = useMemo(() => buildLibraryTree(libs, libraryName), [libs]);
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "[]") as string[]);
-    } catch {
-      return new Set();
-    }
-  });
-  const setFolderCollapsed = useCallback((keys: string[], value: boolean) => {
-    setCollapsed((prev) => {
-      if (keys.every((k) => prev.has(k) === value)) return prev;
-      const next = new Set(prev);
-      for (const k of keys) {
-        if (value) next.add(k);
-        else next.delete(k);
-      }
-      try {
-        localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
-      } catch {
-        // Storage blocked: the preference just won't survive a reload.
-      }
-      return next;
-    });
-  }, []);
+  const [collapsed, setCollapsed] = useLocalPref<Set<string>>(COLLAPSED_KEY, NO_KEYS, KEY_SET);
+  const setFolderCollapsed = useCallback(
+    (keys: string[], value: boolean) => {
+      setCollapsed((prev) => {
+        if (keys.every((k) => prev.has(k) === value)) return prev;
+        const next = new Set(prev);
+        for (const k of keys) {
+          if (value) next.add(k);
+          else next.delete(k);
+        }
+        return next;
+      });
+    },
+    [setCollapsed],
+  );
 
   // ?library=<id> (the image view links here): open its folders, scroll to it.
   const [searchParams] = useSearchParams();

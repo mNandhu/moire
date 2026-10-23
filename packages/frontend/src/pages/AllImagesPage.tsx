@@ -6,6 +6,7 @@ import { DensityControl } from "../components/DensityControl";
 import { openShortcutHelp } from "../lib/shortcuts";
 import { useToast } from "../components/Toasts";
 import { SHORTCUT_HINT_KEY } from "../lib/onboarding";
+import { readLocalPref, writeLocalPref } from "../lib/localPref";
 import { useConfirm } from "../components/ConfirmDialog";
 import { BulkTagDialog } from "../components/BulkTagDialog";
 import {
@@ -357,12 +358,8 @@ export default function AllImagesPage() {
 
   // Once, right after first-run setup: say where the shortcuts are.
   useEffect(() => {
-    try {
-      if (localStorage.getItem(SHORTCUT_HINT_KEY) !== "1") return;
-      localStorage.removeItem(SHORTCUT_HINT_KEY);
-    } catch {
-      return;
-    }
+    if (readLocalPref(SHORTCUT_HINT_KEY) !== "1") return;
+    writeLocalPref(SHORTCUT_HINT_KEY, null);
     push("Press ? to see keyboard shortcuts", { type: "info", durationMs: 8000 });
   }, [push]);
 

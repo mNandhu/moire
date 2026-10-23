@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { writeLocalPref } from "../lib/localPref";
 import { Check } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { MoireMark } from "../components/ui/Logo";
@@ -52,11 +53,8 @@ export default function WelcomePage() {
     } catch {
       /* the gallery still opens; the welcome page returns next time */
     }
-    try {
-      localStorage.setItem(SHORTCUT_HINT_KEY, "1");
-    } catch {
-      /* storage blocked: no hint */
-    }
+    // Storage blocked: no hint.
+    writeLocalPref(SHORTCUT_HINT_KEY, "1");
     qc.setQueryData<OnboardingInfo | undefined>(ONBOARDING_KEY, (d) => (d ? { ...d, status } : d));
     void qc.invalidateQueries({ queryKey: LIBRARIES_KEY });
     navigate("/", { replace: true });

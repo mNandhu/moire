@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 
+import { readLocalPref, writeLocalPref } from "./localPref";
 /**
  * The ambient wash behind the app takes its colours from the images in view
  * (see `ambientPalette` in ./blurhash). The gallery sets them; every other
@@ -29,16 +30,13 @@ export function applyAmbient(colors: string[]) {
   const palette = normalizePalette(colors);
   if (!palette) return;
   setVars(palette);
-  try {
-    localStorage.setItem(KEY, JSON.stringify(palette));
-  } catch {
-    /* storage unavailable: the wash still applies for this session */
-  }
+  // Storage unavailable: the wash still applies for this session.
+  writeLocalPref(KEY, JSON.stringify(palette));
 }
 
 export function restoreAmbient() {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = readLocalPref(KEY);
     const palette = raw ? normalizePalette(JSON.parse(raw)) : null;
     if (palette) setVars(palette);
   } catch {

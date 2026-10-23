@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocalPref, KEY_SET } from "../hooks/useLocalPref";
 import { Link, useSearchParams } from "react-router-dom";
 import { useRulesetSession } from "../hooks/useRulesetSession";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
@@ -53,6 +54,7 @@ import { errorText } from "../lib/api";
 export { JsonTree, matchesQuery, collectMatches } from "../components/GraphTree";
 
 const COLLAPSED_KEY = "rules:collapsedWorkflows";
+const NO_KEYS: Set<string> = new Set();
 const isJson = (name: string) => /\.json$/i.test(name);
 // Collapse key for the group of images with no workflow id.
 const OTHER_FAMILY = "__other__";
@@ -159,27 +161,19 @@ export default function RulesPage() {
 
   // Collapsed workflow groups, remembered per browser (a view preference, so
   // localStorage is enough; it may be unavailable, hence the try/catch).
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "[]") as string[]);
-    } catch {
-      return new Set();
-    }
-  });
-  const setFamilyCollapsed = useCallback((key: string, value: boolean) => {
-    setCollapsed((prev) => {
-      if (prev.has(key) === value) return prev;
-      const next = new Set(prev);
-      if (value) next.add(key);
-      else next.delete(key);
-      try {
-        localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
-      } catch {
-        // Storage blocked: the preference just won't survive a reload.
-      }
-      return next;
-    });
-  }, []);
+  const [collapsed, setCollapsed] = useLocalPref<Set<string>>(COLLAPSED_KEY, NO_KEYS, KEY_SET);
+  const setFamilyCollapsed = useCallback(
+    (key: string, value: boolean) => {
+      setCollapsed((prev) => {
+        if (prev.has(key) === value) return prev;
+        const next = new Set(prev);
+        if (value) next.add(key);
+        else next.delete(key);
+        return next;
+      });
+    },
+    [setCollapsed],
+  );
 
   const renameFamily = useCallback(
     async (id: string, name: string) => {

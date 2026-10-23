@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
+import { useLocalPref } from "./useLocalPref";
 import {
   DEFAULT_DENSITY,
   DENSITY_STEPS,
@@ -15,17 +16,8 @@ function fallback(): number {
   return phone ? PHONE_DEFAULT_DENSITY : DEFAULT_DENSITY;
 }
 
-function readStored(): number {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw === null) return fallback();
-    const n = Number(raw);
-    if (!Number.isFinite(n)) return fallback();
-    return Math.max(0, Math.min(DENSITY_STEPS.length - 1, Math.round(n)));
-  } catch {
-    // Private mode / storage disabled: fall back rather than crashing the grid.
-    return fallback();
-  }
+function clampStep(n: number): number {
+  return Math.max(0, Math.min(DENSITY_STEPS.length - 1, Math.round(n)));
 }
 
 /**
@@ -37,29 +29,20 @@ function readStored(): number {
  * away, the grid already has the images, it just wants them smaller.
  */
 export function useDensity() {
-  const [density, setDensity] = useState<number>(readStored);
-  // Saved only once someone zooms: persisting the fallback on mount would pin
-  // a phone's default onto the same browser later opened wide, and the other
-  // way round.
-  const touched = useRef(false);
-
-  useEffect(() => {
-    if (!touched.current) return;
-    try {
-      localStorage.setItem(KEY, String(density));
-    } catch {
-      // Non-fatal; the preference just won't survive a reload.
-    }
-  }, [density]);
+  // Nothing is stored until someone zooms: persisting the fallback on mount
+  // would pin a phone's default onto the same browser later opened wide, and
+  // the other way round.
+  const [initial] = useState(fallback);
+  const [density, setDensity] = useLocalPref(KEY, initial, {
+    parse: (raw) => (Number.isFinite(Number(raw)) ? clampStep(Number(raw)) : undefined),
+  });
 
   const zoomIn = useCallback(() => {
-    touched.current = true;
     setDensity((d) => Math.max(0, d - 1));
-  }, []);
+  }, [setDensity]);
   const zoomOut = useCallback(() => {
-    touched.current = true;
     setDensity((d) => Math.min(DENSITY_STEPS.length - 1, d + 1));
-  }, []);
+  }, [setDensity]);
 
   return {
     density,

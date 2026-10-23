@@ -1,4 +1,5 @@
-import { useSyncExternalStore } from "react";
+import { readLocalPref, writeLocalPref } from "../lib/localPref";
+import { useLocalPref } from "./useLocalPref";
 import { chipBorderStyle } from "../lib/tagColour";
 
 /**
@@ -12,50 +13,29 @@ export type TagMarks = { outlines: boolean; tints: boolean };
 const KEY = "tags:marks";
 export const TAG_MARKS_DEFAULT: TagMarks = { outlines: true, tints: true };
 
-let current: TagMarks = read();
-const listeners = new Set<() => void>();
+function parseMarks(raw: string): TagMarks {
+  const v = JSON.parse(raw) as Partial<TagMarks>;
+  return {
+    outlines: typeof v.outlines === "boolean" ? v.outlines : TAG_MARKS_DEFAULT.outlines,
+    tints: typeof v.tints === "boolean" ? v.tints : TAG_MARKS_DEFAULT.tints,
+  };
+}
 
-function read(): TagMarks {
+function current(): TagMarks {
+  const raw = readLocalPref(KEY);
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return TAG_MARKS_DEFAULT;
-    const v = JSON.parse(raw) as Partial<TagMarks>;
-    return {
-      outlines: typeof v.outlines === "boolean" ? v.outlines : TAG_MARKS_DEFAULT.outlines,
-      tints: typeof v.tints === "boolean" ? v.tints : TAG_MARKS_DEFAULT.tints,
-    };
+    return raw ? parseMarks(raw) : TAG_MARKS_DEFAULT;
   } catch {
-    // Private mode / storage disabled: the defaults.
     return TAG_MARKS_DEFAULT;
   }
 }
 
 export function setTagMarks(patch: Partial<TagMarks>) {
-  current = { ...current, ...patch };
-  try {
-    localStorage.setItem(KEY, JSON.stringify(current));
-  } catch {
-    // Non-fatal; the preference just won't survive a reload.
-  }
-  listeners.forEach((l) => l());
-}
-
-// Another tab changed it.
-if (typeof window !== "undefined") {
-  window.addEventListener("storage", (e) => {
-    if (e.key !== KEY) return;
-    current = read();
-    listeners.forEach((l) => l());
-  });
-}
-
-function subscribe(l: () => void) {
-  listeners.add(l);
-  return () => listeners.delete(l);
+  writeLocalPref(KEY, JSON.stringify({ ...current(), ...patch }));
 }
 
 export function useTagMarks(): TagMarks {
-  return useSyncExternalStore(subscribe, () => current);
+  return useLocalPref(KEY, TAG_MARKS_DEFAULT, { parse: parseMarks })[0];
 }
 
 /** {@link chipBorderStyle} as Settings has it: nothing with outlines off. */

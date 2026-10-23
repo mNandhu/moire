@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocalPref } from "../../hooks/useLocalPref";
 import { Link } from "react-router-dom";
 import { ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge, Tooltip } from "../ui";
@@ -12,21 +13,6 @@ const KEY = "viewer:outfits-open";
 // Rows shown before "N more".
 const SHOWN = 3;
 
-function readOpen(): boolean {
-  try {
-    return localStorage.getItem(KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function writeOpen(open: boolean) {
-  try {
-    localStorage.setItem(KEY, open ? "1" : "0");
-  } catch {
-    // Non-fatal: it just opens folded next time.
-  }
-}
 
 /** What a worn outfit's row says under its name. Pure. */
 export function wornLine(o: WornOutfit, characterName: (tag: string) => string): string {
@@ -75,14 +61,11 @@ export function WornOutfits({
   characterName: (tag: string) => string;
 }) {
   const { data } = useWornOutfits(imageId, characters, imageTags);
-  const [open, setOpen] = useState(readOpen);
+  const [open, setOpen] = useLocalPref(KEY, false);
   const [all, setAll] = useState(false);
   const worn = data ?? [];
   if (!worn.length) return null;
-  const toggle = () => {
-    setOpen(!open);
-    writeOpen(!open);
-  };
+  const toggle = () => setOpen(!open);
   const rows = all ? worn : worn.slice(0, SHOWN);
   return (
     <>

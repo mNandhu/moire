@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useLocalPref } from "../hooks/useLocalPref";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Tag as TagIcon, Slash, Search, GitMerge, Undo2, LayoutGrid, List, UserPlus, Wand2, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -65,14 +66,6 @@ const SPINE_NEUTRAL = "#8a8797";
 const PAGE: Record<TagView, number> = { grid: 60, list: 200 };
 const VIEW_KEY = "moire.tags.view";
 
-function readView(): TagView {
-  try {
-    return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "grid";
-  } catch {
-    return "grid";
-  }
-}
-
 /** `/tags/groups/:group`: the Tags page narrowed to one tag group. */
 export function TagGroupPage() {
   const { group = "" } = useParams();
@@ -82,7 +75,9 @@ export function TagGroupPage() {
 export default function TagsPage({ group }: { group?: string } = {}) {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
-  const [view, setView] = useState<TagView>(readView);
+  const [view, setView] = useLocalPref<TagView>(VIEW_KEY, "grid", {
+    parse: (raw) => (raw === "list" ? "list" : "grid"),
+  });
   const [sort, setSort] = useState<TagSort>("count");
   const [source, setSource] = useState<TagSource>("all");
   // Boilerplate (Settings) is hidden unless asked for: it would otherwise fill
@@ -109,13 +104,6 @@ export default function TagsPage({ group }: { group?: string } = {}) {
   const { data: descriptions } = useTagDescriptions();
   const describe = useCallback<Describe>((tag) => descriptions?.[descriptionKey(tag)], [descriptions]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(VIEW_KEY, view);
-    } catch {
-      // A remembered view is a convenience; private windows may refuse it.
-    }
-  }, [view]);
 
   const tagsQuery = useTagBrowse(source);
   const groupsQuery = useTagGroups();
