@@ -8,7 +8,9 @@ import {
 } from "react";
 import { X, Search } from "lucide-react";
 import { formatSearchTag } from "../lib/tags";
-import { TagSuggestList, resourceLabel, useTagMatches, type TagSuggestion } from "./TagSuggestList";
+import { TagSuggestList } from "./TagSuggestList";
+import { resourceLabel, type TagSuggestion } from "../lib/tagSuggest";
+import { useSuggestNav, useTagMatches } from "../hooks/useSuggestNav";
 
 export type { TagSuggestion };
 
@@ -35,7 +37,6 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
   function TagSearchInput({ value, onChange, suggestions, resources, placeholder }, ref) {
     const [text, setText] = useState("");
     const [open, setOpen] = useState(false);
-    const [active, setActive] = useState(0);
 
     const inputRef = useRef<HTMLInputElement | null>(null);
     const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -53,9 +54,6 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
     );
     const matches = useTagMatches(text, pool, resourcePool);
 
-    // Keep the active row in range whenever the match list changes.
-    useEffect(() => setActive(0), [text]);
-
     const showDropdown = open && matches.length > 0;
 
     const addTag = (tag: string) => {
@@ -66,31 +64,28 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
       }
       onChange([...value, t]);
       setText("");
-      setActive(0);
     };
 
     const removeTag = (tag: string) =>
       onChange(value.filter((t) => t !== tag));
 
+    // Keep the active row in range whenever the text changes.
+    const nav = useSuggestNav({
+      matches,
+      open: showDropdown,
+      onPick: (s) => addTag(s._id),
+      onClose: () => setOpen(false),
+      resetKey: text,
+    });
+
     const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "ArrowDown" && showDropdown) {
-        e.preventDefault();
-        setActive((a) => Math.min(a + 1, matches.length - 1));
-      } else if (e.key === "ArrowUp" && showDropdown) {
-        e.preventDefault();
-        setActive((a) => Math.max(a - 1, 0));
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        if (showDropdown && matches[active]) addTag(matches[active]._id);
-        else if (text.trim()) addTag(text);
-      } else if (e.key === "," ) {
-        // Treat comma as a commit so old comma-separated muscle memory works.
+      if (nav.onKeyDown(e)) return;
+      if (e.key === "Enter" || e.key === ",") {
+        // Comma commits too, so old comma-separated muscle memory works.
         e.preventDefault();
         if (text.trim()) addTag(text);
       } else if (e.key === "Backspace" && !text && value.length) {
         removeTag(value[value.length - 1]);
-      } else if (e.key === "Escape") {
-        setOpen(false);
       }
     };
 
@@ -144,17 +139,15 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
             onKeyDown={onKeyDown}
             placeholder={value.length ? "" : (placeholder ?? "Search tags…")}
             className="flex-1 min-w-[4rem] bg-transparent px-1 py-0.5 text-neutral-100 placeholder:text-faint outline-none focus-visible:shadow-none"
-            role="combobox"
-            aria-expanded={showDropdown}
-            aria-autocomplete="list"
+            {...nav.ariaProps}
           />
         </div>
 
         {showDropdown && (
           <TagSuggestList
             matches={matches}
-            active={active}
-            onActive={setActive}
+            active={nav.active}
+            onActive={nav.setActive}
             onPick={(s) => addTag(s._id)}
           />
         )}

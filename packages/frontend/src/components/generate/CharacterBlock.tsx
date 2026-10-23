@@ -16,14 +16,13 @@ import { characterTags, toggleDropped } from "../../lib/recipe";
 import { tagRepeats } from "../../lib/promptRepeats";
 import { PromptRepeats } from "./PromptRepeats";
 import { FieldLabel, stemOf } from "./RunControls";
-import { bareTagPool } from "./ChipInput";
 import { ExpandButton } from "./Layers";
 import { MAX_CHARACTERS, replaceCharacter } from "../../lib/generateForm";
 import { NewCharacterDialog } from "../NewCharacterDialog";
 import { OutfitChips, OutfitPicker, useCharacterOutfits } from "./Outfit";
 import { toggleWorn, wornTags, type OutfitPick, type Outfits } from "../../lib/outfit";
-import { TagSuggestList, useTagMatches } from "../TagSuggestList";
-import { useAttireGroups, useTagAggregate } from "../../lib/queries";
+import { TagAddInput } from "../TagAddInput";
+import { useAttireGroups } from "../../lib/queries";
 
 const NO_LORA = "\u0000none";
 
@@ -231,55 +230,6 @@ function LoraControl({
   );
 }
 
-/** Type a tag to add to the identity: library tags as suggestions. */
-function AddTagInput({ onAdd, taken }: { onAdd: (tag: string) => void; taken: ReadonlySet<string> }) {
-  const [text, setText] = useState("");
-  const [active, setActive] = useState(0);
-  const [moved, setMoved] = useState(false);
-  const { data: tagAgg } = useTagAggregate({ includePrompt: true });
-  const pool = useMemo(() => bareTagPool(tagAgg ?? []).filter((t) => !taken.has(t._id)), [tagAgg, taken]);
-  const matches = useTagMatches(text, pool);
-  const add = (tag: string) => {
-    const t = tag.trim().replace(/\s+/g, "_");
-    if (t) onAdd(t);
-    setText("");
-    setMoved(false);
-  };
-  return (
-    <div className="relative">
-      <input
-        aria-label="Add identity tag"
-        value={text}
-        placeholder="Add tag"
-        onChange={(e) => {
-          setText(e.target.value);
-          setActive(0);
-          setMoved(false);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-            e.preventDefault();
-            setMoved(true);
-            setActive((a) => (e.key === "ArrowDown" ? Math.min(a + 1, matches.length - 1) : Math.max(a - 1, 0)));
-          } else if (e.key === "Tab" && matches.length) {
-            e.preventDefault();
-            add(matches[active]._id);
-          } else if (e.key === "Enter" || e.key === ",") {
-            e.preventDefault();
-            add(moved && matches[active] ? matches[active]._id : text);
-          } else if (e.key === "Escape") setText("");
-        }}
-        className="h-7 w-32 rounded-md border border-dashed border-line-strong bg-transparent px-2 text-sm text-neutral-100 placeholder:text-faint outline-none focus:w-48 focus:border-solid focus:border-brand-600/60"
-      />
-      {text.trim() && matches.length > 0 && (
-        <div className="absolute left-0 top-full z-30 w-64">
-          <TagSuggestList matches={matches} active={active} onActive={setActive} onPick={(m) => add(m._id)} />
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** Saves a change to a character's recipe and puts the result in the cache. */
 function useRecipePatch(tag: string) {
   const qc = useQueryClient();
@@ -444,7 +394,7 @@ export function RecipeEditor({
               </button>
             </span>
           ))}
-          {!off && <AddTagInput taken={taken} onAdd={(tag) => !taken.has(tag) && patch.mutate({ added: [...added, tag] })} />}
+          {!off && <TagAddInput ariaLabel="Add identity tag" taken={taken} onAdd={(tag) => !taken.has(tag) && patch.mutate({ added: [...added, tag] })} />}
         </div>
         {note && <p className="mt-1.5 text-xs text-faint">{note}</p>}
       </div>

@@ -20,7 +20,8 @@ import {
   type TagPlace,
 } from "../../lib/queries";
 import { CharacterAvatar } from "../CharacterAvatar";
-import { TagSuggestList, type TagSuggestion } from "../TagSuggestList";
+import { TagSuggestList } from "../TagSuggestList";
+import type { TagSuggestion } from "../../lib/tagSuggest";
 import { useDropSide } from "../../hooks/useDropSide";
 import { Tooltip } from "../ui";
 import { descriptionKey } from "../../lib/tags";

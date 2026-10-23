@@ -1,10 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, Shirt, Undo2, X } from "lucide-react";
 import { Picker, type PickerOption } from "../ui/Picker";
 import { cn } from "../../lib/cn";
 import { displayWord } from "../../lib/compose";
-import { canonicalName } from "../../lib/tags";
 import {
   DEFAULT_OUTFIT,
   useDefaultOutfit,
@@ -12,9 +11,9 @@ import {
   type Outfit,
 } from "../../lib/generate";
 import { pickOf, toggleWorn, addWorn, type OutfitPick } from "../../lib/outfit";
-import { useTagAggregate, useTagFacets } from "../../lib/queries";
-import { bareTagPool } from "./ChipInput";
-import { TagSuggestList, useTagMatches } from "../TagSuggestList";
+import { useTagFacets } from "../../lib/queries";
+import { TagAddInput } from "../TagAddInput";
+import type { TagSuggestion } from "../../lib/tagSuggest";
 
 const NO_OUTFIT = "\u0000none";
 
@@ -132,61 +131,18 @@ export function AttireTagInput({
   taken: ReadonlySet<string>;
   className?: string;
 }) {
-  const [text, setText] = useState("");
-  const [active, setActive] = useState(0);
-  const [moved, setMoved] = useState(false);
-  const { data: tagAgg } = useTagAggregate({ includePrompt: true });
   const { data: facets } = useTagFacets();
-  const pool = useMemo(() => bareTagPool(tagAgg ?? []).filter((t) => !taken.has(t._id)), [tagAgg, taken]);
-  const ranked = useTagMatches(text, pool);
-  const matches = useMemo(() => {
-    const worn = (id: string) => facets?.[id.toLowerCase()] === "outfit";
-    return [...ranked.filter((m) => worn(m._id)), ...ranked.filter((m) => !worn(m._id))];
-  }, [ranked, facets]);
-  const add = (tag: string) => {
-    const t = canonicalName(tag);
-    if (t) onAdd(t);
-    setText("");
-    setMoved(false);
-  };
+  const worn = (id: string) => facets?.[id.toLowerCase()] === "outfit";
+  const rank = (ranked: TagSuggestion[]) => [...ranked.filter((m) => worn(m._id)), ...ranked.filter((m) => !worn(m._id))];
   return (
-    <div className={cn("relative", className)}>
-      <input
-        aria-label="Add outfit tag"
-        value={text}
-        placeholder="Add tag"
-        onChange={(e) => {
-          setText(e.target.value);
-          setActive(0);
-          setMoved(false);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-            e.preventDefault();
-            setMoved(true);
-            setActive((a) => (e.key === "ArrowDown" ? Math.min(a + 1, matches.length - 1) : Math.max(a - 1, 0)));
-          } else if (e.key === "Tab" && matches.length) {
-            e.preventDefault();
-            add(matches[active]._id);
-          } else if (e.key === "Enter" || e.key === ",") {
-            e.preventDefault();
-            add(moved && matches[active] ? matches[active]._id : text);
-          } else if (e.key === "Escape") setText("");
-        }}
-        className="h-7 w-32 rounded-md border border-dashed border-line-strong bg-transparent px-2 text-sm text-neutral-100 placeholder:text-faint outline-none focus:w-48 focus:border-solid focus:border-brand-600/60"
-      />
-      {text.trim() && matches.length > 0 && (
-        <div className="absolute left-0 top-full z-30 w-64">
-          <TagSuggestList
-            matches={matches}
-            active={active}
-            onActive={setActive}
-            onPick={(m) => add(m._id)}
-            noteOf={(id) => (facets?.[id.toLowerCase()] === "outfit" ? "attire" : null)}
-          />
-        </div>
-      )}
-    </div>
+    <TagAddInput
+      ariaLabel="Add outfit tag"
+      onAdd={onAdd}
+      taken={taken}
+      className={className}
+      rank={rank}
+      noteOf={(id) => (worn(id) ? "attire" : null)}
+    />
   );
 }
 

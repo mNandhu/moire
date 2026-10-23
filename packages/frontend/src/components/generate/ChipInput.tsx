@@ -4,7 +4,9 @@ import { cn } from "../../lib/cn";
 import { displayWord, isEmbedding } from "../../lib/compose";
 import { tagName } from "../../lib/tags";
 import { useChipBorderStyle } from "../../hooks/useTagMarks";
-import { TagSuggestList, useTagMatches, type TagSuggestion } from "../TagSuggestList";
+import { TagSuggestList } from "../TagSuggestList";
+import type { TagSuggestion } from "../../lib/tagSuggest";
+import { useSuggestNav, useTagMatches } from "../../hooks/useSuggestNav";
 
 /** Typed text as a chip: canonical underscores for tags; embeddings as typed. */
 function toChip(text: string): string {
@@ -49,7 +51,6 @@ export function ChipInput({
   const chipBorderStyle = useChipBorderStyle();
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -60,13 +61,11 @@ export function ChipInput({
     [embeddings, selected],
   );
   const matches = useTagMatches(text, pool, resources);
-  useEffect(() => setActive(0), [text]);
   const showList = open && matches.length > 0;
 
   const add = (raw: string) => {
     const chip = toChip(raw);
     setText("");
-    setActive(0);
     if (chip && !selected.has(chip)) onChange([...value, chip]);
   };
   const remove = (chip: string) => onChange(value.filter((c) => c !== chip));
@@ -80,24 +79,20 @@ export function ChipInput({
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
+  const nav = useSuggestNav({
+    matches,
+    open: showList,
+    onPick: (s) => add(s._id),
+    onClose: () => setOpen(false),
+    resetKey: text,
+  });
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "ArrowDown" && showList) {
-      e.preventDefault();
-      setActive((a) => Math.min(a + 1, matches.length - 1));
-    } else if (e.key === "ArrowUp" && showList) {
-      e.preventDefault();
-      setActive((a) => Math.max(a - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (showList && matches[active]) add(matches[active]._id);
-      else if (text.trim()) add(text);
-    } else if (e.key === ",") {
+    if (nav.onKeyDown(e)) return;
+    if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
       if (text.trim()) add(text);
     } else if (e.key === "Backspace" && !text && value.length) {
       remove(value[value.length - 1]);
-    } else if (e.key === "Escape") {
-      setOpen(false);
     }
   };
 
@@ -148,14 +143,12 @@ export function ChipInput({
           onKeyDown={onKeyDown}
           placeholder={value.length ? "" : "Add tag"}
           aria-label={label}
-          role="combobox"
-          aria-expanded={showList}
-          aria-autocomplete="list"
+          {...nav.ariaProps}
           className="flex-1 min-w-[5rem] bg-transparent px-1 py-0.5 text-neutral-100 placeholder:text-faint outline-none focus-visible:shadow-none"
         />
       </div>
       {showList && (
-        <TagSuggestList matches={matches} active={active} onActive={setActive} onPick={(s) => add(s._id)} />
+        <TagSuggestList matches={matches} active={nav.active} onActive={nav.setActive} onPick={(s) => add(s._id)} />
       )}
     </div>
   );

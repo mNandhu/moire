@@ -3,7 +3,8 @@ import { GitMerge, Pencil } from "lucide-react";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
-import { TagSuggestList, useTagMatches } from "./TagSuggestList";
+import { TagSuggestList } from "./TagSuggestList";
+import { useSuggestNav, useTagMatches } from "../hooks/useSuggestNav";
 import type { TagAgg } from "../lib/queries";
 import { formatTag, isPrompt, planRename, renameOptions } from "../lib/tags";
 
@@ -30,7 +31,6 @@ export function RenameTagDialog({
   const [to, setTo] = useState("");
   const [busy, setBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
-  const [active, setActive] = useState(0);
 
   const raw = tag?._id ?? "";
   const prompt = isPrompt(raw);
@@ -46,6 +46,14 @@ export function RenameTagDialog({
     setTo(formatTag(id));
     setSuggesting(false);
   };
+  const nav = useSuggestNav({
+    matches,
+    open: showList,
+    onPick: (s) => pick(s._id),
+    // Closes the list; the dialog's own Escape skips an open popup.
+    onClose: () => setSuggesting(false),
+    resetKey: to,
+  });
 
   const close = () => {
     if (busy) return;
@@ -106,37 +114,24 @@ export function RenameTagDialog({
             onChange={(e) => {
               setTo(e.target.value);
               setSuggesting(true);
-              setActive(0);
             }}
             onBlur={() => setSuggesting(false)}
             onKeyDown={(e) => {
-              if (e.key === "ArrowDown" && showList) {
+              if (nav.onKeyDown(e)) return;
+              // The first Enter takes the highlighted name; the next submits.
+              if (e.key === "Enter") {
                 e.preventDefault();
-                setActive((a) => Math.min(a + 1, matches.length - 1));
-              } else if (e.key === "ArrowUp" && showList) {
-                e.preventDefault();
-                setActive((a) => Math.max(a - 1, 0));
-              } else if (e.key === "Escape" && showList) {
-                // Closes the list; the dialog's own Escape skips an open popup.
-                setSuggesting(false);
-              } else if (e.key === "Enter") {
-                e.preventDefault();
-                // The first Enter takes the highlighted name; the next submits.
-                if (showList && matches[active]) pick(matches[active]._id);
-                else void submit();
+                void submit();
               }
             }}
             placeholder="New name, or an existing tag to merge into"
-            role="combobox"
-            aria-haspopup="listbox"
-            aria-expanded={showList}
-            aria-autocomplete="list"
+            {...nav.ariaProps}
           />
           {showList && (
             <TagSuggestList
               matches={matches}
-              active={active}
-              onActive={setActive}
+              active={nav.active}
+              onActive={nav.setActive}
               onPick={(s) => pick(s._id)}
             />
           )}

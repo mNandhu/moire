@@ -1,78 +1,8 @@
-import { useMemo } from "react";
-import { fuzzyRank } from "../lib/fuzzy";
-import { splitBoilerplate } from "../lib/boilerplate";
-import { useBoilerplate } from "../lib/queries";
 import { Badge } from "./ui/Badge";
 import { cn } from "../lib/cn";
-import { formatSearchTag, isManual, isPrompt, tagQueryText } from "../lib/tags";
-import { resourceOf } from "../lib/imageFilter";
+import { formatSearchTag, isManual, isPrompt } from "../lib/tags";
+import { resourceLabel, type TagSuggestion } from "../lib/tagSuggest";
 import { smallThumb } from "../lib/media";
-
-export type TagSuggestion = { _id: string; count: number };
-
-const MAX_SUGGESTIONS = 8;
-// Rows kept for loras and embeddings when tags also match: they rank below
-// tags, but a long tag list mustn't hide them.
-const RESOURCE_ROWS = 2;
-const TYPED_KIND = /^(lora|embedding|emb|outfit):\s*(.*)$/i;
-
-/**
- * The suggestions for typed text: tags fuzzy-ranked on their display form
- * (so `blue_eyes` and `blue eyes` find the same tag), boilerplate after
- * every other match ("best" offers "best friend" before "best quality"),
- * then loras and embeddings (`resources`, ids `lora:name` /
- * `embedding:name`) matched on their name, below the tags but always given
- * a row or two. Typing `lora:` (or `embedding:`, `emb:`) lists only that
- * kind. Pure.
- */
-export function rankSuggestions(
-  text: string,
-  pool: readonly TagSuggestion[],
-  resources: readonly TagSuggestion[],
-  isBoilerplate: (tag: string) => boolean,
-): TagSuggestion[] {
-  const q = text.trim();
-  if (!q) return [];
-  const nameOf = (s: TagSuggestion) => s._id.slice(s._id.indexOf(":") + 1);
-  const typed = TYPED_KIND.exec(q);
-  if (typed) {
-    const k = typed[1].toLowerCase();
-    const kind = k === "lora" ? "lora:" : k === "outfit" ? "outfit:" : "embedding:";
-    const ofKind = resources.filter((r) => r._id.startsWith(kind));
-    const rest = typed[2].trim();
-    return rest
-      ? fuzzyRank(rest, ofKind, nameOf, MAX_SUGGESTIONS)
-      : [...ofKind].sort((a, b) => b.count - a.count).slice(0, MAX_SUGGESTIONS);
-  }
-  const ranked = fuzzyRank(tagQueryText(q), [...pool], (s) => formatSearchTag(s._id), pool.length);
-  const { kept, boilerplate } = splitBoilerplate(ranked, (s) => s._id, isBoilerplate);
-  const tags = [...kept, ...boilerplate];
-  const res = fuzzyRank(q, resources, nameOf, MAX_SUGGESTIONS);
-  const head = tags.slice(0, MAX_SUGGESTIONS - Math.min(RESOURCE_ROWS, res.length));
-  return [...head, ...res.slice(0, MAX_SUGGESTIONS - head.length)];
-}
-
-/** {@link rankSuggestions} with the user's boilerplate list. Loras and
- * embeddings only where the caller offers them (the gallery search). */
-export function useTagMatches(
-  text: string,
-  pool: readonly TagSuggestion[],
-  resources: readonly TagSuggestion[] = NONE,
-): TagSuggestion[] {
-  const isBoilerplate = useBoilerplate();
-  return useMemo(
-    () => rankSuggestions(text, pool, resources, isBoilerplate),
-    [text, pool, resources, isBoilerplate],
-  );
-}
-
-const NONE: TagSuggestion[] = [];
-
-/** A lora or embedding search term's kind and name, or null for a tag. */
-export function resourceLabel(id: string): { kind: string; name: string } | null {
-  const r = resourceOf(id);
-  return r ? { kind: r.kind === "lora" ? "LoRA" : r.kind === "outfit" ? "Outfit" : "Embedding", name: r.name } : null;
-}
 
 /**
  * The tag autocomplete dropdown: each row a tag with its kind and image

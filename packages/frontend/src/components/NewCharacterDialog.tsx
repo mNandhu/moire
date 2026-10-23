@@ -8,17 +8,16 @@ import { Field, Input } from "./ui/Input";
 import { Picker } from "./ui/Picker";
 import { useToast } from "./Toasts";
 import { useCharacters } from "./ImageCharacters";
-import { TagSuggestList, useTagMatches } from "./TagSuggestList";
+import { TagSuggestList } from "./TagSuggestList";
+import { useSuggestNav, useTagMatches } from "../hooks/useSuggestNav";
 import { cn } from "../lib/cn";
 import { characterHref, characterName, displayName } from "../lib/character";
+import { canonicalName } from "../lib/tags";
 import { createCharacter } from "../lib/imageMutations";
 import { TAGS_KEY } from "../lib/queries";
 import { putRecipe, useCharacterNames, useComfyModels, useLoraWords } from "../lib/generate";
 import { stemOf } from "./generate/RunControls";
 import { errorText } from "../lib/api";
-
-/** Spaces as the tag's underscores; a typed tag is stored this way. */
-const asTag = (s: string) => s.trim().replace(/\s+/g, "_");
 
 /**
  * Make a character the library has no image of yet: the tagger's name for
@@ -46,7 +45,6 @@ export function NewCharacterDialog({
   const [lora, setLora] = useState("");
   const [identity, setIdentity] = useState<string[]>([]);
   const [typed, setTyped] = useState("");
-  const [active, setActive] = useState(0);
   const [suggest, setSuggest] = useState(!!initialTag);
   const [saving, setSaving] = useState(false);
   const { data: names } = useCharacterNames();
@@ -61,37 +59,45 @@ export function NewCharacterDialog({
     return (names ?? []).filter((n) => !have.has(n)).map((_id) => ({ _id, count: 0 }));
   }, [names, everyone]);
   const matches = useTagMatches(suggest ? tag : "", pool);
-  const wanted = asTag(tag).toLowerCase();
+  const wanted = canonicalName(tag).toLowerCase();
   const existing = (everyone ?? []).find((c) => c.tag.toLowerCase() === wanted || c.aliases.some((a) => a.toLowerCase() === wanted));
   // Characters the library already has whose name contains what was typed
   // ("hu tao" finds hu_tao_(genshin_impact)). Said above the field, since the
   // tagger's suggestions below may be unrelated rows.
   const alike = useMemo(() => {
-    const q = asTag(tag).replace(/_/g, " ").toLowerCase();
+    const q = canonicalName(tag).replace(/_/g, " ").toLowerCase();
     if (q.length < 2 || existing) return [];
     return (everyone ?? [])
       .filter((c) => [c.tag, ...c.aliases].some((n) => n.replace(/_/g, " ").toLowerCase().includes(q)))
       .slice(0, 3);
   }, [tag, existing, everyone]);
-  const offered = (words ?? []).map((w) => w.word).filter((w) => !identity.includes(asTag(w)));
-  const fromTag = characterName(asTag(tag) || "character");
+  const offered = (words ?? []).map((w) => w.word).filter((w) => !identity.includes(canonicalName(w)));
+  const fromTag = characterName(canonicalName(tag) || "character");
 
   const pickTag = (t: string) => {
     setTag(t);
     setSuggest(false);
   };
+  const nav = useSuggestNav({
+    matches,
+    open: suggest && matches.length > 0,
+    onPick: (s) => pickTag(s._id),
+    onClose: () => setSuggest(false),
+    tab: true,
+    resetKey: tag,
+  });
   const addIdentity = (w: string) => {
-    const t = asTag(w);
+    const t = canonicalName(w);
     if (t && !identity.includes(t)) setIdentity((xs) => [...xs, t]);
   };
 
   const create = async () => {
     // A tag typed but not yet added with Enter still counts.
-    const tags = typed.trim() && !identity.includes(asTag(typed)) ? [...identity, asTag(typed)] : identity;
+    const tags = typed.trim() && !identity.includes(canonicalName(typed)) ? [...identity, canonicalName(typed)] : identity;
     setSaving(true);
     let made: { tag: string };
     try {
-      made = await createCharacter({ tag: asTag(tag), ...(name.trim() ? { name: name.trim() } : {}) });
+      made = await createCharacter({ tag: canonicalName(tag), ...(name.trim() ? { name: name.trim() } : {}) });
     } catch (e) {
       push(`Couldn't make the character: ${errorText(e)}`, "error");
       setSaving(false);
@@ -120,7 +126,7 @@ export function NewCharacterDialog({
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={() => void create()} disabled={!asTag(tag) || !!existing || saving}>
+          <Button variant="primary" onClick={() => void create()} disabled={!canonicalName(tag) || !!existing || saving}>
             {saving ? "Making…" : "Make character"}
           </Button>
         </>
@@ -150,25 +156,13 @@ export function NewCharacterDialog({
               onChange={(e) => {
                 setTag(e.target.value);
                 setSuggest(true);
-                setActive(0);
               }}
               onBlur={() => setTimeout(() => setSuggest(false), 150)}
-              onKeyDown={(e) => {
-                if (!matches.length || !suggest) return;
-                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-                  e.preventDefault();
-                  setActive((a) => (e.key === "ArrowDown" ? Math.min(a + 1, matches.length - 1) : Math.max(a - 1, 0)));
-                } else if (e.key === "Enter" || e.key === "Tab") {
-                  e.preventDefault();
-                  pickTag(matches[active]._id);
-                } else if (e.key === "Escape") {
-                  e.stopPropagation();
-                  setSuggest(false);
-                }
-              }}
+              onKeyDown={nav.onKeyDown}
+              {...nav.ariaProps}
             />
             {suggest && matches.length > 0 && (
-              <TagSuggestList matches={matches} active={active} onActive={setActive} onPick={(s) => pickTag(s._id)} />
+              <TagSuggestList matches={matches} active={nav.active} onActive={nav.setActive} onPick={(s) => pickTag(s._id)} />
             )}
           </div>
         </Field>

@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { cn } from "../../lib/cn";
-import { TagSuggestList, type TagSuggestion } from "../TagSuggestList";
+import { TagSuggestList } from "../TagSuggestList";
+import type { TagSuggestion } from "../../lib/tagSuggest";
 import { usePromptMarks, type PromptFlash, type PromptMark } from "./PromptOverlay";
 import { usePromptSuggest } from "./usePromptSuggest";
 
