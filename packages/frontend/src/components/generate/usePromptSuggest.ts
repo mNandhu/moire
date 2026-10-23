@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent, type RefObject } from "react";
 import { caretOffset } from "../../lib/caret";
-import { useTagBrowse } from "../../lib/queries";
+import { useTagCovers } from "../../lib/tagSamples";
 import { useCharacterNames } from "../../lib/generate";
 import { replaceTerm, termAt, type Term } from "../../lib/promptEdit";
 import { toPromptText } from "../../lib/tags";
@@ -35,9 +35,7 @@ export function usePromptSuggest({
   // Covers come from the Tags page list: a big one, so only fetched once
   // suggestions have been shown.
   const [wantCovers, setWantCovers] = useState(false);
-  const { data: browse } = useTagBrowse("all", { enabled: wantCovers });
-  const thumbs = useMemo(() => new Map((browse ?? []).map((b) => [b.tag, b.thumb_url])), [browse]);
-  const thumbOf = useCallback((id: string) => thumbs.get(id) ?? null, [thumbs]);
+  const thumbOf = useTagCovers(wantCovers);
   const resources = useMemo(() => embeddings.map((n) => ({ _id: `embedding:${n}`, count: 0 })), [embeddings]);
   // Characters the tagger knows that the library doesn't have yet, offered
   // after the library's own tags (no count, no cover).

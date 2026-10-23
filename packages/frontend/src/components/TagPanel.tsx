@@ -5,9 +5,10 @@ import { BookOpen, ExternalLink, Pencil, Tag as TagIcon, UserRound, X } from "lu
 import { Badge } from "./ui/Badge";
 import { Button, ButtonAnchor, ButtonLink } from "./ui/Button";
 import { Skeleton } from "./ui/Skeleton";
-import { Mosaic, type Sample } from "./TagMosaic";
+import { Mosaic } from "./TagMosaic";
+import { useTagSamples } from "../lib/tagSamples";
 import { useToast } from "./Toasts";
-import { api, errorText } from "../lib/api";
+import { errorText } from "../lib/api";
 import { cn } from "../lib/cn";
 import { RULES_SIGNATURES_KEY, fetchSignatures } from "../lib/gen";
 import { DEFAULT_FILTERS, galleryHref, imageHref } from "../lib/imageFilter";
@@ -83,14 +84,7 @@ export function TagPanel({
   // The tag's mosaic, pinned cover first. Under TAGS_KEY, so pinning a new
   // cover below refreshes it.
   const sampleId = galleryTag(tag, source);
-  const { data: samples } = useQuery({
-    queryKey: [...TAGS_KEY, "samples", sampleId],
-    queryFn: ({ signal }) =>
-      api<Record<string, Sample[]>>(
-        `/api/v1/tags/samples?${new URLSearchParams({ tags: sampleId, per: "4" })}`,
-        { signal },
-      ).then((r) => r[sampleId] ?? []),
-  });
+  const { data: samples } = useTagSamples(sampleId);
   const share = (n: number) => `${Math.round((n / (detail?.count || 1)) * 100)}%`;
   const qc = useQueryClient();
   const { push } = useToast();
