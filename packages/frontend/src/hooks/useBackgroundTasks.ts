@@ -74,7 +74,8 @@ export function useRefreshOnFinish() {
       void qc.invalidateQueries({ queryKey: ["image"] });
       invalidateFeeds(qc);
     }
-    if (["ai_job", "scan", "delete", "reproject", "fold", "faces"].some((k) => ended.has(k))) {
+    // A reprojection's tag refresh is in invalidateFeeds above.
+    if (["ai_job", "scan", "delete", "fold", "faces"].some((k) => ended.has(k))) {
       void qc.invalidateQueries({ queryKey: TAGS_KEY });
     }
   }, [data, qc]);

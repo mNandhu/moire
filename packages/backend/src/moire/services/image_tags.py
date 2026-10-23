@@ -200,11 +200,17 @@ def recompute_flags(tags: list[str]) -> dict[str, bool]:
     }
 
 
+# The ``images`` columns a tag write sets: the array and the flags it
+# implies. The one column list for every writer (single, bulk, insert
+# defaults), so a column added here reaches all of them.
+TAG_STATE_COLUMNS = ("tags", "has_tags", "has_ai_tags", "has_prompt_tags")
+
+
 def tag_state_values(tags: list[str]) -> dict[str, Any]:
-    """The ``images`` columns a tag write sets: the array and the flags it
-    implies. The one column source for every writer (single, bulk, insert
-    defaults), so a column added here reaches all of them."""
-    return {"tags": tags, **recompute_flags(tags)}
+    """Values for :data:`TAG_STATE_COLUMNS` (exactly those, in that order)
+    for a write of ``tags``."""
+    values = {"tags": tags, **recompute_flags(tags)}
+    return {c: values[c] for c in TAG_STATE_COLUMNS}
 
 
 def union_tags(existing: list[str], add: list[str]) -> list[str]:
@@ -579,8 +585,9 @@ def replace_prompt_many_sync(
     array comes out the same are not written unless ``force``. Returns how
     many were written.
 
-    The bulk twin of :func:`_persist_statements` (same columns, from
-    :func:`tag_state_values`, and the same join rows), as one executemany per
+    The bulk twin of :func:`_persist_statements` (same columns,
+    :data:`TAG_STATE_COLUMNS` with :func:`tag_state_values`, and the same
+    join rows), as one executemany per
     statement instead of three per image.
     Deliberately does *not* invalidate the tag index: the caller owns the
     transaction, so only the caller knows when the write became visible
@@ -599,12 +606,14 @@ def replace_prompt_many_sync(
         {"b_id": image_id, **{f"b_{k}": v for k, v in tag_state_values(new).items()}}
         for image_id, new in changed
     ]
-    columns = tag_state_values([])
     conn.execute(
         sa.update(t.images)
         .where(t.images.c._id == sa.bindparam("b_id"))
         .values(
-            **{k: sa.bindparam(f"b_{k}", type_=t.images.c[k].type) for k in columns}
+            **{
+                k: sa.bindparam(f"b_{k}", type_=t.images.c[k].type)
+                for k in TAG_STATE_COLUMNS
+            }
         ),
         params,
     )

@@ -59,3 +59,11 @@ def test_initial_tag_fields_match_an_empty_tag_state():
     assert fields["tags"] == []
     for key, value in image_tags.recompute_flags([]).items():
         assert fields[key] == value
+
+
+def test_the_column_list_covers_every_flag():
+    """A flag added to recompute_flags but not TAG_STATE_COLUMNS would be
+    dropped from every write."""
+    cols = image_tags.TAG_STATE_COLUMNS
+    assert {"tags", *image_tags.recompute_flags([])} == set(cols)
+    assert tuple(image_tags.tag_state_values(["a"])) == cols
