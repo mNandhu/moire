@@ -2,7 +2,8 @@
 spelling: manual renames rewrite once, prompt merges are rules that survive
 reprojection, AI tags are refused."""
 
-import asyncio
+import threading
+import time
 
 import pytest
 import sqlalchemy as sa
@@ -381,16 +382,28 @@ async def test_a_small_rule_change_does_not_wait_behind_a_running_reprojection(
     # A run that takes the lock after any "is it busy?" look must not make
     # the request wait either: the busy hint says no, the lock is held.
     monkeypatch.setattr(reproject, "busy", lambda: False)
-    assert reproject._run_lock.acquire(timeout=5)
+    # Another run holds the lock for 2 s; waiting for it would show in the
+    # time taken (and as an inline, not background, result).
+    held, release = threading.Event(), threading.Event()
+
+    def other_run():
+        with reproject._run_lock:
+            held.set()
+            release.wait(2)
+
+    th = threading.Thread(target=other_run)
+    th.start()
+    assert held.wait(5)
     try:
-        resp = await asyncio.wait_for(
-            client.post(
-                "/tags/rename", json={"tag": "prompt:blonde", "to": "blonde_hair"}
-            ),
-            5,
+        start = time.monotonic()
+        resp = await client.post(
+            "/tags/rename", json={"tag": "prompt:blonde", "to": "blonde_hair"}
         )
+        elapsed = time.monotonic() - start
     finally:
-        reproject._run_lock.release()
+        release.set()
+        th.join(5)
+    assert elapsed < 1
     assert resp.json()["background"] is True
     assert queued == [["L1:a"]]
 
