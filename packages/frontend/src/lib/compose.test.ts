@@ -52,5 +52,8 @@ describe("composeParts (same cases as test_generation_compose.py)", () => {
       "white dress",
       "blue sky",
     ]);
+    // Lowercase, as stored; prose is no tag.
+    expect(promptTerms("(Smile:1.2), embedding:x, <lora:a:1>, Sitting_on_swing")).toEqual(["smile", "sitting on swing"]);
+    expect(promptTerms("a gentle breeze moving through her hair, 1girl, smile")).toEqual(["1girl", "smile"]);
   });
 });
