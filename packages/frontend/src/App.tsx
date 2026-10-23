@@ -1,6 +1,6 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { hasModifier } from "./lib/dom";
+import { hasModifier, isFormField } from "./lib/dom";
 import { Sidebar } from "./components/Sidebar";
 import { SearchPalette } from "./components/SearchPalette";
 import { PageErrorBoundary } from "./components/ErrorScreen";
@@ -92,20 +92,10 @@ export default function App() {
   // Enable keyboard scrolling (PageDown/PageUp/Home/End/Space) for the main scroll container.
   // The app scrolls inside an overflow div, so default PageDown on window does nothing.
   useEffect(() => {
-    const isFormField = (target: EventTarget | null) => {
-      const el = target as HTMLElement | null;
-      if (!el) return false;
-      const tag = el.tagName?.toLowerCase();
-      return (
-        tag === "input" ||
-        tag === "textarea" ||
-        tag === "select" ||
-        (el as any).isContentEditable
-      );
-    };
-
     const onKeyDown = (e: KeyboardEvent) => {
-      if (hasModifier(e) || isFormField(e.target)) return;
+      // Ctrl/Cmd+Home/End mean top/bottom too; other combos stay the browser's.
+      const edge = (e.key === "Home" || e.key === "End") && !e.altKey;
+      if ((hasModifier(e) && !edge) || isFormField(e.target)) return;
       // ImageView is mounted on top of the gallery, not routed in place of it,
       // so its own key handling would otherwise fire alongside this one and
       // scroll the hidden gallery underneath.

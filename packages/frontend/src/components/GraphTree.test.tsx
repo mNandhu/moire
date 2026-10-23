@@ -22,4 +22,12 @@ describe("JsonTree › toggling a branch", () => {
     expect(screen.getByText("p:")).toBeTruthy();
     expect(screen.queryByText("q:")).toBeNull();
   });
+
+  it("collapses a branch the search holds open", () => {
+    const deep = { r: { s: { a: { p: 1 } } } };
+    render(<JsonTree value={deep} path="" onPin={() => {}} query="p" />);
+    expect(screen.getByText("p:")).toBeTruthy();
+    fireEvent.click(screen.getByText(/^[▾▸] a$/));
+    expect(screen.queryByText("p:")).toBeNull();
+  });
 });

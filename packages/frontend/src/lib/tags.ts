@@ -274,8 +274,10 @@ export function planRename(
   return existing ? { ok: true, target, existing } : { ok: true, target };
 }
 
-/** Tags a rename of `raw` can merge into: the others of its own kind. */
+/** Tags a rename of `raw` can merge into: the others of its own kind. None for
+ * an AI tag, which planRename refuses. */
 export function renameOptions<T extends { _id: string }>(raw: string, known: readonly T[]): T[] {
+  if (isAiTag(raw)) return [];
   const sameKind = isPrompt(raw) ? isPrompt : isManual;
   return known.filter((t) => t._id !== raw && sameKind(t._id));
 }

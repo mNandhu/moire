@@ -165,12 +165,13 @@ function Branch({
   initiallyOpen: boolean;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(initiallyOpen);
-  const shown = open || forced;
+  // null until clicked: open by depth, or while the search or a mark needs it.
+  const [choice, setChoice] = useState<boolean | null>(null);
+  const shown = choice ?? (initiallyOpen || forced);
   return (
     <div>
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setChoice(!shown)}
         className={`hover:text-sky-200 ${keyCls}`}
       >
         {shown ? "▾" : "▸"} {name}

@@ -77,7 +77,7 @@ import {
   bulkManualTags,
 } from "../lib/imageMutations";
 import { api, errorText } from "../lib/api";
-import { isFormField } from "../lib/dom";
+import { hasModifier, isFormField } from "../lib/dom";
 import { useOverlayOpen, withBackgroundLocation } from "../lib/backgroundLocation";
 import { postAiTag } from "../lib/ai";
 import {
@@ -444,7 +444,7 @@ export default function AllImagesPage() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (overlayOpen) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (hasModifier(e)) return;
       if (isFormField(e.target)) return;
 
       if (e.key === "+" || e.key === "=") {
@@ -643,7 +643,7 @@ export default function AllImagesPage() {
     }
     const onKey = (e: KeyboardEvent) => {
       if (overlayOpen) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (hasModifier(e)) return;
       if (isFormField(e.target)) return;
       if (isGridNavKey(e.key)) {
         e.preventDefault();

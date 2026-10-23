@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Dialog } from "./ui/Dialog";
-import { isFormField } from "../lib/dom";
+import { hasModifier, isFormField } from "../lib/dom";
 import { OPEN_SHORTCUTS_EVENT, shortcutGroups } from "../lib/shortcuts";
 
 /**
@@ -15,7 +15,7 @@ export function ShortcutHelp() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "?" || e.ctrlKey || e.metaKey || e.altKey || isFormField(e.target)) return;
+      if (e.key !== "?" || hasModifier(e) || isFormField(e.target)) return;
       // Not over another dialog (a confirm, a rename): one modal at a time.
       // Its own `?` closes it (below).
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;

@@ -116,6 +116,9 @@ export function RenameTagDialog({
               } else if (e.key === "ArrowUp" && showList) {
                 e.preventDefault();
                 setActive((a) => Math.max(a - 1, 0));
+              } else if (e.key === "Escape" && showList) {
+                // Closes the list; the dialog's own Escape skips an open popup.
+                setSuggesting(false);
               } else if (e.key === "Enter") {
                 e.preventDefault();
                 // The first Enter takes the highlighted name; the next submits.
@@ -125,6 +128,7 @@ export function RenameTagDialog({
             }}
             placeholder="New name, or an existing tag to merge into"
             role="combobox"
+            aria-haspopup="listbox"
             aria-expanded={showList}
             aria-autocomplete="list"
           />

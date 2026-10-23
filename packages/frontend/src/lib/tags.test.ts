@@ -165,6 +165,9 @@ describe("renameOptions", () => {
   it("offers only other prompt tags for a prompt tag", () => {
     expect(renameOptions("prompt:1girl", known).map((t) => t._id)).toEqual(["prompt:solo"]);
   });
+  it("offers nothing for an AI tag, which can't be renamed", () => {
+    expect(renameOptions("1girl", known)).toEqual([]);
+  });
 });
 
 describe("planRename", () => {
