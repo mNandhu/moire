@@ -58,9 +58,14 @@ def compose(base: str, *chip_blocks: Iterable[str]) -> str:
 def prompt_terms(text: str, limit: int = 2) -> list[str]:
     """The first tags of a prompt, for a batch's auto name: read by
     :func:`parse_prompt`, so weights, brackets, escapes, embeddings and LoRA
-    tokens are handled as everywhere else."""
-    tags = [p.text for p in parse_prompt(text) if p.kind == "tag"]
-    return [display_tag(t) for t in tags[:limit]]
+    tokens are handled as everywhere else. A prompt with no tag pieces (all
+    natural language) gives its first prose pieces instead, so it still
+    names the batch."""
+    pieces = parse_prompt(text)
+    terms = [p.text for p in pieces if p.kind == "tag"] or [
+        p.text for p in pieces if p.kind == "prose"
+    ]
+    return [display_tag(t.lower()) for t in terms[:limit]]
 
 
 def display(word: str) -> str:

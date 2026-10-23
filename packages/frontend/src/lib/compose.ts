@@ -52,12 +52,14 @@ export function compose(base: string, ...blocks: readonly (readonly string[])[])
 
 /** The first tags of a prompt, for a batch's auto name, as promptOutline
  * reads them: weights, brackets and escapes dropped; LoRAs, embeddings,
- * prose and noise skipped. */
+ * prose and noise skipped. A prompt with no tags (all natural language)
+ * gives its first prose pieces instead. Twin of `prompt_terms`. */
 export function promptTerms(text: string, limit = 2): string[] {
-  return readTerms(text ?? "")
-    .filter((t) => t.kind === "tag")
+  const terms = readTerms(text ?? "");
+  const tags = terms.filter((t) => t.kind === "tag");
+  return (tags.length ? tags : terms.filter((t) => t.kind === "prose"))
     .slice(0, limit)
-    .map((t) => formatTag(t.name));
+    .map((t) => formatTag(t.name.toLowerCase()));
 }
 
 /** Chip / name display: underscores read as spaces, embeddings by name. */
