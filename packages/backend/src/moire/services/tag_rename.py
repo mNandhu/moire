@@ -24,6 +24,7 @@ split of its own stands for its split, and a rule that would loop is refused.
 
 from __future__ import annotations
 
+import logging
 import time
 
 import anyio
@@ -40,6 +41,8 @@ from . import (
     tag_index,
 )
 from .tag_names import canonical_name
+
+logger = logging.getLogger("moire.tag_rename")
 
 
 class RenameError(ValueError):
@@ -275,17 +278,30 @@ async def _apply(affected) -> bool:
     """Reproject the images a rule change touched: up to
     :data:`_SYNC_REPROJECT` before returning, more (or any, while another
     reprojection runs and would make this one wait) in the background. Both
-    show as activity. Returns whether it went to the background (the
-    response's ``background``)."""
+    show as activity. The rule is committed by now, so an inline failure
+    hands the work to the background rather than failing the request.
+    Returns whether it went to the background (the response's
+    ``background``)."""
     ids = sorted(affected)
-    background = len(ids) > _SYNC_REPROJECT or (bool(ids) and reproject.busy())
-    if background:
-        reproject.reproject_ids_async(ids)
-    elif ids:
-        await anyio.to_thread.run_sync(reproject.reproject_ids_tracked, ids)
-    # The rule write itself (moved cover pins, characters) is committed by
-    # now; a background run invalidates again per batch as it writes.
-    tag_index.invalidate()
+    background = len(ids) > _SYNC_REPROJECT
+    try:
+        if ids and not background:
+            # Never waits: a run holding the lock sends this one to the
+            # background, which runs after it.
+            try:
+                done = await anyio.to_thread.run_sync(
+                    reproject.try_reproject_ids_tracked, ids
+                )
+            except Exception:
+                logger.exception("Inline reprojection failed; retrying in background")
+                done = None
+            background = done is None
+        if ids and background:
+            reproject.reproject_ids_async(ids)
+    finally:
+        # The rule write itself (moved cover pins, characters) is committed
+        # by now; a background run invalidates again per batch as it writes.
+        tag_index.invalidate()
     return background
 
 

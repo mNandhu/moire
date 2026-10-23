@@ -130,16 +130,21 @@ def _write_gens(conn, gens: list[tuple[str, dict]]) -> None:
             conn.execute(sa.insert(table), rows)
 
 
-# One reprojection at a time, whatever started it. A run reads its settings
-# only once it holds this, so runs write in the order they read: one that read
-# older rules or keywords can't overwrite a later run's rows. Not reentrant:
-# take it only here.
+# One reprojection at a time, whatever started it. Each run holds this for
+# its whole length and reads its settings only while holding it (a chunked
+# run re-reads them per chunk, still inside), so runs write in the order they
+# read: one that read older rules or keywords can't overwrite a later run's
+# rows, and no other run slips in between a run's chunks. Not reentrant: take
+# it only at a run's entry points below.
 _run_lock = threading.Lock()
+
+# reproject_ids derives this many ids per raw-table read.
+_ID_CHUNK = 500
 
 
 def busy() -> bool:
-    """Whether a reprojection is running now, so a new one would wait. A hint
-    for callers deciding whether to wait inline; ordering is the lock's."""
+    """Whether a reprojection is running now. A hint only: callers that must
+    not wait take the lock without blocking instead (the ``try_`` paths)."""
     return _run_lock.locked()
 
 
@@ -223,22 +228,47 @@ def reproject_library(
 
 
 def reproject_image(image_id: str) -> int:
-    """Recompute ``gen.*`` for a single image (watcher single-file ingest)."""
-    return _reproject_where(t.image_gen_raw.c._id == image_id)
+    """Recompute ``gen.*`` for a single image (watcher single-file ingest).
+    Never waits: while another run holds the lock, the image is queued for
+    the background (:func:`_defer`), which derives it after that run. Returns
+    how many were derived now (0 when deferred)."""
+    if not _run_lock.acquire(blocking=False):
+        _defer([image_id])
+        return 0
+    try:
+        return _derive_where(
+            t.image_gen_raw.c._id == image_id,
+            force=False,
+            task=None,
+            count_total=True,
+        )
+    finally:
+        _run_lock.release()
 
 
 def reproject_ids(image_ids: list[str], *, task: activity.Task | None = None) -> int:
-    """Recompute ``gen.*`` for specific images (after a merge-rule change)."""
+    """Recompute ``gen.*`` for specific images (after a merge-rule change),
+    holding the run lock for the whole list."""
+    with _run_lock:
+        return _derive_ids(image_ids, task)
+
+
+def _derive_ids(image_ids: list[str], task: activity.Task | None) -> int:
+    """:func:`reproject_ids`' work; the caller holds :data:`_run_lock`.
+    Settings are re-read per chunk (:func:`_derive_where`), inside the lock."""
     # The whole run's size up front, so the bar never jumps back a chunk at
     # a time; ids with nothing to derive count as done with their chunk.
     if task is not None:
         task.add_total(len(image_ids))
     updated = 0
-    for i in range(0, len(image_ids), 500):
-        chunk = image_ids[i : i + 500]
+    for i in range(0, len(image_ids), _ID_CHUNK):
+        chunk = image_ids[i : i + _ID_CHUNK]
         before = task.done if task is not None else 0
-        updated += _reproject_where(
-            t.image_gen_raw.c._id.in_(chunk), task=task, count_total=False
+        updated += _derive_where(
+            t.image_gen_raw.c._id.in_(chunk),
+            force=False,
+            task=task,
+            count_total=False,
         )
         if task is not None:
             task.advance(len(chunk) - (task.done - before))
@@ -266,11 +296,17 @@ def _tracked(work, *args, library_id: str | None = None, **kwargs) -> None:
         logger.exception("Reprojection failed")
 
 
-def reproject_ids_tracked(image_ids: list[str]) -> int:
+def try_reproject_ids_tracked(image_ids: list[str]) -> int | None:
     """:func:`reproject_ids` inline, shown as activity like the background
-    runs. A failure propagates to the caller."""
-    with activity.track("reproject") as task:
-        return reproject_ids(image_ids, task=task)
+    runs, but only if no other run holds the lock: ``None`` (nothing done,
+    no activity) instead of waiting. A failure propagates to the caller."""
+    if not _run_lock.acquire(blocking=False):
+        return None
+    try:
+        with activity.track("reproject") as task:
+            return _derive_ids(image_ids, task)
+    finally:
+        _run_lock.release()
 
 
 def _spawn(
@@ -349,6 +385,36 @@ def underived_ids(library_id: str) -> list[str]:
                 )
             ).scalars()
         )
+
+
+_deferred_lock = threading.Lock()
+_deferred: set[str] = set()
+_deferred_running = False
+
+
+def _defer(image_ids: list[str]) -> None:
+    """Queue images for one background drainer that reprojects them after
+    whatever run holds the lock now. Ids queued while it runs join its next
+    pass, so a burst of watcher events costs one thread, not one each."""
+    global _deferred_running
+    with _deferred_lock:
+        _deferred.update(image_ids)
+        if _deferred_running:
+            return
+        _deferred_running = True
+
+    def _drain() -> None:
+        global _deferred_running
+        while True:
+            with _deferred_lock:
+                if not _deferred:
+                    _deferred_running = False
+                    return
+                ids = sorted(_deferred)
+                _deferred.clear()
+            _tracked(reproject_ids, ids)
+
+    threading.Thread(target=_drain, name="reproject-deferred", daemon=True).start()
 
 
 def reproject_ids_async(image_ids: list[str]) -> threading.Thread:

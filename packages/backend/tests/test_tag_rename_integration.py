@@ -2,6 +2,8 @@
 spelling: manual renames rewrite once, prompt merges are rules that survive
 reprojection, AI tags are refused."""
 
+import asyncio
+
 import pytest
 import sqlalchemy as sa
 
@@ -376,12 +378,49 @@ async def test_a_small_rule_change_does_not_wait_behind_a_running_reprojection(
     reproject.reproject_library("L1")
     queued: list[list[str]] = []
     monkeypatch.setattr(reproject, "reproject_ids_async", queued.append)
+    # A run that takes the lock after any "is it busy?" look must not make
+    # the request wait either: the busy hint says no, the lock is held.
+    monkeypatch.setattr(reproject, "busy", lambda: False)
     assert reproject._run_lock.acquire(timeout=5)
     try:
-        resp = await client.post(
-            "/tags/rename", json={"tag": "prompt:blonde", "to": "blonde_hair"}
+        resp = await asyncio.wait_for(
+            client.post(
+                "/tags/rename", json={"tag": "prompt:blonde", "to": "blonde_hair"}
+            ),
+            5,
         )
     finally:
         reproject._run_lock.release()
     assert resp.json()["background"] is True
     assert queued == [["L1:a"]]
+
+
+async def test_an_inline_reprojection_failure_finishes_in_the_background(
+    client, seed, monkeypatch
+):
+    """The rule is saved before the reprojection; if that fails inline the
+    request still succeeds, the tag list is refreshed and the work retried
+    in the background."""
+    from moire.services import tag_index
+
+    seed("L1:a", tags=())
+    _raw("L1:a", "blonde")
+    reproject.reproject_library("L1")
+
+    def boom(ids):
+        raise RuntimeError("disk on fire")
+
+    queued: list[list[str]] = []
+    invalidated: list[bool] = []
+    monkeypatch.setattr(reproject, "try_reproject_ids_tracked", boom)
+    monkeypatch.setattr(reproject, "reproject_ids_async", queued.append)
+    monkeypatch.setattr(tag_index, "invalidate", lambda: invalidated.append(True))
+    resp = await client.post(
+        "/tags/rename", json={"tag": "prompt:blonde", "to": "blonde_hair"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["background"] is True
+    assert queued == [["L1:a"]]
+    assert invalidated
+    aliases = (await client.get("/tags/aliases")).json()
+    assert [a["from"] for a in aliases] == ["blonde"]

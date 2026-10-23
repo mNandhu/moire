@@ -88,3 +88,69 @@ async def test_spawned_runs_are_joinable_and_tracked(seed, monkeypatch):
     reproject.reproject_ids_async(["x"]).join(5)
     reproject.reproject_library_async("L1", workflow_sig="s").join(5)
     assert calls == [("ids", ["x"], "reproject"), ("lib", "L1", "s", "L1")]
+
+
+def _seed_raw(seed, image_id: str, prompt: str) -> None:
+    seed(image_id)
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.insert(t.image_gen_raw).values(
+                _id=image_id,
+                library_id="L1",
+                workflow_sig=None,
+                raw={"source": "a1111", "parameters": f"{prompt}\nSteps: 20"},
+            )
+        )
+
+
+async def test_an_id_run_holds_the_lock_across_chunks(seed, monkeypatch):
+    """No other run gets in between a chunked run's chunks, yet each chunk
+    still reads the settings fresh."""
+    from moire.services import activity, extraction_settings
+
+    for i in "abc":
+        _seed_raw(seed, f"L1:{i}", "blue eyes")
+    monkeypatch.setattr(reproject, "_ID_CHUNK", 1)
+    loads = 0
+    load = extraction_settings.load_sync
+
+    def counting():
+        nonlocal loads
+        loads += 1
+        return load()
+
+    monkeypatch.setattr(extraction_settings, "load_sync", counting)
+    locked: list[bool] = []
+
+    class Spy(activity.Task):
+        def advance(self, n: int = 1) -> None:
+            locked.append(reproject._run_lock.locked())
+            super().advance(n)
+
+    reproject.reproject_ids(["L1:a", "L1:b", "L1:c"], task=Spy("reproject"))
+    assert locked and all(locked)
+    assert loads == 3
+    assert not reproject._run_lock.locked()
+
+
+async def test_the_watcher_never_waits_on_a_running_reprojection(seed):
+    """A single-image reprojection while another run holds the lock returns
+    at once and is derived in the background after that run."""
+    _seed_raw(seed, "L1:a", "blue eyes")
+    assert reproject._run_lock.acquire(timeout=5)
+    try:
+        done = threading.Event()
+        th = threading.Thread(
+            target=lambda: (reproject.reproject_image("L1:a"), done.set())
+        )
+        th.start()
+        assert done.wait(5)
+        assert not _tags("L1:a")
+    finally:
+        reproject._run_lock.release()
+    for _ in range(100):
+        if not reproject._deferred_running:
+            break
+        threading.Event().wait(0.05)
+    assert not reproject._deferred_running
+    assert _tags("L1:a") == ["prompt:blue_eyes"]
