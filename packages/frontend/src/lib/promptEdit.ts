@@ -1,17 +1,21 @@
 /**
  * Autocomplete in a free-text prompt: the term the caret is in, and the text
- * after a suggestion replaces it. Terms are comma or line separated; leading
- * brackets of a weight (`(smi`) stay the user's. Pure.
+ * after a suggestion replaces it. Terms end at promptOutline's separators;
+ * leading brackets of a weight (`(smi`) stay the user's. The rest of
+ * promptOutline's reading is left out on purpose: a term still being typed
+ * isn't finished (`hu_tao_(gen` is a qualifier not closed yet, not a group).
+ * Pure.
  */
+import { SEPARATORS } from "./promptOutline";
 
 export type Term = { start: number; end: number; query: string };
 
 /** The term around `caret`, or null when there's nothing typed there. */
 export function termAt(text: string, caret: number): Term | null {
   let start = caret;
-  while (start > 0 && !",\n".includes(text[start - 1])) start--;
+  while (start > 0 && !SEPARATORS.has(text[start - 1])) start--;
   let end = caret;
-  while (end < text.length && !",\n".includes(text[end])) end++;
+  while (end < text.length && !SEPARATORS.has(text[end])) end++;
   // Leading spaces and weight brackets aren't part of the word.
   while (start < caret && /[\s([]/.test(text[start])) start++;
   const query = text.slice(start, caret);

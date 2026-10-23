@@ -10,6 +10,11 @@ describe("prompt autocomplete", () => {
     expect(termAt("embedding:eas", 13)?.query).toBe("embedding:eas");
   });
 
+  it("splits where the prompt board does, but keeps a half-typed qualifier", () => {
+    expect(termAt("cat | do", 8)).toEqual({ start: 6, end: 8, query: "do" });
+    expect(termAt("hu_tao_(gen", 11)?.query).toBe("hu_tao_(gen");
+  });
+
   it("replaces the term and moves on", () => {
     const text = "sitting, gar";
     expect(replaceTerm(text, termAt(text, 12)!, "garden")).toEqual({ text: "sitting, garden, ", caret: 17 });

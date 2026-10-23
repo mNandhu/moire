@@ -42,5 +42,15 @@ describe("composeParts (same cases as test_generation_compose.py)", () => {
       "sitting on swing",
     ]);
     expect(promptTerms("")).toEqual([]);
+    // Read as the board reads them: escapes, kaomoji and groups kept whole.
+    expect(promptTerms("hu_tao_\\(genshin_impact\\), (>_<:1.1), smile", 3)).toEqual([
+      "hu tao (genshin impact)",
+      ">_<",
+      "smile",
+    ]);
+    expect(promptTerms("(white dress, blue sky:1.2), a gentle breeze moving through her hair, 1girl")).toEqual([
+      "white dress",
+      "blue sky",
+    ]);
   });
 });

@@ -7,6 +7,8 @@
  * free text written as is; chip blocks hold canonical tag names (underscores)
  * or `embedding:name` words.
  */
+import { promptTerms as readTerms } from "./promptOutline";
+import { formatTag } from "./tags";
 
 export const EMBEDDING_PREFIX = "embedding:";
 
@@ -47,20 +49,14 @@ export function compose(base: string, ...blocks: readonly (readonly string[])[])
   return composeParts([base ?? "", ...blocks]);
 }
 
-const WEIGHT = /^[([]+|[)\]]+$|:\s*[\d.]+\s*[)\]]*$/g;
-
-/** The first comma-separated terms of a prompt, for a batch's auto name:
- * weights and brackets dropped, embeddings and LoRA tags skipped. */
+/** The first tags of a prompt, for a batch's auto name, as promptOutline
+ * reads them: weights, brackets and escapes dropped; LoRAs, embeddings,
+ * prose and noise skipped. */
 export function promptTerms(text: string, limit = 2): string[] {
-  const out: string[] = [];
-  for (const raw of (text ?? "").replace(/\n/g, ",").split(",")) {
-    let term = raw.trim();
-    if (!term || isEmbedding(term) || term.startsWith("<")) continue;
-    term = term.replace(WEIGHT, "").trim().replace(WEIGHT, "").trim().replace(/\\/g, "");
-    if (term) out.push(term.replace(/_/g, " "));
-    if (out.length === limit) break;
-  }
-  return out;
+  return readTerms(text ?? "")
+    .filter((t) => t.kind === "tag")
+    .slice(0, limit)
+    .map((t) => formatTag(t.name));
 }
 
 /** Chip / name display: underscores read as spaces, embeddings by name. */

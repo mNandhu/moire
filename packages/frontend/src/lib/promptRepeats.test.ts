@@ -22,6 +22,13 @@ describe("prompt terms", () => {
     expect(prefixRepeats("x", "<lora:a, b:1>, x")).toEqual(["x"]);
     expect(prefixRepeats("hu_tao_\\(genshin_impact\\)", "1girl, hu tao \\(genshin impact\\)")).toEqual(["hu tao \\(genshin impact\\)"]);
   });
+  it("splits the way the board and the backend do", () => {
+    // "|" separates; a qualifier glued onto a name is part of the tag.
+    expect(prefixRepeats("masterpiece", "1girl | masterpiece")).toEqual(["masterpiece"]);
+    expect(tagRepeats(["hu_tao_(genshin_impact)"], "1girl, hu_tao_(genshin_impact)")).toEqual(["hu_tao_(genshin_impact)"]);
+    // A bracket left open holds the rest of the prompt.
+    expect(prefixRepeats("masterpiece", "(1girl, masterpiece")).toEqual([]);
+  });
 });
 
 describe("withoutTerms", () => {
@@ -32,6 +39,16 @@ describe("withoutTerms", () => {
     expect(withoutTerms("masterpiece, 1girl, best quality, beach", ["masterpiece", "best_quality"]).text).toBe("1girl, beach");
     expect(withoutTerms("1girl, beach, masterpiece", ["masterpiece"]).text).toBe("1girl, beach");
     expect(withoutTerms("a, m, b", ["m", "b"]).text).toBe("a");
+  });
+  it("keeps what stands beside a term it takes out", () => {
+    expect(withoutTerms("masterpiece, (x, y), beach", ["masterpiece"]).text).toBe("(x, y), beach");
+    expect(withoutTerms("beach, (x, y), masterpiece", ["masterpiece"]).text).toBe("beach, (x, y)");
+    expect(withoutTerms("masterpiece, BREAK, 1girl", ["masterpiece"]).text).toBe("BREAK, 1girl");
+    expect(withoutTerms("1girl, masterpiece\n(x, y)", ["masterpiece"]).text).toBe("1girl\n(x, y)");
+    expect(withoutTerms("a\nm, n, b", ["m", "n"]).text).toBe("a\nb");
+    expect(withoutTerms("a, m\nn, b", ["m", "n"]).text).toBe("a\nb");
+    expect(withoutTerms("  m, a, ", ["m"]).text).toBe("  a, ");
+    expect(withoutTerms("m", ["m"])).toEqual({ text: "", removed: 1 });
   });
   it("keeps line breaks and groups", () => {
     expect(withoutTerms("masterpiece, 1girl\nbeach, best quality\n(x, masterpiece)", ["masterpiece", "best quality"]).text).toBe(
