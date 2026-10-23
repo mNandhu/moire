@@ -1,278 +1,12 @@
-import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
-import { ImageOff, Loader2, RotateCcw, TriangleAlert, Undo2, X } from "lucide-react";
-import { resultGrid, resultSlots, type ResultSlot } from "../../lib/batches";
-import { useCancelRequest, useRetryRequest } from "../../lib/batchActions";
-import type { Batch, GenRequest, Output } from "../../lib/generate";
-import { setQuarantine, setScore } from "../../lib/imageMutations";
-import { withBackgroundLocation } from "../../lib/backgroundLocation";
+import { ImageOff, Loader2, RotateCcw, TriangleAlert } from "lucide-react";
+import { cellTitle, failureLabel, resultGrid, resultSlots, shownSlot, slotKey, slotWhy, stepIndex, type ResultSlot } from "../../lib/batches";
+import { useRetryRequest } from "../../lib/batchActions";
+import type { Batch, GenRequest } from "../../lib/generate";
 import { cn } from "../../lib/cn";
 import { smallThumb } from "../../lib/media";
-import { imageHref } from "../../lib/imageFilter";
-import { runProgress } from "../../lib/eta";
-import { clockText } from "../../lib/format";
-import { useLiveSeconds } from "../../hooks/useLiveSeconds";
-import { useToast } from "../Toasts";
-import { ScorePicker } from "../ui/ScoreMark";
-import { errorText } from "../../lib/api";
-
-export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; onChanged: () => void }) {
-  const location = useLocation();
-  const toast = useToast();
-  const act = async (fn: () => Promise<unknown>) => {
-    try {
-      await fn();
-      onChanged();
-    } catch (e) {
-      toast.push(errorText(e), "error");
-    }
-  };
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (!out.in_library) return;
-    const k = e.key.toLowerCase();
-    if (k === "k") void act(() => setQuarantine(out.image_id, false));
-    else if (k === "x") void act(() => setQuarantine(out.image_id, true));
-    // A rejected image is out; it takes a score once restored.
-    else if (/^[1-5]$/.test(k) && !out.quarantined) void act(() => setScore(out.image_id, Number(k)));
-  };
-  if (!out.in_library) {
-    return (
-      <div
-        className="flex items-center justify-center rounded-lg border border-dashed border-line text-xs text-faint"
-        style={{ aspectRatio: ratio }}
-        title={out.filename}
-      >
-        {out.arriving ? (
-          <>
-            <Loader2 size={14} className="mr-1.5 animate-spin" /> Scanning
-          </>
-        ) : (
-          <>
-            <ImageOff size={14} className="mr-1.5" /> Not in the library
-          </>
-        )}
-      </div>
-    );
-  }
-  const rejected = !!out.quarantined;
-  return (
-    <div
-      tabIndex={0}
-      onKeyDown={onKeyDown}
-      title={rejected ? "K restore" : "K keep · X reject · 1 to 5 score"}
-      className="group relative overflow-hidden rounded-lg bg-raised outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-      style={{ aspectRatio: ratio }}
-    >
-      <Link to={imageHref(out.image_id)} state={withBackgroundLocation(location)} tabIndex={-1}>
-        {out.thumb_url && (
-          <img
-            src={out.thumb_url}
-            alt=""
-            loading="lazy"
-            className={cn("h-full w-full object-cover transition-[opacity,filter]", rejected && "opacity-40 grayscale")}
-          />
-        )}
-      </Link>
-      {/* Rejected is marked like a score: a red grease-pencil X on the print. */}
-      {rejected && (
-        <span
-          aria-label="Rejected"
-          title="Rejected"
-          className="pointer-events-none absolute left-2 top-1 font-marker text-[30px] leading-none text-red-500 -rotate-6 [text-shadow:0_0_1px_rgb(0_0_0/0.95),0_0_2px_rgb(0_0_0/0.9),0_1px_4px_rgb(0_0_0/0.75)]"
-        >
-          X
-        </span>
-      )}
-      {/* Scored, the mark stays at rest as on the gallery's tiles; the rest
-          of the bar comes with the pointer. */}
-      <div
-        className={cn(
-          "absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100",
-          (rejected || !out.score) && "opacity-0",
-        )}
-      >
-        {rejected ? (
-          <button
-            type="button"
-            onClick={() => act(() => setQuarantine(out.image_id, false))}
-            className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs text-neutral-100 hover:text-white"
-          >
-            <Undo2 size={13} /> Restore
-          </button>
-        ) : (
-          <>
-            <ScorePicker value={out.score ?? 0} onSet={(n) => act(() => setScore(out.image_id, n))} size="sm" quiet />
-            <span className="flex-1" />
-            <button
-              type="button"
-              aria-label="Reject"
-              title="Reject"
-              onClick={() => act(() => setQuarantine(out.image_id, true))}
-              className="rounded p-0.5 text-neutral-300 opacity-0 hover:text-red-300 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100"
-            >
-              <X size={15} />
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function cellTitle(s: ResultSlot): string {
-  return `Request ${s.number}, seed ${s.req.seed}`;
-}
-
-/** ComfyUI's own progress: "3 12 / 28" (node, then step of steps). */
-function stepsLabel(req: GenRequest): string | null {
-  if (!req.progress) return null;
-  const steps = `${req.progress.value} / ${req.progress.max}`;
-  return req.progress.node ? `${req.progress.node} ${steps}` : steps;
-}
-
-// The drifting colour under a generating tile: warm and violet on time,
-// amber once it overruns.
-const AURORA = {
-  calm: "radial-gradient(55% 45% at 30% 25%, rgb(251 191 136 / 0.32), transparent 70%), radial-gradient(50% 45% at 72% 78%, rgb(129 140 248 / 0.34), transparent 70%), radial-gradient(40% 35% at 70% 30%, rgb(232 121 249 / 0.18), transparent 70%)",
-  late: "radial-gradient(55% 45% at 30% 25%, rgb(251 191 36 / 0.30), transparent 70%), radial-gradient(50% 45% at 72% 78%, rgb(249 115 22 / 0.26), transparent 70%), radial-gradient(40% 35% at 70% 30%, rgb(244 63 94 / 0.14), transparent 70%)",
-};
-
-/** The tile's bar: ComfyUI's steps when it sends them, else the time
- * against the estimate; stripes once the estimate is passed or without one. */
-function RunBar({ value, striped, late }: { value: number | null; striped: boolean; late: boolean }) {
-  return (
-    <div className="relative h-1 overflow-hidden rounded-full bg-white/10">
-      {striped || value == null ? (
-        <div
-          className={cn("absolute inset-0 animate-stripes", late ? "opacity-90" : "opacity-60")}
-          style={{
-            backgroundImage: `repeating-linear-gradient(-45deg, ${late ? "rgb(251 191 36 / 0.85)" : "rgb(167 139 250 / 0.7)"} 0 6px, transparent 6px 12px)`,
-            backgroundSize: "24px 100%",
-          }}
-        />
-      ) : (
-        <div
-          className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-brand-600 to-brand-300 shadow-[0_0_8px_rgb(167_139_250/0.8)] transition-[width] duration-300 ease-linear"
-          style={{ width: `${Math.max(2, value * 100)}%` }}
-        />
-      )}
-    </div>
-  );
-}
-
-function WaitingCell({
-  batch,
-  req,
-  first,
-  ratio,
-  onChanged,
-}: {
-  batch: Batch;
-  req: GenRequest;
-  first: boolean;
-  ratio: number;
-  onChanged: (b?: Batch) => void;
-}) {
-  const cancel = useCancelRequest(batch._id, req._id, onChanged);
-  const running = req.state === "running";
-  const elapsed = useLiveSeconds(running ? req.elapsed : null, running);
-  const run = running ? runProgress(req.expected, elapsed) : null;
-  const steps = req.progress && req.progress.max ? req.progress.value / req.progress.max : null;
-  const late = run?.phase === "late";
-  // Every cell of a running request develops together (one request makes
-  // all its images at once); only the first carries Cancel.
-  // ComfyUI's steps when it sends them, else the time: one number for the
-  // tile and its bar.
-  const progress = steps ?? run?.fill ?? null;
-  const fill = progress ?? 0;
-  const big = !running
-    ? null
-    : run
-      ? run.phase === "on-time"
-        ? clockText(run.left, "ceil")
-        : `+${clockText(run.over)}`
-      : elapsed != null
-        ? clockText(elapsed)
-        : null;
-  // Waiting in Moiré's queue or ComfyUI's reads the same: queued.
-  const caption = !running
-    ? "Queued"
-    : run
-      ? run.phase === "on-time"
-        ? "left"
-        : late
-          ? "Taking longer than usual"
-          : "Finishing up"
-      : (stepsLabel(req) ?? "Running");
-  const tip = [stepsLabel(req), run && req.expected ? `Usually about ${clockText(req.expected)}` : null].filter(Boolean).join(" · ");
-  return (
-    <div
-      className={cn(
-        "relative flex flex-col overflow-hidden rounded-lg p-2 [container-type:inline-size]",
-        running ? cn("border bg-raised", late ? "border-amber-600/60" : "border-brand-700/70") : "bg-raised/50",
-      )}
-      style={{ aspectRatio: ratio }}
-      title={tip || undefined}
-    >
-      {running ? (
-        <>
-          <div
-            aria-hidden
-            className="absolute inset-0 transition-[opacity,filter] duration-1000 ease-linear"
-            style={{ opacity: 0.6 + fill * 0.4, filter: `saturate(${0.5 + fill * 0.5})` }}
-          >
-            <div className="absolute -inset-1/4 animate-aurora" style={{ background: late ? AURORA.late : AURORA.calm }} />
-          </div>
-          {/* Developing from the bottom up: the part still to come stays dim,
-              its edge a soft line of light. */}
-          <div
-            aria-hidden
-            className="absolute inset-x-0 top-0 bg-gradient-to-b from-canvas/60 via-canvas/30 to-transparent transition-[height] duration-1000 ease-linear"
-            style={{ height: `${(1 - fill) * 100}%` }}
-          />
-          <div aria-hidden className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
-        </>
-      ) : (
-        <div aria-hidden className="absolute inset-0 animate-pulse bg-raised/40" />
-      )}
-      {first && (
-        <button
-          type="button"
-          aria-label="Cancel"
-          title="Cancel"
-          onClick={() => cancel.mutate()}
-          disabled={cancel.isPending}
-          className="absolute right-1.5 top-1.5 z-10 rounded p-0.5 text-muted hover:bg-black/30 hover:text-neutral-100"
-        >
-          <X size={13} />
-        </button>
-      )}
-      <div className="relative flex flex-1 flex-col items-center justify-center gap-0.5 text-center">
-        {big && (
-          <span
-            className={cn(
-              "font-semibold tabular-nums leading-none tracking-tight drop-shadow",
-              "text-[clamp(1rem,22cqw,2rem)]",
-              late ? "text-amber-200" : "text-neutral-50",
-            )}
-          >
-            {big}
-          </span>
-        )}
-        {(first || running) && (
-          <span className={cn("text-xs leading-tight", late ? "text-amber-200/90" : running ? "text-neutral-200" : "text-muted")}>
-            {caption}
-          </span>
-        )}
-      </div>
-      {running && (
-        <div className="relative">
-          <RunBar value={progress} striped={!!run && run.phase !== "on-time"} late={late} />
-        </div>
-      )}
-    </div>
-  );
-}
+import { ResultTile } from "./ResultTile";
+import { WaitingCell } from "./RunningCell";
 
 function FailedCell({
   batch,
@@ -287,7 +21,6 @@ function FailedCell({
 }) {
   const retry = useRetryRequest(batch._id, req._id, onChanged);
   const cancelled = req.state === "cancelled";
-  const empty = req.state === "done";
   return (
     <div
       className={cn(
@@ -297,13 +30,7 @@ function FailedCell({
       style={{ aspectRatio: ratio }}
     >
       <div className={cancelled ? "text-muted" : "text-red-200"}>
-        {cancelled
-          ? "Cancelled"
-          : empty
-            ? "Returned 0 images"
-            : req.state === "lost"
-              ? "Lost"
-              : `Failed${req.images && req.images > 1 ? `, ${req.images} images` : ""}`}
+        {failureLabel(req)}
       </div>
       {req.error && (
         <div className="min-h-0 flex-1 overflow-hidden break-words font-mono text-red-300">
@@ -343,7 +70,7 @@ function FailedCell({
 /** One cell of a batch: the image, its loader, or what went wrong. */
 function SlotCell({ batch, s, ratio, onChanged }: { batch: Batch; s: ResultSlot; ratio: number; onChanged: (b?: Batch) => void }) {
   return s.kind === "image" ? (
-    <Tile out={s.out} ratio={ratio} onChanged={() => onChanged()} />
+    <ResultTile out={s.out} ratio={ratio} onChanged={() => onChanged()} />
   ) : s.kind === "waiting" ? (
     <WaitingCell batch={batch} req={s.req} first={s.first} ratio={ratio} onChanged={onChanged} />
   ) : (
@@ -351,7 +78,6 @@ function SlotCell({ batch, s, ratio, onChanged }: { batch: Batch; s: ResultSlot;
   );
 }
 
-const slotKey = (s: ResultSlot, i: number) => (s.kind === "image" ? `${s.req._id}:${s.out.idx}` : `${s.req._id}:${s.kind}:${i}`);
 
 /**
  * A batch's images. On a page, one grid of every request's cells in order:
@@ -411,14 +137,11 @@ function PanelResults({
   // running batch's requests finish.
   const [picked, setPicked] = useState<string | null>(null);
   const keys = slots.map(slotKey);
-  const making = slots.findIndex((x) => x.kind === "waiting");
-  const lastMade = slots.map((x) => x.kind).lastIndexOf("image");
-  const newest = making >= 0 ? making : lastMade >= 0 ? lastMade : slots.length - 1;
-  const at = Math.max(0, picked ? keys.indexOf(picked) : newest);
+  const at = shownSlot(slots, picked);
   const s = slots[at];
   if (!s) return null;
   const many = slots.length > 1;
-  const step = (d: number) => setPicked(keys[(at + d + slots.length) % slots.length]);
+  const step = (d: number) => setPicked(keys[stepIndex(at, d, slots.length)]);
   return (
     <div
       className="[container-type:inline-size]"
@@ -471,10 +194,7 @@ function StripThumb({ s }: { s: ResultSlot }) {
     );
   }
   return (
-    <NoImageMark
-      why={s.kind === "failed" ? "failed" : s.kind === "waiting" ? (s.req.state === "running" ? "running" : "waiting") : "missing"}
-      className="h-full w-full"
-    />
+    <NoImageMark why={slotWhy(s)} className="h-full w-full" />
   );
 }
 

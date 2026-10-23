@@ -1,4 +1,4 @@
-import { etaLabel } from "./format";
+import { clockText, etaLabel } from "./format";
 import type { GenRequest } from "./generate";
 
 /**
@@ -89,4 +89,59 @@ export function queueTitle(e: NewEstimate | null | undefined): string | undefine
   if (!e || e.seconds == null) return undefined;
   const after = e.ahead != null && e.ahead >= 1 ? `, after ${etaLabel(e.ahead)} already queued` : "";
   return `Should take ${etaLabel(e.seconds)}${after}`;
+}
+
+/** ComfyUI's own progress: "3 12 / 28" (node, then step of steps). */
+export function stepsLabel(req: Pick<GenRequest, "progress">): string | null {
+  if (!req.progress) return null;
+  const steps = `${req.progress.value} / ${req.progress.max}`;
+  return req.progress.node ? `${req.progress.node} ${steps}` : steps;
+}
+
+/** What a request's loader cell shows. */
+export type CellProgress = {
+  /** The big clock (time left, how far over, or time so far); null when queued. */
+  big: string | null;
+  caption: string;
+  /** Hover text: ComfyUI's steps, the usual time. Empty when there is none. */
+  tip: string;
+  /** 0 to 1: ComfyUI's steps when it sends them, else the time against the estimate. */
+  progress: number | null;
+  fill: number;
+  late: boolean;
+  /** The bar is striped: past the estimate. */
+  striped: boolean;
+};
+
+/**
+ * The loader cell of a request: waiting in Moiré's queue or ComfyUI's reads
+ * the same (queued); running shows the time left against the estimate, else
+ * the time so far. `elapsed` is the live seconds of a running request. Pure.
+ */
+export function cellProgress(req: Pick<GenRequest, "state" | "progress" | "expected">, elapsed: number | null): CellProgress {
+  const running = req.state === "running";
+  const run = running ? runProgress(req.expected, elapsed) : null;
+  const steps = req.progress && req.progress.max ? req.progress.value / req.progress.max : null;
+  const late = run?.phase === "late";
+  const progress = steps ?? run?.fill ?? null;
+  const big = !running
+    ? null
+    : run
+      ? run.phase === "on-time"
+        ? clockText(run.left, "ceil")
+        : `+${clockText(run.over)}`
+      : elapsed != null
+        ? clockText(elapsed)
+        : null;
+  const caption = !running
+    ? "Queued"
+    : run
+      ? run.phase === "on-time"
+        ? "left"
+        : late
+          ? "Taking longer than usual"
+          : "Finishing up"
+      : (stepsLabel(req) ?? "Running");
+  const tip = [stepsLabel(req), run && req.expected ? `Usually about ${clockText(req.expected)}` : null].filter(Boolean).join(" · ");
+  return { big, caption, tip, progress, fill: progress ?? 0, late, striped: !!run && run.phase !== "on-time" };
 }

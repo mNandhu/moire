@@ -71,6 +71,46 @@ export function resultSlots(b: Pick<Batch, "requests">): ResultSlot[] {
   return out;
 }
 
+/** A cell's identity across renders: cells come and go as requests finish. */
+export const slotKey = (s: ResultSlot, i: number) => (s.kind === "image" ? `${s.req._id}:${s.out.idx}` : `${s.req._id}:${s.kind}:${i}`);
+
+export function cellTitle(s: ResultSlot): string {
+  return `Request ${s.number}, seed ${s.req.seed}`;
+}
+
+/** What a failed cell says: cancelled, an empty result, lost, or failed
+ * (with the image count when it made several). */
+export function failureLabel(req: Pick<GenRequest, "state" | "images">): string {
+  if (req.state === "cancelled") return "Cancelled";
+  if (req.state === "done") return "Returned 0 images";
+  if (req.state === "lost") return "Lost";
+  return `Failed${req.images && req.images > 1 ? `, ${req.images} images` : ""}`;
+}
+
+/** Why a slot has no thumbnail in the strip. */
+export function slotWhy(s: ResultSlot): "failed" | "running" | "waiting" | "missing" {
+  if (s.kind === "failed") return "failed";
+  if (s.kind === "waiting") return s.req.state === "running" ? "running" : "waiting";
+  return "missing";
+}
+
+/** The strip's default pick: the image being made, else the last one made. */
+export function newestSlot(slots: readonly ResultSlot[]): number {
+  const making = slots.findIndex((x) => x.kind === "waiting");
+  const lastMade = slots.map((x) => x.kind).lastIndexOf("image");
+  return making >= 0 ? making : lastMade >= 0 ? lastMade : slots.length - 1;
+}
+
+/** The index shown: the picked key's place (it follows its image as cells
+ * come and go), else the newest. */
+export function shownSlot(slots: readonly ResultSlot[], picked: string | null): number {
+  const keys = slots.map(slotKey);
+  return Math.max(0, picked ? keys.indexOf(picked) : newestSlot(slots));
+}
+
+/** The index `d` steps from `at`, wrapping. */
+export const stepIndex = (at: number, d: number, n: number) => (at + d + n) % n;
+
 /** Columns and rows for `n` cells on a batch's page: a few images stay big
  * (one row fills the view); more wrap at four across. Pure. */
 export function resultGrid(n: number): { cols: number; rows: number } {
