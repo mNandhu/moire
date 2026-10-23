@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { RotateCcw, X } from "lucide-react";
 import { Section } from "../../../components/ui/Card";
-import { Button } from "../../../components/ui/Button";
-import { Input } from "../../../components/ui/Input";
 import { Skeleton } from "../../../components/ui/Skeleton";
 import { useToast } from "../../../components/Toasts";
 import { useConfirm } from "../../../components/ConfirmDialog";
+import { ChipListEditor } from "../../../components/settings/ChipListEditor";
+import { SaveBar } from "../../../components/settings/SaveBar";
 import { useUnsavedChangesGuard } from "../../../hooks/useUnsavedChangesGuard";
 import {
   GUESS_KEYWORDS_KEY,
@@ -16,9 +15,7 @@ import {
 } from "../../../lib/queries";
 import { canonicalName, formatTag } from "../../../lib/tags";
 import { errorText } from "../../../lib/api";
-
-const sameList = (a: readonly string[], b: readonly string[]) =>
-  a.length === b.length && a.every((x, i) => x === b[i]);
+import { sameList } from "../../../lib/lists";
 
 /** Stored keyword form (mirrors prompt_guess.keyword_key on the backend). */
 const keywordKey = (entry: string) => canonicalName(entry).toLowerCase();
@@ -119,22 +116,17 @@ export function PromptGuessSection() {
         )}
       </Section>
 
-      <div className="flex justify-between gap-2">
-        <Button
-          variant="ghost"
-          onClick={() => {
-            if (!settings) return;
-            setPositive(settings.default_positive);
-            setNegative(settings.default_negative);
-          }}
-          disabled={!settings || atDefaults}
-        >
-          <RotateCcw size={14} /> Reset to defaults
-        </Button>
-        <Button variant="primary" onClick={() => void save()} disabled={!dirty || saving}>
-          {saving ? "Saving…" : "Save changes"}
-        </Button>
-      </div>
+      <SaveBar
+        dirty={dirty}
+        saving={saving}
+        resetDisabled={!settings || atDefaults}
+        onReset={() => {
+          if (!settings) return;
+          setPositive(settings.default_positive);
+          setNegative(settings.default_negative);
+        }}
+        onSave={() => void save()}
+      />
     </div>
   );
 }
@@ -148,60 +140,16 @@ function KeywordList({
   entries: string[];
   onChange: (next: string[]) => void;
 }) {
-  const [text, setText] = useState("");
-
-  const add = () => {
-    const next = [...entries];
-    for (const piece of text.split(",")) {
-      const key = keywordKey(piece);
-      if (key && !next.includes(key)) next.push(key);
-    }
-    onChange(next);
-    setText("");
-  };
-
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-1.5" aria-label={`${label} keywords`}>
-        {entries.length === 0 && (
-          <span className="text-sm text-faint">No keywords: this side is never guessed.</span>
-        )}
-        {entries.map((entry) => (
-          <span
-            key={entry}
-            className="inline-flex items-center gap-1 h-7 pl-2.5 pr-1 rounded-full bg-raised border border-line text-xs text-neutral-200"
-          >
-            {formatTag(entry)}
-            <button
-              type="button"
-              onClick={() => onChange(entries.filter((e) => e !== entry))}
-              aria-label={`Remove ${formatTag(entry)}`}
-              title="Remove"
-              className="inline-flex items-center justify-center h-5 w-5 rounded-full text-faint hover:text-white hover:bg-line"
-            >
-              <X size={12} />
-            </button>
-          </span>
-        ))}
-      </div>
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          add();
-        }}
-      >
-        <Input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Add keywords, comma separated"
-          aria-label={`Add ${label} keywords`}
-          className="flex-1"
-        />
-        <Button type="submit" disabled={!text.trim()}>
-          Add
-        </Button>
-      </form>
-    </div>
+    <ChipListEditor
+      entries={entries}
+      onChange={onChange}
+      toEntry={(piece) => keywordKey(piece) || null}
+      label={`${label} keywords`}
+      addLabel={`Add ${label} keywords`}
+      placeholder="Add keywords, comma separated"
+      emptyText="No keywords: this side is never guessed."
+      display={formatTag}
+    />
   );
 }
