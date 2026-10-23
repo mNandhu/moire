@@ -95,7 +95,7 @@ type Cover = { layer: BoardLayer; terms: Placed[] };
 
 /** A layer tag as a term (it has no place in the Prompt's text). */
 function layerTerm(t: LayerTag): PromptTerm & Pick<Placed, "dropped" | "self" | "onToggle"> {
-  return { name: t.tag.toLowerCase(), written: t.tag.replace(/_/g, " "), kind: "tag", start: -1, end: -1, nameStart: -1, nameEnd: -1, dropped: t.dropped, self: t.self, onToggle: t.onToggle };
+  return { name: t.tag.toLowerCase(), written: t.tag.replace(/_/g, " "), kind: "tag", start: -1, end: -1, nameStart: -1, nameEnd: -1, grouped: false, dropped: t.dropped, self: t.self, onToggle: t.onToggle };
 }
 
 const LIST_ROWS = 40;
@@ -132,7 +132,7 @@ const compact = (n: number) => (n >= 1_000_000 ? `${(n / 1e6).toFixed(1)}M` : n 
 
 function boxOf(t: PromptTerm, place: TagPlace | undefined, boilerplate: (n: string) => boolean): BoxKey {
   if (t.kind === "lora" || t.kind === "embedding") return "resources";
-  if (t.kind === "prose") return "prose";
+  if (t.kind === "prose" || t.kind === "noise") return "prose";
   if (boilerplate(t.name) || boilerplate(place?.alias_of ?? "")) return "quality";
   return place?.section ?? "other";
 }

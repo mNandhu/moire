@@ -41,9 +41,9 @@ describe("promptTerms", () => {
       ["smile", null, "tag"],
       ["solo", null, "tag"],
     ]);
-    expect(names("((a, b:1.3))")).toEqual([
-      ["a", 1.3, "tag"],
-      ["b", 1.3, "tag"],
+    expect(names("((cat, dog:1.3))")).toEqual([
+      ["cat", 1.3, "tag"],
+      ["dog", 1.3, "tag"],
     ]);
   });
 
@@ -52,6 +52,27 @@ describe("promptTerms", () => {
       [":3", null, "tag"],
       ["16:9", null, "tag"],
       [":d", 1.1, "tag"],
+    ]);
+  });
+
+  it("still splits after a bracket left open, its terms grouped", () => {
+    const text = "1girl, (smile, red eyes, rain";
+    expect(promptTerms(text).map((t) => [t.name, t.grouped, text.slice(t.start, t.end)])).toEqual([
+      ["1girl", false, "1girl"],
+      ["smile", true, "smile"],
+      ["red_eyes", true, "red eyes"],
+      ["rain", true, "rain"],
+    ]);
+  });
+
+  it("keeps a group around one term as its piece, weight and all", () => {
+    const text = "(cat:1.05)(dog:1.25), ((cat), dog:1.2), smile:1.05";
+    expect(promptTerms(text).map((t) => [t.name, t.weight ?? null, t.grouped, text.slice(t.start, t.end)])).toEqual([
+      ["cat", 1.05, false, "(cat:1.05)"],
+      ["dog", 1.25, false, "(dog:1.25)"],
+      ["cat", 1.2, true, "(cat)"],
+      ["dog", 1.2, true, "dog"],
+      ["smile", null, false, "smile:1.05"],
     ]);
   });
 
@@ -117,28 +138,11 @@ const read = (text: string) =>
   promptTerms(text).map((t) =>
     t.kind === "lora" || t.kind === "embedding" ? [t.written.toLowerCase(), "network"] : [t.name, t.kind],
   );
-// Cases the board still reads differently from the backend.
-const DIFFERS = new Set<string>([
-  "1girl, (smile, red eyes, rain",
-  "1girl, ;(, >:(, solo",
-  "cat | dog BREAK rain AND night, black_AND_white",
-  "{masterpiece}, {{best quality}}, {cat, dog}",
-  "<lyco:style:0.5>, <embedding:neg>, (embedding:good:1.2)",
-  "hu_tao_(genshin_impact), 1girl",
-  "hu tao (genshin impact), 1girl",
-  "(cat:1.05)(dog:1.25), rain",
-  "cat\\, dog, rain",
-  "[from:to:0.5], [cat:dog:10]",
-  "smile:1.05, smile., 12:00",
-  "blue long hair red eyes",
-  "1girl, (solo) and (smile), steps: 20, 1.15",
-  "negative prompt: blurry, lowres",
-]);
 
 describe("promptTerms agrees with the backend's prompt_parse", () => {
   for (const c of fixture.cases) {
     const want = c.terms.filter(([name]) => name);
-    (DIFFERS.has(c.text) ? it.fails : it)(JSON.stringify(c.text), () => {
+    it(JSON.stringify(c.text), () => {
       expect(read(c.text)).toEqual(want);
     });
   }

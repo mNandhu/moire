@@ -31,7 +31,7 @@ export function isAiTag(raw: string): boolean {
  * WD tagger entries whose underscore is part of the face, not a word gap.
  * Mirror of the backend's services/tag_names.py KAOMOJIS.
  */
-const KAOMOJIS = new Set([
+export const KAOMOJIS = new Set([
   "0_0", "(o)_(o)", "+_+", "+-", "._.", "<o>_<o>", "<|>_<|>", "=_=", ">_<",
   "3_3", "6_9", ">_o", "@_@", "^_^", "o_o", "u_u", "x_x", "|_|", "||_||",
 ]);
