@@ -63,39 +63,41 @@ P1 review fixes: frontend 8b15822, e193bb0, 76994ac (one `removeTerms` helper fo
 
 ## P2. Frontend data layer and shared UI primitives
 
-- [ ] **S2.2** Optimistic patch/undo recipe copied three times; hoist into feedCache (dedupe, S, L4)
-- [ ] **S13.1** Gallery and image URLs are hand-built in a dozen places instead of through lib/imageFilter (dedupe, S, L4)
-- [ ] **L3.1** Library scan state is polled four independent ways, including a hand-rolled fetch loop that duplicates fields the list already carries (dedupe, M, L4)
-- [ ] **L3.3** api() has no JSON-body form: 21 hand-written Content-Type/JSON.stringify blocks and 5 private post/send helpers, plus 12 raw fetches with their own !ok handling (dedupe, M, L4)
-- [ ] **L3.4** Global keyboard handling is re-implemented in 12 window/document listeners with inconsistent guards; help table is a separate hand-kept copy (simplify, M, L4)
+- [x] **S2.2** Optimistic patch/undo recipe copied three times; hoist into feedCache (dedupe, S, L4), done e33b2a9
+- [x] **S13.1** Gallery and image URLs are hand-built in a dozen places instead of through lib/imageFilter (dedupe, S, L4), done 9fad54d, d5f0fb6
+- [x] **L3.1** Library scan state is polled four independent ways, including a hand-rolled fetch loop that duplicates fields the list already carries (dedupe, M, L4), done 51a86c7
+- [x] **L3.3** api() has no JSON-body form: 21 hand-written Content-Type/JSON.stringify blocks and 5 private post/send helpers, plus 12 raw fetches with their own !ok handling (dedupe, M, L4), done 89b3797, 9ad6e39
+- [x] **L3.4** Global keyboard handling is re-implemented in 12 window/document listeners with inconsistent guards; help table is a separate hand-kept copy (simplify, M, L4), done ad7a4b1 (help table still hand-kept)
 - [ ] **S10.3** PromptBoard: raw API fetch in a component, placement logic untested in-component, duplicated tag-cover map (boundary, M, L4, TW)
 - [ ] **S2.3** Character query hooks live in a component file imported by 10 modules (boundary, S, L3)
 - [ ] **S7.8** Same signatures query inlined in 3 components plus 2 manual fetches; ruleset API sits in lib/gen.ts with raw fetch (boundary, S, L3)
-- [ ] **S5.5** Frontend library writes (create, edit, delete, rescan) are spread over four files with inconsistent cache invalidation (dedupe, S, L3)
-- [ ] **S12.4** Tag-add combobox is written twice (AddTagInput, AttireTagInput) with a third weaker canonicalizer in NewCharacterDialog (dedupe, S, L3)
-- [ ] **L3.6** Query keys and invalidation bundles are scattered: bare-string keys, a duplicate of invalidateFeeds, and the same 2-3 invalidations pasted at 5+ sites (dedupe, S, L3)
+- [x] **S5.5** Frontend library writes (create, edit, delete, rescan) are spread over four files with inconsistent cache invalidation (dedupe, S, L3), done 51a86c7
+- [x] **S12.4** Tag-add combobox is written twice (AddTagInput, AttireTagInput) with a third weaker canonicalizer in NewCharacterDialog (dedupe, S, L3), done 9bf4d55
+- [x] **L3.6** Query keys and invalidation bundles are scattered: bare-string keys, a duplicate of invalidateFeeds, and the same 2-3 invalidations pasted at 5+ sites (dedupe, S, L3), done 1f08d97
 - [ ] **S2.4** TagPanel doubles as a shared-widget module; image grid and Made-with block cloned in CharacterPage (dedupe, M, L3)
-- [ ] **S1.4** imageFilter.ts mixes URL codec, API client and search-term logic; the gallery uses raw api() for tags, ids and a hand-rolled libraries poll (boundary, M, L3)
-- [ ] **S5.4** LibrariesPage runs its own raw-fetch progress poller beside useLibraries, which already polls the same fields (boundary, M, L3)
+- [x] **S1.4** imageFilter.ts mixes URL codec, API client and search-term logic; the gallery uses raw api() for tags, ids and a hand-rolled libraries poll (boundary, M, L3), done 3d1f35a
+- [x] **S5.4** LibrariesPage runs its own raw-fetch progress poller beside useLibraries, which already polls the same fields (boundary, M, L3), done 51a86c7
 - [ ] **S4.3** /tags/samples fetched by hand in three places; Sample type lives in a component file (dedupe, M, L3)
-- [ ] **S4.6** Suggestion-list keyboard nav and ranking copied across about 8 inputs; rankSuggestions/resourceLabel live in a component file (deepen, M, L3)
-- [ ] **L3.5** localStorage preferences hand-rolled in 14 places, two with no try/catch (gallery render can throw), keys use two naming schemes (dedupe, M, L3)
-- [ ] **L3.7** Tag autocomplete text input is written five times (active index, moved flag, arrow/Tab/Enter/comma/Escape handling) (dedupe, M, L3)
+- [x] **S4.6** Suggestion-list keyboard nav and ranking copied across about 8 inputs; rankSuggestions/resourceLabel live in a component file (deepen, M, L3), done 9bf4d55
+- [x] **L3.5** localStorage preferences hand-rolled in 14 places, two with no try/catch (gallery render can throw), keys use two naming schemes (dedupe, M, L3), done 1b377e8
+- [x] **L3.7** Tag autocomplete text input is written five times (active index, moved flag, arrow/Tab/Enter/comma/Escape handling) (dedupe, M, L3), done 9bf4d55
 - [ ] **S11.5** 'Batch changed' cache invalidation and batch actions are hand-copied in four places, with inconsistent error handling (dedupe, M, L3)
-- [ ] **S13.3** lib/queries.ts is a 475-line grab bag; split by domain and give api.ts a JSON-body helper (split, M, L3)
-- [ ] **S13.4** Library API client is scattered; the Welcome wizard, AddLibraryDialog and LibrariesPage each call it raw (boundary, M, L3)
-- [ ] **S2.7** Original-file URL built by hand five times in ImageView (dedupe, S, L2)
-- [ ] **S2.10** Two hand-rolled localStorage external stores for view prefs (useTagMarks vs DETAIL_TAB_KEY) (dedupe, S, L2)
-- [ ] **S7.9** BoilerplateSection and PromptGuessSection are the same chip-list editor written twice (dedupe, S, L2)
-- [ ] **S1.8** useFilters reads and writes localStorage unguarded, unlike every sibling view-pref hook (invariant, S, L2)
+- [x] **S13.3** lib/queries.ts is a 475-line grab bag; split by domain and give api.ts a JSON-body helper (split, M, L3), done ab8a89d
+- [x] **S13.4** Library API client is scattered; the Welcome wizard, AddLibraryDialog and LibrariesPage each call it raw (boundary, M, L3), done 51a86c7
+- [x] **S2.7** Original-file URL built by hand five times in ImageView (dedupe, S, L2), done 9fad54d
+- [x] **S2.10** Two hand-rolled localStorage external stores for view prefs (useTagMarks vs DETAIL_TAB_KEY) (dedupe, S, L2), done 1b377e8
+- [x] **S7.9** BoilerplateSection and PromptGuessSection are the same chip-list editor written twice (dedupe, S, L2), done 988c006
+- [x] **S1.8** useFilters reads and writes localStorage unguarded, unlike every sibling view-pref hook (invariant, S, L2), done 1b377e8
 - [ ] **S12.8** Outfit hooks live in component files and OutfitMenu re-implements the outfit queries inline (boundary, S, L2)
-- [ ] **S6.7** Generic formatters live in domain modules: two formatDuration with different output, formatBytes inside a React context file (naming, S, L2)
-- [ ] **L3.8** Click-outside + Escape popover dismissal reimplemented in 8 components (dedupe, S, L2)
-- [ ] **S11.8** Three time formatters for the same job: eta.clock, queueClock.countdown, batches.durationLabel/etaShort (dedupe, S, L2)
+- [x] **S6.7** Generic formatters live in domain modules: two formatDuration with different output, formatBytes inside a React context file (naming, S, L2), done 3a354c8
+- [x] **L3.8** Click-outside + Escape popover dismissal reimplemented in 8 components (dedupe, S, L2), done a20ff0a
+- [x] **S11.8** Three time formatters for the same job: eta.clock, queueClock.countdown, batches.durationLabel/etaShort (dedupe, S, L2), done 3a354c8
 - [ ] **S9.7** Workflow-file import flow is written twice and lib/workflows.ts uses raw fetch (dedupe, S, L2)
 - [ ] **L3.9** Pending-save handling split between 12 useMutation sites and 14 hand-rolled saving/busy flags; dialog footers and 'Saving…' buttons are copied (dedupe, M, L2)
 - [ ] **S10.9** Two parallel preset pickers and dialogs (prompt preset vs LoRA preset), plus a hand-rolled menu in AddLayer (dedupe, M, L2)
 - [ ] **S11.6** BatchResults.tsx (510 lines): review tile, running-cell view logic, failure labels and strip picker in one file; Tile keys ignore modifiers (split, M, L2)
+
+P2 status (2026-10-23, paused at the usage limit): wave 1 merged (51a86c7..d5f0fb6, not yet code-reviewed). Still open: S2.3, S12.8, S7.8, S4.3, S9.7, S2.4 (agent E) and S10.3, S11.5, S11.6, S10.9, L3.9 (agent F); their worktree branches may hold finished commits (`git worktree list`). Then: /code-review medium 955a97a..HEAD in two groups, fix, push.
 
 ## P3. Backend dedupe, tag core, background work
 
