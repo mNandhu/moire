@@ -188,7 +188,8 @@ export default function TagsPage({ group }: { group?: string } = {}) {
       afterTagWrite();
       setSelected(tagName(res.to));
       push(
-        `${res.kind === "prompt" ? "Merged" : "Renamed"} “${formatTag(res.from)}” into “${(res.to_all ?? [res.to]).map(formatTag).join(" + ")}” on ${res.images.toLocaleString()} images`,
+        `${res.kind === "prompt" ? "Merged" : "Renamed"} “${formatTag(res.from)}” into “${(res.to_all ?? [res.to]).map(formatTag).join(" + ")}” on ${res.images.toLocaleString()} images` +
+          (res.background ? ", updating them in the background" : ""),
         "success",
       );
       return true;
@@ -202,7 +203,11 @@ export default function TagsPage({ group }: { group?: string } = {}) {
     try {
       const res = await deleteTagAlias(from);
       afterTagWrite();
-      push(`Removed rule “${formatTag(res.from)}” → “${res.to.map(formatTag).join(" + ")}”`, "success");
+      push(
+        `Removed rule “${formatTag(res.from)}” → “${res.to.map(formatTag).join(" + ")}”` +
+          (res.background ? ", updating its images in the background" : ""),
+        "success",
+      );
     } catch (e) {
       push(`Couldn't remove the rule: ${errorText(e)}`, "error");
     }

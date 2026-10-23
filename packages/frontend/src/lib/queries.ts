@@ -326,6 +326,8 @@ export type TagRenameResult = {
   /** A prompt merge onto a split name: every name it now stands for. */
   to_all?: string[];
   images: number;
+  /** A prompt merge on many images: they are updated in the background. */
+  background?: boolean;
 };
 
 export const TAG_ALIASES_KEY = ["tag-aliases"] as const;
@@ -348,7 +350,9 @@ export function renameTag(tag: string, to: string): Promise<TagRenameResult> {
   });
 }
 
-export function deleteTagAlias(from: string): Promise<{ from: string; to: string[]; images: number }> {
+export function deleteTagAlias(
+  from: string,
+): Promise<{ from: string; to: string[]; images: number; background?: boolean }> {
   return api(`/api/v1/tags/aliases/${encodeURIComponent(from)}`, { method: "DELETE" });
 }
 

@@ -8,6 +8,7 @@ import {
   type EndedCounts,
 } from "../lib/backgroundTasks";
 import { AI_COVERAGE_KEY, LIBRARIES_KEY, TAGS_KEY } from "../lib/queries";
+import { invalidateFeeds } from "../lib/feedCache";
 
 export const BACKGROUND_TASKS_KEY = ["activity"] as const;
 const BUSY_MS = 1500;
@@ -67,6 +68,11 @@ export function useRefreshOnFinish() {
       void qc.invalidateQueries({ queryKey: ["image"] });
       void qc.invalidateQueries({ queryKey: AI_COVERAGE_KEY });
       void qc.invalidateQueries({ queryKey: ["aiStatus"] });
+    }
+    if (ended.has("reproject")) {
+      // Prompt tags were re-derived: the open image and the gallery show them.
+      void qc.invalidateQueries({ queryKey: ["image"] });
+      invalidateFeeds(qc);
     }
     if (["ai_job", "scan", "delete", "reproject", "fold", "faces"].some((k) => ended.has(k))) {
       void qc.invalidateQueries({ queryKey: TAGS_KEY });
