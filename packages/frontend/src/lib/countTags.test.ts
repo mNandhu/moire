@@ -39,6 +39,15 @@ describe("checkCountTags", () => {
     expect([m.start, m.end]).toEqual([7, 12]);
   });
 
+  it("reads terms the way the prompt board does", () => {
+    // An escaped paren opens no group; "|" separates; edge punctuation is no part of a name.
+    expect(flagged("smile \\(, 1girl, solo", ["girl", "girl"])).toEqual(["1girl", "solo"]);
+    expect(flagged("1girl | solo.", ["girl", "girl"])).toEqual(["1girl", "solo."]);
+    // A bracket left open holds the rest of the prompt.
+    expect(flagged("(smile, 1girl, solo", ["girl", "girl"])).toEqual([]);
+    expect(fixCountTags("1girl | park", ["2girls"])).toBe("2girls | park");
+  });
+
   it("with an unknown kind, flags only what is wrong whatever it is", () => {
     expect(flagged("1girl, 1boy, solo", ["girl", null])).toEqual(["solo"]);
     expect(flagged("3girls", ["girl", null])).toEqual(["3girls"]);

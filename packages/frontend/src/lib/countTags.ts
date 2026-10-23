@@ -1,4 +1,4 @@
-import { canonicalName } from "./tags";
+import { promptTerms } from "./promptOutline";
 
 /**
  * Count tags (`1girl`, `2girls`, `1boy`, `solo`, `multiple_girls`) against
@@ -41,17 +41,8 @@ export type CountCheck = {
 const KINDS: readonly Kind[] = ["girl", "boy", "other"];
 const COUNT = /^(\d+|6\+)(girl|boy|other)s?$/;
 
-/** A prompt term as a tag: weight and brackets off, spelled as stored
- * (`canonicalName`), `2 girls` and `2_girls` as `2girls`. A term with
- * unbalanced brackets reads as nothing. */
-function normalise(term: string): string {
-  const opens = (term.match(/[([{]/g) ?? []).length;
-  const closes = (term.match(/[)\]}]/g) ?? []).length;
-  if (opens !== closes) return "";
-  // (1girl:1.2), [solo], {2girls}
-  const t = term.toLowerCase().replace(/^\s*[([{]+|[)\]}]+\s*$/g, "").replace(/:[\d.]+$/, "");
-  return canonicalName(t).replace(/^(\d+\+?)_(girl|boy|other)/, "$1$2");
-}
+/** A term's tag name with `2 girls` and `2_girls` read as `2girls`. */
+const normalise = (name: string) => name.replace(/^(\d+\+?)_(girl|boy|other)/, "$1$2");
 
 type Parsed =
   /** `atLeast`: `6+girls`, six or more. */
@@ -68,32 +59,14 @@ function parse(tag: string): Parsed | null {
   return { kind: m[2] as Kind, n: m[1] === "6+" ? 6 : Number(m[1]), atLeast: m[1] === "6+" };
 }
 
-/** Follows bracket depth across comma-separated pieces: `inGroup(piece)` is
- * true for every piece of a weighted group (`(1girl, solo, smile:1.2)`), its
- * middle terms included, so a group is left whole. A stray closer never
- * takes the depth below zero. */
-function groupTracker(): (piece: string) => boolean {
-  let depth = 0;
-  return (piece) => {
-    const before = depth;
-    depth = Math.max(0, depth + (piece.match(/[([{]/g) ?? []).length - (piece.match(/[)\]}]/g) ?? []).length);
-    return before > 0 || depth > 0;
-  };
-}
-
-/** The comma-separated terms of `text` outside weighted groups, with their
- * offsets, spaces trimmed. */
-function terms(text: string): { start: number; end: number; text: string }[] {
-  const out: { start: number; end: number; text: string }[] = [];
-  const inGroup = groupTracker();
-  let at = 0;
-  for (const piece of text.split(/[,\n]/)) {
-    const lead = piece.length - piece.trimStart().length;
-    const word = piece.trim();
-    if (!inGroup(piece) && word) out.push({ start: at + lead, end: at + lead + word.length, text: word });
-    at += piece.length + 1;
-  }
-  return out;
+/** The prompt's terms as the board reads them (promptOutline), with their
+ * offsets: a weighted or bracketed term alone (`(1girl:1.2)`, `[solo]`)
+ * counts, a member of a larger group (`(1girl, solo, smile:1.2)`) doesn't,
+ * so a group is left whole. */
+function terms(text: string): { start: number; end: number; text: string; tag: string }[] {
+  return promptTerms(text)
+    .filter((t) => !t.grouped && t.kind !== "lora" && t.kind !== "embedding")
+    .map((t) => ({ start: t.start, end: t.end, text: text.slice(t.start, t.end), tag: normalise(t.name) }));
 }
 
 const plural = (n: number, kind: Kind) => `${n >= 6 ? "6+" : n}${kind}${n > 1 ? "s" : ""}`;
@@ -128,7 +101,7 @@ export function checkCountTags(prompt: string, kinds: readonly (Kind | null)[]):
     : `${kinds.length} ${kinds.length === 1 ? "character" : "characters"}`;
   const marks: CountMark[] = [];
   for (const t of terms(prompt)) {
-    const p = parse(normalise(t.text));
+    const p = parse(t.tag);
     if (!p) continue;
     let reason: string | null = null;
     if ("solo" in p) {
@@ -142,7 +115,7 @@ export function checkCountTags(prompt: string, kinds: readonly (Kind | null)[]):
         ? `The cast has ${people(count(p.kind), p.kind)}, not ${p.n}.`
         : `No ${p.kind} is picked; the cast is ${cast}.`;
     }
-    if (reason) marks.push({ ...t, reason });
+    if (reason) marks.push({ start: t.start, end: t.end, text: t.text, reason });
   }
   return { marks, expected: known ? expectedTags(known) : null };
 }
@@ -154,29 +127,26 @@ export function checkCountTags(prompt: string, kinds: readonly (Kind | null)[]):
  */
 export function fixCountTags(prompt: string, expected: readonly string[]): string {
   const words = expected.join(", ");
-  // Pieces at even indexes, the separator after each at odd ones.
-  const parts = prompt.split(/([,\n])/);
-  const kept: string[] = [];
-  let placed = false;
-  const inGroup = groupTracker();
-  for (let i = 0; i < parts.length; i += 2) {
-    const piece = parts[i];
-    const sep = parts[i + 1] ?? "";
-    if (!inGroup(piece) && piece.trim() && parse(normalise(piece))) {
-      // Dropped with its comma; a line break stays a line break.
-      if (placed || !words) {
-        if (sep === "\n") kept.push(sep);
-        continue;
-      }
-      placed = true;
-      kept.push(piece.match(/^\s*/)![0] + words + sep);
-    } else {
-      kept.push(piece + sep);
+  const ranges = countRanges(prompt);
+  const placed = ranges.length > 0;
+  let out = prompt;
+  // From the end, so the earlier offsets still hold.
+  for (let k = ranges.length - 1; k >= 0; k--) {
+    const { start, end } = ranges[k];
+    if (k === 0 && words) {
+      out = out.slice(0, start) + words + out.slice(end);
+      continue;
     }
+    // Dropped with its spaces and comma; a line break stays a line break.
+    let s = start;
+    while (s > 0 && (out[s - 1] === " " || out[s - 1] === "\t")) s--;
+    let e = end;
+    while (out[e] === " " || out[e] === "\t") e++;
+    if (out[e] === "," || out[e] === "|") e++;
+    out = out.slice(0, s) + out.slice(e);
   }
-  let out = kept.join("");
   // A removed last term leaves its separator behind.
-  if (!/[,\n]\s*$/.test(prompt)) out = out.replace(/[,\n]\s*$/, "");
+  if (!/[,\n|]\s*$/.test(prompt)) out = out.replace(/[,\n|]\s*$/, "");
   out = out.replace(/^\s*,\s*/, "");
   if (!placed && words) return out.trim() ? `${words}, ${out.trimStart()}` : words;
   return out;
@@ -185,10 +155,7 @@ export function fixCountTags(prompt: string, expected: readonly string[]): strin
 /** Where the count tags sit in `prompt` (outside weighted groups), spelled as
  * stored. */
 export function countRanges(prompt: string): { start: number; end: number; tag: string }[] {
-  return terms(prompt).flatMap((t) => {
-    const tag = normalise(t.text);
-    return parse(tag) ? [{ start: t.start, end: t.end, tag }] : [];
-  });
+  return terms(prompt).flatMap(({ start, end, tag }) => (parse(tag) ? [{ start, end, tag }] : []));
 }
 
 const sameSet = (a: readonly string[], b: readonly string[]) =>
