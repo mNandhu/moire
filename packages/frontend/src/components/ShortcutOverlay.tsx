@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Dialog } from "./ui/Dialog";
-import { hasModifier, isFormField } from "../lib/dom";
+import { useHotkeys } from "../hooks/useHotkeys";
 import { OPEN_SHORTCUTS_EVENT, shortcutGroups } from "../lib/shortcuts";
 
 /**
@@ -13,32 +13,41 @@ export function ShortcutHelp() {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
 
+  useHotkeys(
+    [
+      {
+        keys: ["?"],
+        run: (e) => {
+          // Not over another dialog (a confirm, a rename): one modal at a time.
+          // Its own `?` closes it (below).
+          if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+          e.preventDefault();
+          setOpen(true);
+        },
+      },
+    ],
+    { overlay: "ignore" },
+  );
+  // `?` again closes it. The Dialog keeps keys from inside it off the
+  // window, so this listens at the document, on the way down.
+  useHotkeys(
+    [
+      {
+        keys: ["?"],
+        mods: "any",
+        run: (e) => {
+          if (!document.querySelector('[role="dialog"][aria-label="Keyboard shortcuts"]')) return;
+          e.preventDefault();
+          setOpen(false);
+        },
+      },
+    ],
+    { capture: true, fields: true, overlay: "ignore" },
+  );
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "?" || hasModifier(e) || isFormField(e.target)) return;
-      // Not over another dialog (a confirm, a rename): one modal at a time.
-      // Its own `?` closes it (below).
-      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
-      e.preventDefault();
-      setOpen(true);
-    };
-    // `?` again closes it. The Dialog keeps keys from inside it off the
-    // window, so this listens at the document, on the way down.
-    const onKeyInside = (e: KeyboardEvent) => {
-      if (e.key === "?" && document.querySelector('[role="dialog"][aria-label="Keyboard shortcuts"]')) {
-        e.preventDefault();
-        setOpen(false);
-      }
-    };
     const onOpen = () => setOpen(true);
-    document.addEventListener("keydown", onKeyInside, true);
-    window.addEventListener("keydown", onKey);
     window.addEventListener(OPEN_SHORTCUTS_EVENT, onOpen);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.removeEventListener("keydown", onKeyInside, true);
-      window.removeEventListener(OPEN_SHORTCUTS_EVENT, onOpen);
-    };
+    return () => window.removeEventListener(OPEN_SHORTCUTS_EVENT, onOpen);
   }, []);
 
   return <ShortcutOverlay open={open} onClose={() => setOpen(false)} pathname={pathname} />;

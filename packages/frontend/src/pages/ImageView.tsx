@@ -37,7 +37,7 @@ import { pickRating } from "../lib/rating";
 import { tagFlow, toPromptText, type FlowTag } from "../lib/tags";
 import { splitBoilerplate } from "../lib/boilerplate";
 import { libraryPageHref, useBoilerplate, useLibraries } from "../lib/queries";
-import { hasModifier, isFormField } from "../lib/dom";
+import { useHotkeys } from "../hooks/useHotkeys";
 import { snapSheet } from "../lib/sheetSnap";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -526,52 +526,54 @@ export default function ImageView() {
 
   const hasMore = feed.hasNextPage;
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // Ctrl/Cmd/Alt combos belong to the browser (tab switch, back, cut).
-      if (hasModifier(e)) return;
-      // Don't trigger global shortcuts when typing in form fields
-      if (isFormField(e.target)) {
-        return;
-      }
-
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        goPrev();
-      }
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        goNext();
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        goBack();
-      }
+  // This view IS the overlay, so it keeps listening while one is open.
+  useHotkeys(
+    [
+      {
+        keys: ["ArrowLeft"],
+        run: (e) => {
+          e.preventDefault();
+          goPrev();
+        },
+      },
+      {
+        keys: ["ArrowRight"],
+        run: (e) => {
+          e.preventDefault();
+          goNext();
+        },
+      },
+      {
+        keys: ["Escape"],
+        run: (e) => {
+          e.preventDefault();
+          goBack();
+        },
+      },
       // Curation acts on the image on screen. While the view is held mid-swap
       // that is not the one the URL has moved to, so ignore these until the
       // stage and the route agree; better than scoring an image you have
       // already stepped past.
-      if (pending) return;
       // Curation: 1-5 set score, 0 clears, X quarantines/restores.
-      if (e.key >= "0" && e.key <= "5") {
-        e.preventDefault();
-        void applyScore(Number(e.key));
-      }
-      if (e.key === "x" || e.key === "X" || e.key === "Delete") {
-        e.preventDefault();
-        void toggleQuarantine();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [
-    goPrev,
-    goNext,
-    goBack,
-    applyScore,
-    toggleQuarantine,
-    pending,
-  ]);
+      {
+        match: (e) => e.key >= "0" && e.key <= "5",
+        run: (e) => {
+          if (pending) return;
+          e.preventDefault();
+          void applyScore(Number(e.key));
+        },
+      },
+      {
+        keys: ["x", "X", "Delete"],
+        run: (e) => {
+          if (pending) return;
+          e.preventDefault();
+          void toggleQuarantine();
+        },
+      },
+    ],
+    { overlay: "ignore" },
+  );
 
   // Touch/swipe navigation
   const handleTouchStart = useCallback((e: React.TouchEvent) => {

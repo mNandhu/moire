@@ -69,7 +69,7 @@ import {
 import { useScrollRestoration } from "../hooks/useScrollRestoration";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PAGE_LIMIT, type ImageDoc } from "../lib/imageFilter";
-import { nextFocusIndex, isGridNavKey } from "../lib/gridNav";
+import { nextFocusIndex, isGridNavKey, type GridNavKey } from "../lib/gridNav";
 import { FETCH_AHEAD_PX, gridColumns } from "../lib/masonryLayout";
 import { runBulk } from "../lib/bulk";
 import {
@@ -78,8 +78,8 @@ import {
   bulkManualTags,
 } from "../lib/imageMutations";
 import { api, errorText } from "../lib/api";
-import { hasModifier, isFormField } from "../lib/dom";
-import { useOverlayOpen, withBackgroundLocation } from "../lib/backgroundLocation";
+import { useHotkeys } from "../hooks/useHotkeys";
+import { withBackgroundLocation } from "../lib/backgroundLocation";
 import { postAiTag } from "../lib/ai";
 import {
   imageDocKey,
@@ -115,9 +115,8 @@ export default function AllImagesPage() {
   const location = useLocation();
   // ImageView opens as an overlay on top of this page rather than routing in
   // place of it (see RootRoutes), so this page never unmounts while it's
-  // open, its global key listeners below must bail instead, or they'd keep
+  // open, its global key listeners (useHotkeys) bail instead, or they would keep
   // acting on the backgrounded grid while ImageView is also handling keys.
-  const overlayOpen = useOverlayOpen();
 
   // Image filter (URL is the single source of truth) and the Image feed it drives.
   const [filters, setFilters] = useFilters();
@@ -388,73 +387,75 @@ export default function AllImagesPage() {
 
   // Global shortcuts: S selection mode, F/"/" focus search, N no-tags,
   // A no-AI-tags, Q quarantined, +/- zoom (? help is global: ShortcutHelp).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (overlayOpen) return;
-      if (hasModifier(e)) return;
-      if (isFormField(e.target)) return;
-
-      if (e.key === "+" || e.key === "=") {
+  useHotkeys([
+    {
+      keys: ["+", "="],
+      run: (e) => {
         e.preventDefault();
         density.zoomIn();
-        return;
-      }
-      if (e.key === "-" || e.key === "_") {
+      },
+    },
+    {
+      keys: ["-", "_"],
+      run: (e) => {
         e.preventDefault();
         density.zoomOut();
-        return;
-      }
-      if (e.key === "/") {
+      },
+    },
+    {
+      keys: ["/", "f", "F"],
+      run: (e) => {
         e.preventDefault();
         searchInputRef.current?.focus();
-        return;
-      }
-      if (e.key === "Escape") {
-        // One key backs out of whatever is engaged, outermost first. The
-        // overlay is handled above, before the bail.
+      },
+    },
+    {
+      // One key backs out of whatever is engaged, outermost first. The
+      // overlay is handled above, before the bail.
+      keys: ["Escape"],
+      run: () => {
         if (selectionMode) setSelectionMode(false);
         else setFocusedIndex(-1);
-        return;
-      }
-
-      const k = e.key.toLowerCase();
-      if (k === "s") {
+      },
+    },
+    {
+      keys: ["s", "S"],
+      run: (e) => {
         e.preventDefault();
         setSelectionMode((v) => {
           const next = !v;
           push(next ? "Selection mode ON" : "Selection mode OFF", "info");
           return next;
         });
-      } else if (k === "f") {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-      } else if (k === "n") {
+      },
+    },
+    {
+      keys: ["n", "N"],
+      run: (e) => {
         e.preventDefault();
         const next = !filters.noTags;
         push(next ? "No-tags filter ON" : "No-tags filter OFF", "info");
         setFilters({ ...filters, noTags: next, aiTagged: next ? false : filters.aiTagged });
-      } else if (k === "a") {
+      },
+    },
+    {
+      keys: ["a", "A"],
+      run: (e) => {
         e.preventDefault();
         const next = !filters.noAiTags;
         push(next ? "No-AI-tags filter ON" : "No-AI-tags filter OFF", "info");
         setFilters({ ...filters, noAiTags: next, aiTagged: next ? false : filters.aiTagged });
-      } else if (k === "q") {
+      },
+    },
+    {
+      keys: ["q", "Q"],
+      run: (e) => {
         e.preventDefault();
         const next = !filters.quarantined;
         push(next ? "Showing quarantined" : "Showing active feed", "info");
         setFilters({ ...filters, quarantined: next });
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [
-    push,
-    filters,
-    setFilters,
-    density,
-    selectionMode,
-    setSelectionMode,
-    overlayOpen,
+      },
+    },
   ]);
 
   // A selection belongs to the feed it was made in: changing the filter swaps
@@ -584,58 +585,52 @@ export default function AllImagesPage() {
   }, [items, focusedIndex, filters.quarantined, patchFeed, push, feed]);
 
   useEffect(() => {
-    if (!triageEnabled) {
-      setFocusedIndex(-1);
-      return;
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (overlayOpen) return;
-      if (hasModifier(e)) return;
-      if (isFormField(e.target)) return;
-      if (isGridNavKey(e.key)) {
-        e.preventDefault();
-        const key = e.key; // narrowed to GridNavKey before the closure
-        const cols = gridColumns(
-          gridWrapRef.current?.clientWidth || 0,
-          density.density,
-        );
-        setFocusedIndex((prev) => nextFocusIndex(prev, key, cols, items.length));
-      } else if (e.key >= "0" && e.key <= "5") {
-        if (focusedIndex >= 0) {
+    if (!triageEnabled) setFocusedIndex(-1);
+  }, [triageEnabled]);
+
+  useHotkeys(
+    [
+      {
+        match: (e) => isGridNavKey(e.key),
+        run: (e) => {
+          e.preventDefault();
+          const key = e.key as GridNavKey;
+          const cols = gridColumns(gridWrapRef.current?.clientWidth || 0, density.density);
+          setFocusedIndex((prev) => nextFocusIndex(prev, key, cols, items.length));
+        },
+      },
+      {
+        match: (e) => e.key >= "0" && e.key <= "5",
+        run: (e) => {
+          if (focusedIndex < 0) return;
           e.preventDefault();
           void triageScore(Number(e.key));
-        }
-      } else if (e.key === "x" || e.key === "X" || e.key === "Delete") {
-        if (focusedIndex >= 0) {
+        },
+      },
+      {
+        keys: ["x", "X", "Delete"],
+        run: (e) => {
+          if (focusedIndex < 0) return;
           e.preventDefault();
           void triageQuarantine();
-        }
-      } else if (e.key === "Enter") {
+        },
+      },
+      {
         // The tile that receives focus is ThumbnailTile's wrapper <div
         // tabIndex={-1}>, not the inner <button>, so there is no default
         // activation to fall back on, arrowing to a tile and pressing Enter
         // did nothing at all.
-        if (focusedIndex >= 0) {
-          const it = items[focusedIndex];
-          if (it) {
-            e.preventDefault();
-            openTile(it._id);
-          }
-        }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [
-    triageEnabled,
-    items,
-    focusedIndex,
-    triageScore,
-    triageQuarantine,
-    openTile,
-    density.density,
-    overlayOpen,
-  ]);
+        keys: ["Enter"],
+        run: (e) => {
+          const it = focusedIndex >= 0 ? items[focusedIndex] : undefined;
+          if (!it) return;
+          e.preventDefault();
+          openTile(it._id);
+        },
+      },
+    ],
+    { enabled: triageEnabled },
+  );
 
   // --- Bulk actions ----------------------------------------------------------
   //

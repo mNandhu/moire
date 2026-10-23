@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Tag as TagIcon, Slash, Search, GitMerge, Undo2, LayoutGrid, List, UserPlus, Wand2, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,7 +29,7 @@ import {
 } from "../lib/queries";
 import { descriptionKey, formatTag, tagName } from "../lib/tags";
 import { invalidateFeeds } from "../lib/feedCache";
-import { OverlayOpenContext } from "../lib/backgroundLocation";
+import { useHotkeys } from "../hooks/useHotkeys";
 import {
   SORT_LABEL,
   SOURCE_LABEL,
@@ -154,15 +154,11 @@ export default function TagsPage({ group }: { group?: string } = {}) {
 
   // Escape closes the panel (the rename dialog handles its own Escape first),
   // but not while an image is open over the page: that Escape is the viewer's.
-  const overlayOpen = useContext(OverlayOpenContext);
-  useEffect(() => {
-    if (!selected || overlayOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) setSelected(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selected, overlayOpen, setSelected]);
+  useHotkeys([{ keys: ["Escape"], mods: "any", run: () => setSelected(null) }], {
+    enabled: !!selected,
+    fields: true,
+    skipHandled: true,
+  });
 
   // --- Rename / merge -------------------------------------------------------
   const queryClient = useQueryClient();
