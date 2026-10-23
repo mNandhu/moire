@@ -1,0 +1,512 @@
+{
+  "about": "Prompt text -> the terms both prompt splitters read from it, in order. The backend's services/prompt_parse.parse_prompt is the authority: each row of `terms` is [name, kind] for one of its pieces, name being the piece's text through canonical_name (lowercase, unescaped, no weight or edge punctuation, spaces as underscores) and kind one of tag, prose, noise, network. This is the level both sides agree on: before keyword filtering, aliases or the prompt: prefix. The frontend's lib/promptOutline.promptTerms must read the same rows, comparing a network term (its lora or embedding kind) by its text as written, lowercased. Rows with an empty name (a weight left over beside an emoticon) are pieces the frontend skips, since there is nothing to show. Weights are not compared yet. Checked by tests/test_prompt_terms_fixture.py and promptOutline.test.ts.",
+  "cases": [
+    {
+      "text": "1girl, (white dress:1.2), ((blue eyes)), [smile], x_\\(cosplay\\), (red bow:0.8)",
+      "terms": [
+        [
+          "1girl",
+          "tag"
+        ],
+        [
+          "white_dress",
+          "tag"
+        ],
+        [
+          "blue_eyes",
+          "tag"
+        ],
+        [
+          "smile",
+          "tag"
+        ],
+        [
+          "x_(cosplay)",
+          "tag"
+        ],
+        [
+          "red_bow",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "(sunflower field, blue sky:1.1), solo",
+      "terms": [
+        [
+          "sunflower_field",
+          "tag"
+        ],
+        [
+          "blue_sky",
+          "tag"
+        ],
+        [
+          "solo",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "((sunflower field, blue sky)), [red bow, smile], ((solo))",
+      "terms": [
+        [
+          "sunflower_field",
+          "tag"
+        ],
+        [
+          "blue_sky",
+          "tag"
+        ],
+        [
+          "red_bow",
+          "tag"
+        ],
+        [
+          "smile",
+          "tag"
+        ],
+        [
+          "solo",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "((cat, dog:1.3))",
+      "terms": [
+        [
+          "cat",
+          "tag"
+        ],
+        [
+          "dog",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "<lora:foo:0.8>, embedding:bad, a gentle breeze moving through her hair, holding_hands_with_a_friend",
+      "terms": [
+        [
+          "<lora:foo:0.8>",
+          "network"
+        ],
+        [
+          "embedding:bad",
+          "network"
+        ],
+        [
+          "a_gentle_breeze_moving_through_her_hair",
+          "prose"
+        ],
+        [
+          "holding_hands_with_a_friend",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": ":3, 16:9, (:d:1.1)",
+      "terms": [
+        [
+          ":3",
+          "tag"
+        ],
+        [
+          "16:9",
+          "tag"
+        ],
+        [
+          ":d",
+          "tag"
+        ],
+        [
+          "",
+          "noise"
+        ]
+      ]
+    },
+    {
+      "text": "smile,\nstanding\noutdoors",
+      "terms": [
+        [
+          "smile",
+          "tag"
+        ],
+        [
+          "standing",
+          "tag"
+        ],
+        [
+          "outdoors",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "1girl, (smile, red eyes, rain",
+      "terms": [
+        [
+          "1girl",
+          "tag"
+        ],
+        [
+          "smile",
+          "tag"
+        ],
+        [
+          "red_eyes",
+          "tag"
+        ],
+        [
+          "rain",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "1girl, ;(, >:(, solo",
+      "terms": [
+        [
+          "1girl",
+          "tag"
+        ],
+        [
+          ";(",
+          "tag"
+        ],
+        [
+          ">:(",
+          "tag"
+        ],
+        [
+          "solo",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "cat | dog BREAK rain AND night, black_AND_white",
+      "terms": [
+        [
+          "cat",
+          "tag"
+        ],
+        [
+          "dog",
+          "tag"
+        ],
+        [
+          "rain",
+          "tag"
+        ],
+        [
+          "night",
+          "tag"
+        ],
+        [
+          "black_",
+          "tag"
+        ],
+        [
+          "_white",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "{masterpiece}, {{best quality}}, {cat, dog}",
+      "terms": [
+        [
+          "masterpiece",
+          "tag"
+        ],
+        [
+          "best_quality",
+          "tag"
+        ],
+        [
+          "cat",
+          "tag"
+        ],
+        [
+          "dog",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "<lora:a, b:1>, x",
+      "terms": [
+        [
+          "<lora:a",
+          "network"
+        ],
+        [
+          "b:1>",
+          "tag"
+        ],
+        [
+          "x",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "<lyco:style:0.5>, <embedding:neg>, (embedding:good:1.2)",
+      "terms": [
+        [
+          "<lyco:style:0.5>",
+          "network"
+        ],
+        [
+          "<embedding:neg>",
+          "network"
+        ],
+        [
+          "embedding:good",
+          "network"
+        ]
+      ]
+    },
+    {
+      "text": "hu_tao_(genshin_impact), 1girl",
+      "terms": [
+        [
+          "hu_tao_(genshin_impact)",
+          "tag"
+        ],
+        [
+          "1girl",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "hu tao (genshin impact), 1girl",
+      "terms": [
+        [
+          "hu_tao",
+          "tag"
+        ],
+        [
+          "genshin_impact",
+          "tag"
+        ],
+        [
+          "1girl",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "hu tao \\(genshin impact\\), kafka_\\(honkai\\)",
+      "terms": [
+        [
+          "hu_tao_(genshin_impact)",
+          "tag"
+        ],
+        [
+          "kafka_(honkai)",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "(cat:1.05)(dog:1.25), rain",
+      "terms": [
+        [
+          "cat",
+          "tag"
+        ],
+        [
+          "dog",
+          "tag"
+        ],
+        [
+          "rain",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "cat\\, dog, rain",
+      "terms": [
+        [
+          "cat",
+          "tag"
+        ],
+        [
+          "dog",
+          "tag"
+        ],
+        [
+          "rain",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "[from:to:0.5], [cat:dog:10]",
+      "terms": [
+        [
+          "from",
+          "tag"
+        ],
+        [
+          "to",
+          "tag"
+        ],
+        [
+          "cat",
+          "tag"
+        ],
+        [
+          "dog",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "smile:1.05, smile., 12:00",
+      "terms": [
+        [
+          "smile",
+          "tag"
+        ],
+        [
+          "smile",
+          "tag"
+        ],
+        [
+          "12:00",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "blue long hair red eyes",
+      "terms": [
+        [
+          "blue_long_hair_red_eyes",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "she is standing in the rain at night",
+      "terms": [
+        [
+          "she_is_standing_in_the_rain_at_night",
+          "prose"
+        ]
+      ]
+    },
+    {
+      "text": "a girl, ^_^, >_<, :d, ...",
+      "terms": [
+        [
+          "a_girl",
+          "tag"
+        ],
+        [
+          "^_^",
+          "tag"
+        ],
+        [
+          ">_<",
+          "tag"
+        ],
+        [
+          ":d",
+          "tag"
+        ],
+        [
+          "...",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "1girl, (solo) and (smile), steps: 20, 1.15",
+      "terms": [
+        [
+          "1girl",
+          "tag"
+        ],
+        [
+          "solo",
+          "tag"
+        ],
+        [
+          "and",
+          "noise"
+        ],
+        [
+          "smile",
+          "tag"
+        ],
+        [
+          "steps:_20",
+          "noise"
+        ],
+        [
+          "1.15",
+          "noise"
+        ]
+      ]
+    },
+    {
+      "text": "((cat), dog:1.2), rain",
+      "terms": [
+        [
+          "cat",
+          "tag"
+        ],
+        [
+          "dog",
+          "tag"
+        ],
+        [
+          "rain",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "cat, ), dog, ((rain",
+      "terms": [
+        [
+          "cat",
+          "tag"
+        ],
+        [
+          "dog",
+          "tag"
+        ],
+        [
+          "rain",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "negative prompt: blurry, lowres",
+      "terms": [
+        [
+          "blurry",
+          "tag"
+        ],
+        [
+          "lowres",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "text": "",
+      "terms": []
+    }
+  ]
+}

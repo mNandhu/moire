@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import fixture from "../../../backend/tests/fixtures/mirrored/prompt_terms.json";
 import { appendTag, promptTerms, removeSpan, replaceName } from "./promptOutline";
 
 const names = (text: string) => promptTerms(text).map((t) => [t.name, t.weight ?? null, t.kind]);
@@ -108,4 +109,37 @@ describe("appendTag / replaceName", () => {
     const t = promptTerms(text)[1];
     expect(replaceName(text, t, "fellatio")).toBe("1girl, (fellatio:1.2), solo");
   });
+});
+
+// The backend's prompt_parse is the authority on how a prompt splits; the
+// fixture's `about` says what is compared.
+const read = (text: string) =>
+  promptTerms(text).map((t) =>
+    t.kind === "lora" || t.kind === "embedding" ? [t.written.toLowerCase(), "network"] : [t.name, t.kind],
+  );
+// Cases the board still reads differently from the backend.
+const DIFFERS = new Set<string>([
+  "1girl, (smile, red eyes, rain",
+  "1girl, ;(, >:(, solo",
+  "cat | dog BREAK rain AND night, black_AND_white",
+  "{masterpiece}, {{best quality}}, {cat, dog}",
+  "<lyco:style:0.5>, <embedding:neg>, (embedding:good:1.2)",
+  "hu_tao_(genshin_impact), 1girl",
+  "hu tao (genshin impact), 1girl",
+  "(cat:1.05)(dog:1.25), rain",
+  "cat\\, dog, rain",
+  "[from:to:0.5], [cat:dog:10]",
+  "smile:1.05, smile., 12:00",
+  "blue long hair red eyes",
+  "1girl, (solo) and (smile), steps: 20, 1.15",
+  "negative prompt: blurry, lowres",
+]);
+
+describe("promptTerms agrees with the backend's prompt_parse", () => {
+  for (const c of fixture.cases) {
+    const want = c.terms.filter(([name]) => name);
+    (DIFFERS.has(c.text) ? it.fails : it)(JSON.stringify(c.text), () => {
+      expect(read(c.text)).toEqual(want);
+    });
+  }
 });
