@@ -7,7 +7,7 @@ import { api } from "../../lib/api";
 import { smallThumb } from "../../lib/media";
 import { tagHref, type CharacterEntry } from "../../lib/character";
 import type { Sample } from "../TagMosaic";
-import { appendPiece, appendTag, promptTerms, removeSpan, replaceName, type PromptTerm } from "../../lib/promptOutline";
+import { appendPiece, appendTag, promptTerms, removeTerms, replaceName, type PromptTerm } from "../../lib/promptOutline";
 import {
   TAGS_KEY,
   useBoardOffers,
@@ -552,14 +552,14 @@ export function PromptBoard({
     if (present.has(t.name) || present.has(places?.names[t.name]?.alias_of ?? "")) return;
     onPrompt(t.weight != null ? appendPiece(prompt, typed.trim()) : appendTag(prompt, t.name));
   };
-  const remove = (t: Placed) => onPrompt(removeSpan(prompt, t.start, t.end));
+  const remove = (t: Placed) => onPrompt(removeTerms(prompt, [t]));
   // The tag already in the prompt: the alias only goes.
   const hasTag = (t: Placed) => mine.some((o) => o !== t && o.start !== t.start && tagOf(o) === t.place?.alias_of);
   const swapOf = (t: Placed) => {
     const tag = t.place?.alias_of;
     if (!tag) return undefined;
     return hasTag(t)
-      ? { label: "Remove duplicate", run: () => onPrompt(removeSpan(prompt, t.start, t.end)) }
+      ? { label: "Remove duplicate", run: () => onPrompt(removeTerms(prompt, [t])) }
       : { label: `Use ${tag.replace(/_/g, " ")}`, run: () => onPrompt(replaceName(prompt, t, tag)) };
   };
 
@@ -571,13 +571,13 @@ export function PromptBoard({
     const ts = l.terms.filter((t) => t.box === k && !t.self);
     return ts.length ? [{ layer: l.layer, terms: ts }] : [];
   });
-  // Clear: this box's Prompt tags come out (last first, so the spans hold)
-  // and every layer tag still on is struck for this batch.
+  // Clear: this box's Prompt tags come out (together, so a group whose
+  // members all go goes whole) and every layer tag still on is struck for
+  // this batch.
   const live = (k: BoxKey) => theirs.map((l) => ({ layer: l.layer, tags: l.terms.filter((t) => t.box === k && !t.dropped && !t.self && t.onToggle).map((t) => t.name) }));
   const clearable = (k: BoxKey) => CLEARABLE.has(k) && ((byBox.get(k)?.length ?? 0) > 0 || live(k).some((l) => l.tags.length > 0));
   const clear = (k: BoxKey, label: string) => {
-    let text = prompt;
-    for (const t of [...(byBox.get(k) ?? [])].sort((a, b) => b.start - a.start)) text = removeSpan(text, t.start, t.end);
+    const text = removeTerms(prompt, byBox.get(k) ?? []);
     if (text !== prompt) onPrompt(text);
     const undos = live(k).flatMap((l) => (l.tags.length && l.layer.onStrike ? [l.layer.onStrike(l.tags)] : []));
     const before = prompt;

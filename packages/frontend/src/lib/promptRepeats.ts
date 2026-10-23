@@ -5,7 +5,7 @@
  * (1girl, furina)`) is left alone, since a repeat there is on purpose.
  * Terms are read by promptOutline, the board's own splitter.
  */
-import { promptTerms } from "./promptOutline";
+import { promptTerms, removeTerms } from "./promptOutline";
 import { canonicalName } from "./tags";
 
 type Term = { start: number; end: number; key: string | null };
@@ -54,28 +54,11 @@ export function tagRepeats(tags: readonly string[], prompt: string): string[] {
   return repeatsOf(new Set(tags.map((t) => canonicalName(t.replace(/\\([()])/g, "$1")).toLowerCase())), prompt);
 }
 
-const isSeparator = (c: string) => c === "," || c === "\n" || c === "|" || /\s/.test(c);
-
 /** `prompt` without its plain top-level terms named in `words`, and how many
- * it took out; the rest as written. Each term goes with the separators after
- * it, or the ones before it when only those after hold a line break (a line
- * break wins over a comma). Pure. */
+ * it took out; the rest as written, each term going with the separator
+ * promptOutline's removeTerms gives it. Pure. */
 export function withoutTerms(prompt: string, words: readonly string[]): { text: string; removed: number } {
   const drop = new Set(words.flatMap((w) => keyOf(w.trim()) ?? []));
   const gone = topTerms(prompt).filter((t) => !!t.key && drop.has(t.key));
-  let text = prompt;
-  // From the end, so the earlier offsets still hold.
-  for (const t of [...gone].reverse()) {
-    let s = t.start;
-    while (s > 0 && isSeparator(text[s - 1])) s--;
-    let e = t.end;
-    while (e < text.length && isSeparator(text[e])) e++;
-    const first = s === 0;
-    const last = e === text.length;
-    const keepAfter = !text.slice(s, t.start).includes("\n") && text.slice(t.end, e).includes("\n");
-    if (first && last) text = text.slice(0, t.start) + text.slice(t.end);
-    else if (last || (!first && keepAfter)) text = text.slice(0, s) + text.slice(t.end);
-    else text = text.slice(0, t.start) + text.slice(e);
-  }
-  return { text, removed: gone.length };
+  return { text: removeTerms(prompt, gone), removed: gone.length };
 }

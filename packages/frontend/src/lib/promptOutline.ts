@@ -92,6 +92,8 @@ type Group = {
   weight?: number;
   /** Terms inside it, nested ones included. */
   terms: number;
+  /** `[from:to:0.5]`: prompt editing, not emphasis. */
+  edit?: boolean;
   /** Where the last emoticon read in it starts. */
   emoticon?: number;
 };
@@ -260,6 +262,7 @@ function scan(text: string): Raw[] {
     if (c === ":" && top() && text[top()!.open] === "[" && hasText) {
       // `[from:to:0.5]` (prompt editing): the two sides are separate pieces.
       if (!sticky(WEIGHT_AHEAD, text, i + 1)) {
+        top()!.edit = true;
         flush();
         i++;
         continue;
@@ -347,50 +350,153 @@ function readTerm(text: string, p: Raw): PromptTerm | null {
   return { name: canonicalName(name), written, kind, ...at };
 }
 
-/** Every term of a prompt, in order. A group holding one term alone (`(a:1.2)`,
- * `((a))`) is that term's piece; members of a larger group are their own,
- * each carrying the group's weight. */
-export function promptTerms(text: string): PromptTerm[] {
-  const raws = scan(text);
-  const terms: PromptTerm[] = [];
-  const groups: (Group | null)[] = [];
-  for (const p of raws) {
-    const t = readTerm(text, p);
-    if (!t) continue;
+type Placed = { term: PromptTerm; group: Group | null };
+
+/** Every term with the group it is a member of (null at the top level). */
+function placeTerms(text: string): Placed[] {
+  const placed: Placed[] = [];
+  for (const p of scan(text)) {
+    const term = readTerm(text, p);
+    if (!term) continue;
     for (let g = p.group; g; g = g.parent) g.terms++;
-    terms.push(t);
-    groups.push(p.group);
+    placed.push({ term, group: p.group });
   }
-  return terms.map((t, k) => {
-    let g = groups[k];
-    let { start, end } = t;
+  return placed.map(({ term, group }) => {
+    let g = group;
+    let { start, end } = term;
     while (g && g.close >= 0 && g.terms === 1) {
       start = g.open;
       end = g.close + 1;
       g = g.parent;
     }
-    return { ...t, start, end, grouped: g !== null };
+    return { term: { ...term, start, end, grouped: g !== null }, group: g };
   });
 }
 
-/** `text` without the piece at [start, end) and the separator it owned: the
- * comma (or line break) after it, else the one before it. */
-export function removeSpan(text: string, start: number, end: number): string {
-  const lineStart = start === 0 || text[start - 1] === "\n";
-  let e = end;
-  while (text[e] === " ") e++;
-  if (text[e] === ",") {
-    e++;
-    while (text[e] === " ") e++;
-    // First on its line: its line break goes with it.
-    if (lineStart && text[e] === "\n") e++;
-    return text.slice(0, start) + text.slice(e);
+/** Every term of a prompt, in order. A group holding one term alone (`(a:1.2)`,
+ * `((a))`) is that term's piece; members of a larger group are their own,
+ * each carrying the group's weight. */
+export function promptTerms(text: string): PromptTerm[] {
+  return placeTerms(text).map((p) => p.term);
+}
+
+/** Where the run of separators (spaces, `,` `\n` `|`, an escaped comma,
+ * `BREAK` / `AND`) after `i` ends. */
+function runAfter(text: string, i: number): number {
+  for (;;) {
+    if (i < text.length && (isSpace(text[i]) || SEPARATORS.has(text[i]))) i++;
+    else if (text.startsWith("\\,", i)) i += 2;
+    else if (keywordAt(text, i)) i += keywordAt(text, i);
+    else return i;
   }
-  if (text[e] === "\n") return text.slice(0, start) + text.slice(e + 1);
-  let s = start;
-  while (s > 0 && (text[s - 1] === " " || text[s - 1] === "\n")) s--;
-  if (text[s - 1] === ",") s--;
-  return text.slice(0, s) + text.slice(e);
+}
+
+/** Where the run of separators before `i` starts. */
+function runBefore(text: string, i: number): number {
+  for (;;) {
+    if (i > 0 && (isSpace(text[i - 1]) || SEPARATORS.has(text[i - 1]))) {
+      i--;
+      if (text[i] === "," && text[i - 1] === "\\") i--;
+      continue;
+    }
+    const kw = KEYWORDS.find((k) => i >= k.length && keywordAt(text, i - k.length) === k.length);
+    if (!kw) return i;
+    i -= kw.length;
+  }
+}
+
+// What a run keeps apart: a line, `BREAK` or `AND` most, then `|`, then a comma.
+const strength = (run: string) =>
+  /\n|\b(?:BREAK|AND)\b/.test(run) ? 3 : run.includes("|") ? 2 : run.includes(",") ? 1 : 0;
+const hasKeyword = (run: string) => /\b(?:BREAK|AND)\b/.test(run);
+const leadSpace = (run: string) => run.length - run.trimStart().length;
+const trailSpace = (run: string) => run.length - run.trimEnd().length;
+// Nothing before or after in this group (or the prompt): its edge.
+const edgeBefore = (text: string, i: number) => i === 0 || (OPEN.has(text[i - 1]) && text[i - 2] !== "\\");
+const edgeAfter = (text: string, i: number) =>
+  i === text.length || CLOSE.has(text[i]) || (text[i] === ":" && !!sticky(WEIGHT_AHEAD, text, i + 1));
+
+/** `text` without [s, e) and the separators it owns. Between two terms it
+ * takes the weaker of the runs on its sides, so the stronger one still
+ * stands between them; first or last in its group (or the prompt), the run
+ * on its inner side, so no `,` `|` `BREAK` is left dangling. Spaces at the
+ * very edge and a trailing separator the prompt was written with stay. */
+function cut(text: string, s: number, e: number): string {
+  const b = runBefore(text, s);
+  const a = runAfter(text, e);
+  const before = text.slice(b, s);
+  const after = text.slice(e, a);
+  const first = edgeBefore(text, b);
+  const last = edgeAfter(text, a);
+  let from = s;
+  let to = e;
+  if (first) {
+    from = b + leadSpace(before);
+    to = last ? a - trailSpace(after) : a;
+  } else if (last) {
+    from = b;
+    to = hasKeyword(after) ? a - trailSpace(after) : e;
+  } else if (strength(before) >= strength(after)) {
+    to = a;
+  } else {
+    from = b;
+  }
+  return text.slice(0, from) + text.slice(to);
+}
+
+/**
+ * `text` without the terms at `ranges` (spans from promptTerms; any other
+ * span is cut as it stands) and the separators each owned, the rest as
+ * written. A group goes whole once every member goes; while one is left it
+ * keeps its weight. A prompt edit (`[from:to:0.5]`) goes whole when either
+ * side does: one side alone would turn it into a weight. Pure.
+ */
+export function removeTerms(text: string, ranges: readonly { start: number; end: number }[]): string {
+  const placed = placeTerms(text);
+  const hit = new Set<Placed>();
+  const spans: { start: number; end: number }[] = [];
+  for (const r of ranges) {
+    const p = placed.find((x) => x.term.start === r.start && x.term.end === r.end);
+    if (p) hit.add(p);
+    else spans.push({ start: r.start, end: r.end });
+  }
+  const chain = (g: Group | null) => {
+    const out: Group[] = [];
+    for (; g; g = g.parent) out.push(g);
+    return out;
+  };
+  const gone = new Map<Group, boolean>();
+  // A term is out when it was hit or a group around it (below `g`) goes.
+  const out = (p: Placed, g: Group): boolean => {
+    const around = chain(p.group);
+    return hit.has(p) || around.slice(0, around.indexOf(g)).some(isGone);
+  };
+  function isGone(g: Group): boolean {
+    let v = gone.get(g);
+    if (v === undefined) {
+      const members = placed.filter((p) => chain(p.group).includes(g));
+      v = g.close >= 0 && members.length > 0 && (g.edit ? members.some((p) => out(p, g)) : members.every((p) => out(p, g)));
+      gone.set(g, v);
+    }
+    return v;
+  }
+  for (const p of placed) {
+    const groups = chain(p.group).filter(isGone);
+    const top = groups[groups.length - 1];
+    if (top) spans.push({ start: top.open, end: top.close + 1 });
+    else if (hit.has(p)) spans.push(p.term);
+  }
+  // From the end, so the earlier offsets still hold; a span inside one
+  // already cut is gone with it.
+  spans.sort((x, y) => y.start - x.start || y.end - x.end);
+  let res = text;
+  let floor = Infinity;
+  for (const { start, end } of spans) {
+    if (end > floor) continue;
+    res = cut(res, start, end);
+    floor = start;
+  }
+  return res;
 }
 
 /** How a tag reads in a prompt: spaces, parens escaped. */

@@ -77,7 +77,18 @@ describe("fixCountTags", () => {
 
   it("keeps lines and the rest of the text", () => {
     expect(fixCountTags("1girl, solo,\nsitting, rain", ["2girls"])).toBe("2girls,\nsitting, rain");
-    expect(fixCountTags("1girl, smile, solo\nrain", ["2girls"])).toBe("2girls, smile,\nrain");
+    expect(fixCountTags("1girl, smile, solo\nrain", ["2girls"])).toBe("2girls, smile\nrain");
+  });
+
+  it("drops a count tag with one separator of any kind", () => {
+    expect(fixCountTags("1girl, smile | solo", ["1girl"])).toBe("1girl, smile");
+    expect(fixCountTags("smile, solo BREAK 2girls", [])).toBe("smile");
+    expect(fixCountTags("solo BREAK smile", [])).toBe("smile");
+  });
+
+  it("swaps just the name of a weighted count tag", () => {
+    expect(fixCountTags("(2girls:1.2), smile", ["1girl"])).toBe("(1girl:1.2), smile");
+    expect(fixCountTags("[solo], smile", ["2girls"])).toBe("[2girls], smile");
   });
 
   it("leaves weighted groups whole", () => {

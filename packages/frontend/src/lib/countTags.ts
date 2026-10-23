@@ -1,4 +1,4 @@
-import { promptTerms } from "./promptOutline";
+import { promptTerms, removeTerms } from "./promptOutline";
 
 /**
  * Count tags (`1girl`, `2girls`, `1boy`, `solo`, `multiple_girls`) against
@@ -63,10 +63,17 @@ function parse(tag: string): Parsed | null {
  * offsets: a weighted or bracketed term alone (`(1girl:1.2)`, `[solo]`)
  * counts, a member of a larger group (`(1girl, solo, smile:1.2)`) doesn't,
  * so a group is left whole. */
-function terms(text: string): { start: number; end: number; text: string; tag: string }[] {
+function terms(text: string) {
   return promptTerms(text)
     .filter((t) => !t.grouped && t.kind !== "lora" && t.kind !== "embedding")
-    .map((t) => ({ start: t.start, end: t.end, text: text.slice(t.start, t.end), tag: normalise(t.name) }));
+    .map((t) => ({
+      start: t.start,
+      end: t.end,
+      nameStart: t.nameStart,
+      nameEnd: t.nameEnd,
+      text: text.slice(t.start, t.end),
+      tag: normalise(t.name),
+    }));
 }
 
 const plural = (n: number, kind: Kind) => `${n >= 6 ? "6+" : n}${kind}${n > 1 ? "s" : ""}`;
@@ -127,29 +134,17 @@ export function checkCountTags(prompt: string, kinds: readonly (Kind | null)[]):
  */
 export function fixCountTags(prompt: string, expected: readonly string[]): string {
   const words = expected.join(", ");
-  const ranges = countRanges(prompt);
-  const placed = ranges.length > 0;
-  let out = prompt;
-  // From the end, so the earlier offsets still hold.
-  for (let k = ranges.length - 1; k >= 0; k--) {
-    const { start, end } = ranges[k];
-    if (k === 0 && words) {
-      out = out.slice(0, start) + words + out.slice(end);
-      continue;
-    }
-    // Dropped with its spaces and comma; a line break stays a line break.
-    let s = start;
-    while (s > 0 && (out[s - 1] === " " || out[s - 1] === "\t")) s--;
-    let e = end;
-    while (out[e] === " " || out[e] === "\t") e++;
-    if (out[e] === "," || out[e] === "|") e++;
-    out = out.slice(0, s) + out.slice(e);
+  const found = terms(prompt).filter((t) => parse(t.tag));
+  if (!found.length) {
+    if (!words) return prompt;
+    return prompt.trim() ? `${words}, ${prompt.trimStart()}` : words;
   }
-  // A removed last term leaves its separator behind.
-  if (!/[,\n|]\s*$/.test(prompt)) out = out.replace(/[,\n|]\s*$/, "");
-  out = out.replace(/^\s*,\s*/, "");
-  if (!placed && words) return out.trim() ? `${words}, ${out.trimStart()}` : words;
-  return out;
+  // The first takes the new names inside its own brackets and weight; the
+  // rest go with their separators (removeTerms, which leaves the first's
+  // offsets alone: it stands before them all).
+  const keep = words ? found[0] : null;
+  const out = removeTerms(prompt, found.filter((t) => t !== keep));
+  return keep ? out.slice(0, keep.nameStart) + words + out.slice(keep.nameEnd) : out;
 }
 
 /** Where the count tags sit in `prompt` (outside weighted groups), spelled as

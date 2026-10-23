@@ -43,12 +43,17 @@ describe("withoutTerms", () => {
   it("keeps what stands beside a term it takes out", () => {
     expect(withoutTerms("masterpiece, (x, y), beach", ["masterpiece"]).text).toBe("(x, y), beach");
     expect(withoutTerms("beach, (x, y), masterpiece", ["masterpiece"]).text).toBe("beach, (x, y)");
-    expect(withoutTerms("masterpiece, BREAK, 1girl", ["masterpiece"]).text).toBe("BREAK, 1girl");
+    expect(withoutTerms("masterpiece, BREAK, 1girl", ["masterpiece"]).text).toBe("1girl");
     expect(withoutTerms("1girl, masterpiece\n(x, y)", ["masterpiece"]).text).toBe("1girl\n(x, y)");
     expect(withoutTerms("a\nm, n, b", ["m", "n"]).text).toBe("a\nb");
     expect(withoutTerms("a, m\nn, b", ["m", "n"]).text).toBe("a\nb");
     expect(withoutTerms("  m, a, ", ["m"]).text).toBe("  a, ");
     expect(withoutTerms("m", ["m"])).toEqual({ text: "", removed: 1 });
+  });
+  it("leaves no BREAK or AND orphaned at either end", () => {
+    expect(withoutTerms("a BREAK b, c", ["a"]).text).toBe("b, c");
+    expect(withoutTerms("b, c BREAK a", ["a"]).text).toBe("b, c");
+    expect(withoutTerms("b | a | c", ["a"]).text).toBe("b | c");
   });
   it("keeps line breaks and groups", () => {
     expect(withoutTerms("masterpiece, 1girl\nbeach, best quality\n(x, masterpiece)", ["masterpiece", "best quality"]).text).toBe(

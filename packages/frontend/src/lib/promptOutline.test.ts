@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fixture from "../../../backend/tests/fixtures/mirrored/prompt_terms.json";
-import { appendTag, promptTerms, removeSpan, replaceName } from "./promptOutline";
+import { appendTag, promptTerms, removeTerms, replaceName } from "./promptOutline";
 
 const names = (text: string) => promptTerms(text).map((t) => [t.name, t.weight ?? null, t.kind]);
 
@@ -105,11 +105,15 @@ describe("promptTerms", () => {
   });
 });
 
-describe("removeSpan", () => {
+// Remove the terms named `drop` (every copy), as the board does.
+const cut = (text: string, ...drop: string[]) =>
+  removeTerms(text, promptTerms(text).filter((x) => drop.includes(x.name)));
+
+describe("removeTerms", () => {
   const text = "1girl, (sunflower field, blue sky:1.1), smile,\nstanding, x_\\(cosplay\\)";
   const without = (name: string) => {
     const t = promptTerms(text).find((x) => x.name === name)!;
-    return removeSpan(text, t.start, t.end);
+    return removeTerms(text, [t]);
   };
 
   it("takes the first, a middle and the last term with their comma", () => {
@@ -124,10 +128,6 @@ describe("removeSpan", () => {
   });
 
   it("takes a term's line break when lines separate them", () => {
-    const cut = (text: string, name: string) => {
-      const t = promptTerms(text).find((x) => x.name === name)!;
-      return removeSpan(text, t.start, t.end);
-    };
     expect(cut("smile\nstanding\noutdoors", "standing")).toBe("smile\noutdoors");
     expect(cut("smile\nstanding\noutdoors", "smile")).toBe("standing\noutdoors");
     expect(cut("smile,\nstanding", "standing")).toBe("smile");
@@ -135,7 +135,32 @@ describe("removeSpan", () => {
   });
 
   it("empties a prompt of one term", () => {
-    expect(removeSpan("smile", 0, 5)).toBe("");
+    expect(removeTerms("smile", [{ start: 0, end: 5 }])).toBe("");
+  });
+
+  it("takes one separator of any kind, BREAK and AND included", () => {
+    expect(cut("a | b | c", "b")).toBe("a | c");
+    expect(cut("a | b", "b")).toBe("a");
+    expect(cut("a BREAK b", "b")).toBe("a");
+    expect(cut("a BREAK b, c", "a")).toBe("b, c");
+    expect(cut("a, b BREAK c", "c")).toBe("a, b");
+    expect(cut("a AND b", "a")).toBe("b");
+    // The stronger separator stays between what is left.
+    expect(cut("a, b BREAK c", "b")).toBe("a BREAK c");
+    expect(cut("a BREAK b, c", "b")).toBe("a BREAK c");
+  });
+
+  it("takes a group whose members all go, and keeps its weight while one is left", () => {
+    expect(cut("(x, y:1.2), z", "x", "y")).toBe("z");
+    expect(cut("a, (x, y:1.2), z", "x", "y")).toBe("a, z");
+    expect(cut("a, ((x, y), w:1.2)", "x", "y")).toBe("a, (w:1.2)");
+    expect(cut("a, ((x, y), w:1.2)", "x", "y", "w")).toBe("a");
+    expect(cut("(x, y:1.2)", "y")).toBe("(x:1.2)");
+  });
+
+  it("takes a prompt edit whole when either side goes", () => {
+    expect(cut("a, [from:to:0.5], b", "from")).toBe("a, b");
+    expect(cut("a, [from:to:0.5], b", "to")).toBe("a, b");
   });
 });
 
