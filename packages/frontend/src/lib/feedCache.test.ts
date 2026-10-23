@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import type { ImageDoc } from "./imageFilter";
 import type { FeedPage } from "./imageApi";
@@ -10,6 +10,7 @@ import {
   patchImageInFeeds,
   removeImageFromFeeds,
   removeImagesFromFeeds,
+  writeImageFields,
 } from "./feedCache";
 
 const doc = (id: string, score = 0) => ({ _id: id, score }) as ImageDoc;
@@ -193,6 +194,36 @@ describe("patchImageEverywhere", () => {
     undo();
     expect(pagesOf(qc, ["images", 60, { tags: [] }])[0][0].score).toBe(0);
     expect((qc.getQueryData(imageDocKey("a")) as ImageDoc).score).toBe(1);
+  });
+});
+
+describe("writeImageFields", () => {
+  const key = ["images", 60, { tags: [] }];
+
+  it("shows the value during the write and keeps it over a fetch that raced it", async () => {
+    const qc = seededClient();
+    const stale = qc.getQueryData(key);
+    await writeImageFields(qc, "a", { score: 5 }, async () => {
+      expect(pagesOf(qc, key)[0][0].score).toBe(5);
+      qc.setQueryData(key, stale); // a refetch from before the write lands
+    });
+    expect(pagesOf(qc, key)[0][0].score).toBe(5);
+  });
+
+  it("undoes the patch and rethrows when the write fails", async () => {
+    const qc = seededClient();
+    qc.setQueryData(imageDocKey("a"), doc("a", 1));
+    const boom = new Error("boom");
+    await expect(writeImageFields(qc, "a", { score: 5 }, () => Promise.reject(boom))).rejects.toBe(boom);
+    expect(pagesOf(qc, key)[0][0].score).toBe(0);
+    expect((qc.getQueryData(imageDocKey("a")) as ImageDoc).score).toBe(1);
+  });
+
+  it("cancels a doc fetch in flight first, under the route's id", async () => {
+    const qc = seededClient();
+    const spy = vi.spyOn(qc, "cancelQueries");
+    await writeImageFields(qc, "L1:a", { score: 2 }, async () => {}, "L1%5Ca");
+    expect(spy).toHaveBeenCalledWith({ queryKey: imageDocKey("L1%5Ca"), exact: true });
   });
 });
 

@@ -168,6 +168,32 @@ export function patchImageEverywhere(
   };
 }
 
+/**
+ * Write fields of one image optimistically: shown at once everywhere it is
+ * cached, `write` awaited, then patched again (a feed or doc fetch that
+ * started before the write may have brought the old value back meanwhile).
+ * On failure the patch is undone and the error rethrown. A doc fetch already
+ * in flight is cancelled first, or it would land after the patch and undo it.
+ * `docId` as in patchImageEverywhere.
+ */
+export async function writeImageFields(
+  qc: QueryClient,
+  id: string,
+  fields: Partial<ImageDoc>,
+  write: () => Promise<unknown>,
+  docId: string = id,
+): Promise<void> {
+  await qc.cancelQueries({ queryKey: imageDocKey(docId), exact: true });
+  const undo = patchImageEverywhere(qc, id, fields, docId);
+  try {
+    await write();
+  } catch (e) {
+    undo();
+    throw e;
+  }
+  patchImageEverywhere(qc, id, fields, docId);
+}
+
 /** Drop one image from every cached feed (quarantine, purge). */
 export function removeImageFromFeeds(qc: QueryClient, id: string): void {
   removeImagesFromFeeds(qc, [id]);

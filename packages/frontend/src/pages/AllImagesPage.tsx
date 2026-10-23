@@ -87,7 +87,7 @@ import {
   imageDocKey,
   invalidateFeeds,
   patchFeeds,
-  patchImageEverywhere,
+  writeImageFields,
   removeImagesFromFeeds,
 } from "../lib/feedCache";
 
@@ -521,14 +521,9 @@ export default function AllImagesPage() {
       if (!it) return;
       // Every cached copy, the open-image document included, so ImageView
       // shows the new score too; undone if the write fails.
-      const undo = patchImageEverywhere(queryClient, it._id, { score: n });
       try {
-        await apiSetScore(it._id, n);
-        // Again on success: a feed refetch that was already in flight (after
-        // a bulk action, say) may have brought the old score back meanwhile.
-        patchImageEverywhere(queryClient, it._id, { score: n });
+        await writeImageFields(queryClient, it._id, { score: n }, () => apiSetScore(it._id, n));
       } catch (e) {
-        undo();
         push(`Failed to set score: ${errorText(e)}`, "error");
       }
     },

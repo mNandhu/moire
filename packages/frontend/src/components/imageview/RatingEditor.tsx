@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 import { errorText } from "../../lib/api";
-import { imageDocKey, patchImageEverywhere } from "../../lib/feedCache";
+import { writeImageFields } from "../../lib/feedCache";
 import { setRating as apiSetRating } from "../../lib/imageMutations";
 import { ratingBadgeClass } from "../../lib/rating";
 import { useToast } from "../Toasts";
@@ -28,17 +28,12 @@ export function RatingEditor({
   const setRating = async (next: string) => {
     if (next === v) return;
     setSaving(true);
-    await queryClient.cancelQueries({ queryKey: imageDocKey(docId), exact: true });
     // Shown at once, here and on the gallery tile; undone if the write fails.
-    const undo = patchImageEverywhere(queryClient, id, { rating: next }, docId);
     try {
-      await apiSetRating(id, next);
-      // Again on success, over any fetch that raced the write.
-      patchImageEverywhere(queryClient, id, { rating: next }, docId);
+      await writeImageFields(queryClient, id, { rating: next }, () => apiSetRating(id, next), docId);
       push("Rating updated", "success");
       onDone();
     } catch (e) {
-      undo();
       push(`Failed to update rating: ${errorText(e)}`, "error");
     } finally {
       setSaving(false);

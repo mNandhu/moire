@@ -54,7 +54,7 @@ import { RatingEditor } from "../components/imageview/RatingEditor";
 // Round controls floating over the image stage (back, details, prev/next).
 const OVERLAY_BTN =
   "p-2 rounded-full bg-black/45 border border-white/10 text-white/80 hover:text-white hover:bg-black/65 disabled:opacity-30 disabled:pointer-events-none transition-colors duration-150";
-import { imageDocKey, invalidateFeeds, patchImageEverywhere, removeImageFromFeeds, syncFeedsFromDoc } from "../lib/feedCache";
+import { imageDocKey, invalidateFeeds, removeImageFromFeeds, syncFeedsFromDoc, writeImageFields } from "../lib/feedCache";
 
 // How long a fetched image doc stays fresh. Shared by the current-image query
 // and the neighbour prefetch so stepping through the feed reuses prefetched
@@ -268,18 +268,11 @@ export default function ImageView() {
     async (n: number) => {
       if (!id) return;
       const canonical = data?._id ?? id;
-      // A doc fetch already in flight would land after the patch and undo it.
-      await queryClient.cancelQueries({ queryKey: imageDocKey(id), exact: true });
       // Shown at once, here and on the gallery tile; undone if the write fails.
-      const undo = patchImageEverywhere(queryClient, canonical, { score: n }, id);
       try {
-        await apiSetScore(id, n);
-        // Again on success: a feed fetch that started before the write may
-        // have brought the old value back in the meantime.
-        patchImageEverywhere(queryClient, canonical, { score: n }, id);
+        await writeImageFields(queryClient, canonical, { score: n }, () => apiSetScore(id, n), id);
         refreshImage();
       } catch (e) {
-        undo();
         push(`Failed to set score: ${errorText(e)}`, "error");
       }
     },
