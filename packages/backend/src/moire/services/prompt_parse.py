@@ -99,7 +99,9 @@ EMBEDDING_TOKEN = re.compile(
 _LEAD_JOINER = re.compile(r"^(?:and|or)\s+")
 _QUALIFIER = re.compile(r"\([^()]*\)")
 # What follows a weight colon: a number, then a group close, comma or the end.
-_WEIGHT_AHEAD = re.compile(r"-?\d*\.?\d+\s*(?:[)\]},]|$)")
+# Matched in place at the colon + 1 (leading space allowed), never on a slice
+# of the rest, so a check costs the match, not a copy of the prompt.
+_WEIGHT_AHEAD = re.compile(r"\s*-?\d*\.?\d+\s*(?:[)\]},]|$)")
 
 
 @dataclass(frozen=True)
@@ -152,7 +154,7 @@ def _emoticon_at(text: str, i: int) -> int:
             or text[j] in _SEPARATORS
             or text[j] in _CLOSE
             or text[j].isspace()
-            or (text[j] == ":" and _WEIGHT_AHEAD.match(text[j + 1 :].lstrip()))
+            or (text[j] == ":" and _WEIGHT_AHEAD.match(text, j + 1))
         ):
             return length
     return 0
@@ -193,7 +195,7 @@ def _is_edit_colon(text: str, i: int) -> bool:
     """Whether the ``:`` at ``i``, inside ``[...]``, is A1111 prompt editing
     (``[from:to:0.5]``) rather than a weight: the two sides are separate
     pieces. Inside ``(...)`` a colon is text (``(artist:name)``) or a weight."""
-    return not _WEIGHT_AHEAD.match(text[i + 1 :].lstrip())
+    return not _WEIGHT_AHEAD.match(text, i + 1)
 
 
 @dataclass(frozen=True)
