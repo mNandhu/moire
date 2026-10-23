@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
-import { Button, Card, Input } from "../ui";
-import { Dialog } from "../ui/Dialog";
+import { Button, Card } from "../ui";
 import { Picker, type PickerOption } from "../ui/Picker";
 import { cn } from "../../lib/cn";
 import {
@@ -16,12 +14,11 @@ import {
 } from "../../lib/generate";
 import { loraWords } from "../../lib/generateForm";
 import { toPromptText } from "../../lib/tags";
-import { useToast } from "../Toasts";
+import { PresetDialogShell } from "./PresetDialogShell";
+import { PresetPicker } from "./PresetPicker";
 import { ExpandButton } from "./Layers";
 import { stemOf } from "./RunControls";
 
-const NONE = "\u0000none";
-const NEW = "\u0000new";
 const DEFAULT_STRENGTH = 0.7;
 
 /** A LoRA's presets, the most recently edited first. */
@@ -38,84 +35,46 @@ function hasWord(text: string, word: string): boolean {
 
 /** Create or edit one LoRA's activation preset, with suggested words. */
 function LoraPresetDialog({
-  open,
   onClose,
   lora,
   preset,
   initialText,
   onSaved,
 }: {
-  open: boolean;
   onClose: () => void;
   lora: string;
   preset: LoraPreset | null;
   initialText: string;
   onSaved: (p: LoraPreset | null) => void;
 }) {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [name, setName] = useState("");
-  const [text, setText] = useState("");
-  const [strength, setStrength] = useState("");
-  const { data: words } = useLoraWords(open ? lora : null);
-  useEffect(() => {
-    if (!open) return;
-    setName(preset?.name ?? "");
-    setText(preset?.text ?? initialText);
-    setStrength(preset?.strength != null ? String(preset.strength) : "");
-    // Seed once per opening: a refetch mustn't wipe what is being typed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-  const done = (p: LoraPreset | null) => {
-    void qc.invalidateQueries({ queryKey: LORA_PRESETS_KEY });
-    onSaved(p);
-    onClose();
-  };
+  const [name, setName] = useState(preset?.name ?? "");
+  const [text, setText] = useState(preset?.text ?? initialText);
+  const [strength, setStrength] = useState(preset?.strength != null ? String(preset.strength) : "");
+  const { data: words } = useLoraWords(lora);
   const parsed = strength.trim() === "" ? null : Number(strength);
   const badStrength = parsed !== null && (!Number.isFinite(parsed) || parsed < -2 || parsed > 2);
-  const save = useMutation({
-    mutationFn: () => {
-      const body = { name, text, strength: parsed };
-      return preset ? updateLoraPreset(preset._id, body) : createLoraPreset({ lora, ...body });
-    },
-    onSuccess: done,
-    onError: (e) => toast.push(e.message, "error"),
-  });
-  const remove = useMutation({
-    mutationFn: () => deleteLoraPreset(preset!._id),
-    onSuccess: () => done(null),
-    onError: (e) => toast.push(e.message, "error"),
-  });
   const offer = (words ?? []).filter((w) => !hasWord(text, toPromptText([w.word])));
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
+    <PresetDialogShell
       title={
         <span className="flex items-baseline gap-2.5">
           {preset ? "Edit preset" : "New preset"}
           <span className="truncate font-mono text-xs font-normal text-muted">{stemOf(lora)}</span>
         </span>
       }
-      footer={
-        <div className="flex w-full items-center gap-2">
-          {preset && (
-            <Button variant="ghost" onClick={() => remove.mutate()} disabled={remove.isPending} className="text-red-300">
-              Delete
-            </Button>
-          )}
-          <span className="flex-1" />
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={() => save.mutate()} disabled={!name.trim() || badStrength || save.isPending}>
-            Save
-          </Button>
-        </div>
-      }
+      editing={!!preset}
+      name={name}
+      onName={setName}
+      canSave={!badStrength}
+      queryKey={LORA_PRESETS_KEY}
+      save={() => {
+        const body = { name, text, strength: parsed };
+        return preset ? updateLoraPreset(preset._id, body) : createLoraPreset({ lora, ...body });
+      }}
+      remove={() => deleteLoraPreset(preset!._id)}
+      onClose={onClose}
+      onSaved={onSaved}
     >
-      <div className="space-y-3">
-        <Input aria-label="Preset name" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
         <textarea
           aria-label="Activation words"
           placeholder="Activation words"
@@ -169,8 +128,7 @@ function LoraPresetDialog({
             </div>
           </div>
         )}
-      </div>
-    </Dialog>
+    </PresetDialogShell>
   );
 }
 
@@ -191,14 +149,7 @@ function LoraRow({
   const [dialog, setDialog] = useState<"edit" | "new" | null>(null);
   const mine = presetsOf(lora.name, presets);
   const current = lora.preset ? (mine.find((p) => p._id === lora.preset!.id) ?? null) : null;
-  const deleted = !!lora.preset && !current && !!presets;
   const words = loraWords(lora, presets);
-  const opts: PickerOption[] = [
-    { value: NONE, label: "None", detail: "LoRA only" },
-    ...mine.map((p) => ({ value: p._id, label: p.name, detail: p.text, keywords: p.text })),
-    ...(deleted ? [{ value: lora.preset!.id, label: "Deleted preset", dim: true }] : []),
-    { value: NEW, label: "New preset" },
-  ];
   const pick = (p: LoraPreset) =>
     onChange({ ...lora, preset: { id: p._id, text: p.text }, strength: p.strength ?? lora.strength });
   return (
@@ -210,20 +161,16 @@ function LoraRow({
         {stemOf(lora.name)}
       </span>
       <div className="w-36 shrink-0">
-        <Picker
+        <PresetPicker
           aria-label={`${stemOf(lora.name)} preset`}
-          value={lora.preset?.id ?? NONE}
-          options={opts}
+          presets={mine}
+          loaded={!!presets}
+          value={lora.preset?.id}
+          onPick={(p) => (p ? pick(p) : onChange({ ...lora, preset: null }))}
+          onNew={() => setDialog("new")}
           placeholder={mine.length ? "None" : "No preset yet"}
-          onChange={(v) => {
-            if (v === NEW) setDialog("new");
-            else if (v === NONE) onChange({ ...lora, preset: null });
-            else {
-              const p = mine.find((x) => x._id === v);
-              if (p) pick(p);
-            }
-          }}
-          className="w-full"
+          noneDetail="LoRA only"
+          showText
         />
       </div>
       <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted" title={words || undefined}>
@@ -265,17 +212,18 @@ function LoraRow({
       >
         <X size={14} />
       </button>
-      <LoraPresetDialog
-        open={dialog !== null}
-        onClose={() => setDialog(null)}
-        lora={lora.name}
-        preset={dialog === "edit" ? current : null}
-        initialText={dialog === "new" ? words : ""}
-        onSaved={(p) => {
-          if (p) pick(p);
-          else if (dialog === "edit") onChange({ ...lora, preset: null });
-        }}
-      />
+      {dialog && (
+        <LoraPresetDialog
+          onClose={() => setDialog(null)}
+          lora={lora.name}
+          preset={dialog === "edit" ? current : null}
+          initialText={dialog === "new" ? words : ""}
+          onSaved={(p) => {
+            if (p) pick(p);
+            else if (dialog === "edit") onChange({ ...lora, preset: null });
+          }}
+        />
+      )}
     </div>
   );
 }

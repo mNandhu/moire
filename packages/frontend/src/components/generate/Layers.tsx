@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState } from "react";
-import { useDismiss } from "../../hooks/useDismiss";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Plus, Sparkles, TextCursorInput, UserRound, X, Bookmark } from "lucide-react";
-import { Button, Card, Input } from "../ui";
-import { Dialog } from "../ui/Dialog";
-import { Picker, type PickerOption } from "../ui/Picker";
+import { Button, Card } from "../ui";
+import { DropdownMenu, type DropdownItem } from "../ui/DropdownMenu";
+import { Picker } from "../ui/Picker";
 import { cn } from "../../lib/cn";
 import {
   PRESETS_KEY,
@@ -14,10 +12,8 @@ import {
   type Preset,
 } from "../../lib/generate";
 import { presetText, type AddedKind, type PresetRef } from "../../lib/generateForm";
-import { useToast } from "../Toasts";
-
-const NONE = "\u0000none";
-const NEW = "\u0000new";
+import { PresetDialogShell } from "./PresetDialogShell";
+import { PresetPicker } from "./PresetPicker";
 
 /** A one-line layer: label, controls, and an optional remove button. */
 export function LayerRow({
@@ -91,144 +87,74 @@ export function AddLayer({
   onCharacter?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const dismiss = useDismiss(ref, () => setOpen(false), open);
+  const items: DropdownItem[] = [
+    ...(onCharacter
+      ? [{ label: "Character", icon: <UserRound size={14} />, title: "Another character, in the Character layer", onClick: onCharacter }]
+      : []),
+    ...ADD.map((a) => ({ label: a.label, icon: a.icon, title: a.title, onClick: () => onAdd(a.kind) })),
+  ];
   return (
-    <div ref={ref} className="relative flex h-7 items-center gap-2.5 pl-6" onKeyDown={dismiss.onKeyDown}>
+    <div className="flex h-7 items-center gap-2.5 pl-6">
       <span className="h-full w-px bg-line-strong" aria-hidden />
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
+      <DropdownMenu
         aria-label="Add a layer here"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        title="Add a layer here"
-        className={cn(
-          "grid h-5 w-5 place-items-center rounded-full border text-muted transition-colors",
-          open
-            ? "border-brand-500 bg-brand-900/50 text-neutral-50"
-            : "border-dashed border-line-strong bg-neutral-950 hover:border-solid hover:border-brand-500 hover:text-neutral-50",
-        )}
-      >
-        <Plus size={12} />
-      </button>
-      {open && (
-        <div
-          role="menu"
-          className="absolute left-14 top-0 z-30 w-48 rounded-lg border border-line-strong bg-raised py-1 shadow-panel"
-        >
-          {onCharacter && (
-            <button
-              type="button"
-              role="menuitem"
-              title="Another character, in the Character layer"
-              onClick={() => {
-                onCharacter();
-                setOpen(false);
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-neutral-200 hover:bg-line hover:text-white"
-            >
-              <UserRound size={14} />
-              Character
-            </button>
-          )}
-          {ADD.map((a) => (
-            <button
-              key={a.kind}
-              type="button"
-              role="menuitem"
-              title={a.title}
-              onClick={() => {
-                onAdd(a.kind);
-                setOpen(false);
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-neutral-200 hover:bg-line hover:text-white"
-            >
-              {a.icon}
-              {a.label}
-            </button>
-          ))}
-        </div>
-      )}
+        items={items}
+        onOpenChange={setOpen}
+        trigger={
+          <span
+            title="Add a layer here"
+            className={cn(
+              "grid h-5 w-5 place-items-center rounded-full border text-muted transition-colors",
+              open
+                ? "border-brand-500 bg-brand-900/50 text-neutral-50"
+                : "border-dashed border-line-strong bg-neutral-950 hover:border-solid hover:border-brand-500 hover:text-neutral-50",
+            )}
+          >
+            <Plus size={12} />
+          </span>
+        }
+      />
     </div>
   );
 }
 
 /** Create or edit a preset. Saving changes it for every layer that uses it. */
 function PresetDialog({
-  open,
   onClose,
   kind,
   preset,
   initialText,
   onSaved,
 }: {
-  open: boolean;
   onClose: () => void;
   kind: Preset["kind"];
   preset: Preset | null;
   initialText: string;
   onSaved: (p: Preset | null) => void;
 }) {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [name, setName] = useState("");
-  const [text, setText] = useState("");
-  useEffect(() => {
-    if (!open) return;
-    setName(preset?.name ?? "");
-    setText(preset?.text ?? initialText);
-    // Seed once per opening: a refetch mustn't wipe what is being typed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-  const done = (p: Preset | null) => {
-    void qc.invalidateQueries({ queryKey: PRESETS_KEY });
-    onSaved(p);
-    onClose();
-  };
-  const save = useMutation({
-    mutationFn: () => (preset ? updatePreset(preset._id, { name, text }) : createPreset({ name, kind, text })),
-    onSuccess: done,
-    onError: (e) => toast.push(e.message, "error"),
-  });
-  const remove = useMutation({
-    mutationFn: () => deletePreset(preset!._id),
-    onSuccess: () => done(null),
-    onError: (e) => toast.push(e.message, "error"),
-  });
+  const [name, setName] = useState(preset?.name ?? "");
+  const [text, setText] = useState(preset?.text ?? initialText);
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
+    <PresetDialogShell
       title={preset ? "Edit preset" : "New preset"}
-      footer={
-        <div className="flex w-full items-center gap-2">
-          {preset && (
-            <Button variant="ghost" onClick={() => remove.mutate()} disabled={remove.isPending} className="text-red-300">
-              Delete
-            </Button>
-          )}
-          <span className="flex-1" />
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={() => save.mutate()} disabled={!name.trim() || save.isPending}>
-            Save
-          </Button>
-        </div>
-      }
+      editing={!!preset}
+      name={name}
+      onName={setName}
+      canSave
+      queryKey={PRESETS_KEY}
+      save={() => (preset ? updatePreset(preset._id, { name, text }) : createPreset({ name, kind, text }))}
+      remove={() => deletePreset(preset!._id)}
+      onClose={onClose}
+      onSaved={onSaved}
     >
-      <div className="space-y-3">
-        <Input aria-label="Preset name" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-        <textarea
-          aria-label="Preset text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={4}
-          className="w-full resize-y rounded-lg border border-neutral-800 bg-neutral-950/70 px-3 py-2 font-mono text-xs text-neutral-100 outline-none focus:border-brand-600/60"
-        />
-      </div>
-    </Dialog>
+      <textarea
+        aria-label="Preset text"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={4}
+        className="w-full resize-y rounded-lg border border-neutral-800 bg-neutral-950/70 px-3 py-2 font-mono text-xs text-neutral-100 outline-none focus:border-brand-600/60"
+      />
+    </PresetDialogShell>
   );
 }
 
@@ -255,30 +181,17 @@ export function PresetControl({
   const [dialog, setDialog] = useState<"edit" | "new" | null>(null);
   const mine = (presets ?? []).filter((p) => p.kind === kind);
   const current = value ? (mine.find((p) => p._id === value.id) ?? null) : null;
-  const deleted = !!value && !current && !!presets;
-  const opts: PickerOption[] = [
-    { value: NONE, label: "None" },
-    ...mine.map((p) => ({ value: p._id, label: p.name, keywords: p.text })),
-    ...(deleted ? [{ value: value!.id, label: "Deleted preset", dim: true }] : []),
-    { value: NEW, label: "New preset" },
-  ];
   const text = presetText(value, presets);
   return (
     <>
       <div className="w-48 shrink-0">
-        <Picker
+        <PresetPicker
           aria-label={label}
-          value={value?.id ?? NONE}
-          options={opts}
-          onChange={(v) => {
-            if (v === NEW) setDialog("new");
-            else if (v === NONE) onChange(null);
-            else {
-              const p = mine.find((x) => x._id === v);
-              if (p) onChange({ id: p._id, text: p.text });
-            }
-          }}
-          className="w-full"
+          presets={mine}
+          loaded={!!presets}
+          value={value?.id}
+          onPick={(p) => onChange(p ? { id: p._id, text: p.text } : null)}
+          onNew={() => setDialog("new")}
         />
       </div>
       <PresetPreview text={text} extra={extra} onClick={onPreview} />
@@ -287,17 +200,18 @@ export function PresetControl({
           Edit
         </Button>
       )}
-      <PresetDialog
-        open={dialog !== null}
-        onClose={() => setDialog(null)}
-        kind={kind}
-        preset={dialog === "edit" ? current : null}
-        initialText={dialog === "new" ? text : ""}
-        onSaved={(p) => {
-          if (p) onChange({ id: p._id, text: p.text });
-          else if (dialog === "edit") onChange(null);
-        }}
-      />
+      {dialog && (
+        <PresetDialog
+          onClose={() => setDialog(null)}
+          kind={kind}
+          preset={dialog === "edit" ? current : null}
+          initialText={dialog === "new" ? text : ""}
+          onSaved={(p) => {
+            if (p) onChange({ id: p._id, text: p.text });
+            else if (dialog === "edit") onChange(null);
+          }}
+        />
+      )}
     </>
   );
 }
