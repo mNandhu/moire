@@ -84,6 +84,8 @@ export type PreviewResult = {
   >;
 };
 
+export const RULES_SIGNATURES_KEY = ["rules-signatures"] as const;
+
 export function fetchSignatures(): Promise<SignatureRow[]> {
   return api<SignatureRow[]>("/api/v1/rules/signatures");
 }

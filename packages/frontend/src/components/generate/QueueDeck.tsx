@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, X } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { clockText } from "../../lib/format";
-import { BATCHES_KEY, STATUS_KEY, batchKey, cancelBatch, useComfyStatus } from "../../lib/generate";
+import { cancelBatch, invalidateQueue, useComfyStatus } from "../../lib/generate";
 import { useToast } from "../Toasts";
 import { FrameRow, legWhen } from "./QueueFrames";
 import { useLiveQueue, type LiveLeg } from "./useLiveQueue";
@@ -21,10 +21,8 @@ function CancelX({ id, className }: { id: number; className?: string }) {
   const cancel = useMutation({
     mutationFn: () => cancelBatch(id),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: STATUS_KEY });
-      void qc.invalidateQueries({ queryKey: BATCHES_KEY });
-      // Its panel in the output column, which polls on its own.
-      void qc.invalidateQueries({ queryKey: batchKey(id) });
+      // With its panel in the output column, which polls on its own.
+      invalidateQueue(qc, id);
     },
     onError: (e) => toast.push(e.message, "error"),
   });

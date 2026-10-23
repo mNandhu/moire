@@ -15,17 +15,11 @@
 import type { InfiniteData, Query, QueryClient } from "@tanstack/react-query";
 import { IMAGE_STATS_KEY, TAGS_KEY, imageEmbeddingsQuery, imageLorasQuery, imageModelsQuery } from "./queries";
 import type { ImageDoc } from "./imageFilter";
-import type { FeedPage } from "./imageApi";
+import { IMAGE_FEED_PREFIX, IMAGE_GROUPS_PREFIX, imageDocKey, type FeedPage } from "./imageApi";
 
-/**
- * Every feed query key starts with this; TanStack matches by prefix, so it
- * reaches all cursor-paged feeds regardless of filter or page size.
- */
-export const IMAGE_FEED_PREFIX = ["images"] as const;
-const IMAGE_GROUPS_PREFIX = ["image-groups"] as const;
-
-/** Query key of one Image's full document (ImageView's source of truth). */
-export const imageDocKey = (id: string) => ["image", id] as const;
+// The cache keys live with the fetchers (lib/imageApi.ts); re-exported for
+// the readers that patch through here.
+export { IMAGE_DOC_PREFIX, IMAGE_FEED_PREFIX, IMAGE_GROUPS_PREFIX, imageDocKey } from "./imageApi";
 
 /**
  * Replace a query's data *without* touching its freshness. `setQueryData`

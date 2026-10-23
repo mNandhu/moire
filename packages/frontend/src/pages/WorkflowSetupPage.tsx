@@ -9,6 +9,9 @@ import {
   createGenerator,
   deleteGenerator,
   discoverGenerator,
+  generatorDiscoverKey,
+  generatorLatestKey,
+  generatorSetupKey,
   getGeneratorLatest,
   getGeneratorSetup,
   putGenerator,
@@ -617,20 +620,20 @@ export default function WorkflowSetupPage() {
     [source],
   );
   const discovered = useQuery({
-    queryKey: ["generate", "discover", sourceKey],
+    queryKey: generatorDiscoverKey(sourceKey),
     queryFn: () => discoverGenerator(source!),
     enabled: !id && !!source,
     retry: false,
     staleTime: Infinity,
   });
   const existing = useQuery({
-    queryKey: ["generate", "setup", id, updateTo],
+    queryKey: [...generatorSetupKey(id), updateTo],
     queryFn: ({ signal }) => getGeneratorSetup(id!, signal, updateTo),
     enabled: !!id,
     retry: false,
   });
   const latest = useQuery({
-    queryKey: ["generate", "latest", id],
+    queryKey: generatorLatestKey(id),
     queryFn: ({ signal }) => getGeneratorLatest(id!, signal),
     enabled: !!id && !updateTo,
   });
@@ -659,8 +662,8 @@ export default function WorkflowSetupPage() {
       putGenerator(id!, updateTo ? { ...v, source: { image_id: updateTo } } : v),
     onSuccess: (g) => {
       void qc.invalidateQueries({ queryKey: GENERATORS_KEY });
-      void qc.invalidateQueries({ queryKey: ["generate", "setup", id] });
-      void qc.invalidateQueries({ queryKey: ["generate", "latest", id] });
+      void qc.invalidateQueries({ queryKey: generatorSetupKey(id) });
+      void qc.invalidateQueries({ queryKey: generatorLatestKey(id) });
       if (updateTo) setParams({}, { replace: true });
       toast.push(g.ready ? "Saved" : "Saved. Run the test again before queueing.", "success");
     },

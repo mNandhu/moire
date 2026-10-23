@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchAiStatus, isStatusBusy } from "../lib/ai";
+import { AI_STATUS_KEY, fetchAiStatus, isStatusBusy } from "../lib/ai";
 
 const BUSY_INTERVAL_MS = 2000;
 const IDLE_INTERVAL_MS = 5000;
@@ -11,7 +11,7 @@ const IDLE_INTERVAL_MS = 5000;
  */
 export function useAiStatus() {
   return useQuery({
-    queryKey: ["aiStatus"],
+    queryKey: AI_STATUS_KEY,
     queryFn: ({ signal }) => fetchAiStatus(signal),
     refetchInterval: (query) =>
       isStatusBusy(query.state.data) ? BUSY_INTERVAL_MS : IDLE_INTERVAL_MS,

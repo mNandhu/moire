@@ -18,7 +18,7 @@ import { useComfyModels, useRecipe } from "../lib/generate";
 import { loadDraft, saveDraft, withCharacter } from "../lib/generateForm";
 import { cn } from "../lib/cn";
 import { useAmbientTint } from "../lib/ambient";
-import { fetchSignatures } from "../lib/gen";
+import { RULES_SIGNATURES_KEY, fetchSignatures } from "../lib/gen";
 import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
 import { useBoilerplate, useCharacterPage, useTagDescription, useTagDetail, useTagPlaces } from "../lib/queries";
 import { danbooruWikiUrl, formatTag, onDanbooru, toPromptText } from "../lib/tags";
@@ -433,7 +433,7 @@ function Recipe({ c, onEdit }: { c: Character; onEdit: () => void }) {
 function Sidebar({ c, accent, onEdit, person }: { c: Character; accent?: string; onEdit: () => void; person: boolean }) {
   const { data: everyone } = useCharacters();
   const { data: signatures } = useQuery({
-    queryKey: ["rules-signatures"],
+    queryKey: RULES_SIGNATURES_KEY,
     queryFn: fetchSignatures,
     staleTime: 60_000,
   });

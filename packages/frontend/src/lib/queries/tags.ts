@@ -189,12 +189,14 @@ export function useMergeSuggestions() {
   });
 }
 
+export const TAG_DESCRIPTIONS_KEY = ["tag-descriptions"] as const;
+
 /** `tag -> one-sentence description` for the tagger's general tags: a file
  * shipped with the app (and its Danbooru aliases). Not under TAGS_KEY,
  * which every tag write invalidates. */
 export function useTagDescriptions() {
   return useQuery({
-    queryKey: ["tag-descriptions"],
+    queryKey: TAG_DESCRIPTIONS_KEY,
     queryFn: ({ signal }) => api<Record<string, string>>("/api/v1/tags/descriptions", { signal }),
     // Aliases join once the server has Danbooru's list, so look again now and then.
     staleTime: TAG_MAP_STALE_MS,

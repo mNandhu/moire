@@ -246,6 +246,9 @@ export function fetchAiSettings(): Promise<AISettings> {
 // one React hook and `/jobs/:id/cancel` had two adapters that disagreed on whose
 // job it was. The context now owns state and toast policy; it knows no URLs.
 
+export const AI_STATUS_KEY = ["aiStatus"] as const;
+export const aiJobKey = (jobId: string | null) => ["aiJob", jobId] as const;
+
 const POST = { method: "POST" } as const;
 
 const postJson = <T>(url: string, body: unknown) => apiJson<T>(url, "POST", body);

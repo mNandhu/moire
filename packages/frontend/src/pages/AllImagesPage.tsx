@@ -41,7 +41,7 @@ import { fetchImageIds } from "../lib/imageApi";
 import { PageHeader } from "../components/ui/PageHeader";
 import { LibraryScopeTabs } from "../components/LibraryScopeTabs";
 import { SortControl, SORT_OPTIONS } from "../components/SortControl";
-import { fetchSignatures } from "../lib/gen";
+import { RULES_SIGNATURES_KEY, fetchSignatures } from "../lib/gen";
 import { groupWorkflows, workflowFilterName } from "../lib/workflows";
 import { useGenerators, useOutfits } from "../lib/generate";
 import { generatorFor } from "../components/generate/InGenerate";
@@ -143,7 +143,7 @@ export default function AllImagesPage() {
   // Workflows for the filter picker and the chip's name, grouped as the Rules
   // page groups them. Fetched once the panel opens or a workflow is filtered.
   const { data: signatures } = useQuery({
-    queryKey: ["rules-signatures"],
+    queryKey: RULES_SIGNATURES_KEY,
     queryFn: fetchSignatures,
     enabled: filtersOpen || !!filters.workflow || !!filters.workflowSig,
     staleTime: 60_000,

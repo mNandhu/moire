@@ -26,11 +26,10 @@ import { QueueDeck } from "../components/generate/QueueDeck";
 import { OutputFeed } from "../components/generate/OutputFeed";
 import { autoBatchName } from "../lib/batchName";
 import {
-  BATCHES_KEY,
   GENERATORS_KEY,
   MODELS_KEY,
   RejectedError,
-  STATUS_KEY,
+  invalidateQueue,
   queueBatch,
   refreshModels,
   startTest,
@@ -366,8 +365,7 @@ export default function GeneratePage() {
     onSuccess: () => {
       setQueuedTick((n) => n + 1);
       set("name", null);
-      void qc.invalidateQueries({ queryKey: STATUS_KEY });
-      void qc.invalidateQueries({ queryKey: BATCHES_KEY });
+      invalidateQueue(qc);
     },
     onError: (e) => {
       if (e instanceof RejectedError) setRejected(e.nodeErrors);

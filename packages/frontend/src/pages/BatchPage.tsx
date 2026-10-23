@@ -8,10 +8,9 @@ import { durationWords } from "../lib/format";
 import { batchLeft, leftLabel } from "../lib/eta";
 import { displayWord } from "../lib/compose";
 import {
-  BATCHES_KEY,
-  STATUS_KEY,
   batchKey,
   cancelBatch,
+  invalidateQueue,
   renameBatch,
   requeueBatch,
   retryRequest,
@@ -161,9 +160,7 @@ export default function BatchPage() {
 
   const changed = (next?: Batch) => {
     if (next) qc.setQueryData(batchKey(batchId), next);
-    else void qc.invalidateQueries({ queryKey: batchKey(batchId) });
-    void qc.invalidateQueries({ queryKey: BATCHES_KEY });
-    void qc.invalidateQueries({ queryKey: STATUS_KEY });
+    invalidateQueue(qc, next ? undefined : batchId);
   };
   const requeue = useMutation({
     mutationFn: () => requeueBatch(batchId),
@@ -177,9 +174,8 @@ export default function BatchPage() {
     mutationFn: () => cancelBatch(batchId),
     onSuccess: (nb) => {
       if (nb) return changed(nb);
-      // Never ran, so it's gone.
-      void qc.invalidateQueries({ queryKey: BATCHES_KEY });
-      void qc.invalidateQueries({ queryKey: STATUS_KEY });
+      // Never ran, so it's gone: its own key is not refetched.
+      invalidateQueue(qc);
       navigate("/generations", { replace: true });
     },
   });

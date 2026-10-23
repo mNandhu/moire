@@ -9,7 +9,7 @@ import { Mosaic, type Sample } from "./TagMosaic";
 import { useToast } from "./Toasts";
 import { api, errorText } from "../lib/api";
 import { cn } from "../lib/cn";
-import { fetchSignatures } from "../lib/gen";
+import { RULES_SIGNATURES_KEY, fetchSignatures } from "../lib/gen";
 import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
 import { updateCharacter } from "../lib/imageMutations";
 import { characterHref, tagHref } from "../lib/character";
@@ -68,7 +68,7 @@ export function TagPanel({
   const { data: groups } = useTagGroups();
   const group = groupOf(groups, tag);
   const { data: signatures } = useQuery({
-    queryKey: ["rules-signatures"],
+    queryKey: RULES_SIGNATURES_KEY,
     queryFn: fetchSignatures,
     staleTime: 60_000,
   });

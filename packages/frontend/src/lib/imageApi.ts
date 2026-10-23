@@ -6,6 +6,19 @@ import { api, apiRaw } from "./api";
 import { PAGE_LIMIT, serializeFilters, type Filters, type ImageDoc } from "./imageFilter";
 
 /**
+ * Every feed query key starts with this; TanStack matches by prefix, so it
+ * reaches all cursor-paged feeds regardless of filter or page size.
+ */
+export const IMAGE_FEED_PREFIX = ["images"] as const;
+/** Every grouped (batch-collapsed) view's key starts with this. */
+export const IMAGE_GROUPS_PREFIX = ["image-groups"] as const;
+/** Every single-Image document's key starts with this. */
+export const IMAGE_DOC_PREFIX = ["image"] as const;
+
+/** Query key of one Image's full document (ImageView's source of truth). */
+export const imageDocKey = (id: string) => [...IMAGE_DOC_PREFIX, id] as const;
+
+/**
  * Build the `/api/v1/images` query string for one page of the Image feed:
  * the filter params plus pagination (limit, optional cursor).
  */

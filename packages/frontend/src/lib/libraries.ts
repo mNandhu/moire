@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient, type QueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { api, apiJson, errorText } from "./api";
+import { IMAGE_FEED_PREFIX, IMAGE_GROUPS_PREFIX } from "./imageApi";
 
 export type Library = {
   _id: string;
@@ -119,8 +120,8 @@ export function useOnLibrariesRead(
  * (`["image-groups", ...]`) are cached with a staleTime, so without this the
  * gallery serves stale results (including images of a removed library). */
 export function invalidateImageCaches(qc: QueryClient) {
-  void qc.invalidateQueries({ queryKey: ["images"] });
-  void qc.invalidateQueries({ queryKey: ["image-groups"] });
+  void qc.invalidateQueries({ queryKey: IMAGE_FEED_PREFIX });
+  void qc.invalidateQueries({ queryKey: IMAGE_GROUPS_PREFIX });
 }
 
 /** The one rule after any library write: the list and the gallery refetch. */

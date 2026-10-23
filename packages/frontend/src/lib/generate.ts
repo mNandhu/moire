@@ -3,7 +3,7 @@
  * browser never talks to ComfyUI; everything goes through `/api/v1/generate`.
  */
 import { testState } from "./workflow";
-import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery, type QueryClient } from "@tanstack/react-query";
 import { api, apiJson, httpError, jsonInit } from "./api";
 import type { NewEstimate } from "./eta";
 
@@ -506,6 +506,17 @@ export const recipeKey = (tag: string) => [...GEN_KEY, "recipe", tag] as const;
 export const OUTFITS_KEY = [...GEN_KEY, "outfits"] as const;
 export const outfitsKey = (character: string | null) => [...OUTFITS_KEY, "list", character ?? ""] as const;
 export const defaultOutfitKey = (character: string) => [...OUTFITS_KEY, "default", character] as const;
+export const generatorDiscoverKey = (sourceKey: string | null) => [...GEN_KEY, "discover", sourceKey] as const;
+export const generatorSetupKey = (id: string | undefined) => [...GEN_KEY, "setup", id] as const;
+export const generatorLatestKey = (id: string | undefined) => [...GEN_KEY, "latest", id] as const;
+
+/** Refresh the queue after a batch changed: the status card, the batch list
+ * and, given its id, that batch. */
+export function invalidateQueue(qc: QueryClient, batchId?: number): void {
+  void qc.invalidateQueries({ queryKey: STATUS_KEY });
+  void qc.invalidateQueries({ queryKey: BATCHES_KEY });
+  if (batchId !== undefined) void qc.invalidateQueries({ queryKey: batchKey(batchId) });
+}
 
 export const getSettings = () => api<ComfySettings>(`${BASE}/comfyui`);
 export const putSettings = (patch: Partial<ComfySettings> & { output_path?: string | null }) =>

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BACKGROUND_TASKS_KEY } from "./useBackgroundTasks";
 import { useToast } from "../components/Toasts";
 import {
+  aiJobKey,
   fetchAiJob,
   isActiveJob,
   isTerminalJob,
@@ -36,7 +37,7 @@ export function useAiTagging(onTagged?: () => void, imageId?: string) {
   const [submitting, setSubmitting] = useState(false);
 
   const { data: job, isError } = useQuery({
-    queryKey: ["aiJob", jobId],
+    queryKey: aiJobKey(jobId),
     queryFn: ({ signal }) => fetchAiJob(jobId!, signal),
     enabled: !!jobId,
     retry: 1,

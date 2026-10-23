@@ -7,12 +7,14 @@ import { api } from "../api";
 import { viewerTimeZone } from "../activity";
 import { fetchAiCoverage } from "../ai";
 
+export const THUMB_URL_KEY = ["thumb-url"] as const;
+
 /** The versioned thumbnail URL of an image known only by id (a cover picked
  * in a dialog, the image a remix came from); lists carry theirs. */
 export function useThumbUrl(imageId: string | null | undefined): string | null {
   const { data } = useQuery({
     // Not under ["images"]: that prefix is the feeds', which feedCache patches.
-    queryKey: ["thumb-url", imageId],
+    queryKey: [...THUMB_URL_KEY, imageId],
     queryFn: ({ signal }) =>
       api<{ thumb_url: string }>(`/api/v1/images/${encodeURIComponent(imageId!)}/thumb-url`, { signal }),
     enabled: !!imageId,

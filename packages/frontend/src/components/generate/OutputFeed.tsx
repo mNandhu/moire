@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { batchRunTime, isWaiting, turnLabel } from "../../lib/batches";
 import { durationWords } from "../../lib/format";
-import { BATCHES_KEY, STATUS_KEY, batchKey, useBatch, useBatches, useComfyStatus, type Batch } from "../../lib/generate";
+import { batchKey, invalidateQueue, useBatch, useBatches, useComfyStatus, type Batch } from "../../lib/generate";
 import { batchLeft, leftLabel } from "../../lib/eta";
 import { queueLegs } from "../../lib/queueClock";
 import { BatchResults } from "./BatchResults";
@@ -17,9 +17,7 @@ function BatchPanel({ id }: { id: number }) {
   if (!b) return null;
   const changed = (next?: Batch) => {
     if (next) qc.setQueryData(batchKey(id), next);
-    else void qc.invalidateQueries({ queryKey: batchKey(id) });
-    void qc.invalidateQueries({ queryKey: BATCHES_KEY });
-    void qc.invalidateQueries({ queryKey: STATUS_KEY });
+    invalidateQueue(qc, next ? undefined : id);
   };
   const done = b.requests.filter((q) => !["pending", "queued", "running"].includes(q.state)).length;
   const took = batchRunTime(b.requests);

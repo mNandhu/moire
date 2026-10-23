@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { PAGE_LIMIT, type Filters, type ImageDoc } from "../lib/imageFilter";
-import { fetchImagesPage, fetchGroupsPage, type FeedPage } from "../lib/imageApi";
+import { IMAGE_FEED_PREFIX, IMAGE_GROUPS_PREFIX, fetchImagesPage, fetchGroupsPage, type FeedPage } from "../lib/imageApi";
 
 /**
  * Query key for the Image feed. Keyed by the Image filter so the gallery and
@@ -12,7 +12,7 @@ import { fetchImagesPage, fetchGroupsPage, type FeedPage } from "../lib/imageApi
  * either side of the Group toggle.
  */
 export function imageFeedKey(filters: Filters, limit: number) {
-  return ["images", limit, { ...filters, group: false }] as const;
+  return [...IMAGE_FEED_PREFIX, limit, { ...filters, group: false }] as const;
 }
 
 /**
@@ -55,7 +55,7 @@ export function useImageGroups(
   limit: number = PAGE_LIMIT,
 ) {
   const query = useInfiniteQuery({
-    queryKey: ["image-groups", limit, filters] as const,
+    queryKey: [...IMAGE_GROUPS_PREFIX, limit, filters] as const,
     enabled,
     queryFn: ({ pageParam, signal }) =>
       fetchGroupsPage(filters, { offset: pageParam, limit, signal }),

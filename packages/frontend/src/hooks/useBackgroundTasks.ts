@@ -8,7 +8,8 @@ import {
   type EndedCounts,
 } from "../lib/backgroundTasks";
 import { AI_COVERAGE_KEY, LIBRARIES_KEY, TAGS_KEY } from "../lib/queries";
-import { invalidateFeeds } from "../lib/feedCache";
+import { AI_STATUS_KEY } from "../lib/ai";
+import { IMAGE_DOC_PREFIX, invalidateFeeds } from "../lib/feedCache";
 
 export const BACKGROUND_TASKS_KEY = ["activity"] as const;
 const BUSY_MS = 1500;
@@ -65,13 +66,13 @@ export function useRefreshOnFinish() {
     }
     if (ended.has("ai_job")) {
       // The open image's doc (ImageView) and every cached one: their tags changed.
-      void qc.invalidateQueries({ queryKey: ["image"] });
+      void qc.invalidateQueries({ queryKey: IMAGE_DOC_PREFIX });
       void qc.invalidateQueries({ queryKey: AI_COVERAGE_KEY });
-      void qc.invalidateQueries({ queryKey: ["aiStatus"] });
+      void qc.invalidateQueries({ queryKey: AI_STATUS_KEY });
     }
     if (ended.has("reproject")) {
       // Prompt tags were re-derived: the open image and the gallery show them.
-      void qc.invalidateQueries({ queryKey: ["image"] });
+      void qc.invalidateQueries({ queryKey: IMAGE_DOC_PREFIX });
       invalidateFeeds(qc);
     }
     // A reprojection's tag refresh is in invalidateFeeds above.
