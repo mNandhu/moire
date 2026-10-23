@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Callable
 from functools import lru_cache
 
 from .tag_names import KAOMOJIS
@@ -362,3 +363,37 @@ def _parse_cached(text: str) -> tuple[Piece, ...]:
         if s or raw.text.strip():
             out.append(Piece(s, classify(s, raw.text)))
     return tuple(out)
+
+
+def _top_level_pieces(text: str) -> list[tuple[str, str]]:
+    """``text`` cut at commas and newlines outside brackets, each piece with the
+    separator after it (``""`` for the last)."""
+    out: list[tuple[str, str]] = []
+    depth, start = 0, 0
+    for i, ch in enumerate(text):
+        if ch in "([" and (i == 0 or text[i - 1] != "\\"):
+            depth += 1
+        elif ch in ")]" and (i == 0 or text[i - 1] != "\\"):
+            depth = max(0, depth - 1)
+        elif ch in ",\n" and depth == 0:
+            out.append((text[start:i], ch))
+            start = i + 1
+    out.append((text[start:], ""))
+    return out
+
+
+def without_terms(text: str, drop: set[str], canon: Callable[[str], str]) -> str:
+    """``text`` with every piece whose tags all canonicalize (``canon``) into
+    ``drop`` taken out, separators and the rest kept as written. A weighted
+    group goes only when everything in it goes."""
+    kept: list[str] = []
+    dropped = False
+    for piece, sep in _top_level_pieces(text):
+        tags = [p.text for p in parse_prompt(piece) if p.kind == "tag"]
+        if tags and all(canon(t) in drop for t in tags):
+            dropped = True
+        else:
+            kept.append(piece + sep)
+    out = "".join(kept)
+    # A dropped first or last piece leaves a separator dangling at that end.
+    return re.sub(r"^[\s,]+|[\s,]+$", "", out) if dropped else out

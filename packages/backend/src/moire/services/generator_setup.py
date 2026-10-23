@@ -22,7 +22,7 @@ from ..database import schema as t
 from ..database.db import async_conn, async_tx
 from . import attire, comfy_models, gen_metadata, tag_categories, workflow_family
 from .generator_graph import lora_stem
-from .generation_compose import without_terms
+from .prompt_parse import without_terms
 from .generator_discovery import check_slots, discover
 from .generator_graph import SAMPLING
 from .prompt_parse import parse_prompt

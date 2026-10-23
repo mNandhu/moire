@@ -9,9 +9,10 @@ previews the same text) and ``lib/tags.ts`` ``toPromptText`` escaping.
 from __future__ import annotations
 
 import re
-from typing import Callable, Iterable
+from typing import Iterable
 
 from .prompt_parse import parse_prompt
+from .tag_names import display_tag
 
 EMBEDDING_PREFIX = "embedding:"
 _PAREN = re.compile(r"([()])")
@@ -54,31 +55,19 @@ def compose(base: str, *chip_blocks: Iterable[str]) -> str:
     return compose_parts([base or "", *chip_blocks])
 
 
-_WEIGHT = re.compile(r"^[(\[]+|[)\]]+$|:\s*[\d.]+\s*[)\]]*$")
-
-
 def prompt_terms(text: str, limit: int = 2) -> list[str]:
-    """The first comma-separated terms of a prompt, for a batch's auto name:
-    weights and brackets dropped, embeddings and LoRA tags skipped."""
-    out: list[str] = []
-    for raw in (text or "").replace("\n", ",").split(","):
-        term = raw.strip()
-        if not term or is_embedding(term) or term.startswith("<"):
-            continue
-        term = _WEIGHT.sub("", term).strip()
-        term = _WEIGHT.sub("", term).strip().replace("\\", "")
-        if term:
-            out.append(term.replace("_", " "))
-        if len(out) == limit:
-            break
-    return out
+    """The first tags of a prompt, for a batch's auto name: read by
+    :func:`parse_prompt`, so weights, brackets, escapes, embeddings and LoRA
+    tokens are handled as everywhere else."""
+    tags = [p.text for p in parse_prompt(text) if p.kind == "tag"]
+    return [display_tag(t) for t in tags[:limit]]
 
 
 def display(word: str) -> str:
     """Tag display form for names: underscores read as spaces."""
     if is_embedding(word):
         return word[len(EMBEDDING_PREFIX) :]
-    return word.replace("_", " ")
+    return display_tag(word)
 
 
 def auto_name(
@@ -98,37 +87,3 @@ def auto_name(
     if words:
         return ", ".join([generator, *words])
     return f"Batch {number}"
-
-
-def _top_level_pieces(text: str) -> list[tuple[str, str]]:
-    """``text`` cut at commas and newlines outside brackets, each piece with the
-    separator after it (``""`` for the last)."""
-    out: list[tuple[str, str]] = []
-    depth, start = 0, 0
-    for i, ch in enumerate(text):
-        if ch in "([" and (i == 0 or text[i - 1] != "\\"):
-            depth += 1
-        elif ch in ")]" and (i == 0 or text[i - 1] != "\\"):
-            depth = max(0, depth - 1)
-        elif ch in ",\n" and depth == 0:
-            out.append((text[start:i], ch))
-            start = i + 1
-    out.append((text[start:], ""))
-    return out
-
-
-def without_terms(text: str, drop: set[str], canon: Callable[[str], str]) -> str:
-    """``text`` with every piece whose tags all canonicalize (``canon``) into
-    ``drop`` taken out, separators and the rest kept as written. A weighted
-    group goes only when everything in it goes."""
-    kept: list[str] = []
-    dropped = False
-    for piece, sep in _top_level_pieces(text):
-        tags = [p.text for p in parse_prompt(piece) if p.kind == "tag"]
-        if tags and all(canon(t) in drop for t in tags):
-            dropped = True
-        else:
-            kept.append(piece + sep)
-    out = "".join(kept)
-    # A dropped first or last piece leaves a separator dangling at that end.
-    return re.sub(r"^[\s,]+|[\s,]+$", "", out) if dropped else out

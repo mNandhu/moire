@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from ..database import schema as t
 from ..database.db import async_conn
 from . import comfy_models, generator_setup, recipes, tag_categories
-from .generation_compose import without_terms
+from .prompt_parse import without_terms
 from .image_tags import find_image
 from .generator_discovery import _SAMPLING_INPUTS, base_sampler, fixed_values
 from .generator_graph import SAMPLING, lora_stem

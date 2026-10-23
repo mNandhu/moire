@@ -65,7 +65,7 @@ def test_prompt_terms_for_the_auto_name():
 
 
 def test_without_terms_keeps_the_rest_as_written():
-    from moire.services.generation_compose import without_terms
+    from moire.services.prompt_parse import without_terms
     from moire.services.tag_names import canonical_name
 
     text = (
@@ -81,7 +81,7 @@ def test_without_terms_keeps_the_rest_as_written():
 
 
 def test_without_terms_trims_both_ends():
-    from moire.services.generation_compose import without_terms
+    from moire.services.prompt_parse import without_terms
     from moire.services.tag_names import canonical_name
 
     assert (
@@ -94,3 +94,17 @@ def test_without_terms_trims_both_ends():
     )
     # Untouched text keeps its own ends.
     assert without_terms(" 1girl,", {"x"}, canonical_name) == " 1girl,"
+
+
+def test_prompt_terms_keep_escaped_parens_and_kaomoji():
+    # The qualifier's escaped parens belong to the name; the old regex stripped
+    # the trailing one. Kaomoji underscores are part of the face.
+    assert prompt_terms(r"hu_tao_\(genshin_impact\), (>_<:1.1), smile", limit=3) == [
+        "hu tao (genshin impact)",
+        ">_<",
+        "smile",
+    ]
+    assert (
+        auto_name(number=1, generator="G", extra=[">_<", "red_dress"])
+        == "G, >_<, red dress"
+    )

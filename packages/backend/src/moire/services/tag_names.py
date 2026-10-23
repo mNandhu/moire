@@ -64,3 +64,10 @@ def apply_aliases(terms: list[str], aliases: dict[str, list[str]]) -> list[str]:
     if not aliases:
         return terms
     return sorted({to for term in terms for to in aliases.get(term, (term,))})
+
+
+def display_tag(name: str) -> str:
+    """The display form of a tag name: underscores read as spaces, except in a
+    kaomoji, whose underscore is part of the face. Backend twin of
+    ``lib/tags.ts`` ``formatTag``."""
+    return name if name in KAOMOJIS else name.replace("_", " ")
