@@ -25,7 +25,6 @@ from . import activity, extraction_settings, gen_metadata
 from . import image_tags
 from . import tag_index
 from .image_tags import to_prompt
-from .tag_names import apply_aliases
 
 logger = logging.getLogger("moire.reproject")
 
@@ -39,27 +38,6 @@ def _load_rulesets() -> dict[str, dict]:
             conn.execute(sa.select(t.gen_rulesets.c.sig, t.gen_rulesets.c.doc))
         ).fetchall()
     return {r.sig: (r.doc or {}) for r in rows}
-
-
-def _load_aliases() -> dict[str, list[str]]:
-    """The prompt-tag rules (``from -> [to, ...]``), see services/tag_rename.py."""
-    with sync_conn() as conn:
-        rows = conn.execute(
-            sa.select(t.tag_rules.c.from_name, t.tag_rules.c.to_names)
-        ).fetchall()
-    return {r.from_name: list(r.to_names) for r in rows}
-
-
-def _prompt_positive_only() -> bool:
-    """Read the ``prompt_positive_only`` AI setting. Defaults to ``True`` so older
-    settings that predate the flag keep the on-by-default behaviour."""
-    with sync_conn() as conn:
-        doc = (
-            conn.execute(
-                sa.select(t.app_settings.c.doc).where(t.app_settings.c._id == "ai")
-            )
-        ).scalar()
-    return bool((doc or {}).get("prompt_positive_only", True))
 
 
 def _flush_batch(batch: list[tuple[str, dict]], *, force: bool = False) -> None:
@@ -163,9 +141,7 @@ def _reproject_where(
     many were derived (written or already up to date). ``task`` shows the
     progress."""
     rulesets = _load_rulesets()
-    positive_only = _prompt_positive_only()
-    aliases = _load_aliases()
-    keywords = extraction_settings.load_keywords()
+    config = extraction_settings.load_sync()
 
     with sync_conn() as conn:
         raws = (
@@ -194,21 +170,13 @@ def _reproject_where(
         }
         ruleset = rulesets.get(row.workflow_sig)
         try:
-            g = gen_metadata.extract(
-                raw_doc,
-                ruleset,
-                prompt_positive_only=positive_only,
-                guess_keywords=keywords,
-            )
+            g = gen_metadata.derive(raw_doc, ruleset, config)
         except Exception as e:
             # One hostile graph must not leave every later row underived.
             logger.warning("Reprojection skipped %s: %r", row._id, e)
             continue
         if g is None:
             continue
-        # Merge rules rewrite the extracted terms before they become search
-        # terms and prompt: tags, so a merged tag never comes back on re-run.
-        g["prompt_terms"] = apply_aliases(g.get("prompt_terms") or [], aliases)
         batch.append((row._id, g))
         if len(batch) >= _BATCH:
             _flush_batch(batch, force=force)

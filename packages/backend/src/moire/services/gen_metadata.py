@@ -29,11 +29,14 @@ import hashlib
 import json
 import math
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from . import prompt_guess, text_eval
 from .prompt_parse import EMBEDDING_TOKEN, parse_prompt
-from .tag_names import canonical_name
+from .tag_names import apply_aliases, canonical_name
+
+if TYPE_CHECKING:
+    from .extraction_settings import ExtractionConfig
 
 
 # --- Resilient JSON parsing (pure) -------------------------------------------
@@ -1075,4 +1078,24 @@ def extract(
     else:
         g["prompt_terms"] = tokenize_prompt(g.get("prompt"), g.get("negative"))
     g["group_id"] = group_id(g.get("workflow_sig"), g.get("prompt"))
+    return g
+
+
+def derive(
+    raw: dict[str, Any] | None,
+    ruleset: dict[str, Any] | None,
+    config: ExtractionConfig,
+) -> dict[str, Any] | None:
+    """The ``gen`` stored for ``raw``: :func:`extract` with the config's
+    switches, then the merge/split rules applied to the extracted terms, so a
+    merged tag never comes back on re-run. Reprojection and the rules preview
+    both call this."""
+    g = extract(
+        raw,
+        ruleset,
+        prompt_positive_only=config.positive_only,
+        guess_keywords=config.keywords,
+    )
+    if g is not None:
+        g["prompt_terms"] = apply_aliases(g.get("prompt_terms") or [], config.aliases)
     return g

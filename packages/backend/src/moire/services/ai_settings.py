@@ -16,6 +16,9 @@ from ..database import schema as t
 from ..core.config import settings
 from .ai_tagger import get_tagger_manager
 
+# The app_settings row holding these (also read by extraction_settings).
+ROW = "ai"
+
 DEFAULT_AI_SETTINGS: dict[str, Any] = {
     "model_repo": "SmilingWolf/wd-vit-tagger-v3",
     "general_thresh": 0.35,
@@ -33,6 +36,13 @@ DEFAULT_AI_SETTINGS: dict[str, Any] = {
     # (services/face_detect.py). On by default: it does nothing until then.
     "face_detect": True,
 }
+
+
+def prompt_positive_only(doc: dict[str, Any] | None) -> bool:
+    """The ``prompt_positive_only`` switch from a stored "ai" doc (``None`` if
+    never written). Settings that predate the flag get the default."""
+    default = DEFAULT_AI_SETTINGS["prompt_positive_only"]
+    return bool((doc or {}).get("prompt_positive_only", default))
 
 
 def clean_settings_patch(patch: dict[str, Any]) -> dict[str, Any]:
@@ -76,7 +86,7 @@ async def _read_ai_doc() -> dict[str, Any] | None:
     async with async_conn() as conn:
         return (
             await conn.execute(
-                sa.select(t.app_settings.c.doc).where(t.app_settings.c._id == "ai")
+                sa.select(t.app_settings.c.doc).where(t.app_settings.c._id == ROW)
             )
         ).scalar()
 
@@ -87,7 +97,7 @@ async def get_ai_settings() -> dict[str, Any]:
         async with async_tx() as conn:
             await conn.execute(
                 sqlite_insert(t.app_settings)
-                .values(_id="ai", doc=dict(DEFAULT_AI_SETTINGS))
+                .values(_id=ROW, doc=dict(DEFAULT_AI_SETTINGS))
                 .on_conflict_do_nothing(index_elements=[t.app_settings.c._id])
             )
         return dict(DEFAULT_AI_SETTINGS)
@@ -101,7 +111,7 @@ async def update_ai_settings(patch: dict[str, Any]) -> dict[str, Any]:
     existing = await _read_ai_doc() or {}
     new_doc = {**existing, **clean}
     async with async_tx() as conn:
-        stmt = sqlite_insert(t.app_settings).values(_id="ai", doc=new_doc)
+        stmt = sqlite_insert(t.app_settings).values(_id=ROW, doc=new_doc)
         stmt = stmt.on_conflict_do_update(
             index_elements=[t.app_settings.c._id], set_={"doc": stmt.excluded.doc}
         )
