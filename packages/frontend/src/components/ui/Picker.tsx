@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useDismiss } from "../../hooks/useDismiss";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { fuzzyRank } from "../../lib/fuzzy";
@@ -138,15 +139,8 @@ export function Picker({
   useEffect(() => {
     listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
   }, [active]);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) close(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  // Escape and the arrows are in onKeyDown below; this is the outside press.
+  useDismiss(wrapRef, () => close(false), open, { escape: false });
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (!open) {

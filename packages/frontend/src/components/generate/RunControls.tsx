@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useDismiss } from "../../hooks/useDismiss";
 import { Link } from "react-router-dom";
 import { ChevronDown, Dices, Minus, Pencil, Plus, RotateCcw } from "lucide-react";
 import { cn } from "../../lib/cn";
@@ -184,14 +185,7 @@ export function SamplingControl({
     for (const k of Object.keys(p) as (keyof Sampling)[]) if (next[k] === defaults[k]) delete next[k];
     onChange(next);
   };
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
+  const dismiss = useDismiss(wrapRef, () => setOpen(false), open);
   const options = (names: readonly string[], current: string | undefined, label: (n: string) => string): PickerOption[] => {
     const list = current && !names.includes(current) ? [current, ...names] : names;
     return list.map((n) => ({ value: n, label: label(n), detail: label(n) !== n ? n : undefined }));
@@ -200,17 +194,13 @@ export function SamplingControl({
     <div
       ref={wrapRef}
       className="relative"
-      onKeyDown={(e) => {
-        if (e.key === "Escape" && open) {
-          e.stopPropagation();
-          setOpen(false);
-        }
-      }}
+      onKeyDown={dismiss.onKeyDown}
     >
       <FieldLabel>Sampling</FieldLabel>
       <button
         type="button"
         aria-label="Sampling"
+        aria-haspopup="dialog"
         aria-expanded={open}
         title={invalid ?? samplingLabel(shown)}
         onClick={() => setOpen((o) => !o)}
@@ -244,7 +234,7 @@ export function SamplingControl({
         <ChevronDown size={16} className={cn("shrink-0 text-faint transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="absolute bottom-full left-0 z-50 mb-1 w-80 max-w-[90vw] space-y-3 rounded-lg border border-line-strong bg-raised p-3 shadow-panel">
+        <div data-popup className="absolute bottom-full left-0 z-50 mb-1 w-80 max-w-[90vw] space-y-3 rounded-lg border border-line-strong bg-raised p-3 shadow-panel">
           {"sampler" in defaults && (
             <div>
               <FieldLabel>Sampler</FieldLabel>

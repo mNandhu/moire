@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useDismiss } from "../../hooks/useDismiss";
 import { ChevronDown } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { Button } from "./Button";
@@ -63,11 +64,6 @@ export function DropdownMenu({
 
   useEffect(() => {
     if (!open) return;
-    function onMouseDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
     function onKeyDown(e: KeyboardEvent) {
       // The open menu has the keys: a page's own shortcuts (the viewer
       // closes on Escape, steps on arrows) must not act behind it.
@@ -77,13 +73,11 @@ export function DropdownMenu({
       }
       if (e.key === "Escape") setOpen(false);
     }
-    document.addEventListener("mousedown", onMouseDown);
     document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, [open]);
+  // The outside press; Escape stays above, where the menu claims its keys.
+  useDismiss(ref, () => setOpen(false), open, { escape: false });
 
   return (
     <div

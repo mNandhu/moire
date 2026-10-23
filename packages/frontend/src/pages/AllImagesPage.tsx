@@ -78,6 +78,7 @@ import {
   bulkManualTags,
 } from "../lib/imageMutations";
 import { api, errorText } from "../lib/api";
+import { useDismiss } from "../hooks/useDismiss";
 import { useHotkeys } from "../hooks/useHotkeys";
 import { withBackgroundLocation } from "../lib/backgroundLocation";
 import { postAiTag } from "../lib/ai";
@@ -352,27 +353,7 @@ export default function AllImagesPage() {
   });
 
   // Close filters on outside click / ESC.
-  useEffect(() => {
-    if (!filtersOpen) return;
-    const onPointerDown = (e: MouseEvent | TouchEvent) => {
-      const target = e.target as Node | null;
-      if (!target) return;
-      if (filtersPanelRef.current?.contains(target)) return;
-      if (filterButtonRef.current?.contains(target)) return;
-      setFiltersOpen(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setFiltersOpen(false);
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("touchstart", onPointerDown, { passive: true });
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("touchstart", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [filtersOpen]);
+  useDismiss([filtersPanelRef, filterButtonRef], () => setFiltersOpen(false), filtersOpen);
 
   // Once, right after first-run setup: say where the shortcuts are.
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useDismiss } from "../../hooks/useDismiss";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, Plus, Sparkles, TextCursorInput, UserRound, X, Bookmark } from "lucide-react";
 import { Button, Card, Input } from "../ui";
@@ -91,21 +92,9 @@ export function AddLayer({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  const dismiss = useDismiss(ref, () => setOpen(false), open);
   return (
-    <div ref={ref} className="relative flex h-7 items-center gap-2.5 pl-6">
+    <div ref={ref} className="relative flex h-7 items-center gap-2.5 pl-6" onKeyDown={dismiss.onKeyDown}>
       <span className="h-full w-px bg-line-strong" aria-hidden />
       <button
         type="button"
