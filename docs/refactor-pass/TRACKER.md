@@ -22,7 +22,6 @@ Housekeeping, not findings:
 - [ ] **S13.2** Escape inside a Picker or DropdownMenu in a Dialog closes the whole Dialog (bug, S, L4)
 - [ ] **S1.1** Grouped gallery view is not refreshed or patched: flat feed always fetches, poll refetches the wrong query, removals skip groups (bug, S, L4)
 - [x] **L1.4** Async routes block the event loop on scan/watch thread joins (bug, S, L3), done 0818b57
-- [ ] **L2.1** promptOutline (board) and prompt_parse (tags) read the same prompt differently; an unclosed bracket makes the board see one term (bug, M, L5, TW)
 - [x] **L4.1** Scan of a library whose root is missing deletes every image and its curation (bug, S, L5), done 5c1bf8d
 - [ ] **S1.7** Model, LoRA and embedding filter counts include quarantined images, Size counts do not; three facet routes are near-copies (bug, S, L2)
 - [ ] **S13.7** Sidebar defines NavButton as a component inside render, remounting every link on each shell render (bug, S, L2)
@@ -35,6 +34,7 @@ Housekeeping, not findings:
 
 ## P1. Tag-weights prerequisites
 
+- [ ] **L2.1** promptOutline (board) and prompt_parse (tags) read the same prompt differently; an unclosed bracket makes the board see one term (bug, M, L5, TW; moved from P0: fixed by the one-parser-per-side work)
 - [ ] **L4.2** Bulk prompt-tag write is a second, hand-synced copy of the tag-state write (invariant, S, L4, TW)
 - [ ] **S7.1** Prompt weight rule exists nowhere yet; plan's premise is wrong and parsers disagree on brackets (drift, M, L5, TW)
 - [ ] **S7.2** Three more ad-hoc prompt splitters in the frontend duplicate promptOutline (dedupe, M, L4, TW)
