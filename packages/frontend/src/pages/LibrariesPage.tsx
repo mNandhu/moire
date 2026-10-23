@@ -29,7 +29,7 @@ import { Checkbox } from "../components/ui/Checkbox";
 import { Input, Field } from "../components/ui/Input";
 import { Skeleton, Spinner } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
-import { api } from "../lib/api";
+import { api, errorText } from "../lib/api";
 import {
   LIBRARIES_KEY,
   libraryGalleryHref,
@@ -179,7 +179,7 @@ export default function LibrariesPage() {
       await api(`/api/v1/libraries/${id}`, { method: "DELETE" });
     } catch (e: any) {
       markDeleting([id], false);
-      push(e?.message || "Failed to delete library", "error");
+      push(errorText(e) || "Failed to delete library", "error");
       return;
     }
     // Stays marked until the refetch drops it, or it would flash back.
@@ -242,7 +242,7 @@ export default function LibrariesPage() {
       await api(`/api/v1/libraries/${l._id}/rescan`, { method: "POST" });
       push(`Rescan started for ${l.name || l.path}`, "info");
     } catch (e) {
-      push((e as Error)?.message || "Failed to start rescan", "error");
+      push(errorText(e) || "Failed to start rescan", "error");
     } finally {
       refresh();
       setRescanning((s) => {
@@ -307,7 +307,7 @@ export default function LibrariesPage() {
       await updateLibrary(l._id, { watch_enabled: !l.watch_enabled });
       push(l.watch_enabled ? "Stopped watching" : "Watching for changes", "success");
     } catch (e) {
-      push((e as Error)?.message || "Failed to update watching", "error");
+      push(errorText(e) || "Failed to update watching", "error");
     }
   };
 
@@ -685,7 +685,7 @@ export default function LibrariesPage() {
                   setEditId(null);
                   push("Library saved", "success");
                 } catch (e: any) {
-                  push(e?.message || "Failed to save library", "error");
+                  push(errorText(e) || "Failed to save library", "error");
                 }
               }}
             >

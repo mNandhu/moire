@@ -11,6 +11,7 @@ import { FocusPicker } from "./FocusPicker";
 import { setTagFocus, updateCharacter } from "../lib/imageMutations";
 import { TAGS_KEY } from "../lib/queries";
 import { characterHref, type CharacterPage } from "../lib/character";
+import { errorText } from "../lib/api";
 
 /**
  * The tag page's Edit: the character dialog's cover framing, for a tag that
@@ -36,7 +37,7 @@ export function TagEditDialog({ open, onClose, c }: { open: boolean; onClose: ()
       onClose();
       if (character) navigate(characterHref(c.tag));
     } catch (e) {
-      push(`Couldn't save: ${String(e)}`, "error");
+      push(`Couldn't save: ${errorText(e)}`, "error");
     } finally {
       setSaving(false);
     }

@@ -15,6 +15,7 @@ import {
   useGuessKeywords,
 } from "../../../lib/queries";
 import { canonicalName, formatTag } from "../../../lib/tags";
+import { errorText } from "../../../lib/api";
 
 const sameList = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((x, i) => x === b[i]);
@@ -65,7 +66,7 @@ export function PromptGuessSection() {
       qc.setQueryData(GUESS_KEYWORDS_KEY, saved);
       push("Keywords saved. Prompts are being re-read in the background.", "success");
     } catch (e) {
-      push(`Failed to save: ${String(e)}`, "error");
+      push(`Failed to save: ${errorText(e)}`, "error");
     } finally {
       setSaving(false);
     }

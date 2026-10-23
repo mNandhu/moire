@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "../components/Toasts";
 import { clearTagThumbnail, setTagThumbnail } from "../lib/imageMutations";
 import { TAGS_KEY } from "../lib/queries";
+import { errorText } from "../lib/api";
 
 /**
  * Pin an image as a tag's cover (a character's avatar), or unpin it. The
@@ -25,7 +26,7 @@ export function usePinCover(noun: "avatar" | "cover") {
         await qc.invalidateQueries({ queryKey: TAGS_KEY });
         return true;
       } catch (e) {
-        push(`Couldn't change the ${noun}: ${String(e)}`, "error");
+        push(`Couldn't change the ${noun}: ${errorText(e)}`, "error");
         return false;
       } finally {
         setPending(null);

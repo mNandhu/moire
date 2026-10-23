@@ -8,6 +8,7 @@ import {
   type RuleFields,
   type SignatureRow,
 } from "../lib/gen";
+import { errorText } from "../lib/api";
 
 /**
  * One editing session over a signature's extraction Ruleset.
@@ -205,7 +206,7 @@ export function useRulesetSession({
       notify("Ruleset saved · reprojecting this signature", "success");
       onSaved?.();
     } catch (e) {
-      notify(`Save failed: ${String(e)}`, "error");
+      notify(`Save failed: ${errorText(e)}`, "error");
     } finally {
       setBusy(false);
     }
@@ -233,7 +234,7 @@ export function useRulesetSession({
       notify("Reset to built-in extraction · reprojecting this workflow", "info");
       onSaved?.();
     } catch (e) {
-      notify(`Reset failed: ${String(e)}`, "error");
+      notify(`Reset failed: ${errorText(e)}`, "error");
     } finally {
       setBusy(false);
     }

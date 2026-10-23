@@ -9,6 +9,7 @@ import { JsonTree, collectMatches } from "./GraphTree";
 import { useRulesetSession } from "../hooks/useRulesetSession";
 import { fetchSignatures, type GenMeta, type RuleField } from "../lib/gen";
 import { cn } from "../lib/cn";
+import { errorText } from "../lib/api";
 
 type Side = "prompt" | "negative";
 const SIDES: { key: Side; label: string }[] = [
@@ -76,7 +77,7 @@ export function ResolvePromptDialog({
       .catch((e) => {
         if (!live) return;
         setMissing(true);
-        pushRef.current(`Failed to load the workflow: ${String(e)}`, "error");
+        pushRef.current(`Failed to load the workflow: ${errorText(e)}`, "error");
       });
     return () => {
       live = false;

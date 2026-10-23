@@ -4,7 +4,7 @@
  */
 import { testState } from "./workflow";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
-import { api } from "./api";
+import { api, httpError } from "./api";
 import type { NewEstimate } from "./eta";
 
 const BASE = "/api/v1/generate";
@@ -490,19 +490,10 @@ async function send<T>(path: string, method: string, body?: unknown): Promise<T>
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (r.status === 422) {
-    const j = await r.json().catch(() => ({}));
+    const j = await r.clone().json().catch(() => ({}));
     if (Array.isArray(j.node_errors)) throw new RejectedError(String(j.detail ?? "Rejected"), j.node_errors);
   }
-  if (!r.ok) {
-    const text = await r.text();
-    let detail = text;
-    try {
-      detail = JSON.parse(text).detail ?? text;
-    } catch {
-      /* plain text */
-    }
-    throw new Error(typeof detail === "string" ? detail : text);
-  }
+  if (!r.ok) throw await httpError(r);
   return r.json();
 }
 

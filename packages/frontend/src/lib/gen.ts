@@ -1,3 +1,4 @@
+import { httpError } from "./api";
 // Generation metadata + curation as the frontend sees them. The structured
 // `gen.*` fields are extracted server-side (see services/gen_metadata.py); copy
 // of the original workflow is fetched on demand from the cold raw collection.
@@ -84,7 +85,7 @@ export type PreviewResult = {
 
 async function getJson<T>(url: string): Promise<T> {
   const r = await fetch(url);
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) throw await httpError(r);
   return (await r.json()) as T;
 }
 
@@ -105,7 +106,7 @@ export async function saveRuleset(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ fields }),
   });
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) throw await httpError(r);
   return (await r.json()) as Ruleset;
 }
 
@@ -113,7 +114,7 @@ export async function deleteRuleset(sig: string): Promise<void> {
   const r = await fetch(`/api/v1/rules/${encodeURIComponent(sig)}`, {
     method: "DELETE",
   });
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) throw await httpError(r);
 }
 
 export async function previewRuleset(
@@ -125,13 +126,13 @@ export async function previewRuleset(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sample_image_id: sampleImageId, fields }),
   });
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) throw await httpError(r);
   return (await r.json()) as PreviewResult;
 }
 
 export async function fetchWorkflow(id: string): Promise<WorkflowPayload> {
   const r = await fetch(`/api/v1/images/${encodeURIComponent(id)}/workflow`);
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) throw await httpError(r);
   return (await r.json()) as WorkflowPayload;
 }
 

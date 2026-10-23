@@ -35,6 +35,7 @@ import {
   type Side,
 } from "../lib/generatorSetup";
 import { cn } from "../lib/cn";
+import { errorText } from "../lib/api";
 import { canRunTest, testState } from "../lib/workflow";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -643,7 +644,7 @@ export default function WorkflowSetupPage() {
       try {
         await startTest(gen._id, null);
       } catch (e) {
-        toast.push(`Saved. The test didn't start: ${(e as Error).message}`, "error");
+        toast.push(`Saved. The test didn't start: ${errorText(e)}`, "error");
       }
       return gen;
     },

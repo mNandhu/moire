@@ -23,6 +23,7 @@ import {
   type CharacterPage,
   type CharacterPatch,
 } from "../lib/character";
+import { errorText } from "../lib/api";
 
 /**
  * What the user decides for a character: the name and series shown, the
@@ -77,7 +78,7 @@ export function CharacterEditDialog({
       onClose();
       navigate("/tags");
     } catch (e) {
-      push(`Couldn't delete: ${String(e)}`, "error");
+      push(`Couldn't delete: ${errorText(e)}`, "error");
       setSaving(false);
     }
   };
@@ -99,7 +100,7 @@ export function CharacterEditDialog({
       onClose();
       if (patch.kind === "general") navigate(`/tags?${new URLSearchParams({ tag: c.tag })}`);
     } catch (e) {
-      push(`Couldn't save: ${String(e)}`, "error");
+      push(`Couldn't save: ${errorText(e)}`, "error");
     } finally {
       setSaving(false);
     }

@@ -18,7 +18,7 @@ import { Picker } from "../components/ui/Picker";
 import { ResolvePromptDialog } from "../components/ResolvePromptDialog";
 import { getBackgroundLocation } from "../lib/backgroundLocation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../lib/api";
+import { api, errorText } from "../lib/api";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -328,7 +328,7 @@ export default function ImageView() {
         refreshImage();
       } catch (e) {
         undo();
-        push(`Failed to set score: ${String(e)}`, "error");
+        push(`Failed to set score: ${errorText(e)}`, "error");
       }
     },
     [id, data?._id, push, refreshImage, queryClient],
@@ -346,7 +346,7 @@ export default function ImageView() {
       removeImageFromFeeds(queryClient, id);
       invalidateFeeds(queryClient);
     } catch (e) {
-      push(`Failed to update quarantine: ${String(e)}`, "error");
+      push(`Failed to update quarantine: ${errorText(e)}`, "error");
     }
   }, [id, quarantined, push, refreshImage, queryClient]);
 
@@ -362,7 +362,7 @@ export default function ImageView() {
       await navigator.clipboard.writeText(text);
       push("Workflow copied to clipboard", "success");
     } catch (e) {
-      push(`Copy failed: ${String(e)}`, "error");
+      push(`Copy failed: ${errorText(e)}`, "error");
     }
   }, [id, push]);
 
@@ -676,7 +676,7 @@ export default function ImageView() {
       await navigator.clipboard.writeText(text);
       push("Tags copied to clipboard", "success");
     } catch (e) {
-      push(`Copy failed: ${String(e)}`, "error");
+      push(`Copy failed: ${errorText(e)}`, "error");
     }
   }, [data?.tags, push]);
 
@@ -686,7 +686,7 @@ export default function ImageView() {
       await navigator.clipboard.writeText(data.path);
       push("Path copied to clipboard", "success");
     } catch (e) {
-      push(`Copy failed: ${String(e)}`, "error");
+      push(`Copy failed: ${errorText(e)}`, "error");
     }
   }, [data?.path, push]);
 
@@ -1323,7 +1323,7 @@ function AddTags({ id, onAdded }: { id: string; onAdded: () => void }) {
       // Back to the field for more (the + button took the focus).
       field.current?.focus();
     } catch (e) {
-      push(`Couldn't add tags: ${String(e)}`, "error");
+      push(`Couldn't add tags: ${errorText(e)}`, "error");
     } finally {
       setAdding(false);
     }
@@ -1713,7 +1713,7 @@ function CopyButton({ text, label }: { text?: string | null; label: string }) {
           await navigator.clipboard.writeText(text);
           push(`${label} copied`, "success");
         } catch (e) {
-          push(`Copy failed: ${String(e)}`, "error");
+          push(`Copy failed: ${errorText(e)}`, "error");
         }
       }}
       className="p-1.5 rounded-md text-muted hover:text-white hover:bg-raised transition-colors"
@@ -2130,7 +2130,7 @@ function RatingEditor({
       onDone();
     } catch (e) {
       undo();
-      push(`Failed to update rating: ${String(e)}`, "error");
+      push(`Failed to update rating: ${errorText(e)}`, "error");
     } finally {
       setSaving(false);
     }

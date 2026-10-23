@@ -12,6 +12,7 @@ import { clock, runProgress } from "../../lib/eta";
 import { useLiveSeconds } from "../../hooks/useLiveSeconds";
 import { useToast } from "../Toasts";
 import { ScorePicker } from "../ui/ScoreMark";
+import { errorText } from "../../lib/api";
 
 export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; onChanged: () => void }) {
   const location = useLocation();
@@ -21,7 +22,7 @@ export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; on
       await fn();
       onChanged();
     } catch (e) {
-      toast.push((e as Error).message, "error");
+      toast.push(errorText(e), "error");
     }
   };
   const onKeyDown = (e: React.KeyboardEvent) => {

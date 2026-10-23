@@ -76,7 +76,7 @@ import {
   setQuarantine as apiSetQuarantine,
   bulkManualTags,
 } from "../lib/imageMutations";
-import { api } from "../lib/api";
+import { api, errorText } from "../lib/api";
 import { isFormField } from "../lib/dom";
 import { useOverlayOpen, withBackgroundLocation } from "../lib/backgroundLocation";
 import { postAiTag } from "../lib/ai";
@@ -294,7 +294,7 @@ export default function AllImagesPage() {
         push(`Selected the first ${got.ids.length.toLocaleString()} images; narrow the filter for the rest`, "info");
       }
     } catch (e) {
-      push(`Couldn't select all: ${String(e)}`, "error");
+      push(`Couldn't select all: ${errorText(e)}`, "error");
     } finally {
       setSelectingAll(false);
     }
@@ -613,7 +613,7 @@ export default function AllImagesPage() {
         patchImageEverywhere(queryClient, it._id, { score: n });
       } catch (e) {
         undo();
-        push(`Failed to set score: ${String(e)}`, "error");
+        push(`Failed to set score: ${errorText(e)}`, "error");
       }
     },
     [items, focusedIndex, queryClient, push],
@@ -631,7 +631,7 @@ export default function AllImagesPage() {
       await apiSetQuarantine(it._id, next);
       push(next ? "Quarantined" : "Restored", "info");
     } catch (e) {
-      push(`Failed: ${String(e)}`, "error");
+      push(`Failed: ${errorText(e)}`, "error");
       feed.refetch();
     }
   }, [items, focusedIndex, filters.quarantined, patchFeed, push, feed]);
@@ -744,7 +744,7 @@ export default function AllImagesPage() {
         push(`Queued AI tagging for ${ids.length} images`, "success");
         setSelectionMode(false);
       } catch (e) {
-        push(`Failed to start AI job: ${String(e)}`, "error");
+        push(`Failed to start AI job: ${errorText(e)}`, "error");
       }
     },
     [push, setSelectionMode, confirm],
@@ -770,7 +770,7 @@ export default function AllImagesPage() {
         );
         return true;
       } catch (e) {
-        push(`Failed to update tags: ${String(e)}`, "error");
+        push(`Failed to update tags: ${errorText(e)}`, "error");
         return false;
       }
     },

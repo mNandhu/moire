@@ -21,6 +21,7 @@ import {
   postTagUntagged,
   saveAiSettings,
 } from "../../lib/ai";
+import { errorText } from "../../lib/api";
 
 export function formatBytes(n: number) {
   if (!Number.isFinite(n) || n <= 0) return "0 B";
@@ -83,7 +84,7 @@ function useSettingsController(): SettingsController {
   useEffect(() => {
     fetchAiSettings()
       .then(setSettings)
-      .catch((e) => push(`Failed to load AI settings: ${String(e)}`, "error"));
+      .catch((e) => push(`Failed to load AI settings: ${errorText(e)}`, "error"));
   }, [push]);
 
   // Seed the editable form from polled status until the user's copy loads.
@@ -118,7 +119,7 @@ function useSettingsController(): SettingsController {
       const said = report(await action());
       if (said) push(said[0], said[1]);
     } catch (e) {
-      push(`${failure}: ${String(e)}`, "error");
+      push(`${failure}: ${errorText(e)}`, "error");
     } finally {
       setRunning(false);
     }
@@ -141,7 +142,7 @@ function useSettingsController(): SettingsController {
       setSettings(await saveAiSettings(settings));
       push("Saved AI settings", "success");
     } catch (e) {
-      push(`Failed to save: ${String(e)}`, "error");
+      push(`Failed to save: ${errorText(e)}`, "error");
     } finally {
       setSaving(false);
     }

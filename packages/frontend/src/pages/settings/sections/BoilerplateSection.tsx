@@ -16,6 +16,7 @@ import {
 } from "../../../lib/queries";
 import { compileBoilerplate, normalizeTagName } from "../../../lib/boilerplate";
 import { formatTag } from "../../../lib/tags";
+import { errorText } from "../../../lib/api";
 
 const PREVIEW = 30;
 
@@ -82,7 +83,7 @@ export function BoilerplateSection() {
       qc.setQueryData(TAG_SETTINGS_KEY, saved);
       push("Boilerplate list saved", "success");
     } catch (e) {
-      push(`Failed to save: ${String(e)}`, "error");
+      push(`Failed to save: ${errorText(e)}`, "error");
     } finally {
       setSaving(false);
     }

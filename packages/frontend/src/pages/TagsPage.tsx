@@ -9,7 +9,7 @@ import { Button, ButtonLink } from "../components/ui/Button";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { Input } from "../components/ui/Input";
 import { cn } from "../lib/cn";
-import { api } from "../lib/api";
+import { api, errorText } from "../lib/api";
 import { smallThumb } from "../lib/media";
 import {
   MERGE_SUGGESTIONS_KEY,
@@ -193,7 +193,7 @@ export default function TagsPage({ group }: { group?: string } = {}) {
       );
       return true;
     } catch (e) {
-      push(`Rename failed: ${String(e)}`, "error");
+      push(`Rename failed: ${errorText(e)}`, "error");
       return false;
     }
   };
@@ -204,7 +204,7 @@ export default function TagsPage({ group }: { group?: string } = {}) {
       afterTagWrite();
       push(`Removed rule “${formatTag(res.from)}” → “${res.to.map(formatTag).join(" + ")}”`, "success");
     } catch (e) {
-      push(`Couldn't remove the rule: ${String(e)}`, "error");
+      push(`Couldn't remove the rule: ${errorText(e)}`, "error");
     }
   };
 
@@ -225,7 +225,7 @@ export default function TagsPage({ group }: { group?: string } = {}) {
         res.skipped.length ? "info" : "success",
       );
     } catch (e) {
-      push(`Merge failed: ${String(e)}`, "error");
+      push(`Merge failed: ${errorText(e)}`, "error");
     }
   };
 

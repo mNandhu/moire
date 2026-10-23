@@ -9,6 +9,7 @@ import {
   postAiJobCancel,
   postAiTag,
 } from "../lib/ai";
+import { errorText } from "../lib/api";
 
 const JOB_POLL_MS = 1500;
 
@@ -98,7 +99,7 @@ export function useAiTagging(onTagged?: () => void, imageId?: string) {
         setJobId(job_id);
         void qc.invalidateQueries({ queryKey: BACKGROUND_TASKS_KEY });
       } catch (e) {
-        push(`Failed to start AI tagging: ${String(e)}`, "error");
+        push(`Failed to start AI tagging: ${errorText(e)}`, "error");
       } finally {
         setSubmitting(false);
       }
@@ -127,7 +128,7 @@ export function useAiTagging(onTagged?: () => void, imageId?: string) {
         ok ? "info" : "info",
       );
     } catch (e) {
-      push(`Failed to cancel: ${String(e)}`, "error");
+      push(`Failed to cancel: ${errorText(e)}`, "error");
     } finally {
       setCancelling(false);
     }

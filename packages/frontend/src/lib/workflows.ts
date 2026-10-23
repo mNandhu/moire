@@ -16,6 +16,7 @@
  */
 
 import type { SignatureRow } from "./gen";
+import { httpError } from "./api";
 
 /** What the browser extracts from a dropped `.json` (nothing else is sent). */
 export type WorkflowFile = {
@@ -239,7 +240,7 @@ export async function putWorkflowName(id: string, name: string): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   });
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) throw await httpError(r);
 }
 
 // The server takes at most 500 files per request; a whole workflows folder
@@ -259,7 +260,7 @@ export async function importWorkflowFiles(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(files.slice(i, i + IMPORT_BATCH)),
     });
-    if (!r.ok) throw new Error(await r.text());
+    if (!r.ok) throw await httpError(r);
     const res = (await r.json()) as { imported: number; known_ids?: string[] };
     imported += res.imported;
     for (const id of res.known_ids ?? []) known.add(id);

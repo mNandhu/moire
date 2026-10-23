@@ -48,6 +48,7 @@ import { filesFromDrop } from "../lib/dropFiles";
 import { useGenerators } from "../lib/generate";
 import { InGenerateBadge, generatorFor } from "../components/generate/InGenerate";
 import { JsonTree, collectMatches } from "../components/GraphTree";
+import { errorText } from "../lib/api";
 
 export { JsonTree, matchesQuery, collectMatches } from "../components/GraphTree";
 
@@ -122,7 +123,7 @@ export default function RulesPage() {
   const loadSignatures = useCallback(() => {
     fetchSignatures()
       .then(setSigs)
-      .catch((e) => push(`Failed to load signatures: ${String(e)}`, "error"))
+      .catch((e) => push(`Failed to load signatures: ${errorText(e)}`, "error"))
       .finally(() => setSigsLoaded(true));
   }, [push]);
 
@@ -189,7 +190,7 @@ export default function RulesPage() {
         await putWorkflowName(id, name);
         loadSignatures();
       } catch (e) {
-        push(`Rename failed: ${String(e)}`, "error");
+        push(`Rename failed: ${errorText(e)}`, "error");
       }
     },
     [sigs, loadSignatures, push],
@@ -224,7 +225,7 @@ export default function RulesPage() {
           known ? "success" : "info",
         );
       } catch (e) {
-        push(`Import failed: ${String(e)}`, "error");
+        push(`Import failed: ${errorText(e)}`, "error");
       }
     },
     [loadSignatures, push],
@@ -295,7 +296,7 @@ export default function RulesPage() {
       // Ignore a preview that lands after the user switched signature.
       if (selectedSigRef.current === sig) setPreview(res);
     } catch (e) {
-      push(`Preview failed: ${String(e)}`, "error");
+      push(`Preview failed: ${errorText(e)}`, "error");
     } finally {
       setPreviewBusy(false);
     }

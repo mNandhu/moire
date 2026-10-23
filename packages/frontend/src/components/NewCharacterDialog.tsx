@@ -15,6 +15,7 @@ import { createCharacter } from "../lib/imageMutations";
 import { TAGS_KEY } from "../lib/queries";
 import { putRecipe, useCharacterNames, useComfyModels, useLoraWords } from "../lib/generate";
 import { stemOf } from "./generate/RunControls";
+import { errorText } from "../lib/api";
 
 /** Spaces as the tag's underscores; a typed tag is stored this way. */
 const asTag = (s: string) => s.trim().replace(/\s+/g, "_");
@@ -92,7 +93,7 @@ export function NewCharacterDialog({
     try {
       made = await createCharacter({ tag: asTag(tag), ...(name.trim() ? { name: name.trim() } : {}) });
     } catch (e) {
-      push(`Couldn't make the character: ${String(e)}`, "error");
+      push(`Couldn't make the character: ${errorText(e)}`, "error");
       setSaving(false);
       return;
     }
@@ -101,7 +102,7 @@ export function NewCharacterDialog({
         await putRecipe(made.tag, { ...(tags.length ? { added: tags } : {}), ...(lora ? { lora } : {}) });
       }
     } catch (e) {
-      push(`Made the character, but couldn't save its tags and LoRA: ${String(e)}`, "error");
+      push(`Made the character, but couldn't save its tags and LoRA: ${errorText(e)}`, "error");
     }
     await qc.invalidateQueries({ queryKey: TAGS_KEY });
     setSaving(false);

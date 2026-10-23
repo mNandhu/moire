@@ -7,7 +7,7 @@ import { Button, ButtonAnchor, ButtonLink } from "./ui/Button";
 import { Skeleton } from "./ui/Skeleton";
 import { Mosaic, type Sample } from "./TagMosaic";
 import { useToast } from "./Toasts";
-import { api } from "../lib/api";
+import { api, errorText } from "../lib/api";
 import { cn } from "../lib/cn";
 import { fetchSignatures } from "../lib/gen";
 import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
@@ -101,7 +101,7 @@ export function TagPanel({
       await updateCharacter(tag, { kind: "character" });
       await qc.invalidateQueries({ queryKey: TAGS_KEY });
     } catch (e) {
-      push(`Couldn't mark it as a character: ${String(e)}`, "error");
+      push(`Couldn't mark it as a character: ${errorText(e)}`, "error");
     }
   };
 

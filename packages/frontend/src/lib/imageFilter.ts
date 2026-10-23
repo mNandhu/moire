@@ -1,3 +1,4 @@
+import { httpError } from "./api";
 // Image filter: the criteria selecting which Images the gallery shows, plus
 // its pure URL round-trip. parseFilters / serializeFilters are the single
 // source of truth so the URL and the Image feed query never drift.
@@ -247,7 +248,7 @@ export async function fetchImagesPage(
 ): Promise<FeedPage> {
   const qs = buildImagesQuery(filters, opts);
   const r = await fetch(`/api/v1/images?${qs}`, { signal: opts.signal });
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) throw await httpError(r);
   return {
     items: (await r.json()) as ImageDoc[],
     next: r.headers.get("X-Next-Cursor"),
@@ -266,7 +267,7 @@ export async function fetchGroupsPage(
   const r = await fetch(`/api/v1/images/groups?${sp.toString()}`, {
     signal: opts.signal,
   });
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) throw await httpError(r);
   return (await r.json()) as ImageDoc[];
 }
 
@@ -278,7 +279,7 @@ export async function fetchImage(
   const r = await fetch(`/api/v1/images/${encodeURIComponent(id)}`, {
     signal: opts.signal,
   });
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) throw await httpError(r);
   return (await r.json()) as ImageDoc;
 }
 
