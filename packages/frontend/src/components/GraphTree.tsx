@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 // Does a key or any descendant value contain the (lowercased) search term?
 // Drives both the highlight and the auto-expand: a node matches when its own key
@@ -72,7 +72,6 @@ export function JsonTree({
   query?: string;
   marks?: ReadonlyMap<string, string>;
 }) {
-  const [open, setOpen] = useState(depth < 2);
   const isObj = value && typeof value === "object";
   const hasQuery = query.trim().length > 0;
 
@@ -115,8 +114,7 @@ export function JsonTree({
         const keyHit = hasQuery && k.toLowerCase().includes(query.trim().toLowerCase());
         const keyCls = keyHit ? HIT : "text-sky-300";
         // Force a branch open when it (or a descendant) matches the search.
-        const childOpen =
-          open ||
+        const forced =
           (hasQuery && matchesQuery(v, query, k)) ||
           (!!marks && [...marks.keys()].some((p) => p.startsWith(`${childPath}.`)));
         return (
@@ -134,28 +132,50 @@ export function JsonTree({
                 />
               </div>
             ) : (
-              <div>
-                <button
-                  onClick={() => setOpen((o) => !o)}
-                  className={`hover:text-sky-200 ${keyCls}`}
-                >
-                  {childOpen ? "▾" : "▸"} {k}
-                </button>
-                {childOpen && (
-                  <JsonTree
-                    value={v}
-                    path={childPath}
-                    onPin={onPin}
-                    depth={depth + 1}
-                    query={query}
-                    marks={marks}
-                  />
-                )}
-              </div>
+              <Branch name={k} keyCls={keyCls} forced={forced} initiallyOpen={depth < 2}>
+                <JsonTree
+                  value={v}
+                  path={childPath}
+                  onPin={onPin}
+                  depth={depth + 1}
+                  query={query}
+                  marks={marks}
+                />
+              </Branch>
             )}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// One expandable node. It owns its toggle, so opening a branch never moves
+// its siblings.
+function Branch({
+  name,
+  keyCls,
+  forced,
+  initiallyOpen,
+  children,
+}: {
+  name: string;
+  keyCls: string;
+  forced: boolean;
+  initiallyOpen: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(initiallyOpen);
+  const shown = open || forced;
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`hover:text-sky-200 ${keyCls}`}
+      >
+        {shown ? "▾" : "▸"} {name}
+      </button>
+      {shown && children}
     </div>
   );
 }
