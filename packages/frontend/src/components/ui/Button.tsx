@@ -36,7 +36,11 @@ type Look = {
   active?: boolean;
 };
 
-export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & Look;
+export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
+  Look & {
+    /** Its action is in flight: the button is disabled (and marked busy) until it ends. */
+    pending?: boolean;
+  };
 
 function buttonClasses({ variant = "secondary", size = "md", active }: Look, className?: string) {
   return cn(
@@ -51,13 +55,15 @@ function buttonClasses({ variant = "secondary", size = "md", active }: Look, cla
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   function Button(
-    { variant, size, active, className, children, ...rest },
+    { variant, size, active, className, children, pending, disabled, ...rest },
     ref,
   ) {
     return (
       <button
         ref={ref}
         className={buttonClasses({ variant, size, active }, className)}
+        disabled={disabled || pending}
+        aria-busy={pending || undefined}
         {...rest}
       >
         {children}

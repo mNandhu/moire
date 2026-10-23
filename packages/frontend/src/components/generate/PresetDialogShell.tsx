@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { Button, Input } from "../ui";
-import { Dialog } from "../ui/Dialog";
+import { Dialog, DialogFooter } from "../ui/Dialog";
 import { useToast } from "../Toasts";
 
 /**
@@ -54,20 +54,19 @@ export function PresetDialogShell<P>({
       onClose={onClose}
       title={title}
       footer={
-        <div className="flex w-full items-center gap-2">
-          {editing && (
-            <Button variant="ghost" onClick={() => deleting.mutate()} disabled={deleting.isPending} className="text-red-300">
-              Delete
-            </Button>
-          )}
-          <span className="flex-1" />
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={() => saving.mutate()} disabled={!name.trim() || !canSave || saving.isPending}>
-            Save
-          </Button>
-        </div>
+        <DialogFooter
+          onCancel={onClose}
+          onConfirm={() => saving.mutate()}
+          disabled={!name.trim() || !canSave}
+          pending={saving.isPending}
+          start={
+            editing && (
+              <Button variant="ghost" onClick={() => deleting.mutate()} pending={deleting.isPending} className="text-red-300">
+                Delete
+              </Button>
+            )
+          }
+        />
       }
     >
       <div className="space-y-3">

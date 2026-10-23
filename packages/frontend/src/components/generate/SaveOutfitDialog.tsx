@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Input } from "../ui";
 import { Checkbox } from "../ui/Checkbox";
-import { Dialog } from "../ui/Dialog";
+import { Dialog, DialogFooter } from "../ui/Dialog";
 import { useConfirm } from "../ConfirmDialog";
 import { useToast } from "../Toasts";
 import { cn } from "../../lib/cn";
@@ -172,11 +171,9 @@ export function SaveOutfitDialog({
   // Struck tags aren't sent, so they don't count.
   const kept = rows.filter((r) => !r.struck);
   const tooMany = kept.length > MAX_OUTFIT_TAGS;
-  const ready = (isDefault || (!!shownName.trim() && rows.length > 0)) && !tooMany && !save.isPending;
+  const ready = (isDefault || (!!shownName.trim() && rows.length > 0)) && !tooMany;
 
-  // On the body: the viewer's side panel is transformed, which would pin a
-  // fixed overlay inside it.
-  return createPortal(
+  return (
     <Dialog
       open={open}
       onClose={onClose}
@@ -191,35 +188,36 @@ export function SaveOutfitDialog({
         </span>
       }
       footer={
-        <div className="flex w-full items-center gap-2.5">
-          {isDefault ? (
-            outfit!.edited && (
-              <Button variant="ghost" onClick={() => reset.mutate()} title="Back to the name and tags read from their images">
-                Reset to computed
+        <DialogFooter
+          onCancel={onClose}
+          onConfirm={() => save.mutate()}
+          confirmLabel={outfit ? "Save changes" : blank ? "Create outfit" : "Save outfit"}
+          disabled={!ready}
+          pending={save.isPending}
+          start={
+            isDefault ? (
+              outfit!.edited && (
+                <Button variant="ghost" onClick={() => reset.mutate()} title="Back to the name and tags read from their images">
+                  Reset to computed
+                </Button>
+              )
+            ) : outfit ? (
+              <Button
+                variant="ghost"
+                className="text-red-300"
+                onClick={async () => {
+                  if (await confirm({ title: `Delete ${outfit.name}?`, confirmLabel: "Delete", tone: "danger" })) remove.mutate();
+                }}
+              >
+                Delete
               </Button>
+            ) : (
+              <span className={cn("text-xs", tooMany ? "text-red-300" : "text-muted")}>
+                {tooMany ? `${kept.length} of ${MAX_OUTFIT_TAGS} tags` : `${kept.length} ${kept.length === 1 ? "tag" : "tags"}`}
+              </span>
             )
-          ) : outfit ? (
-            <Button
-              variant="ghost"
-              className="text-red-300"
-              onClick={async () => {
-                if (await confirm({ title: `Delete ${outfit.name}?`, confirmLabel: "Delete", tone: "danger" })) remove.mutate();
-              }}
-            >
-              Delete
-            </Button>
-          ) : (
-            <span className={cn("text-xs", tooMany ? "text-red-300" : "text-muted")}>
-              {tooMany ? `${kept.length} of ${MAX_OUTFIT_TAGS} tags` : `${kept.length} ${kept.length === 1 ? "tag" : "tags"}`}
-            </span>
-          )}
-          <Button variant="ghost" className="ml-auto" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="primary" disabled={!ready} onClick={() => save.mutate()}>
-            {outfit ? "Save changes" : blank ? "Create outfit" : "Save outfit"}
-          </Button>
-        </div>
+          }
+        />
       }
     >
       <div className="flex flex-wrap gap-5">
@@ -327,7 +325,6 @@ export function SaveOutfitDialog({
           />
         </div>
       )}
-    </Dialog>,
-    document.body,
+    </Dialog>
   );
 }

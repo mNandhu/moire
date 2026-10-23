@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../lib/cn";
+import { Button } from "./Button";
 
 /**
  * Modal shell: dimmed backdrop, centered card, Escape / backdrop-click to close,
@@ -144,6 +145,41 @@ export function Dialog({
       </div>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * The footer of a dialog that confirms something: `start` (a Delete, a
+ * count) at the left, then Cancel and the confirm button at the right. The
+ * confirm button is off while `pending` (its action is in flight) or
+ * `disabled`.
+ */
+export function DialogFooter({
+  onCancel,
+  onConfirm,
+  confirmLabel = "Save",
+  pending,
+  disabled,
+  start,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+  confirmLabel?: React.ReactNode;
+  pending?: boolean;
+  disabled?: boolean;
+  start?: React.ReactNode;
+}) {
+  return (
+    <div className="flex w-full items-center gap-2">
+      {start}
+      <span className="flex-1" />
+      <Button variant="ghost" onClick={onCancel}>
+        Cancel
+      </Button>
+      <Button variant="primary" onClick={onConfirm} disabled={disabled} pending={pending}>
+        {confirmLabel}
+      </Button>
+    </div>
   );
 }
 
