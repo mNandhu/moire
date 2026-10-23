@@ -397,6 +397,8 @@ _scan_slots = threading.BoundedSemaphore(max(1, settings.scanner_max_concurrent_
 _current_scans: set[str] = set()
 _cancel_scans: set[str] = set()
 _scan_threads: dict[str, threading.Thread] = {}
+# Libraries moved mid-scan: the scan is cancelled and started afresh on its way out.
+_rescan_after: set[str] = set()
 # Scans that have ended, however (the activity poll's "ended" count).
 _scans_ended = 0
 
@@ -869,6 +871,12 @@ def scan_library_async(library_id: str, root: str) -> dict:
                 _current_scans.discard(library_id)
                 _cancel_scans.discard(library_id)
                 _scan_threads.pop(library_id, None)
+                again = library_id in _rescan_after
+                _rescan_after.discard(library_id)
+            if again:
+                # The scan ended (cancelled) because the library moved; it
+                # reads the new path itself once it has a slot.
+                scan_library_async(library_id, str(root_path))
 
     # Start background thread. NB: named `th` (not `t`): `t` is the schema-table
     # module alias used inside `_run`, and a local `t` here would shadow it.
@@ -877,6 +885,24 @@ def scan_library_async(library_id: str, root: str) -> dict:
         _scan_threads[library_id] = th
     th.start()
     return {"started": True}
+
+
+def restart_scan(library_id: str, root: str) -> dict:
+    """Scan `root` for a library: start a scan, or, when one is already running
+    (possibly on the old folder), cancel it and start a fresh one as it ends."""
+    with _scan_lock:
+        if library_id in _current_scans:
+            _rescan_after.add(library_id)
+            _cancel_scans.add(library_id)
+            return {"started": False, "status": "restarting"}
+    result = scan_library_async(library_id, root)
+    if not result.get("started"):
+        # Lost a race with a scan that began just now: restart it the same way.
+        with _scan_lock:
+            _rescan_after.add(library_id)
+            _cancel_scans.add(library_id)
+        return {"started": False, "status": "restarting"}
+    return result
 
 
 def cancel_scan(library_id: str, *, join_timeout_s: float = 0.5) -> bool:

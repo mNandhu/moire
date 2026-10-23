@@ -12,7 +12,7 @@ from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ..models.library import LibraryDiscoverIn, LibraryIn, LibraryUpdate
 from ..services import activity, library_discover, library_nesting
-from ..services.scanner import cancel_scan, scan_library_async
+from ..services.scanner import cancel_scan, restart_scan, scan_library_async
 
 from ..services.storage_fs import delete_by_prefix
 from ..services import tag_index
@@ -267,7 +267,7 @@ async def update_library(library_id: str, body: LibraryUpdate):
     ] != library_discover.normalize_path(old._mapping.get("path") or "")
     if path_changed:
         library_nesting.invalidate()
-        scan_library_async(library_id, new_path)
+        restart_scan(library_id, new_path)
         # A library it was inside takes the old folder back.
         await _rescan_libraries_around(old._mapping["path"], exclude=library_id)
     watch_enabled = update_doc.get("watch_enabled", old._mapping.get("watch_enabled"))

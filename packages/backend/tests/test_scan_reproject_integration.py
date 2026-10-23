@@ -555,3 +555,51 @@ def test_full_reprojections_coalesce(monkeypatch):
     assert done.wait(5)
     time.sleep(0.1)
     assert len(runs) == 2
+
+
+async def test_moving_a_library_mid_scan_rescans_the_new_folder(
+    client, tmp_path, monkeypatch
+):
+    """A scan already walking the old folder must not swallow the move: it is
+    cancelled and a fresh scan of the new folder runs once it has ended."""
+    import asyncio
+    import threading
+
+    old_dir, new_dir = tmp_path / "old", tmp_path / "new"
+    old_dir.mkdir()
+    new_dir.mkdir()
+    _write_png(old_dir / "stale.png")
+    _write_png(new_dir / "fresh.png")
+
+    entered, release = threading.Event(), threading.Event()
+    real_process = scanner._process_image
+
+    def blocking_process(library_id, root, p, known):
+        if root == old_dir:
+            entered.set()
+            release.wait(timeout=20)
+        return real_process(library_id, root, p, known)
+
+    monkeypatch.setattr(scanner, "_process_image", blocking_process)
+
+    resp = await client.post("/libraries", json={"path": str(old_dir)})
+    lib_id = resp.json()["_id"]
+    for _ in range(200):
+        if entered.is_set():
+            break
+        await asyncio.sleep(0.05)
+    assert entered.is_set()
+
+    resp = await client.patch(f"/libraries/{lib_id}", json={"path": str(new_dir)})
+    assert resp.status_code == 200, resp.text
+    release.set()
+
+    ids: set[str] = set()
+    for _ in range(400):
+        feed = await client.get("/images", params={"library_id": lib_id})
+        ids = {it["_id"] for it in feed.json()}
+        if f"{lib_id}:fresh.png" in ids:
+            break
+        await asyncio.sleep(0.05)
+    _wait_scan(lib_id)
+    assert ids == {f"{lib_id}:fresh.png"}
