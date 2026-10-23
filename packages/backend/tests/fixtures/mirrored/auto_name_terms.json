@@ -1,0 +1,11 @@
+{
+  "about": "A batch's auto-name terms: generation_compose.prompt_terms and compose.ts promptTerms must both return `terms` for `text` at `limit` (the first tag-kind pieces, lowercase, unescaped, shown through display_tag / formatTag).",
+  "cases": [
+    { "text": "(smile:1.2), embedding:x, <lora:a:1>, sitting_on_swing, garden", "limit": 2, "terms": ["smile", "sitting on swing"] },
+    { "text": "", "limit": 2, "terms": [] },
+    { "text": "hu_tao_\\(genshin_impact\\), (>_<:1.1), smile", "limit": 3, "terms": ["hu tao (genshin impact)", ">_<", "smile"] },
+    { "text": "(white dress, blue sky:1.2), a gentle breeze moving through her hair, 1girl", "limit": 2, "terms": ["white dress", "blue sky"] },
+    { "text": "(Smile:1.2), embedding:x, <lora:a:1>, Sitting_on_swing", "limit": 2, "terms": ["smile", "sitting on swing"] },
+    { "text": "a gentle breeze moving through her hair, 1girl, smile", "limit": 2, "terms": ["1girl", "smile"] }
+  ]
+}

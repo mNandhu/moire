@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import autoName from "../../../backend/tests/fixtures/mirrored/auto_name_terms.json";
 import { compose, composeParts, displayWord, promptTerms } from "./compose";
 
 describe("compose", () => {
@@ -36,24 +37,8 @@ describe("composeParts (same cases as test_generation_compose.py)", () => {
       "masterpiece, best quality, hu_tao_\\(genshin_impact\\), red_eyes, embedding:pos/aesthetic, (smile:1.2), sitting on a swing, red_eyes",
     );
   });
-  it("takes the prompt's first terms for the auto name", () => {
-    expect(promptTerms("(smile:1.2), embedding:x, <lora:a:1>, sitting_on_swing, garden")).toEqual([
-      "smile",
-      "sitting on swing",
-    ]);
-    expect(promptTerms("")).toEqual([]);
-    // Read as the board reads them: escapes, kaomoji and groups kept whole.
-    expect(promptTerms("hu_tao_\\(genshin_impact\\), (>_<:1.1), smile", 3)).toEqual([
-      "hu tao (genshin impact)",
-      ">_<",
-      "smile",
-    ]);
-    expect(promptTerms("(white dress, blue sky:1.2), a gentle breeze moving through her hair, 1girl")).toEqual([
-      "white dress",
-      "blue sky",
-    ]);
-    // Lowercase, as stored; prose is no tag.
-    expect(promptTerms("(Smile:1.2), embedding:x, <lora:a:1>, Sitting_on_swing")).toEqual(["smile", "sitting on swing"]);
-    expect(promptTerms("a gentle breeze moving through her hair, 1girl, smile")).toEqual(["1girl", "smile"]);
+  // The cases live in one file the backend's prompt_terms reads too.
+  it.each(autoName.cases)("takes the prompt's first terms for the auto name: $text", ({ text, limit, terms }) => {
+    expect(promptTerms(text, limit)).toEqual(terms);
   });
 });

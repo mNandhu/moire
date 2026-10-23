@@ -21,3 +21,17 @@ FIXTURE = json.loads(
 def test_parse_prompt_reads_the_shared_cases(case):
     got = [[canonical_name(p.text), p.kind] for p in parse_prompt(case["text"])]
     assert got == case["terms"]
+
+
+AUTO_NAME = json.loads(
+    (
+        Path(__file__).parent / "fixtures" / "mirrored" / "auto_name_terms.json"
+    ).read_text(encoding="utf-8")
+)
+
+
+@pytest.mark.parametrize("case", AUTO_NAME["cases"], ids=lambda c: repr(c["text"]))
+def test_auto_name_terms_read_the_shared_cases(case):
+    from moire.services.generation_compose import prompt_terms
+
+    assert prompt_terms(case["text"], limit=case["limit"]) == case["terms"]

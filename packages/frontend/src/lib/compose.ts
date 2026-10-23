@@ -1,7 +1,8 @@
 /**
  * Prompt blocks to ComfyUI prompt text: the preview of what the backend's
- * `services/generation_compose.py` sends. Keep the two in step (same cases in
- * `compose.test.ts` and `test_generation_compose.py`).
+ * `services/generation_compose.py` sends. Keep the two in step: the auto-name
+ * terms share `tests/fixtures/mirrored/auto_name_terms.json`, and compose cases
+ * sit in `compose.test.ts` and `test_generation_compose.py`.
  *
  * Positive = Base + Character + Outfit + Extra; negative = Base + Extra. Base is
  * free text written as is; chip blocks hold canonical tag names (underscores)
