@@ -273,3 +273,9 @@ export function planRename(
   const existing = known.find((t) => t._id === target);
   return existing ? { ok: true, target, existing } : { ok: true, target };
 }
+
+/** Tags a rename of `raw` can merge into: the others of its own kind. */
+export function renameOptions<T extends { _id: string }>(raw: string, known: readonly T[]): T[] {
+  const sameKind = isPrompt(raw) ? isPrompt : isManual;
+  return known.filter((t) => t._id !== raw && sameKind(t._id));
+}

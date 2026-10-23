@@ -8,6 +8,7 @@ import {
   formatSearchTag,
   formatTag,
   planRename,
+  renameOptions,
   tagQueryText,
   toPromptText,
   isAiTag,
@@ -147,6 +148,22 @@ describe("bulkTagNames", () => {
 
   it("dedupes a picked and a typed spelling of the same tag", () => {
     expect(bulkTagNames(["manual:fav", "fav", ""])).toEqual(["fav"]);
+  });
+});
+
+describe("renameOptions", () => {
+  const known = [
+    { _id: "1girl", count: 9 },
+    { _id: "manual:keeper", count: 2 },
+    { _id: "manual:other", count: 1 },
+    { _id: "prompt:1girl", count: 4 },
+    { _id: "prompt:solo", count: 3 },
+  ];
+  it("offers only other manual tags for a manual tag", () => {
+    expect(renameOptions("manual:keeper", known).map((t) => t._id)).toEqual(["manual:other"]);
+  });
+  it("offers only other prompt tags for a prompt tag", () => {
+    expect(renameOptions("prompt:1girl", known).map((t) => t._id)).toEqual(["prompt:solo"]);
   });
 });
 

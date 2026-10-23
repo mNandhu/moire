@@ -5,7 +5,7 @@ import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 import { TagSuggestList, useTagMatches } from "./TagSuggestList";
 import type { TagAgg } from "../lib/queries";
-import { formatTag, isPrompt, planRename } from "../lib/tags";
+import { formatTag, isPrompt, planRename, renameOptions } from "../lib/tags";
 
 /**
  * Rename a manual tag or merge a prompt tag into another name. Typing an
@@ -36,10 +36,7 @@ export function RenameTagDialog({
   const prompt = isPrompt(raw);
   const plan = useMemo(() => planRename(raw, to, known), [raw, to, known]);
   // Same-kind names to pick from; the dropdown shows the best few matches.
-  const options = useMemo(
-    () => known.filter((t) => t._id !== raw && isPrompt(t._id) === prompt),
-    [known, raw, prompt],
-  );
+  const options = useMemo(() => renameOptions(raw, known), [known, raw]);
 
   const matches = useTagMatches(to, options);
   // Nothing to offer once the text already is the highlighted name.
