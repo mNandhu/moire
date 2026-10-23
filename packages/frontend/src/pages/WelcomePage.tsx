@@ -9,7 +9,7 @@ import { FoldersStep, folderSummary, type FolderEntry } from "../components/onbo
 import { ComfyStep, comfySummary, type ComfyState, type WorkflowRead } from "../components/onboarding/ComfyStep";
 import { TaggingStep } from "../components/onboarding/TaggingStep";
 import { Dot } from "../components/onboarding/parts";
-import { api, errorText } from "../lib/api";
+import { errorText } from "../lib/api";
 import { cn } from "../lib/cn";
 import { getSettings } from "../lib/generate";
 import { discoverLibraries } from "../lib/libraryPlan";
@@ -19,12 +19,13 @@ import {
   fetchOnboarding,
   isRemote,
   librariesToAdd,
+  planLibrarySync,
   putOnboarding,
   sourceTotals,
   type OnboardingInfo,
   type OnboardingStatus,
 } from "../lib/onboarding";
-import { LIBRARIES_KEY, fetchLibraries } from "../lib/queries";
+import { LIBRARIES_KEY, SCAN_POLL_MS, useLibraries, useLibraryWrites } from "../lib/libraries";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 const STEPS = [
@@ -120,6 +121,7 @@ function Landing({
 }
 
 function Setup({ info, onLeave }: { info: OnboardingInfo | undefined; onLeave: (s: OnboardingStatus) => void }) {
+  const writes = useLibraryWrites();
   const [at, setAt] = useState(0);
   const [reached, setReached] = useState(0);
 
@@ -177,34 +179,22 @@ function Setup({ info, onLeave }: { info: OnboardingInfo | undefined; onLeave: (
   /** Make the libraries match the list: create what's new, remove what was
    * created on an earlier Continue and has since left the list. */
   const createLibraries = async (): Promise<boolean> => {
-    const want = librariesToAdd(folders.map((f) => f.source));
-    const wanted = new Set(want.map((w) => w.path));
+    const { remove, add } = planLibrarySync(created, librariesToAdd(folders.map((f) => f.source)));
     const next = { ...created };
     const failed: string[] = [];
     setCreating(true);
     setCreateError(null);
-    for (const [path, id] of Object.entries(created)) {
-      if (wanted.has(path)) continue;
+    for (const [path, id] of remove) {
       try {
-        await api(`/api/v1/libraries/${encodeURIComponent(id)}`, { method: "DELETE" });
+        await writes.remove(id);
         delete next[path];
       } catch (e) {
         failed.push(`${path}: ${errorText(e)}`);
       }
     }
-    for (const w of want) {
-      if (next[w.path]) continue;
-      try {
-        const lib = await api<{ _id: string }>("/api/v1/libraries", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(w),
-        });
-        next[w.path] = lib._id;
-      } catch (e) {
-        failed.push(`${w.path}: ${errorText(e)}`);
-      }
-    }
+    const added = await writes.createMany(add);
+    Object.assign(next, added.created);
+    for (const f of added.failed) failed.push(`${f.path}: ${f.error}`);
     setCreated(next);
     setCreating(false);
     if (failed.length) setCreateError(failed.join("\n"));
@@ -370,11 +360,7 @@ function Setup({ info, onLeave }: { info: OnboardingInfo | undefined; onLeave: (
 function ScanProgress({ ids }: { ids: string[] }) {
   // Polls on its own while setup is open: a library just created may not
   // read as scanning yet, which would stop the list's usual poll.
-  const { data: libraries } = useQuery({
-    queryKey: LIBRARIES_KEY,
-    queryFn: ({ signal }) => fetchLibraries(signal),
-    refetchInterval: ids.length ? 2000 : false,
-  });
+  const { data: libraries } = useLibraries({ idleMs: ids.length ? SCAN_POLL_MS : false });
   const mine = useMemo(() => (libraries ?? []).filter((l) => ids.includes(l._id)), [libraries, ids]);
   if (!mine.length) return <span />;
   const scanning = mine.some((l) => l.scanning);

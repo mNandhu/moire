@@ -29,14 +29,17 @@ import { Checkbox } from "../components/ui/Checkbox";
 import { Input, Field } from "../components/ui/Input";
 import { Skeleton, Spinner } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
-import { api, errorText } from "../lib/api";
+import { errorText } from "../lib/api";
 import {
-  LIBRARIES_KEY,
+  invalidateImageCaches,
   libraryGalleryHref,
+  scanFinished,
   scanProblem,
   useLibraries,
+  useLibraryWrites,
+  useOnLibrariesRead,
   type Library,
-} from "../lib/queries";
+} from "../lib/libraries";
 import { cn } from "../lib/cn";
 import {
   buildLibraryTree,
@@ -62,17 +65,7 @@ function withIds(prev: Set<string>, ids: string[], on: boolean): Set<string> {
 export default function LibrariesPage() {
   const { push } = useToast();
   const confirm = useConfirm();
-  const queryClient = useQueryClient();
-
-  // Library changes alter which images the gallery should show. Both the flat
-  // feed (`["images", ...]`) and the batch-collapsed grouped view
-  // (`["image-groups", ...]`) are cached with a staleTime, so without this the
-  // gallery shows stale results, including images from a removed library,
-  // until a manual reload. Drop both so they refetch next time they mount.
-  const invalidateImageFeed = () => {
-    queryClient.invalidateQueries({ queryKey: ["images"] });
-    queryClient.invalidateQueries({ queryKey: ["image-groups"] });
-  };
+  const writes = useLibraryWrites();
   const libsQuery = useLibraries();
   const libs = useMemo(() => libsQuery.data ?? [], [libsQuery.data]);
   const initialLoading = libsQuery.isPending;
@@ -80,89 +73,20 @@ export default function LibrariesPage() {
   const error = libsQuery.error
     ? libsQuery.error.message || "Failed to load libraries"
     : null;
-  // Refetch the shared list; every page reading libraries updates with it.
-  const refresh = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: LIBRARIES_KEY }),
-    [queryClient],
-  );
   const [addOpen, setAddOpen] = useState(false);
   const [rescanning, setRescanning] = useState<Set<string>>(new Set());
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editPath, setEditPath] = useState("");
 
-  // Polling progress map
-  const [progress, setProgress] = useState<
-    Record<string, { scanning: boolean; scan_total: number; scan_done: number }>
-  >({});
-  const prevScanningRef = useRef<Record<string, boolean>>({});
+  // useLibraries polls the list (and so the scan bars) while anything scans;
+  // when a scan ends the gallery's cached images are stale.
+  const queryClient = useQueryClient();
+  useOnLibrariesRead(libsQuery, (prev, next) => {
+    if (scanFinished(prev, next)) invalidateImageCaches(queryClient);
+  });
 
-  // Compute which libraries need polling (those currently scanning)
-  const scanningIds = useMemo(
-    () => libs.filter((l) => l.scanning).map((l) => l._id),
-    [libs]
-  );
-
-  // Poll scan progress for scanning libraries only
-  useEffect(() => {
-    if (!scanningIds.length) return;
-    let timer: number | undefined;
-    let cancelled = false;
-    const tick = async () => {
-      const updates: Record<
-        string,
-        { scanning: boolean; scan_total: number; scan_done: number }
-      > = {};
-      try {
-        await Promise.all(
-          scanningIds.map(async (id) => {
-            try {
-              const r = await fetch(`/api/v1/libraries/${id}/progress`);
-              if (!r.ok) return;
-              const j = await r.json();
-              updates[id] = {
-                scanning: !!j.scanning,
-                scan_total: j.scan_total || 0,
-                scan_done: j.scan_done || 0,
-              };
-            } catch { /* network errors silenced; polling will retry */ }
-          })
-        );
-        // Detect scanning -> done transitions to refresh once
-        const prev = prevScanningRef.current;
-        let transitioned = false;
-        for (const [id, u] of Object.entries(updates)) {
-          if (prev[id] && !u.scanning) transitioned = true;
-        }
-        prevScanningRef.current = Object.fromEntries(
-          Object.entries(updates).map(([id, u]) => [id, u.scanning])
-        );
-        if (transitioned) {
-          refresh();
-          invalidateImageFeed();
-        }
-        if (!cancelled) setProgress((p) => ({ ...p, ...updates }));
-      } finally {
-        const anyScanning = Object.values(updates).some((u) => u.scanning);
-        if (!cancelled && anyScanning) timer = window.setTimeout(tick, 1500);
-      }
-    };
-    tick();
-    return () => {
-      cancelled = true;
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [scanningIds, refresh]);
-
-  const updateLibrary = async (id: string, data: Partial<Library>) => {
-    await api(`/api/v1/libraries/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    refresh();
-    invalidateImageFeed();
-  };
+  const updateLibrary = (id: string, data: Partial<Library>) => writes.update(id, data);
 
   const deleteLibrary = async (id: string) => {
     const lib = libs.find((l) => l._id === id);
@@ -176,15 +100,12 @@ export default function LibrariesPage() {
     if (!ok) return;
     markDeleting([id], true);
     try {
-      await api(`/api/v1/libraries/${id}`, { method: "DELETE" });
+      await writes.remove(id);
     } catch (e: any) {
       markDeleting([id], false);
       push(errorText(e) || "Failed to delete library", "error");
-      return;
     }
-    // Stays marked until the refetch drops it, or it would flash back.
-    refresh();
-    invalidateImageFeed();
+    // On success it stays marked until the refetch drops it, or it would flash back.
   };
 
   // Libraries being deleted: shown greyed out until they're gone. The server
@@ -223,15 +144,12 @@ export default function LibrariesPage() {
     let failed = 0;
     for (const l of order) {
       try {
-        await api(`/api/v1/libraries/${l._id}`, { method: "DELETE" });
-        refresh(); // each one disappears as it goes, still marked till then
+        await writes.remove(l._id); // each one disappears as it goes, still marked till then
       } catch {
         failed += 1;
         markDeleting([l._id], false);
       }
     }
-    refresh();
-    invalidateImageFeed();
     if (failed) push(`Deleted ${n - failed} of ${n}. ${failed} failed.`, "error");
     else push(`Deleted ${n} ${n === 1 ? "library" : "libraries"}`, "success");
   };
@@ -239,12 +157,11 @@ export default function LibrariesPage() {
   const rescan = async (l: Library) => {
     setRescanning((s) => new Set(s).add(l._id));
     try {
-      await api(`/api/v1/libraries/${l._id}/rescan`, { method: "POST" });
+      await writes.rescan(l._id);
       push(`Rescan started for ${l.name || l.path}`, "info");
     } catch (e) {
       push(errorText(e) || "Failed to start rescan", "error");
     } finally {
-      refresh();
       setRescanning((s) => {
         const n = new Set(s);
         n.delete(l._id);
@@ -315,7 +232,7 @@ export default function LibrariesPage() {
   // library has no name of its own (the backend names it by its path).
   const renderCard = (l: Library, label: string) => {
         const deleting = isDeleting(l);
-        const scanning = !deleting && !!(progress[l._id]?.scanning || l.scanning);
+        const scanning = !deleting && !!l.scanning;
         const problem = scanning ? null : scanProblem(l);
         const busy = scanning || rescanning.has(l._id);
         // One quiet line of facts instead of a row of same-weight badges.
@@ -461,16 +378,16 @@ export default function LibrariesPage() {
               </div>
             )}
 
-            {progress[l._id]?.scanning && (
+            {l.scanning && (
               <div className="mt-3">
                 <ProgressBar
-                  value={Math.max(0, progress[l._id]?.scan_done || 0)}
-                  max={Math.max(1, progress[l._id]?.scan_total || 1)}
+                  value={Math.max(0, l.scan_done || 0)}
+                  max={Math.max(1, l.scan_total || 1)}
                   aria-label="Scanning progress"
                 />
                 <div className="mt-1 text-xs text-muted tabular-nums">
-                  {(progress[l._id]?.scan_done || 0).toLocaleString()} /{" "}
-                  {(progress[l._id]?.scan_total || 0).toLocaleString()}
+                  {(l.scan_done || 0).toLocaleString()} /{" "}
+                  {(l.scan_total || 0).toLocaleString()}
                 </div>
               </div>
             )}
@@ -606,9 +523,7 @@ export default function LibrariesPage() {
       <AddLibraryDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onAdded={async ({ added, failed }) => {
-          await refresh();
-          invalidateImageFeed();
+        onAdded={({ added, failed }) => {
           push(
             `Added ${added} librar${added === 1 ? "y" : "ies"}${failed.length ? ` · ${failed.length} failed` : ""}, scanning in the background`,
             failed.length ? "error" : "success",
@@ -620,7 +535,7 @@ export default function LibrariesPage() {
       {error && !initialLoading && (
         <div className="rounded-lg border border-red-800 bg-red-900/40 p-3 text-sm text-red-200 flex items-start justify-between gap-3">
           <div>{error}</div>
-          <Button variant="danger" size="sm" onClick={() => refresh()}>
+          <Button variant="danger" size="sm" onClick={() => libsQuery.refetch()}>
             Retry
           </Button>
         </div>

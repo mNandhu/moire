@@ -23,52 +23,8 @@ import { fetchAiCoverage } from "./ai";
 import type { BrowseTag, TagDetail, TagSource } from "./tagBrowse";
 import type { CharacterPage } from "./character";
 import type { Facet } from "./tagColour";
-
-export type Library = {
-  _id: string;
-  name?: string;
-  path: string;
-  indexed_count?: number;
-  last_scanned?: string;
-  watch_enabled?: boolean;
-  last_event_at?: string | null;
-  scanning?: boolean;
-  /** Being deleted: shown until it's gone. */
-  deleting?: boolean;
-  /** Scan progress. Both stay 0 while the scan is queued or still listing files. */
-  scan_total?: number;
-  scan_done?: number;
-  /** Why the last scan failed, or a note about what it kept. */
-  scan_error?: string | null;
-};
-
-/** "Scanning", with a percentage once the scan knows how many files it has. */
-export function scanLabel(l: Library): string {
-  if (!l.scan_total) return "Scanning…";
-  const pct = Math.floor(((l.scan_done ?? 0) / l.scan_total) * 100);
-  return `Scanning ${Math.min(pct, 99)}%`;
-}
-
-/** The last scan's failure, or its note about what it kept (`note`: the scan
- * finished; the notes are scanner.py's "Kept ..." and "Some folders ...").
- * Nothing while scanning or after a cancel. */
-export function scanProblem(l: Library): { text: string; note: boolean } | null {
-  if (l.scanning || !l.scan_error || l.scan_error === "cancelled") return null;
-  const text = l.scan_error;
-  return { text, note: text.startsWith("Kept ") || text.startsWith("Some folders could not be read") };
-}
-
-/** The gallery showing one library. */
-export const libraryGalleryHref = (id: string) => `/?${new URLSearchParams({ library_id: id })}`;
-
-/** The Libraries page with one library picked out (scrolled to, its folders open). */
-export const libraryPageHref = (id: string) => `/libraries?${new URLSearchParams({ library: id })}`;
-
-export const LIBRARIES_KEY = ["libraries"] as const;
-
-export function fetchLibraries(signal?: AbortSignal): Promise<Library[]> {
-  return api<Library[]>("/api/v1/libraries", { signal });
-}
+// Libraries live in ./libraries; re-exported so other importers keep working.
+export * from "./libraries";
 
 /** The versioned thumbnail URL of an image known only by id (a cover picked
  * in a dialog, the image a remix came from); lists carry theirs. */
@@ -82,18 +38,6 @@ export function useThumbUrl(imageId: string | null | undefined): string | null {
     staleTime: 60_000,
   });
   return imageId ? (data?.thumb_url ?? null) : null;
-}
-
-/** All libraries; polls while any of them is scanning so counts stay live.
- * `poll: false` for a reader that only needs names (the gallery underneath
- * already keeps the list fresh). */
-export function useLibraries({ poll = true } = {}) {
-  return useQuery({
-    queryKey: LIBRARIES_KEY,
-    queryFn: ({ signal }) => fetchLibraries(signal),
-    refetchInterval: (q) =>
-      poll && q.state.data?.some((l) => l.scanning || l.deleting) ? 3000 : false,
-  });
 }
 
 type Used = { name: string; count: number }[];

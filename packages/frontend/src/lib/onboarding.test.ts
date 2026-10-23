@@ -5,6 +5,7 @@ import {
   isRemote,
   librariesToAdd,
   pathKey,
+  planLibrarySync,
   pathProblem,
   sourceProblem,
   sourceTotals,
@@ -127,5 +128,22 @@ describe("isRemote", () => {
     expect(isRemote("localhost")).toBe(false);
     expect(isRemote("127.0.0.1")).toBe(false);
     expect(isRemote("studio-pc.local")).toBe(true);
+  });
+});
+
+describe("planLibrarySync", () => {
+  const w = (path: string) => ({ path, name: path.slice(1) });
+  it("adds what is new and leaves what was already created", () => {
+    expect(planLibrarySync({ "/a": "id-a" }, [w("/a"), w("/b")])).toEqual({ remove: [], add: [w("/b")] });
+  });
+  it("removes created libraries that left the list", () => {
+    expect(planLibrarySync({ "/a": "id-a", "/b": "id-b" }, [w("/b")])).toEqual({
+      remove: [["/a", "id-a"]],
+      add: [],
+    });
+  });
+  it("starts from nothing", () => {
+    expect(planLibrarySync({}, [w("/a")])).toEqual({ remove: [], add: [w("/a")] });
+    expect(planLibrarySync({}, [])).toEqual({ remove: [], add: [] });
   });
 });

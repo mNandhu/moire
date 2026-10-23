@@ -48,7 +48,8 @@ import { generatorFor } from "../components/generate/InGenerate";
 import { Badge } from "../components/ui";
 import { ambientPalette } from "../lib/blurhash";
 import { applyAmbient } from "../lib/ambient";
-import { LIBRARIES_KEY, TAGS_KEY, imageEmbeddingsQuery, imageLorasQuery, imageModelsQuery, type Library } from "../lib/queries";
+import { TAGS_KEY, imageEmbeddingsQuery, imageLorasQuery, imageModelsQuery } from "../lib/queries";
+import { feedNeedsRefetch, useLibraries, useOnLibrariesRead } from "../lib/libraries";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { Picker } from "../components/ui/Picker";
@@ -135,11 +136,10 @@ export default function AllImagesPage() {
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const queryClient = useQueryClient();
-  // Seeded from the shared cache so a return visit has names immediately;
-  // the poll below keeps both this and the cache current.
-  const [libs, setLibs] = useState<Library[]>(
-    () => queryClient.getQueryData<Library[]>(LIBRARIES_KEY) ?? [],
-  );
+  // Slow idle poll, brisk while a scan runs: catches scans and watcher events
+  // started elsewhere while the gallery stays open.
+  const libsQuery = useLibraries({ idleMs: 8000 });
+  const libs = useMemo(() => libsQuery.data ?? [], [libsQuery.data]);
   // Workflows for the filter picker and the chip's name, grouped as the Rules
   // page groups them. Fetched once the panel opens or a workflow is filtered.
   const { data: signatures } = useQuery({
@@ -340,70 +340,17 @@ export default function AllImagesPage() {
     getScrollContainer,
   );
 
-  // Load libraries for the filter dropdown, and keep them polled while any
-  // library is scanning OR the filesystem watcher reports new activity.
   // Indexing runs as an async background scan/watcher, so images land after
-  // a library is added/rescanned/changed on disk. The scan-progress poll that
-  // triggers a feed refresh lives on the Libraries page, which is unmounted
-  // once the user is here, so the gallery must watch scan/watch state itself
-  // and refetch the feed as images arrive, instead of needing a full reload.
+  // a library is added/rescanned/changed on disk. This page is the only one
+  // that watches the library list (useLibraries above) for scan and watcher
+  // activity and refetches the feed as images arrive, so no full reload is
+  // needed. See feedNeedsRefetch for when a read of the list pulls the feed.
   // The visible one: the grouped view when grouping, else the flat feed.
   const refetchFeedRef = useRef(activeFeed.refetch);
   refetchFeedRef.current = activeFeed.refetch;
-  // Seed true so the first poll tick always does one fresh pull on mount;
-  // covers a scan that finishes in the race window between the feed's
-  // mount-refetch and tick 1, and sidesteps the 30s stale-cache window.
-  const wasScanningRef = useRef(true);
-  // Per-library `last_event_at` last seen, so a watcher-driven add/modify/
-  // delete between ticks (no `scanning` flag involved) still triggers a
-  // refetch instead of silently landing only on the next manual reload.
-  const lastEventSeenRef = useRef<Record<string, string>>({});
-  useEffect(() => {
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const tick = async () => {
-      let anyScanning = false;
-      try {
-        const data = await api<Library[]>(`/api/v1/libraries`);
-        if (cancelled) return;
-        setLibs(data);
-        queryClient.setQueryData(LIBRARIES_KEY, data);
-        anyScanning = data.some((l) => l.scanning);
-        const seen = lastEventSeenRef.current;
-        let watcherActivity = false;
-        for (const l of data) {
-          if (l.last_event_at && l.last_event_at !== seen[l._id]) {
-            watcherActivity = true;
-            seen[l._id] = l.last_event_at;
-          }
-        }
-        // Refetch while a scan runs AND once more on the scanning -> done
-        // transition. The trailing pull matters: cursor pages are keyed by
-        // ascending _id and the scan appends higher _ids, so the final batch
-        // (and a page-1 that was still short mid-scan, which left hasNextPage
-        // false and killed paging) is only picked up by refetching after the
-        // scan finishes. Refetch re-derives getNextPageParam, reviving paging.
-        // Watcher activity gets the same treatment: a single ingested file is
-        // a small feed delta, but it still needs a refetch to appear.
-        if (anyScanning || wasScanningRef.current || watcherActivity) {
-          refetchFeedRef.current();
-        }
-        wasScanningRef.current = anyScanning;
-      } catch {
-        // Ignore transient errors; retry on the next tick.
-      }
-      if (!cancelled) {
-        // Poll briskly during a scan, lazily otherwise to catch scans/watcher
-        // events that start from another page while the gallery stays open.
-        timer = setTimeout(tick, anyScanning ? 1500 : 8000);
-      }
-    };
-    tick();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [queryClient]);
+  useOnLibrariesRead(libsQuery, (prev, next) => {
+    if (feedNeedsRefetch(prev, next)) refetchFeedRef.current();
+  });
 
   // Close filters on outside click / ESC.
   useEffect(() => {

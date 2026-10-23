@@ -140,3 +140,19 @@ export function gpuInstallCommand(checkout: boolean): string {
 
 export const plural = (n: number, one: string, many = `${one}s`) =>
   `${n.toLocaleString()} ${n === 1 ? one : many}`;
+
+/**
+ * What Continue must do to make the libraries match the folder list: remove
+ * the ones created on an earlier Continue that have since left the list, and
+ * add the wanted ones not created yet. `created` maps path to library id.
+ */
+export function planLibrarySync(
+  created: Record<string, string>,
+  want: { path: string; name: string }[],
+): { remove: [path: string, id: string][]; add: { path: string; name: string }[] } {
+  const wanted = new Set(want.map((w) => w.path));
+  return {
+    remove: Object.entries(created).filter(([path]) => !wanted.has(path)),
+    add: want.filter((w) => !created[w.path]),
+  };
+}

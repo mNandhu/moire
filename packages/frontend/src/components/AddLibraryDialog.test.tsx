@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AddLibraryDialog } from "./AddLibraryDialog";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
+
+const wrapper = ({ children }: { children: ReactNode }) => (
+  <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+);
 
 const cand = (path: string, over: Record<string, unknown> = {}) => ({
   path,
@@ -63,7 +69,7 @@ describe("AddLibraryDialog", () => {
     const posts = mockFetch();
     const onAdded = vi.fn();
     const onClose = vi.fn();
-    render(<AddLibraryDialog open onClose={onClose} onAdded={onAdded} />);
+    render(<AddLibraryDialog open onClose={onClose} onAdded={onAdded} />, { wrapper });
     await previewFlow();
 
     // Registered row can't be ticked; untick b; rename a.
@@ -79,7 +85,7 @@ describe("AddLibraryDialog", () => {
   it("Ctrl+Enter can't start a second add or add an empty selection", async () => {
     const posts = mockFetch();
     const onClose = vi.fn();
-    render(<AddLibraryDialog open onClose={onClose} onAdded={vi.fn()} />);
+    render(<AddLibraryDialog open onClose={onClose} onAdded={vi.fn()} />, { wrapper });
     await previewFlow();
     const box = screen.getByLabelText("Folders");
 
@@ -92,7 +98,7 @@ describe("AddLibraryDialog", () => {
   it("Ctrl+Enter with nothing ticked keeps the dialog open", async () => {
     const posts = mockFetch();
     const onClose = vi.fn();
-    render(<AddLibraryDialog open onClose={onClose} onAdded={vi.fn()} />);
+    render(<AddLibraryDialog open onClose={onClose} onAdded={vi.fn()} />, { wrapper });
     await previewFlow();
     // [0] is the split toggle; [1] and [2] are the two new rows.
     fireEvent.click(screen.getAllByRole("checkbox")[1]);
@@ -108,7 +114,7 @@ describe("AddLibraryDialog", () => {
     const posts = mockFetch(["/lib/b"]);
     const onAdded = vi.fn();
     const onClose = vi.fn();
-    render(<AddLibraryDialog open onClose={onClose} onAdded={onAdded} />);
+    render(<AddLibraryDialog open onClose={onClose} onAdded={onAdded} />, { wrapper });
     await previewFlow();
 
     fireEvent.click(screen.getByRole("button", { name: /Add 2 libraries/ }));
@@ -134,7 +140,7 @@ describe("AddLibraryDialog › closing mid-preview", () => {
           }),
       ),
     );
-    const { rerender } = render(<AddLibraryDialog open onClose={() => {}} onAdded={vi.fn()} />);
+    const { rerender } = render(<AddLibraryDialog open onClose={() => {}} onAdded={vi.fn()} />, { wrapper });
     fireEvent.change(screen.getByLabelText("Folders"), { target: { value: "/lib" } });
     fireEvent.click(screen.getByRole("button", { name: /Preview/ }));
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));

@@ -6,7 +6,8 @@ import { Checkbox } from "./ui/Checkbox";
 import { Input, Field } from "./ui/Input";
 import { Badge } from "./ui/Badge";
 import { Spinner } from "./ui/Skeleton";
-import { api, errorText } from "../lib/api";
+import { errorText } from "../lib/api";
+import { useLibraryWrites } from "../lib/libraries";
 import { cn } from "../lib/cn";
 import {
   defaultSelected,
@@ -44,6 +45,7 @@ export function AddLibraryDialog({
   /** Called after at least one library was added. */
   onAdded: (summary: { added: number; failed: string[] }) => void;
 }) {
+  const writes = useLibraryWrites();
   const [text, setText] = useState("");
   const [split, setSplit] = useState(false);
   const [sources, setSources] = useState<DiscoverSource[] | null>(null);
@@ -117,24 +119,12 @@ export function AddLibraryDialog({
     // never "add" an empty selection, which would just close the dialog.
     if (!canAdd) return;
     setAdding(true);
-    const failed: string[] = [];
-    const failedPaths = new Set<string>();
-    let added = 0;
-    // Sequential: each POST is cheap (the scan runs in the background and the
-    // backend queues concurrent scans), and per-row errors stay attributable.
-    for (const c of chosen) {
-      try {
-        await api(`/api/v1/libraries`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ path: c.path, name: names[c.path]?.trim() || undefined }),
-        });
-        added++;
-      } catch (e) {
-        failed.push(`${c.path}: ${errorText(e)}`);
-        failedPaths.add(c.path);
-      }
-    }
+    const result = await writes.createMany(
+      chosen.map((c) => ({ path: c.path, name: names[c.path]?.trim() || undefined })),
+    );
+    const added = Object.keys(result.created).length;
+    const failed = result.failed.map((f) => `${f.path}: ${f.error}`);
+    const failedPaths = new Set(result.failed.map((f) => f.path));
     setAdding(false);
     if (added) onAdded({ added, failed });
     if (failed.length) {
