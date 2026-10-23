@@ -2,7 +2,7 @@
 // decisions the dialog makes about them (which paths the user typed, which
 // candidates start ticked). Pure, so the plan rules are testable.
 
-import { api } from "./api";
+import { apiJson } from "./api";
 
 export type CandidateStatus = "new" | "registered" | "overlap" | "empty";
 
@@ -32,11 +32,7 @@ export function discoverLibraries(
   paths: string[],
   splitSubdirs: boolean,
 ): Promise<{ sources: DiscoverSource[] }> {
-  return api(`/api/v1/libraries/discover`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ paths, split_subdirs: splitSubdirs }),
-  });
+  return apiJson(`/api/v1/libraries/discover`, "POST", { paths, split_subdirs: splitSubdirs });
 }
 
 /** One folder per line (also accepts `;`-separated); blank lines and repeats dropped. */

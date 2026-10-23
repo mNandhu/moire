@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient, type QueryClient, type UseQueryResult } from "@tanstack/react-query";
-import { api, errorText } from "./api";
+import { api, apiJson, errorText } from "./api";
 
 export type Library = {
   _id: string;
@@ -129,12 +129,6 @@ export function invalidateLibraryData(qc: QueryClient) {
   invalidateImageCaches(qc);
 }
 
-const jsonInit = (method: string, body: unknown): RequestInit => ({
-  method,
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(body),
-});
-
 const libraryUrl = (id: string) => `/api/v1/libraries/${encodeURIComponent(id)}`;
 
 export type NewLibrary = { path: string; name?: string };
@@ -152,8 +146,8 @@ export function useLibraryWrites() {
       }
     };
     return {
-      create: (item: NewLibrary) => write(() => api<{ _id: string }>("/api/v1/libraries", jsonInit("POST", item))),
-      update: (id: string, patch: Partial<Library>) => write(() => api<unknown>(libraryUrl(id), jsonInit("PATCH", patch))),
+      create: (item: NewLibrary) => write(() => apiJson<{ _id: string }>("/api/v1/libraries", "POST", item)),
+      update: (id: string, patch: Partial<Library>) => write(() => apiJson<unknown>(libraryUrl(id), "PATCH", patch)),
       remove: (id: string) => write(() => api<unknown>(libraryUrl(id), { method: "DELETE" })),
       rescan: (id: string) => write(() => api<unknown>(`${libraryUrl(id)}/rescan`, { method: "POST" })),
       /** One at a time (each POST is cheap, the scan runs in the background,
@@ -164,7 +158,7 @@ export function useLibraryWrites() {
         try {
           for (const item of items) {
             try {
-              created[item.path] = (await api<{ _id: string }>("/api/v1/libraries", jsonInit("POST", item)))._id;
+              created[item.path] = (await apiJson<{ _id: string }>("/api/v1/libraries", "POST", item))._id;
             } catch (e) {
               failed.push({ path: item.path, error: errorText(e) });
             }
