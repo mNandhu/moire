@@ -405,10 +405,11 @@ function runBefore(text: string, i: number): number {
   }
 }
 
+// A run holds only separators, so a keyword in it is one standing alone.
+const hasKeyword = (run: string) => KEYWORDS.some((k) => run.includes(k));
 // What a run keeps apart: a line, `BREAK` or `AND` most, then `|`, then a comma.
 const strength = (run: string) =>
-  /\n|\b(?:BREAK|AND)\b/.test(run) ? 3 : run.includes("|") ? 2 : run.includes(",") ? 1 : 0;
-const hasKeyword = (run: string) => /\b(?:BREAK|AND)\b/.test(run);
+  run.includes("\n") || hasKeyword(run) ? 3 : run.includes("|") ? 2 : run.includes(",") ? 1 : 0;
 const leadSpace = (run: string) => run.length - run.trimStart().length;
 const trailSpace = (run: string) => run.length - run.trimEnd().length;
 // Nothing before or after in this group (or the prompt): its edge.
