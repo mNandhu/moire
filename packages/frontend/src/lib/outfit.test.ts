@@ -15,7 +15,8 @@ import {
 } from "./outfit";
 import { formFromBatch, loadDraft, previewText, wearingOutfit, withCharacter } from "./generateForm";
 import type { BatchInputs } from "./generate";
-import { DEFAULT_FILTERS, searchTerms, withSearchTerms } from "./imageFilter";
+import { DEFAULT_FILTERS } from "./imageFilter";
+import { searchTerms, withSearchTerms } from "./searchTerms";
 
 const funeral = pickOf({
   _id: "o1",

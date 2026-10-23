@@ -14,7 +14,8 @@
 
 import type { InfiniteData, Query, QueryClient } from "@tanstack/react-query";
 import { IMAGE_STATS_KEY, TAGS_KEY, imageEmbeddingsQuery, imageLorasQuery, imageModelsQuery } from "./queries";
-import type { FeedPage, ImageDoc } from "./imageFilter";
+import type { ImageDoc } from "./imageFilter";
+import type { FeedPage } from "./imageApi";
 
 /**
  * Every feed query key starts with this; TanStack matches by prefix, so it

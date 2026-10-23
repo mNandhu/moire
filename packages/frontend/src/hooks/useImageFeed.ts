@@ -1,13 +1,7 @@
 import { useMemo } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import {
-  fetchImagesPage,
-  fetchGroupsPage,
-  PAGE_LIMIT,
-  type FeedPage,
-  type Filters,
-  type ImageDoc,
-} from "../lib/imageFilter";
+import { PAGE_LIMIT, type Filters, type ImageDoc } from "../lib/imageFilter";
+import { fetchImagesPage, fetchGroupsPage, type FeedPage } from "../lib/imageApi";
 
 /**
  * Query key for the Image feed. Keyed by the Image filter so the gallery and

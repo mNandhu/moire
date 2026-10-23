@@ -20,7 +20,8 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Sparkles, RotateCcw, Loader2, Cop
 import { resolveMediaUrl } from "../lib/media";
 import { useToast } from "../components/Toasts";
 import { ImageCharacters } from "../components/ImageCharacters";
-import { parseFilters, serializeFilters, serializeFiltersForPeek, fetchImage } from "../lib/imageFilter";
+import { parseFilters, serializeFilters, serializeFiltersForPeek } from "../lib/imageFilter";
+import { fetchImage } from "../lib/imageApi";
 import { useImageFeed } from "../hooks/useImageFeed";
 import { useAiTagging } from "../hooks/useAiTagging";
 import { useBackgroundTasks } from "../hooks/useBackgroundTasks";

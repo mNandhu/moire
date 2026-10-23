@@ -36,7 +36,7 @@ import {
   fetchSignatures,
   previewRuleset,
 } from "../lib/gen";
-import { fetchImage } from "../lib/imageFilter";
+import { fetchImage } from "../lib/imageApi";
 import {
   groupWorkflows,
   importWorkflowFiles,

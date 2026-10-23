@@ -1,7 +1,7 @@
 import { fuzzyRank } from "./fuzzy";
 import { splitBoilerplate } from "./boilerplate";
 import { formatSearchTag, tagQueryText } from "./tags";
-import { resourceOf } from "./imageFilter";
+import { resourceOf } from "./searchTerms";
 
 export type TagSuggestion = { _id: string; count: number };
 

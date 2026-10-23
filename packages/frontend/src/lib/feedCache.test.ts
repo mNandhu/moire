@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import type { FeedPage, ImageDoc } from "./imageFilter";
+import type { ImageDoc } from "./imageFilter";
+import type { FeedPage } from "./imageApi";
 import {
   imageDocKey,
   invalidateFeeds,

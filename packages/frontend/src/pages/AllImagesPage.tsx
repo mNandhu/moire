@@ -35,10 +35,9 @@ import {
   withoutFilters,
   type Filters,
   activeFilterChips,
-  RESOURCE_PREFIXES,
-  searchTerms,
-  withSearchTerms,
 } from "../lib/imageFilter";
+import { RESOURCE_PREFIXES, searchTerms, withSearchTerms } from "../lib/searchTerms";
+import { fetchImageIds } from "../lib/imageApi";
 import { PageHeader } from "../components/ui/PageHeader";
 import { LibraryScopeTabs } from "../components/LibraryScopeTabs";
 import { SortControl, SORT_OPTIONS } from "../components/SortControl";
@@ -49,7 +48,7 @@ import { generatorFor } from "../components/generate/InGenerate";
 import { Badge } from "../components/ui";
 import { ambientPalette } from "../lib/blurhash";
 import { applyAmbient } from "../lib/ambient";
-import { TAGS_KEY, imageEmbeddingsQuery, imageLorasQuery, imageModelsQuery } from "../lib/queries";
+import { imageEmbeddingsQuery, imageLorasQuery, imageModelsQuery, mergedTagsQuery } from "../lib/queries";
 import { feedNeedsRefetch, useLibraries, useOnLibrariesRead } from "../lib/libraries";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
@@ -78,7 +77,7 @@ import {
   setQuarantine as apiSetQuarantine,
   bulkManualTags,
 } from "../lib/imageMutations";
-import { api, errorText } from "../lib/api";
+import { errorText } from "../lib/api";
 import { useDismiss } from "../hooks/useDismiss";
 import { useHotkeys } from "../hooks/useHotkeys";
 import { withBackgroundLocation } from "../lib/backgroundLocation";
@@ -196,14 +195,7 @@ export default function AllImagesPage() {
   // distinct images (a tag applied from two sources isn't double-counted).
   // Selecting it matches images tagged from any source (the backend expands
   // `any:`).
-  const { data: tagOptions = NO_TAGS } = useQuery({
-    queryKey: [...TAGS_KEY, { merged: true }],
-    queryFn: ({ signal }) =>
-      api<TagSuggestion[]>(
-        `/api/v1/tags?include_manual=1&include_prompt=1&merge_sources=1`,
-        { signal },
-      ),
-  });
+  const { data: tagOptions = NO_TAGS } = useQuery(mergedTagsQuery);
   // Distinct checkpoints (with counts) for the model filter dropdown.
   const { data: modelOptions = NO_MODELS } = useQuery(imageModelsQuery);
   // Distinct embeddings (with counts) for the embedding filter dropdown.
@@ -287,9 +279,7 @@ export default function AllImagesPage() {
   const selectAll = async () => {
     setSelectingAll(true);
     try {
-      const got = await api<{ ids: string[]; truncated: boolean }>(
-        `/api/v1/images/ids?${serializeFilters(filters)}`,
-      );
+      const got = await fetchImageIds(filters);
       selectOnly(got.ids);
       if (got.truncated) {
         push(`Selected the first ${got.ids.length.toLocaleString()} images; narrow the filter for the rest`, "info");

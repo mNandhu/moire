@@ -35,6 +35,15 @@ export function useTagAggregate({ includePrompt = false } = {}) {
   });
 }
 
+/** Every tag with its three sources (AI / manual / prompt) collapsed into one
+ * cross-source `any:<base>` row, the count distinct images: the gallery
+ * search's suggestions. */
+export const mergedTagsQuery = {
+  queryKey: [...TAGS_KEY, { merged: true }],
+  queryFn: ({ signal }: { signal: AbortSignal }) =>
+    api<TagAgg[]>(`/api/v1/tags?include_manual=1&include_prompt=1&merge_sources=1`, { signal }),
+};
+
 /** The Tags page list: one entry per tag name, optionally from one source.
  * Under TAGS_KEY, so every tag write refreshes it. */
 export function useTagBrowse(source: TagSource, { enabled = true, staleTime = 0 } = {}) {
