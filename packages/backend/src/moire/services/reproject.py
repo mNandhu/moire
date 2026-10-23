@@ -130,6 +130,13 @@ def _write_gens(conn, gens: list[tuple[str, dict]]) -> None:
             conn.execute(sa.insert(table), rows)
 
 
+# One reprojection at a time, whatever started it. A run reads its settings
+# only once it holds this, so runs write in the order they read: one that read
+# older rules or keywords can't overwrite a later run's rows. Not reentrant:
+# take it only here.
+_run_lock = threading.Lock()
+
+
 def _reproject_where(
     where,
     *,
@@ -139,7 +146,14 @@ def _reproject_where(
 ) -> int:
     """Recompute ``gen.*`` for every raw row matching ``where``. Returns how
     many were derived (written or already up to date). ``task`` shows the
-    progress."""
+    progress. Waits for any other run to finish first."""
+    with _run_lock:
+        return _derive_where(where, force=force, task=task, count_total=count_total)
+
+
+def _derive_where(
+    where, *, force: bool, task: activity.Task | None, count_total: bool
+) -> int:
     rulesets = _load_rulesets()
     config = extraction_settings.load_sync()
 
@@ -246,18 +260,33 @@ def _tracked(work, *args, library_id: str | None = None, **kwargs) -> None:
         logger.exception("Reprojection failed")
 
 
-def reproject_library_async(
-    library_id: str, *, workflow_sig: str | None = None
-) -> None:
-    """Fire-and-forget reprojection in a daemon thread (manual endpoint)."""
+def _spawn(
+    name: str, work, *args, library_id: str | None = None, **kwargs
+) -> threading.Thread:
+    """Start ``work`` as tracked background reprojection in a daemon thread.
+    Runs still execute one at a time (:data:`_run_lock`)."""
     th = threading.Thread(
         target=_tracked,
-        args=(reproject_library, library_id),
-        kwargs={"workflow_sig": workflow_sig, "library_id": library_id},
-        name=f"reproject-{library_id}",
+        args=(work, *args),
+        kwargs={"library_id": library_id, **kwargs},
+        name=name,
         daemon=True,
     )
     th.start()
+    return th
+
+
+def reproject_library_async(
+    library_id: str, *, workflow_sig: str | None = None
+) -> threading.Thread:
+    """Fire-and-forget reprojection of a library (manual endpoint, post-scan)."""
+    return _spawn(
+        f"reproject-{library_id}",
+        reproject_library,
+        library_id,
+        workflow_sig=workflow_sig,
+        library_id=library_id,
+    )
 
 
 _all_lock = threading.Lock()
@@ -267,9 +296,9 @@ _all_again = False
 
 def reproject_all_async() -> None:
     """Fire-and-forget full reprojection (an extraction-settings save, the
-    positive-only switch). Coalesced: a request during a run queues one more
-    run after it, so overlapping runs that read the settings at different
-    moments can't leave rows derived with the older ones."""
+    positive-only switch). Coalesced: requests during a run queue one more
+    run after it, not one each, since a full run started later reads every
+    setting saved meanwhile."""
     global _all_running, _all_again
     with _all_lock:
         if _all_running:
@@ -309,21 +338,12 @@ def underived_ids(library_id: str) -> list[str]:
         )
 
 
-def reproject_ids_async(image_ids: list[str]) -> None:
-    threading.Thread(
-        target=_tracked,
-        args=(reproject_ids, image_ids),
-        name="reproject-ids",
-        daemon=True,
-    ).start()
+def reproject_ids_async(image_ids: list[str]) -> threading.Thread:
+    """Fire-and-forget reprojection of specific images (a big rule change,
+    resuming a library a restart cut off)."""
+    return _spawn("reproject-ids", reproject_ids, image_ids)
 
 
-def reproject_by_sig_async(workflow_sig: str) -> None:
+def reproject_by_sig_async(workflow_sig: str) -> threading.Thread:
     """Fire-and-forget by-sig reprojection (triggered on ruleset save/delete)."""
-    th = threading.Thread(
-        target=_tracked,
-        args=(reproject_by_sig, workflow_sig),
-        name=f"reproject-sig-{workflow_sig[:8]}",
-        daemon=True,
-    )
-    th.start()
+    return _spawn(f"reproject-sig-{workflow_sig[:8]}", reproject_by_sig, workflow_sig)
