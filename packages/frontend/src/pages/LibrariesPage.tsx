@@ -33,6 +33,7 @@ import { api } from "../lib/api";
 import {
   LIBRARIES_KEY,
   libraryGalleryHref,
+  scanProblem,
   useLibraries,
   type Library,
 } from "../lib/queries";
@@ -452,6 +453,12 @@ export default function LibrariesPage() {
                 />
               </div>
             </div>
+
+            {!scanning && scanProblem(l) && (
+              <div className="mt-2 text-xs text-red-400 break-words" title={scanProblem(l)!}>
+                {scanProblem(l)}
+              </div>
+            )}
 
             {progress[l._id]?.scanning && (
               <div className="mt-3">

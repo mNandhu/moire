@@ -38,6 +38,8 @@ export type Library = {
   /** Scan progress. Both stay 0 while the scan is queued or still listing files. */
   scan_total?: number;
   scan_done?: number;
+  /** Why the last scan failed, or a note about what it kept. */
+  scan_error?: string | null;
 };
 
 /** "Scanning", with a percentage once the scan knows how many files it has. */
@@ -45,6 +47,12 @@ export function scanLabel(l: Library): string {
   if (!l.scan_total) return "Scanning…";
   const pct = Math.floor(((l.scan_done ?? 0) / l.scan_total) * 100);
   return `Scanning ${Math.min(pct, 99)}%`;
+}
+
+/** The last scan's failure or note; nothing while scanning or after a cancel. */
+export function scanProblem(l: Library): string | null {
+  if (l.scanning || !l.scan_error || l.scan_error === "cancelled") return null;
+  return l.scan_error;
 }
 
 /** The gallery showing one library. */

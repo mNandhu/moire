@@ -131,3 +131,46 @@ describe("LibrariesPage › deleting several", () => {
     expect(box.checked).toBe(false);
   });
 });
+
+describe("LibrariesPage › scan error", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify([
+              {
+                _id: "bad",
+                name: "Bad",
+                path: "/gone",
+                scan_error: "Library folder not found: /gone",
+              },
+              { _id: "stopped", name: "Stopped", path: "/halt", scan_error: "cancelled" },
+              { _id: "fine", name: "Fine", path: "/ok", scan_error: null },
+            ]),
+            { status: 200 },
+          ),
+      ),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shows a failed scan's error on its card, and nothing for a cancelled or clean one", async () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ToastProvider>
+          <MemoryRouter>
+            <LibrariesPage />
+          </MemoryRouter>
+        </ToastProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Library folder not found: /gone")).toBeTruthy();
+    expect(screen.queryByText("cancelled")).toBeNull();
+  });
+});
