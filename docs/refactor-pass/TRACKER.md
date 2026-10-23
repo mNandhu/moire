@@ -32,6 +32,12 @@ Housekeeping, not findings:
 - [x] **S8.8** Cancelled requests render as 'done' frames in the queue card (bug, S, L2), done e1b0a46
 - [x] **S9.3** JsonTree branch toggle opens and closes every sibling branch at once (bug, S, L3), done fd9149b
 
+P0 review fixes: 924e1e1 (UI batch), e86ea57 (data and library batch). Review findings left open:
+- Dialog decides Escape by a selector of popup markers; the general fix (popups claim Escape, Dialog acts only on unclaimed ones) belongs with L3.4/L3.8. ChipInput and TagSearchInput comboboxes inside a dialog still lose Escape to it.
+- DropdownMenu closes on Escape from both a wrapper handler and a document listener.
+- JsonTree re-walks each subtree per entry for `forced` (quadratic on big graphs; predates the fix).
+- Facet counts always leave quarantined images out, so the Quarantined view's filter dropdowns miss models used only there.
+
 ## P1. Tag-weights prerequisites
 
 - [ ] **L2.1** promptOutline (board) and prompt_parse (tags) read the same prompt differently; an unclosed bracket makes the board see one term (bug, M, L5, TW; moved from P0: fixed by the one-parser-per-side work)
