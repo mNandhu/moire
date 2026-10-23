@@ -204,6 +204,20 @@ export function serializeFilters(filters: Filters): URLSearchParams {
   return sp;
 }
 
+/** The gallery showing `patch` over the default filter: the one way to link
+ * into it, so a renamed URL param cannot strand a link. */
+export function galleryHref(patch: Partial<Filters> = {}): string {
+  const qs = serializeFilters({ ...DEFAULT_FILTERS, ...patch }).toString();
+  return qs ? `/?${qs}` : "/";
+}
+
+/** One image's page, carrying the gallery filter (or a query string already
+ * built from one) so stepping walks the same feed. */
+export function imageHref(id: string, filters?: Filters | string): string {
+  const qs = typeof filters === "string" ? filters : filters ? serializeFilters(filters).toString() : "";
+  return `/image/${encodeURIComponent(id)}${qs ? `?${qs}` : ""}`;
+}
+
 /**
  * Query string for the batch-peek fetch (see useBatchScrub): every active
  * filter except `group`/`group_id`, which the peek sets itself to scope to

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useThumbUrl } from "../../lib/queries";
+import { imageHref } from "../../lib/imageFilter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { Shuffle, Wand2, X } from "lucide-react";
@@ -159,7 +160,7 @@ export function RemixStrip({
   seed: GenerateForm["seed"];
   onClear: () => void;
 }) {
-  const to = `/image/${encodeURIComponent(remix.image)}`;
+  const to = imageHref(remix.image);
   const thumb = useThumbUrl(remix.image);
   const same = seed.mode === "fixed" && seed.value != null && seed.value === remix.seed;
   return (

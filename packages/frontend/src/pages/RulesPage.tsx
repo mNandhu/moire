@@ -37,6 +37,7 @@ import {
   previewRuleset,
 } from "../lib/gen";
 import { fetchImage } from "../lib/imageApi";
+import { galleryHref } from "../lib/imageFilter";
 import {
   groupWorkflows,
   importWorkflowFiles,
@@ -549,7 +550,7 @@ export default function RulesPage() {
                       )}
                       {fam.id && (
                         <Link
-                          to={`/?workflow=${encodeURIComponent(fam.id)}`}
+                          to={galleryHref({ workflow: fam.id })}
                           className="shrink-0 p-1 rounded text-faint hover:text-neutral-100 hover:bg-raised"
                           aria-label={`Show images from every version of ${fam.name} in the gallery`}
                           title="Show every version's images in the gallery"
@@ -676,7 +677,7 @@ export default function RulesPage() {
                   <ButtonLink
                     variant="ghost"
                     className="ml-auto"
-                    to={`/?workflow_sig=${encodeURIComponent(selected.workflow_sig)}`}
+                    to={galleryHref({ workflowSig: selected.workflow_sig })}
                     title={`The ${selected.count} ${selected.count === 1 ? "image" : "images"} made with this version`}
                   >
                     <Images size={14} /> Show in gallery

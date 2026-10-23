@@ -8,6 +8,8 @@ import {
   type Filters,
   hasClearableFilter,
   withoutFilters,
+  galleryHref,
+  imageHref,
 } from "./imageFilter";
 
 const roundTrip = (f: Filters): Filters =>
@@ -237,5 +239,35 @@ describe("withoutFilters", () => {
 describe("lora filter", () => {
   it("reads an old single-lora link", () => {
     expect(parseFilters(new URLSearchParams("lora=detail_xl")).lora).toEqual(["detail_xl"]);
+  });
+});
+
+describe("galleryHref", () => {
+  it("links the gallery with the patch over the default filter", () => {
+    const href = galleryHref({ noAiTags: true });
+    expect(href.startsWith("/?")).toBe(true);
+    expect(parseFilters(new URLSearchParams(href.slice(2)))).toEqual({ ...DEFAULT_FILTERS, noAiTags: true });
+  });
+
+  it("round-trips every list axis", () => {
+    const patch = { tags: ["1girl"], lora: ["detail xl"], outfit: ["o1"], workflowSig: "abc" };
+    expect(parseFilters(new URLSearchParams(galleryHref(patch).slice(2)))).toEqual({ ...DEFAULT_FILTERS, ...patch });
+  });
+});
+
+describe("imageHref", () => {
+  it("encodes the id and carries the filter", () => {
+    const href = imageHref("L1:a/b c.png", { ...DEFAULT_FILTERS, tags: ["x"] });
+    expect(href.startsWith("/image/L1%3Aa%2Fb%20c.png?")).toBe(true);
+    expect(new URLSearchParams(href.split("?")[1]).getAll("tags")).toEqual(["x"]);
+  });
+
+  it("takes a query string already built", () => {
+    expect(imageHref("a", "group_id=g")).toBe("/image/a?group_id=g");
+  });
+
+  it("has no query without a filter", () => {
+    expect(imageHref("a")).toBe("/image/a");
+    expect(imageHref("a", "")).toBe("/image/a");
   });
 });

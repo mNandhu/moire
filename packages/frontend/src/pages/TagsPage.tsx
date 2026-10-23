@@ -12,6 +12,7 @@ import { Input } from "../components/ui/Input";
 import { cn } from "../lib/cn";
 import { api, errorText } from "../lib/api";
 import { smallThumb } from "../lib/media";
+import { galleryHref } from "../lib/imageFilter";
 import {
   MERGE_SUGGESTIONS_KEY,
   TAG_ALIASES_KEY,
@@ -369,7 +370,7 @@ export default function TagsPage({ group }: { group?: string } = {}) {
                     ? `${cov.no_tags.toLocaleString()} ${cov.no_tags === 1 ? "image" : "images"} with no tags`
                     : "No tags at all"
                 }
-                to="/?no_tags=1"
+                to={galleryHref({ noTags: true })}
               />
               <SpecialTile
                 title="Missing AI tags"
@@ -378,7 +379,7 @@ export default function TagsPage({ group }: { group?: string } = {}) {
                     ? `${cov.untagged.toLocaleString()} ${cov.untagged === 1 ? "image" : "images"} not AI-tagged`
                     : "Not yet AI-tagged"
                 }
-                to="/?no_ai_tags=1"
+                to={galleryHref({ noAiTags: true })}
               />
               <SpecialTile
                 title="AI tagged"
@@ -387,7 +388,7 @@ export default function TagsPage({ group }: { group?: string } = {}) {
                     ? `${cov.ai_tagged.toLocaleString()} ${cov.ai_tagged === 1 ? "image" : "images"} AI-tagged`
                     : "Tagged by the AI"
                 }
-                to="/?ai_tagged=1"
+                to={galleryHref({ aiTagged: true })}
                 icon={<Sparkles size={16} className="text-brand-300" />}
               />
             </div>}

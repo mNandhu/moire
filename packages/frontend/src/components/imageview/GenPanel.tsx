@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Copy, Workflow } from "lucide-react";
 import { errorText } from "../../lib/api";
 import { imageDocKey } from "../../lib/feedCache";
+import { galleryHref } from "../../lib/imageFilter";
 import { fitLines } from "../../lib/fitLines";
 import { useRemix, type RemixInfo } from "../../lib/generate";
 import { useToast } from "../Toasts";
@@ -287,7 +288,7 @@ export function GenPanel({
             <ResourceRow
               name={gen.model}
               badge="Checkpoint"
-              to={`/?model=${encodeURIComponent(gen.model)}`}
+              to={galleryHref({ model: gen.model })}
             />
           )}
           {gen.loras?.map((l) => (
@@ -296,7 +297,7 @@ export function GenPanel({
               name={l.name}
               badge="LoRA"
               sub={l.strength != null ? `Strength ${l.strength}` : undefined}
-              to={`/?lora=${encodeURIComponent(l.name)}`}
+              to={galleryHref({ lora: [l.name] })}
             />
           ))}
           {gen.embeddings?.map((e) => (
@@ -305,7 +306,7 @@ export function GenPanel({
               name={e.name}
               badge="Embedding"
               sub={e.negative ? "In the negative prompt" : undefined}
-              to={`/?embedding=${encodeURIComponent(e.name)}`}
+              to={galleryHref({ embedding: [e.name] })}
             />
           ))}
         </div>

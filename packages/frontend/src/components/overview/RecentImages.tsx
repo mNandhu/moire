@@ -5,7 +5,7 @@ import { cn } from "../../lib/cn";
 import { Skeleton } from "../ui/Skeleton";
 import { EmptyState } from "../ui/EmptyState";
 import { useImageFeed } from "../../hooks/useImageFeed";
-import { DEFAULT_FILTERS, serializeFilters } from "../../lib/imageFilter";
+import { DEFAULT_FILTERS, imageHref } from "../../lib/imageFilter";
 import { withBackgroundLocation } from "../../lib/backgroundLocation";
 
 // Two full rows at every breakpoint: 12 fill 6 columns; the last 4 only
@@ -23,7 +23,6 @@ export function RecentImages() {
   const location = useLocation();
   const feed = useImageFeed(DEFAULT_FILTERS);
   const items = feed.items.slice(0, SHOWN);
-  const qs = serializeFilters(DEFAULT_FILTERS).toString();
 
   return (
     <Section
@@ -58,7 +57,7 @@ export function RecentImages() {
           {items.map((img, i) => (
             <Link
               key={img._id}
-              to={`/image/${encodeURIComponent(img._id)}?${qs}`}
+              to={imageHref(img._id, DEFAULT_FILTERS)}
               state={withBackgroundLocation(location)}
               className={cn(
                 "block aspect-square overflow-hidden rounded-lg bg-sunken ring-brand-400 focus-visible:outline-none focus-visible:ring-2",

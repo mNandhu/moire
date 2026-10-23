@@ -103,6 +103,12 @@ function addPreconnect(origin: string) {
   document.head.appendChild(link);
 }
 
+/** The original file of an image, streamed from its library (Range-capable).
+ * Thumbnails are not built here: use the list's `thumb_url` or useThumbUrl. */
+export function imageFileUrl(id: string): string {
+  return `/api/v1/images/${encodeURIComponent(id)}/file`;
+}
+
 /** A thumbnail URL's small copy (~256px short side), for previews shown
  * postage-stamp size. Not for face crops: they zoom in. */
 export function smallThumb(url: string): string;

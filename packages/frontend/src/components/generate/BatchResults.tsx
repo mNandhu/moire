@@ -8,6 +8,7 @@ import { setQuarantine, setScore } from "../../lib/imageMutations";
 import { withBackgroundLocation } from "../../lib/backgroundLocation";
 import { cn } from "../../lib/cn";
 import { smallThumb } from "../../lib/media";
+import { imageHref } from "../../lib/imageFilter";
 import { runProgress } from "../../lib/eta";
 import { clockText } from "../../lib/format";
 import { useLiveSeconds } from "../../hooks/useLiveSeconds";
@@ -62,7 +63,7 @@ export function Tile({ out, ratio, onChanged }: { out: Output; ratio: number; on
       className="group relative overflow-hidden rounded-lg bg-raised outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
       style={{ aspectRatio: ratio }}
     >
-      <Link to={`/image/${encodeURIComponent(out.image_id)}`} state={withBackgroundLocation(location)} tabIndex={-1}>
+      <Link to={imageHref(out.image_id)} state={withBackgroundLocation(location)} tabIndex={-1}>
         {out.thumb_url && (
           <img
             src={out.thumb_url}

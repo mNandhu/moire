@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { BATCH_STRIP_KEY } from "../../lib/feedCache";
-import { type ImageDoc } from "../../lib/imageFilter";
+import { imageHref, type ImageDoc } from "../../lib/imageFilter";
 import { smallThumb } from "../../lib/media";
 
 const BATCH_STRIP_MAX = 40;
@@ -83,7 +83,7 @@ export function BatchStrip({
             <Link
               key={m._id}
               ref={here ? current : undefined}
-              to={`/image/${encodeURIComponent(m._id)}?${query}`}
+              to={imageHref(m._id, query)}
               // Like the arrows: in place, and still over the gallery.
               replace
               state={location.state}

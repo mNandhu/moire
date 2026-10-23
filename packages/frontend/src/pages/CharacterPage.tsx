@@ -19,7 +19,7 @@ import { loadDraft, saveDraft, withCharacter } from "../lib/generateForm";
 import { cn } from "../lib/cn";
 import { useAmbientTint } from "../lib/ambient";
 import { RULES_SIGNATURES_KEY, fetchSignatures } from "../lib/gen";
-import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
+import { galleryHref, imageHref, type Filters } from "../lib/imageFilter";
 import { useBoilerplate, useCharacterPage, useTagDescription, useTagDetail, useTagPlaces } from "../lib/queries";
 import { danbooruWikiUrl, formatTag, onDanbooru, toPromptText } from "../lib/tags";
 import { useChipBorderStyle } from "../hooks/useTagMarks";
@@ -43,8 +43,6 @@ const PAGE = 48;
 const SIGNATURE = 16;
 const RATING_ORDER = ["general", "sensitive", "questionable", "explicit"];
 
-const galleryHref = (patch: Partial<Filters>) =>
-  `/?${serializeFilters({ ...DEFAULT_FILTERS, ...patch })}`;
 
 /** A character's page; any other tag's page leaves out what only a person has. */
 const isCharacter = (c: Character) => !!c.made || c.category === "character";
@@ -117,7 +115,7 @@ export default function CharacterPage({ route = "character" }: { route?: "charac
                 </ButtonAnchor>
               )}
               {!c.made && (
-                <ButtonLink size="sm" variant="primary" to={`/?${serializeFilters(characterFilters(c.tag, c.aliases))}`}>
+                <ButtonLink size="sm" variant="primary" to={galleryHref(characterFilters(c.tag, c.aliases))}>
                   <ExternalLink size={14} /> Open in gallery
                 </ButtonLink>
               )}
@@ -261,7 +259,7 @@ function useOpenImage(filters: Filters) {
   const navigate = useNavigate();
   const location = useLocation();
   return (id: string) =>
-    navigate(`/image/${encodeURIComponent(id)}?${serializeFilters(filters)}`, {
+    navigate(imageHref(id, filters), {
       state: withBackgroundLocation(location),
     });
 }

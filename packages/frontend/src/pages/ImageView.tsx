@@ -17,10 +17,10 @@ import { getBackgroundLocation } from "../lib/backgroundLocation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { errorText } from "../lib/api";
 import { ArrowLeft, ChevronLeft, ChevronRight, Sparkles, RotateCcw, Loader2, Copy, Ban, Download, FolderOpen, PanelRight, Plus, X } from "lucide-react";
-import { resolveMediaUrl } from "../lib/media";
+import { imageFileUrl, resolveMediaUrl } from "../lib/media";
 import { useToast } from "../components/Toasts";
 import { ImageCharacters } from "../components/ImageCharacters";
-import { parseFilters, serializeFilters, serializeFiltersForPeek } from "../lib/imageFilter";
+import { imageHref, parseFilters, serializeFilters, serializeFiltersForPeek } from "../lib/imageFilter";
 import { fetchImage } from "../lib/imageApi";
 import { useImageFeed } from "../hooks/useImageFeed";
 import { useAiTagging } from "../hooks/useAiTagging";
@@ -197,8 +197,7 @@ export default function ImageView() {
     [filters],
   );
   const toImage = useCallback(
-    (imgId: string) =>
-      `/image/${encodeURIComponent(imgId)}${filterQuery ? `?${filterQuery}` : ""}`,
+    (imgId: string) => imageHref(imgId, filterQuery),
     [filterQuery],
   );
   // Stepping to another image replaces the current history entry rather than
@@ -331,7 +330,7 @@ export default function ImageView() {
   // resolve only *overrides* it for modes that need a per-image resolve.
   const fileUrl = useMemo(() => {
     if (!id) return null;
-    const ep = `/api/v1/images/${encodeURIComponent(id)}/file`;
+    const ep = imageFileUrl(id);
     return resolvedUrls[id] ?? ep;
   }, [id, resolvedUrls]);
 
@@ -356,7 +355,7 @@ export default function ImageView() {
 
   useEffect(() => {
     if (!id || resolvedUrls[id]) return;
-    const ep = `/api/v1/images/${encodeURIComponent(id)}/file`;
+    const ep = imageFileUrl(id);
     let cancelled = false;
     resolveMediaUrl(ep)
       .then((u) => {
@@ -401,7 +400,7 @@ export default function ImageView() {
     if (holdStartRef.current === null) holdStartRef.current = Date.now();
     const elapsed = Date.now() - holdStartRef.current;
     const timer = window.setTimeout(commit, Math.max(0, MAX_HOLD_MS - elapsed));
-    const ep = `/api/v1/images/${encodeURIComponent(routeId)}/file`;
+    const ep = imageFileUrl(routeId);
     const img = new Image();
     void resolveMediaUrl(ep)
       .catch(() => ep)
@@ -464,7 +463,7 @@ export default function ImageView() {
       // Never let a neighbour compete with the image actually on screen.
       img.fetchPriority = "low";
       preloadedRef.current.set(it._id, img);
-      const ep = `/api/v1/images/${encodeURIComponent(it._id)}/file`;
+      const ep = imageFileUrl(it._id);
       resolveMediaUrl(ep)
         .catch(() => ep)
         .then((u) => {
@@ -902,10 +901,7 @@ export default function ImageView() {
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <a
-                  href={
-                    fileUrl ||
-                    `/api/v1/images/${encodeURIComponent(data._id)}/file`
-                  }
+                  href={fileUrl || imageFileUrl(data._id)}
                   download={fileName || ""}
                   className="p-2 rounded-lg text-muted hover:text-white hover:bg-raised transition-colors"
                   title="Download original"

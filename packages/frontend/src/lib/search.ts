@@ -8,7 +8,7 @@ import { fuzzyScore } from "./fuzzy";
 import { displayName, characterHref, tagHref, type CharacterEntry } from "./character";
 import { formatTag, tagQueryText } from "./tags";
 import { libraryGalleryHref, type Library } from "./queries";
-import { DEFAULT_FILTERS, serializeFilters, type Filters } from "./imageFilter";
+import { galleryHref } from "./imageFilter";
 import type { BrowseTag } from "./tagBrowse";
 import { groupHref, groupOptions, type TagGroups } from "./tagGroups";
 import type { BatchSummary, Generator } from "./generate";
@@ -76,11 +76,6 @@ export type SearchItem = {
 export type SearchSection = { group: SearchGroup; items: SearchItem[] };
 
 const count = (n: number) => n.toLocaleString();
-
-const galleryHref = (patch: Partial<Filters>) => {
-  const qs = serializeFilters({ ...DEFAULT_FILTERS, ...patch }).toString();
-  return qs ? `/?${qs}` : "/";
-};
 
 export function characterItems(rows: readonly CharacterEntry[]): SearchItem[] {
   return rows.map((c) => {

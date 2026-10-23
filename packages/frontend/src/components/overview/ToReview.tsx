@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { Section } from "../ui/Card";
 import { Skeleton } from "../ui/Skeleton";
 import { useAiCoverage, useImageStats } from "../../lib/queries";
+import { galleryHref } from "../../lib/imageFilter";
 
 /**
  * Work waiting in the library, each row a shortcut into the gallery already
@@ -13,9 +14,9 @@ export function ToReview({ className }: { className?: string }) {
   const { data: cov } = useAiCoverage();
   const { data: stats } = useImageStats();
   const rows: Array<{ icon: LucideIcon; label: string; count?: number; to: string }> = [
-    { icon: Sparkles, label: "Not AI-tagged", count: cov?.untagged, to: "/?no_ai_tags=1" },
-    { icon: Tag, label: "No tags at all", count: cov?.no_tags, to: "/?no_tags=1" },
-    { icon: ShieldOff, label: "Quarantined", count: stats?.quarantined, to: "/?quarantined=1" },
+    { icon: Sparkles, label: "Not AI-tagged", count: cov?.untagged, to: galleryHref({ noAiTags: true }) },
+    { icon: Tag, label: "No tags at all", count: cov?.no_tags, to: galleryHref({ noTags: true }) },
+    { icon: ShieldOff, label: "Quarantined", count: stats?.quarantined, to: galleryHref({ quarantined: true }) },
   ];
   return (
     <Section title="To review" className={className}>

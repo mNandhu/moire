@@ -10,7 +10,7 @@ import { useToast } from "./Toasts";
 import { api, errorText } from "../lib/api";
 import { cn } from "../lib/cn";
 import { RULES_SIGNATURES_KEY, fetchSignatures } from "../lib/gen";
-import { DEFAULT_FILTERS, serializeFilters, type Filters } from "../lib/imageFilter";
+import { DEFAULT_FILTERS, galleryHref, imageHref } from "../lib/imageFilter";
 import { updateCharacter } from "../lib/imageMutations";
 import { characterHref, tagHref } from "../lib/character";
 import { CharacterAvatar } from "./CharacterAvatar";
@@ -37,8 +37,6 @@ import {
 const PICK_PAGE = 30; // a 3-wide grid: ten rows a page
 const RELATED = 12;
 
-const galleryHref = (patch: Partial<Filters>) =>
-  `/?${serializeFilters({ ...DEFAULT_FILTERS, ...patch })}`;
 
 /**
  * One tag in detail, beside the Tags page list: when it was used, what it
@@ -394,7 +392,7 @@ export function TagImages({
   );
 
   const open = (id: string) =>
-    navigate(`/image/${encodeURIComponent(id)}?${serializeFilters(filters)}`, {
+    navigate(imageHref(id, filters), {
       state: withBackgroundLocation(location),
     });
   const { pin, pending } = usePinCover("cover");

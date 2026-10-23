@@ -4,7 +4,7 @@
  * and a draft survives the outfit being edited or deleted.
  */
 import type { Outfit, OutfitInput } from "./generate";
-import { DEFAULT_FILTERS, serializeFilters } from "./imageFilter";
+import { galleryHref } from "./imageFilter";
 import { canonicalName } from "./tags";
 
 /** As many tags as an outfit takes (the backend's MAX_TAGS). */
@@ -120,7 +120,7 @@ export function pickFromInput(o: OutfitInput | null | undefined): OutfitPick | n
 export function outfitGalleryHref(o: Pick<Outfit, "_id" | "character">, character?: string | null): string {
   const id = o._id === "default" ? `default:${o.character}` : o._id;
   const tags = character ? [character] : [];
-  return `/?${serializeFilters({ ...DEFAULT_FILTERS, tags, outfit: [id] }).toString()}`;
+  return galleryHref({ tags, outfit: [id] });
 }
 
 // The attire groups a name is made from, main garment first; exposure and

@@ -30,6 +30,7 @@ import {
   DEFAULT_FILTERS,
   serializeFilters,
   serializeFiltersForPeek,
+  imageHref,
   hasActiveFilter,
   hasClearableFilter,
   withoutFilters,
@@ -444,8 +445,7 @@ export default function AllImagesPage() {
   const openImage = useCallback(
     (id: string) => {
       saveScroll();
-      const sp = serializeFilters(filters);
-      navigate(`/image/${encodeURIComponent(id)}?${sp.toString()}`, {
+      navigate(imageHref(id, filters), {
         state: withBackgroundLocation(location),
       });
     },
