@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isFormField } from "./dom";
+import { hasModifier, isFormField } from "./dom";
 
 function el(tag: string): HTMLElement {
   return document.createElement(tag);
@@ -23,5 +23,15 @@ describe("isFormField", () => {
     expect(isFormField(el("div"))).toBe(false);
     expect(isFormField(el("button"))).toBe(false);
     expect(isFormField(null)).toBe(false);
+  });
+});
+
+describe("hasModifier", () => {
+  it("flags Ctrl, Cmd and Alt but not a bare key", () => {
+    const k = { ctrlKey: false, metaKey: false, altKey: false };
+    expect(hasModifier(k)).toBe(false);
+    expect(hasModifier({ ...k, ctrlKey: true })).toBe(true);
+    expect(hasModifier({ ...k, metaKey: true })).toBe(true);
+    expect(hasModifier({ ...k, altKey: true })).toBe(true);
   });
 });

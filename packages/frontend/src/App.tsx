@@ -1,5 +1,6 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { hasModifier } from "./lib/dom";
 import { Sidebar } from "./components/Sidebar";
 import { SearchPalette } from "./components/SearchPalette";
 import { PageErrorBoundary } from "./components/ErrorScreen";
@@ -104,7 +105,7 @@ export default function App() {
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (isFormField(e.target)) return;
+      if (hasModifier(e) || isFormField(e.target)) return;
       // ImageView is mounted on top of the gallery, not routed in place of it,
       // so its own key handling would otherwise fire alongside this one and
       // scroll the hidden gallery underneath.

@@ -75,7 +75,7 @@ import { splitBoilerplate } from "../lib/boilerplate";
 import { libraryPageHref, useBoilerplate, useLibraries, useTagFacets } from "../lib/queries";
 import { FACET_LABEL, FACET_TINT, TAG_TINT_CLASS, tagMarkStyle, type Facet } from "../lib/tagColour";
 import { useTagMarks } from "../hooks/useTagMarks";
-import { isFormField } from "../lib/dom";
+import { hasModifier, isFormField } from "../lib/dom";
 import { fitLines } from "../lib/fitLines";
 import { snapSheet } from "../lib/sheetSnap";
 import { useMediaQuery } from "../hooks/useMediaQuery";
@@ -577,6 +577,8 @@ export default function ImageView() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Ctrl/Cmd/Alt combos belong to the browser (tab switch, back, cut).
+      if (hasModifier(e)) return;
       // Don't trigger global shortcuts when typing in form fields
       if (isFormField(e.target)) {
         return;

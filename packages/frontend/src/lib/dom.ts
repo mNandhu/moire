@@ -14,3 +14,11 @@ export function isFormField(target: EventTarget | null): boolean {
     el.isContentEditable === true
   );
 }
+
+/**
+ * Whether a keydown carries Ctrl, Cmd or Alt, so a bare-key shortcut can leave
+ * it to the browser (Ctrl+1 switches tab, Alt+Left goes back, Ctrl+X cuts).
+ */
+export function hasModifier(e: { ctrlKey: boolean; metaKey: boolean; altKey: boolean }): boolean {
+  return e.ctrlKey || e.metaKey || e.altKey;
+}
