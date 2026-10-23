@@ -160,3 +160,91 @@ def test_scan_is_linear():
 def test_lora_tokens_are_network_pieces_not_tags():
     kinds = [(p.text, p.kind) for p in parse_prompt("<lora:a b:0.8>, <3, cat")]
     assert kinds == [("<lora:a b:0.8>", "network"), ("<3", "tag"), ("cat", "tag")]
+
+
+@pytest.mark.parametrize(
+    "prompt, expected",
+    [
+        # escaped brackets are literal text, never groups
+        (
+            r"hu_tao_\(genshin_impact\), smile",
+            [("hu_tao_(genshin_impact)", "tag"), ("smile", "tag")],
+        ),
+        (r"\(masterpiece\), \[x\]", [("(masterpiece)", "tag"), ("[x]", "tag")]),
+        (r"(\(a\):1.1)", [("(a)", "tag")]),
+        (
+            r"cat\, dog, (x\, y)",
+            [("cat", "tag"), ("dog", "tag"), ("x", "tag"), ("y", "tag")],
+        ),
+        ("trailing\\", [("trailing\\", "tag")]),
+        # nested groups, all three bracket kinds
+        (
+            "(a, [b, {c}]), d",
+            [("a", "noise"), ("b", "tag"), ("c", "tag"), ("d", "tag")],
+        ),
+        ("((a), (b:1.2)), c", [("a", "noise"), ("b", "tag"), ("c", "tag")]),
+        ("((a:1.2):0.5)", [("a", "noise"), ("", "noise")]),
+        ("(a [b:c] d:2)", [("a", "noise"), ("b", "tag"), ("c", "tag"), ("d", "tag")]),
+        ("{a|b}, {c:1.1}", [("a", "noise"), ("b", "tag"), ("c", "tag")]),
+        # unclosed and stray brackets
+        ("(unclosed, [x", [("unclosed", "tag"), ("x", "tag")]),
+        (")stray], }x", [("stray", "tag"), ("x", "tag")]),
+        # [from:to:w] splits, a plain weight colon does not
+        (
+            "[from:to:0.5], [a:b]",
+            [("from", "tag"), ("to", "tag"), ("a", "noise"), ("b", "tag")],
+        ),
+        ("[a:b:0.5], [c:1.2]", [("a", "noise"), ("b", "tag"), ("c", "tag")]),
+        # network tokens, bare or inside a group
+        (
+            "<lora:foo:0.8>, (<lora:bar:1>:1.1)",
+            [("<lora:foo:0.8>", "network"), ("<lora:bar:1>", "network"), ("", "noise")],
+        ),
+        (
+            "x embedding:easy, (embedding:easy2:1.3), Embedding:z",
+            [
+                ("x", "tag"),
+                ("embedding:easy", "network"),
+                ("embedding:easy2", "network"),
+                ("embedding:z", "network"),
+            ],
+        ),
+        # keywords, separators, weights glued between groups
+        (
+            "a BREAK (b AND c) d",
+            [("a", "noise"), ("b", "tag"), ("c", "tag"), ("d", "tag")],
+        ),
+        ("(a:1.2)(b:0.8)c", [("a", "noise"), ("b", "tag"), ("c", "tag")]),
+        ("  ,, \n a | b ", [("a", "noise"), ("b", "tag")]),
+        # emoticons in groups
+        (
+            "(>_<:1.2), :d, (;p)",
+            [(">_<", "tag"), ("", "noise"), (":d", "tag"), (";p", "tag")],
+        ),
+        # qualifier glued on vs emphasis after a space
+        (
+            "foo (bar baz) qux, foo_(bar)",
+            [("foo", "tag"), ("bar baz", "tag"), ("qux", "tag"), ("foo_(bar)", "tag")],
+        ),
+        ("(a)b(c)", [("a", "noise"), ("b(c)", "tag")]),
+        ("(artist:name:1.1)", [("artist:name", "tag")]),
+    ],
+)
+def test_parse_prompt_pieces_pinned(prompt, expected):
+    assert [(p.text, p.kind) for p in parse_prompt(prompt)] == expected
+
+
+def test_scan_reports_the_enclosing_brackets():
+    from moire.services.prompt_parse import _scan
+
+    got = [(r.text, r.stack) for r in _scan("a, (b, [c:1.1], {d}), e")]
+    assert got == [
+        ("a", ()),
+        ("b", ("(",)),
+        ("c:1.1", ("(", "[")),
+        ("d", ("(", "{")),
+        ("e", ()),
+    ]
+    # An unclosed group stays open to the end; a stray closer is a no-op.
+    assert [(r.text, r.stack) for r in _scan("x), (y")] == [("x", ()), ("y", ("(",))]
+    assert [r.in_group for r in _scan("a, (b)")] == [False, True]

@@ -157,10 +157,60 @@ def _emoticon_at(text: str, i: int) -> int:
     return 0
 
 
-def _scan(text: str) -> list[tuple[str, bool]]:
+def _atom_at(text: str, i: int, has_text: bool) -> tuple[str, int] | None:
+    """A token that passes through whole: ``(raw, end)`` of the emoticon tag
+    (only at a piece start), ``embedding:name`` or ``<lora:...>`` token at
+    ``i``, else ``None``."""
+    if not has_text:
+        length = _emoticon_at(text, i)
+        if length:
+            return text[i : i + length], i + length
+    ch = text[i]
+    if ch in "eE" and (i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_")):
+        # embedding:name: its own piece even mid-run ("x embedding:y z").
+        m = EMBEDDING_TOKEN.match(text, i)
+        if m:
+            return m.group(0), m.end()
+    if ch == "<":
+        # <lora:name:0.8> / <embedding:x>: one opaque piece, but only when it
+        # really is one. Any other "<" (``<3``, a kaomoji) is text.
+        m = _NETWORK_TOKEN.match(text, i)
+        if m:
+            return m.group(0), m.end()
+    return None
+
+
+def _skip_at(text: str, i: int) -> int:
+    """Length of a separator that is dropped, not kept: a ``BREAK`` / ``AND``
+    keyword or an escaped comma (a tag never holds a comma), else 0."""
+    if text.startswith("\\,", i):
+        return 2
+    return _keyword_at(text, i)
+
+
+def _is_edit_colon(text: str, i: int) -> bool:
+    """Whether the ``:`` at ``i``, inside ``[...]``, is A1111 prompt editing
+    (``[from:to:0.5]``) rather than a weight: the two sides are separate
+    pieces. Inside ``(...)`` a colon is text (``(artist:name)``) or a weight."""
+    return not _WEIGHT_AHEAD.match(text[i + 1 :].lstrip())
+
+
+@dataclass(frozen=True)
+class RawPiece:
+    text: str
+    # The enclosing bracket kinds, outermost first (empty outside any group).
+    stack: tuple[str, ...]
+
+    @property
+    def in_group(self) -> bool:
+        """Only inside a group is ``:n`` a weight."""
+        return bool(self.stack)
+
+
+def _scan(text: str) -> list[RawPiece]:
     """Raw pieces of ``text``, cut at separators and emphasis-group edges,
-    each with whether it sat inside a group (only there is ``:n`` a weight)."""
-    pieces: list[tuple[str, bool]] = []
+    each with the brackets it sat inside."""
+    pieces: list[RawPiece] = []
     buf: list[str] = []
     # Whether `buf` holds any non-space text (kept as a flag, not re-derived,
     # so the scan stays linear in the prompt length).
@@ -171,59 +221,37 @@ def _scan(text: str) -> list[tuple[str, bool]]:
     def flush() -> None:
         nonlocal has_text
         if buf:
-            pieces.append(("".join(buf), bool(stack)))
+            pieces.append(RawPiece("".join(buf), tuple(stack)))
             buf.clear()
         has_text = False
 
     def emit(raw: str) -> None:
         flush()
-        pieces.append((raw, bool(stack)))
+        pieces.append(RawPiece(raw, tuple(stack)))
 
     i = 0
     n = len(text)
     while i < n:
         ch = text[i]
-        if not has_text:
-            if ch.isspace():
-                i += 1
-                continue
-            # At a piece start: an emoticon tag is taken whole, before its
-            # punctuation can be read as brackets, colons or separators.
-            length = _emoticon_at(text, i)
-            if length:
-                emit(text[i : i + length])
-                i += length
-                continue
-        length = _keyword_at(text, i)
-        if length:
+        if not has_text and ch.isspace():
+            i += 1
+            continue
+        atom = _atom_at(text, i, has_text)
+        if atom:
+            emit(atom[0])
+            i = atom[1]
+            continue
+        skip = _skip_at(text, i)
+        if skip:
             flush()
-            i += length
+            i += skip
             continue
         if ch == "\\" and i + 1 < n:
-            # An escape is literal text (``\(``), except an escaped comma,
-            # which still separates: a tag never holds a comma.
-            if text[i + 1] == ",":
-                flush()
-            else:
-                buf.append(text[i + 1])
-                has_text = True
+            # An escape is literal text (``\(``).
+            buf.append(text[i + 1])
+            has_text = True
             i += 2
             continue
-        if ch in "eE" and (i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_")):
-            # embedding:name: its own piece even mid-run ("x embedding:y z").
-            m = EMBEDDING_TOKEN.match(text, i)
-            if m:
-                emit(m.group(0))
-                i = m.end()
-                continue
-        if ch == "<":
-            # <lora:name:0.8> / <embedding:x>: one opaque piece, but only when
-            # it really is one. Any other "<" (``<3``, a kaomoji) is text.
-            m = _NETWORK_TOKEN.match(text, i)
-            if m:
-                emit(m.group(0))
-                i = m.end()
-                continue
         if ch in _SEPARATORS:
             flush()
             i += 1
@@ -249,12 +277,9 @@ def _scan(text: str) -> list[tuple[str, bool]]:
                 stack.pop()
             i += 1
             continue
-        if ch == ":" and stack and stack[-1] == "[" and has_text:
-            # Inside ``[...]``, a non-weight colon is A1111 prompt editing
-            # (``[from:to:0.5]``): the two sides are separate pieces. A
-            # weight colon is left for _clean to strip. Inside ``(...)`` a
-            # colon is text (``(artist:name)``) or a weight.
-            if not _WEIGHT_AHEAD.match(text[i + 1 :].lstrip()):
+        if ch == ":" and has_text and stack and stack[-1] == "[":
+            # A weight colon is left for _clean to strip.
+            if _is_edit_colon(text, i):
                 flush()
                 i += 1
                 continue
@@ -332,8 +357,8 @@ def parse_prompt(text: str | None) -> list[Piece]:
 @lru_cache(maxsize=4096)
 def _parse_cached(text: str) -> tuple[Piece, ...]:
     out: list[Piece] = []
-    for raw, in_group in _scan(text):
-        s = _clean(raw, in_group)
-        if s or raw.strip():
-            out.append(Piece(s, classify(s, raw)))
+    for raw in _scan(text):
+        s = _clean(raw.text, raw.in_group)
+        if s or raw.text.strip():
+            out.append(Piece(s, classify(s, raw.text)))
     return tuple(out)
