@@ -56,6 +56,11 @@ P0 review fixes: 924e1e1 (UI batch), e86ea57 (data and library batch). Review fi
 - [x] **L2.5** Mirrored pure functions rely on comments and copy-pasted test cases instead of one fixture (drift, S, L3), done 7393a2c (auto-name cases: 146e2cb; kaomojis/compose/split_requests fixtures not done)
 - [x] **S4.10** Cross-language mirrored vocabularies have no parity check (COLOURS, KAOMOJIS, canonicalName, Facet, merge KIND_ORDER) (drift, S, L2), done 7e5ffa5
 
+P1 review fixes: frontend 8b15822, e193bb0, 76994ac (one `removeTerms` helper for every separator, bare and group weights, linear scan); backend a189140, 7e9fa71, da7316e, 13cee59, 9f8fd5e (rule changes and the watcher never wait on a running reprojection, whole-run lock, prose auto-name fallback, one column tuple, linear lookahead). Left open:
+- An unclosed group ("(smile, red eyes") is never removed whole; removing all its members leaves a lone "(".
+- The frontend splitter copies prompt_parse's emoticon list, PROSE_WORDS, ABBREV and JOINERS; only the shared fixture rows guard them (no kaomojis/compose/split_requests fixtures yet).
+- A rule change computes its affected images before taking the reproject lock, so a run in flight with the old config can leave a stale tag outside that set.
+
 ## P2. Frontend data layer and shared UI primitives
 
 - [ ] **S2.2** Optimistic patch/undo recipe copied three times; hoist into feedCache (dedupe, S, L4)
