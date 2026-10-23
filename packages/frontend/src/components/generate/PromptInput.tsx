@@ -1,23 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { caretOffset } from "../../lib/caret";
+import { useRef } from "react";
 import { cn } from "../../lib/cn";
-import { useTagBrowse } from "../../lib/queries";
-import { useCharacterNames } from "../../lib/generate";
-import { replaceTerm, termAt, type Term } from "../../lib/promptEdit";
-import { toPromptText } from "../../lib/tags";
-import { TagSuggestList, useTagMatches, type TagSuggestion } from "../TagSuggestList";
+import { TagSuggestList, type TagSuggestion } from "../TagSuggestList";
+import { usePromptMarks, type PromptFlash, type PromptMark } from "./PromptOverlay";
+import { usePromptSuggest } from "./usePromptSuggest";
 
-const LIST_W = 320;
+export type { PromptFlash, PromptMark };
 
-export type PromptMark = { start: number; end: number; reason: string };
 const NO_MARKS: readonly PromptMark[] = [];
-
-/** Words the app just wrote into the prompt: lit up and fading (a new `key`
- * replays it), with an optional note at the first of them for a while. */
-export type PromptFlash = { key: number; ranges: readonly { start: number; end: number }[]; note?: ReactNode };
-
-// How long a flash's note stays up.
-const NOTE_MS = 5000;
 
 /**
  * Free-text prompt with tag and embedding suggestions for the term at the
@@ -25,36 +14,6 @@ const NOTE_MS = 5000;
  * moved into with the arrow keys, so a typed word (a LoRA trigger) is never
  * swapped for a near match.
  */
-/** What decides where a line wraps: copied from the textarea to the copy
- * behind it. */
-const MIRRORED = [
-  "font-family",
-  "font-size",
-  "font-weight",
-  "font-style",
-  "font-stretch",
-  "font-variant",
-  "font-feature-settings",
-  "line-height",
-  "letter-spacing",
-  "word-spacing",
-  "text-indent",
-  "text-transform",
-  "tab-size",
-  "white-space",
-  "word-break",
-  "overflow-wrap",
-  "padding-top",
-  "padding-right",
-  "padding-bottom",
-  "padding-left",
-  "border-top-width",
-  "border-right-width",
-  "border-bottom-width",
-  "border-left-width",
-  "border-style",
-] as const;
-
 export function PromptInput({
   value,
   onChange,
@@ -86,245 +45,26 @@ export function PromptInput({
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [term, setTerm] = useState<Term | null>(null);
-  const [active, setActive] = useState(0);
-  const [moved, setMoved] = useState(false);
-  const [at, setAt] = useState<{ left: number; top: number } | null>(null);
-  // Covers come from the Tags page list: a big one, so only fetched once
-  // suggestions have been shown.
-  const [wantCovers, setWantCovers] = useState(false);
-  const { data: browse } = useTagBrowse("all", { enabled: wantCovers });
-  const thumbs = useMemo(() => new Map((browse ?? []).map((b) => [b.tag, b.thumb_url])), [browse]);
-  const thumbOf = useCallback((id: string) => thumbs.get(id) ?? null, [thumbs]);
-  const resources = useMemo(() => embeddings.map((n) => ({ _id: `embedding:${n}`, count: 0 })), [embeddings]);
-  // Characters the tagger knows that the library doesn't have yet, offered
-  // after the library's own tags (no count, no cover).
-  const { data: names } = useCharacterNames();
-  const unseen = useMemo(() => {
-    const have = new Set(suggestions.map((x) => x._id));
-    return new Set((names ?? []).filter((n) => !have.has(n)));
-  }, [names, suggestions]);
-  const pool = useMemo(() => [...suggestions, ...[...unseen].map((_id) => ({ _id, count: 0 }))], [suggestions, unseen]);
-  const noteOf = useCallback((id: string) => (unseen.has(id) ? "not in library" : null), [unseen]);
-  const matches = useTagMatches(term?.query ?? "", pool, resources);
-  const open = !!term && matches.length > 0;
-
-  // Marked terms: drawn on a copy of the text behind the (transparent)
-  // textarea, so they wrap and scroll with it.
-  const backRef = useRef<HTMLDivElement>(null);
-  const markRefs = useRef<(HTMLSpanElement | null)[]>([]);
-  const [shown, setShown] = useState<number | null>(null);
-  const [bubbleAt, setBubbleAt] = useState<{ left: number; top: number } | null>(null);
-  const markAt = (i: number | null) => {
-    const span = i == null ? null : markRefs.current[i];
-    const el = ref.current;
-    if (i == null || !span || !el) {
-      setShown(null);
-      return;
-    }
-    setShown(i);
-    const room = (wrapRef.current?.clientWidth ?? el.clientWidth) - 288;
-    setBubbleAt({
-      left: Math.max(0, Math.min(span.offsetLeft, room)),
-      top: el.offsetTop + span.offsetTop - el.scrollTop + span.offsetHeight + 4,
-    });
-  };
-  const markUnder = (x: number, y: number) =>
-    markRefs.current.findIndex((m) =>
-      m ? [...m.getClientRects()].some((r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) : false,
-    );
-  const markAtCaret = () => {
-    const el = ref.current;
-    if (!el || el.selectionStart !== el.selectionEnd) return -1;
-    const c = el.selectionStart;
-    return marks.findIndex((m) => c >= m.start && c <= m.end);
-  };
-  // Any change to the marks closes the bubble: its index and place are stale.
-  const marksKey = marks.map((m) => `${m.start}:${m.end}:${m.reason}`).join("|");
-  useEffect(() => {
-    markRefs.current = markRefs.current.slice(0, marks.length);
-    setShown(null);
-  }, [marksKey, marks.length]);
-  // The copy behind must wrap exactly like the textarea, or an outline lands
-  // on the wrong words: it takes the textarea's own box and text styles, and
-  // its width less any scrollbar, and follows its scroll.
-  // Styles and size: on mount, restyle and resize. Scroll: as it scrolls
-  // and as text is typed.
-  const syncScroll = useCallback(() => {
-    if (ref.current && backRef.current) backRef.current.scrollTop = ref.current.scrollTop;
-  }, []);
-  const syncBack = useCallback(() => {
-    const el = ref.current;
-    const back = backRef.current;
-    if (!el || !back) return;
-    const cs = getComputedStyle(el);
-    for (const p of MIRRORED) back.style.setProperty(p, cs.getPropertyValue(p));
-    const bx = parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
-    const by = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
-    back.style.borderColor = "transparent";
-    back.style.boxSizing = "border-box";
-    back.style.width = `${el.clientWidth + bx}px`;
-    back.style.height = `${el.clientHeight + by}px`;
-    back.style.top = `${el.offsetTop}px`;
-    back.style.left = `${el.offsetLeft}px`;
-    back.scrollTop = el.scrollTop;
-  }, []);
-  // A flash shows until its glow is over (its note a while longer), then the
-  // copy behind goes back to marks only.
-  // With the text it was made for: once the prompt is edited its offsets
-  // (and an undo that puts the old prompt back) no longer hold, so it goes.
-  const [flashing, setFlashing] = useState<(PromptFlash & { text: string }) | null>(null);
-  const [noteAt, setNoteAt] = useState<{ left: number; top: number } | null>(null);
-  const flashRef = useRef<HTMLSpanElement | null>(null);
-  useEffect(() => {
-    if (!flash?.ranges.length) {
-      setFlashing(null);
-      return;
-    }
-    // The page sets the prompt and the flash together, so `value` is the
-    // text the flash was made for.
-    setFlashing({ ...flash, text: value });
-    const t = setTimeout(() => setFlashing(null), flash.note ? NOTE_MS : 2400);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flash]);
-  const current = flashing?.text === value ? flashing : null;
-  const lit = current?.ranges ?? [];
-  const hasMarks = marks.length > 0 || lit.length > 0;
-  useLayoutEffect(syncBack, [syncBack, hasMarks, className]);
-  useLayoutEffect(syncScroll, [syncScroll, value, marksKey]);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || !hasMarks) return;
-    // Content box: a scrollbar coming or going resizes it too.
-    const ro = new ResizeObserver(syncBack);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [syncBack, hasMarks]);
-
-  const look = () => {
-    const el = ref.current;
-    if (!el) return;
-    const t = el.selectionStart === el.selectionEnd ? termAt(el.value, el.selectionStart) : null;
-    setTerm(t);
-    if (t) {
-      setWantCovers(true);
-      // Under the start of the word, kept inside the field's width.
-      const lead = el.value.slice(t.start, t.end).length - el.value.slice(t.start, t.end).trimStart().length;
-      const c = caretOffset(el, t.start + lead);
-      const room = (wrapRef.current?.clientWidth ?? el.clientWidth) - LIST_W;
-      setAt({ left: Math.max(0, Math.min(c.left, room)), top: el.offsetTop + c.top + c.height + 2 });
-    }
-    setActive(0);
-    setMoved(false);
-  };
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setTerm(null);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
-
-  const pick = (s: TagSuggestion) => {
-    if (!term) return;
-    const word = s._id.startsWith("embedding:") ? s._id : toPromptText([s._id]);
-    const next = replaceTerm(value, term, word);
-    onChange(next.text);
-    setTerm(null);
-    requestAnimationFrame(() => {
-      const el = ref.current;
-      if (!el) return;
-      el.focus();
-      el.setSelectionRange(next.caret, next.caret);
-    });
-  };
+  const suggest = usePromptSuggest({ textareaRef: ref, wrapRef, value, onChange, suggestions, embeddings });
+  const overlay = usePromptMarks({
+    textareaRef: ref,
+    wrapRef,
+    value,
+    marks,
+    fix,
+    flash,
+    className,
+    suggestOpen: suggest.open,
+  });
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Escape" && shown != null && !open) {
-      e.stopPropagation();
-      setShown(null);
-      return;
-    }
-    if (!open) return;
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      setMoved(true);
-      setActive((a) => (e.key === "ArrowDown" ? Math.min(a + 1, matches.length - 1) : Math.max(a - 1, 0)));
-    } else if (e.key === "Tab" || (e.key === "Enter" && moved)) {
-      e.preventDefault();
-      pick(matches[active]);
-    } else if (e.key === "Escape") {
-      e.stopPropagation();
-      setTerm(null);
-    }
+    if (overlay.onEscape(e)) return;
+    suggest.onKeyDown(e);
   };
 
-  useLayoutEffect(() => {
-    const span = flashRef.current;
-    const el = ref.current;
-    if (!flashing?.note || !span || !el) {
-      setNoteAt(null);
-      return;
-    }
-    // The note is at most 20rem wide (max-w-xs).
-    const room = (wrapRef.current?.clientWidth ?? el.clientWidth) - 320;
-    setNoteAt({
-      left: Math.max(0, Math.min(span.offsetLeft, room)),
-      top: el.offsetTop + span.offsetTop - el.scrollTop + span.offsetHeight + 4,
-    });
-  }, [flashing]);
-  // Marks and lit words in text order, for the copy behind.
-  const segments = [
-    ...marks.map((m, i) => ({ start: m.start, end: m.end, mark: i })),
-    ...lit.map((r) => ({ start: r.start, end: r.end, mark: -1 })),
-  ]
-    .sort((a, b) => a.start - b.start)
-    .filter((sg, i, all) => i === 0 || sg.start >= all[i - 1].end);
-  const firstLit = segments.findIndex((sg) => sg.mark < 0);
-
-  const mark = shown != null && !open ? marks[shown] : null;
   return (
-    <div ref={wrapRef} className="relative" onMouseLeave={() => setShown(null)}>
-      {segments.length > 0 && (
-        <div
-          ref={backRef}
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute left-0 top-0 overflow-hidden whitespace-pre-wrap break-words text-transparent",
-            className,
-          )}
-        >
-          {segments.map((m, i) => (
-            <span key={`${m.start}:${m.end}`}>
-              {value.slice(i ? segments[i - 1].end : 0, m.start)}
-              {m.mark >= 0 ? (
-                <span
-                  ref={(el) => {
-                    markRefs.current[m.mark] = el;
-                  }}
-                  className="rounded-sm bg-amber-400/10 shadow-[0_0_0_1px_rgb(251_191_36/0.8)]"
-                >
-                  {value.slice(m.start, m.end)}
-                </span>
-              ) : (
-                <span
-                  key={flashing?.key}
-                  ref={i === firstLit ? flashRef : undefined}
-                  className="rounded-sm animate-written-glow"
-                >
-                  {value.slice(m.start, m.end)}
-                </span>
-              )}
-            </span>
-          ))}
-          {value.slice(segments[segments.length - 1].end)}
-          {/* A trailing newline only takes up a line with something after it. */}
-          {"\u200b"}
-        </div>
-      )}
+    <div ref={wrapRef} className="relative" onMouseLeave={overlay.hide}>
+      {overlay.backdrop}
       <textarea
         ref={ref}
         aria-label={label}
@@ -333,29 +73,20 @@ export function PromptInput({
         placeholder={placeholder}
         onChange={(e) => {
           onChange(e.target.value);
-          requestAnimationFrame(look);
+          requestAnimationFrame(suggest.look);
         }}
         onKeyDown={onKeyDown}
-        onKeyUp={(e) => {
-          if (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") markAt(markAtCaret());
-        }}
+        onKeyUp={overlay.onKeyUp}
         onClick={() => {
-          look();
-          markAt(markAtCaret());
+          suggest.look();
+          overlay.onClick();
         }}
-        onScroll={() => {
-          syncScroll();
-          setShown(null);
-        }}
-        onMouseMove={(e) => {
-          if (!marks.length) return;
-          const i = markUnder(e.clientX, e.clientY);
-          if (i >= 0 && i !== shown) markAt(i);
-        }}
-        onBlur={() => setTimeout(() => setTerm(null), 150)}
+        onScroll={overlay.onScroll}
+        onMouseMove={overlay.onMouseMove}
+        onBlur={() => setTimeout(suggest.close, 150)}
         title="Tab completes a suggested tag"
         role="combobox"
-        aria-expanded={open}
+        aria-expanded={suggest.open}
         aria-autocomplete="list"
         className={cn(
           "relative w-full resize-y bg-transparent text-neutral-100 placeholder:text-faint outline-none",
@@ -363,49 +94,8 @@ export function PromptInput({
           className,
         )}
       />
-      {open && (
-        <TagSuggestList
-          matches={matches}
-          active={active}
-          onActive={setActive}
-          onPick={pick}
-          thumbOf={thumbOf}
-          noteOf={noteOf}
-          className="mt-0 w-80"
-          style={at ? { left: at.left, top: at.top } : undefined}
-        />
-      )}
-      {current?.note && noteAt && !mark && (
-        <div
-          role="status"
-          className="absolute z-30 flex w-max max-w-xs animate-fade-in items-center gap-2 rounded-lg border border-brand-700/60 bg-raised px-2.5 py-2 text-xs text-neutral-200 shadow-panel"
-          style={{ left: noteAt.left, top: noteAt.top }}
-        >
-          {current.note}
-        </div>
-      )}
-      {mark && bubbleAt && (
-        <div
-          role="note"
-          className="absolute z-30 w-72 rounded-lg border border-amber-700/60 bg-raised p-2.5 text-xs text-neutral-200 shadow-panel"
-          style={{ left: bubbleAt.left, top: bubbleAt.top }}
-        >
-          <p>{mark.reason}</p>
-          {fix && (
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                fix.apply();
-                setShown(null);
-              }}
-              className="mt-2 rounded-md border border-amber-700/70 bg-amber-900/30 px-2 py-1 text-amber-100 hover:bg-amber-900/50"
-            >
-              {fix.label}
-            </button>
-          )}
-        </div>
-      )}
+      {suggest.open && <TagSuggestList {...suggest.listProps} className="mt-0 w-80" />}
+      {overlay.popovers}
     </div>
   );
 }
