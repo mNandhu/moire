@@ -1,5 +1,4 @@
-import { formatDuration } from "./ai";
-import { etaLabel } from "./eta";
+import { etaLabel, formatDuration } from "./format";
 
 /**
  * Background work as the activity indicator shows it. The server lists what

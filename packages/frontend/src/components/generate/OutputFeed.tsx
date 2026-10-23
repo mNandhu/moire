@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { batchRunTime, durationLabel, isWaiting, turnLabel } from "../../lib/batches";
+import { batchRunTime, isWaiting, turnLabel } from "../../lib/batches";
+import { durationWords } from "../../lib/format";
 import { BATCHES_KEY, STATUS_KEY, batchKey, useBatch, useBatches, useComfyStatus, type Batch } from "../../lib/generate";
 import { batchLeft, leftLabel } from "../../lib/eta";
 import { queueLegs } from "../../lib/queueClock";
@@ -46,9 +47,9 @@ function BatchPanel({ id }: { id: number }) {
           took && (
             <span
               className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted"
-              title={took.perImage != null && took.images > 1 ? `${durationLabel(took.perImage)} per image` : undefined}
+              title={took.perImage != null && took.images > 1 ? `${durationWords(took.perImage)} per image` : undefined}
             >
-              {durationLabel(took.total)}
+              {durationWords(took.total)}
             </span>
           )
         )}

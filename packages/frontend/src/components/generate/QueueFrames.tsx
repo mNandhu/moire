@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { cn } from "../../lib/cn";
 import type { QueueFrame } from "../../lib/generate";
-import { countdown } from "../../lib/queueClock";
+import { clockText } from "../../lib/format";
 import { useLiveQueue, type LiveLeg } from "./useLiveQueue";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -61,7 +61,7 @@ export function FrameRow({ leg, size, max, className, frameClass }: { leg: LiveL
 
 /** "0:47 left" on the batch being made, "in 1:32" on the rest. */
 export const legWhen = (l: LiveLeg, paused = false) =>
-  paused ? (l.running ? "Paused" : "Waiting") : l.running ? `${countdown(l.left)} left` : `in ${countdown(l.startsIn)}`;
+  paused ? (l.running ? "Paused" : "Waiting") : l.running ? `${clockText(l.left, "round")} left` : `in ${clockText(l.startsIn, "round")}`;
 
 /**
  * The queue on the Generations page: every image to make as an empty frame
@@ -79,7 +79,7 @@ export function QueueFrames() {
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
         <div className="flex items-baseline gap-2">
-          <span className="font-mono text-4xl font-semibold leading-none tabular-nums text-neutral-50">{countdown(q.left)}</span>
+          <span className="font-mono text-4xl font-semibold leading-none tabular-nums text-neutral-50">{clockText(q.left, "round")}</span>
           <span className="text-sm text-muted">{q.paused ? "paused, ComfyUI can't be reached" : "to go"}</span>
         </div>
         <span className="text-xs tabular-nums text-faint">

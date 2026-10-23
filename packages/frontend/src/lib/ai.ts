@@ -2,6 +2,7 @@
 // the frontend sees them. Status predicates are pure (the test surface); the
 // polling cadence that used to be hand-rolled in three places now derives from
 // them. See CONTEXT.md › AI Job, Tagger / Model, AI Settings.
+import { formatDuration } from "./format";
 import { api } from "./api";
 
 
@@ -163,16 +164,6 @@ export function aiJobLabel(job: Pick<AiJob, "status" | "phase"> | null | undefin
   return "Tagging…";
 }
 
-/** "45 s", "3 min", "1 h 5 min". */
-export function formatDuration(s: number): string {
-  const sec = Math.max(0, Math.round(s));
-  if (sec < 60) return `${sec} s`;
-  const m = Math.round(sec / 60);
-  if (m < 60) return `${m} min`;
-  const h = Math.floor(m / 60);
-  const rest = m % 60;
-  return rest ? `${h} h ${rest} min` : `${h} h`;
-}
 
 /** "3.2 images/s", or per minute when slower than one a second. */
 export function formatRate(rate: number): string {

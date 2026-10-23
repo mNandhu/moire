@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { etaShort } from "../lib/eta";
+import { etaShort } from "../lib/format";
 import { setTitlePrefix } from "./useDocumentTitle";
 import { useBackgroundTasks } from "./useBackgroundTasks";
 

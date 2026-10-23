@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { countdown, imagesLeft, legClock, queueLegs } from "./queueClock";
+import { imagesLeft, legClock, queueLegs } from "./queueClock";
+import { clockText } from "./format";
 import type { ActiveBatch } from "./generate";
 
 const b = (id: number, requests: number, finished: number, eta: number | null): ActiveBatch => ({
@@ -60,11 +61,11 @@ describe("legClock", () => {
   });
 });
 
-describe("countdown", () => {
+describe("clockText round", () => {
   it("reads like a timer", () => {
-    expect(countdown(5)).toBe("0:05");
-    expect(countdown(545)).toBe("9:05");
-    expect(countdown(3729)).toBe("1:02:09");
-    expect(countdown(-3)).toBe("0:00");
+    expect(clockText(5, "round")).toBe("0:05");
+    expect(clockText(545, "round")).toBe("9:05");
+    expect(clockText(3729, "round")).toBe("1:02:09");
+    expect(clockText(-3, "round")).toBe("0:00");
   });
 });

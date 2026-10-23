@@ -1,7 +1,7 @@
+import { roughDuration } from "./format";
 import { describe, expect, it } from "vitest";
 import {
   cleanPath,
-  formatDuration,
   isRemote,
   librariesToAdd,
   pathKey,
@@ -113,13 +113,13 @@ describe("librariesToAdd and sourceTotals", () => {
   });
 });
 
-describe("formatDuration", () => {
+describe("roughDuration", () => {
   it("uses minutes, then hours", () => {
-    expect(formatDuration(10)).toBe("1 min");
-    expect(formatDuration(7 * 60)).toBe("7 min");
-    expect(formatDuration(2 * 3600)).toBe("2 h");
-    expect(formatDuration(4212 / 0.6)).toBe("1.9 h");
-    expect(formatDuration(3 * 3600 + 1200)).toBe("3.3 h");
+    expect(roughDuration(10)).toBe("1 min");
+    expect(roughDuration(7 * 60)).toBe("7 min");
+    expect(roughDuration(2 * 3600)).toBe("2 h");
+    expect(roughDuration(4212 / 0.6)).toBe("1.9 h");
+    expect(roughDuration(3 * 3600 + 1200)).toBe("3.3 h");
   });
 });
 

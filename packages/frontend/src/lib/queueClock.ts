@@ -82,12 +82,3 @@ export function legClock(leg: Leg, elapsed: number): { startsIn: number; left: n
   return { startsIn: Math.max(0, leg.start - elapsed), left: Math.max(0, leg.end - elapsed) };
 }
 
-/** "0:42", "9:05", "1:02:09": a countdown as a timer shows it. Pure. */
-export function countdown(seconds: number): string {
-  const s = Math.max(0, Math.round(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const ss = String(s % 60).padStart(2, "0");
-  if (h) return `${h}:${String(m).padStart(2, "0")}:${ss}`;
-  return `${m}:${ss}`;
-}

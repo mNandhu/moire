@@ -8,7 +8,8 @@ import { setQuarantine, setScore } from "../../lib/imageMutations";
 import { withBackgroundLocation } from "../../lib/backgroundLocation";
 import { cn } from "../../lib/cn";
 import { smallThumb } from "../../lib/media";
-import { clock, runProgress } from "../../lib/eta";
+import { runProgress } from "../../lib/eta";
+import { clockText } from "../../lib/format";
 import { useLiveSeconds } from "../../hooks/useLiveSeconds";
 import { useToast } from "../Toasts";
 import { ScorePicker } from "../ui/ScoreMark";
@@ -187,10 +188,10 @@ function WaitingCell({
     ? null
     : run
       ? run.phase === "on-time"
-        ? clock(Math.ceil(run.left))
-        : `+${clock(run.over)}`
+        ? clockText(run.left, "ceil")
+        : `+${clockText(run.over)}`
       : elapsed != null
-        ? clock(elapsed)
+        ? clockText(elapsed)
         : null;
   // Waiting in Moiré's queue or ComfyUI's reads the same: queued.
   const caption = !running
@@ -202,7 +203,7 @@ function WaitingCell({
           ? "Taking longer than usual"
           : "Finishing up"
       : (stepsLabel(req) ?? "Running");
-  const tip = [stepsLabel(req), run && req.expected ? `Usually about ${clock(req.expected)}` : null].filter(Boolean).join(" · ");
+  const tip = [stepsLabel(req), run && req.expected ? `Usually about ${clockText(req.expected)}` : null].filter(Boolean).join(" · ");
   return (
     <div
       className={cn(

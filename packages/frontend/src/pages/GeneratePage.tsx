@@ -68,7 +68,8 @@ import {
 import { PromptRepeats } from "../components/generate/PromptRepeats";
 import { prefixRepeats } from "../lib/promptRepeats";
 import { checkCountTags, countRanges, expectedTags, fixCountTags, followCast, type Kind } from "../lib/countTags";
-import { etaShort, queueTitle } from "../lib/eta";
+import { queueTitle } from "../lib/eta";
+import { etaShort } from "../lib/format";
 import { cn } from "../lib/cn";
 import { countText, type CountMode } from "../lib/requests";
 import { PromptInput, type PromptFlash } from "../components/generate/PromptInput";

@@ -1,3 +1,4 @@
+import { etaLabel } from "./format";
 import type { GenRequest } from "./generate";
 
 /**
@@ -10,30 +11,13 @@ import type { GenRequest } from "./generate";
  * under ten minutes to 10s, else to the minute, and always "about".
  */
 
-/** Seconds rounded as shown. */
-export function roundEta(seconds: number): number {
-  const s = Math.max(0, seconds);
-  if (s < 60) return Math.max(5, Math.round(s / 5) * 5);
-  if (s < 600) return Math.round(s / 10) * 10;
-  return Math.round(s / 60) * 60;
-}
 
-/** "45s", "2m 30s", "14m", "1h 20m": a rounded duration without "about". */
-export function etaShort(seconds: number): string {
-  const s = roundEta(seconds);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return s % 60 ? `${m}m ${s % 60}s` : `${m}m`;
-  return m % 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.floor(m / 60)}h`;
-}
 
-/** "about 2m 30s". */
-export const etaLabel = (seconds: number) => `about ${etaShort(seconds)}`;
 
 /** Past this share of its estimate a request is "taking longer than usual". */
-export const OVERRUN = 1.3;
+const OVERRUN = 1.3;
 /** A running request's fill stops here until it ends: it never looks done early. */
-export const FILL_CAP = 0.95;
+const FILL_CAP = 0.95;
 
 /** Where a running request is against its estimate: on time, past it but
  * not by much (finishing), or well past it (late). */
@@ -56,14 +40,6 @@ export function runProgress(
   };
 }
 
-/** A live clock to the second: "0:07", "2:30", "1:02:03". */
-export function clock(seconds: number): string {
-  const s = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const ss = String(s % 60).padStart(2, "0");
-  return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
-}
 
 const UNFINISHED = new Set(["pending", "queued", "running"]);
 

@@ -1,10 +1,10 @@
+import { durationWords } from "./format";
 import { describe, expect, it } from "vitest";
 import {
   batchLine,
   batchRunTime,
   coverAspect,
   dayLabel,
-  durationLabel,
   isWaiting,
   resultGrid,
   resultSlots,
@@ -56,10 +56,10 @@ describe("result grid", () => {
 
 describe("run time", () => {
   it("reads like a stopwatch", () => {
-    expect(durationLabel(8.43)).toBe("8.4s");
-    expect(durationLabel(42.4)).toBe("42s");
-    expect(durationLabel(65)).toBe("1m 05s");
-    expect(durationLabel(3720)).toBe("1h 02m");
+    expect(durationWords(8.43)).toBe("8.4s");
+    expect(durationWords(42.4)).toBe("42s");
+    expect(durationWords(65)).toBe("1m 05s");
+    expect(durationWords(3720)).toBe("1h 02m");
   });
   it("adds up timed requests and divides by their images", () => {
     const out = { idx: 0 } as never;

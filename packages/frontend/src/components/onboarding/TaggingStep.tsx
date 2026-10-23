@@ -1,10 +1,10 @@
 import { useState } from "react";
+import { roughDuration } from "../../lib/format";
 import { Check, Copy } from "lucide-react";
 import { Button } from "../ui/Button";
 import {
   CPU_SECONDS_PER_IMAGE,
   GPU_SECONDS_PER_IMAGE,
-  formatDuration,
   gpuInstallCommand,
 } from "../../lib/onboarding";
 import { Group, Help, StepHeading, SwitchRow } from "./parts";
@@ -91,7 +91,7 @@ function Bar({ label, seconds, of, gpu }: { label: string; seconds: number; of: 
           style={{ width: `${Math.max(1.5, (seconds / of) * 100)}%` }}
         />
       </span>
-      <span className="text-right font-medium tabular-nums text-neutral-100">{formatDuration(seconds)}</span>
+      <span className="text-right font-medium tabular-nums text-neutral-100">{roughDuration(seconds)}</span>
     </div>
   );
 }

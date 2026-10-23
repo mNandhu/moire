@@ -125,11 +125,6 @@ export function sourceTotals(s: DiscoverSource): { images: number; capped: boole
 export const CPU_SECONDS_PER_IMAGE = 1 / 0.6;
 export const GPU_SECONDS_PER_IMAGE = 0.1;
 
-/** "7 min", "2.4 h": rough on purpose, the rates are someone else's hardware. */
-export function formatDuration(seconds: number): string {
-  if (seconds < 90 * 60) return `${Math.max(1, Math.round(seconds / 60))} min`;
-  return `${(seconds / 3600).toFixed(1).replace(/\.0$/, "")} h`;
-}
 
 /** How to switch to the GPU build, for the way this copy was installed. */
 export function gpuInstallCommand(checkout: boolean): string {

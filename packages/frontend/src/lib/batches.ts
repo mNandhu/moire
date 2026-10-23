@@ -1,6 +1,7 @@
 /** Batch display helpers shared by the Generations list, its rows and the
  * run panel's recent batches. Pure. */
-import { etaLabel, leftLabel } from "./eta";
+import { leftLabel } from "./eta";
+import { etaLabel } from "./format";
 import type { ActiveBatch, Batch, BatchState, BatchSummary, GenRequest, Output } from "./generate";
 
 export const STATE_LABEL: Record<BatchState, string> = {
@@ -77,15 +78,6 @@ export function resultGrid(n: number): { cols: number; rows: number } {
   return { cols, rows: Math.max(1, Math.ceil(n / cols)) };
 }
 
-/** "8.4s", "42s", "1m 05s", "1h 02m". Pure. */
-export function durationLabel(seconds: number): string {
-  if (seconds < 10) return `${Math.round(seconds * 10) / 10}s`;
-  const s = Math.round(seconds);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ${String(s % 60).padStart(2, "0")}s`;
-  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
-}
 
 /** Time ComfyUI spent on a batch's finished requests (failed ones too),
  * and per image over the runs that made images; null before any has a

@@ -3,7 +3,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, Pencil } from "lucide-react";
 import { Badge, Button, ButtonLink, Card, Input, PageBody, PageHeader } from "../components/ui";
-import { batchRunTime, durationLabel, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
+import { batchRunTime, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
+import { durationWords } from "../lib/format";
 import { batchLeft, leftLabel } from "../lib/eta";
 import { displayWord } from "../lib/compose";
 import {
@@ -271,8 +272,8 @@ export default function BatchPage() {
           </span>
           {took && (
             <span title="Time ComfyUI spent generating">
-              Took {durationLabel(took.total)}
-              {took.perImage != null && took.images > 1 && `, ${durationLabel(took.perImage)} per image`}
+              Took {durationWords(took.total)}
+              {took.perImage != null && took.images > 1 && `, ${durationWords(took.perImage)} per image`}
             </span>
           )}
           {inLibrary < outputs.length && <span>{inLibrary} in library</span>}

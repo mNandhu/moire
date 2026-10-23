@@ -2,7 +2,8 @@ import { Link } from "react-router-dom";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { ProgressBar } from "../../../components/ui/ProgressBar";
-import { formatBytes, useSettings } from "../SettingsContext";
+import { formatBytes } from "../../../lib/format";
+import { useSettings } from "../SettingsContext";
 
 /**
  * The tagger model loads on demand (a job's first image waits for it) and

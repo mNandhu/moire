@@ -10,7 +10,8 @@ import { api } from "../../../lib/api";
 import { SETTINGS_KEY, putSettings, useComfySettings, type ComfySettings } from "../../../lib/generate";
 import { useToast } from "../../../components/Toasts";
 import { TAGS_KEY } from "../../../lib/queries";
-import { formatBytes, useSettings } from "../SettingsContext";
+import { formatBytes } from "../../../lib/format";
+import { useSettings } from "../SettingsContext";
 
 type FaceStatus = {
   model: string;

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, X } from "lucide-react";
 import { cn } from "../../lib/cn";
-import { countdown } from "../../lib/queueClock";
+import { clockText } from "../../lib/format";
 import { BATCHES_KEY, STATUS_KEY, batchKey, cancelBatch, useComfyStatus } from "../../lib/generate";
 import { useToast } from "../Toasts";
 import { FrameRow, legWhen } from "./QueueFrames";
@@ -132,7 +132,7 @@ export function QueueDeck() {
       {rest.length > 0 && (
         <Tab depth={2} onClick={() => setOpen((o) => !o)} lit={!unfolded && rest.some((l) => fresh.has(l.id))}>
           <span className="flex-1">{unfolded ? "Show less" : `+${rest.length} more ${rest.length === 1 ? "batch" : "batches"}`}</span>
-          <span className="font-mono tabular-nums">{q.paused ? "paused" : `all done in ${countdown(q.left)}`}</span>
+          <span className="font-mono tabular-nums">{q.paused ? "paused" : `all done in ${clockText(q.left, "round")}`}</span>
           <ChevronDown size={12} className={cn("transition-transform", unfolded && "rotate-180")} />
         </Tab>
       )}

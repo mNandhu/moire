@@ -1,3 +1,4 @@
+import { formatDuration } from "./format";
 import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   aiJobLabel,
@@ -6,7 +7,6 @@ import {
   isActiveJob,
   isStatusBusy,
   coveragePct,
-  formatDuration,
   formatRate,
   jobAgo,
   jobThroughput,
