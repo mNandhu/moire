@@ -408,6 +408,19 @@ async def test_cancel_one_request_leaves_the_rest(client, comfy, seed):
     assert [q["state"] for q in reqs] == ["done", "cancelled", "queued"]
 
 
+async def test_a_cancelled_request_is_not_a_done_frame_in_the_queue(
+    client, comfy, seed
+):
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x", "count": 3})).json()
+    second = b["requests"][1]["_id"]
+    await client.post(f"/generate/batches/{b['_id']}/requests/{second}/cancel")
+    active = (await client.get("/generate/status")).json()["active"]
+    states = [f["state"] for f in active[0]["frames"]]
+    assert "done" not in states
+    assert states.count("cancelled") == b["requests"][1]["images"]
+
+
 async def test_outputs_ComfyUI_wrote_elsewhere_are_downloaded(
     client, comfy, seed, tmp_path
 ):

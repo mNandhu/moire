@@ -343,7 +343,8 @@ async def generator_view(
 async def active_summary(manager: GenerationManager) -> list[dict[str, Any]]:
     """The queue card: every batch with work left, oldest first. ``frames``
     is one entry per image asked for, in request order: ``done`` (with its
-    thumbnail once in the library), ``failed``, ``making`` or ``waiting``.
+    thumbnail once in the library), ``failed``, ``cancelled``, ``making`` or
+    ``waiting``.
     A request whose batch_size is unknown counts as one image."""
     async with async_conn() as conn:
         batches = (
@@ -411,6 +412,8 @@ def _frames(q: Any, outs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     n = max(q.images or 1, len(outs))
     if q.state in ("failed", "lost"):
         return [{"state": "failed", "thumb": None}] * n
+    if q.state == "cancelled":
+        return [{"state": "cancelled", "thumb": None}] * n
     if q.state == "running":
         return [{"state": "making", "thumb": None}] * n
     if q.state in _OPEN:

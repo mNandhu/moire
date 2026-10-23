@@ -54,7 +54,7 @@ export type ActiveBatch = {
   frames?: QueueFrame[];
 };
 
-export type QueueFrame = { state: "done" | "failed" | "making" | "waiting"; thumb: string | null };
+export type QueueFrame = { state: "done" | "failed" | "cancelled" | "making" | "waiting"; thumb: string | null };
 
 export type ComfyStatus = {
   configured: boolean;
