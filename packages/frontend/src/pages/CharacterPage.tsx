@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Copy, ExternalLink, Pencil, Tag as TagIcon, UserRound, Wand2 } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Button, ButtonAnchor, ButtonLink } from "../components/ui/Button";
@@ -18,7 +17,7 @@ import { useComfyModels, useRecipe } from "../lib/generate";
 import { loadDraft, saveDraft, withCharacter } from "../lib/generateForm";
 import { cn } from "../lib/cn";
 import { useAmbientTint } from "../lib/ambient";
-import { RULES_SIGNATURES_KEY, fetchSignatures } from "../lib/gen";
+import { useSignatures } from "../lib/rules";
 import { galleryHref, imageHref, type Filters } from "../lib/imageFilter";
 import { useBoilerplate, useCharacterPage, useTagDescription, useTagDetail, useTagPlaces } from "../lib/queries";
 import { danbooruWikiUrl, formatTag, onDanbooru, toPromptText } from "../lib/tags";
@@ -430,11 +429,7 @@ function Recipe({ c, onEdit }: { c: Character; onEdit: () => void }) {
 /** Who they appear with (for a tag: which characters carry it), what they were made with, when, and how rated. */
 function Sidebar({ c, accent, onEdit, person }: { c: Character; accent?: string; onEdit: () => void; person: boolean }) {
   const { data: everyone } = useCharacters();
-  const { data: signatures } = useQuery({
-    queryKey: RULES_SIGNATURES_KEY,
-    queryFn: fetchSignatures,
-    staleTime: 60_000,
-  });
+  const { data: signatures } = useSignatures();
   const workflows = useMemo(
     () => tagWorkflows(c.workflows, groupWorkflows(signatures ?? [])).slice(0, 5),
     [c.workflows, signatures],

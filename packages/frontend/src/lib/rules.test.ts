@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { workflowClipboardText, type WorkflowPayload } from "./gen";
+import { workflowClipboardText, type WorkflowPayload } from "./rules";
 
 describe("workflowClipboardText", () => {
   it("ComfyUI copies the UI workflow graph (canvas-paste)", () => {

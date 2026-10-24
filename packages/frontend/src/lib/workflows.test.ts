@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { SignatureRow } from "./gen";
+import type { SignatureRow } from "./rules";
 import {
   fileStem,
   formatUsedRange,

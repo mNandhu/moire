@@ -42,7 +42,7 @@ import { fetchImageIds } from "../lib/imageApi";
 import { PageHeader } from "../components/ui/PageHeader";
 import { LibraryScopeTabs } from "../components/LibraryScopeTabs";
 import { SortControl, SORT_OPTIONS } from "../components/SortControl";
-import { RULES_SIGNATURES_KEY, fetchSignatures } from "../lib/gen";
+import { useSignatures } from "../lib/rules";
 import { groupWorkflows, workflowFilterName } from "../lib/workflows";
 import { useGenerators, useOutfits } from "../lib/generate";
 import { generatorFor } from "../components/generate/InGenerate";
@@ -143,12 +143,7 @@ export default function AllImagesPage() {
   const libs = useMemo(() => libsQuery.data ?? [], [libsQuery.data]);
   // Workflows for the filter picker and the chip's name, grouped as the Rules
   // page groups them. Fetched once the panel opens or a workflow is filtered.
-  const { data: signatures } = useQuery({
-    queryKey: RULES_SIGNATURES_KEY,
-    queryFn: fetchSignatures,
-    enabled: filtersOpen || !!filters.workflow || !!filters.workflowSig,
-    staleTime: 60_000,
-  });
+  const { data: signatures } = useSignatures({ enabled: filtersOpen || !!filters.workflow || !!filters.workflowSig });
   const workflowFamilies = useMemo(() => groupWorkflows(signatures ?? []), [signatures]);
 
   // The library is shown by the scope tabs, so it isn't repeated as a chip

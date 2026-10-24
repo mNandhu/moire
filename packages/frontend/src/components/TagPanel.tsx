@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { BookOpen, ExternalLink, Pencil, Tag as TagIcon, UserRound, X } from "lucide-react";
 import { Badge } from "./ui/Badge";
 import { Button, ButtonAnchor, ButtonLink } from "./ui/Button";
@@ -10,7 +10,7 @@ import { useTagSamples } from "../lib/tagSamples";
 import { useToast } from "./Toasts";
 import { errorText } from "../lib/api";
 import { cn } from "../lib/cn";
-import { RULES_SIGNATURES_KEY, fetchSignatures } from "../lib/gen";
+import { useSignatures } from "../lib/rules";
 import { DEFAULT_FILTERS, galleryHref, imageHref } from "../lib/imageFilter";
 import { updateCharacter } from "../lib/imageMutations";
 import { characterHref, tagHref } from "../lib/character";
@@ -66,11 +66,7 @@ export function TagPanel({
   const description = useTagDescription(tag);
   const { data: groups } = useTagGroups();
   const group = groupOf(groups, tag);
-  const { data: signatures } = useQuery({
-    queryKey: RULES_SIGNATURES_KEY,
-    queryFn: fetchSignatures,
-    staleTime: 60_000,
-  });
+  const { data: signatures } = useSignatures();
   const families = useMemo(() => groupWorkflows(signatures ?? []), [signatures]);
 
   const workflows = useMemo(

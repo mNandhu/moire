@@ -7,7 +7,7 @@ import {
   type RuleField,
   type RuleFields,
   type SignatureRow,
-} from "../lib/gen";
+} from "../lib/rules";
 import { errorText } from "../lib/api";
 
 /**

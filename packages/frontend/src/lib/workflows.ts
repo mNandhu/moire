@@ -15,7 +15,7 @@
  * by raw node class names; a matched file name is shown beside it.
  */
 
-import type { SignatureRow } from "./gen";
+import type { SignatureRow } from "./rules";
 import { apiJson } from "./api";
 
 /** What the browser extracts from a dropped `.json` (nothing else is sent). */

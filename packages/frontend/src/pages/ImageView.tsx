@@ -28,7 +28,7 @@ import { useBackgroundTasks } from "../hooks/useBackgroundTasks";
 import { aiJobLabel } from "../lib/ai";
 import { describeTask } from "../lib/backgroundTasks";
 import { ProgressBar } from "../components/ui/ProgressBar";
-import { fetchWorkflow, workflowClipboardText } from "../lib/gen";
+import { fetchWorkflow, workflowClipboardText } from "../lib/rules";
 import {
   applyTags,
   setScore as apiSetScore,

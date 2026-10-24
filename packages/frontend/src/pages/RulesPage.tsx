@@ -22,6 +22,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
@@ -32,10 +33,10 @@ import {
   type RuleField,
   type SignatureRow,
   type PreviewResult,
-  type GenMeta,
-  fetchSignatures,
+  signaturesQuery,
   previewRuleset,
-} from "../lib/gen";
+} from "../lib/rules";
+import type { GenMeta } from "../lib/gen";
 import { fetchImage } from "../lib/imageApi";
 import { galleryHref } from "../lib/imageFilter";
 import {
@@ -112,6 +113,7 @@ function GuessedFrom({
 
 export default function RulesPage() {
   const { push } = useToast();
+  const qc = useQueryClient();
   const [sigs, setSigs] = useState<SignatureRow[]>([]);
   // False until the first fetch answers, so "none yet" never flashes first.
   const [sigsLoaded, setSigsLoaded] = useState(false);
@@ -124,11 +126,11 @@ export default function RulesPage() {
   const [graphQuery, setGraphQuery] = useState("");
 
   const loadSignatures = useCallback(() => {
-    fetchSignatures()
+    qc.fetchQuery({ ...signaturesQuery, staleTime: 0 })
       .then(setSigs)
       .catch((e) => push(`Failed to load signatures: ${errorText(e)}`, "error"))
       .finally(() => setSigsLoaded(true));
-  }, [push]);
+  }, [push, qc]);
 
   useEffect(() => loadSignatures(), [loadSignatures]);
 

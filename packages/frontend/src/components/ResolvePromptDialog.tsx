@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "./ui/Button";
 import { Dialog } from "./ui/Dialog";
 import { Input } from "./ui/Input";
@@ -7,7 +8,8 @@ import { Skeleton } from "./ui/Skeleton";
 import { useToast } from "./Toasts";
 import { JsonTree, collectMatches } from "./GraphTree";
 import { useRulesetSession } from "../hooks/useRulesetSession";
-import { fetchSignatures, type GenMeta, type RuleField } from "../lib/gen";
+import type { GenMeta } from "../lib/gen";
+import { signaturesQuery, type RuleField } from "../lib/rules";
 import { cn } from "../lib/cn";
 import { errorText } from "../lib/api";
 
@@ -38,6 +40,7 @@ export function ResolvePromptDialog({
   onSaved: () => void;
 }) {
   const { push } = useToast();
+  const qc = useQueryClient();
   const [field, setField] = useState<Side>(first);
   const [query, setQuery] = useState("");
   const [missing, setMissing] = useState(false);
@@ -65,7 +68,7 @@ export function ResolvePromptDialog({
     if (!open || !sig) return;
     let live = true;
     setMissing(false);
-    fetchSignatures()
+    qc.fetchQuery({ ...signaturesQuery, staleTime: 0 })
       .then((rows) => {
         const row = rows.find((r) => r.workflow_sig === sig);
         if (live && row) void selectRef.current(row);
@@ -82,7 +85,7 @@ export function ResolvePromptDialog({
     return () => {
       live = false;
     };
-  }, [open, sig]);
+  }, [open, sig, qc]);
 
   // Where each field's text was guessed from, unless it is pinned already.
   const marks = useMemo(() => {

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useRulesetSession } from "./useRulesetSession";
-import type { SignatureRow } from "../lib/gen";
+import type { SignatureRow } from "../lib/rules";
 
 const gen = vi.hoisted(() => ({
   fetchRuleset: vi.fn(),
@@ -10,8 +10,8 @@ const gen = vi.hoisted(() => ({
   deleteRuleset: vi.fn(),
 }));
 
-vi.mock("../lib/gen", async (orig) => ({
-  ...(await orig<typeof import("../lib/gen")>()),
+vi.mock("../lib/rules", async (orig) => ({
+  ...(await orig<typeof import("../lib/rules")>()),
   ...gen,
 }));
 
