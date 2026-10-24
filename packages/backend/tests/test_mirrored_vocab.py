@@ -71,7 +71,7 @@ def test_merge_kinds_match():
     order = re.search(r"KIND_ORDER[^=]*= \[([^\]]*)\]", _src("mergeSuggestions.ts"))
     assert order
     assert set(_quoted(order.group(1))) == kinds
-    union = re.search(r"export type MergeKind = ([^;]+);", _src("queries.ts"))
+    union = re.search(r"export type MergeKind = ([^;]+);", _src("queries/tags.ts"))
     assert union
     assert set(_quoted(union.group(1))) == kinds
 
