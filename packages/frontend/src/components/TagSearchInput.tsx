@@ -1,6 +1,5 @@
 import {
   forwardRef,
-  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -10,6 +9,7 @@ import { X, Search } from "lucide-react";
 import { formatSearchTag } from "../lib/tags";
 import { TagSuggestList } from "./TagSuggestList";
 import { resourceLabel, type TagSuggestion } from "../lib/tagSuggest";
+import { useDismiss } from "../hooks/useDismiss";
 import { useSuggestNav, useTagMatches } from "../hooks/useSuggestNav";
 
 export type { TagSuggestion };
@@ -89,15 +89,8 @@ export const TagSearchInput = forwardRef<HTMLInputElement, Props>(
       }
     };
 
-    // Close the dropdown on outside click.
-    useEffect(() => {
-      if (!open) return;
-      const onDown = (e: MouseEvent) => {
-        if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
-      };
-      document.addEventListener("mousedown", onDown);
-      return () => document.removeEventListener("mousedown", onDown);
-    }, [open]);
+    // Close the dropdown on an outside press (Escape is the list's, above).
+    useDismiss(wrapRef, () => setOpen(false), open, { escape: false });
 
     return (
       <div ref={wrapRef} className="relative">

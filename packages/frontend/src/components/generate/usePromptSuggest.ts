@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent, type RefObject } from "react";
+import { useCallback, useMemo, useState, type KeyboardEvent, type RefObject } from "react";
 import { caretOffset } from "../../lib/caret";
 import { useTagCovers } from "../../lib/tagSamples";
 import { useCharacterNames } from "../../lib/generate";
 import { replaceTerm, termAt, type Term } from "../../lib/promptEdit";
 import { toPromptText } from "../../lib/tags";
 import type { TagSuggestion } from "../../lib/tagSuggest";
+import { useDismiss } from "../../hooks/useDismiss";
 import { useSuggestNav, useTagMatches } from "../../hooks/useSuggestNav";
 
 const LIST_W = 320;
@@ -65,14 +66,8 @@ export function usePromptSuggest({
     nav.reset();
   };
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setTerm(null);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open, wrapRef]);
+  // An outside press drops the term; keys are the list's (onKeyDown below).
+  useDismiss(wrapRef, () => setTerm(null), open, { escape: false });
 
   const pick = (s: TagSuggestion) => {
     if (!term) return;

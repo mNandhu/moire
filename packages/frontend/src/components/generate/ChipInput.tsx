@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { displayWord, isEmbedding } from "../../lib/compose";
@@ -6,6 +6,7 @@ import { tagName } from "../../lib/tags";
 import { useChipBorderStyle } from "../../hooks/useTagMarks";
 import { TagSuggestList } from "../TagSuggestList";
 import type { TagSuggestion } from "../../lib/tagSuggest";
+import { useDismiss } from "../../hooks/useDismiss";
 import { useSuggestNav, useTagMatches } from "../../hooks/useSuggestNav";
 
 /** Typed text as a chip: canonical underscores for tags; embeddings as typed. */
@@ -70,14 +71,8 @@ export function ChipInput({
   };
   const remove = (chip: string) => onChange(value.filter((c) => c !== chip));
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
+  // Escape is the suggestion list's (useSuggestNav); this is the outside press.
+  useDismiss(wrapRef, () => setOpen(false), open, { escape: false });
 
   const nav = useSuggestNav({
     matches,
