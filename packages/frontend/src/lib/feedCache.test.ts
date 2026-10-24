@@ -227,6 +227,94 @@ describe("writeImageFields", () => {
   });
 });
 
+describe("writeImageFields with overlapping writes", () => {
+  const key = ["images", 60, { tags: [] }];
+  const deferred = () => {
+    let resolve!: () => void;
+    let reject!: (e: unknown) => void;
+    const promise = new Promise<void>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+  const shown = (qc: QueryClient) => ({
+    tile: pagesOf(qc, key)[0][0].score,
+    doc: (qc.getQueryData(imageDocKey("a")) as ImageDoc).score,
+  });
+  /** Score 3 then score 4, both still in flight. */
+  async function twoWrites() {
+    const qc = seededClient();
+    qc.setQueryData(imageDocKey("a"), doc("a", 0));
+    const w3 = deferred();
+    const w4 = deferred();
+    const p3 = writeImageFields(qc, "a", { score: 3 }, () => w3.promise);
+    await new Promise((r) => setTimeout(r, 0));
+    const p4 = writeImageFields(qc, "a", { score: 4 }, () => w4.promise);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(shown(qc)).toEqual({ tile: 4, doc: 4 });
+    return { qc, w3, w4, p3: p3.catch((e) => e), p4: p4.catch((e) => e) };
+  }
+
+  it("an earlier write that succeeds late never brings its value back", async () => {
+    const { qc, w3, w4, p3, p4 } = await twoWrites();
+    w3.resolve();
+    await p3;
+    expect(shown(qc)).toEqual({ tile: 4, doc: 4 });
+    w4.resolve();
+    await p4;
+    expect(shown(qc)).toEqual({ tile: 4, doc: 4 });
+  });
+
+  it("an earlier write that fails leaves the newer value alone", async () => {
+    const { qc, w3, w4, p3, p4 } = await twoWrites();
+    w3.reject(new Error("3 failed"));
+    await p3;
+    expect(shown(qc)).toEqual({ tile: 4, doc: 4 });
+    w4.resolve();
+    await p4;
+    expect(shown(qc)).toEqual({ tile: 4, doc: 4 });
+  });
+
+  it("when both fail the value goes back to what it was before either", async () => {
+    const { qc, w3, w4, p3, p4 } = await twoWrites();
+    w3.reject(new Error("3 failed"));
+    await p3;
+    w4.reject(new Error("4 failed"));
+    await p4;
+    expect(shown(qc)).toEqual({ tile: 0, doc: 0 });
+  });
+
+  it("the newer write failing falls back to the earlier one still in flight, then to its outcome", async () => {
+    const { qc, w3, w4, p3, p4 } = await twoWrites();
+    w4.reject(new Error("4 failed"));
+    await p4;
+    expect(shown(qc)).toEqual({ tile: 3, doc: 3 });
+    w3.resolve();
+    await p3;
+    expect(shown(qc)).toEqual({ tile: 3, doc: 3 });
+  });
+
+  it("the newer write failing after the earlier one succeeded shows the earlier value", async () => {
+    const { qc, w3, w4, p3, p4 } = await twoWrites();
+    w3.resolve();
+    await p3;
+    w4.reject(new Error("4 failed"));
+    await p4;
+    expect(shown(qc)).toEqual({ tile: 3, doc: 3 });
+  });
+
+  it("a later write starts from the server's value once the earlier ones settled", async () => {
+    const { qc, w3, w4, p3, p4 } = await twoWrites();
+    w3.resolve();
+    w4.resolve();
+    await p3;
+    await p4;
+    await expect(writeImageFields(qc, "a", { score: 5 }, () => Promise.reject(new Error("x")))).rejects.toThrow("x");
+    expect(shown(qc)).toEqual({ tile: 4, doc: 4 });
+  });
+});
+
 describe("patches never fake freshness", () => {
   it("keeps a pending invalidation and the fetch time when patching", () => {
     const qc = seededClient();

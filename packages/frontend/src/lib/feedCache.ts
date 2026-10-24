@@ -13,7 +13,10 @@
  */
 
 import type { InfiniteData, Query, QueryClient } from "@tanstack/react-query";
-import { IMAGE_STATS_KEY, TAGS_KEY, imageEmbeddingsQuery, imageLorasQuery, imageModelsQuery } from "./queries";
+// From the domain modules, not "./queries": that re-exports lib/libraries.ts,
+// which imports this module.
+import { IMAGE_STATS_KEY, imageEmbeddingsQuery, imageLorasQuery, imageModelsQuery } from "./queries/images";
+import { TAGS_KEY } from "./queries/tags";
 import type { ImageDoc } from "./imageFilter";
 import { IMAGE_FEED_PREFIX, IMAGE_GROUPS_PREFIX, imageDocKey, type FeedPage } from "./imageApi";
 
@@ -168,6 +171,59 @@ export function patchImageEverywhere(
   };
 }
 
+/** One write in flight for one field of one image. */
+type FieldWrite = { seq: number; value: unknown };
+/** A field's writes in flight, and the last value the server confirmed (or the
+ * one cached before the first write; `NONE` where that place held no copy). */
+type FieldWrites = {
+  pending: FieldWrite[];
+  base: { seq: number; tile: unknown; doc: unknown };
+};
+const NONE = Symbol("none");
+const fieldWrites = new WeakMap<QueryClient, Map<string, FieldWrites>>();
+let writeSeq = 0;
+
+function writesOf(qc: QueryClient): Map<string, FieldWrites> {
+  let m = fieldWrites.get(qc);
+  if (!m) fieldWrites.set(qc, (m = new Map()));
+  return m;
+}
+
+/** The image as the first cached feed or grouped view holding it has it. */
+function cachedTile(qc: QueryClient, id: string): ImageDoc | undefined {
+  for (const q of feedQueries(qc)) {
+    const hit = (q.state.data as FeedData | undefined)?.pages.flatMap((p) => p.items).find((d) => d._id === id);
+    if (hit) return hit;
+  }
+  for (const q of groupQueries(qc)) {
+    const hit = (q.state.data as GroupsData | undefined)?.pages.flat().find((d) => d._id === id);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
+/** Set fields on the tiles and on the doc; with `onlyWhile`, only a field that
+ * still holds that value (so a refetch that landed meanwhile is kept). */
+function setFields(
+  qc: QueryClient,
+  id: string,
+  docId: string,
+  tile: Partial<ImageDoc>,
+  doc: Partial<ImageDoc>,
+  onlyWhile?: Partial<ImageDoc>,
+): void {
+  const apply = (cur: ImageDoc, vals: Partial<ImageDoc>) => {
+    const ks = (Object.keys(vals) as (keyof ImageDoc)[]).filter(
+      (k) => cur[k] !== vals[k] && (!onlyWhile || cur[k] === onlyWhile[k]),
+    );
+    return ks.length ? { ...cur, ...Object.fromEntries(ks.map((k) => [k, vals[k]])) } : cur;
+  };
+  if (Object.keys(tile).length) patchImageInFeeds(qc, id, (d) => apply(d, tile));
+  const q = qc.getQueryCache().find({ queryKey: imageDocKey(docId), exact: true });
+  const cur = q?.state.data as ImageDoc | undefined;
+  if (q && cur && Object.keys(doc).length) patchData(q, apply(cur, doc));
+}
+
 /**
  * Write fields of one image optimistically: shown at once everywhere it is
  * cached, `write` awaited, then patched again (a feed or doc fetch that
@@ -175,6 +231,12 @@ export function patchImageEverywhere(
  * On failure the patch is undone and the error rethrown. A doc fetch already
  * in flight is cancelled first, or it would land after the patch and undo it.
  * `docId` as in patchImageEverywhere.
+ *
+ * Writes to the same field of the same image may overlap (score 3, then 4,
+ * before the first returns): only the newest one still standing decides what
+ * shows. An older write settling late neither re-patches nor undoes; a failed
+ * newest write falls back to the next newest in flight, else to the last value
+ * the server confirmed.
  */
 export async function writeImageFields(
   qc: QueryClient,
@@ -184,14 +246,49 @@ export async function writeImageFields(
   docId: string = id,
 ): Promise<void> {
   await qc.cancelQueries({ queryKey: imageDocKey(docId), exact: true });
-  const undo = patchImageEverywhere(qc, id, fields, docId);
+  const seq = ++writeSeq;
+  const keys = Object.keys(fields) as (keyof ImageDoc)[];
+  const writes = writesOf(qc);
+  const tile0 = cachedTile(qc, id);
+  const doc0 = qc.getQueryData<ImageDoc>(imageDocKey(docId));
+  for (const k of keys) {
+    const sk = `${id}\0${k}`;
+    let w = writes.get(sk);
+    if (!w) {
+      w = { pending: [], base: { seq: 0, tile: tile0 ? tile0[k] : NONE, doc: doc0 ? doc0[k] : NONE } };
+      writes.set(sk, w);
+    }
+    w.pending.push({ seq, value: fields[k] });
+  }
+  setFields(qc, id, docId, fields, fields);
+
+  let failure: { e: unknown } | null = null;
   try {
     await write();
   } catch (e) {
-    undo();
-    throw e;
+    failure = { e };
   }
-  patchImageEverywhere(qc, id, fields, docId);
+
+  const tile: Record<string, unknown> = {};
+  const doc: Record<string, unknown> = {};
+  for (const k of keys) {
+    const sk = `${id}\0${k}`;
+    const w = writes.get(sk)!;
+    w.pending = w.pending.filter((p) => p.seq !== seq);
+    if (!failure && seq > w.base.seq) w.base = { seq, tile: fields[k], doc: fields[k] };
+    const top = w.pending.reduce<FieldWrite | null>((a, p) => (!a || p.seq > a.seq ? p : a), null);
+    const winner = top && top.seq > w.base.seq ? { seq: top.seq, tile: top.value, doc: top.value } : w.base;
+    if (!w.pending.length) writes.delete(sk);
+    if (!failure ? winner.seq === seq : seq > winner.seq) {
+      if (winner.tile !== NONE) tile[k] = winner.tile;
+      if (winner.doc !== NONE) doc[k] = winner.doc;
+    }
+  }
+  if (failure) {
+    setFields(qc, id, docId, tile, doc, fields);
+    throw failure.e;
+  }
+  setFields(qc, id, docId, tile, doc);
 }
 
 /** Drop one image from every cached feed (quarantine, purge). */
