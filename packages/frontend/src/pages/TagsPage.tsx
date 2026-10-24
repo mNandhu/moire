@@ -49,7 +49,7 @@ import { RenameTagDialog } from "../components/RenameTagDialog";
 import { MergeSuggestions } from "../components/MergeSuggestions";
 import { TagPanel } from "../components/TagPanel";
 import { Mosaic } from "../components/TagMosaic";
-import { tagSamplesQuery } from "../lib/tagSamples";
+import { TAG_SAMPLES_KEY, tagSamplesQuery } from "../lib/tagSamples";
 import type { Sample } from "../lib/queries";
 import { FaceCrop } from "../components/CharacterAvatar";
 import { useCharacterLookup, useCharacters } from "../lib/queries";
@@ -165,6 +165,7 @@ export default function TagsPage({ group }: { group?: string } = {}) {
 
   const afterTagWrite = () => {
     invalidateFeeds(queryClient);
+    queryClient.invalidateQueries({ queryKey: TAG_SAMPLES_KEY });
     queryClient.invalidateQueries({ queryKey: TAG_ALIASES_KEY });
     queryClient.invalidateQueries({ queryKey: MERGE_SUGGESTIONS_KEY });
   };
@@ -570,7 +571,7 @@ function TagGrid({
 }) {
   const characters = useCharacterLookup();
   // One request for the cards that asked in the same render; a changed list
-  // (a pinned cover, a rename) invalidates TAGS_KEY and the mosaics refresh.
+  // (a pinned cover, a rename) invalidates TAG_SAMPLES_KEY and the mosaics refresh.
   const ids = useMemo(
     () => rows.filter((t) => t.category !== "character").map((t) => galleryTag(t.tag, source)),
     [rows, source],

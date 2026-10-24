@@ -72,8 +72,8 @@ export function TagPanel({
     () => (detail?.related ?? []).filter((r) => !isBoilerplate(r.tag)).slice(0, RELATED),
     [detail, isBoilerplate],
   );
-  // The tag's mosaic, pinned cover first. Under TAGS_KEY, so pinning a new
-  // cover below refreshes it.
+  // The tag's mosaic, pinned cover first. Pinning a new cover refreshes it
+  // (usePinCover).
   const sampleId = galleryTag(tag, source);
   const imageFilters = useMemo(() => ({ ...DEFAULT_FILTERS, tags: [sampleId] }), [sampleId]);
   const { data: samples } = useTagSamples(sampleId);

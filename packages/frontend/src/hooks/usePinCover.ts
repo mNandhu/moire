@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "../components/Toasts";
 import { clearTagThumbnail, setTagThumbnail } from "../lib/imageMutations";
 import { TAGS_KEY } from "../lib/queries";
+import { TAG_SAMPLES_KEY } from "../lib/tagSamples";
 import { errorText } from "../lib/api";
 
 /**
@@ -23,7 +24,10 @@ export function usePinCover(noun: "avatar" | "cover") {
       try {
         if (unpin) await clearTagThumbnail(tag);
         else await setTagThumbnail(tag, imageId);
-        await qc.invalidateQueries({ queryKey: TAGS_KEY });
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: TAGS_KEY }),
+          qc.invalidateQueries({ queryKey: TAG_SAMPLES_KEY }),
+        ]);
         return true;
       } catch (e) {
         push(`Couldn't change the ${noun}: ${errorText(e)}`, "error");
