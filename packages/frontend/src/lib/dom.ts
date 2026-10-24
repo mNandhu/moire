@@ -22,3 +22,15 @@ export function isFormField(target: EventTarget | null): boolean {
 export function hasModifier(e: { ctrlKey: boolean; metaKey: boolean; altKey: boolean }): boolean {
   return e.ctrlKey || e.metaKey || e.altKey;
 }
+
+/**
+ * The nearest ancestor of `el` that scrolls vertically (overflow-y auto or
+ * scroll), or null when the page itself is the scroller.
+ */
+export function scrollParent(el: Element | null): HTMLElement | null {
+  for (let p = el?.parentElement ?? null; p; p = p.parentElement) {
+    const { overflowY } = getComputedStyle(p);
+    if (overflowY === "auto" || overflowY === "scroll") return p;
+  }
+  return null;
+}

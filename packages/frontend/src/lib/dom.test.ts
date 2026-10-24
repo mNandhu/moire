@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasModifier, isFormField } from "./dom";
+import { hasModifier, isFormField, scrollParent } from "./dom";
 
 function el(tag: string): HTMLElement {
   return document.createElement(tag);
@@ -33,5 +33,30 @@ describe("hasModifier", () => {
     expect(hasModifier({ ...k, ctrlKey: true })).toBe(true);
     expect(hasModifier({ ...k, metaKey: true })).toBe(true);
     expect(hasModifier({ ...k, altKey: true })).toBe(true);
+  });
+});
+
+describe("scrollParent", () => {
+  it("finds the nearest vertically scrolling ancestor", () => {
+    const outer = el("div");
+    outer.style.overflowY = "scroll";
+    const scroller = el("div");
+    scroller.style.overflowY = "auto";
+    const plain = el("div");
+    const leaf = el("div");
+    outer.append(scroller);
+    scroller.append(plain);
+    plain.append(leaf);
+    document.body.append(outer);
+    expect(scrollParent(leaf)).toBe(scroller);
+    outer.remove();
+  });
+
+  it("is null when nothing above scrolls", () => {
+    const leaf = el("div");
+    document.body.append(leaf);
+    expect(scrollParent(leaf)).toBeNull();
+    expect(scrollParent(null)).toBeNull();
+    leaf.remove();
   });
 });

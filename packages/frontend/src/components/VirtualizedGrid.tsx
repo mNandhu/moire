@@ -1,5 +1,6 @@
-import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import { ThumbnailTile } from "./ThumbnailTile";
+import { scrollParent } from "../lib/dom";
 import {
   columnWidth,
   gapForDensity,
@@ -88,6 +89,19 @@ export function VirtualizedGrid({
     return { cols: c, colWidth: columnWidth(wrapperWidth, c, g), gap: g };
   }, [wrapperWidth, density]);
 
+  // The element the grid scrolls in. The page's getter can come back empty:
+  // React attaches an ancestor's ref only after its children's layout effects,
+  // so when the page and the grid mount in one commit (back to the gallery
+  // with the feed cached) a getter reading a ref on the page sees null.
+  // Bailing then left the grid unmeasured for good: 0 wide, no tiles, no
+  // height, and the sentinel below it paging in the whole feed. The wrapper's
+  // own ref is attached by then, so walk up from it to the scroller. Every
+  // use below goes through here so they all agree on one element.
+  const resolveScroller = useCallback(
+    () => getScrollContainer?.() ?? scrollParent(wrapperRef.current),
+    [getScrollContainer],
+  );
+
   const recomputeLayout = (scrollEl: HTMLElement) => {
     const wrapper = wrapperRef.current;
     if (!wrapper) return;
@@ -110,7 +124,7 @@ export function VirtualizedGrid({
   // the list, before anything landed where it belonged. Measuring before paint
   // collapses all of that into one correct first frame.
   useLayoutEffect(() => {
-    const scrollEl = getScrollContainer?.();
+    const scrollEl = resolveScroller();
     const wrapper = wrapperRef.current;
     if (!scrollEl || !wrapper) return;
 
@@ -145,7 +159,7 @@ export function VirtualizedGrid({
       roScroll.disconnect();
       scrollEl.removeEventListener("scroll", handleScroll);
     };
-  }, [getScrollContainer]);
+  }, [resolveScroller]);
 
   const { tiles, columns, totalHeight } = useMemo(
     () => packColumns(items, cols, colWidth, gap),
@@ -171,14 +185,14 @@ export function VirtualizedGrid({
   useLayoutEffect(() => {
     if (!restoreScrollTop || totalHeight <= 0) return;
     if (restoredKeyRef.current === restoreScrollTop.key) return;
-    const scrollEl = getScrollContainer?.();
+    const scrollEl = resolveScroller();
     if (!scrollEl) return;
     restoredKeyRef.current = restoreScrollTop.key;
     const max = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
     const top = Math.min(restoreScrollTop.top, max);
     scrollEl.scrollTop = top;
     setScrollTop(top);
-  }, [restoreScrollTop, totalHeight, getScrollContainer]);
+  }, [restoreScrollTop, totalHeight, resolveScroller]);
 
   // Entrance animation for tiles a page-fetch just appended.
   //
@@ -211,7 +225,7 @@ export function VirtualizedGrid({
   // container so it shows (the layout knows every tile's y).
   useEffect(() => {
     if (focusedIndex < 0) return;
-    const scrollEl = getScrollContainer?.();
+    const scrollEl = resolveScroller();
     const tile = tiles[focusedIndex];
     if (!scrollEl || !tile) return;
     const top = wrapperTop + tile.y;
@@ -226,7 +240,7 @@ export function VirtualizedGrid({
         behavior: "smooth",
       });
     }
-  }, [focusedIndex, tiles, wrapperTop, getScrollContainer]);
+  }, [focusedIndex, tiles, wrapperTop, resolveScroller]);
 
   return (
     <div ref={wrapperRef} className={`relative ${className || ""}`}>
@@ -289,7 +303,7 @@ export function VirtualizedGrid({
                   dimQuarantined={dimQuarantined}
                   onOpen={onOpen}
                   onToggle={onToggle}
-                  getRoot={getScrollContainer}
+                  getRoot={resolveScroller}
                   eager
                   peekQuery={peekQuery}
                   focused={tile.index === focusedIndex}
