@@ -9,6 +9,7 @@ import {
 } from "../lib/backgroundTasks";
 import { AI_COVERAGE_KEY, LIBRARIES_KEY, TAGS_KEY } from "../lib/queries";
 import { AI_STATUS_KEY } from "../lib/ai";
+import { TAG_SAMPLES_KEY } from "../lib/tagSamples";
 import { IMAGE_DOC_PREFIX, invalidateFeeds } from "../lib/feedCache";
 
 export const BACKGROUND_TASKS_KEY = ["activity"] as const;
@@ -70,6 +71,7 @@ export function useRefreshOnFinish() {
       // counts, so work that started and ended between polls, or while the
       // tab was hidden, still shows up here.
       invalidateFeeds(qc);
+      void qc.invalidateQueries({ queryKey: TAG_SAMPLES_KEY });
     }
     if (ended.has("ai_job")) {
       // The open image's doc (ImageView) and every cached one: their tags changed.
@@ -81,10 +83,12 @@ export function useRefreshOnFinish() {
       // Prompt tags were re-derived: the open image and the gallery show them.
       void qc.invalidateQueries({ queryKey: IMAGE_DOC_PREFIX });
       invalidateFeeds(qc);
+      void qc.invalidateQueries({ queryKey: TAG_SAMPLES_KEY });
     }
     // Library work's and a reprojection's tag refresh is in invalidateFeeds above.
     if (["ai_job", "faces"].some((k) => ended.has(k))) {
       void qc.invalidateQueries({ queryKey: TAGS_KEY });
+      void qc.invalidateQueries({ queryKey: TAG_SAMPLES_KEY });
     }
   }, [data, qc]);
 }
