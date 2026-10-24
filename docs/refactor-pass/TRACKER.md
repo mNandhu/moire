@@ -69,15 +69,15 @@ P1 review fixes: frontend 8b15822, e193bb0, 76994ac (one `removeTerms` helper fo
 - [x] **L3.3** api() has no JSON-body form: 21 hand-written Content-Type/JSON.stringify blocks and 5 private post/send helpers, plus 12 raw fetches with their own !ok handling (dedupe, M, L4), done 89b3797, 9ad6e39
 - [x] **L3.4** Global keyboard handling is re-implemented in 12 window/document listeners with inconsistent guards; help table is a separate hand-kept copy (simplify, M, L4), done ad7a4b1 (help table still hand-kept)
 - [x] **S10.3** PromptBoard: raw API fetch in a component, placement logic untested in-component, duplicated tag-cover map (boundary, M, L4, TW), done a0f734d
-- [ ] **S2.3** Character query hooks live in a component file imported by 10 modules (boundary, S, L3)
-- [ ] **S7.8** Same signatures query inlined in 3 components plus 2 manual fetches; ruleset API sits in lib/gen.ts with raw fetch (boundary, S, L3)
+- [x] **S2.3** Character query hooks live in a component file imported by 10 modules (boundary, S, L3), done 97b910e
+- [x] **S7.8** Same signatures query inlined in 3 components plus 2 manual fetches; ruleset API sits in lib/gen.ts with raw fetch (boundary, S, L3), done e323af0
 - [x] **S5.5** Frontend library writes (create, edit, delete, rescan) are spread over four files with inconsistent cache invalidation (dedupe, S, L3), done 51a86c7
 - [x] **S12.4** Tag-add combobox is written twice (AddTagInput, AttireTagInput) with a third weaker canonicalizer in NewCharacterDialog (dedupe, S, L3), done 9bf4d55
 - [x] **L3.6** Query keys and invalidation bundles are scattered: bare-string keys, a duplicate of invalidateFeeds, and the same 2-3 invalidations pasted at 5+ sites (dedupe, S, L3), done 1f08d97
-- [ ] **S2.4** TagPanel doubles as a shared-widget module; image grid and Made-with block cloned in CharacterPage (dedupe, M, L3)
+- [x] **S2.4** TagPanel doubles as a shared-widget module; image grid and Made-with block cloned in CharacterPage (dedupe, M, L3), done 865670f
 - [x] **S1.4** imageFilter.ts mixes URL codec, API client and search-term logic; the gallery uses raw api() for tags, ids and a hand-rolled libraries poll (boundary, M, L3), done 3d1f35a
 - [x] **S5.4** LibrariesPage runs its own raw-fetch progress poller beside useLibraries, which already polls the same fields (boundary, M, L3), done 51a86c7
-- [ ] **S4.3** /tags/samples fetched by hand in three places; Sample type lives in a component file (dedupe, M, L3)
+- [x] **S4.3** /tags/samples fetched by hand in three places; Sample type lives in a component file (dedupe, M, L3), done a5bf46e
 - [x] **S4.6** Suggestion-list keyboard nav and ranking copied across about 8 inputs; rankSuggestions/resourceLabel live in a component file (deepen, M, L3), done 9bf4d55
 - [x] **L3.5** localStorage preferences hand-rolled in 14 places, two with no try/catch (gallery render can throw), keys use two naming schemes (dedupe, M, L3), done 1b377e8
 - [x] **L3.7** Tag autocomplete text input is written five times (active index, moved flag, arrow/Tab/Enter/comma/Escape handling) (dedupe, M, L3), done 9bf4d55
@@ -88,16 +88,16 @@ P1 review fixes: frontend 8b15822, e193bb0, 76994ac (one `removeTerms` helper fo
 - [x] **S2.10** Two hand-rolled localStorage external stores for view prefs (useTagMarks vs DETAIL_TAB_KEY) (dedupe, S, L2), done 1b377e8
 - [x] **S7.9** BoilerplateSection and PromptGuessSection are the same chip-list editor written twice (dedupe, S, L2), done 988c006
 - [x] **S1.8** useFilters reads and writes localStorage unguarded, unlike every sibling view-pref hook (invariant, S, L2), done 1b377e8
-- [ ] **S12.8** Outfit hooks live in component files and OutfitMenu re-implements the outfit queries inline (boundary, S, L2)
+- [x] **S12.8** Outfit hooks live in component files and OutfitMenu re-implements the outfit queries inline (boundary, S, L2), done 61cda05 (OutfitMenu not split into its own file)
 - [x] **S6.7** Generic formatters live in domain modules: two formatDuration with different output, formatBytes inside a React context file (naming, S, L2), done 3a354c8
 - [x] **L3.8** Click-outside + Escape popover dismissal reimplemented in 8 components (dedupe, S, L2), done a20ff0a
 - [x] **S11.8** Three time formatters for the same job: eta.clock, queueClock.countdown, batches.durationLabel/etaShort (dedupe, S, L2), done 3a354c8
-- [ ] **S9.7** Workflow-file import flow is written twice and lib/workflows.ts uses raw fetch (dedupe, S, L2)
+- [x] **S9.7** Workflow-file import flow is written twice and lib/workflows.ts uses raw fetch (dedupe, S, L2), done 62b2da6
 - [x] **L3.9** Pending-save handling split between 12 useMutation sites and 14 hand-rolled saving/busy flags; dialog footers and 'Saving…' buttons are copied (dedupe, M, L2), done 8603a87 (Generate area only)
 - [x] **S10.9** Two parallel preset pickers and dialogs (prompt preset vs LoRA preset), plus a hand-rolled menu in AddLayer (dedupe, M, L2), done 40f3186
 - [x] **S11.6** BatchResults.tsx (510 lines): review tile, running-cell view logic, failure labels and strip picker in one file; Tile keys ignore modifiers (split, M, L2), done e5d9868
 
-P2 status: wave 1 merged (51a86c7..d5f0fb6) and the Generate batch (a0f734d..8603a87); none code-reviewed yet. Open: S2.3, S12.8, S7.8, S4.3, S9.7, S2.4 and the useDismiss move for ChipInput/TagSearchInput/usePromptSuggest (agent E). Left from finished items:
+P2 status: wave 1 merged (51a86c7..d5f0fb6) and the Generate batch (a0f734d..8603a87); plus the boundary moves (97b910e..7fa40ee, incl. useDismiss for the last three inputs). Wave 1 reviewed; fixes in flight. Generate batch + boundary moves review pending. Left from finished items:
 - L3.9 outside Generate: TagEditDialog, CharacterEditDialog (stuck `saving` flag), NewCharacterDialog, RenameTagDialog, BulkTagDialog and six settings sections still hand-roll save flags; use `Button pending` + `DialogFooter` from ui/Dialog.tsx.
 - S11.5: one backend `POST /batches/{id}/retry-failed` would replace the client retry loop.
 - libraries.ts `invalidateImageCaches` refreshes only the feed and groups, not the full invalidateFeeds set.
