@@ -41,8 +41,7 @@ import { fetchImage } from "../lib/imageApi";
 import { galleryHref } from "../lib/imageFilter";
 import {
   groupWorkflows,
-  importWorkflowFiles,
-  parseWorkflowFile,
+  readWorkflowFiles,
   putWorkflowName,
 } from "../lib/workflows";
 import { Input } from "../components/ui/Input";
@@ -202,16 +201,13 @@ export default function RulesPage() {
         if (list && Array.from(list).length) push("No .json files in that selection", "info");
         return;
       }
-      const parsed = (
-        await Promise.all(picked.map(async (f) => parseWorkflowFile(await f.text(), f.name)))
-      ).filter((w): w is NonNullable<typeof w> => w !== null);
-      const skipped = picked.length - parsed.length;
-      if (!parsed.length) {
-        push("No ComfyUI workflow files found (use the saved .json, not an API export)", "error");
-        return;
-      }
       try {
-        const { imported, known } = await importWorkflowFiles(parsed);
+        const { parsed, imported, known } = await readWorkflowFiles(picked);
+        if (!parsed.length) {
+          push("No ComfyUI workflow files found (use the saved .json, not an API export)", "error");
+          return;
+        }
+        const skipped = picked.length - parsed.length;
         loadSignatures();
         push(
           `Imported ${imported} ${imported === 1 ? "file" : "files"}` +

@@ -260,3 +260,18 @@ export async function importWorkflowFiles(
   }
   return { imported, known: known.size };
 }
+
+/** Read workflow `.json` files in the browser (only id, name and node types
+ * leave it) and import the ones that are ComfyUI workflows. `parsed` is
+ * what was importable; the rest of `files` were not workflows. Nothing is
+ * sent when none parse. */
+export async function readWorkflowFiles(
+  files: readonly File[],
+  importFiles: typeof importWorkflowFiles = importWorkflowFiles,
+): Promise<{ parsed: WorkflowFile[]; imported: number; known: number }> {
+  const parsed = (await Promise.all(files.map(async (f) => parseWorkflowFile(await f.text(), f.name)))).filter(
+    (w): w is WorkflowFile => w !== null,
+  );
+  if (!parsed.length) return { parsed, imported: 0, known: 0 };
+  return { parsed, ...(await importFiles(parsed)) };
+}

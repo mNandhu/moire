@@ -5,7 +5,7 @@ import { errorText } from "../../lib/api";
 import { filesFromDrop } from "../../lib/dropFiles";
 import { GEN_KEY, putSettings, testConnection } from "../../lib/generate";
 import { plural } from "../../lib/onboarding";
-import { importWorkflowFiles, parseWorkflowFile } from "../../lib/workflows";
+import { readWorkflowFiles } from "../../lib/workflows";
 import { cn } from "../../lib/cn";
 import { Group, Help, InlineField, Optional, StatusLine, StepHeading } from "./parts";
 
@@ -81,10 +81,7 @@ export function ComfyStep({
     const json = files.filter((f) => isJson(f.name));
     setReading(true);
     try {
-      const parsed = (await Promise.all(json.map(async (f) => parseWorkflowFile(await f.text(), f.name)))).filter(
-        (w): w is NonNullable<typeof w> => w !== null,
-      );
-      if (parsed.length) await importWorkflowFiles(parsed);
+      const { parsed } = await readWorkflowFiles(json);
       setWorkflows({
         from,
         items: parsed.map((w) => ({ name: w.filename, nodes: w.node_types.length })),

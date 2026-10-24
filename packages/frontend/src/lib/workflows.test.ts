@@ -1,10 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { SignatureRow } from "./rules";
 import {
   fileStem,
   formatUsedRange,
   groupWorkflows,
   parseWorkflowFile,
+  readWorkflowFiles,
+  type WorkflowFile,
   versionLabel,
   workflowFilterName,
 } from "./workflows";
@@ -190,5 +192,25 @@ describe("workflowFilterName", () => {
     // A one-version family needs no version title.
     expect(workflowFilterName(fams, { workflowSig: "solo" })).toBe("Upscaler");
     expect(workflowFilterName(fams, { workflow: "gone" })).toBeUndefined();
+  });
+});
+
+describe("readWorkflowFiles", () => {
+  const file = (name: string, body: unknown) => new File([JSON.stringify(body)], name);
+  const wf = { id: "w1", nodes: [{ type: "KSampler" }] };
+
+  it("imports only the files that are workflows and reports what parsed", async () => {
+    const send = vi.fn(async (_: WorkflowFile[]) => ({ imported: 1, known: 1 }));
+    const res = await readWorkflowFiles([file("a.json", wf), file("api.json", { "3": {} })], send);
+    expect(send).toHaveBeenCalledWith([{ workflow_id: "w1", filename: "a", node_types: ["KSampler"] }]);
+    expect(res.parsed.map((p) => p.filename)).toEqual(["a"]);
+    expect([res.imported, res.known]).toEqual([1, 1]);
+  });
+
+  it("sends nothing when no file is a workflow", async () => {
+    const send = vi.fn(async (_: WorkflowFile[]) => ({ imported: 0, known: 0 }));
+    const res = await readWorkflowFiles([file("api.json", { "3": {} })], send);
+    expect(send).not.toHaveBeenCalled();
+    expect(res).toEqual({ parsed: [], imported: 0, known: 0 });
   });
 });
