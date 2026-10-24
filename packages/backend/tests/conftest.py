@@ -8,6 +8,7 @@ wired to the ASGI app.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import httpx
@@ -21,6 +22,29 @@ from moire.database import schema as t
 from moire.services import image_tags, tag_index
 
 
+@pytest.fixture(scope="session", autouse=True)
+def isolated_storage(tmp_path_factory):
+    """Keep the whole run off the real DB and thumbnail folder.
+
+    `temp_db` points the engines at a per-test file, but a test that writes
+    without it (or code that builds an engine before it runs) used the
+    configured paths, so fixture rows like `L1:a` ended up in the real
+    gallery. Logs go with them. The session DB gets the schema, since tests
+    without `temp_db` read it; the engines are dropped again after, so none
+    stays bound to this setup's event loop."""
+    root = tmp_path_factory.mktemp("moire")
+    settings.sqlite_path = str(root / "session.db")
+    settings.thumb_root = str(root / "thumbs")
+    settings.log_dir = str(root / "logs")
+
+    async def _setup():
+        await db.reset_engines()
+        await db.ensure_schema()
+        await db.reset_engines()
+
+    asyncio.run(_setup())
+
+
 @pytest.fixture(autouse=True)
 def fresh_tag_index():
     """The tag index cache is module-global; drop it around every test so a
@@ -32,13 +56,18 @@ def fresh_tag_index():
 
 @pytest_asyncio.fixture
 async def temp_db(tmp_path: Path):
-    """Point the engines at a fresh temp-file DB and create the schema."""
+    """Point the engines at a fresh temp-file DB and create the schema.
+
+    Puts the session paths back afterwards, so a later test without this
+    fixture lands on the session DB, not this test's leftovers."""
+    saved = settings.sqlite_path, settings.thumb_root
     settings.sqlite_path = str(tmp_path / "test.db")
     settings.thumb_root = str(tmp_path / "thumbs")
     await db.reset_engines()
     await db.ensure_schema()
     yield
     await db.reset_engines()
+    settings.sqlite_path, settings.thumb_root = saved
 
 
 @pytest_asyncio.fixture
