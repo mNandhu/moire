@@ -1,17 +1,20 @@
 import { useMemo } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { BookOpen, ExternalLink, Pencil, Tag as TagIcon, UserRound, X } from "lucide-react";
 import { Badge } from "./ui/Badge";
 import { Button, ButtonAnchor, ButtonLink } from "./ui/Button";
 import { Skeleton } from "./ui/Skeleton";
 import { Mosaic } from "./TagMosaic";
+import { MadeWithChips } from "./tagstats/MadeWithChips";
+import { MonthChart } from "./tagstats/MonthChart";
+import { PinnableImageGrid } from "./tagstats/PinnableImageGrid";
 import { useTagSamples } from "../lib/tagSamples";
 import { useToast } from "./Toasts";
 import { errorText } from "../lib/api";
 import { cn } from "../lib/cn";
 import { useSignatures } from "../lib/rules";
-import { DEFAULT_FILTERS, galleryHref, imageHref } from "../lib/imageFilter";
+import { DEFAULT_FILTERS, galleryHref } from "../lib/imageFilter";
 import { updateCharacter } from "../lib/imageMutations";
 import { characterHref, tagHref } from "../lib/character";
 import { CharacterAvatar } from "./CharacterAvatar";
@@ -20,18 +23,10 @@ import { TAGS_KEY, useBoilerplate, useTagDescription, useTagDetail, useTagGroups
 import { groupHref, groupLabel, groupOf } from "../lib/tagGroups";
 import { danbooruWikiUrl, formatTag, onDanbooru } from "../lib/tags";
 import { groupWorkflows, formatUsedRange } from "../lib/workflows";
-import { useImageFeed } from "../hooks/useImageFeed";
-import { usePinCover } from "../hooks/usePinCover";
-import { PendingVeil, PinButton } from "./PinButton";
-import { withBackgroundLocation } from "../lib/backgroundLocation";
 import {
   galleryTag,
-  monthLabel,
-  chartMonths,
-  recentMonths,
   renamableTags,
   tagWorkflows,
-  type TagDetail,
   type TagSource,
 } from "../lib/tagBrowse";
 
@@ -80,6 +75,7 @@ export function TagPanel({
   // The tag's mosaic, pinned cover first. Under TAGS_KEY, so pinning a new
   // cover below refreshes it.
   const sampleId = galleryTag(tag, source);
+  const imageFilters = useMemo(() => ({ ...DEFAULT_FILTERS, tags: [sampleId] }), [sampleId]);
   const { data: samples } = useTagSamples(sampleId);
   const share = (n: number) => `${Math.round((n / (detail?.count || 1)) * 100)}%`;
   const qc = useQueryClient();
@@ -203,7 +199,15 @@ export function TagPanel({
       </div>
 
       {detail && (
-        <TagImages tag={tag} source={source} count={detail.count} pinned={detail.thumb_image_id} />
+        <PinnableImageGrid
+          filters={imageFilters}
+          pinTag={tag}
+          pinned={detail.thumb_image_id}
+          noun="cover"
+          count={detail.count}
+          pageSize={PICK_PAGE}
+          variant="panel"
+        />
       )}
 
       {!detail ? (
@@ -215,50 +219,13 @@ export function TagPanel({
         <>
           <MonthChart first={detail.first_used} months={detail.months} />
 
-          {(detail.loras.length > 0 || detail.embeddings.length > 0 || workflows.length > 0) && (
-            <section className="space-y-2">
-              <h3 className="text-2xs uppercase tracking-wider text-faint">Made with</h3>
-              {detail.loras.length > 0 && (
-                <ChipRow label="LoRA">
-                  {detail.loras.map((l) => (
-                    <Chip
-                      key={l.name}
-                      to={galleryHref({ lora: [l.name] })}
-                      title={`${l.count.toLocaleString()} images`}
-                      label={l.name}
-                      share={share(l.count)}
-                    />
-                  ))}
-                </ChipRow>
-              )}
-              {detail.embeddings.length > 0 && (
-                <ChipRow label="Embedding">
-                  {detail.embeddings.map((e) => (
-                    <Chip
-                      key={e.name}
-                      to={galleryHref({ embedding: [e.name] })}
-                      title={`${e.count.toLocaleString()} images`}
-                      label={e.name}
-                      share={share(e.count)}
-                    />
-                  ))}
-                </ChipRow>
-              )}
-              {workflows.length > 0 && (
-                <ChipRow label="Workflow">
-                  {workflows.map((w) => (
-                    <Chip
-                      key={JSON.stringify(w.filter)}
-                      to={galleryHref(w.filter)}
-                      title={`${w.count.toLocaleString()} images`}
-                      label={w.name}
-                      share={share(w.count)}
-                    />
-                  ))}
-                </ChipRow>
-              )}
-            </section>
-          )}
+          <MadeWithChips
+            loras={detail.loras}
+            embeddings={detail.embeddings}
+            workflows={workflows}
+            total={detail.count}
+            heading="h3"
+          />
 
           {related.length > 0 && (
             <section>
@@ -283,149 +250,5 @@ export function TagPanel({
         </>
       )}
     </aside>
-  );
-}
-
-/** Images per month: up to two years, the latest month lit. */
-export function MonthChart({
-  first,
-  months: counted,
-  accent,
-}: {
-  first: number | null;
-  months: TagDetail["months"];
-  /** The bars' colour; the brand's by default. */
-  accent?: string;
-}) {
-  const months = useMemo(() => recentMonths(counted, chartMonths(first)), [counted, first]);
-  const peak = Math.max(1, ...months.map((m) => m.count));
-  const charted = months.reduce((n, m) => n + m.count, 0);
-  return (
-    <section>
-      <h3 className="text-2xs uppercase tracking-wider text-faint mb-2">
-        {months.length} months · {charted.toLocaleString()} {charted === 1 ? "image" : "images"}
-      </h3>
-      <div className="flex items-end gap-1 h-14" role="img" aria-label={`Images per month over the last ${months.length} months`}>
-        {months.map((m, i) => {
-          const last = i === months.length - 1;
-          return (
-            <div
-              key={m.month}
-              title={`${monthLabel(m.month)}: ${m.count.toLocaleString()}`}
-              className={cn(
-                "flex-1 rounded-sm",
-                !m.count ? "bg-line" : accent ? "" : last ? "bg-brand-300" : "bg-brand-600/70",
-              )}
-              style={{
-                height: m.count ? `${Math.max(8, (m.count / peak) * 100)}%` : "2px",
-                ...(m.count && accent ? { background: accent, opacity: last ? 1 : 0.7 } : {}),
-              }}
-            />
-          );
-        })}
-      </div>
-      <div className="flex justify-between text-2xs text-faint mt-1">
-        <span>{monthLabel(months[0].month)}</span>
-        <span>{monthLabel(months[months.length - 1].month)}</span>
-      </div>
-    </section>
-  );
-}
-
-export function ChipRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 items-start">
-      <span className="text-xs text-faint leading-6">{label}</span>
-      <div className="flex flex-wrap gap-1.5">{children}</div>
-    </div>
-  );
-}
-
-export function Chip({ to, title, label, share }: { to: string; title: string; label: string; share: string }) {
-  return (
-    <Link
-      to={to}
-      title={`${label}: ${title}`}
-      className="inline-flex items-baseline gap-1.5 max-w-full h-6 px-2 rounded-full bg-raised border border-line text-xs text-neutral-200 hover:border-line-strong"
-    >
-      <span className="truncate">{label}</span>
-      <span className="shrink-0 text-2xs text-faint tabular-nums">{share}</span>
-    </Link>
-  );
-}
-
-/**
- * The tag's own images, newest first. Clicking one opens it in the viewer
- * over the Tags page, paging through this tag's images; the pin on hover
- * makes it the tag's cover.
- */
-export function TagImages({
-  tag,
-  source,
-  count,
-  pinned,
-}: {
-  tag: string;
-  source: TagSource;
-  count: number;
-  pinned: string | null;
-}) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const filters = useMemo(
-    () => ({ ...DEFAULT_FILTERS, tags: [galleryTag(tag, source)] }),
-    [tag, source],
-  );
-  const { items, hasNextPage, fetchNextPage, isFetchingNextPage, isLoading } = useImageFeed(
-    filters,
-    PICK_PAGE,
-  );
-
-  const open = (id: string) =>
-    navigate(imageHref(id, filters), {
-      state: withBackgroundLocation(location),
-    });
-  const { pin, pending } = usePinCover("cover");
-
-  return (
-    <section>
-      <h3 className="text-2xs uppercase tracking-wider text-faint mb-2">
-        Images · {count.toLocaleString()}
-      </h3>
-      <div className="grid grid-cols-3 gap-1">
-        {isLoading &&
-          Array.from({ length: 9 }).map((_, i) => <Skeleton key={i} className="aspect-square rounded" />)}
-        {items.map((img) => {
-          const on = img._id === pinned;
-          return (
-            <div key={img._id} className="group/img relative aspect-square rounded overflow-hidden bg-raised">
-              <button
-                type="button"
-                onClick={() => open(img._id)}
-                aria-label={`Open ${img.path}`}
-                title={img.path}
-                className="absolute inset-0 hover:opacity-90"
-              >
-                <img src={img.thumb_url} alt="" loading="lazy" className="w-full h-full object-cover" />
-              </button>
-              {/* A sibling of the open button, not inside it. */}
-              {pending === img._id && <PendingVeil />}
-              <PinButton
-                on={on}
-                pending={pending === img._id}
-                disabled={pending !== null}
-                noun="cover"
-                onClick={() => void pin(tag, img._id, { unpin: on })}
-              />
-            </div>
-          );
-        })}
-      </div>
-      {hasNextPage && (
-        <Button size="sm" variant="ghost" className="mt-1" onClick={() => void fetchNextPage()} disabled={isFetchingNextPage}>
-          {isFetchingNextPage ? "Loading…" : "More images"}
-        </Button>
-      )}
-    </section>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { BookOpen, Copy, ExternalLink, Pencil, Tag as TagIcon, UserRound, Wand2 } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Button, ButtonAnchor, ButtonLink } from "../components/ui/Button";
@@ -7,7 +7,10 @@ import { ScoreMark } from "../components/ui/ScoreMark";
 import { Skeleton } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
 import { useToast } from "../components/Toasts";
-import { Chip, ChipRow, MonthChart } from "../components/TagPanel";
+import { MadeWithChips } from "../components/tagstats/MadeWithChips";
+import { MonthChart } from "../components/tagstats/MonthChart";
+import { PinnableImageGrid } from "../components/tagstats/PinnableImageGrid";
+import { useOpenImage } from "../hooks/useOpenImage";
 import { useCharacters } from "../lib/queries";
 import { CharacterEditDialog } from "../components/CharacterEditDialog";
 import { TagEditDialog } from "../components/TagEditDialog";
@@ -18,16 +21,12 @@ import { loadDraft, saveDraft, withCharacter } from "../lib/generateForm";
 import { cn } from "../lib/cn";
 import { useAmbientTint } from "../lib/ambient";
 import { useSignatures } from "../lib/rules";
-import { galleryHref, imageHref, type Filters } from "../lib/imageFilter";
+import { galleryHref } from "../lib/imageFilter";
 import { useBoilerplate, useCharacterPage, useTagDescription, useTagDetail, useTagPlaces } from "../lib/queries";
 import { danbooruWikiUrl, formatTag, onDanbooru, toPromptText } from "../lib/tags";
 import { useChipBorderStyle } from "../hooks/useTagMarks";
 import { tagWorkflows } from "../lib/tagBrowse";
 import { formatUsedRange, groupWorkflows } from "../lib/workflows";
-import { withBackgroundLocation } from "../lib/backgroundLocation";
-import { useImageFeed } from "../hooks/useImageFeed";
-import { usePinCover } from "../hooks/usePinCover";
-import { PendingVeil, PinButton } from "../components/PinButton";
 import {
   characterColours,
   characterFilters,
@@ -254,15 +253,6 @@ function Profile({
   );
 }
 
-function useOpenImage(filters: Filters) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  return (id: string) =>
-    navigate(imageHref(id, filters), {
-      state: withBackgroundLocation(location),
-    });
-}
-
 /** Their best-scored images; only shown once some are scored. */
 function BestOf({ c }: { c: Character }) {
   const open = useOpenImage(characterFilters(c.tag, c.aliases));
@@ -293,52 +283,17 @@ function BestOf({ c }: { c: Character }) {
 /** Every image of theirs, newest first; the pin makes one their avatar (a
  * tag's cover). */
 function Images({ c, person }: { c: Character; person: boolean }) {
-  const noun = person ? "avatar" : "cover";
-  const { pin, pending } = usePinCover(noun);
   const filters = useMemo(() => characterFilters(c.tag, c.aliases), [c.tag, c.aliases]);
-  const open = useOpenImage(filters);
-  const { items, hasNextPage, fetchNextPage, isFetchingNextPage, isLoading } = useImageFeed(filters, PAGE);
-  const pinned = c.thumb_image_id;
-
   return (
-    <section>
-      <h2 className="text-2xs uppercase tracking-wider text-faint mb-2">
-        Images · {c.count.toLocaleString()}
-      </h2>
-      <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-6 gap-1.5">
-        {isLoading &&
-          Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} className="aspect-square rounded" />)}
-        {items.map((img) => {
-          const on = img._id === pinned;
-          return (
-            <div key={img._id} className="group/img relative aspect-square rounded overflow-hidden bg-raised">
-              <button
-                type="button"
-                onClick={() => open(img._id)}
-                aria-label={`Open ${img.path}`}
-                title={img.path}
-                className="absolute inset-0 hover:opacity-90"
-              >
-                <img src={img.thumb_url} alt="" loading="lazy" className="w-full h-full object-cover" />
-              </button>
-              {pending === img._id && <PendingVeil />}
-              <PinButton
-                on={on}
-                pending={pending === img._id}
-                disabled={pending !== null}
-                noun={noun}
-                onClick={() => void pin(c.tag, img._id, { unpin: on })}
-              />
-            </div>
-          );
-        })}
-      </div>
-      {hasNextPage && (
-        <Button size="sm" variant="ghost" className="mt-2" onClick={() => void fetchNextPage()} disabled={isFetchingNextPage}>
-          {isFetchingNextPage ? "Loading…" : "More images"}
-        </Button>
-      )}
-    </section>
+    <PinnableImageGrid
+      filters={filters}
+      pinTag={c.tag}
+      pinned={c.thumb_image_id}
+      noun={person ? "avatar" : "cover"}
+      count={c.count}
+      pageSize={PAGE}
+      variant="page"
+    />
   );
 }
 
@@ -435,7 +390,6 @@ function Sidebar({ c, accent, onEdit, person }: { c: Character; accent?: string;
     [c.workflows, signatures],
   );
   const byTag = useMemo(() => new Map((everyone ?? []).map((e) => [e.tag, e])), [everyone]);
-  const share = (n: number) => `${Math.round((n / (c.count || 1)) * 100)}%`;
   const ratings = RATING_ORDER.filter((r) => c.ratings[r]);
 
   return (
@@ -473,55 +427,16 @@ function Sidebar({ c, accent, onEdit, person }: { c: Character; accent?: string;
         </section>
       )}
 
-      {person && (c.loras.length > 0 || c.embeddings.length > 0 || workflows.length > 0) && (
-        <section className="space-y-2">
-          <h2 className="text-2xs uppercase tracking-wider text-faint">Made with</h2>
-          {c.loras.length > 0 && (
-            <ChipRow label="LoRA">
-              {c.loras.map((l) => (
-                <Chip
-                  key={l.name}
-                  to={galleryHref({ ...characterFilters(c.tag, c.aliases), lora: [l.name] })}
-                  title={[
-                    `${l.count.toLocaleString()} images`,
-                    l.strength !== null && `usually at ${l.strength}`,
-                    l.score !== null && `average score ${l.score.toFixed(1)}`,
-                  ]
-                    .filter(Boolean)
-                    .join(", ")}
-                  label={l.name}
-                  share={[share(l.count), l.strength !== null && `@${l.strength}`].filter(Boolean).join(" ")}
-                />
-              ))}
-            </ChipRow>
-          )}
-          {c.embeddings.length > 0 && (
-            <ChipRow label="Embedding">
-              {c.embeddings.map((e) => (
-                <Chip
-                  key={e.name}
-                  to={galleryHref({ ...characterFilters(c.tag, c.aliases), embedding: [e.name] })}
-                  title={`${e.count.toLocaleString()} images`}
-                  label={e.name}
-                  share={share(e.count)}
-                />
-              ))}
-            </ChipRow>
-          )}
-          {workflows.length > 0 && (
-            <ChipRow label="Workflow">
-              {workflows.map((w) => (
-                <Chip
-                  key={JSON.stringify(w.filter)}
-                  to={galleryHref({ ...characterFilters(c.tag, c.aliases), ...w.filter })}
-                  title={`${w.count.toLocaleString()} images`}
-                  label={w.name}
-                  share={share(w.count)}
-                />
-              ))}
-            </ChipRow>
-          )}
-        </section>
+      {person && (
+        <MadeWithChips
+          loras={c.loras}
+          embeddings={c.embeddings}
+          workflows={workflows}
+          total={c.count}
+          base={characterFilters(c.tag, c.aliases)}
+          heading="h2"
+          detailed
+        />
       )}
 
       <MonthChart first={c.first_used} months={c.months} accent={accent} />
