@@ -732,12 +732,14 @@ export function useRecipe(tag: string | null) {
 export const fetchOutfits = (character: string | null, signal?: AbortSignal) =>
   api<Outfit[]>(`${BASE}/outfits${character ? `?character=${encodeURIComponent(character)}` : ""}`, { signal });
 
+export const outfitsQuery = (character: string | null = null) => ({
+  queryKey: outfitsKey(character),
+  queryFn: ({ signal }: { signal: AbortSignal }) => fetchOutfits(character, signal),
+  staleTime: 30_000,
+});
+
 export function useOutfits(character: string | null = null) {
-  return useQuery({
-    queryKey: outfitsKey(character),
-    queryFn: ({ signal }) => fetchOutfits(character, signal),
-    staleTime: 30_000,
-  });
+  return useQuery(outfitsQuery(character));
 }
 
 /** Images `character` wears `outfit` in ("default": their usual clothes),
@@ -771,13 +773,14 @@ export function useWornOutfits(imageId: string, characters: readonly string[], t
 }
 
 /** A character's computed Default outfit. */
+export const defaultOutfitQuery = (character: string) => ({
+  queryKey: defaultOutfitKey(character),
+  queryFn: ({ signal }: { signal: AbortSignal }) => fetchDefaultOutfit(character, signal),
+  staleTime: 5 * 60_000,
+});
+
 export function useDefaultOutfit(character: string | null) {
-  return useQuery({
-    queryKey: defaultOutfitKey(character ?? ""),
-    queryFn: ({ signal }) => fetchDefaultOutfit(character!, signal),
-    enabled: !!character,
-    staleTime: 5 * 60_000,
-  });
+  return useQuery({ ...defaultOutfitQuery(character ?? ""), enabled: !!character });
 }
 
 /** Several characters' recipes, in order (undefined while one loads). */

@@ -1,27 +1,19 @@
 import { useState } from "react";
 import { useThumbUrl } from "../../lib/queries";
-import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, Shirt } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { DropdownMenu, type DropdownItem } from "../ui";
-import { useToast } from "../Toasts";
 import { cn } from "../../lib/cn";
 import {
   DEFAULT_OUTFIT,
-  OUTFITS_KEY,
-  defaultOutfitKey,
-  fetchDefaultOutfit,
-  fetchOutfits,
-  outfitsKey,
-  putDefaultOutfit,
-  updateOutfit,
   useCoverChoices,
   type CoverChoice,
-  type Outfit,
 } from "../../lib/generate";
 import { displayName, type CharacterEntry } from "../../lib/character";
 import { displayWord } from "../../lib/compose";
 import { OutfitThumb } from "./Outfit";
+import { useOutfitMenuData, useSetOutfitCover } from "../../hooks/useOutfitData";
+import { outfitsHref } from "../../lib/outfit";
 
 /** What a cover choice lacks of the outfit, as its caption. Pure. */
 export function coverCaption(missing: readonly string[]): string {
@@ -134,45 +126,15 @@ export function OutfitMenu({
   characters: readonly CharacterEntry[];
   onSave: (c: CharacterEntry) => void;
 }) {
-  const qc = useQueryClient();
-  const toast = useToast();
   const navigate = useNavigate();
   // Loaded when the menu opens: the viewer shows this for every image.
   const [open, setOpen] = useState(false);
-  const lists = useQueries({
-    queries: characters.map((c) => ({
-      queryKey: outfitsKey(c.tag),
-      queryFn: ({ signal }: { signal: AbortSignal }) => fetchOutfits(c.tag, signal),
-      enabled: open,
-      staleTime: 30_000,
-    })),
-  });
-  const defs = useQueries({
-    queries: characters.map((c) => ({
-      queryKey: defaultOutfitKey(c.tag),
-      queryFn: ({ signal }: { signal: AbortSignal }) => fetchDefaultOutfit(c.tag, signal),
-      enabled: open,
-      staleTime: 5 * 60_000,
-    })),
-  });
-  const setCover = async (c: CharacterEntry, o: Outfit) => {
-    try {
-      if (o._id === DEFAULT_OUTFIT) qc.setQueryData(defaultOutfitKey(c.tag), await putDefaultOutfit(c.tag, { image_id: imageId }));
-      else await updateOutfit(o._id, { image_id: imageId });
-      void qc.invalidateQueries({ queryKey: OUTFITS_KEY });
-      toast.push(`${o.name}: thumbnail changed`, "success");
-    } catch (e) {
-      toast.push(e instanceof Error ? e.message : "Couldn't save", "error");
-    }
-  };
+  const menu = useOutfitMenuData(characters, open);
+  const setCover = useSetOutfitCover(imageId);
   const one = characters.length === 1;
   const items: DropdownItem[] = characters.flatMap((c, i) => {
     const name = displayName(c).name;
-    const def = defs[i].data;
-    // Their own: a shared one made for someone else keeps its cover.
-    const list = lists[i].data;
-    const own = Array.isArray(list) ? list.filter((o) => o.character === c.tag) : [];
-    const outfits = [...(def?.tags?.length ? [def] : []), ...own];
+    const outfits = menu[i];
     return [
       { label: one ? "Save as a new outfit" : `New outfit for ${name}`, group: one ? undefined : name, onClick: () => onSave(c) },
       ...outfits.map((o) => ({
@@ -185,7 +147,7 @@ export function OutfitMenu({
           />
         ),
         hint: o.image_id === imageId ? <span className="text-xs text-faint">this image</span> : undefined,
-        onClick: () => void setCover(c, o),
+        onClick: () => void setCover(c.tag, o),
       })),
       {
         label: one ? "All outfits" : `All of ${name}'s outfits`,
@@ -193,7 +155,7 @@ export function OutfitMenu({
         group: outfits.length ? (one ? "Use as thumbnail" : `${name}: use as thumbnail`) : one ? undefined : name,
         divider: outfits.length > 0,
         icon: <ArrowRight size={14} className="text-muted" />,
-        onClick: () => navigate(`/outfits?character=${encodeURIComponent(c.tag)}`),
+        onClick: () => navigate(outfitsHref(c.tag)),
       },
     ];
   });

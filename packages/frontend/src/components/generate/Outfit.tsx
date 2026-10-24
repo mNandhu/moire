@@ -6,11 +6,10 @@ import { cn } from "../../lib/cn";
 import { displayWord } from "../../lib/compose";
 import {
   DEFAULT_OUTFIT,
-  useDefaultOutfit,
-  useOutfits,
   type Outfit,
 } from "../../lib/generate";
-import { pickOf, toggleWorn, addWorn, type OutfitPick } from "../../lib/outfit";
+import { pickOf, toggleWorn, addWorn, outfitsHref, type OutfitPick } from "../../lib/outfit";
+import { useCharacterOutfits } from "../../hooks/useOutfitData";
 import { useTagFacets } from "../../lib/queries";
 import { TagAddInput } from "../TagAddInput";
 import type { TagSuggestion } from "../../lib/tagSuggest";
@@ -26,23 +25,6 @@ export function OutfitThumb({ url, className }: { url: string | null; className?
       <Shirt size={12} />
     </span>
   );
-}
-
-/** A character's outfit list for pickers: Default first, their own, then
- * the shared ones they don't hide. */
-export function useCharacterOutfits(character: string) {
-  const { data: def } = useDefaultOutfit(character);
-  const { data: list } = useOutfits(character);
-  return useMemo(() => {
-    const visible = (list ?? []).filter((o) => !o.hidden);
-    const d = def && def.tags.length ? def : null;
-    const own = visible.filter((o) => o.character === character);
-    const shared = visible.filter((o) => o.character !== character);
-    // Attire group per tag, from every outfit in the list.
-    const groups = new Map<string, string | null>();
-    for (const o of [...(d ? [d] : []), ...own, ...shared]) for (const t of o.tags) groups.set(t.tag, t.group);
-    return { def: d, own, shared, groups };
-  }, [character, def, list]);
 }
 
 function option(o: Outfit, group: string): PickerOption {
@@ -87,7 +69,7 @@ export function OutfitPicker({
         if (o) onChange(pickOf(o));
       }}
       footer={
-        <Link to={`/outfits?character=${encodeURIComponent(character)}`} className="block px-3 py-2 text-xs text-muted hover:text-neutral-100">
+        <Link to={outfitsHref(character)} className="block px-3 py-2 text-xs text-muted hover:text-neutral-100">
           Manage outfits
         </Link>
       }

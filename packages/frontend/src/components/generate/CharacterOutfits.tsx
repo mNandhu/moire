@@ -1,58 +1,19 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Images, Pencil, Plus, Wand2 } from "lucide-react";
-import { Badge, DropdownMenu, type DropdownItem } from "../ui";
-import { useToast } from "../Toasts";
+import { Link } from "react-router-dom";
+import { Plus } from "lucide-react";
+import { Badge, DropdownMenu } from "../ui";
 import { cn } from "../../lib/cn";
 import { displayWord } from "../../lib/compose";
 import {
   DEFAULT_OUTFIT,
-  OUTFITS_KEY,
-  hideOutfit,
   useDefaultOutfit,
   useOutfits,
   type Outfit,
 } from "../../lib/generate";
-import { loadDraft, saveDraft, wearingOutfit } from "../../lib/generateForm";
-import { outfitGalleryHref, pickOf } from "../../lib/outfit";
+import { outfitsHref } from "../../lib/outfit";
+import { useOutfitActions } from "../../hooks/useOutfitData";
 import { OutfitThumb } from "./Outfit";
 import { SaveOutfitDialog } from "./SaveOutfitDialog";
-
-/** What a click on an outfit card offers: edit it, wear it in Generate,
- * see it in the gallery, and for a shared one, hide it for this character. */
-export function useOutfitActions(character: string, characterName: string) {
-  const navigate = useNavigate();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const hide = useMutation({
-    mutationFn: (o: Outfit) => hideOutfit(o._id, character, !o.hidden),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: OUTFITS_KEY }),
-    onError: (e) => toast.push(e.message, "error"),
-  });
-  return (o: Outfit, onEdit: () => void, { canHide = false } = {}): DropdownItem[] => [
-    { label: "Edit tags and thumbnail", icon: <Pencil size={14} />, onClick: onEdit },
-    {
-      label: "Use in Generate",
-      icon: <Wand2 size={14} />,
-      onClick: () => {
-        saveDraft(wearingOutfit(loadDraft(), character, pickOf(o)));
-        navigate("/generate");
-      },
-    },
-    { label: "Open in gallery", icon: <Images size={14} />, onClick: () => navigate(outfitGalleryHref(o, character)) },
-    ...(canHide
-      ? [
-          {
-            label: o.hidden ? `Show for ${characterName}` : `Hide for ${characterName}`,
-            icon: o.hidden ? <Eye size={14} /> : <EyeOff size={14} />,
-            divider: true,
-            onClick: () => hide.mutate(o),
-          },
-        ]
-      : []),
-  ];
-}
 
 function Mini({ o, character }: { o: Outfit; character: string }) {
   const isDefault = o._id === DEFAULT_OUTFIT;
@@ -150,7 +111,7 @@ export function CharacterOutfits({ character, name }: { character: string; name:
           >
             <Plus size={12} /> New outfit
           </button>
-          <Link to={`/outfits?character=${encodeURIComponent(character)}`} className="text-xs text-brand-300 hover:text-brand-200">
+          <Link to={outfitsHref(character)} className="text-xs text-brand-300 hover:text-brand-200">
             All outfits
           </Link>
         </span>

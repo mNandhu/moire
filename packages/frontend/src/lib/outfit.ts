@@ -123,6 +123,9 @@ export function outfitGalleryHref(o: Pick<Outfit, "_id" | "character">, characte
   return galleryHref({ tags, outfit: [id] });
 }
 
+/** The Outfits page, filtered to one character. Pure. */
+export const outfitsHref = (character: string): string => `/outfits?character=${encodeURIComponent(character)}`;
+
 // The attire groups a name is made from, main garment first; exposure and
 // unlisted tags never name an outfit.
 const NAME_GROUPS = [

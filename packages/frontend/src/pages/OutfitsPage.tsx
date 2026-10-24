@@ -7,7 +7,7 @@ import { CharacterAvatar } from "../components/CharacterAvatar";
 import { useCharacterLookup } from "../lib/queries";
 import { OutfitThumb } from "../components/generate/Outfit";
 import { SaveOutfitDialog } from "../components/generate/SaveOutfitDialog";
-import { useOutfitActions } from "../components/generate/CharacterOutfits";
+import { useOutfitActions } from "../hooks/useOutfitData";
 import { cn } from "../lib/cn";
 import { displayName } from "../lib/character";
 import { displayWord } from "../lib/compose";

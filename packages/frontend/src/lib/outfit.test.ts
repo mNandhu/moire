@@ -4,6 +4,7 @@ import {
   keepPicked,
   outfitGalleryHref,
   outfitInput,
+  outfitsHref,
   pickFromInput,
   pickOf,
   suggestOutfitName,
@@ -136,6 +137,12 @@ describe("outfitGalleryHref", () => {
   it("names a Default by its character", () => {
     const sp = new URLSearchParams(outfitGalleryHref({ _id: "default", character: "nahida" }).slice(2));
     expect([sp.getAll("outfit"), sp.getAll("tags")]).toEqual([["default:nahida"], []]);
+  });
+});
+
+describe("outfitsHref", () => {
+  it("filters the Outfits page to a character", () => {
+    expect(outfitsHref("kafka_(honkai:_star_rail)")).toBe("/outfits?character=kafka_(honkai%3A_star_rail)");
   });
 });
 
