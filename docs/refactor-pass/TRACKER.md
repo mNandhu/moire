@@ -97,11 +97,14 @@ P1 review fixes: frontend 8b15822, e193bb0, 76994ac (one `removeTerms` helper fo
 - [x] **S10.9** Two parallel preset pickers and dialogs (prompt preset vs LoRA preset), plus a hand-rolled menu in AddLayer (dedupe, M, L2), done 40f3186
 - [x] **S11.6** BatchResults.tsx (510 lines): review tile, running-cell view logic, failure labels and strip picker in one file; Tile keys ignore modifiers (split, M, L2), done e5d9868
 
-P2 status: wave 1 merged (51a86c7..d5f0fb6) and the Generate batch (a0f734d..8603a87); plus the boundary moves (97b910e..7fa40ee, incl. useDismiss for the last three inputs). Wave 1 reviewed; fixes in flight. Generate batch + boundary moves review pending. Left from finished items:
+P2 done 2026-10-24 (51a86c7..4f8dd84). Review fixes: wave 1 1a32926, 6fe6bd0, b05db83; wave 2 5b3b2dd, e27b994, efc3b0c. Left from finished items:
 - L3.9 outside Generate: TagEditDialog, CharacterEditDialog (stuck `saving` flag), NewCharacterDialog, RenameTagDialog, BulkTagDialog and six settings sections still hand-roll save flags; use `Button pending` + `DialogFooter` from ui/Dialog.tsx.
 - S11.5: one backend `POST /batches/{id}/retry-failed` would replace the client retry loop.
-- libraries.ts `invalidateImageCaches` refreshes only the feed and groups, not the full invalidateFeeds set.
 - S2.7 `loadImage` helper and a general `imageUrl(id, suffix)` for imageMutations' `forImage`; `useSizePresets` still in SizeFilter.tsx.
+- Backend `/libraries/{id}/progress` is unused by the app; scripts/test-docker.sh and tests/perf_benchmark.py still call it. Move them to GET /libraries, then drop the route.
+- `feedCache.patchImageEverywhere` is now only used by tests.
+- LibrariesPage.test "drops both the flat feed and the grouped view on delete" flakes under full-suite load (passes alone).
+- lib/shortcuts.ts help table is still hand-kept (L3.4); OutfitMenu not split into its own file (S12.8).
 
 ## P3. Backend dedupe, tag core, background work
 
