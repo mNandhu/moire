@@ -64,6 +64,13 @@ export function useRefreshOnFinish() {
     if (any(LIBRARY_WORK)) {
       void qc.invalidateQueries({ queryKey: LIBRARIES_KEY });
     }
+    if (LIBRARY_WORK.some((k) => ended.has(k))) {
+      // A scan, delete or fold changed which images exist: every image cache
+      // refetches (tag counts included), on whatever page is open. `ended`
+      // counts, so work that started and ended between polls, or while the
+      // tab was hidden, still shows up here.
+      invalidateFeeds(qc);
+    }
     if (ended.has("ai_job")) {
       // The open image's doc (ImageView) and every cached one: their tags changed.
       void qc.invalidateQueries({ queryKey: IMAGE_DOC_PREFIX });
@@ -75,8 +82,8 @@ export function useRefreshOnFinish() {
       void qc.invalidateQueries({ queryKey: IMAGE_DOC_PREFIX });
       invalidateFeeds(qc);
     }
-    // A reprojection's tag refresh is in invalidateFeeds above.
-    if (["ai_job", "scan", "delete", "fold", "faces"].some((k) => ended.has(k))) {
+    // Library work's and a reprojection's tag refresh is in invalidateFeeds above.
+    if (["ai_job", "faces"].some((k) => ended.has(k))) {
       void qc.invalidateQueries({ queryKey: TAGS_KEY });
     }
   }, [data, qc]);

@@ -1,13 +1,14 @@
 import { createElement, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  EXPECT_SCAN_MS,
   SCAN_POLL_MS,
+  expectScan,
   useLibraryWrites,
   feedNeedsRefetch,
   libraryPollMs,
-  scanFinished,
   scanLabel,
   scanProblem,
   type Library,
@@ -43,6 +44,8 @@ describe("scanLabel", () => {
 });
 
 describe("libraryPollMs", () => {
+  // The expect-a-scan window is module state a write test may have opened.
+  beforeEach(() => expectScan(0));
   it("is brisk while any library scans or is being deleted", () => {
     expect(libraryPollMs([mk("a"), mk("b", { scanning: true })])).toBe(SCAN_POLL_MS);
     expect(libraryPollMs([mk("a", { deleting: true })], 8000)).toBe(SCAN_POLL_MS);
@@ -52,17 +55,13 @@ describe("libraryPollMs", () => {
     expect(libraryPollMs(undefined)).toBe(false);
     expect(libraryPollMs([mk("a")], 8000)).toBe(8000);
   });
-});
-
-describe("scanFinished", () => {
-  it("is true when a scanning library stops", () => {
-    expect(scanFinished([mk("a", { scanning: true })], [mk("a", { scanning: false })])).toBe(true);
-  });
-  it("is false while still scanning, on the first read, or when the library is gone", () => {
-    expect(scanFinished([mk("a", { scanning: true })], [mk("a", { scanning: true })])).toBe(false);
-    expect(scanFinished(undefined, [mk("a")])).toBe(false);
-    expect(scanFinished([mk("a", { scanning: true })], [])).toBe(false);
-    expect(scanFinished([mk("a")], [mk("a", { scanning: true })])).toBe(false);
+  it("is brisk for a while after a write that may start a scan, before any read shows it", () => {
+    const t = 1_000_000;
+    expectScan(t);
+    expect(libraryPollMs([mk("a")], false, t + 1)).toBe(SCAN_POLL_MS);
+    expect(libraryPollMs([mk("a")], 8000, t + EXPECT_SCAN_MS - 1)).toBe(SCAN_POLL_MS);
+    expect(libraryPollMs([mk("a")], 8000, t + EXPECT_SCAN_MS)).toBe(8000);
+    expect(libraryPollMs([mk("a")], false, t + EXPECT_SCAN_MS)).toBe(false);
   });
 });
 
@@ -72,7 +71,7 @@ describe("feedNeedsRefetch", () => {
   });
   it("pulls while scanning and once more after it ends", () => {
     expect(feedNeedsRefetch([mk("a", { scanning: true })], [mk("a", { scanning: true })])).toBe(true);
-    expect(feedNeedsRefetch([mk("a", { scanning: true })], [mk("a")])).toBe(true);
+    expect(feedNeedsRefetch([mk("a")], [mk("a", { scanning: true })])).toBe(true);
   });
   it("is quiet when idle and nothing changed", () => {
     expect(feedNeedsRefetch([mk("a", { last_event_at: "t1" })], [mk("a", { last_event_at: "t1" })])).toBe(false);
@@ -96,7 +95,17 @@ describe("useLibraryWrites", () => {
     const keys = () => spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
     return { result, keys };
   };
-  const all = [["libraries"], ["images"], ["image-groups"]].map((k) => JSON.stringify(k));
+  const all = [
+    ["libraries"],
+    ["images"],
+    ["batch-strip"],
+    ["image-groups"],
+    ["tags"],
+    ["image-stats"],
+    ["image-models"],
+    ["image-loras"],
+    ["image-embeddings"],
+  ].map((k) => JSON.stringify(k));
 
   it("refreshes the list and both gallery caches after any write", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200 })));
@@ -110,6 +119,21 @@ describe("useLibraryWrites", () => {
     const { result, keys } = setup();
     await expect(result.current.remove("a")).rejects.toThrow("nope");
     expect(keys()).toEqual(all);
+  });
+
+  it("removeMany refetches the list after each delete but the image caches once", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url.endsWith("/b") ? new Response('{"detail":"nope"}', { status: 409 }) : new Response("{}", { status: 200 }),
+      ),
+    );
+    const { result, keys } = setup();
+    const out = await result.current.removeMany(["a", "b", "c"]);
+    expect(out.failed).toEqual(["b"]);
+    const lib = JSON.stringify(["libraries"]);
+    expect(keys().filter((k) => k === lib)).toHaveLength(4);
+    expect(keys().filter((k) => k === JSON.stringify(["images"]))).toHaveLength(1);
   });
 
   it("createMany keeps going past a failure and reports it by path", async () => {

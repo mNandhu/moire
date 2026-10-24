@@ -328,10 +328,11 @@ export default function AllImagesPage() {
   );
 
   // Indexing runs as an async background scan/watcher, so images land after
-  // a library is added/rescanned/changed on disk. This page is the only one
-  // that watches the library list (useLibraries above) for scan and watcher
-  // activity and refetches the feed as images arrive, so no full reload is
-  // needed. See feedNeedsRefetch for when a read of the list pulls the feed.
+  // a library is added/rescanned/changed on disk. While a scan runs, and when
+  // the watcher reports an event (neither shows in the activity poll), this
+  // page refetches the feed from reads of the library list (useLibraries
+  // above), so images appear as they arrive. The refresh after a scan ends is
+  // app-wide (useRefreshOnFinish). See feedNeedsRefetch.
   // The visible one: the grouped view when grouping, else the flat feed.
   const refetchFeedRef = useRef(activeFeed.refetch);
   refetchFeedRef.current = activeFeed.refetch;

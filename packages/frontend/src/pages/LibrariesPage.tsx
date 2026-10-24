@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocalPref, KEY_SET } from "../hooks/useLocalPref";
-import { useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   CheckSquare,
@@ -32,13 +31,10 @@ import { Skeleton, Spinner } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
 import { errorText } from "../lib/api";
 import {
-  invalidateImageCaches,
   libraryGalleryHref,
-  scanFinished,
   scanProblem,
   useLibraries,
   useLibraryWrites,
-  useOnLibrariesRead,
   type Library,
 } from "../lib/libraries";
 import { cn } from "../lib/cn";
@@ -80,13 +76,6 @@ export default function LibrariesPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editPath, setEditPath] = useState("");
-
-  // useLibraries polls the list (and so the scan bars) while anything scans;
-  // when a scan ends the gallery's cached images are stale.
-  const queryClient = useQueryClient();
-  useOnLibrariesRead(libsQuery, (prev, next) => {
-    if (scanFinished(prev, next)) invalidateImageCaches(queryClient);
-  });
 
   const updateLibrary = (id: string, data: Partial<Library>) => writes.update(id, data);
 
@@ -143,15 +132,10 @@ export default function LibrariesPage() {
     const order = [...selected].sort((a, b) => a.path.length - b.path.length);
     stopSelecting();
     markDeleting(order.map((l) => l._id), true);
-    let failed = 0;
-    for (const l of order) {
-      try {
-        await writes.remove(l._id); // each one disappears as it goes, still marked till then
-      } catch {
-        failed += 1;
-        markDeleting([l._id], false);
-      }
-    }
+    // Each one disappears as it goes, still marked till then.
+    const { failed: failedIds } = await writes.removeMany(order.map((l) => l._id));
+    const failed = failedIds.length;
+    if (failed) markDeleting(failedIds, false);
     if (failed) push(`Deleted ${n - failed} of ${n}. ${failed} failed.`, "error");
     else push(`Deleted ${n} ${n === 1 ? "library" : "libraries"}`, "success");
   };
