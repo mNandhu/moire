@@ -59,6 +59,24 @@ describe("useLocalPref", () => {
     expect([...h.result.current[0]]).toEqual(["a"]);
   });
 
+  it("writes nothing when the updater hands back the current value", () => {
+    const h = renderHook(() => useLocalPref<Set<string>>("t:same", new Set(), KEY_SET));
+    const set = vi.spyOn(localStorage, "setItem");
+    act(() => h.result.current[1]((s) => s));
+    expect(set).not.toHaveBeenCalled();
+    expect(localStorage.getItem("t:same")).toBeNull();
+    localStorage.setItem("t:same", '["a"]');
+    set.mockClear();
+    act(() => h.result.current[1]((s) => s));
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it("still stores a plain value equal to the default: it is a choice", () => {
+    const h = renderHook(() => useLocalPref("t:dflt", false));
+    act(() => h.result.current[1](false));
+    expect(localStorage.getItem("t:dflt")).toBe("0");
+  });
+
   it("survives a localStorage that throws, holding the choice in memory", () => {
     vi.spyOn(localStorage, "getItem").mockImplementation(() => {
       throw new Error("blocked");

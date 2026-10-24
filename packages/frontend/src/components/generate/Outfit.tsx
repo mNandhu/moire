@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, Shirt, Undo2, X } from "lucide-react";
 import { Picker, type PickerOption } from "../ui/Picker";
@@ -114,8 +114,13 @@ export function AttireTagInput({
   className?: string;
 }) {
   const { data: facets } = useTagFacets();
-  const worn = (id: string) => facets?.[id.toLowerCase()] === "outfit";
-  const rank = (ranked: TagSuggestion[]) => [...ranked.filter((m) => worn(m._id)), ...ranked.filter((m) => !worn(m._id))];
+  // Stable while the facets are, so TagAddInput's ranked matches stay memoised.
+  const worn = useCallback((id: string) => facets?.[id.toLowerCase()] === "outfit", [facets]);
+  const rank = useCallback(
+    (ranked: TagSuggestion[]) => [...ranked.filter((m) => worn(m._id)), ...ranked.filter((m) => !worn(m._id))],
+    [worn],
+  );
+  const noteOf = useCallback((id: string) => (worn(id) ? "attire" : null), [worn]);
   return (
     <TagAddInput
       ariaLabel="Add outfit tag"
@@ -123,7 +128,7 @@ export function AttireTagInput({
       taken={taken}
       className={className}
       rank={rank}
-      noteOf={(id) => (worn(id) ? "attire" : null)}
+      noteOf={noteOf}
     />
   );
 }

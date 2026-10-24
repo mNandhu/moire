@@ -70,9 +70,16 @@ export function useLocalPref<T>(
   serializeRef.current = serialize;
   const set = useCallback(
     (next: T | ((prev: T) => T)) => {
-      const prev = decode(readLocalPref(key));
-      const v = typeof next === "function" ? (next as (p: T) => T)(prev) : next;
-      writeLocalPref(key, (serializeRef.current ?? defaultSerialize)(v));
+      const raw = readLocalPref(key);
+      const prev = decode(raw);
+      const updater = typeof next === "function";
+      const v = updater ? (next as (p: T) => T)(prev) : next;
+      // An updater that changed nothing writes nothing (nor stores the default),
+      // and neither does a value already stored as is. A plain value equal to
+      // the default is still a choice, kept over a default that changes later.
+      if (updater && Object.is(v, prev)) return;
+      const text = (serializeRef.current ?? defaultSerialize)(v);
+      if (text !== raw) writeLocalPref(key, text);
     },
     [key, decode],
   );
