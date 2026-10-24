@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useCancelRequest } from "../../lib/batchActions";
+import { useCancelRequest } from "../../hooks/useBatchActions";
 import { cn } from "../../lib/cn";
 import { cellProgress } from "../../lib/eta";
 import type { Batch, GenRequest } from "../../lib/generate";

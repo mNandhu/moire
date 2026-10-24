@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ChevronDown, X } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { clockText } from "../../lib/format";
-import { useCancelBatch } from "../../lib/batchActions";
+import { useCancelBatch } from "../../hooks/useBatchActions";
 import { useComfyStatus } from "../../lib/generate";
 import { FrameRow, legWhen } from "./QueueFrames";
 import { useLiveQueue, type LiveLeg } from "./useLiveQueue";

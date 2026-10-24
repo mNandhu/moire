@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ImageOff, Loader2, RotateCcw, TriangleAlert } from "lucide-react";
 import { cellTitle, failureLabel, resultGrid, resultSlots, shownSlot, slotKey, slotWhy, stepIndex, type ResultSlot } from "../../lib/batches";
-import { useRetryRequest } from "../../lib/batchActions";
+import { useRetryRequest } from "../../hooks/useBatchActions";
 import type { Batch, GenRequest } from "../../lib/generate";
 import { cn } from "../../lib/cn";
 import { smallThumb } from "../../lib/media";

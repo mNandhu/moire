@@ -75,8 +75,8 @@ export const signaturesQuery = {
 
 /** Every workflow signature with its counts and ruleset flag; one cache for
  * the gallery, tag and character pages and the Rules page. */
-export function useSignatures({ enabled = true } = {}) {
-  return useQuery({ ...signaturesQuery, enabled });
+export function useSignatures({ enabled = true, staleTime = signaturesQuery.staleTime } = {}) {
+  return useQuery({ ...signaturesQuery, staleTime, enabled });
 }
 
 export function fetchRuleset(sig: string): Promise<Ruleset> {

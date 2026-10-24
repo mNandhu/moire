@@ -31,9 +31,9 @@ import { useConfirm } from "../components/ConfirmDialog";
 import {
   RULE_FIELDS,
   type RuleField,
-  type SignatureRow,
   type PreviewResult,
-  signaturesQuery,
+  RULES_SIGNATURES_KEY,
+  useSignatures,
   previewRuleset,
 } from "../lib/rules";
 import type { GenMeta } from "../lib/gen";
@@ -113,9 +113,11 @@ function GuessedFrom({
 export default function RulesPage() {
   const { push } = useToast();
   const qc = useQueryClient();
-  const [sigs, setSigs] = useState<SignatureRow[]>([]);
+  // Read fresh each time the page opens; saves invalidate it.
+  const { data: sigData, isPending: sigsPending, error: sigsError } = useSignatures({ staleTime: 0 });
+  const sigs = useMemo(() => sigData ?? [], [sigData]);
   // False until the first fetch answers, so "none yet" never flashes first.
-  const [sigsLoaded, setSigsLoaded] = useState(false);
+  const sigsLoaded = !sigsPending;
   const [wfQuery, setWfQuery] = useState("");
   const [activeField, setActiveField] = useState<RuleField>("prompt");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
@@ -124,14 +126,11 @@ export default function RulesPage() {
   // a prompt word and see where it lives so its dot-path can be pinned.
   const [graphQuery, setGraphQuery] = useState("");
 
-  const loadSignatures = useCallback(() => {
-    qc.fetchQuery({ ...signaturesQuery, staleTime: 0 })
-      .then(setSigs)
-      .catch((e) => push(`Failed to load signatures: ${errorText(e)}`, "error"))
-      .finally(() => setSigsLoaded(true));
-  }, [push, qc]);
+  const loadSignatures = useCallback(() => void qc.invalidateQueries({ queryKey: RULES_SIGNATURES_KEY }), [qc]);
 
-  useEffect(() => loadSignatures(), [loadSignatures]);
+  useEffect(() => {
+    if (sigsError) push(`Failed to load signatures: ${errorText(sigsError)}`, "error");
+  }, [sigsError, push]);
 
   const families = useMemo(() => groupWorkflows(sigs), [sigs]);
   // Workflows set up to run in Generate, to mark their families and versions.

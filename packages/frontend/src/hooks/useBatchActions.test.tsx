@@ -3,8 +3,8 @@ import { act, renderHook, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { ToastProvider } from "../components/Toasts";
-import { BATCHES_KEY, STATUS_KEY, batchKey, type Batch, type GenRequest } from "./generate";
-import { retryable, useBatchChanged, useCancelBatch, useRetryFailed } from "./batchActions";
+import { BATCHES_KEY, STATUS_KEY, batchKey, type Batch, type GenRequest } from "../lib/generate";
+import { useBatchChanged, useCancelBatch, useCancelRequest, useRetryFailed, useRetryRequest } from "./useBatchActions";
 
 const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 function wrapper({ children }: { children: ReactNode }) {
@@ -22,13 +22,6 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 afterEach(() => {
   vi.unstubAllGlobals();
   client.clear();
-});
-
-describe("retryable", () => {
-  it("picks failed and lost requests only", () => {
-    const rs = [req(1, "done"), req(2, "failed"), req(3, "lost"), req(4, "cancelled"), req(5, "running")];
-    expect(retryable(rs).map((r) => r._id)).toEqual([2, 3]);
-  });
 });
 
 describe("useBatchChanged", () => {
@@ -114,5 +107,28 @@ describe("useRetryFailed", () => {
       await result.current.mutateAsync().catch(() => undefined);
     });
     expect(onChanged).toHaveBeenCalledWith();
+  });
+});
+
+describe("useCancelRequest and useRetryRequest", () => {
+  it("hand the new batch to onChanged", async () => {
+    const nb = batch([req(1, "queued")]);
+    vi.stubGlobal("fetch", vi.fn(async () => json(nb)));
+    const onChanged = vi.fn();
+    const cancel = renderHook(() => useCancelRequest(7, 1, onChanged), { wrapper });
+    await act(() => cancel.result.current.mutateAsync());
+    const retry = renderHook(() => useRetryRequest(7, 1, onChanged), { wrapper });
+    await act(() => retry.result.current.mutateAsync(true));
+    expect(onChanged).toHaveBeenCalledTimes(2);
+    expect(onChanged).toHaveBeenCalledWith(expect.objectContaining({ _id: 7 }));
+  });
+
+  it("toast a failure", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => json({ detail: "Nope" }, 500)));
+    const { result } = renderHook(() => useCancelRequest(7, 1, vi.fn()), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync().catch(() => undefined);
+    });
+    expect(await screen.findByText("Nope")).toBeTruthy();
   });
 });

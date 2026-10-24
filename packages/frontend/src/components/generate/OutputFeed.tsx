@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { batchRunTime, isWaiting, turnLabel } from "../../lib/batches";
 import { durationWords } from "../../lib/format";
-import { useBatchChanged } from "../../lib/batchActions";
+import { useBatchChanged } from "../../hooks/useBatchActions";
 import { useBatch, useBatches, useComfyStatus } from "../../lib/generate";
 import { batchLeft, leftLabel } from "../../lib/eta";
 import { queueLegs } from "../../lib/queueClock";
