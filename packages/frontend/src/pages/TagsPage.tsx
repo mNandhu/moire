@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocalPref } from "../hooks/useLocalPref";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Tag as TagIcon, Slash, Search, GitMerge, Undo2, LayoutGrid, List, UserPlus, Wand2, Sparkles } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
@@ -10,7 +10,7 @@ import { Button, ButtonLink } from "../components/ui/Button";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { Input } from "../components/ui/Input";
 import { cn } from "../lib/cn";
-import { api, errorText } from "../lib/api";
+import { errorText } from "../lib/api";
 import { smallThumb } from "../lib/media";
 import { galleryHref } from "../lib/imageFilter";
 import {
@@ -48,7 +48,9 @@ import { useToast } from "../components/Toasts";
 import { RenameTagDialog } from "../components/RenameTagDialog";
 import { MergeSuggestions } from "../components/MergeSuggestions";
 import { TagPanel } from "../components/TagPanel";
-import { Mosaic, type Sample } from "../components/TagMosaic";
+import { Mosaic } from "../components/TagMosaic";
+import { tagSamplesQuery } from "../lib/tagSamples";
+import type { Sample } from "../lib/queries";
 import { FaceCrop } from "../components/CharacterAvatar";
 import { useCharacterLookup, useCharacters } from "../lib/queries";
 import { NewCharacterDialog } from "../components/NewCharacterDialog";
@@ -248,7 +250,7 @@ export default function TagsPage({ group }: { group?: string } = {}) {
   const shownCount = shelf.length + general.length;
   const [creating, setCreating] = useState(false);
   const onSelect = (tag: string) => (made.includes(tag) ? navigate(characterHref(tag)) : setSelected(tag));
-  const sectionProps = { view, source, selected, onSelect, epoch: tags, describe };
+  const sectionProps = { view, source, selected, onSelect, describe };
   return (
     <>
       <PageHeader
@@ -507,7 +509,6 @@ function TagSection({
   source,
   selected,
   onSelect,
-  epoch,
   describe,
 }: {
   title: string | null;
@@ -516,7 +517,6 @@ function TagSection({
   source: TagSource;
   selected: string | null;
   onSelect: (tag: string) => void;
-  epoch: unknown;
   describe: Describe;
 }) {
   const [visible, setVisible] = useState(PAGE[view]);
@@ -533,7 +533,7 @@ function TagSection({
         </h2>
       )}
       {view === "grid" ? (
-        <TagGrid rows={shown} source={source} selected={selected} onSelect={onSelect} epoch={epoch} describe={describe} />
+        <TagGrid rows={shown} source={source} selected={selected} onSelect={onSelect} describe={describe} />
       ) : (
         <div className="rounded-xl border border-white/5 bg-surface shadow-panel overflow-hidden divide-y divide-white/5">
           {shown.map((t) => (
@@ -560,42 +560,23 @@ function TagGrid({
   source,
   selected,
   onSelect,
-  epoch,
   describe,
 }: {
   rows: BrowseTag[];
   source: TagSource;
   selected: string | null;
   onSelect: (tag: string) => void;
-  epoch: unknown;
   describe: Describe;
 }) {
-  const [samples, setSamples] = useState<Record<string, Sample[]>>({});
   const characters = useCharacterLookup();
-  const requested = useRef<Set<string>>(new Set());
-  // A changed list (a pinned cover, a rename) starts the mosaics over.
-  useEffect(() => {
-    requested.current.clear();
-    setSamples({});
-  }, [epoch]);
-
-  useEffect(() => {
-    const need = rows
-      .filter((t) => t.category !== "character")
-      .map((t) => galleryTag(t.tag, source))
-      .filter((id) => !requested.current.has(id));
-    if (!need.length) return;
-    need.forEach((id) => requested.current.add(id));
-    const params = new URLSearchParams();
-    need.forEach((id) => params.append("tags", id));
-    params.set("per", "4");
-    api<Record<string, Sample[]>>(`/api/v1/tags/samples?${params}`)
-      .then((data) => setSamples((prev) => ({ ...prev, ...data })))
-      .catch(() => {
-        // Allow a retry on next render if the batch failed.
-        need.forEach((id) => requested.current.delete(id));
-      });
-  }, [rows, source]);
+  // One request for the cards that asked in the same render; a changed list
+  // (a pinned cover, a rename) invalidates TAGS_KEY and the mosaics refresh.
+  const ids = useMemo(
+    () => rows.filter((t) => t.category !== "character").map((t) => galleryTag(t.tag, source)),
+    [rows, source],
+  );
+  const results = useQueries({ queries: ids.map((id) => tagSamplesQuery(id, 4, 60_000)) });
+  const samples = new Map(ids.map((id, i) => [id, results[i].data] as const));
 
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(min(170px,calc(50%_-_6px)),1fr))] gap-3">
@@ -612,7 +593,7 @@ function TagGrid({
           <Described key={t.tag} text={describe(t.tag)}>
             <NumeralCard
               tag={t}
-              samples={samples[galleryTag(t.tag, source)]}
+              samples={samples.get(galleryTag(t.tag, source))}
               selected={t.tag === selected}
               onSelect={onSelect}
             />

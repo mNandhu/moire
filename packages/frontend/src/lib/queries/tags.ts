@@ -10,6 +10,9 @@ import type { CharacterPage } from "../character";
 import type { Facet } from "../tagColour";
 import type { TagGroups } from "../tagGroups";
 
+/** One `/tags/samples` image. */
+export type Sample = { _id: string; thumb_url: string };
+
 export type TagAgg = { _id: string; count: number };
 
 /** Prefix for every tag-aggregate query; invalidate this after tag writes. */

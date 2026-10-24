@@ -3,9 +3,7 @@ import { Skeleton } from "./ui/Skeleton";
 import { cn } from "../lib/cn";
 import { focusPosition } from "../lib/character";
 import { smallThumb } from "../lib/media";
-
-/** One `/tags/samples` image. */
-export type Sample = { _id: string; thumb_url: string };
+import type { Sample } from "../lib/queries";
 
 /** 2x2 collage of distinct images. Adapts to 1–4 samples; cells crop to
  * keep a tidy square (it reads as a deliberate collage, not a thumbnail).
