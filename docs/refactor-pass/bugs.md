@@ -5,6 +5,9 @@ Unverified agent claims unless struck through: confirm each with a failing test 
 - ~~Rescan of a missing or unmounted library folder deletes every image and its curation~~ (fixed 5c1bf8d)
 - **SCAN-UI** Library `scan_error` is never shown in the UI: a failed scan or one that kept images is invisible on the Libraries page (`grep -rn scan_error packages/frontend/src` is empty).
 
+- ~~**GRID-BLANK** Gallery grid shows no tiles while the loaded count climbs (parent scroller ref read before React attaches it)~~ (fixed 6017a58; found in use, missed by the pass)
+- ~~**TEST-DB** Backend tests wrote fixture rows into the real DB (no session-wide test DB fixture)~~ (fixed 91b321b; found in use, missed by the pass)
+
 - **L1.1** Retag of an image a running AI job already passed wipes its AI tags and reports success (conf high, S)
 - **L1.4** Async routes block the event loop on scan/watch thread joins (conf high, S)
 - **L2.1** promptOutline (board) and prompt_parse (tags) read the same prompt differently; an unclosed bracket makes the board see one term (conf high, M)

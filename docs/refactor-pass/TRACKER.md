@@ -32,6 +32,11 @@ Housekeeping, not findings:
 - [x] **S8.8** Cancelled requests render as 'done' frames in the queue card (bug, S, L2), done e1b0a46
 - [x] **S9.3** JsonTree branch toggle opens and closes every sibling branch at once (bug, S, L3), done fd9149b
 
+Found later, outside the pass (in use, not by the review agents; the pass missed both):
+
+- [x] **GRID-BLANK** Gallery grid renders no tiles while the "loaded" count climbs: when the page and grid mount in one commit (feed cached), the grid's first layout effect reads the page's scroller ref before React attaches it, bails, and never measures (bug, S, L4), done 6017a58
+- [x] **TEST-DB** Backend tests could write to the real DB: `temp_db` never restored the settings and tests without it used the current path, so fixture rows (`L1:a`, ...) landed in the real gallery; now a session-wide temp DB/thumbs/logs fixture (bug, S, L3), done 91b321b (leaked rows deleted by hand)
+
 P0 review fixes: 924e1e1 (UI batch), e86ea57 (data and library batch). Review findings left open:
 - Dialog decides Escape by a selector of popup markers; the general fix (popups claim Escape, Dialog acts only on unclaimed ones) belongs with L3.4/L3.8. ChipInput and TagSearchInput comboboxes inside a dialog still lose Escape to it.
 - DropdownMenu closes on Escape from both a wrapper handler and a document listener.
