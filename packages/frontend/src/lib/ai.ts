@@ -63,6 +63,9 @@ export type AIStatus = {
     status: string;
     cancel_requested?: boolean;
     error?: string | null;
+    /** Bytes over the files whose size is known; null until one is. */
+    done?: number | null;
+    total?: number | null;
     files?: Array<{
       name: string;
       status: string;

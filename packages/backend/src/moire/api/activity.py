@@ -21,6 +21,7 @@ from ..database.db import async_conn
 from ..services import activity, face_detect, generation_estimate, scanner
 from ..services.ai_jobs import get_ai_job_manager, get_ai_settings
 from ..services.ai_tagger import model_status_view, resolved_model_target
+from ..services.ai_tagger_download import files_progress
 from ..services.generation_jobs import get_generation_manager
 
 router = APIRouter()
@@ -28,16 +29,13 @@ logger = logging.getLogger("moire.activity")
 
 
 def _download(key: str, kind: str, state: dict[str, Any]) -> dict[str, Any] | None:
-    """A model download in flight, in bytes of the files whose size is known.
-    Files download one at a time and a file's size is known once it starts,
-    so the big model file counts while the small ones after it wait."""
+    """A model download in flight, in bytes (see ``files_progress``)."""
     if state.get("status") != "downloading":
         return None
-    sized = [f for f in state.get("files") or [] if f.get("total")]
     item: dict[str, Any] = {"key": key, "kind": kind, "unit": "bytes"}
-    if sized:
-        item["done"] = sum(int(f.get("downloaded") or 0) for f in sized)
-        item["total"] = sum(int(f["total"]) for f in sized)
+    progress = files_progress(state.get("files"))
+    if progress:
+        item["done"], item["total"] = progress
     return item
 
 

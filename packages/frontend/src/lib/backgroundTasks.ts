@@ -60,7 +60,7 @@ function withEta(detail: string | null, eta?: number, format: (s: number) => str
   return `${detail} · ${format(eta)} left`;
 }
 
-export function taskPct(t: Pick<BackgroundTask, "done" | "total">): number | null {
+export function taskPct(t: { done?: number | null; total?: number | null }): number | null {
   if (!t.total) return null;
   return Math.min(100, Math.max(0, Math.floor(((t.done ?? 0) / t.total) * 100)));
 }

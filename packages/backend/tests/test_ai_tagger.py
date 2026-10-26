@@ -241,3 +241,20 @@ def test_predict_uses_a_prepared_tensor_of_the_right_size():
         tagger.predict(image=PreparedImage(img, stale), **kw)
         assert sess.fed[-1].shape == (1, 8, 8, 3)
         assert np.array_equal(sess.fed[-1], ready)
+
+
+def test_download_state_progress_sums_sized_files_once():
+    from moire.services.ai_tagger_download import (
+        DownloadFileState,
+        ModelDownloadState,
+    )
+
+    st = ModelDownloadState(model_repo="r", cache_dir="/c")
+    assert st.progress() is None and st.as_dict()["total"] is None
+    st.files = [
+        DownloadFileState("m.onnx", "u", "/d", downloaded=100, total=400),
+        DownloadFileState("t.csv", "u", "/d"),
+    ]
+    assert st.progress() == (100, 400)
+    out = st.as_dict()
+    assert (out["done"], out["total"]) == (100, 400)

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { ProgressBar } from "../../../components/ui/ProgressBar";
+import { taskPct } from "../../../lib/backgroundTasks";
 import { formatBytes } from "../../../lib/format";
 import { useSettings } from "../SettingsContext";
 
@@ -33,10 +34,9 @@ function DownloadProgress() {
     useSettings();
   const dl = status?.model_download;
   if (!dl || !downloadRelevant(dl.status, isModelLoaded)) return null;
-  const files = dl.files || [];
-  const done = files.reduce((n, f) => n + (f.downloaded || 0), 0);
-  const total = files.reduce((n, f) => n + (f.total || 0), 0);
-  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const done = dl.done ?? 0;
+  const total = dl.total ?? 0;
+  const pct = taskPct(dl) ?? 0;
 
   return (
     <div className="space-y-2">

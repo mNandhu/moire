@@ -95,8 +95,21 @@ class ModelDownloadState:
     # What to fetch; the tagger's own pair when not given.
     spec: tuple[RemoteFile, ...] | None = None
 
+    def progress(self) -> tuple[int, int] | None:
+        """Bytes ``(done, total)`` over the files whose size is known, or None
+        while none is. Files download one at a time and a size is known once a
+        file starts, so the big model file counts while the small ones after
+        it wait. The one sum behind the activity list and both settings
+        sections."""
+        return files_progress(
+            [{"downloaded": f.downloaded, "total": f.total} for f in self.files]
+        )
+
     def as_dict(self) -> dict[str, Any]:
+        progress = self.progress()
         return {
+            "done": progress[0] if progress else None,
+            "total": progress[1] if progress else None,
             "model_repo": self.model_repo,
             "cache_dir": self.cache_dir,
             "status": self.status,
@@ -115,6 +128,17 @@ class ModelDownloadState:
                 for f in self.files
             ],
         }
+
+
+def files_progress(files: list[dict[str, Any]] | None) -> tuple[int, int] | None:
+    """``(downloaded, total)`` bytes over the sized entries of ``as_dict()["files"]``."""
+    sized = [f for f in files or [] if f.get("total")]
+    if not sized:
+        return None
+    return (
+        sum(int(f.get("downloaded") or 0) for f in sized),
+        sum(int(f["total"]) for f in sized),
+    )
 
 
 class ModelDownloadManager:

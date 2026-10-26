@@ -10,6 +10,7 @@ import { api } from "../../../lib/api";
 import { SETTINGS_KEY, putSettings, useComfySettings, type ComfySettings } from "../../../lib/generate";
 import { useToast } from "../../../components/Toasts";
 import { TAGS_KEY } from "../../../lib/queries";
+import { taskPct } from "../../../lib/backgroundTasks";
 import { formatBytes } from "../../../lib/format";
 import { useSettings } from "../SettingsContext";
 
@@ -21,7 +22,8 @@ type FaceStatus = {
     status: string;
     error: string | null;
     cancel_requested: boolean;
-    files: Array<{ downloaded: number; total: number | null }>;
+    done: number | null;
+    total: number | null;
   };
   /** Avatar images waiting to be looked at. */
   pending: number;
@@ -61,9 +63,9 @@ export function CharactersSection() {
   };
 
   const dl = faces?.download;
-  const done = (dl?.files ?? []).reduce((n, f) => n + (f.downloaded || 0), 0);
-  const total = (dl?.files ?? []).reduce((n, f) => n + (f.total || 0), 0);
-  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const done = dl?.done ?? 0;
+  const total = dl?.total ?? 0;
+  const pct = dl ? (taskPct(dl) ?? 0) : 0;
 
   return (
     <div className="space-y-5">
