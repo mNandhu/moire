@@ -7,11 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
-import sqlalchemy as sa
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from . import app_settings
 
-from ..database.db import async_conn, async_tx
-from ..database import schema as t
 
 ROW_ID = "comfyui"
 MASK = "••••"
@@ -77,22 +74,12 @@ def public(s: dict[str, Any]) -> dict[str, Any]:
 
 
 async def get_settings() -> dict[str, Any]:
-    async with async_conn() as conn:
-        doc = (
-            await conn.execute(
-                sa.select(t.app_settings.c.doc).where(t.app_settings.c._id == ROW_ID)
-            )
-        ).scalar()
+    doc = await app_settings.read(ROW_ID)
     return {**DEFAULT_COMFY_SETTINGS, **(doc or {})}
 
 
 async def update_settings(patch: dict[str, Any]) -> dict[str, Any]:
     current = await get_settings()
     new_doc = {**current, **clean_patch(patch, current)}
-    async with async_tx() as conn:
-        stmt = sqlite_insert(t.app_settings).values(_id=ROW_ID, doc=new_doc)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=[t.app_settings.c._id], set_={"doc": stmt.excluded.doc}
-        )
-        await conn.execute(stmt)
+    await app_settings.write(ROW_ID, new_doc)
     return new_doc

@@ -17,11 +17,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-import sqlalchemy as sa
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from . import app_settings
 
-from ..database import schema as t
-from ..database.db import async_conn, async_tx
 
 _ROW = "tags"
 MAX_ENTRIES = 300
@@ -83,12 +80,7 @@ def clean_boilerplate(entries: Any) -> list[str]:
 
 
 async def get_tag_settings() -> dict[str, Any]:
-    async with async_conn() as conn:
-        doc = (
-            await conn.execute(
-                sa.select(t.app_settings.c.doc).where(t.app_settings.c._id == _ROW)
-            )
-        ).scalar()
+    doc = await app_settings.read(_ROW)
     stored = (doc or {}).get("boilerplate")
     return {
         "boilerplate": list(stored)
@@ -100,12 +92,5 @@ async def get_tag_settings() -> dict[str, Any]:
 
 async def set_boilerplate(entries: Any) -> dict[str, Any]:
     clean = clean_boilerplate(entries)
-    async with async_tx() as conn:
-        stmt = sqlite_insert(t.app_settings).values(
-            _id=_ROW, doc={"boilerplate": clean}
-        )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=[t.app_settings.c._id], set_={"doc": stmt.excluded.doc}
-        )
-        await conn.execute(stmt)
+    await app_settings.write(_ROW, {"boilerplate": clean})
     return await get_tag_settings()

@@ -8,12 +8,13 @@ from __future__ import annotations
 
 from typing import Any
 
-import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from ..database.db import async_conn, async_tx
+
+from ..database.db import async_tx
 from ..database import schema as t
 from ..core.config import settings
+from . import app_settings
 from .ai_tagger import get_tagger_manager
 
 # The app_settings row holding these (also read by extraction_settings).
@@ -81,18 +82,8 @@ def clean_settings_patch(patch: dict[str, Any]) -> dict[str, Any]:
     return clean
 
 
-async def _read_ai_doc() -> dict[str, Any] | None:
-    """The stored "ai" settings overrides, or None if never written."""
-    async with async_conn() as conn:
-        return (
-            await conn.execute(
-                sa.select(t.app_settings.c.doc).where(t.app_settings.c._id == ROW)
-            )
-        ).scalar()
-
-
 async def get_ai_settings() -> dict[str, Any]:
-    doc = await _read_ai_doc()
+    doc = await app_settings.read(ROW)
     if doc is None:
         async with async_tx() as conn:
             await conn.execute(
@@ -108,14 +99,9 @@ async def update_ai_settings(patch: dict[str, Any]) -> dict[str, Any]:
     clean = clean_settings_patch(patch)
 
     before = await get_ai_settings()
-    existing = await _read_ai_doc() or {}
+    existing = await app_settings.read(ROW) or {}
     new_doc = {**existing, **clean}
-    async with async_tx() as conn:
-        stmt = sqlite_insert(t.app_settings).values(_id=ROW, doc=new_doc)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=[t.app_settings.c._id], set_={"doc": stmt.excluded.doc}
-        )
-        await conn.execute(stmt)
+    await app_settings.write(ROW, new_doc)
 
     # Apply runtime knobs immediately.
     if "idle_unload_s" in clean:

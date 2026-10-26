@@ -30,9 +30,9 @@ from typing import Any, Callable
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from ..database.db import sync_conn, sync_tx
+from ..database.db import sync_tx
 from ..database import schema as t
-from . import image_tags, reproject, tag_index
+from . import app_settings, image_tags, reproject, tag_index
 from .tag_names import canonical_name
 
 logger = logging.getLogger("moire.migrations")
@@ -42,22 +42,12 @@ _BATCH = 200
 
 
 def _done() -> dict[str, Any]:
-    with sync_conn() as conn:
-        doc = conn.execute(
-            sa.select(t.app_settings.c.doc).where(t.app_settings.c._id == _ROW)
-        ).scalar()
-    return dict(doc or {})
+    return dict(app_settings.read_sync(_ROW) or {})
 
 
 def _mark(name: str) -> None:
     doc = {**_done(), name: time.time()}
-    with sync_tx() as conn:
-        stmt = sqlite_insert(t.app_settings).values(_id=_ROW, doc=doc)
-        conn.execute(
-            stmt.on_conflict_do_update(
-                index_elements=[t.app_settings.c._id], set_={"doc": doc}
-            )
-        )
+    app_settings.write_sync(_ROW, doc)
 
 
 def canonical_tag_list(tags: list[str]) -> list[str]:

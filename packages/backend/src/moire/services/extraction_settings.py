@@ -14,11 +14,10 @@ from dataclasses import dataclass
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database import schema as t
-from ..database.db import async_conn, async_tx, sync_conn
-from . import ai_settings, prompt_guess
+from ..database.db import async_conn, sync_conn
+from . import ai_settings, app_settings, prompt_guess
 
 _ROW = "extraction"
 
@@ -50,10 +49,6 @@ def _keywords(doc: dict | None) -> prompt_guess.Keywords:
     return prompt_guess.Keywords(frozenset(pos), frozenset(neg))
 
 
-def _doc_stmt(row: str):
-    return sa.select(t.app_settings.c.doc).where(t.app_settings.c._id == row)
-
-
 _RULES_STMT = sa.select(t.tag_rules.c.from_name, t.tag_rules.c.to_names)
 
 
@@ -69,8 +64,8 @@ def load_sync() -> ExtractionConfig:
     """The stored extraction config, for the reprojection thread."""
     with sync_conn() as conn:
         return _config(
-            conn.execute(_doc_stmt(_ROW)).scalar(),
-            conn.execute(_doc_stmt(ai_settings.ROW)).scalar(),
+            conn.execute(app_settings.doc_stmt(_ROW)).scalar(),
+            conn.execute(app_settings.doc_stmt(ai_settings.ROW)).scalar(),
             conn.execute(_RULES_STMT).fetchall(),
         )
 
@@ -79,15 +74,15 @@ async def load() -> ExtractionConfig:
     """The stored extraction config, for the rules preview."""
     async with async_conn() as conn:
         return _config(
-            (await conn.execute(_doc_stmt(_ROW))).scalar(),
-            (await conn.execute(_doc_stmt(ai_settings.ROW))).scalar(),
+            (await conn.execute(app_settings.doc_stmt(_ROW))).scalar(),
+            (await conn.execute(app_settings.doc_stmt(ai_settings.ROW))).scalar(),
             (await conn.execute(_RULES_STMT)).fetchall(),
         )
 
 
 async def get_settings() -> dict[str, Any]:
     async with async_conn() as conn:
-        doc = (await conn.execute(_doc_stmt(_ROW))).scalar()
+        doc = (await conn.execute(app_settings.doc_stmt(_ROW))).scalar()
         guessed = (
             await conn.execute(
                 sa.select(sa.func.count()).where(
@@ -110,9 +105,4 @@ async def set_keywords(positive: Any, negative: Any) -> None:
         "guess_positive": prompt_guess.clean_keywords(positive),
         "guess_negative": prompt_guess.clean_keywords(negative),
     }
-    async with async_tx() as conn:
-        stmt = sqlite_insert(t.app_settings).values(_id=_ROW, doc=doc)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=[t.app_settings.c._id], set_={"doc": stmt.excluded.doc}
-        )
-        await conn.execute(stmt)
+    await app_settings.write(_ROW, doc)
