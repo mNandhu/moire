@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 from typing import Iterable
 
+from .outfits import DEFAULT_ID, DEFAULT_NAME
 from .prompt_parse import parse_prompt
 from .tag_names import display_tag
 
@@ -92,3 +93,31 @@ def auto_name(
     if words:
         return ", ".join([generator, *words])
     return f"Batch {number}"
+
+
+def batch_name(
+    *,
+    number: int,
+    generator: str,
+    characters: list[dict],
+    extra: Iterable[str] = (),
+) -> str:
+    """A new batch's auto name from its kept characters (:func:`auto_name`):
+    their labels (or tags) joined with " & "; one character names their
+    outfit too, unless it is the untouched Default (that isn't news)."""
+    who = [c.get("label") or c["tag"] for c in characters]
+    worn = characters[0].get("outfit") if len(characters) == 1 else None
+    outfit = (
+        worn["name"]
+        if isinstance(worn, dict)
+        and worn.get("name")
+        and not (worn.get("id") == DEFAULT_ID and worn["name"] == DEFAULT_NAME)
+        else None
+    )
+    return auto_name(
+        number=number,
+        generator=generator,
+        extra=extra,
+        character=" & ".join(who) if who else None,
+        outfit=outfit,
+    )

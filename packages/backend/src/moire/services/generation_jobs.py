@@ -16,7 +16,6 @@ ComfyUI rejects it, nothing is kept and the caller gets the node errors.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 import os
@@ -36,22 +35,19 @@ from . import (
     generation_estimate,
 )
 from .comfy_client import ComfyClient, ComfyError, ComfyRejected, ComfyUnreachable
-from . import outfits
 from .comfy_history import (
     history_result,
     model_loaded,
     outputs_from_history,
     run_seconds,
 )
-from .generation_compose import auto_name, compose, compose_parts, prompt_terms
+from .generation_compose import batch_name
 from .generation_errors import Invalid, Rejected, Unavailable, annotate_node_errors
 from .generation_inputs import (
-    _characters_input,
-    _parts,
-    _resolve,
-    batch_shape,
+    BatchPlan,
+    build_batch_inputs,
     characters_of,
-    outfit_tags,
+    replay_body,
 )
 from .generation_outputs import (
     OUTPUT_FRESH_S,
@@ -70,8 +66,6 @@ from .generator_graph import (
     family_pnginfo,
     fill_defaults,
     merge_loras,
-    seeds_for,
-    split_requests,
 )
 
 log = logging.getLogger("moire.generate")
@@ -723,76 +717,10 @@ class GenerationManager:
         if not gen["ready"] and not test:
             raise Invalid("Run the workflow's test first")
 
-        shape = batch_shape(gen, body, s)
-        count = shape["count"]
-        sizes = split_requests(count, shape["per_request"])
-        seed = body.get("seed") or {}
-        fixed = (
-            int(seed["value"])
-            if seed.get("mode") == "fixed" and seed.get("value") is not None
-            else None
-        )
-        seeds = seeds_for(len(sizes), fixed=fixed)
-
-        extra = list(body.get("extra") or [])
-        characters = _characters_input(body)
-        inputs = {
-            "base": body.get("base") or "",
-            "extra": extra,
-            "negative_base": body.get("negative_base") or "",
-            "negative_extra": list(body.get("negative_extra") or []),
-            "checkpoint": shape["checkpoint"],
-            "sampling": shape["sampling"],
-            "loras": [
-                {"name": lo["name"], "strength": float(lo.get("strength", 1.0))}
-                for lo in body.get("loras") or []
-            ],
-            "characters": characters,
-            # The first, for readers of batches from before several.
-            "character": characters[0] if characters else None,
-            "width": shape["width"],
-            "height": shape["height"],
-            "seed": {
-                "mode": "fixed" if fixed is not None else "random",
-                "value": fixed,
-            },
-            "count": count,
-            "per_request": shape["per_request"],
-            # What the user set, apart from the setting it resolved to.
-            "per_request_asked": shape["per_request_asked"],
-            "test": test,
-        }
-        positive = _parts(body.get("positive"))
-        if positive is not None:
-            # The layered composer: ordered parts, and its own state for
-            # "Edit and queue" (opaque here).
-            negative = _parts(body.get("negative")) or []
-            inputs["positive"] = positive
-            inputs["negative"] = negative
-            composer = body.get("composer")
-            inputs["composer"] = (
-                composer
-                if isinstance(composer, dict) and len(json.dumps(composer)) < 50_000
-                else None
-            )
-            inputs["positive_text"] = compose_parts(_resolve(positive, characters))
-            inputs["negative_text"] = compose_parts(_resolve(negative, []))
-            extra = prompt_terms(
-                " , ".join(p["text"] for p in positive if p.get("role") == "prompt")
-            )
-        else:
-            inputs["positive_text"] = compose(
-                inputs["base"],
-                [w for c in characters for w in [*c["tags"], *outfit_tags(c)]],
-                extra,
-            )
-            inputs["negative_text"] = compose(
-                inputs["negative_base"], inputs["negative_extra"]
-            )
-
+        plan = build_batch_inputs(body, gen, s, test=test)
         async with self._tick_lock:
             batch_id = await self._insert_and_submit(
-                gen, inputs, sizes, seeds, body, extra
+                gen, plan, (body.get("name") or "").strip()
             )
         self._wake.set()
         return batch_id
@@ -800,16 +728,14 @@ class GenerationManager:
     async def _insert_and_submit(
         self,
         gen: dict[str, Any],
-        inputs: dict[str, Any],
-        sizes: list[int | None],
-        seeds: list[int],
-        body: dict[str, Any],
-        name_words: list[str],
+        plan: BatchPlan,
+        given: str,
     ) -> int:
         """Caller holds ``_tick_lock``, so the loop can't see the new pending
         rows (and submit them too) or a stale queue snapshot (and call the new
         prompt lost)."""
         b, r = t.generation_batches, t.generation_requests
+        inputs = plan.inputs
         now = time.time()
         async with async_tx() as conn:
             res = await conn.execute(
@@ -823,25 +749,11 @@ class GenerationManager:
                 )
             )
             batch_id = int(res.inserted_primary_key[0])  # type: ignore[index]
-            given = (body.get("name") or "").strip()
-            chars = characters_of(inputs)
-            who = [c["label"] or c["tag"] for c in chars]
-            # One character names their outfit too; an unrenamed Default
-            # isn't news.
-            worn = chars[0].get("outfit") if len(chars) == 1 else None
-            name = given or auto_name(
+            name = given or batch_name(
                 number=batch_id,
                 generator=gen["name"],
-                extra=name_words,
-                character=" & ".join(who) if who else None,
-                outfit=worn["name"]
-                if isinstance(worn, dict)
-                and worn.get("name")
-                and not (
-                    worn.get("id") == outfits.DEFAULT_ID
-                    and worn["name"] == outfits.DEFAULT_NAME
-                )
-                else None,
+                characters=characters_of(inputs),
+                extra=plan.name_words,
             )
             await conn.execute(
                 sa.update(b)
@@ -858,7 +770,7 @@ class GenerationManager:
                         "images": n,
                         "state": "pending",
                     }
-                    for i, (n, sd) in enumerate(zip(sizes, seeds))
+                    for i, (n, sd) in enumerate(zip(plan.sizes, plan.seeds))
                 ],
             )
         # Sent now so ComfyUI checks the graph (a rejection keeps nothing),
@@ -927,31 +839,8 @@ class GenerationManager:
             ).first()
         if row is None:
             raise Invalid("Unknown batch")
-        inputs = row.inputs
         body = {
-            **{
-                k: inputs.get(k)
-                for k in (
-                    "base",
-                    "extra",
-                    "negative_base",
-                    "negative_extra",
-                    "checkpoint",
-                    "sampling",
-                    "loras",
-                    "character",
-                    "characters",
-                    "positive",
-                    "negative",
-                    "composer",
-                    "width",
-                    "height",
-                    "count",
-                    "seed",
-                )
-            },
-            # Only a size the user chose is replayed; else today's setting.
-            "per_request": inputs.get("per_request_asked"),
+            **replay_body(row.inputs),
             "generator_id": row.generator_id,
             "name": None if row.auto_name else row.name,
         }

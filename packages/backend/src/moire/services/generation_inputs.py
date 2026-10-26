@@ -1,11 +1,14 @@
 """A queue body -> the inputs a batch keeps: the work shape, the characters,
-the prompt parts. Pure."""
+the prompt parts (:func:`build_batch_inputs`), and the keys "Queue again"
+replays from them (:data:`REPLAY_KEYS`). Pure."""
 
 from __future__ import annotations
 
-from typing import Any
+import json
+from typing import Any, NamedTuple
 
-from .generator_graph import SAMPLING
+from .generation_compose import compose, compose_parts, prompt_terms
+from .generator_graph import SAMPLING, seeds_for, split_requests
 from .outfits import clean_tags
 
 
@@ -159,3 +162,137 @@ def _outfit_input(o: Any) -> dict[str, Any] | None:
     if not tags:
         return None
     return {"id": str(o["id"]), "name": (o.get("name") or "").strip(), "tags": tags}
+
+
+class BatchPlan(NamedTuple):
+    """What :func:`build_batch_inputs` makes of a queue body: the inputs the
+    batch keeps, each request's image count and seed, and the words its auto
+    name is built from."""
+
+    inputs: dict[str, Any]
+    sizes: list[int | None]
+    seeds: list[int]
+    name_words: list[str]
+
+
+# The keys of a batch's inputs that "Queue again" sends back as the body.
+REPLAY_KEYS = (
+    "base",
+    "extra",
+    "negative_base",
+    "negative_extra",
+    "checkpoint",
+    "sampling",
+    "loras",
+    "character",
+    "characters",
+    "positive",
+    "negative",
+    "composer",
+    "width",
+    "height",
+    "count",
+    "seed",
+)
+# The other keys: made again from the replayed ones (the prompt text, the
+# images per request), or not replayed at all (a test run requeued is a
+# plain batch). ``per_request_asked`` is replayed as the body's
+# ``per_request``, so only a size the user chose comes back.
+DERIVED_KEYS = (
+    "positive_text",
+    "negative_text",
+    "per_request",
+    "per_request_asked",
+    "test",
+)
+
+
+def replay_body(inputs: dict[str, Any]) -> dict[str, Any]:
+    """A queue body that makes a batch with these inputs again (new seeds
+    unless they were fixed; today's images-per-request setting unless the
+    user chose one)."""
+    return {
+        **{k: inputs.get(k) for k in REPLAY_KEYS},
+        "per_request": inputs.get("per_request_asked"),
+    }
+
+
+def build_batch_inputs(
+    body: dict[str, Any],
+    gen: dict[str, Any],
+    settings: dict[str, Any],
+    *,
+    test: bool = False,
+) -> BatchPlan:
+    """The batch a queue body asks for, as it is kept: every key of its
+    ``inputs`` is in :data:`REPLAY_KEYS` or :data:`DERIVED_KEYS`. Pure but
+    for random seeds."""
+    shape = batch_shape(gen, body, settings)
+    count = shape["count"]
+    sizes = split_requests(count, shape["per_request"])
+    seed = body.get("seed") or {}
+    fixed = (
+        int(seed["value"])
+        if seed.get("mode") == "fixed" and seed.get("value") is not None
+        else None
+    )
+    seeds = seeds_for(len(sizes), fixed=fixed)
+
+    extra = list(body.get("extra") or [])
+    characters = _characters_input(body)
+    inputs: dict[str, Any] = {
+        "base": body.get("base") or "",
+        "extra": extra,
+        "negative_base": body.get("negative_base") or "",
+        "negative_extra": list(body.get("negative_extra") or []),
+        "checkpoint": shape["checkpoint"],
+        "sampling": shape["sampling"],
+        "loras": [
+            {"name": lo["name"], "strength": float(lo.get("strength", 1.0))}
+            for lo in body.get("loras") or []
+        ],
+        "characters": characters,
+        # The first, for readers of batches from before several.
+        "character": characters[0] if characters else None,
+        "width": shape["width"],
+        "height": shape["height"],
+        "seed": {
+            "mode": "fixed" if fixed is not None else "random",
+            "value": fixed,
+        },
+        "count": count,
+        "per_request": shape["per_request"],
+        # What the user set, apart from the setting it resolved to.
+        "per_request_asked": shape["per_request_asked"],
+        "test": test,
+    }
+    positive = _parts(body.get("positive"))
+    if positive is not None:
+        # The layered composer: ordered parts, and its own state for
+        # "Edit and queue" (opaque here).
+        negative = _parts(body.get("negative")) or []
+        inputs["positive"] = positive
+        inputs["negative"] = negative
+        composer = body.get("composer")
+        inputs["composer"] = (
+            composer
+            if isinstance(composer, dict) and len(json.dumps(composer)) < 50_000
+            else None
+        )
+        inputs["positive_text"] = compose_parts(_resolve(positive, characters))
+        inputs["negative_text"] = compose_parts(_resolve(negative, []))
+        name_words = prompt_terms(
+            " , ".join(p["text"] for p in positive if p.get("role") == "prompt")
+        )
+    else:
+        # Batches from before the layered composer (and the test run).
+        inputs["positive_text"] = compose(
+            inputs["base"],
+            [w for c in characters for w in [*c["tags"], *outfit_tags(c)]],
+            extra,
+        )
+        inputs["negative_text"] = compose(
+            inputs["negative_base"], inputs["negative_extra"]
+        )
+        name_words = extra
+    return BatchPlan(inputs, sizes, seeds, name_words)
