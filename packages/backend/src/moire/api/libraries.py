@@ -14,7 +14,6 @@ from ..models.library import (
     LibraryDiscoverIn,
     LibraryIn,
     LibraryUpdate,
-    normalize_path,
 )
 from ..services import activity, library_discover, library_nesting
 from ..services.scanner import cancel_scan, restart_scan, scan_library_async
@@ -97,11 +96,15 @@ async def add_library(body: LibraryIn):
     # whose drive is temporarily offline (unplugged external disk, unmounted
     # share) should still return the existing record on a repeat POST, not a
     # 400 that makes it look unregistered.
-    # Compare normalized spellings, so a library stored before paths were
-    # normalized (`D:/images/`) still dedupes against `D:/images`.
+    # Compare folder keys, so a library stored before paths were normalized
+    # (`D:/images/`) or spelled in another case on Windows (`d:/Images`) still
+    # dedupes, the same way the add-library preview calls it registered.
     async with async_conn() as conn:
         rows = (await conn.execute(sa.select(t.libraries))).fetchall()
-    existing = next((r for r in rows if normalize_path(r.path) == body.path), None)
+    key = library_nesting.path_key(body.path)
+    existing = next(
+        (r for r in rows if r.path and library_nesting.path_key(r.path) == key), None
+    )
     if existing:
         return dict(existing._mapping)
 
@@ -256,11 +259,11 @@ async def update_library(library_id: str, body: LibraryUpdate):
         ).first()
     result = dict(doc._mapping) if doc else None
     new_path = update_doc.get("path", old._mapping.get("path"))
-    # The new path arrives normalized; normalize the stored one too, so a
-    # name-only edit of a library stored as `/x/` doesn't count as a move.
-    path_changed = "path" in update_doc and update_doc["path"] != normalize_path(
-        old._mapping.get("path") or ""
-    )
+    # Compare folder keys, so a name-only edit of a library stored as `/x/`
+    # (or a case-only edit on Windows) doesn't count as a move.
+    path_changed = "path" in update_doc and library_nesting.path_key(
+        update_doc["path"]
+    ) != library_nesting.path_key(old._mapping.get("path") or "")
     if path_changed:
         library_nesting.invalidate()
         restart_scan(library_id, new_path)
