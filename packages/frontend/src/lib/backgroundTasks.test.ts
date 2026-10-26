@@ -24,7 +24,7 @@ describe("describeTask", () => {
 
   it("tells an AI job waiting on the model from one tagging", () => {
     expect(describeTask({ key: "a", kind: "ai_job", phase: "model", done: 0, total: 1 }).detail).toBe(
-      "Waiting for the model",
+      "Waiting for model",
     );
     expect(describeTask({ key: "a", kind: "ai_job", phase: "tagging", status: "running", done: 1, total: 4 }).detail).toBe(
       "1 of 4 images",

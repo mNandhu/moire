@@ -2,6 +2,8 @@ import { formatDuration } from "./format";
 import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   aiJobLabel,
+  aiJobPhaseLabel,
+  cancelJobMessage,
   fetchAiCoverage,
   isTerminalJob,
   isActiveJob,
@@ -237,6 +239,21 @@ describe("aiJobLabel", () => {
     expect(aiJobLabel({ status: "running", phase: "model" })).toBe("Waiting for model…");
     expect(aiJobLabel({ status: "running", phase: "tagging" })).toBe("Tagging…");
     expect(aiJobLabel({ status: "cancelling", phase: "model" })).toBe("Cancelling…");
+  });
+});
+
+describe("aiJobPhaseLabel / cancelJobMessage", () => {
+  it("words a job's place the same way everywhere", () => {
+    expect(aiJobPhaseLabel({ status: "running", phase: "model" })).toBe("Waiting for model");
+    expect(aiJobPhaseLabel({ status: "running", phase: "tagging" })).toBe("Running");
+    expect(aiJobPhaseLabel({ status: "queued", phase: "model" })).toBe("Queued");
+    expect(aiJobPhaseLabel({ status: "cancelling", phase: "model" })).toBe("Cancelling");
+    expect(aiJobPhaseLabel({ status: "done" })).toBe("Done");
+  });
+
+  it("answers a cancel request one way", () => {
+    expect(cancelJobMessage(true)).toEqual(["Cancellation requested", "success"]);
+    expect(cancelJobMessage(false)).toEqual(["Job already finished", "info"]);
   });
 });
 

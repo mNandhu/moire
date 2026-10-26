@@ -1,3 +1,4 @@
+import { aiJobPhaseLabel } from "./ai";
 import { etaLabel, formatDuration } from "./format";
 
 /**
@@ -94,8 +95,13 @@ export function describeTask(
     case "model_load":
       return { title: "Loading the tagging model", detail: null, pct: null };
     case "ai_job":
-      if (t.phase === "model") return { title: "AI tagging", detail: "Waiting for the model", pct: null };
-      if (t.status === "queued") return { title: "AI tagging", detail: "Queued", pct: null };
+      if (t.phase === "model" || t.status === "queued") {
+        return {
+          title: "AI tagging",
+          detail: aiJobPhaseLabel({ status: t.status ?? "running", phase: t.phase }),
+          pct: null,
+        };
+      }
       return { title: "AI tagging", detail: withEta(count(t, "images"), t.eta_s), pct };
     case "face_download":
       return { title: "Downloading the face model", detail: count(t, ""), pct };

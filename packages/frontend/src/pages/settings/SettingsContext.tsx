@@ -12,6 +12,7 @@ import { useAiStatus } from "../../hooks/useAiStatus";
 import type { AISettings, AIStatus, AiJob } from "../../lib/ai";
 import {
   fetchAiSettings,
+  cancelJobMessage,
   postAiJobCancel,
   postClearAiTags,
   postModelDownloadCancel,
@@ -117,10 +118,7 @@ function useSettingsController(): SettingsController {
   const cancelJob = (jobId: string) =>
     runCommand(
       () => postAiJobCancel(jobId),
-      (r) => [
-        r.ok ? "Cancellation requested" : "Could not cancel job",
-        r.ok ? "success" : "error",
-      ],
+      (r) => cancelJobMessage(r.ok),
       "Failed to cancel"
     );
 

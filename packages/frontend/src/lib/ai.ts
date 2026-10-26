@@ -161,10 +161,26 @@ export function jobAgo(createdAtS: number, nowMs: number = Date.now()): string {
  * there's no job. The model's own download and load show beside it. */
 export function aiJobLabel(job: Pick<AiJob, "status" | "phase"> | null | undefined): string | null {
   if (!job) return null;
-  if (job.status === "cancelling") return "Cancelling…";
-  if (job.status === "queued") return "Queued…";
-  if (job.phase === "model") return "Waiting for model…";
+  if (job.status === "queued" || job.status === "cancelling" || job.phase === "model") {
+    return `${aiJobPhaseLabel(job)}…`;
+  }
   return "Tagging…";
+}
+
+/** The one wording of where a job is: its status, except that a running job
+ * still waiting on the tagger model says so. Used by the run button, the jobs
+ * list and the activity indicator. */
+export function aiJobPhaseLabel(job: Pick<AiJob, "status" | "phase">): string {
+  if (job.phase === "model" && job.status !== "queued" && job.status !== "cancelling") {
+    return "Waiting for model";
+  }
+  return jobStatusLabel(job.status);
+}
+
+/** The toast for a cancel request's answer: `ok` is false when the job had
+ * already ended. One wording for every place that cancels a job. */
+export function cancelJobMessage(ok: boolean): [string, "success" | "info"] {
+  return ok ? ["Cancellation requested", "success"] : ["Job already finished", "info"];
 }
 
 

@@ -7,6 +7,7 @@ import {
   fetchAiJob,
   isActiveJob,
   isTerminalJob,
+  cancelJobMessage,
   postAiJobCancel,
   postAiTag,
 } from "../lib/ai";
@@ -124,10 +125,7 @@ export function useAiTagging(onTagged?: () => void, imageId?: string) {
     setCancelling(true);
     try {
       const { ok } = await postAiJobCancel(jobId);
-      push(
-        ok ? "Cancellation requested" : "Job already finished",
-        ok ? "info" : "info",
-      );
+      push(...cancelJobMessage(ok));
     } catch (e) {
       push(`Failed to cancel: ${errorText(e)}`, "error");
     } finally {

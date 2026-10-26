@@ -5,6 +5,7 @@ import { ProgressBar } from "../../../components/ui/ProgressBar";
 import {
   isActiveJob,
   jobAgo,
+  aiJobPhaseLabel,
   jobStatusLabel,
   imageFileName,
   jobThroughput,
@@ -46,8 +47,7 @@ export function ActiveJob({ job }: { job: AiJob }) {
   const { running, progressPct, cancelJob } = useSettings();
   const processed = job.done + job.failed;
   const speed = jobThroughput(job);
-  const label =
-    job.status === "running" && job.phase === "model" ? "Waiting for model" : jobStatusLabel(job.status);
+  const label = aiJobPhaseLabel(job);
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3 text-sm">
