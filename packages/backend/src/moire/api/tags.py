@@ -1,13 +1,11 @@
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-import time
 import asyncio
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from ..database.db import async_conn, async_tx
+from ..database.db import async_conn
 from ..database import schema as t
 from ..services import thumb_version
 from ..services import tag_detail as tag_panel
@@ -372,38 +370,8 @@ async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
     # and is kept under the name its page uses.
     key, names, is_character = await characters.names_of(tag)
     tag = key
-
-    async with async_tx() as conn:
-        exists = (
-            await conn.execute(
-                sa.select(t.images.c._id).where(
-                    t.images.c._id == image_id,
-                    sa.exists(
-                        sa.select(1).where(
-                            t.image_tags.c.image_id == t.images.c._id,
-                            t.image_tags.c.base.in_(names),
-                        )
-                    ),
-                )
-            )
-        ).scalar()
-        if not exists:
-            raise HTTPException(
-                status_code=404, detail="Image not found for tag thumbnail"
-            )
-        stmt = sqlite_insert(t.tag_meta).values(
-            tag=tag, thumb_image_id=image_id, updated_at=time.time()
-        )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=[t.tag_meta.c.tag],
-            set_={
-                "thumb_image_id": stmt.excluded.thumb_image_id,
-                "updated_at": stmt.excluded.updated_at,
-            },
-        )
-        await conn.execute(stmt)
-
-    tag_index.invalidate()
+    if not await tag_covers.set_pin(tag, names, image_id):
+        raise HTTPException(status_code=404, detail="Image not found for tag thumbnail")
     if is_character:
         await face_detect.detect_now(image_id)  # the new avatar crops at once
     return {"tag": tag, "thumb_image_id": image_id}
@@ -412,9 +380,7 @@ async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
 @router.delete("/thumbnail/{tag:path}")
 async def clear_tag_thumbnail(tag: str):
     tag, *_ = await characters.names_of(tag_covers.pin_key(validate_tags([tag])[0]))
-    async with async_tx() as conn:
-        await conn.execute(sa.delete(t.tag_meta).where(t.tag_meta.c.tag == tag))
-    tag_index.invalidate()
+    await tag_covers.clear_pin(tag)
     return {"tag": tag, "cleared": True}
 
 

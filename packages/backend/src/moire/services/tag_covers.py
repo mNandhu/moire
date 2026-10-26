@@ -93,6 +93,80 @@ async def pins(conn, bases: set[str]) -> dict[str, str]:
     return {r.tag: r.thumb_image_id for r in rows if r.thumb_image_id}
 
 
+async def set_pin(key: str, names: list[str], image_id: str) -> bool:
+    """Pin ``image_id`` as the cover kept under ``key``. The image must carry
+    one of ``names`` (a character's cover may come from any of its names);
+    False, with nothing written, when it doesn't."""
+    async with async_tx() as conn:
+        carries = (
+            await conn.execute(
+                sa.select(t.images.c._id).where(
+                    t.images.c._id == image_id,
+                    sa.exists(
+                        sa.select(1).where(
+                            t.image_tags.c.image_id == t.images.c._id,
+                            t.image_tags.c.base.in_(names),
+                        )
+                    ),
+                )
+            )
+        ).scalar()
+        if not carries:
+            return False
+        stmt = sqlite_insert(t.tag_meta).values(
+            tag=key, thumb_image_id=image_id, updated_at=time.time()
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[t.tag_meta.c.tag],
+            set_={
+                "thumb_image_id": stmt.excluded.thumb_image_id,
+                "updated_at": stmt.excluded.updated_at,
+            },
+        )
+        await conn.execute(stmt)
+    tag_index.invalidate()
+    return True
+
+
+async def clear_pin(key: str) -> None:
+    """Drop the cover pinned under ``key``: the shuffle picks it again."""
+    async with async_tx() as conn:
+        await conn.execute(sa.delete(t.tag_meta).where(t.tag_meta.c.tag == key))
+    tag_index.invalidate()
+
+
+async def move(conn, old: str, new: str) -> None:
+    """Carry the cover framing and pin kept under ``old`` over to ``new``, on
+    the caller's transaction (a rename or merge; the caller invalidates).
+    The target keeps its own: then ``old``'s are dropped. The framing moves
+    pinned or not, since it is keyed to its image and only applies there."""
+    if (
+        await conn.execute(sa.select(t.tag_focus.c.tag).where(t.tag_focus.c.tag == new))
+    ).scalar() is None:
+        await conn.execute(
+            sa.update(t.tag_focus).where(t.tag_focus.c.tag == old).values(tag=new)
+        )
+    else:
+        await conn.execute(sa.delete(t.tag_focus).where(t.tag_focus.c.tag == old))
+    pinned = (
+        await conn.execute(
+            sa.select(t.tag_meta.c.thumb_image_id).where(t.tag_meta.c.tag == old)
+        )
+    ).scalar()
+    if pinned is None:
+        return
+    target_has = (
+        await conn.execute(sa.select(t.tag_meta.c.tag).where(t.tag_meta.c.tag == new))
+    ).scalar()
+    if target_has is None:
+        await conn.execute(
+            sa.insert(t.tag_meta).values(
+                tag=new, thumb_image_id=pinned, updated_at=time.time()
+            )
+        )
+    await conn.execute(sa.delete(t.tag_meta).where(t.tag_meta.c.tag == old))
+
+
 async def samples_for_tag(tag: str, per: int) -> list[dict]:
     """Up to ``per`` distinct images for one tag's mosaic card (``tag`` a stored
     id, or ``any:<base>`` for every source). A pinned

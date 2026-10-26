@@ -84,35 +84,8 @@ async def _move_thumbnail(conn, old: str, new: str) -> None:
     if await _base_in_use(conn, old):
         return
     old, new = tag_covers.pin_key(old), tag_covers.pin_key(new)
-    if old == new:
-        return
-    pinned = (
-        await conn.execute(
-            sa.select(t.tag_meta.c.thumb_image_id).where(t.tag_meta.c.tag == old)
-        )
-    ).scalar()
-    # Its framing goes with it (keyed to the image, so it only applies there),
-    # pinned cover or not.
-    if (
-        await conn.execute(sa.select(t.tag_focus.c.tag).where(t.tag_focus.c.tag == new))
-    ).scalar() is None:
-        await conn.execute(
-            sa.update(t.tag_focus).where(t.tag_focus.c.tag == old).values(tag=new)
-        )
-    else:
-        await conn.execute(sa.delete(t.tag_focus).where(t.tag_focus.c.tag == old))
-    if pinned is None:
-        return
-    target_has = (
-        await conn.execute(sa.select(t.tag_meta.c.tag).where(t.tag_meta.c.tag == new))
-    ).scalar()
-    if target_has is None:
-        await conn.execute(
-            sa.insert(t.tag_meta).values(
-                tag=new, thumb_image_id=pinned, updated_at=time.time()
-            )
-        )
-    await conn.execute(sa.delete(t.tag_meta).where(t.tag_meta.c.tag == old))
+    if old != new:
+        await tag_covers.move(conn, old, new)
 
 
 async def _move_character(conn, old: str, new: str) -> None:
