@@ -8,7 +8,12 @@ import asyncio
 import pytest
 import pytest_asyncio
 
-from moire.services import comfy_settings, generation_jobs
+from moire.services import (
+    comfy_history,
+    comfy_settings,
+    generation_errors,
+    generation_jobs,
+)
 from moire.services.generation_jobs import get_generation_manager
 from tests.fake_comfy import FakeComfy
 
@@ -523,7 +528,7 @@ async def test_output_folder_can_be_set_by_hand(client, comfy, tmp_path):
 
 
 def test_held_by_is_the_innermost_library(tmp_path):
-    from moire.services.generation_jobs import held_by, root_candidates
+    from moire.services.generation_outputs import held_by, root_candidates
 
     root = tmp_path / "output"
     (root / "Unorganized10").mkdir(parents=True)
@@ -640,7 +645,7 @@ def test_only_a_sampling_input_flags_sampling():
         {"node": "3", "input": "steps"},
         {"node": "3", "input": "seed"},
     ]
-    out = generation_jobs.annotate_node_errors(errs, gen, gen["graph"])
+    out = generation_errors.annotate_node_errors(errs, gen, gen["graph"])
     assert [e["field"] for e in out] == ["sampling", None]
 
 
@@ -658,7 +663,7 @@ async def test_time_comfyui_spent_is_kept(client, comfy, seed):
 def test_run_seconds_needs_both_ends():
     msg = lambda kind, ts: [kind, {"timestamp": ts}]  # noqa: E731
     entry = lambda *m: {"status": {"messages": list(m)}}  # noqa: E731
-    run = generation_jobs.run_seconds
+    run = comfy_history.run_seconds
     assert run(entry(msg("execution_start", 1000), msg("execution_error", 4000))) == 3
     assert run(entry(msg("execution_start", 1000))) is None
     assert run(entry(msg("execution_success", 1000))) is None
@@ -686,7 +691,7 @@ async def test_outputs_are_found_when_the_output_library_comes_back(client, tmp_
 
     from moire.database import schema as t
     from moire.database.db import async_tx
-    from moire.services.generation_jobs import output_image_id
+    from moire.services.generation_outputs import output_image_id
 
     out = tmp_path / "out"
     out.mkdir()

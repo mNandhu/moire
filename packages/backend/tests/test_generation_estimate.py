@@ -3,6 +3,9 @@ over a queue, and reading a cold start from ComfyUI's history."""
 
 from __future__ import annotations
 
+import subprocess
+import sys
+
 import pytest
 
 from moire.services.generation_estimate import (
@@ -13,7 +16,8 @@ from moire.services.generation_estimate import (
     warm_estimate,
 )
 from moire.services.generation_estimate import _job, _run_order
-from moire.services.generation_jobs import batch_shape, model_loaded
+from moire.services.comfy_history import model_loaded
+from moire.services.generation_inputs import batch_shape
 
 PX = 832 * 1216
 
@@ -164,3 +168,15 @@ def test_pending_requests_run_batch_after_batch():
     # Not knowing which is being made (a restart): oldest first.
     got = [(r.batch_id, r.idx) for r in _run_order(rows)]
     assert got == [(2, 0), (3, 0), (1, 1), (1, 2), (2, 1), (2, 2)]
+
+
+def test_estimate_and_batches_do_not_import_the_manager():
+    # The estimate and the read side sit below the manager: importing them
+    # alone never pulls generation_jobs in (no cycle hidden by lazy imports).
+    code = (
+        "import sys\n"
+        "import moire.services.generation_estimate\n"
+        "import moire.services.generation_batches\n"
+        "assert 'moire.services.generation_jobs' not in sys.modules\n"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)

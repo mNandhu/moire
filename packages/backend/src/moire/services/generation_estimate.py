@@ -38,7 +38,10 @@ import sqlalchemy as sa
 
 from ..database import schema as t
 from ..database.db import async_conn
+from .builtin_generator import BUILTIN_ID
+from .generation_inputs import batch_shape
 from .generator_graph import split_requests
+from .generators_store import load_generator
 
 EXACT_RUNS = 10
 SCALED_RUNS = 20
@@ -215,8 +218,6 @@ class _Generators:
         self._got: dict[str, dict[str, Any] | None] = {}
 
     async def get(self, generator_id: str) -> dict[str, Any] | None:
-        from .generation_jobs import load_generator
-
         if generator_id not in self._got:
             self._got[generator_id] = await load_generator(generator_id)
         return self._got[generator_id]
@@ -422,9 +423,6 @@ async def for_new(
     takes it): its own seconds (``None`` when there's no history to go on),
     the part of that which is loading its checkpoint, and the seconds of
     queued work ahead of it (``None`` when some of that can't be told)."""
-    from .builtin_generator import BUILTIN_ID
-    from .generation_jobs import batch_shape
-
     gens, runs = await _history()
     generator_id = body.get("generator_id") or BUILTIN_ID
     gen = await gens.get(generator_id)

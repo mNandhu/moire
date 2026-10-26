@@ -6,16 +6,20 @@ output whose image row doesn't exist yet.
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import sqlalchemy as sa
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from . import comfy_models, generation_estimate, generator_setup, thumb_version
-from .generation_jobs import GenerationManager, Invalid, Unavailable, load_generator
+from .generation_errors import Invalid, Unavailable
 from .generator_discovery import fixed_values
 from .generator_graph import sampling_defaults, slot_value
+from .generators_store import load_generator
+
+if TYPE_CHECKING:
+    from .generation_jobs import GenerationManager
 
 _b, _r, _o, _i = (
     t.generation_batches,

@@ -20,7 +20,7 @@ import json
 import logging
 import time
 import os
-from pathlib import Path, PurePath
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -36,11 +36,33 @@ from . import (
     generation_estimate,
 )
 from .comfy_client import ComfyClient, ComfyError, ComfyRejected, ComfyUnreachable
-from . import library_nesting, outfits
-from .outfits import clean_tags
+from . import outfits
+from .comfy_history import (
+    history_result,
+    model_loaded,
+    outputs_from_history,
+    run_seconds,
+)
 from .generation_compose import auto_name, compose, compose_parts, prompt_terms
+from .generation_errors import Invalid, Rejected, Unavailable, annotate_node_errors
+from .generation_inputs import (
+    _characters_input,
+    _parts,
+    _resolve,
+    batch_shape,
+    characters_of,
+    outfit_tags,
+)
+from .generation_outputs import (
+    OUTPUT_FRESH_S,
+    Libraries,
+    _write_atomic,
+    held_by,
+    output_image_id,
+    root_candidates,
+)
+from .generators_store import load_generator
 from .generator_graph import (
-    SAMPLING,
     GraphError,
     build_prompt,
     clear_display_text,
@@ -64,411 +86,6 @@ IN_COMFY = ("queued", "running")
 TEST_FIRST = sa.desc(
     sa.func.coalesce(sa.func.json_extract(t.generation_batches.c.inputs, "$.test"), 0)
 )
-
-
-class Unavailable(Exception):
-    """ComfyUI isn't configured or reachable; nothing was queued."""
-
-
-class Invalid(Exception):
-    """The request can't be queued as asked (bad generator, no output folder)."""
-
-
-class Rejected(Exception):
-    """ComfyUI rejected the first request; nothing was kept."""
-
-    def __init__(self, message: str, node_errors: list[dict[str, Any]]):
-        super().__init__(message)
-        self.message = message
-        self.node_errors = node_errors
-
-
-def _write_atomic(dest: Path, data: bytes) -> None:
-    # Dot-prefixed staging name: the library watcher ignores it until the rename.
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_name(f".{dest.name}.part")
-    tmp.write_bytes(data)
-    os.replace(tmp, dest)
-
-
-def output_image_id(library_id: str, subfolder: str, filename: str) -> str:
-    """The `_id` the scanner gives the file once it lands in the output
-    library (`{library_id}:{relative path}`, platform separators)."""
-    rel = PurePath(subfolder, filename) if subfolder else PurePath(filename)
-    return f"{library_id}:{rel}"
-
-
-Libraries = list[tuple[str, str]]  # (id, folder)
-
-# How fresh a library file must be to be a just-finished output: an older
-# one with the same name is another run's.
-OUTPUT_FRESH_S = 600.0
-
-
-def held_by(libraries: Libraries, path: str) -> str | None:
-    """The `_id` the file at ``path`` has in the innermost library holding
-    it (the one whose scan owns it), or None when no library does."""
-    key = library_nesting.path_key(path)
-    best: tuple[str, str, int] | None = None
-    for lib_id, root in libraries:
-        rk = library_nesting.path_key(root)
-        if library_nesting.is_inside(key, rk) and (best is None or len(rk) > best[2]):
-            best = (lib_id, root, len(rk))
-    if best is None:
-        return None
-    return f"{best[0]}:{os.path.relpath(os.path.normpath(path), os.path.normpath(best[1]))}"
-
-
-def root_candidates(
-    libraries: Libraries, subfolder: str, filename: str, since: float = 0.0
-) -> list[str]:
-    """Where ComfyUI's output folder may be, from the libraries holding a
-    file at ``subfolder/filename`` below it, written since ``since``: a
-    library at ``out/Unorganized10`` with ``img.png`` in it says ``out``, for
-    ``Unorganized10/img.png``."""
-    parts = PurePath(subfolder).parts if subfolder else ()
-    found: list[str] = []
-    for _, root in libraries:
-        rp = Path(root)
-        for k in range(len(parts) + 1):
-            if k and (
-                len(rp.parts) <= k
-                or [os.path.normcase(x) for x in rp.parts[-k:]]
-                != [os.path.normcase(x) for x in parts[:k]]
-            ):
-                continue
-            try:
-                st = rp.joinpath(*parts[k:], filename).stat()
-            except OSError:
-                continue
-            base = str(rp.parents[k - 1] if k else rp)
-            if st.st_mtime >= since and base not in found:
-                found.append(base)
-    return found
-
-
-def outputs_from_history(entry: dict[str, Any]) -> list[tuple[str, str]]:
-    """(subfolder, filename) of every saved output image, in node order."""
-    files: list[tuple[str, str]] = []
-    for node_id in sorted(
-        (entry.get("outputs") or {}).keys(), key=lambda k: (len(k), k)
-    ):
-        for img in entry["outputs"][node_id].get("images") or []:
-            if img.get("type", "output") == "output" and img.get("filename"):
-                files.append((img.get("subfolder") or "", img["filename"]))
-    return files
-
-
-def history_result(entry: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
-    """Final state of a prompt from its history entry: done / failed /
-    cancelled, plus the error doc for failed."""
-    status = entry.get("status") or {}
-    messages = status.get("messages") or []
-    for item in messages:
-        if (
-            isinstance(item, list)
-            and len(item) == 2
-            and item[0] == "execution_interrupted"
-        ):
-            return "cancelled", None
-    for item in messages:
-        if isinstance(item, list) and len(item) == 2 and item[0] == "execution_error":
-            d = item[1] or {}
-            return "failed", {
-                "node": str(d.get("node_id") or ""),
-                "class_type": d.get("node_type"),
-                "type": d.get("exception_type"),
-                "message": d.get("exception_message") or "",
-            }
-    if status.get("status_str") == "error":
-        return "failed", {
-            "node": "",
-            "class_type": None,
-            "type": None,
-            "message": "ComfyUI reported an error",
-        }
-    return "done", None
-
-
-_ENDS = ("execution_success", "execution_error", "execution_interrupted")
-
-
-def batch_shape(
-    gen: dict[str, Any], body: dict[str, Any], settings: dict[str, Any]
-) -> dict[str, Any]:
-    """The parts of a batch's inputs that decide how much work it is, as
-    queue_batch keeps them (the run-time estimate reads the same):
-
-    - ``count``, clamped;
-    - ``per_request``: images per request, the body's choice, else the
-      setting (built-in) or the Generator's (1 if it has none); ``None`` when
-      the Generator has no batch size (count is then in runs);
-    - ``per_request_asked``: what the body chose, apart from the setting;
-    - ``checkpoint``, ``sampling`` (only slots the Generator has), ``width``,
-      ``height``."""
-    has_batch = bool(gen["slots"].get("batch_size"))
-    builtin = gen["kind"] == "builtin"
-    asked = (
-        max(1, min(64, int(body["per_request"])))
-        if has_batch and body.get("per_request")
-        else None
-    )
-    if not has_batch:
-        per_request = None
-    elif asked:
-        per_request = asked
-    elif builtin:
-        per_request = int(settings.get("builtin_per_request") or 1)
-    else:
-        # Mapped with no size saved: 1, as Generate and setup show it, so
-        # the count stays in images.
-        per_request = int(gen["slots"].get("per_request") or 1)
-    return {
-        "count": max(1, min(500, int(body.get("count") or 1))),
-        "per_request": per_request,
-        "per_request_asked": asked,
-        # Only where the graph lets Moiré set it (a custom one keeps its own).
-        "checkpoint": (body.get("checkpoint") or None)
-        if gen["slots"].get("checkpoint")
-        else None,
-        "sampling": _sampling_input(body.get("sampling"), gen["slots"]),
-        "width": body.get("width"),
-        "height": body.get("height"),
-    }
-
-
-def model_loaded(entry: dict[str, Any], node_id: str | None) -> bool | None:
-    """Whether a prompt had to load its checkpoint: ComfyUI's history lists
-    the nodes it reused from cache (``execution_cached``), so a checkpoint
-    loader that isn't among them ran, and read the model from disk. ``None``
-    when that can't be told (no checkpoint node, no such message)."""
-    if not node_id:
-        return None
-    for item in (entry.get("status") or {}).get("messages") or []:
-        if (
-            isinstance(item, list)
-            and len(item) == 2
-            and item[0] == "execution_cached"
-            and isinstance(item[1], dict)
-        ):
-            nodes = item[1].get("nodes") or []
-            return str(node_id) not in {str(n) for n in nodes}
-    return None
-
-
-def run_seconds(entry: dict[str, Any]) -> float | None:
-    """How long ComfyUI ran a prompt: its history's ``execution_start`` to
-    the message that ended it (timestamps in ms). None when either is missing."""
-    start = end = None
-    for item in (entry.get("status") or {}).get("messages") or []:
-        if not (
-            isinstance(item, list) and len(item) == 2 and isinstance(item[1], dict)
-        ):
-            continue
-        ts = item[1].get("timestamp")
-        if not isinstance(ts, (int, float)):
-            continue
-        if item[0] == "execution_start":
-            start = ts
-        elif item[0] in _ENDS:
-            end = ts
-    if start is None or end is None or end < start:
-        return None
-    return round((end - start) / 1000, 2)
-
-
-_PART_KINDS = ("text", "character", "embedding")
-
-
-def _parts(raw: Any) -> list[dict[str, Any]] | None:
-    """The composer's ordered prompt parts: text (``role`` says which layer:
-    prefix, prompt, text, preset), the character's tags, an embedding.
-    ``None`` when the body has none (an old-style batch)."""
-    if not isinstance(raw, list):
-        return None
-    out = []
-    for p in raw[:64]:
-        if not isinstance(p, dict) or p.get("kind") not in _PART_KINDS:
-            continue
-        out.append(
-            {
-                "kind": p["kind"],
-                "role": str(p.get("role") or "")[:20],
-                "label": str(p.get("label") or "")[:120],
-                "text": str(p.get("text") or "")[:8000],
-                "name": str(p.get("name") or "")[:400],
-            }
-        )
-    return out
-
-
-def _resolve(
-    parts: list[dict[str, Any]], characters: list[dict[str, Any]]
-) -> list[str | list[str]]:
-    """Parts as :func:`compose_parts` items: text raw, each character's tags
-    as its own chip block, in order (nothing when none is picked), embeddings
-    as words."""
-    items: list[str | list[str]] = []
-    for p in parts:
-        if p["kind"] == "text":
-            items.append(p["text"])
-        elif p["kind"] == "character":
-            for c in characters:
-                items.append(c["tags"])
-                items.append(outfit_tags(c))
-        elif p["name"]:
-            items.append(f"embedding:{p['name']}")
-    return items
-
-
-MAX_CHARACTERS = 8
-
-
-def outfit_tags(c: dict[str, Any]) -> list[str]:
-    """The tags a character's recorded outfit sent (none without one). Pure."""
-    o = c.get("outfit")
-    return list(o.get("tags") or []) if isinstance(o, dict) else []
-
-
-def characters_of(holder: dict[str, Any]) -> list[dict[str, Any]]:
-    """The characters of a queue body or a batch's inputs: ``characters``, or
-    the single ``character`` older batches have. Pure."""
-    many = holder.get("characters")
-    if isinstance(many, list):
-        return [c for c in many if isinstance(c, dict)]
-    one = holder.get("character")
-    return [one] if isinstance(one, dict) else []
-
-
-def _characters_input(body: dict[str, Any]) -> list[dict[str, Any]]:
-    """The body's characters as the batch keeps them, each tag once."""
-    out: list[dict[str, Any]] = []
-    for raw in characters_of(body)[:MAX_CHARACTERS]:
-        c = _character_input(raw)
-        if c and all(x["tag"] != c["tag"] for x in out):
-            out.append(c)
-    return out
-
-
-def _sampling_input(raw: Any, slots: dict[str, Any]) -> dict[str, Any]:
-    """The sampler settings asked for, for the slots this Generator has."""
-    if not isinstance(raw, dict):
-        return {}
-    return {k: raw[k] for k in SAMPLING if raw.get(k) is not None and slots.get(k)}
-
-
-def _character_input(c: dict[str, Any] | None) -> dict[str, Any] | None:
-    """The Character block as the batch keeps it: tag, display label, the tags
-    sent, and its LoRA (an installed file name) if any."""
-    if not c or not c.get("tag"):
-        return None
-    lora = c.get("lora")
-    return {
-        "tag": c["tag"],
-        "label": (c.get("label") or "").strip(),
-        "tags": [w for w in (c.get("tags") or []) if isinstance(w, str) and w.strip()],
-        "lora": {"name": lora["name"], "strength": float(lora.get("strength", 1.0))}
-        if lora and lora.get("name")
-        else None,
-        "outfit": _outfit_input(c.get("outfit")),
-    }
-
-
-def _outfit_input(o: Any) -> dict[str, Any] | None:
-    """A character's outfit as the batch keeps it: id, name and the tags sent
-    (a snapshot: editing the saved outfit later never changes the batch)."""
-    if not isinstance(o, dict) or not o.get("id"):
-        return None
-    tags = clean_tags(o.get("tags") or [])
-    if not tags:
-        return None
-    return {"id": str(o["id"]), "name": (o.get("name") or "").strip(), "tags": tags}
-
-
-def annotate_node_errors(
-    errors: list[dict[str, Any]], gen: dict[str, Any], graph: dict[str, Any]
-) -> list[dict[str, Any]]:
-    """Add ``field`` (checkpoint / lora / positive / negative) to each node
-    error, so the composer can flag the control it came from. A LoRA loader
-    the Generator's own graph doesn't have was added by Moiré (``added``)."""
-    slots = gen.get("slots") or {}
-
-    def slot_node(key: str) -> str | None:
-        path = slots.get(key)
-        return str(path[0]) if path else None
-
-    def at_slot(key: str, node: str, err: dict[str, Any]) -> bool:
-        # The sampler node has other inputs (seed, model, latent): match the input too.
-        path = slots.get(key)
-        return bool(path) and node == str(path[0]) and err.get("input") == path[1]
-
-    out = []
-    for err in errors:
-        node = str(err.get("node") or "")
-        extra: dict[str, Any] = {"field": None}
-        cls = (graph.get(node) or {}).get("class_type")
-        if node and node == slot_node("checkpoint"):
-            extra["field"] = "checkpoint"
-        elif node and any(at_slot(k, node, err) for k in SAMPLING):
-            extra["field"] = "sampling"
-        elif cls in ("LoraLoader", "LoraLoaderModelOnly"):
-            extra = {
-                "field": "lora",
-                "lora_name": graph[node]["inputs"].get("lora_name"),
-                "added": node not in (gen.get("graph") or {}),
-            }
-        elif node and node == slot_node("positive"):
-            extra["field"] = "positive"
-        elif node and node == slot_node("negative"):
-            extra["field"] = "negative"
-        out.append({**err, **extra})
-    return out
-
-
-async def load_generator(generator_id: str) -> dict[str, Any] | None:
-    """A Generator row; the built-in is created on first read."""
-    async with async_conn() as conn:
-        row = (
-            await conn.execute(
-                sa.select(t.generators).where(t.generators.c._id == generator_id)
-            )
-        ).first()
-    if row is not None:
-        gen = dict(row._mapping)
-        if gen["kind"] == "builtin" and (
-            gen["graph"] != builtin_generator.graph()
-            or gen["slots"] != builtin_generator.slots()
-        ):
-            # Moiré's own graph: a stored copy from before a new slot is updated.
-            gen["graph"] = builtin_generator.graph()
-            gen["slots"] = builtin_generator.slots()
-            async with async_tx() as conn:
-                await conn.execute(
-                    sa.update(t.generators)
-                    .where(t.generators.c._id == generator_id)
-                    .values(graph=gen["graph"], slots=gen["slots"])
-                )
-        return gen
-    if generator_id != builtin_generator.BUILTIN_ID:
-        return None
-    now = time.time()
-    doc = {
-        "_id": builtin_generator.BUILTIN_ID,
-        "name": builtin_generator.BUILTIN_NAME,
-        "kind": "builtin",
-        "source": None,
-        "graph": builtin_generator.graph(),
-        "slots": builtin_generator.slots(),
-        "ready": False,
-        "test": None,
-        "created_at": now,
-        "updated_at": now,
-    }
-    async with async_tx() as conn:
-        await conn.execute(
-            sa.insert(t.generators).prefix_with("OR IGNORE").values(**doc)
-        )
-    return doc
 
 
 class GenerationManager:
