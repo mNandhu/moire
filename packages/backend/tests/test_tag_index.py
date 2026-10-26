@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from moire.services import image_tags, tag_index
+from moire.services import image_tags, tag_covers, tag_index
 
 
 # --- Cache primitives (pure, no DB) -------------------------------------------
@@ -132,7 +132,7 @@ async def test_pinned_thumbnail_leads_and_is_not_duplicated(temp_db, client, see
     seed("L1:c.jpg", tags=("cat",))
     await client.post("/tags/thumbnail/cat", json={"image_id": "L1:c.jpg"})
 
-    samples = await tag_index.samples_for_tag("cat", 3)
+    samples = await tag_covers.samples_for_tag("cat", 3)
     ids = [row["_id"] for row in samples]
 
     assert ids[0] == "L1:c.jpg"
@@ -147,7 +147,7 @@ async def test_samples_take_one_image_per_batch_while_they_can(temp_db, seed):
     for g in "BCD":
         seed(f"L1:{g}.jpg", tags=("cat",), gen={"group_id": g})
 
-    ids = [row["_id"] for row in await tag_index.samples_for_tag("cat", 4)]
+    ids = [row["_id"] for row in await tag_covers.samples_for_tag("cat", 4)]
     assert sum(i.startswith("L1:a") for i in ids) == 1
     assert {"L1:B.jpg", "L1:C.jpg", "L1:D.jpg"} <= set(ids)
 
@@ -158,7 +158,7 @@ async def test_samples_fill_from_a_batch_again_when_short(temp_db, seed):
         seed(f"L1:a{i}.jpg", tags=("cat",), gen={"group_id": "A"})
     seed("L1:b.jpg", tags=("cat",))
 
-    ids = [row["_id"] for row in await tag_index.samples_for_tag("cat", 4)]
+    ids = [row["_id"] for row in await tag_covers.samples_for_tag("cat", 4)]
     assert len(set(ids)) == 4
 
 
@@ -167,7 +167,7 @@ async def test_samples_are_capped_at_per(temp_db, seed):
     for name in "abcde":
         seed(f"L1:{name}.jpg", tags=("cat",))
 
-    assert len(await tag_index.samples_for_tag("cat", 2)) == 2
+    assert len(await tag_covers.samples_for_tag("cat", 2)) == 2
 
 
 @pytest.mark.asyncio

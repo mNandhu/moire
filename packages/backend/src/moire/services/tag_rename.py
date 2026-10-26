@@ -39,6 +39,7 @@ from . import (
     reproject,
     tag_canon,
     tag_categories,
+    tag_covers,
     tag_index,
 )
 from .tag_names import canonical_name
@@ -68,7 +69,7 @@ async def _base_in_use(conn, tag: str) -> bool:
         await conn.execute(
             sa.select(it.c.tag)
             .where(
-                it.c.base == tag_index.pin_key(tag),
+                it.c.base == tag_covers.pin_key(tag),
                 it.c.tag != tag_kinds.canonical_tag(tag),
             )
             .limit(1)
@@ -78,10 +79,10 @@ async def _base_in_use(conn, tag: str) -> bool:
 
 async def _move_thumbnail(conn, old: str, new: str) -> None:
     """Carry a pinned mosaic thumbnail over to the target if it has none.
-    Pins are keyed by name (``tag_index.pin_key``), not by source."""
+    Pins are keyed by name (``tag_covers.pin_key``), not by source."""
     if await _base_in_use(conn, old):
         return
-    old, new = tag_index.pin_key(old), tag_index.pin_key(new)
+    old, new = tag_covers.pin_key(old), tag_covers.pin_key(new)
     if old == new:
         return
     pinned = (
@@ -118,7 +119,7 @@ async def _move_character(conn, old: str, new: str) -> None:
     is one) over to the target if it has none, keyed like pins."""
     if await _base_in_use(conn, old):
         return
-    old, new = tag_index.pin_key(old), tag_index.pin_key(new)
+    old, new = tag_covers.pin_key(old), tag_covers.pin_key(new)
     if old == new:
         return
     c = t.characters

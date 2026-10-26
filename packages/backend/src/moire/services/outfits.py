@@ -24,7 +24,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import attire, recipes, tag_categories, tag_index
+from . import attire, recipes, tag_categories, tag_detail
 from .image_tags import find_image
 from .tag_names import canonical_name
 
@@ -304,9 +304,9 @@ async def _wearing(
             sa.select(it.c.image_id, wearing)
             .select_from(it.join(im, im.c._id == it.c.image_id))
             .where(
-                it.c.image_id.in_(tag_index.image_ids(names)),
+                it.c.image_id.in_(tag_detail.image_ids(names)),
                 it.c.base.in_(tags),
-                ~it.c.image_id.in_(tag_index.image_ids(list(UNDRESSED))),
+                ~it.c.image_id.in_(tag_detail.image_ids(list(UNDRESSED))),
             )
             .group_by(it.c.image_id)
             .order_by(

@@ -28,7 +28,10 @@ from . import (
     face_detect,
     image_tags,
     image_visibility,
+    tag_browse,
     tag_categories,
+    tag_covers,
+    tag_detail,
     tag_index,
 )
 
@@ -321,7 +324,7 @@ def groups(characters: list[str], vocab: tag_categories.Vocab) -> dict[str, list
 async def _named(base: str) -> tuple[str, list[str], dict[str, str], list[dict]]:
     """``base``'s page key and all its names; every character name's page key;
     and the browse rows."""
-    rows = await tag_index.browse("all")
+    rows = await tag_browse.browse("all")
     vocab = await tag_categories.load()
     chars = [r["tag"] for r in rows if r["category"] == "character"]
     found = groups(chars, vocab)
@@ -489,7 +492,7 @@ async def _listing() -> list[dict]:
     # second on a big library, and the character list is rebuilt after every
     # tag write.
     vocab = await tag_categories.load()
-    rows = await tag_index.character_rows(vocab)
+    rows = await tag_browse.character_rows(vocab)
     by = {r["tag"]: r for r in rows}
     found = groups([r["tag"] for r in rows if r["category"] == "character"], vocab)
     key_of = {name: key for key, names in found.items() for name in names}
@@ -498,7 +501,7 @@ async def _listing() -> list[dict]:
     async with async_conn() as conn:
         if key_of:
             it = t.image_tags
-            ids = tag_index.image_ids(list(key_of))
+            ids = tag_detail.image_ids(list(key_of))
             for image_id, base in await conn.execute(
                 sa.select(it.c.image_id, it.c.base).where(
                     it.c.image_id.in_(ids), it.c.base.in_(list(key_of))
@@ -557,7 +560,7 @@ async def _covers(
     """Each character's avatar image. A pin may be an image tagged under an
     alias only (``furina``), which the Tags list's cover can't pick, so a
     visible pin carrying any of the character's names wins here."""
-    pins = await tag_index._pins(conn, set(found))
+    pins = await tag_covers.pins(conn, set(found))
     it = t.image_tags
     valid: set[tuple[str, str]] = set()
     if pins:
@@ -636,13 +639,13 @@ async def page(base: str) -> dict | None:
     """Everything a character page shows (``None`` when no image has the
     tag). ``tag`` is the page's key: a bare name answers with its full one."""
     key, names, key_of, rows = await _named(base)
-    detail = await tag_index.detail(key, "all", aliases=tuple(names[1:]))
+    detail = await tag_detail.detail(key, "all", aliases=tuple(names[1:]))
     if detail is None:
         async with async_conn() as conn:
             made = await _made(conn, {r["tag"] for r in rows}, key)
         return made_page(made[0]) if made else None
     n = detail["count"]
-    ids = tag_index.image_ids(names)
+    ids = tag_detail.image_ids(names)
     im, it = t.images, t.image_tags
     library = {r["tag"]: r["count"] for r in rows}
     vocab = await tag_categories.load()
@@ -815,7 +818,7 @@ async def update(tag: str, patch: dict) -> dict:
     """Store what the user set for a character, under the name its page uses
     whichever name it was given; returns the stored row."""
     values = clean(patch)
-    key, *_ = await names_of(tag_index.pin_key(tag))
+    key, *_ = await names_of(tag_covers.pin_key(tag))
     async with async_tx() as conn:
         if values:
             stmt = sqlite_insert(t.characters).values(

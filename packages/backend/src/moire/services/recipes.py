@@ -34,11 +34,11 @@ from . import (
     comfy_models,
     image_visibility,
     tag_categories,
-    tag_index,
+    tag_detail,
     tag_kinds,
 )
 from .generator_graph import lora_stem
-from .image_tags import canonical_tag
+from .tag_kinds import canonical_tag
 
 # A LoRA counts as this character's when at least this share of the images it
 # was used on are theirs: a style or detail LoRA used on everything never is.
@@ -181,7 +181,7 @@ async def _added(key: str) -> list[str]:
 
 async def _uses(names: list[str]) -> list[LoraUse]:
     it, il, im = t.image_tags, t.image_loras, t.images
-    ids = tag_index.image_ids(names)
+    ids = tag_detail.image_ids(names)
     prompted = (
         sa.select(it.c.image_id)
         .where(it.c.base.in_(names), it.c.tag.like(f"{tag_kinds.PROMPT_PREFIX}%"))
@@ -252,7 +252,7 @@ async def _signature(
     from (:func:`characters.signature_counts`), their signature tags, and
     their :func:`characters.gender`."""
     it = t.image_tags
-    ids = tag_index.image_ids(names)
+    ids = tag_detail.image_ids(names)
     vocab = await tag_categories.load()
     async with async_conn() as conn:
         n = (

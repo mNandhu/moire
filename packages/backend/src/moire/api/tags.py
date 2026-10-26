@@ -10,6 +10,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ..services import thumb_version
+from ..services import tag_detail as tag_panel
 from ._utils import validate_tags
 from ..services import (
     attire,
@@ -17,11 +18,12 @@ from ..services import (
     danbooru_tags,
     face_detect,
     image_tags,
-    tag_kinds,
     prompt_board,
     tag_categories,
     tag_descriptions,
-    tag_focus,
+    tag_kinds,
+    tag_browse,
+    tag_covers,
     tag_index,
     tag_rename,
     tag_settings,
@@ -42,7 +44,7 @@ async def list_tags(
 ):
     # Plain JSON rows: JSONResponse skips jsonable_encoder's walk.
     return JSONResponse(
-        await tag_index.list_tags(
+        await tag_browse.list_tags(
             include_manual=include_manual,
             include_prompt=include_prompt,
             merge_sources=merge_sources,
@@ -209,7 +211,7 @@ async def tag_samples(
     # Keyed by what the caller asked for; looked up by the canonical spelling.
     tags = validate_tags(tags, max_count=200)
     results = await asyncio.gather(
-        *[tag_index.samples_for_tag(tag_kinds.canonical_tag(tag), per) for tag in tags]
+        *[tag_covers.samples_for_tag(tag_kinds.canonical_tag(tag), per) for tag in tags]
     )
     thumbs = await thumb_version.urls(row["_id"] for got in results for row in got)
     return {
@@ -219,7 +221,7 @@ async def tag_samples(
 
 
 def _source(source: str) -> str:
-    if source not in tag_index.SOURCES:
+    if source not in tag_browse.SOURCES:
         raise HTTPException(status_code=422, detail=f"unknown source {source!r}")
     return source
 
@@ -227,15 +229,15 @@ def _source(source: str) -> str:
 @router.get("/browse")
 async def browse_tags(source: str = "all"):
     """The Tags page list: one entry per tag name, its sources merged."""
-    rows = await tag_index.browse(_source(source))
-    focus = await tag_focus.all_focus()
+    rows = await tag_browse.browse(_source(source))
+    focus = await tag_covers.all_focus()
     thumbs = await thumb_version.urls(row["thumb_image_id"] for row in rows)
     return JSONResponse(
         [
             {
                 **row,
                 "thumb_url": thumbs.get(row["thumb_image_id"]),
-                "focus": tag_focus.for_cover(
+                "focus": tag_covers.for_cover(
                     focus.get(row["tag"]), row["thumb_image_id"]
                 ),
             }
@@ -258,15 +260,15 @@ async def list_characters():
 async def character_page(tag: str):
     """A character page, by any of the character's names. Any other tag gets
     the same page (the tag page), its focus being the cover's framing."""
-    base = tag_index.pin_key(validate_tags([tag])[0])
+    base = tag_covers.pin_key(validate_tags([tag])[0])
     got = await characters.page(base)
     if got is None:
         raise HTTPException(status_code=404, detail="No image has this tag")
     cover = got["cover"]
     if got["category"] != "character" and not got.get("made"):
-        # A plain tag's page: its cover's framing lives in tag_focus, set
+        # A plain tag's page: its cover's framing lives in tag_covers, set
         # for the image that is the cover.
-        got["focus"] = await tag_focus.get(got["tag"], cover)
+        got["focus"] = await tag_covers.get_focus(got["tag"], cover)
     thumbs = await thumb_version.urls([cover, *(b["image_id"] for b in got["best"])])
     return {
         **got,
@@ -295,7 +297,7 @@ async def create_character(body: dict):
     if not raw:
         raise HTTPException(status_code=422, detail="tag is required")
     # Lower case, as the tagger writes characters, so images match it.
-    tag = tag_index.pin_key(validate_tags([raw])[0]).lower()
+    tag = tag_covers.pin_key(validate_tags([raw])[0]).lower()
     patch = {k: body[k] for k in ("name", "series", "color") if k in body}
     try:
         return await characters.create(tag, patch)
@@ -309,7 +311,7 @@ async def create_character(body: dict):
 async def delete_character(tag: str):
     """Forget a character made by hand, while no image has its tag."""
     if not await characters.remove_made(
-        tag_index.pin_key(validate_tags([tag])[0]).lower()
+        tag_covers.pin_key(validate_tags([tag])[0]).lower()
     ):
         raise HTTPException(
             status_code=409, detail="Only a character with no images can be deleted"
@@ -320,8 +322,8 @@ async def delete_character(tag: str):
 @router.get("/detail")
 async def tag_detail(tag: str, source: str = "all"):
     """The Tags page panel for one tag, by name (any spelling or prefix)."""
-    base = tag_index.pin_key(validate_tags([tag])[0])
-    got = await tag_index.detail(base, _source(source))
+    base = tag_covers.pin_key(validate_tags([tag])[0])
+    got = await tag_panel.detail(base, _source(source))
     if got is None:
         raise HTTPException(status_code=404, detail="No image has this tag")
     cover = await _cover_of(base, got["thumb_image_id"])
@@ -331,8 +333,8 @@ async def tag_detail(tag: str, source: str = "all"):
         "thumb_url": thumbs.get(got["thumb_image_id"] or ""),
         "cover_image_id": cover,
         "cover_url": thumbs.get(cover or ""),
-        "aspect": await tag_focus.aspect_of(cover),
-        "focus": await tag_focus.get(base, cover),
+        "aspect": await tag_covers.aspect_of(cover),
+        "focus": await tag_covers.get_focus(base, cover),
     }
 
 
@@ -340,7 +342,7 @@ async def _cover_of(base: str, pinned: str | None) -> str | None:
     """A tag's cover: the pin, else what its mosaic leads with."""
     if pinned:
         return pinned
-    lead = await tag_index.samples_for_tag(f"{tag_kinds.ANY_PREFIX}{base}", 1)
+    lead = await tag_covers.samples_for_tag(f"{tag_kinds.ANY_PREFIX}{base}", 1)
     return lead[0]["_id"] if lead else None
 
 
@@ -348,23 +350,23 @@ async def _cover_of(base: str, pinned: str | None) -> str | None:
 async def set_tag_focus(tag: str, body: dict):
     """Centre a tag's cover on a point (``focus_x``, ``focus_y``, 0..1);
     empty values clear it. The point belongs to the cover it was set on."""
-    base = tag_index.pin_key(validate_tags([tag])[0])
+    base = tag_covers.pin_key(validate_tags([tag])[0])
     try:
-        point = tag_focus.clean(body.get("focus_x"), body.get("focus_y"))
-    except tag_focus.FocusError as e:
+        point = tag_covers.clean(body.get("focus_x"), body.get("focus_y"))
+    except tag_covers.FocusError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
-    got = await tag_index.detail(base, "all")
+    got = await tag_panel.detail(base, "all")
     if got is None:
         raise HTTPException(status_code=404, detail="No image has this tag")
     cover = await _cover_of(base, got["thumb_image_id"])
-    return {"tag": base, "focus": await tag_focus.put(base, point, cover)}
+    return {"tag": base, "focus": await tag_covers.put_focus(base, point, cover)}
 
 
 @router.post("/thumbnail/{tag:path}")
 async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
     """Pin a tag's cover. Keyed by the tag's name, so it shows whichever
     sources found the tag; the image must carry it from one of them."""
-    tag = tag_index.pin_key(validate_tags([tag])[0])
+    tag = tag_covers.pin_key(validate_tags([tag])[0])
     image_id = body.image_id
     # A character's avatar may come from an image under any of its names,
     # and is kept under the name its page uses.
@@ -409,7 +411,7 @@ async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
 
 @router.delete("/thumbnail/{tag:path}")
 async def clear_tag_thumbnail(tag: str):
-    tag, *_ = await characters.names_of(tag_index.pin_key(validate_tags([tag])[0]))
+    tag, *_ = await characters.names_of(tag_covers.pin_key(validate_tags([tag])[0]))
     async with async_tx() as conn:
         await conn.execute(sa.delete(t.tag_meta).where(t.tag_meta.c.tag == tag))
     tag_index.invalidate()

@@ -307,3 +307,7 @@ def test_tag_index_does_not_import_the_writer():
     round: the cycle that once forced a function-local import is gone."""
     loaded = _modules_after_import("moire.services.tag_index")
     assert "moire.services.image_tags" not in loaded
+    # Cache only: the views it caches live in modules that import it.
+    assert {m for m in loaded if m.startswith("moire.services.")} == {
+        "moire.services.tag_index"
+    }

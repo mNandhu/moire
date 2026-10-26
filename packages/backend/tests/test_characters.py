@@ -3,7 +3,7 @@ folded into its full one, and what the user sets."""
 
 import pytest
 
-from moire.services import characters, tag_categories, tag_index
+from moire.services import characters, tag_browse, tag_categories
 
 
 def _chars(*names, **candidates):
@@ -207,8 +207,8 @@ async def test_the_list_reads_only_character_tags_and_agrees_with_tags(
     await characters.create("fern", {})
 
     vocab = await tag_categories.load()
-    rows = await tag_index.character_rows(vocab)
-    tags_page = await tag_index.browse("all")
+    rows = await tag_browse.character_rows(vocab)
+    tags_page = await tag_browse.browse("all")
     want = [r for r in tags_page if r["category"] == "character"]
     assert {r["tag"] for r in want} == {
         "furina",
@@ -221,7 +221,7 @@ async def test_the_list_reads_only_character_tags_and_agrees_with_tags(
     assert [r for r in rows if r["category"] == "character"] == want
     assert "cat" not in {r["tag"] for r in rows}
     # With the Tags page cached, the same rows from it.
-    warm = await tag_index.character_rows(vocab)
+    warm = await tag_browse.character_rows(vocab)
     assert [r for r in warm if r["category"] == "character"] == want
 
     listed = {c["tag"]: c for c in (await client.get("/tags/characters")).json()}
