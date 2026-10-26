@@ -348,3 +348,33 @@ async def test_a_job_error_outside_the_images_does_not_stop_the_worker(monkeypat
     assert first.failed == 1
     assert second.status == "done"
     assert not mgr._in_flight
+
+
+async def test_ended_jobs_are_pruned_but_active_ones_kept(monkeypatch):
+    mgr = _job_manager(monkeypatch, [])
+    monkeypatch.setattr(ai_jobs, "_KEEP_FINISHED", 3)
+    for n in range(5):
+        # force: no claim held, so each job is accepted, and nothing runs
+        # (no worker), so they stay queued: all active, none pruned.
+        await mgr.enqueue(ids=[f"q{n}"], force=True)
+    assert len(mgr._jobs) == 5
+    for j in mgr._jobs.values():
+        j.status = "done"
+    queued = await mgr.enqueue(ids=["last"], force=True)
+    assert queued.id in mgr._jobs
+    assert len(mgr._jobs) == 4  # 3 newest ended + the new one
+
+
+async def test_public_view_leaves_out_the_work_list(monkeypatch):
+    mgr = _job_manager(monkeypatch, [])
+    job = await mgr.enqueue(ids=["a", "b"])
+    assert job.image_ids() == ["a", "b"]
+    assert "ids" not in job.public()
+
+
+async def test_stop_cancels_the_worker(monkeypatch):
+    mgr = _job_manager(monkeypatch, [])
+    mgr.start()
+    worker = mgr._worker_task
+    await mgr.stop()
+    assert worker.cancelled() and mgr._worker_task is None

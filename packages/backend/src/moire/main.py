@@ -45,14 +45,16 @@ async def lifespan(app: FastAPI):
     await anyio.to_thread.run_sync(ensure_thumb_root)  # type: ignore[attr-defined]
 
     # Start internal AI job worker
-    jm = get_ai_job_manager()
-    jm.start()
+    get_ai_job_manager().start()
+    idle_unload_s = None
     try:
         s = await get_ai_settings()
-        get_tagger_manager().set_idle_unload_s(int(s.get("idle_unload_s", 0) or 0))
+        idle_unload_s = int(s.get("idle_unload_s", 0) or 0)
     except Exception:
         # Best-effort; AI can still run with defaults, but log failures for operators.
         logger.exception("Failed to load AI settings during startup; continuing")
+    # The tagger owns its idle-unload loop (started here, stopped on shutdown).
+    get_tagger_manager().start(idle_unload_s)
 
     # Start a filesystem watcher for every library that wants one. A library
     # added while the process is down only starts watching on the next boot.
@@ -83,6 +85,8 @@ async def lifespan(app: FastAPI):
     # Joins each watcher thread and waits on the watcher process: off the loop.
     await anyio.to_thread.run_sync(library_watch.stop_all)  # type: ignore[attr-defined]
     await get_generation_manager().stop()
+    await get_ai_job_manager().stop()
+    await get_tagger_manager().stop()
 
 
 # pyproject.toml is the one version (scripts/version.mjs keeps the rest in step).

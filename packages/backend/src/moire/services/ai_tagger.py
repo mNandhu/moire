@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import csv
 import os
@@ -336,6 +337,7 @@ class TaggerManager:
         self._lock = asyncio.Lock()
         self._last_used = 0.0
         self._idle_unload_s = 300
+        self._idle_task: asyncio.Task | None = None
         self._load_task: asyncio.Task | None = None
         self._loading_for: tuple[str, str] | None = None
         self._load_error: str | None = None
@@ -521,6 +523,20 @@ class TaggerManager:
                         await asyncio.wait({run})
                     except asyncio.CancelledError:
                         pass
+
+    def start(self, idle_unload_s: int | None = None) -> None:
+        """Run the idle-unload loop (once); ``idle_unload_s`` sets the timeout."""
+        if idle_unload_s is not None:
+            self.set_idle_unload_s(idle_unload_s)
+        if self._idle_task is None or self._idle_task.done():
+            self._idle_task = asyncio.create_task(self.idle_unload_loop())
+
+    async def stop(self) -> None:
+        task, self._idle_task = self._idle_task, None
+        if task is not None and not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
     async def idle_unload_loop(self, *, poll_s: float = 5.0) -> None:
         while True:

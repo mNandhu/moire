@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections import Counter, deque
 import time
@@ -25,6 +26,10 @@ from .ai_tagger import (
 )
 
 logger = logging.getLogger("moire.ai_jobs")
+
+_ACTIVE = ("queued", "running", "cancelling")
+# How many ended jobs stay listed (list_jobs shows at most 20).
+_KEEP_FINISHED = 50
 
 __all__ = [
     "DEFAULT_AI_SETTINGS",
@@ -60,9 +65,11 @@ class AIJob:
     # the span its throughput is measured over.
     started_at: float | None = None
     finished_at: float | None = None
+    # The work list. Kept off the API view (hundreds of ids per poll).
+    ids: list[str] = field(default_factory=list, repr=False)
 
     def image_ids(self) -> list[str]:
-        return list(getattr(self, "_ids", []))
+        return list(self.ids)
 
     def throughput(self, now: float | None = None) -> dict[str, float]:
         """``rate`` (images a second) and, while running, ``eta_s``; empty
@@ -82,10 +89,8 @@ class AIJob:
         return out
 
     def public(self) -> dict[str, Any]:
-        """Serializable view for the API. Excludes private attributes (e.g. the
-        ``_ids`` work list stashed via ``setattr``), which would otherwise leak
-        hundreds of image ids into every ``/status`` and ``/jobs`` poll."""
-        out = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
+        """Serializable view for the API, without the ``ids`` work list."""
+        out = {k: v for k, v in self.__dict__.items() if k != "ids"}
         return {**out, **self.throughput()}
 
 
@@ -137,19 +142,29 @@ class AIJobManager:
     def start(self) -> None:
         if self._worker_task is None or self._worker_task.done():
             self._worker_task = asyncio.create_task(self._worker_loop())
-            # Start idle unload loop (uses manager-configured timeout)
-            asyncio.create_task(get_tagger_manager().idle_unload_loop())
+
+    async def stop(self) -> None:
+        """Cancel the worker (a running job is abandoned with the process)."""
+        task, self._worker_task = self._worker_task, None
+        if task is not None and not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+    def _prune(self) -> None:
+        """Forget all but the newest ``_KEEP_FINISHED`` ended jobs; a job still
+        queued or running is always kept."""
+        ended = [j for j in self._jobs.values() if j.status not in _ACTIVE]
+        ended.sort(key=lambda j: j.created_at, reverse=True)
+        for j in ended[_KEEP_FINISHED:]:
+            del self._jobs[j.id]
 
     def queue_depth(self) -> int:
         return self._queue.qsize()
 
     def active_jobs(self) -> list[AIJob]:
         """Every job not yet ended, oldest first."""
-        jobs = [
-            j
-            for j in self._jobs.values()
-            if j.status in ("queued", "running", "cancelling")
-        ]
+        jobs = [j for j in self._jobs.values() if j.status in _ACTIVE]
         return sorted(jobs, key=lambda j: j.created_at)
 
     def list_jobs(self, limit: int = 20) -> list[AIJob]:
@@ -177,13 +192,15 @@ class AIJobManager:
                     continue
                 accepted.append(image_id)
 
+        self._prune()
         job = AIJob(
-            id=job_id, created_at=time.time(), total=len(accepted), skipped=skipped
+            id=job_id,
+            created_at=time.time(),
+            total=len(accepted),
+            skipped=skipped,
+            ids=list(accepted),
         )
         self._jobs[job_id] = job
-
-        # Store ids on the job object (private field via attribute)
-        setattr(job, "_ids", list(accepted))
         # Track in-flight ids so we don't queue duplicates across jobs.
         self._in_flight.update(accepted)
 
@@ -223,7 +240,7 @@ class AIJobManager:
             removed = await self._queue.remove(job_id)
             job.status = "cancelled"
             self.finished += 1
-            self._release(getattr(job, "_ids", []))
+            self._release(job.ids)
             return removed
 
         # If running, request cancellation (best-effort).
@@ -243,14 +260,10 @@ class AIJobManager:
                 continue
 
             job.status = "running"
-            ids: list[str] = getattr(job, "_ids", [])
+            ids = job.ids
             released = 0  # ids[:released] are processed and their claims dropped
             try:
                 settings = await get_ai_settings()
-                # Keep runtime idle timeout in sync
-                get_tagger_manager().set_idle_unload_s(
-                    int(settings.get("idle_unload_s", 0) or 0)
-                )
                 model = resolved_model_target(settings)
                 try:
                     ready = await self._prepare_model(job, *model)
