@@ -113,6 +113,15 @@ P2 done 2026-10-24 (51a86c7..4f8dd84). Review fixes: wave 1 1a32926, 6fe6bd0, b0
 
 ## P3. Backend dedupe, tag core, background work
 
+**P3 status 2026-10-26 (paused at usage limit).** Wave 1 ran as 4 worktree lanes; each lane owns its files.
+- Lane D (settings/AI jobs): merged on main (66743a1..966cc4a), full suites green. New: `services/app_settings.py`, `ai_tagger.TagParams`, `files_progress`, `aiJobPhaseLabel`/`cancelJobMessage`.
+- Lane C (scanner/libraries): DONE but NOT merged. Branch `worktree-agent-aa61b50e1d2c6a9cd` (cbbc487 S5.2+L4.7 scanner part, 3d9b0ad S5.6, 3d3674e L1.6, 3b6c9cf S5.8, 29f0165 S5.9). Rebase on main, cherry-pick, run full suites, then tick. S5.8 behavior change: hidden/tilde/temp files are no longer indexed.
+- Lane A (generation core: S8.1, S8.2, L1.7, S8.7+L1.9): stopped mid-work, branch `worktree-agent-adfadf6a87b11a950`, last commit "WIP: P3 lane A" lists what is done and pending.
+- Lane B (tag core: S3.8, S3.3, S3.2, S3.4, L4.3): stopped mid-work, branch `worktree-agent-a848c4ac77f3372e0`, last commit "WIP: P3 lane B" lists what is done and pending. Approved: it renames callers in api/tags.py, characters/recipes/outfits; image_tags keeps re-exports of prefix helpers for other lanes' files.
+- Code review of wave 1: not run yet (one /code-review medium for the whole wave once all four lanes merge).
+- Wave 2 after merge: L1.3; feed/images (L4.4, L4.5, S1.5, S12.7, S6.4); characters (S12.1, S12.2); Comfy periphery (S10.5, S4.2=S9.1, S9.2, L2.7+S9.8, L2.2+S11.2, S9.9); naming S3.10+S4.9; leftovers: L4.7 image_tags part (clear_ai_all, rename_manual), S5.6 generation_jobs part (`held_by` -> `library_nesting.innermost`), switch files still importing prefix helpers via image_tags re-exports, scanner stamp + prompt_presets still hand-roll app_settings rows.
+- Agent prompt preamble (shared rules) was in the scratchpad; recreate from the recipe in memory if gone.
+
 - [ ] **S8.1** Split generation_jobs.py by job and fix the jobs/estimate/batches import cycle (split, M, L5)
 - [ ] **L4.3** find_image ignores its projection, so every thumb/file request loads the whole image row (invariant, S, L4)
 - [ ] **S8.2** Extract a pure build_batch_inputs from queue_batch (radon D24) and derive the requeue key list from it (deepen, M, L4)
@@ -122,7 +131,7 @@ P2 done 2026-10-24 (51a86c7..4f8dd84). Review fixes: wave 1 1a32926, 6fe6bd0, b0
 - [ ] **S3.3** Split tag_index.py: cache primitives, cover pins, browse, character classification and the detail panel are fused (split, L, L4, TW)
 - [ ] **L4.4** /images/groups re-declares the feed query parameters that feed_filter exists to share, and drops group_id (dedupe, S, L3)
 - [ ] **L4.5** Image id lookup by hand-rolled id_candidates loops; set_tag_thumbnail skips the slash/backslash tolerance (invariant, S, L3)
-- [ ] **L1.5** Model download progress is summed three ways with different rules (dedupe, S, L3)
+- [x] **L1.5** Model download progress is summed three ways with different rules (dedupe, S, L3), done e001445
 - [ ] **S1.5** Filter axes are hand-listed in eight places and the aiTagged exclusivity rule is re-applied by each (simplify, S, L3)
 - [ ] **S5.6** Folder ancestry and 'innermost library' are implemented four ways (dedupe, S, L3)
 - [ ] **S12.2** characters.page computes the character-only look for every plain tag page (simplify, S, L3)
@@ -130,18 +139,18 @@ P2 done 2026-10-24 (51a86c7..4f8dd84). Review fixes: wave 1 1a32926, 6fe6bd0, b0
 - [ ] **S4.2** Workflow family id/name/file-match resolved twice with different code (rules._family vs generator_setup.load_image_source) (dedupe, S, L3)
 - [ ] **S11.2** Sampling bounds and MAX_CHARACTERS are each written in 3-4 places (dedupe, S, L3)
 - [ ] **L4.7** Unbounded write transactions: scanner stale delete, clear_ai_all, rename_manual (invariant, M, L3)
-- [ ] **S7.7** app_settings JSON-row read/upsert is hand-written in 8 modules; extraction_settings has it 4 times (dedupe, M, L3)
+- [x] **S7.7** app_settings JSON-row read/upsert is hand-written in 8 modules; extraction_settings has it 4 times (dedupe, M, L3), done 66743a1
 - [ ] **L1.3** 'Ended' is counted four ways; the activity router reaches into each manager's internals (deepen, M, L3)
 - [ ] **L1.6** scan_library_async._run is a 270-line closure; cancel is a string-matched RuntimeError checked inline four times (split, M, L3)
 - [ ] **S3.4** Cover pins and focus (tag_meta, tag_focus) are written from five modules including the router (boundary, M, L3)
 - [ ] **S3.8** Split image_tags into a pure tag-kinds vocabulary and the writer; this removes the tag_index import cycle (deepen, M, L3, TW)
-- [ ] **S6.1** Tagger parameters and defaults are spelled in several places; SettingsPatch is a hand-synced copy of DEFAULT_AI_SETTINGS (dedupe, M, L3)
+- [x] **S6.1** Tagger parameters and defaults are spelled in several places; SettingsPatch is a hand-synced copy of DEFAULT_AI_SETTINGS (dedupe, M, L3), done d95ce59
 - [ ] **S10.5** prompt_presets and lora_presets are the same CRUD service written twice, with two PresetError classes and doubled route error mapping (dedupe, M, L3)
 - [ ] **S9.1** Workflow family naming (name, matched file) is implemented in api/rules.py and again in generator_setup.image_source (dedupe, M, L3)
 - [ ] **S9.2** Graph primitives are scattered and imported by private name; stock LoRA loader check is spelled six times (boundary, M, L3)
 - [ ] **L1.7** GenerationManager fuses connection, poll state machine, output placement and batch building (split, L, L3)
 - [ ] **S8.7** Request/batch state vocabulary is spelled out in five places (dedupe, S, L2)
-- [ ] **L1.8** AIJob bookkeeping: jobs never pruned, ids stashed via setattr, tagger idle loop started by the wrong owner, no stop (simplify, S, L2)
+- [x] **L1.8** AIJob bookkeeping: jobs never pruned, ids stashed via setattr, tagger idle loop started by the wrong owner, no stop (simplify, S, L2), done dde99c1
 - [ ] **L1.9** Generation request-state vocabulary spelled five times (dedupe, S, L2)
 - [ ] **S3.10** 'alias' names three different things; the user's merge rules are still called aliases in code and routes (naming, S, L2, TW)
 - [ ] **S5.8** What counts as an indexable file is decided in three places and the rules disagree (drift, S, L2)
@@ -150,7 +159,7 @@ P2 done 2026-10-24 (51a86c7..4f8dd84). Review fixes: wave 1 1a32926, 6fe6bd0, b0
 - [ ] **L2.7** LoRA file-stem rule is implemented three times (gen_metadata.lora_name, generator_graph.lora_stem, two frontend copies) (dedupe, S, L2)
 - [ ] **S4.9** Merge rules are called 'aliases' in the frontend (useTagAliases, TAG_ALIASES_KEY, /tags/aliases) but 'Merge rule' in CONTEXT.md (naming, S, L2)
 - [ ] **S6.4** 'Untagged' and 'not quarantined' are defined in two parallel queries beside the feed's own filter (dedupe, S, L2)
-- [ ] **S6.5** Job state wording and the cancel adapter are spelled in three UI paths that disagree (dedupe, S, L2)
+- [x] **S6.5** Job state wording and the cancel adapter are spelled in three UI paths that disagree (dedupe, S, L2), done 966cc4a
 - [ ] **S9.8** lora_stem is a model-name rule living in the graph module; workflow.ts / workflows.ts / WorkflowFamily names collide (naming, S, L2)
 - [ ] **S9.9** ComfyUI connection save-and-test is implemented in ComfySection and ComfyStep; per-request clamp lives in four places (dedupe, S, L1)
 
