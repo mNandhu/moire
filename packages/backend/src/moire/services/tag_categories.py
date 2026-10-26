@@ -11,7 +11,7 @@ phrases too (``sunny`` is ``sunny_(omori)``, ``white_rabbit`` a character
 as well as a rabbit). It needs exactly one listed character going by it, no
 tag of its own, and the library's backing: most of its images also carrying
 the series tag or the full name (``furina`` beside ``genshin_impact``). That
-check needs the library, so :mod:`services.tag_index` makes it
+check needs the library, so :mod:`services.character_names` makes it
 (:func:`confirmed`).
 
 The list is read once per file (keyed by path and mtime), so a model download

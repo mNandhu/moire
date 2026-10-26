@@ -33,6 +33,7 @@ import sqlalchemy as sa
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from . import (
+    character_names,
     danbooru_tags,
     image_tags,
     tag_kinds,
@@ -164,20 +165,13 @@ async def _put_rule(
         )
 
 
-async def _character_names() -> frozenset[str]:
-    """Names (lowercased) that are characters: the tagger's listed ones and
-    the user's character pages, less those the user says aren't one. Read
-    before a write transaction: loading the vocabulary reads the settings."""
-    names = set((await tag_categories.load()).names)
-    c = t.characters
+async def _characters_among(names) -> frozenset[str]:
+    """Which of ``names`` are characters (lowercased), by the Tags page's own
+    rule (:func:`character_names.character_names`). Read before a write
+    transaction: loading the vocabulary reads the settings."""
+    vocab = await tag_categories.load()
     async with async_conn() as conn:
-        rows = (await conn.execute(sa.select(c.c.tag, c.c.kind))).fetchall()
-    for tag, kind in rows:
-        if kind == "general":
-            names.discard(tag.lower())
-        else:
-            names.add(tag.lower())
-    return frozenset(names)
+        return await character_names.character_names(conn, vocab, set(names))
 
 
 async def _write_rule(
@@ -189,7 +183,7 @@ async def _write_rule(
 ) -> list[str]:
     """Store the rule ``name -> targets`` and return its targets as stored.
     ``rules`` (from :func:`_load_rules`) is kept up to date in place, so a
-    batch reads them once; ``characters`` is :func:`_character_names`.
+    batch reads them once; ``characters`` is :func:`_characters_among`.
 
     Rules stay one hop: a target that has a rule of its own stands for that
     rule's targets, and rules that pointed at ``name`` now point where it
@@ -253,7 +247,7 @@ async def rename_tag(tag: str, to: str) -> dict:
 
     old_name = tag_kinds.base_of(tag)
     new_name = _target_name(to, prompt=True)
-    characters = await _character_names()
+    characters = await _characters_among([old_name])
     async with async_tx() as conn:
         resolved = await _write_rule(conn, old_name, [new_name], characters)
     _forget_suggestions()
@@ -316,7 +310,13 @@ async def add_rules(rules: list[tuple[str, list[str]]]) -> dict:
     skipped: list[dict] = []
     # A rule that replaces one: its images carry the old targets, not the name.
     replaced: list[list[str]] = []
-    characters = await _character_names()
+    names: list[str] = []
+    for name, _ in rules:
+        try:
+            names.append(_target_name(name, prompt=True))
+        except RenameError:
+            pass  # skipped with its reason below
+    characters = await _characters_among(names)
     async with async_tx() as conn:
         stored = await _load_rules(conn)
         for name, targets in rules:
@@ -389,7 +389,7 @@ async def merge_suggestions() -> dict:
             )
         ).fetchall()
         rules = await _load_rules(conn)
-    characters = await _character_names()
+    characters = await _characters_among({r.base for r in rows})
     ruled = set(rules) | {x for to, _ in rules.values() for x in to}
     counts = {
         r.base: r.n

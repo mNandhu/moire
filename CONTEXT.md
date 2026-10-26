@@ -68,7 +68,8 @@ belongs in this file.
   so ordinary words that happen to be characters (`sunny`, `white_rabbit`)
   don't. No downloaded model, no characters. The user's say on a character
   page (`characters.kind`) beats the list both ways. (`services/tag_categories.py`;
-  the library check is `tag_index._characters`)
+  the library check and the one "is a character" rule are
+  `services/character_names.py`)
 - **Character page**: one character at `/characters/:tag`, any of its names
   leading there. A bare name folds into its full name when both are in the
   library (an *alias*, counted as one). Its colour comes from hair and eye

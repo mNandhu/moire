@@ -256,9 +256,73 @@ async def test_merge_suggestions_read_prompt_tags_against_danbooru(
     danbooru_tags.reset_for_tests()
 
 
+def _chars(*names, **candidates):
+    from moire.services import tag_categories
+
+    async def load():
+        return tag_categories.Vocab(
+            frozenset(names),
+            {
+                bare: tag_categories.Candidate(series, f"{bare}_({series})")
+                for bare, series in candidates.items()
+            },
+        )
+
+    return load
+
+
+async def _split(client, name):
+    return (
+        await client.post(
+            "/tags/aliases", json={"rules": [{"from": name, "to": ["aa", "bb"]}]}
+        )
+    ).json()
+
+
+async def test_a_library_backed_bare_name_is_a_character_for_rules(
+    client, seed, monkeypatch
+):
+    """The same rule as the Tags page: a bare name the library backs with its
+    series is a character, so it can't be split."""
+    from moire.services import tag_categories
+
+    monkeypatch.setattr(tag_categories, "load", _chars(furina="genshin_impact"))
+    seed("L1:a", tags=("prompt:furina", "prompt:genshin_impact"))
+    got = await _split(client, "furina")
+    assert got["rules"] == 0
+    assert "character" in got["skipped"][0]["reason"]
+
+
+async def test_a_character_row_without_a_kind_is_no_say(client, seed, monkeypatch):
+    """A ``characters`` row with kind NULL (a colour or name set on a tag's
+    page) does not make the tag a character; only kind does."""
+    from moire.services import tag_categories
+
+    monkeypatch.setattr(tag_categories, "load", _chars())
+    async with db.async_tx() as conn:
+        await conn.execute(
+            sa.insert(t.characters).values(tag="red_hood", color="#ff0000")
+        )
+    assert (await _split(client, "red_hood"))["rules"] == 1
+
+
+async def test_kind_general_lets_a_listed_name_be_split(client, seed, monkeypatch):
+    from moire.services import tag_categories
+
+    monkeypatch.setattr(tag_categories, "load", _chars("red_hood"))
+    assert (await _split(client, "red_hood"))["rules"] == 0
+    async with db.async_tx() as conn:
+        await conn.execute(
+            sa.insert(t.characters).values(tag="red_hood", kind="general")
+        )
+    assert (await _split(client, "red_hood"))["rules"] == 1
+
+
 async def test_a_character_is_not_split_or_suggested(client, seed):
     async with db.async_tx() as conn:
-        await conn.execute(sa.insert(t.characters).values(tag="red_hood"))
+        await conn.execute(
+            sa.insert(t.characters).values(tag="red_hood", kind="character")
+        )
     resp = await client.post(
         "/tags/aliases",
         json={"rules": [{"from": "red_hood", "to": ["red_cape", "hood"]}]},
