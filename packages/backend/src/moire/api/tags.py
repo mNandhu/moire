@@ -17,6 +17,7 @@ from ..services import (
     danbooru_tags,
     face_detect,
     image_tags,
+    tag_kinds,
     prompt_board,
     tag_categories,
     tag_descriptions,
@@ -208,7 +209,7 @@ async def tag_samples(
     # Keyed by what the caller asked for; looked up by the canonical spelling.
     tags = validate_tags(tags, max_count=200)
     results = await asyncio.gather(
-        *[tag_index.samples_for_tag(image_tags.canonical_tag(tag), per) for tag in tags]
+        *[tag_index.samples_for_tag(tag_kinds.canonical_tag(tag), per) for tag in tags]
     )
     thumbs = await thumb_version.urls(row["_id"] for got in results for row in got)
     return {
@@ -339,7 +340,7 @@ async def _cover_of(base: str, pinned: str | None) -> str | None:
     """A tag's cover: the pin, else what its mosaic leads with."""
     if pinned:
         return pinned
-    lead = await tag_index.samples_for_tag(f"{image_tags.ANY_PREFIX}{base}", 1)
+    lead = await tag_index.samples_for_tag(f"{tag_kinds.ANY_PREFIX}{base}", 1)
     return lead[0]["_id"] if lead else None
 
 
@@ -421,9 +422,7 @@ async def apply_tags(image_id: str, tags: list[str]):
     await image_tags.apply_manual(image_id, cleaned)
     return {
         "image_id": image_id,
-        "added": [
-            image_tags.canonical_tag(image_tags.to_manual(tag)) for tag in cleaned
-        ],
+        "added": [tag_kinds.canonical_tag(tag_kinds.to_manual(tag)) for tag in cleaned],
     }
 
 
@@ -433,7 +432,7 @@ async def remove_tags(image_id: str, tags: list[str]):
     await image_tags.remove_tags(image_id, tags)
     return {
         "image_id": image_id,
-        "removed": [image_tags.canonical_tag(tag) for tag in tags],
+        "removed": [tag_kinds.canonical_tag(tag) for tag in tags],
     }
 
 

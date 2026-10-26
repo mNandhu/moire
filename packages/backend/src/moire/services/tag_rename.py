@@ -35,6 +35,7 @@ from ..database import schema as t
 from . import (
     danbooru_tags,
     image_tags,
+    tag_kinds,
     reproject,
     tag_canon,
     tag_categories,
@@ -52,7 +53,7 @@ class RenameError(ValueError):
 def _target_name(to: str, *, prompt: bool) -> str:
     """The canonical bare target name. A kind prefix typed by the user is
     dropped (the source's kind wins); prompt terms are stored lowercase."""
-    name = image_tags.base_of(to.strip())
+    name = tag_kinds.base_of(to.strip())
     name = canonical_name(name.lower() if prompt else name)
     if not name:
         raise RenameError("new name must not be empty")
@@ -68,7 +69,7 @@ async def _base_in_use(conn, tag: str) -> bool:
             sa.select(it.c.tag)
             .where(
                 it.c.base == tag_index.pin_key(tag),
-                it.c.tag != image_tags.canonical_tag(tag),
+                it.c.tag != tag_kinds.canonical_tag(tag),
             )
             .limit(1)
         )
@@ -221,10 +222,10 @@ async def _write_rule(
     rules[name] = (resolved, now)
     if len(resolved) == 1:
         await _move_thumbnail(
-            conn, image_tags.to_prompt(name), image_tags.to_prompt(resolved[0])
+            conn, tag_kinds.to_prompt(name), tag_kinds.to_prompt(resolved[0])
         )
         await _move_character(
-            conn, image_tags.to_prompt(name), image_tags.to_prompt(resolved[0])
+            conn, tag_kinds.to_prompt(name), tag_kinds.to_prompt(resolved[0])
         )
     return resolved
 
@@ -232,9 +233,9 @@ async def _write_rule(
 async def rename_tag(tag: str, to: str) -> dict:
     """Rename or merge stored tag ``tag`` (prefix included) into ``to`` (a bare
     name). Returns ``{kind, from, to, images}``."""
-    tag = image_tags.canonical_tag(tag)
-    if image_tags.is_manual(tag):
-        new = image_tags.MANUAL_PREFIX + _target_name(to, prompt=False)
+    tag = tag_kinds.canonical_tag(tag)
+    if tag_kinds.is_manual(tag):
+        new = tag_kinds.MANUAL_PREFIX + _target_name(to, prompt=False)
         if new == tag:
             raise RenameError("new name is the same as the old one")
         changed = await image_tags.rename_manual(tag, new)
@@ -244,12 +245,12 @@ async def rename_tag(tag: str, to: str) -> dict:
         tag_index.invalidate()
         return {"kind": "manual", "from": tag, "to": new, "images": changed}
 
-    if not image_tags.is_prompt(tag):
+    if not tag_kinds.is_prompt(tag):
         raise RenameError(
             "AI tags come from the tagger's fixed vocabulary and can't be renamed"
         )
 
-    old_name = image_tags.base_of(tag)
+    old_name = tag_kinds.base_of(tag)
     new_name = _target_name(to, prompt=True)
     characters = await _character_names()
     async with async_tx() as conn:
@@ -262,8 +263,8 @@ async def rename_tag(tag: str, to: str) -> dict:
         "kind": "prompt",
         "from": tag,
         # Merging onto a name that is split stands for its split.
-        "to": image_tags.to_prompt(resolved[0]),
-        "to_all": [image_tags.to_prompt(x) for x in resolved],
+        "to": tag_kinds.to_prompt(resolved[0]),
+        "to_all": [tag_kinds.to_prompt(x) for x in resolved],
         "images": len(affected),
         "background": background,
     }
@@ -335,10 +336,10 @@ async def add_rules(rules: list[tuple[str, list[str]]]) -> dict:
             if before is not None:
                 replaced.append(before[0])
     _forget_suggestions()
-    affected = set(await _images_with([image_tags.to_prompt(n) for n in added]))
+    affected = set(await _images_with([tag_kinds.to_prompt(n) for n in added]))
     for old in replaced:
         affected.update(
-            await _images_with([image_tags.to_prompt(x) for x in old], every=True)
+            await _images_with([tag_kinds.to_prompt(x) for x in old], every=True)
         )
     background = await _apply(affected)
     return {
@@ -382,7 +383,7 @@ async def merge_suggestions() -> dict:
         rows = (
             await conn.execute(
                 sa.select(it.c.base, sa.func.count().label("n"))
-                .where(it.c.tag.like(f"{image_tags.PROMPT_PREFIX}%"))
+                .where(it.c.tag.like(f"{tag_kinds.PROMPT_PREFIX}%"))
                 .group_by(it.c.base)
             )
         ).fetchall()
@@ -440,9 +441,7 @@ async def delete_alias(from_name: str) -> dict | None:
     # Every image the rule touched carries all its targets; re-deriving those
     # gives each its own prompt's names back.
     targets = rule[0]
-    affected = await _images_with(
-        [image_tags.to_prompt(x) for x in targets], every=True
-    )
+    affected = await _images_with([tag_kinds.to_prompt(x) for x in targets], every=True)
     background = await _apply(affected)
     return {
         "from": from_name,

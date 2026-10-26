@@ -7,7 +7,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import image_tags
+from moire.services import image_tags, tag_kinds
 
 
 def _row(image_id: str) -> tuple[dict, list[tuple]]:
@@ -57,7 +57,7 @@ async def test_bulk_and_single_writes_leave_identical_rows(seed, start, prompt):
 def test_initial_tag_fields_match_an_empty_tag_state():
     fields = image_tags.initial_tag_fields()
     assert fields["tags"] == []
-    for key, value in image_tags.recompute_flags([]).items():
+    for key, value in tag_kinds.recompute_flags([]).items():
         assert fields[key] == value
 
 
@@ -65,5 +65,5 @@ def test_the_column_list_covers_every_flag():
     """A flag added to recompute_flags but not TAG_STATE_COLUMNS would be
     dropped from every write."""
     cols = image_tags.TAG_STATE_COLUMNS
-    assert {"tags", *image_tags.recompute_flags([])} == set(cols)
+    assert {"tags", *tag_kinds.recompute_flags([])} == set(cols)
     assert tuple(image_tags.tag_state_values(["a"])) == cols

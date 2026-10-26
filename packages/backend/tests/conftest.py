@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from moire.core.config import settings
 from moire.database import db
 from moire.database import schema as t
-from moire.services import image_tags, tag_index
+from moire.services import image_tags, tag_index, tag_kinds
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -118,7 +118,7 @@ def seed(temp_db):
         mtime: float | None = None,
     ) -> None:
         tag_list = list(tags)
-        flags = image_tags.recompute_flags(tag_list)
+        flags = tag_kinds.recompute_flags(tag_list)
         with db.sync_tx() as conn:
             conn.execute(
                 sa.insert(t.images).values(

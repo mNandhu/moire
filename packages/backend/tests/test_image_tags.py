@@ -1,12 +1,14 @@
 """Unit tests for the Image tag-state invariant.
 
-These exercise the pure helpers/transforms in ``services.image_tags``, the single
+These exercise the pure helpers in ``services.tag_kinds`` and the transforms in
+``services.image_tags``, the single
 owner of the manual-prefix convention and the has_tags/has_ai_tags/has_prompt_tags
 recompute, so the invariant has a test surface that needs no database. The
 transactional repo writes are covered separately by the DB integration tests.
 """
 
 from moire.services import image_tags as it
+from moire.services import tag_kinds as tk
 
 
 # --- id candidates -----------------------------------------------------------
@@ -29,46 +31,46 @@ def test_id_candidates_backslash_spelling():
 
 
 def test_to_manual_adds_prefix_idempotently():
-    assert it.to_manual("cat") == "manual:cat"
-    assert it.to_manual("manual:cat") == "manual:cat"
+    assert tk.to_manual("cat") == "manual:cat"
+    assert tk.to_manual("manual:cat") == "manual:cat"
 
 
 def test_is_manual():
-    assert it.is_manual("manual:cat")
-    assert not it.is_manual("cat")
+    assert tk.is_manual("manual:cat")
+    assert not tk.is_manual("cat")
 
 
 def test_to_prompt_adds_prefix_idempotently():
-    assert it.to_prompt("masterpiece") == "prompt:masterpiece"
-    assert it.to_prompt("prompt:masterpiece") == "prompt:masterpiece"
+    assert tk.to_prompt("masterpiece") == "prompt:masterpiece"
+    assert tk.to_prompt("prompt:masterpiece") == "prompt:masterpiece"
 
 
 def test_is_prompt():
-    assert it.is_prompt("prompt:masterpiece")
-    assert not it.is_prompt("masterpiece")
-    assert not it.is_prompt("manual:fav")
+    assert tk.is_prompt("prompt:masterpiece")
+    assert not tk.is_prompt("masterpiece")
+    assert not tk.is_prompt("manual:fav")
 
 
 def test_base_of_strips_kind_prefix():
-    assert it.base_of("cat") == "cat"
-    assert it.base_of("manual:cat") == "cat"
-    assert it.base_of("prompt:cat") == "cat"
+    assert tk.base_of("cat") == "cat"
+    assert tk.base_of("manual:cat") == "cat"
+    assert tk.base_of("prompt:cat") == "cat"
 
 
 # --- any-source search sentinel ----------------------------------------------
 
 
 def test_any_variants_fans_out_to_all_sources():
-    assert it.any_variants("any:cat") == ["cat", "manual:cat", "prompt:cat"]
+    assert tk.any_variants("any:cat") == ["cat", "manual:cat", "prompt:cat"]
 
 
 def test_expand_search_tag_exact_stays_precise():
     # Source-specific (deep-link) entries match only themselves.
-    assert it.expand_search_tag("prompt:cat") == ["prompt:cat"]
-    assert it.expand_search_tag("manual:cat") == ["manual:cat"]
-    assert it.expand_search_tag("cat") == ["cat"]
+    assert tk.expand_search_tag("prompt:cat") == ["prompt:cat"]
+    assert tk.expand_search_tag("manual:cat") == ["manual:cat"]
+    assert tk.expand_search_tag("cat") == ["cat"]
     # any: fans out.
-    assert it.expand_search_tag("any:cat") == ["cat", "manual:cat", "prompt:cat"]
+    assert tk.expand_search_tag("any:cat") == ["cat", "manual:cat", "prompt:cat"]
 
 
 # --- tag_match_groups: AND-of-EXISTS translation for SQL ----------------------
@@ -76,25 +78,25 @@ def test_expand_search_tag_exact_stays_precise():
 
 def test_tag_match_groups_single_any():
     # One group whose ids are the any: fan-out.
-    assert it.tag_match_groups(["any:cat"], "and") == [
+    assert tk.tag_match_groups(["any:cat"], "and") == [
         ["cat", "manual:cat", "prompt:cat"]
     ]
 
 
 def test_tag_match_groups_single_exact():
-    assert it.tag_match_groups(["prompt:cat"], "and") == [["prompt:cat"]]
+    assert tk.tag_match_groups(["prompt:cat"], "and") == [["prompt:cat"]]
 
 
 def test_tag_match_groups_two_entries_and_logic():
     # AND across groups (one group per entry), OR within each group.
-    assert it.tag_match_groups(["any:cat", "any:dog"], "and") == [
+    assert tk.tag_match_groups(["any:cat", "any:dog"], "and") == [
         ["cat", "manual:cat", "prompt:cat"],
         ["dog", "manual:dog", "prompt:dog"],
     ]
 
 
 def test_tag_match_groups_mixed_exact_and_any():
-    assert it.tag_match_groups(["any:cat", "prompt:dog"], "and") == [
+    assert tk.tag_match_groups(["any:cat", "prompt:dog"], "and") == [
         ["cat", "manual:cat", "prompt:cat"],
         ["prompt:dog"],
     ]
@@ -102,24 +104,24 @@ def test_tag_match_groups_mixed_exact_and_any():
 
 def test_tag_match_groups_or_logic_unions_into_one_group_deduped():
     # OR flattens every variant into one group; overlapping ids dedupe, order kept.
-    assert it.tag_match_groups(["any:cat", "cat"], "or") == [
+    assert tk.tag_match_groups(["any:cat", "cat"], "or") == [
         ["cat", "manual:cat", "prompt:cat"]
     ]
 
 
 def test_excluded_prefixes_per_kind():
     # AI-only default excludes both prefixes.
-    assert it.excluded_prefixes(include_manual=False, include_prompt=False) == [
+    assert tk.excluded_prefixes(include_manual=False, include_prompt=False) == [
         "manual:",
         "prompt:",
     ]
-    assert it.excluded_prefixes(include_manual=True, include_prompt=False) == [
+    assert tk.excluded_prefixes(include_manual=True, include_prompt=False) == [
         "prompt:"
     ]
-    assert it.excluded_prefixes(include_manual=False, include_prompt=True) == [
+    assert tk.excluded_prefixes(include_manual=False, include_prompt=True) == [
         "manual:"
     ]
-    assert it.excluded_prefixes(include_manual=True, include_prompt=True) == []
+    assert tk.excluded_prefixes(include_manual=True, include_prompt=True) == []
 
 
 # --- flag recompute ----------------------------------------------------------
@@ -127,24 +129,24 @@ def test_excluded_prefixes_per_kind():
 
 def test_recompute_flags_axes():
     # AI tag: all three? has_tags + has_ai_tags, not prompt.
-    assert it.recompute_flags(["1girl"]) == {
+    assert tk.recompute_flags(["1girl"]) == {
         "has_tags": True,
         "has_ai_tags": True,
         "has_prompt_tags": False,
     }
     # Manual only: curatable but not AI.
-    assert it.recompute_flags(["manual:fav"]) == {
+    assert tk.recompute_flags(["manual:fav"]) == {
         "has_tags": True,
         "has_ai_tags": False,
         "has_prompt_tags": False,
     }
     # Prompt only: NOT curatable (stays in Untagged tile), not AI.
-    assert it.recompute_flags(["prompt:masterpiece"]) == {
+    assert tk.recompute_flags(["prompt:masterpiece"]) == {
         "has_tags": False,
         "has_ai_tags": False,
         "has_prompt_tags": True,
     }
-    assert it.recompute_flags([]) == {
+    assert tk.recompute_flags([]) == {
         "has_tags": False,
         "has_ai_tags": False,
         "has_prompt_tags": False,
@@ -251,14 +253,14 @@ def test_with_manual_edit_leaves_ai_and_prompt_alone():
 
 
 def test_canonical_tag_keeps_prefix_and_joins_words():
-    assert it.canonical_tag("manual:blue eyes") == "manual:blue_eyes"
+    assert tk.canonical_tag("manual:blue eyes") == "manual:blue_eyes"
     assert (
-        it.canonical_tag("prompt:hu tao (genshin impact)")
+        tk.canonical_tag("prompt:hu tao (genshin impact)")
         == "prompt:hu_tao_(genshin_impact)"
     )
-    assert it.canonical_tag("any:blue eyes") == "any:blue_eyes"
-    assert it.canonical_tag("blue eyes") == "blue_eyes"
-    assert it.canonical_tag(it.canonical_tag("manual:a b")) == "manual:a_b"
+    assert tk.canonical_tag("any:blue eyes") == "any:blue_eyes"
+    assert tk.canonical_tag("blue eyes") == "blue_eyes"
+    assert tk.canonical_tag(tk.canonical_tag("manual:a b")) == "manual:a_b"
 
 
 def test_with_manual_edit_canonicalizes_names():
@@ -276,3 +278,32 @@ def test_with_renamed_keeps_position_and_merges_duplicates():
     assert it.with_renamed(["manual:y", "manual:x"], "manual:x", "manual:y") == [
         "manual:y"
     ]
+
+
+# --- module boundaries ----------------------------------------------------------
+
+
+def _modules_after_import(module: str) -> set[str]:
+    import subprocess
+    import sys
+
+    code = f"import sys, {module}; print('\\n'.join(sys.modules))"
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    return set(out.stdout.split())
+
+
+def test_tag_kinds_imports_no_database_code():
+    """The vocabulary is pure: anything may import it without pulling in
+    engines or the writer."""
+    loaded = _modules_after_import("moire.services.tag_kinds")
+    assert "moire.database.db" not in loaded
+    assert "moire.services.image_tags" not in loaded
+
+
+def test_tag_index_does_not_import_the_writer():
+    """The writer imports the cache to invalidate it, never the other way
+    round: the cycle that once forced a function-local import is gone."""
+    loaded = _modules_after_import("moire.services.tag_index")
+    assert "moire.services.image_tags" not in loaded

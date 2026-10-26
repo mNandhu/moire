@@ -39,7 +39,7 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn
 from ..database import schema as t
-from . import image_tags, tag_categories
+from . import image_visibility, tag_categories, tag_kinds
 
 _TAGS_TTL_SECONDS = 30.0
 _SAMPLES_TTL_SECONDS = 60.0
@@ -190,10 +190,10 @@ def _shuffled(tag: str):
 def pin_key(tag: str) -> str:
     """The ``tag_meta`` key of any spelling of a tag: its base name. A pin
     belongs to the tag, whichever sources found it."""
-    tag = image_tags.canonical_tag(tag)
-    if image_tags.is_any(tag):
-        return tag[len(image_tags.ANY_PREFIX) :]
-    return image_tags.base_of(tag)
+    tag = tag_kinds.canonical_tag(tag)
+    if tag_kinds.is_any(tag):
+        return tag[len(tag_kinds.ANY_PREFIX) :]
+    return tag_kinds.base_of(tag)
 
 
 async def _pins(conn, bases: set[str]) -> dict[str, str]:
@@ -239,7 +239,7 @@ async def list_tags(
         async with async_conn() as conn:
             rows = (await conn.execute(stmt)).fetchall()
         merged = [
-            {"_id": f"{image_tags.ANY_PREFIX}{r.base}", "count": r.count}
+            {"_id": f"{tag_kinds.ANY_PREFIX}{r.base}", "count": r.count}
             for r in rows
             if r.base
         ]
@@ -256,7 +256,7 @@ async def list_tags(
         # mosaic thumbnail.
         sa.func.max(t.image_tags.c.image_id).label("sample_image_id"),
     )
-    for prefix in image_tags.excluded_prefixes(
+    for prefix in tag_kinds.excluded_prefixes(
         include_manual=include_manual, include_prompt=include_prompt
     ):
         stmt = stmt.where(~t.image_tags.c.tag.like(f"{prefix}%"))
@@ -267,13 +267,13 @@ async def list_tags(
         tag_ids = [r.tag for r in rows]
         overrides: dict[str, str] = {}
         if tag_ids:
-            overrides = await _pins(conn, {image_tags.base_of(tag) for tag in tag_ids})
+            overrides = await _pins(conn, {tag_kinds.base_of(tag) for tag in tag_ids})
 
     result = [
         {
             "_id": r.tag,
             "count": r.count,
-            "thumb_image_id": overrides.get(image_tags.base_of(r.tag))
+            "thumb_image_id": overrides.get(tag_kinds.base_of(r.tag))
             or r.sample_image_id,
         }
         for r in rows
@@ -310,7 +310,7 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
     # `any:<base>` is the tag from every source; any other id is that one kind.
     match = (
         t.image_tags.c.base == pin_key(tag)
-        if image_tags.is_any(tag)
+        if tag_kinds.is_any(tag)
         else t.image_tags.c.tag == tag
     )
 
@@ -328,7 +328,7 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
                 await conn.execute(
                     sa.select(*cols).where(
                         t.images.c._id == pinned,
-                        image_tags.not_quarantined(),
+                        image_visibility.not_quarantined(),
                         sa.exists(
                             sa.select(1).where(
                                 t.image_tags.c.image_id == t.images.c._id, match
@@ -355,7 +355,7 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
                     # source, and one image twice would leave the mosaic short.
                     sa.select(*cols)
                     .where(
-                        image_tags.not_quarantined(),
+                        image_visibility.not_quarantined(),
                         sa.exists(
                             sa.select(1).where(
                                 t.image_tags.c.image_id == t.images.c._id, match
@@ -403,8 +403,8 @@ SOURCES = ("all", "ai", "prompt", "manual")
 def _source_clause(source: str):
     """Restrict ``image_tags`` rows to one source (``all``: no restriction)."""
     tag = t.image_tags.c.tag
-    manual = tag.like(f"{image_tags.MANUAL_PREFIX}%")
-    prompt = tag.like(f"{image_tags.PROMPT_PREFIX}%")
+    manual = tag.like(f"{tag_kinds.MANUAL_PREFIX}%")
+    prompt = tag.like(f"{tag_kinds.PROMPT_PREFIX}%")
     if source == "manual":
         return manual
     if source == "prompt":
@@ -470,7 +470,7 @@ async def _browse(
     # per-row lookups and a plan that scanned every source cost 2-15x more.
     vis = (
         sa.select(im.c._id, im.c.mtime, sa.literal_column("rowid").label("rid"))
-        .where(image_tags.not_quarantined())
+        .where(image_visibility.not_quarantined())
         .cte("vis")
         .prefix_with("MATERIALIZED")
     )
@@ -604,7 +604,7 @@ async def _listed_characters(
     wanted = [b for group in spellings.values() for b in group]
     visible = sa.exists(
         sa.select(1).where(
-            t.images.c._id == it.c.image_id, image_tags.not_quarantined()
+            t.images.c._id == it.c.image_id, image_visibility.not_quarantined()
         )
     )
     # One pass: every (candidate, image, evidence-or-NULL) row.
@@ -645,7 +645,7 @@ def image_ids(bases: list[str], source: str = "all"):
     it = t.image_tags
     visible = sa.exists(
         sa.select(1).where(
-            t.images.c._id == it.c.image_id, image_tags.not_quarantined()
+            t.images.c._id == it.c.image_id, image_visibility.not_quarantined()
         )
     )
     return (
@@ -670,7 +670,7 @@ async def detail(
     bases = [base, *aliases]
     visible = sa.exists(
         sa.select(1).where(
-            t.images.c._id == it.c.image_id, image_tags.not_quarantined()
+            t.images.c._id == it.c.image_id, image_visibility.not_quarantined()
         )
     )
     ids = image_ids(bases, source)
@@ -757,9 +757,9 @@ async def detail(
     for tag, n in kinds:
         kind = (
             "manual"
-            if image_tags.is_manual(tag)
+            if tag_kinds.is_manual(tag)
             else "prompt"
-            if image_tags.is_prompt(tag)
+            if tag_kinds.is_prompt(tag)
             else "ai"
         )
         sources[kind] += n

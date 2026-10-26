@@ -28,7 +28,15 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import attire, characters, comfy_models, image_tags, tag_categories, tag_index
+from . import (
+    attire,
+    characters,
+    comfy_models,
+    image_visibility,
+    tag_categories,
+    tag_index,
+    tag_kinds,
+)
 from .generator_graph import lora_stem
 from .image_tags import canonical_tag
 
@@ -176,7 +184,7 @@ async def _uses(names: list[str]) -> list[LoraUse]:
     ids = tag_index.image_ids(names)
     prompted = (
         sa.select(it.c.image_id)
-        .where(it.c.base.in_(names), it.c.tag.like(f"{image_tags.PROMPT_PREFIX}%"))
+        .where(it.c.base.in_(names), it.c.tag.like(f"{tag_kinds.PROMPT_PREFIX}%"))
         .distinct()
         .scalar_subquery()
     )
@@ -184,8 +192,8 @@ async def _uses(names: list[str]) -> list[LoraUse]:
         sa.select(it.c.image_id)
         .where(
             it.c.base.in_(names),
-            ~it.c.tag.like(f"{image_tags.PROMPT_PREFIX}%"),
-            ~it.c.tag.like(f"{image_tags.MANUAL_PREFIX}%"),
+            ~it.c.tag.like(f"{tag_kinds.PROMPT_PREFIX}%"),
+            ~it.c.tag.like(f"{tag_kinds.MANUAL_PREFIX}%"),
         )
         .distinct()
         .scalar_subquery()
@@ -218,7 +226,7 @@ async def _uses(names: list[str]) -> list[LoraUse]:
                     .select_from(il.join(im, im.c._id == il.c.image_id))
                     .where(
                         il.c.name.in_([r.name for r in rows]),
-                        image_tags.not_quarantined(),
+                        image_visibility.not_quarantined(),
                     )
                     .group_by(il.c.name)
                 )
@@ -256,7 +264,7 @@ async def _signature(
         ).scalar_one()
         total = (
             await conn.execute(
-                sa.select(sa.func.count()).where(image_tags.not_quarantined())
+                sa.select(sa.func.count()).where(image_visibility.not_quarantined())
             )
         ).scalar_one()
         here, counted = await characters.signature_counts(
@@ -360,7 +368,7 @@ async def _visible_count() -> int:
     async with async_conn() as conn:
         return (
             await conn.execute(
-                sa.select(sa.func.count()).where(image_tags.not_quarantined())
+                sa.select(sa.func.count()).where(image_visibility.not_quarantined())
             )
         ).scalar_one()
 

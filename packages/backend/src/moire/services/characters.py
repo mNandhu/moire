@@ -23,7 +23,14 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import attire, face_detect, image_tags, tag_categories, tag_index
+from . import (
+    attire,
+    face_detect,
+    image_tags,
+    image_visibility,
+    tag_categories,
+    tag_index,
+)
 
 # Colour words in hair / eye tags, as (hue, saturation %, lightness %).
 COLOURS: dict[str, tuple[int, int, int]] = {
@@ -559,7 +566,8 @@ async def _covers(
                 it.c.image_id.in_(set(pins.values())),
                 sa.exists(
                     sa.select(1).where(
-                        t.images.c._id == it.c.image_id, image_tags.not_quarantined()
+                        t.images.c._id == it.c.image_id,
+                        image_visibility.not_quarantined(),
                     )
                 ),
             )
@@ -647,7 +655,7 @@ async def page(base: str) -> dict | None:
         )[key]
         total = (
             await conn.execute(
-                sa.select(sa.func.count()).where(image_tags.not_quarantined())
+                sa.select(sa.func.count()).where(image_visibility.not_quarantined())
             )
         ).scalar_one()
         tags_here, sig_images = await signature_counts(
