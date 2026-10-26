@@ -15,7 +15,8 @@ ComfyUI rejects it, nothing is kept and the caller gets the node errors.
 The manager holds the connection and the poll state machine; the work it
 hands off lives beside it: what a batch keeps (:mod:`generation_inputs`),
 reading ComfyUI's history (:mod:`comfy_history`), where outputs land
-(:mod:`generation_outputs`) and Generator rows (:mod:`generators_store`).
+(:mod:`generation_outputs`), Generator rows (:mod:`generators_store`) and
+the state names (:mod:`generation_states`).
 """
 
 from __future__ import annotations
@@ -53,6 +54,7 @@ from .generation_inputs import (
     replay_body,
 )
 from .generation_outputs import fetch_missing, place_outputs
+from .generation_states import IN_COMFY, REPLACED, RETRYABLE, UNFINISHED
 from .generators_store import load_generator
 from .generator_graph import (
     GraphError,
@@ -70,8 +72,6 @@ log = logging.getLogger("moire.generate")
 # certificate file, say): often enough to recover soon, not a log line a tick.
 SETUP_RETRY = 60.0
 
-UNFINISHED = ("pending", "queued", "running")
-IN_COMFY = ("queued", "running")
 # Order key: a batch that is a workflow's test run before the others.
 TEST_FIRST = sa.desc(
     sa.func.coalesce(sa.func.json_extract(t.generation_batches.c.inputs, "$.test"), 0)
@@ -757,7 +757,7 @@ class GenerationManager:
                     sa.select(sa.func.max(r.c.idx)).where(r.c.batch_id == batch_id)
                 )
             ).scalar()
-        if req is None or req.state not in ("failed", "lost", "cancelled", "done"):
+        if req is None or req.state not in RETRYABLE:
             raise Invalid("Only a finished request can be retried")
         if req.state == "done" and outputs:
             # Its images are in the library; retrying would drop them from the batch.
@@ -765,7 +765,7 @@ class GenerationManager:
         async with async_tx() as conn:
             if single and (req.images or 0) > 1:
                 await conn.execute(
-                    sa.update(r).where(r.c._id == request_id).values(state="replaced")
+                    sa.update(r).where(r.c._id == request_id).values(state=REPLACED)
                 )
                 await conn.execute(
                     sa.insert(r),

@@ -16,6 +16,7 @@ from . import comfy_models, generation_estimate, generator_setup, thumb_version
 from .generation_errors import Invalid, Unavailable
 from .generator_discovery import fixed_values
 from .generator_graph import sampling_defaults, slot_value
+from .generation_states import FAILED, REPLACED, UNFINISHED
 from .generators_store import load_generator
 
 if TYPE_CHECKING:
@@ -30,7 +31,7 @@ _b, _r, _o, _i = (
 
 # Requests the UI shows: a request split by "Retry one at a time" is replaced
 # by its singles.
-_VISIBLE = _r.c.state != "replaced"
+_VISIBLE = _r.c.state != REPLACED
 # How long a finished request's missing output counts as still arriving.
 ARRIVING_SECONDS = 300
 
@@ -40,11 +41,11 @@ def batch_state(states: list[str], connected: bool) -> str:
     requests failed or were lost) / cancelled. Pure."""
     if not states:
         return "done"
-    if any(s in ("pending", "queued", "running") for s in states):
+    if any(s in UNFINISHED for s in states):
         return "running" if connected else "paused"
     if all(s == "cancelled" for s in states):
         return "cancelled"
-    if any(s in ("failed", "lost") for s in states):
+    if any(s in FAILED for s in states):
         return "failed"
     return "done"
 
@@ -124,7 +125,7 @@ async def get_batch(batch_id: int, manager: GenerationManager) -> dict[str, Any]
             ).fetchall()
         )
     gen = await load_generator(batch.generator_id)
-    unfinished = any(q.state in ("pending", "queued", "running") for q in reqs)
+    unfinished = any(q.state in UNFINISHED for q in reqs)
     expected = (
         (await generation_estimate.queue_plan(manager.started, manager.current))[
             "requests"
@@ -215,7 +216,7 @@ async def list_batches(
                 "height": b.inputs.get("height"),
                 "state": batch_state([q.state for q in rs], manager.connected),
                 "requests": len(rs),
-                "failed": sum(1 for q in rs if q.state in ("failed", "lost")),
+                "failed": sum(1 for q in rs if q.state in FAILED),
                 "images": len(outs),
                 "kept": sum(
                     1 for o in outs if o["in_library"] and not o["quarantined"]
@@ -377,7 +378,7 @@ async def active_summary(manager: GenerationManager) -> list[dict[str, Any]]:
             if ids
             else []
         )
-        outputs = await _outputs(conn, [q for q in reqs if q.state not in _OPEN])
+        outputs = await _outputs(conn, [q for q in reqs if q.state not in UNFINISHED])
     by_batch: dict[int, list[Any]] = {}
     for q in reqs:
         by_batch.setdefault(q.batch_id, []).append(q)
@@ -392,8 +393,8 @@ async def active_summary(manager: GenerationManager) -> list[dict[str, Any]]:
                 "test": bool(b.inputs.get("test")),
                 "state": batch_state([q.state for q in rs], manager.connected),
                 "requests": len(rs),
-                "finished": sum(1 for q in rs if q.state not in _OPEN),
-                "failed": sum(1 for q in rs if q.state in ("failed", "lost")),
+                "finished": sum(1 for q in rs if q.state not in UNFINISHED),
+                "failed": sum(1 for q in rs if q.state in FAILED),
                 # ComfyUI is making one of its images now.
                 "running": current is not None,
                 "progress": manager.progress.get(current.prompt_id)
@@ -407,14 +408,11 @@ async def active_summary(manager: GenerationManager) -> list[dict[str, Any]]:
     return out
 
 
-_OPEN = ("pending", "queued", "running")
-
-
 def _frames(q: Any, outs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """A request's images for the queue: one per image asked (or made, if
     more), each with its state and, once in the library, its thumbnail."""
     n = max(q.images or 1, len(outs))
-    if q.state in ("failed", "lost"):
+    if q.state in FAILED:
         return [{"state": "failed", "thumb": None}] * n
     if q.state == "cancelled":
         # What it made before the cancel stays done.
@@ -422,7 +420,7 @@ def _frames(q: Any, outs: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return made + [{"state": "cancelled", "thumb": None}] * (n - len(made))
     if q.state == "running":
         return [{"state": "making", "thumb": None}] * n
-    if q.state in _OPEN:
+    if q.state in UNFINISHED:
         return [{"state": "waiting", "thumb": None}] * n
     thumbs = [o["thumb_url"] for o in outs]
     return [

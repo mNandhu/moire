@@ -41,6 +41,7 @@ from ..database.db import async_conn
 from .builtin_generator import BUILTIN_ID
 from .generation_inputs import batch_shape
 from .generator_graph import split_requests
+from .generation_states import UNFINISHED
 from .generators_store import load_generator
 
 EXACT_RUNS = 10
@@ -357,7 +358,7 @@ async def queue_plan(
                     b.c.inputs,
                 )
                 .select_from(r.join(b, b.c._id == r.c.batch_id))
-                .where(r.c.state.in_(("pending", "queued", "running")))
+                .where(r.c.state.in_(UNFINISHED))
                 # Running first, then ComfyUI's queue in its order, then ours.
                 .order_by(
                     sa.case(
