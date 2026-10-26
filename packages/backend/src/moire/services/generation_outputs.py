@@ -45,15 +45,11 @@ OUTPUT_FRESH_S = 600.0
 def held_by(libraries: Libraries, path: str) -> str | None:
     """The `_id` the file at ``path`` has in the innermost library holding
     it (the one whose scan owns it), or None when no library does."""
-    key = library_nesting.path_key(path)
-    best: tuple[str, str, int] | None = None
-    for lib_id, root in libraries:
-        rk = library_nesting.path_key(root)
-        if library_nesting.is_inside(key, rk) and (best is None or len(rk) > best[2]):
-            best = (lib_id, root, len(rk))
-    if best is None:
+    owner = library_nesting.innermost(path, libraries)
+    if owner is None:
         return None
-    return f"{best[0]}:{os.path.relpath(os.path.normpath(path), os.path.normpath(best[1]))}"
+    lib_id, root = owner
+    return f"{lib_id}:{os.path.relpath(os.path.normpath(path), os.path.normpath(root))}"
 
 
 def root_candidates(

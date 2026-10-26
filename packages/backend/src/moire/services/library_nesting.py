@@ -219,8 +219,9 @@ def _adopt_from(outer: _Lib, inner_libs: list[_Lib]) -> int:
         ).fetchall()
     # Each copy to the innermost library holding its file.
     plan: list[tuple[str, str, str]] = []  # (outer copy's id, the inner row's id, file)
+    inner_roots = [(i.id, i.path) for i in inner_libs]
     for c in copies:
-        owner = innermost(c.path, [(i.id, i.path) for i in inner_libs])
+        owner = innermost(c.path, inner_roots)
         if owner is None:
             continue
         owner_id, owner_root = owner
