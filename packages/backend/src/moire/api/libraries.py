@@ -10,7 +10,12 @@ import sqlalchemy as sa
 from ..core.config import settings
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from ..models.library import LibraryDiscoverIn, LibraryIn, LibraryUpdate
+from ..models.library import (
+    LibraryDiscoverIn,
+    LibraryIn,
+    LibraryUpdate,
+    normalize_path,
+)
 from ..services import activity, library_discover, library_nesting
 from ..services.scanner import cancel_scan, restart_scan, scan_library_async
 
@@ -96,9 +101,7 @@ async def add_library(body: LibraryIn):
     # normalized (`D:/images/`) still dedupes against `D:/images`.
     async with async_conn() as conn:
         rows = (await conn.execute(sa.select(t.libraries))).fetchall()
-    existing = next(
-        (r for r in rows if library_discover.normalize_path(r.path) == body.path), None
-    )
+    existing = next((r for r in rows if normalize_path(r.path) == body.path), None)
     if existing:
         return dict(existing._mapping)
 
@@ -255,9 +258,9 @@ async def update_library(library_id: str, body: LibraryUpdate):
     new_path = update_doc.get("path", old._mapping.get("path"))
     # The new path arrives normalized; normalize the stored one too, so a
     # name-only edit of a library stored as `/x/` doesn't count as a move.
-    path_changed = "path" in update_doc and update_doc[
-        "path"
-    ] != library_discover.normalize_path(old._mapping.get("path") or "")
+    path_changed = "path" in update_doc and update_doc["path"] != normalize_path(
+        old._mapping.get("path") or ""
+    )
     if path_changed:
         library_nesting.invalidate()
         restart_scan(library_id, new_path)

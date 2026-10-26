@@ -22,17 +22,10 @@ from pathlib import Path
 from typing import Iterable
 
 from ..models.library import normalize_path, validate_library_path
+from .library_nesting import is_inside, path_key, same_or_inside
 from .scanner import is_image
 
-__all__ = ["discover", "as_dicts", "normalize_path"]
-
-
-def _is_within(child: str, parent: str) -> bool:
-    try:
-        return os.path.commonpath([child, parent]) == parent
-    except ValueError:
-        # Different drives on Windows.
-        return False
+__all__ = ["discover", "as_dicts"]
 
 
 @dataclass
@@ -101,18 +94,18 @@ def _subdirs(root: str) -> list[os.DirEntry]:
 
 def _classify(c: Candidate, existing: list[str]) -> None:
     for lib in existing:
-        if c.path == lib:
+        if path_key(c.path) == path_key(lib):
             c.status, c.note, c.conflict_path = "registered", "Already a library", lib
             return
     for lib in existing:
-        if _is_within(c.path, lib):
+        if is_inside(path_key(c.path), path_key(lib)):
             c.status, c.note, c.conflict_path = (
                 "overlap",
                 "Inside an existing library. Its images are already indexed",
                 lib,
             )
             return
-        if _is_within(lib, c.path):
+        if is_inside(path_key(lib), path_key(c.path)):
             c.status, c.note, c.conflict_path = (
                 "overlap",
                 "Contains an existing library. Those images would be indexed twice",
@@ -132,7 +125,7 @@ def _classify_within_plan(cands: list[Candidate]) -> None:
         for o in cands:
             if o is c:
                 continue
-            if _is_within(c.path, o.path) or _is_within(o.path, c.path):
+            if same_or_inside(c.path, o.path) or same_or_inside(o.path, c.path):
                 c.status, c.note, c.conflict_path = (
                     "overlap",
                     "Overlaps another folder in this list. Images would be indexed twice",

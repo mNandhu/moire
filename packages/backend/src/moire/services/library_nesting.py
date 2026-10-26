@@ -16,6 +16,7 @@ import logging
 import os
 import threading
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -40,6 +41,27 @@ def path_key(path: str | os.PathLike) -> str:
 def is_inside(child: str, parent: str) -> bool:
     """Whether folder key ``child`` is strictly below folder key ``parent``."""
     return child != parent and child.startswith(parent.rstrip(os.sep) + os.sep)
+
+
+def same_or_inside(a: str | os.PathLike, b: str | os.PathLike) -> bool:
+    """Whether folder ``a`` is folder ``b`` or below it, by `path_key`."""
+    ka, kb = path_key(a), path_key(b)
+    return ka == kb or is_inside(ka, kb)
+
+
+def innermost(
+    path: str | os.PathLike, libraries: Iterable[tuple[str, str]]
+) -> tuple[str, str] | None:
+    """The ``(id, root)`` of the innermost library (of ``(id, root)`` pairs)
+    holding ``path``, or None: the library whose scan owns that file."""
+    key = path_key(path)
+    best: tuple[str, str] | None = None
+    best_len = -1
+    for lib_id, root in libraries:
+        rk = path_key(root)
+        if is_inside(key, rk) and len(rk) > best_len:
+            best, best_len = (lib_id, root), len(rk)
+    return best
 
 
 def _under_any(key: str, roots: list[str]) -> bool:
@@ -198,16 +220,15 @@ def _adopt_from(outer: _Lib, inner_libs: list[_Lib]) -> int:
     # Each copy to the innermost library holding its file.
     plan: list[tuple[str, str, str]] = []  # (outer copy's id, the inner row's id, file)
     for c in copies:
-        key = path_key(c.path)
-        holders = [i for i in inner_libs if is_inside(key, i.key)]
-        if not holders:
+        owner = innermost(c.path, [(i.id, i.path) for i in inner_libs])
+        if owner is None:
             continue
-        owner = max(holders, key=lambda i: len(i.key))
+        owner_id, owner_root = owner
         try:
-            rel = Path(c.path).relative_to(Path(owner.path))
+            rel = Path(c.path).relative_to(Path(owner_root))
         except ValueError:
             continue
-        plan.append((c._id, f"{owner.id}:{rel}", c.path))
+        plan.append((c._id, f"{owner_id}:{rel}", c.path))
     if not plan:
         return 0
 

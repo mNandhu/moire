@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from moire.services.library_discover import discover, normalize_path
+from moire.models.library import normalize_path
+from moire.services.library_discover import discover
 
 
 def _img(p: Path) -> None:
@@ -170,3 +171,15 @@ async def test_name_only_edit_of_unnormalized_path_does_not_rescan(
 
     assert resp.status_code == 200
     assert scans == []
+
+
+def test_folder_relations_share_one_case_aware_rule():
+    from moire.services import library_nesting as n
+
+    libs = [("outer", "/a/b"), ("inner", "/a/b/c"), ("other", "/x")]
+    assert n.innermost("/a/b/c/d/x.png", libs) == ("inner", "/a/b/c")
+    assert n.innermost("/a/b/x.png", libs) == ("outer", "/a/b")
+    assert n.innermost("/a/bc/x.png", libs) is None
+    assert n.same_or_inside("/a/b/", "/a/b")
+    assert n.same_or_inside("/a/b/c", "/a/b")
+    assert not n.same_or_inside("/a/b", "/a/b/c")
