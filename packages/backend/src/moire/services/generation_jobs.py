@@ -11,6 +11,11 @@ them); the rest wait here as pending, which keeps cancel simple.
 
 The first request of a batch is submitted inside :meth:`queue_batch`: if
 ComfyUI rejects it, nothing is kept and the caller gets the node errors.
+
+The manager holds the connection and the poll state machine; the work it
+hands off lives beside it: what a batch keeps (:mod:`generation_inputs`),
+reading ComfyUI's history (:mod:`comfy_history`), where outputs land
+(:mod:`generation_outputs`) and Generator rows (:mod:`generators_store`).
 """
 
 from __future__ import annotations
@@ -18,8 +23,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-import os
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -49,14 +52,7 @@ from .generation_inputs import (
     characters_of,
     replay_body,
 )
-from .generation_outputs import (
-    OUTPUT_FRESH_S,
-    Libraries,
-    _write_atomic,
-    held_by,
-    output_image_id,
-    root_candidates,
-)
+from .generation_outputs import fetch_missing, place_outputs
 from .generators_store import load_generator
 from .generator_graph import (
     GraphError,
@@ -354,7 +350,7 @@ class GenerationManager:
         files = outputs_from_history(entry)
         s = await comfy_settings.get_settings()
         lib = s.get("output_library_id") or ""
-        ids, fetch = await self._place_outputs(files, s)
+        ids, fetch = await place_outputs(self.client, files, s)
         node = await self._checkpoint_node(request_id)
         async with async_tx() as conn:
             await conn.execute(
@@ -411,7 +407,7 @@ class GenerationManager:
         self.progress.pop(prompt_id, None)
         self.started.pop(prompt_id, None)
         if fetch and lib and s.get("download_outputs", True):
-            await self._fetch_missing(lib, fetch)
+            await fetch_missing(self.client, lib, fetch)
 
     def running_for(self, prompt_id: str | None) -> float | None:
         """Seconds since ComfyUI started ``prompt_id``; None until it has."""
@@ -437,118 +433,6 @@ class GenerationManager:
         gen = await load_generator(gen_id) if gen_id else None
         slot = (gen or {}).get("slots", {}).get("checkpoint")
         return str(slot[0]) if slot else None
-
-    async def _place_outputs(
-        self, files: list[tuple[str, str]], s: dict[str, Any]
-    ) -> tuple[list[str], list[tuple[str, str]]]:
-        """Each output's image id, and the outputs to download. Where this
-        machine sees ComfyUI's output folder (``output_root``: set, or found
-        from an output a library holds), an output is that file, in the
-        watched library holding it. Otherwise it is downloaded into the
-        output library, as for a ComfyUI on another machine."""
-        lib = s.get("output_library_id") or ""
-        if not files:
-            return [], []
-        # Only a watched library picks a new file up by itself.
-        async with async_conn() as conn:
-            libraries = [
-                (r._id, r.path)
-                for r in await conn.execute(
-                    sa.select(t.libraries.c._id, t.libraries.c.path).where(
-                        t.libraries.c.watch_enabled.is_(True)
-                    )
-                )
-                if r.path
-            ]
-
-        def reachable(root: str, sub: str, name: str) -> bool:
-            return os.path.isfile(os.path.join(root, sub, name))
-
-        root = s.get("output_root") or ""
-        if not root or not any(
-            [await asyncio.to_thread(reachable, root, *f) for f in files]
-        ):
-            for sub, name in files:
-                found = await self._find_output_root(libraries, sub, name, s)
-                if found:
-                    root = found
-                    break
-        ids: list[str] = []
-        fetch: list[tuple[str, str]] = []
-        for sub, name in files:
-            here = root and await asyncio.to_thread(reachable, root, sub, name)
-            owned = held_by(libraries, os.path.join(root, sub, name)) if here else None
-            if owned:
-                ids.append(owned)
-            else:
-                ids.append(output_image_id(lib, sub, name))
-                fetch.append((sub, name))
-        return ids, fetch
-
-    async def _find_output_root(
-        self, libraries: Libraries, subfolder: str, filename: str, s: dict[str, Any]
-    ) -> str | None:
-        """ComfyUI's output folder as this machine sees it: a just-written
-        library file at ``subfolder/filename`` with the same bytes as
-        ComfyUI's output. Remembered in the settings, unless ComfyUI's
-        address changed meanwhile."""
-        candidates = await asyncio.to_thread(
-            root_candidates,
-            libraries,
-            subfolder,
-            filename,
-            time.time() - OUTPUT_FRESH_S,
-        )
-        if not candidates or self.client is None:
-            return None
-        try:
-            data = await self.client.view(subfolder, filename)
-        except (ComfyUnreachable, ComfyError):
-            return None
-        for root in candidates:
-            try:
-                same = (
-                    await asyncio.to_thread(Path(root, subfolder, filename).read_bytes)
-                    == data
-                )
-            except OSError:
-                continue
-            if not same:
-                continue
-            now = await comfy_settings.get_settings()
-            if now.get("address") != s.get("address"):
-                return None
-            await comfy_settings.update_settings({"output_root": root})
-            log.info("ComfyUI's output folder is %s", root)
-            return root
-        return None
-
-    async def _fetch_missing(
-        self, library_id: str, files: list[tuple[str, str]]
-    ) -> None:
-        """Download outputs this machine can't see (ComfyUI on another host)
-        into the output library, where the watcher picks them up. A local
-        ComfyUI already wrote them there, so nothing is fetched."""
-        assert self.client is not None
-        async with async_conn() as conn:
-            root = (
-                await conn.execute(
-                    sa.select(t.libraries.c.path).where(t.libraries.c._id == library_id)
-                )
-            ).scalar()
-        if not root:
-            return
-        base = Path(root).resolve()
-        for sub, name in files:
-            dest = (base / sub / name).resolve()
-            if not dest.is_relative_to(base) or dest.exists():
-                continue
-            try:
-                data = await self.client.view(sub, name)
-            except (ComfyUnreachable, ComfyError) as e:
-                log.warning("Could not fetch %s/%s from ComfyUI: %s", sub, name, e)
-                continue
-            await asyncio.to_thread(_write_atomic, dest, data)
 
     async def _close_finished_batches(self) -> None:
         b, r = t.generation_batches, t.generation_requests
