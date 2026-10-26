@@ -557,6 +557,196 @@ def _process_image(
         )
 
 
+class _Cancelled(Exception):
+    """The scan was cancelled (or its library deleted while it was queued)."""
+
+
+def _check_cancel(library_id: str) -> None:
+    if _is_cancel_requested(library_id):
+        raise _Cancelled()
+
+
+def _acquire_slot(library_id: str) -> None:
+    """Wait for a scan slot; raises `_Cancelled` if cancelled while queued.
+    On return the caller owns the slot and must release it."""
+    while not _scan_slots.acquire(timeout=0.5):
+        _check_cancel(library_id)
+    try:
+        _check_cancel(library_id)
+    except _Cancelled:
+        _scan_slots.release()
+        raise
+
+
+def _current_root(library_id: str) -> Path:
+    """Where the library lives now. A queued scan may have waited minutes; if
+    the library was moved meanwhile (a re-scan request was a no-op while this
+    was queued), scan where it lives now rather than the path captured at
+    enqueue."""
+    with sync_conn() as conn:
+        current = conn.execute(
+            sa.select(t.libraries.c.path).where(t.libraries.c._id == library_id)
+        ).scalar()
+    if current is None:
+        raise _Cancelled()  # library deleted while queued
+    root_path = Path(current)
+    # os.walk of a missing root yields nothing without raising, which would
+    # make every image look deleted: fail the scan instead.
+    if not root_path.is_dir():
+        raise RuntimeError(f"Library folder not found: {root_path}")
+    return root_path
+
+
+def _walk(
+    library_id: str, root_path: Path, nested: list[str]
+) -> tuple[list[Path], set[str], list[OSError]]:
+    """Discover image files under the root, skipping nested libraries' folders.
+    Folders the walk cannot read are returned as errors, so their images are
+    kept rather than reconciled away as deleted (`unread_prefixes`)."""
+    files: list[Path] = []
+    discovered: set[str] = set()
+    walk_errors: list[OSError] = []
+    for dirpath, dirnames, filenames in os.walk(root_path, onerror=walk_errors.append):
+        dirnames[:] = library_nesting.skip_dirs(dirpath, dirnames, nested)
+        for fname in filenames:
+            p = Path(dirpath) / fname
+            if is_image(p):
+                files.append(p)
+                try:
+                    discovered.add(image_id_for(library_id, root_path, p))
+                except Exception as e:
+                    # No filename, so it guards the whole library.
+                    walk_errors.append(OSError(str(e)))
+    return files, discovered, walk_errors
+
+
+def _load_known(library_id: str, stamp: str) -> Known | None:
+    """The library's rows a scan may skip when their file is unchanged, or
+    None when the last full scan used a different stamp (rebuild all)."""
+    last_stamp, retry = _load_stamp(library_id)
+    if last_stamp != stamp:
+        return None
+    with sync_conn() as conn:
+        return {
+            r._id: (r.path, r.size, r.mtime, r.thumb_key)
+            for r in conn.execute(
+                sa.select(
+                    t.images.c._id,
+                    t.images.c.path,
+                    t.images.c.size,
+                    t.images.c.mtime,
+                    t.images.c.thumb_key,
+                ).where(t.images.c.library_id == library_id)
+            )
+            if r._id not in retry
+        }
+
+
+def _commit_batch(imgs: list[dict], raws: list[dict]) -> None:
+    # One short write transaction per batch keeps the SQLite write lock held
+    # briefly so concurrent API writes aren't starved. Image rows and their
+    # raw-gen rows commit together.
+    def _do_flush():
+        with sync_tx() as conn:
+            if raws:
+                stmt = _gen_raw_upsert_stmt()
+                for row in raws:
+                    conn.execute(stmt, row)
+            if imgs:
+                stmt = _image_upsert_stmt()
+                for row in imgs:
+                    conn.execute(stmt, row)
+
+    _retry(_do_flush, attempts=3, base_delay_s=0.2)
+
+
+def _reconcile(
+    library_id: str,
+    root_path: Path,
+    nested: list[str],
+    discovered_image_ids: set[str],
+    walk_errors: list[OSError],
+) -> str | None:
+    """Remove images that exist in the DB but were not discovered. Returns a
+    note for the library row when something was kept instead."""
+    scan_note: str | None = None
+    with sync_conn() as conn:
+        existing = conn.execute(
+            sa.select(t.images.c._id, t.images.c.path, t.images.c.thumb_key).where(
+                t.images.c.library_id == library_id
+            )
+        ).fetchall()
+    # Copies of a nested library's files aren't stale: adopt_nested_copies
+    # carries their tags over to that library's rows before dropping them.
+    nested_copies = library_nesting.under_nested(
+        {r._id: r.path for r in existing}, nested
+    )
+    existing_docs = [
+        {"_id": r._id, "thumb_key": r.thumb_key}
+        for r in existing
+        if r._id not in nested_copies
+    ]
+
+    unread = unread_prefixes(library_id, root_path, walk_errors)
+    if unread:
+        logger.warning(
+            "Scan of library %s could not read %d folders, keeping their images: %s",
+            library_id,
+            len(walk_errors),
+            walk_errors[0],
+        )
+        scan_note = "Some folders could not be read; their images were kept"
+    stale_image_ids, _ = reconcile_stale(discovered_image_ids, existing_docs, unread)
+    keep_reason = stale_guard(root_path, len(discovered_image_ids), len(existing_docs))
+    if keep_reason and stale_image_ids:
+        logger.warning(
+            "Scan of library %s kept %d missing images: %s",
+            library_id,
+            len(stale_image_ids),
+            keep_reason,
+        )
+        scan_note = f"Kept {len(stale_image_ids)} images: {keep_reason}"
+        stale_image_ids = []
+    _delete_stale(stale_image_ids)
+    return scan_note
+
+
+def _after_scan(library_id: str, *, wrote_any: bool) -> None:
+    """Follow-ups that must not fail the scan: fold nested copies, then derive
+    gen.* from the raw just captured."""
+    # Fold any outer library's copies of files into their innermost library:
+    # this one's own (now that it has indexed them and finished), or those of
+    # the libraries inside it. A no-op without nesting.
+    try:
+        library_nesting.adopt_nested_copies()
+    except Exception:
+        logger.warning("Folding nested library copies failed", exc_info=True)
+
+    # Spawned in its own thread so the scan slot frees immediately (a long
+    # reproject must not make the library look "still scanning" / block a
+    # rescan). Skipped rows kept their gen data, so with nothing rewritten
+    # only rows a reprojection never reached (one cut off by a restart) need
+    # deriving.
+    try:
+        from .reproject import (
+            reproject_ids_async,
+            reproject_library_async,
+            underived_ids,
+        )
+
+        if wrote_any:
+            reproject_library_async(library_id)
+        elif pending := underived_ids(library_id):
+            reproject_ids_async(pending)
+    except Exception:
+        # Reprojection is re-runnable via the manual endpoint.
+        logger.warning(
+            "Post-scan reprojection failed to start for library %s",
+            library_id,
+            exc_info=True,
+        )
+
+
 def scan_library_async(library_id: str, root: str) -> dict:
     """Kick off a background multithreaded scan with progress. Returns status."""
     root_path = Path(root)
@@ -581,94 +771,35 @@ def scan_library_async(library_id: str, root: str) -> dict:
 
     def _run():
         global _scans_ended
-        nonlocal library_id, root_path
-        total = 0
+        nonlocal root_path
         processed = 0
-        indexed = 0
         skipped = 0
         failed = 0
         failed_samples: list[dict] = []
-        discovered_image_ids: set[str] = set()
         scan_note: str | None = None
         has_slot = False
         try:
-            while not _scan_slots.acquire(timeout=0.5):
-                with _scan_lock:
-                    if library_id in _cancel_scans:
-                        raise RuntimeError("cancelled")
+            _acquire_slot(library_id)
             has_slot = True
-            with _scan_lock:
-                if library_id in _cancel_scans:
-                    raise RuntimeError("cancelled")
-            # A queued scan may have waited minutes; if the library was moved
-            # meanwhile (a re-scan request was a no-op while this was queued),
-            # scan where it lives now rather than the path captured at enqueue.
-            with sync_conn() as conn:
-                current = conn.execute(
-                    sa.select(t.libraries.c.path).where(t.libraries.c._id == library_id)
-                ).scalar()
-            if current is None:
-                raise RuntimeError("cancelled")  # library deleted while queued
-            root_path = Path(current)
-            # os.walk of a missing root yields nothing without raising, which
-            # would make every image look deleted: fail the scan instead.
-            if not root_path.is_dir():
-                raise RuntimeError(f"Library folder not found: {root_path}")
+            root_path = _current_root(library_id)
 
-            # Discover image files, leaving out the folders of libraries
-            # inside this one: their files are theirs (services/library_nesting).
-            # Folders the walk cannot read are recorded, so their images are
-            # kept rather than reconciled away as deleted (unread_prefixes).
+            # Leave out the folders of libraries inside this one: their files
+            # are theirs (services/library_nesting).
             nested = library_nesting.nested_roots(library_id, root_path)
-            files: list[Path] = []
-            walk_errors: list[OSError] = []
-            for dirpath, dirnames, filenames in os.walk(
-                root_path, onerror=walk_errors.append
-            ):
-                dirnames[:] = library_nesting.skip_dirs(dirpath, dirnames, nested)
-                for fname in filenames:
-                    p = Path(dirpath) / fname
-                    if is_image(p):
-                        files.append(p)
-                        try:
-                            discovered_image_ids.add(
-                                image_id_for(library_id, root_path, p)
-                            )
-                        except Exception as e:
-                            # No filename, so it guards the whole library.
-                            walk_errors.append(OSError(str(e)))
-            total = len(files)
-            _lib_set(library_id, {"scan_total": total, "scan_done": 0})
-
-            with _scan_lock:
-                if library_id in _cancel_scans:
-                    raise RuntimeError("cancelled")
+            files, discovered_image_ids, walk_errors = _walk(
+                library_id, root_path, nested
+            )
+            _lib_set(library_id, {"scan_total": len(files), "scan_done": 0})
+            _check_cancel(library_id)
 
             # Rows a previous scan wrote with the current thumbnail settings
             # can be skipped when their file is unchanged. With a different
             # stamp (or none yet) every file is rebuilt.
             stamp = thumb_stamp()
-            known: Known | None = None
-            last_stamp, retry = _load_stamp(library_id)
-            if last_stamp == stamp:
-                with sync_conn() as conn:
-                    known = {
-                        r._id: (r.path, r.size, r.mtime, r.thumb_key)
-                        for r in conn.execute(
-                            sa.select(
-                                t.images.c._id,
-                                t.images.c.path,
-                                t.images.c.size,
-                                t.images.c.mtime,
-                                t.images.c.thumb_key,
-                            ).where(t.images.c.library_id == library_id)
-                        )
-                        if r._id not in retry
-                    }
+            known = _load_known(library_id, stamp)
 
-            # Multithreaded processing (cap via config if provided)
-            # Scanning is I/O + CPU heavy and competes with API traffic and the Mongo pool,
-            # so keep auto-concurrency conservative.
+            # Scanning is I/O + CPU heavy and competes with API traffic, so
+            # keep auto-concurrency conservative.
             default_workers = max(2, min(16, (cpu_count() or 4)))
             cap = settings.scanner_max_workers
             workers = (
@@ -679,23 +810,6 @@ def scan_library_async(library_id: str, root: str) -> dict:
                 settings.scan_progress_update_ms / 1000.0,
             )
             last_progress_write = time.monotonic()
-
-            def _commit_batch(imgs: list[dict], raws: list[dict]) -> None:
-                # One short write transaction per batch keeps the SQLite write lock
-                # held briefly so concurrent API writes aren't starved. Image rows
-                # and their raw-gen rows commit together.
-                def _do_flush():
-                    with sync_tx() as conn:
-                        if raws:
-                            stmt = _gen_raw_upsert_stmt()
-                            for row in raws:
-                                conn.execute(stmt, row)
-                        if imgs:
-                            stmt = _image_upsert_stmt()
-                            for row in imgs:
-                                conn.execute(stmt, row)
-
-                _retry(_do_flush, attempts=3, base_delay_s=0.2)
 
             writer = ScanWriter(_commit_batch, batch_size=200)
             failed_ids: list[str] = []
@@ -745,63 +859,15 @@ def scan_library_async(library_id: str, root: str) -> dict:
                 max_workers=workers,
                 is_cancelled=lambda: _is_cancel_requested(library_id),
             )
+            _check_cancel(library_id)
 
-            with _scan_lock:
-                if library_id in _cancel_scans:
-                    raise RuntimeError("cancelled")
-
-            # Flush the remaining partial batch.
             writer.flush()
             indexed = writer.indexed + skipped
 
-            # Clean up stale images (images that exist in DB but weren't discovered in current scan)
-            with sync_conn() as conn:
-                existing = conn.execute(
-                    sa.select(
-                        t.images.c._id, t.images.c.path, t.images.c.thumb_key
-                    ).where(t.images.c.library_id == library_id)
-                ).fetchall()
-            # Copies of a nested library's files aren't stale: adopt_nested_copies
-            # carries their tags over to that library's rows before dropping them.
-            nested_copies = library_nesting.under_nested(
-                {r._id: r.path for r in existing}, nested
+            scan_note = _reconcile(
+                library_id, root_path, nested, discovered_image_ids, walk_errors
             )
-            existing_docs = [
-                {"_id": r._id, "thumb_key": r.thumb_key}
-                for r in existing
-                if r._id not in nested_copies
-            ]
-
-            unread = unread_prefixes(library_id, root_path, walk_errors)
-            if unread:
-                logger.warning(
-                    "Scan of library %s could not read %d folders, keeping their images: %s",
-                    library_id,
-                    len(walk_errors),
-                    walk_errors[0],
-                )
-                scan_note = "Some folders could not be read; their images were kept"
-            stale_image_ids, _ = reconcile_stale(
-                discovered_image_ids, existing_docs, unread
-            )
-            keep_reason = stale_guard(
-                root_path, len(discovered_image_ids), len(existing_docs)
-            )
-            if keep_reason and stale_image_ids:
-                logger.warning(
-                    "Scan of library %s kept %d missing images: %s",
-                    library_id,
-                    len(stale_image_ids),
-                    keep_reason,
-                )
-                scan_note = f"Kept {len(stale_image_ids)} images: {keep_reason}"
-                stale_image_ids = []
-
-            _delete_stale(stale_image_ids)
-
             _save_stamp(library_id, stamp, failed_ids)
-
-            # Finalize
             _lib_set(
                 library_id,
                 {
@@ -814,45 +880,12 @@ def scan_library_async(library_id: str, root: str) -> dict:
                     "scan_error": scan_note,
                 },
             )
-
-            # Fold any outer library's copies of files into their innermost
-            # library: this one's own (now that it has indexed them and finished), or
-            # those of the libraries inside it. A no-op without nesting.
-            try:
-                library_nesting.adopt_nested_copies()
-            except Exception:
-                logger.warning("Folding nested library copies failed", exc_info=True)
-
-            # Derive structured gen.* from the raw we just captured. Spawned in
-            # its own thread so the scan slot frees immediately (a long reproject
-            # must not make the library look "still scanning" / block a rescan).
-            # Skipped rows kept their gen data, so with nothing rewritten only
-            # rows a reprojection never reached (one cut off by a restart) need
-            # deriving.
-            try:
-                from .reproject import (
-                    reproject_ids_async,
-                    reproject_library_async,
-                    underived_ids,
-                )
-
-                if writer.indexed:
-                    reproject_library_async(library_id)
-                elif pending := underived_ids(library_id):
-                    reproject_ids_async(pending)
-            except Exception:
-                # Reprojection is re-runnable via the manual endpoint; never let
-                # it fail the scan.
-                logger.warning(
-                    "Post-scan reprojection failed to start for library %s",
-                    library_id,
-                    exc_info=True,
-                )
+            _after_scan(library_id, wrote_any=bool(writer.indexed))
+        except _Cancelled:
+            logger.info("Scan cancelled for library %s", library_id)
+            _lib_set(library_id, {"scanning": False, "scan_error": "cancelled"})
         except Exception as e:
-            if str(e) == "cancelled":
-                logger.info("Scan cancelled for library %s", library_id)
-            else:
-                logger.exception("Scan failed for library %s", library_id)
+            logger.exception("Scan failed for library %s", library_id)
             _lib_set(library_id, {"scanning": False, "scan_error": str(e)})
         finally:
             if has_slot:
