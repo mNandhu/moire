@@ -68,6 +68,7 @@ def test_delete_stale_failure_keeps_earlier_chunks_consistent(
     monkeypatch.setattr(scanner, "_STALE_CHUNK", 2)
     dropped: list[str] = []
     monkeypatch.setattr(storage_fs, "delete_thumb", dropped.append)
+    monkeypatch.setattr(scanner.time, "sleep", lambda s: None)
     ids = [f"L1:{i}.png" for i in range(4)]
     for n, i in enumerate(ids):
         seed(i, thumb_key=f"k{n}")
@@ -76,7 +77,7 @@ def test_delete_stale_failure_keeps_earlier_chunks_consistent(
 
     def flaky(conn, chunk):
         calls.append(1)
-        if len(calls) == 2:
+        if len(calls) >= 2:  # every retry of chunk 2 fails too
             raise RuntimeError("boom")
         return real(conn, chunk)
 
@@ -87,3 +88,24 @@ def test_delete_stale_failure_keeps_earlier_chunks_consistent(
         pass
     assert _count(t.images) == 2  # first chunk gone, second rolled back
     assert sorted(dropped) == ["k0", "k1"]  # only committed rows lose thumbs
+
+
+def test_delete_stale_retries_a_locked_chunk(temp_db, seed, monkeypatch):
+    monkeypatch.setattr(scanner, "_STALE_CHUNK", 2)
+    monkeypatch.setattr(scanner.time, "sleep", lambda s: None)
+    monkeypatch.setattr(storage_fs, "delete_thumb", lambda k: None)
+    ids = [f"L1:{i}.png" for i in range(4)]
+    for i in ids:
+        seed(i)
+    real = image_delete.delete_rows
+    calls = []
+
+    def locked_once(conn, chunk):
+        calls.append(1)
+        if len(calls) == 2:
+            raise RuntimeError("database is locked")
+        return real(conn, chunk)
+
+    monkeypatch.setattr(image_delete, "delete_rows", locked_once)
+    scanner._delete_stale(ids)
+    assert _count(t.images) == 0

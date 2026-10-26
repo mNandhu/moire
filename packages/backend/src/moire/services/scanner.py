@@ -372,10 +372,14 @@ def _delete_stale(stale_ids: list[str]) -> None:
     keys: list[str] = []
     try:
         for i in range(0, len(stale_ids), _STALE_CHUNK):
-            with sync_tx() as conn:
-                chunk_keys = image_delete.delete_rows(
-                    conn, stale_ids[i : i + _STALE_CHUNK]
-                )
+            chunk = stale_ids[i : i + _STALE_CHUNK]
+
+            def _do(chunk=chunk) -> list[str]:
+                with sync_tx() as conn:
+                    return image_delete.delete_rows(conn, chunk)
+
+            # A busy database ("database is locked") retries like a batch write.
+            chunk_keys = _retry(_do, attempts=3, base_delay_s=0.2)
             keys += chunk_keys  # only once the chunk has committed
     finally:
         if stale_ids:
@@ -626,11 +630,15 @@ def _walk(
             p = Path(dirpath) / fname
             if is_image(p):
                 files.append(p)
-                try:
-                    discovered.add(image_id_for(library_id, root_path, p))
-                except Exception as e:
-                    # No filename, so it guards the whole library.
-                    walk_errors.append(OSError(str(e)))
+            elif not (is_ignored(p) and p.suffix.lower() in IMAGE_EXTS):
+                continue
+            # An ignored image is never indexed, but a row a scan wrote before
+            # the ignore rule existed may hold tags: keep it while the file does.
+            try:
+                discovered.add(image_id_for(library_id, root_path, p))
+            except Exception as e:
+                # No filename, so it guards the whole library.
+                walk_errors.append(OSError(str(e)))
     return files, discovered, walk_errors
 
 
