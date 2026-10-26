@@ -23,7 +23,7 @@ they never assemble SQL.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 import sqlalchemy as sa
 from sqlalchemy import Connection
@@ -216,21 +216,28 @@ async def resolve_image_id(conn: AsyncConnection, image_id: str) -> str | None:
     return None
 
 
-async def find_image(image_id: str, projection: dict | None = None) -> dict | None:
+async def find_image(
+    image_id: str, columns: Iterable[str] | None = None
+) -> dict | None:
     """Look up an image by id, tolerating slash/backslash id variants.
 
-    ``projection`` is accepted for call-site compatibility but ignored; a single
-    row fetch is cheap, and callers only read a handful of fields.
+    ``columns`` names the ``images`` columns to read (``_id`` always comes
+    too); ``None`` reads the whole document. A Mongo-style ``{"path": 1}``
+    still works, as its keys are the names. The thumb and file routes read
+    one column per grid tile, so they must not decode the JSON ones.
     """
+    if columns is None:
+        select = sa.select(t.images)
+    else:
+        names = dict.fromkeys(["_id", *columns])
+        select = sa.select(*(t.images.c[name] for name in names))
     async with async_conn() as conn:
         for candidate in id_candidates(image_id):
             row = (
-                await conn.execute(
-                    sa.select(t.images).where(t.images.c._id == candidate)
-                )
+                await conn.execute(select.where(t.images.c._id == candidate))
             ).first()
             if row is not None:
-                return row_to_doc(row)
+                return row_to_doc(row) if columns is None else dict(row._mapping)
     return None
 
 
