@@ -118,8 +118,8 @@ P2 done 2026-10-24 (51a86c7..4f8dd84). Review fixes: wave 1 1a32926, 6fe6bd0, b0
 - Lane C (scanner/libraries): merged 552aded..b0ce609, full suite green. S5.8 behavior change: hidden/tilde/temp files are no longer indexed.
 - Lane A (generation core): merged 69bf2d7..60bfd69, full suite green. New modules: comfy_history, generation_outputs, generation_inputs, generators_store, generation_errors, generation_states.
 - Lane B (tag core): merged c518d20..895762f, full suite green (918 passed). S3.2 behavior change: a characters row with kind NULL is no override, so a series-backed bare name cannot be split and a colour-only row no longer makes a character. New: tag_kinds, image_visibility, tag_covers (pins+focus), tag_browse, character_names, tag_detail; tag_index is cache only.
-- Code review of wave 1: not run yet (one /code-review medium for the whole wave once all four lanes merge).
-- Wave 2 after merge: L1.3; feed/images (L4.4, L4.5, S1.5, S12.7, S6.4); characters (S12.1, S12.2); Comfy periphery (S10.5, S4.2=S9.1, S9.2, L2.7+S9.8, L2.2+S11.2, S9.9); naming S3.10+S4.9; leftovers: L4.7 image_tags part (clear_ai_all, rename_manual), S5.6 generation_jobs part (`held_by` -> `library_nesting.innermost`), switch files still importing prefix helpers via image_tags re-exports, scanner stamp + prompt_presets still hand-roll app_settings rows.
+- Code review of wave 1 (medium, 66743a1^..895762f): 10 findings. Fixed: 3af8af5 (S5.8 dropped rows of dotfile/~ images indexed before, stale-delete chunk retry), ee25e70 (add/edit library compare by path_key), d732e49 (just-ended AI job kept past prune cap, idle timeout resync per job), 143c242 (held_by -> innermost), 05c310a (one delete plan for sync/async). Left: image_delete re-SELECTs thumb_key callers already hold (minor), image_tags vocabulary re-exports (wave 2 leftover).
+- Wave 2 after merge: L1.3; feed/images (L4.4, L4.5, S1.5, S12.7, S6.4); characters (S12.1, S12.2); Comfy periphery (S10.5, S4.2=S9.1, S9.2, L2.7+S9.8, L2.2+S11.2, S9.9); naming S3.10+S4.9; leftovers: L4.7 image_tags part (clear_ai_all, rename_manual), switch files still importing prefix helpers via image_tags re-exports, scanner stamp + prompt_presets still hand-roll app_settings rows.
 - Agent prompt preamble (shared rules) was in the scratchpad; recreate from the recipe in memory if gone.
 
 - [x] **S8.1** Split generation_jobs.py by job and fix the jobs/estimate/batches import cycle (split, M, L5), done 69bf2d7
@@ -133,7 +133,7 @@ P2 done 2026-10-24 (51a86c7..4f8dd84). Review fixes: wave 1 1a32926, 6fe6bd0, b0
 - [ ] **L4.5** Image id lookup by hand-rolled id_candidates loops; set_tag_thumbnail skips the slash/backslash tolerance (invariant, S, L3)
 - [x] **L1.5** Model download progress is summed three ways with different rules (dedupe, S, L3), done e001445
 - [ ] **S1.5** Filter axes are hand-listed in eight places and the aiTagged exclusivity rule is re-applied by each (simplify, S, L3)
-- [x] **S5.6** Folder ancestry and 'innermost library' are implemented four ways (dedupe, S, L3), done 4d54e3a (generation_outputs.held_by part left for wave 2)
+- [x] **S5.6** Folder ancestry and 'innermost library' are implemented four ways (dedupe, S, L3), done 4d54e3a, 143c242
 - [ ] **S12.2** characters.page computes the character-only look for every plain tag page (simplify, S, L3)
 - [ ] **L2.2** Generation limits are copied into 2 to 3 files each with no link between them (drift, S, L3)
 - [ ] **S4.2** Workflow family id/name/file-match resolved twice with different code (rules._family vs generator_setup.load_image_source) (dedupe, S, L3)
