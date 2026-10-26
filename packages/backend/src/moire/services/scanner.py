@@ -132,7 +132,25 @@ def _make_thumb_bytes(
         return None, None, 0, 0, None
 
 
+# Editors/downloaders/generators stage output under these suffixes before the
+# final rename; never index them.
+_IGNORED_SUFFIXES = (".tmp", ".part", ".partial", ".crdownload", ".download")
+
+
+def is_ignored(path: Path) -> bool:
+    """Files no part of Moiré indexes whatever they hold: dotfiles (including
+    macOS `._x.png` sidecars), `~` temp files and half-written downloads."""
+    name = path.name
+    if name.startswith((".", "~")):
+        return True
+    return path.suffix.lower() in _IGNORED_SUFFIXES
+
+
 def is_image(path: Path) -> bool:
+    """The one rule for what is indexed: the full scan, the watcher, single
+    ingest and the add-library preview all ask this."""
+    if is_ignored(path):
+        return False
     if path.suffix.lower() in IMAGE_EXTS:
         return True
     mt, _ = mimetypes.guess_type(str(path))

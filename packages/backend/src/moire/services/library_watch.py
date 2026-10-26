@@ -40,10 +40,6 @@ from . import library_nesting, scanner
 
 logger = logging.getLogger("moire.watch")
 
-# Editors/downloaders/generators commonly stage output under these suffixes
-# before the final rename; never ingest them directly.
-_IGNORED_SUFFIXES = (".tmp", ".part", ".partial", ".crdownload", ".download")
-
 
 class _Watch:
     __slots__ = (
@@ -265,13 +261,6 @@ def _route(msg: dict) -> None:
         w.queue.put({(Change(c), p) for c, p in msg.get("changes", ())})
 
 
-def _is_ignored(path: Path) -> bool:
-    name = path.name
-    if name.startswith(".") or name.startswith("~"):
-        return True
-    return path.suffix.lower() in _IGNORED_SUFFIXES
-
-
 def _wait_stable(path: Path, stop_event: threading.Event) -> bool:
     """Block (briefly) until `path`'s size stops changing, or give up.
 
@@ -321,7 +310,7 @@ def _run_watch(w: _Watch) -> None:
                 # scan that starts mid-batch still stops the rest of it.
                 continue
             path = Path(raw_path)
-            if _is_ignored(path):
+            if scanner.is_ignored(path):
                 continue
             # A library inside this one watches its own folder.
             if library_nesting.owned_by_nested(w.library_id, w.root, path):
