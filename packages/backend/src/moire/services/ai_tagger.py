@@ -105,16 +105,38 @@ def _load_labels_from_csv(csv_path: str) -> LabelIndex:
     )
 
 
+@dataclass(frozen=True)
+class TagParams:
+    """The knobs that decide which tags a prediction keeps. The field defaults
+    are the one place the defaults are spelled: ``DEFAULT_AI_SETTINGS`` is
+    built from them and every inference entry point takes a ``TagParams``."""
+
+    general_thresh: float = 0.35
+    character_thresh: float = 0.85
+    general_mcut: bool = False
+    character_mcut: bool = False
+    max_general: int = 80
+    max_character: int = 40
+
+    @classmethod
+    def from_settings(cls, settings: dict[str, Any]) -> "TagParams":
+        """Read the knobs out of a stored AI settings dict; missing keys keep
+        the field defaults."""
+        d = cls()
+        return cls(
+            general_thresh=float(settings.get("general_thresh", d.general_thresh)),
+            character_thresh=float(
+                settings.get("character_thresh", d.character_thresh)
+            ),
+            general_mcut=bool(settings.get("general_mcut", d.general_mcut)),
+            character_mcut=bool(settings.get("character_mcut", d.character_mcut)),
+            max_general=int(settings.get("max_general", d.max_general)),
+            max_character=int(settings.get("max_character", d.max_character)),
+        )
+
+
 def select_tags(
-    labels: LabelIndex,
-    preds: np.ndarray,
-    *,
-    general_thresh: float,
-    character_thresh: float,
-    general_mcut: bool = False,
-    character_mcut: bool = False,
-    max_general: int = 80,
-    max_character: int = 40,
+    labels: LabelIndex, preds: np.ndarray, params: TagParams
 ) -> dict[str, Any]:
     """Turn raw model probabilities into rating + thresholded tag lists.
 
@@ -122,6 +144,7 @@ def select_tags(
     ONNX session so the tagging logic can be unit-tested with a fake ``preds``
     array and a small :class:`LabelIndex`, no onnxruntime required.
     """
+    general_thresh, character_thresh = params.general_thresh, params.character_thresh
     probs = preds.astype(float)
 
     rating = {labels.names[i]: float(probs[i]) for i in labels.rating_idx}
@@ -135,13 +158,13 @@ def select_tags(
             keep = keep[: int(cap)]
         return [(labels.names[i], float(probs[i])) for i in keep]
 
-    if general_mcut and len(labels.general_idx):
+    if params.general_mcut and len(labels.general_idx):
         general_thresh = mcut_threshold(probs[labels.general_idx])
-    general = pick(labels.general_idx, general_thresh, max_general)
+    general = pick(labels.general_idx, general_thresh, params.max_general)
 
-    if character_mcut and len(labels.character_idx):
+    if params.character_mcut and len(labels.character_idx):
         character_thresh = max(0.15, mcut_threshold(probs[labels.character_idx]))
-    character = pick(labels.character_idx, character_thresh, max_character)
+    character = pick(labels.character_idx, character_thresh, params.max_character)
 
     caption = ", ".join([t for t, _ in general])
 
@@ -249,12 +272,7 @@ class WDTagger:
         self,
         *,
         image: Image.Image | PreparedImage,
-        general_thresh: float,
-        character_thresh: float,
-        general_mcut: bool = False,
-        character_mcut: bool = False,
-        max_general: int = 80,
-        max_character: int = 40,
+        params: TagParams,
     ) -> dict[str, Any]:
         assert self._session is not None and self._labels is not None
 
@@ -270,16 +288,7 @@ class WDTagger:
 
         preds = self._session.run([output_name], {input_name: input_tensor})[0][0]
 
-        return select_tags(
-            self._labels,
-            preds,
-            general_thresh=general_thresh,
-            character_thresh=character_thresh,
-            general_mcut=general_mcut,
-            character_mcut=character_mcut,
-            max_general=max_general,
-            max_character=max_character,
-        )
+        return select_tags(self._labels, preds, params)
 
 
 def _warn_if_both_builds() -> None:
@@ -486,12 +495,7 @@ class TaggerManager:
         image: Image.Image | PreparedImage,
         model_repo: str,
         cache_dir: str,
-        general_thresh: float,
-        character_thresh: float,
-        general_mcut: bool,
-        character_mcut: bool,
-        max_general: int,
-        max_character: int,
+        params: TagParams,
     ) -> dict[str, Any]:
         await self.ensure_loaded(model_repo=model_repo, cache_dir=cache_dir)
         async with self._lock:
@@ -503,12 +507,7 @@ class TaggerManager:
                 asyncio.to_thread(
                     self._tagger.predict,
                     image=image,
-                    general_thresh=general_thresh,
-                    character_thresh=character_thresh,
-                    general_mcut=general_mcut,
-                    character_mcut=character_mcut,
-                    max_general=max_general,
-                    max_character=max_character,
+                    params=params,
                 )
             )
             try:

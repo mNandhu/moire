@@ -17,6 +17,7 @@ from . import image_tags
 from .ai_settings import DEFAULT_AI_SETTINGS, get_ai_settings, update_ai_settings
 from .ai_tagger import (
     PreparedImage,
+    TagParams,
     decode_image,
     get_tagger_manager,
     prepare_image,
@@ -381,17 +382,13 @@ class AIJobManager:
         model: tuple[str, str],
     ) -> None:
         model_repo, cache_dir = model
+        params = TagParams.from_settings(settings)
 
         result = await get_tagger_manager().predict_image(
             image=image,
             model_repo=model_repo,
             cache_dir=cache_dir,
-            general_thresh=float(settings.get("general_thresh", 0.35)),
-            character_thresh=float(settings.get("character_thresh", 0.85)),
-            general_mcut=bool(settings.get("general_mcut", False)),
-            character_mcut=bool(settings.get("character_mcut", False)),
-            max_general=int(settings.get("max_general", 80)),
-            max_character=int(settings.get("max_character", 40)),
+            params=params,
         )
 
         general_tags = [t for (t, _p) in (result.get("general_tags") or [])]
@@ -417,8 +414,8 @@ class AIJobManager:
             "rating": result.get("rating") or {},
             "general_tags": result.get("general_tags") or [],
             "character_tags": result.get("character_tags") or [],
-            "general_thresh": float(settings.get("general_thresh", 0.35)),
-            "character_thresh": float(settings.get("character_thresh", 0.85)),
+            "general_thresh": params.general_thresh,
+            "character_thresh": params.character_thresh,
             "updated_at": now,
         }
 

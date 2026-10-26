@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
 
 import sqlalchemy as sa
 
 from ..database.db import async_conn
 from ..database import schema as t
 from ..services import face_detect, image_tags
+from ..services.ai_settings import DEFAULT_AI_SETTINGS
 
 from ..services.ai_jobs import (
     get_ai_job_manager,
@@ -24,18 +25,12 @@ from ..services.ai_tagger_download import get_download_manager
 router = APIRouter()
 
 
-class SettingsPatch(BaseModel):
-    model_repo: str | None = None
-    general_thresh: float | None = None
-    character_thresh: float | None = None
-    general_mcut: bool | None = None
-    character_mcut: bool | None = None
-    max_general: int | None = None
-    max_character: int | None = None
-    idle_unload_s: int | None = None
-    cache_dir: str | None = None
-    prompt_positive_only: bool | None = None
-    face_detect: bool | None = None
+# One optional field per AI setting, typed from its default, so a new setting
+# in DEFAULT_AI_SETTINGS is accepted here without a second edit.
+SettingsPatch = create_model(
+    "SettingsPatch",
+    **{key: (type(value) | None, None) for key, value in DEFAULT_AI_SETTINGS.items()},
+)
 
 
 class TagRequest(BaseModel):

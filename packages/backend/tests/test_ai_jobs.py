@@ -8,19 +8,14 @@ from PIL import Image
 
 from moire.services import ai_jobs
 from moire.services.ai_jobs import AIJobManager
-from moire.services.ai_tagger import TaggerManager
+from moire.services.ai_tagger import TagParams, TaggerManager
 
 _RESULT = {"caption": "", "rating": {}, "general_tags": [], "character_tags": []}
 
 _PREDICT_KW = dict(
     model_repo="r",
     cache_dir="/c",
-    general_thresh=0.35,
-    character_thresh=0.85,
-    general_mcut=False,
-    character_mcut=False,
-    max_general=80,
-    max_character=40,
+    params=TagParams(),
 )
 
 

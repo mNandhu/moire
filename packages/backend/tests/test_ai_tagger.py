@@ -15,6 +15,7 @@ from moire.services.ai_tagger import (
     mcut_threshold,
     prepare_image,
     select_tags,
+    TagParams,
 )
 from moire.services.ai_tagger_download import (
     DEFAULT_CACHE_DIR,
@@ -52,7 +53,7 @@ def test_mcut_edge_cases():
 
 def test_select_tags_thresholds_and_sorts():
     preds = np.array([0.1, 0.8, 0.9, 0.3, 0.95])
-    out = select_tags(_labels(), preds, general_thresh=0.35, character_thresh=0.85)
+    out = select_tags(_labels(), preds, TagParams())
     # rating dict carries both rating labels with their probs
     assert out["rating"] == {"safe": 0.1, "explicit": 0.8}
     # only cat (0.9) passes the 0.35 general threshold; dog (0.3) drops
@@ -65,7 +66,9 @@ def test_select_tags_thresholds_and_sorts():
 def test_select_tags_max_general_caps_results():
     preds = np.array([0.0, 0.0, 0.9, 0.8, 0.0])
     out = select_tags(
-        _labels(), preds, general_thresh=0.1, character_thresh=0.1, max_general=1
+        _labels(),
+        preds,
+        TagParams(general_thresh=0.1, character_thresh=0.1, max_general=1),
     )
     # both cat and dog pass, but cap=1 keeps only the top-scored (cat)
     assert out["general_tags"] == [("cat", 0.9)]
@@ -76,9 +79,8 @@ def test_select_tags_general_mcut_overrides_threshold():
     out = select_tags(
         _labels(),
         preds,
-        general_thresh=0.95,  # would drop everything...
-        character_thresh=0.1,
-        general_mcut=True,  # ...but mcut picks the gap midpoint (0.55)
+        # 0.95 would drop everything, but mcut picks the gap midpoint (0.55)
+        TagParams(general_thresh=0.95, character_thresh=0.1, general_mcut=True),
     )
     assert out["general_tags"] == [("cat", 0.9)]
 
@@ -227,7 +229,7 @@ def test_predict_uses_a_prepared_tensor_of_the_right_size():
 
     img = Image.new("RGBA", (30, 20), (10, 20, 30, 255))
     tagger, sess = _fake_tagger(8)
-    kw = dict(general_thresh=0.35, character_thresh=0.85)
+    kw = dict(params=TagParams())
 
     ready = prepare_image(img, 8)
     out = tagger.predict(image=PreparedImage(img, ready), **kw)

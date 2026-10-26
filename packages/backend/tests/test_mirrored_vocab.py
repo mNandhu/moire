@@ -84,3 +84,11 @@ def test_canonical_name_rule_matches():
     assert 'startsWith("<")' in fn and r"replace(/\s+/g, " in fn and '"_"' in fn
     assert canonical_name("  blue   eyes ") == "blue_eyes"
     assert canonical_name("<lora:a b:0.8>") == "<lora:a b:0.8>"
+
+
+def test_ai_settings_keys_match():
+    from moire.services.ai_settings import DEFAULT_AI_SETTINGS
+
+    block = _block(_src("ai.ts"), "export type AISettings")
+    ts = set(re.findall(r"^\s+(\w+): ", block, re.M))
+    assert ts == set(DEFAULT_AI_SETTINGS)

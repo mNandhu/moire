@@ -6,6 +6,7 @@ Kept separate from the job manager so the validation/clamping rules
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Any
 
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -15,19 +16,14 @@ from ..database.db import async_tx
 from ..database import schema as t
 from ..core.config import settings
 from . import app_settings
-from .ai_tagger import get_tagger_manager
+from .ai_tagger import TagParams, get_tagger_manager
 
 # The app_settings row holding these (also read by extraction_settings).
 ROW = "ai"
 
 DEFAULT_AI_SETTINGS: dict[str, Any] = {
     "model_repo": "SmilingWolf/wd-vit-tagger-v3",
-    "general_thresh": 0.35,
-    "character_thresh": 0.85,
-    "general_mcut": False,
-    "character_mcut": False,
-    "max_general": 80,
-    "max_character": 40,
+    **asdict(TagParams()),
     "idle_unload_s": 300,
     "cache_dir": str(settings.model_cache_dir_path),
     # When on (default), prompt: tags are derived from the positive prompt only,
@@ -61,10 +57,13 @@ def clean_settings_patch(patch: dict[str, Any]) -> dict[str, Any]:
         except Exception:
             clean.pop("idle_unload_s", None)
 
-    if "general_thresh" in clean:
-        clean["general_thresh"] = float(clean["general_thresh"])
-    if "character_thresh" in clean:
-        clean["character_thresh"] = float(clean["character_thresh"])
+    # Thresholds are probabilities: a typo like 35 would silently tag nothing.
+    for key in ("general_thresh", "character_thresh"):
+        if key in clean:
+            clean[key] = min(1.0, max(0.0, float(clean[key])))
+    for key in ("general_mcut", "character_mcut"):
+        if key in clean:
+            clean[key] = bool(clean[key])
 
     if "max_general" in clean:
         clean["max_general"] = max(0, int(clean["max_general"]))
