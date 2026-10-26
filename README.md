@@ -220,7 +220,6 @@ Both thumbnails and originals are served straight through the API, so a single e
 ### Performance
 
 - `THUMB_MAX_SIZE`: Maximum thumbnail size in pixels (default: 768)
-- `THUMB_FORMAT`: Thumbnail format (default: `webp`)
 - `SCANNER_MAX_WORKERS`: Scanner thread count (0 = auto-detect CPU cores)
 - `SCANNER_MAX_CONCURRENT_SCANS`: Libraries scanning at once; the rest queue (default: 2)
 

@@ -46,7 +46,7 @@ the OS app-data folder for an installed copy (`moire paths` shows it).
   - `WATCH_ENABLED_DEFAULT`, `WATCH_RECONCILE_INTERVAL_S` filesystem watching of new libraries
 
 - Thumbnails
-  - `THUMB_MAX_SIZE` longest edge in px (default: 768), `THUMB_FORMAT` (default: `webp`)
+  - `THUMB_MAX_SIZE` longest edge in px (default: 768)
 
 - Logging
   - `LOG_LEVEL` (default: `INFO`)

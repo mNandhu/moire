@@ -47,7 +47,7 @@ def thumb_stamp() -> str:
     re-reads every file."""
     size = max(16, settings.thumb_max_size)
     return (
-        f"{size}/{settings.thumb_format.lower()}/q{_THUMB_QUALITY}/r{_THUMB_RECIPE}"
+        f"{size}/webp/q{_THUMB_QUALITY}/r{_THUMB_RECIPE}"
         f"/c{gen_metadata.CAPTURE_VERSION}"
     )
 
@@ -117,11 +117,7 @@ def _make_thumb_bytes(
             img.thumbnail((size, size))
 
             buf = BytesIO()
-            fmt = settings.thumb_format.upper()
-            if fmt == "WEBP":
-                img.save(buf, format="WEBP", quality=_THUMB_QUALITY)
-            else:
-                img.convert("RGB").save(buf, format=fmt, quality=_THUMB_QUALITY)
+            img.save(buf, format="WEBP", quality=_THUMB_QUALITY)
 
             # BlurHash from the already-downsampled thumbnail (it shrinks to
             # ~64px internally, so the result is identical to encoding the

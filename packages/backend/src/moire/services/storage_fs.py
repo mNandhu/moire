@@ -47,11 +47,13 @@ def put_thumb(library_id: str, image_id: str, data: bytes) -> str:
 
     The image id is ``{library_id}:{relpath}``; the ``:`` separator was fine for
     the old MinIO object store but is reserved on Windows (the NTFS Alternate-
-    Data-Stream separator), so it's replaced here. The returned key is the literal
-    on-disk path, so readers (`thumb_path`/`delete_thumb`) use it verbatim with no
-    matching transform to keep in sync.
+    Data-Stream separator), so it's replaced here. The key is `thumb_key(image_id)`,
+    the one formula: readers that only have an id (thumb URLs) derive the same
+    key, and the stored `thumb_key` is that literal on-disk path.
     """
-    key = f"{library_id}/{image_id}.webp".replace(":", "_")
+    if image_id.split(":", 1)[0] != library_id:
+        raise ValueError(f"image {image_id!r} is not in library {library_id!r}")
+    key = thumb_key(image_id)
     dst = _safe_path(key)
     try:
         # A rescan that makes the same bytes leaves the file, so its mtime
