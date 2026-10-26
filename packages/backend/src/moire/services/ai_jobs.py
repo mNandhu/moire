@@ -30,6 +30,9 @@ logger = logging.getLogger("moire.ai_jobs")
 _ACTIVE = ("queued", "running", "cancelling")
 # How many ended jobs stay listed (list_jobs shows at most 20).
 _KEEP_FINISHED = 50
+# An ended job younger than this is kept past the cap, so a client still
+# polling it sees its final status rather than a 404.
+_KEEP_RECENT_S = 600.0
 
 __all__ = [
     "DEFAULT_AI_SETTINGS",
@@ -153,11 +156,13 @@ class AIJobManager:
 
     def _prune(self) -> None:
         """Forget all but the newest ``_KEEP_FINISHED`` ended jobs; a job still
-        queued or running is always kept."""
+        queued or running, or ended within ``_KEEP_RECENT_S``, is always kept."""
         ended = [j for j in self._jobs.values() if j.status not in _ACTIVE]
         ended.sort(key=lambda j: j.created_at, reverse=True)
+        cutoff = time.time() - _KEEP_RECENT_S
         for j in ended[_KEEP_FINISHED:]:
-            del self._jobs[j.id]
+            if (j.finished_at or 0.0) < cutoff:
+                del self._jobs[j.id]
 
     def queue_depth(self) -> int:
         return self._queue.qsize()
@@ -264,6 +269,11 @@ class AIJobManager:
             released = 0  # ids[:released] are processed and their claims dropped
             try:
                 settings = await get_ai_settings()
+                # Startup sets the idle timeout best-effort; a failed read
+                # there must not pin the default for the process lifetime.
+                get_tagger_manager().set_idle_unload_s(
+                    int(settings.get("idle_unload_s", 0) or 0)
+                )
                 model = resolved_model_target(settings)
                 try:
                     ready = await self._prepare_model(job, *model)

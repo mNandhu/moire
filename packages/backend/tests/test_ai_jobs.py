@@ -365,6 +365,22 @@ async def test_ended_jobs_are_pruned_but_active_ones_kept(monkeypatch):
     assert len(mgr._jobs) == 4  # 3 newest ended + the new one
 
 
+async def test_a_just_ended_job_outlives_the_cap(monkeypatch):
+    # A client may still be polling it for its final status.
+    mgr = _job_manager(monkeypatch, [])
+    monkeypatch.setattr(ai_jobs, "_KEEP_FINISHED", 1)
+    for n in range(3):
+        await mgr.enqueue(ids=[f"q{n}"], force=True)
+    old, recent, newest = sorted(mgr._jobs.values(), key=lambda j: j.created_at)
+    for j in (old, recent, newest):
+        j.status = "done"
+    old.finished_at = time.time() - ai_jobs._KEEP_RECENT_S - 1
+    recent.finished_at = time.time()
+    await mgr.enqueue(ids=["last"], force=True)
+    assert old.id not in mgr._jobs
+    assert recent.id in mgr._jobs
+
+
 async def test_public_view_leaves_out_the_work_list(monkeypatch):
     mgr = _job_manager(monkeypatch, [])
     job = await mgr.enqueue(ids=["a", "b"])
