@@ -10,7 +10,7 @@ then :func:`drop_thumbs` with the keys these helpers return.
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 
 import sqlalchemy as sa
 
@@ -23,9 +23,16 @@ logger = logging.getLogger("moire.image_delete")
 _STMT_CHUNK = 500
 
 
-def _slices(ids: Sequence[str]):
+def _plan(ids: Iterable[str]):
+    """Per chunk of ids: the thumb-key select, then the delete statements.
+    The sync and async helpers below only differ in how they execute these."""
+    ids = list(ids)
     for i in range(0, len(ids), _STMT_CHUNK):
-        yield ids[i : i + _STMT_CHUNK]
+        chunk = ids[i : i + _STMT_CHUNK]
+        yield (
+            sa.select(t.images.c.thumb_key).where(t.images.c._id.in_(chunk)),
+            _stmts(t.images.c._id.in_(chunk), t.image_gen_raw.c._id.in_(chunk)),
+        )
 
 
 def _stmts(where_images, where_raw):
@@ -39,15 +46,9 @@ def delete_rows(conn, ids: Iterable[str]) -> list[str]:
     """Delete these images' rows inside the caller's sync transaction.
     Returns the thumbnail keys to pass to :func:`drop_thumbs` after commit."""
     keys: list[str] = []
-    for chunk in _slices(list(ids)):
-        keys += [
-            k
-            for k in conn.execute(
-                sa.select(t.images.c.thumb_key).where(t.images.c._id.in_(chunk))
-            ).scalars()
-            if k
-        ]
-        for stmt in _stmts(t.images.c._id.in_(chunk), t.image_gen_raw.c._id.in_(chunk)):
+    for keys_stmt, deletes in _plan(ids):
+        keys += [k for k in conn.execute(keys_stmt).scalars() if k]
+        for stmt in deletes:
             conn.execute(stmt)
     return keys
 
@@ -55,17 +56,9 @@ def delete_rows(conn, ids: Iterable[str]) -> list[str]:
 async def delete_rows_async(conn, ids: Iterable[str]) -> list[str]:
     """`delete_rows` on an async connection."""
     keys: list[str] = []
-    for chunk in _slices(list(ids)):
-        keys += [
-            k
-            for k in (
-                await conn.execute(
-                    sa.select(t.images.c.thumb_key).where(t.images.c._id.in_(chunk))
-                )
-            ).scalars()
-            if k
-        ]
-        for stmt in _stmts(t.images.c._id.in_(chunk), t.image_gen_raw.c._id.in_(chunk)):
+    for keys_stmt, deletes in _plan(ids):
+        keys += [k for k in (await conn.execute(keys_stmt)).scalars() if k]
+        for stmt in deletes:
             await conn.execute(stmt)
     return keys
 
