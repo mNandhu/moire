@@ -8,6 +8,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import sync_conn, sync_tx
 from ..database import schema as t
+from . import image_delete
 from . import image_tags
 from . import tag_index
 from . import gen_metadata
@@ -301,32 +302,20 @@ def remove_single_image(library_id: str, image_id: str) -> None:
 
     with sync_conn() as conn:
         resolved_id = None
-        thumb_key = None
         for candidate in image_tags.id_candidates(image_id):
-            row = conn.execute(
-                sa.select(t.images.c._id, t.images.c.thumb_key).where(
-                    t.images.c._id == candidate
-                )
-            ).first()
-            if row is not None:
-                resolved_id, thumb_key = row._id, row.thumb_key
+            found = conn.execute(
+                sa.select(t.images.c._id).where(t.images.c._id == candidate)
+            ).scalar()
+            if found is not None:
+                resolved_id = found
                 break
     if resolved_id is None:
         return
     with sync_tx() as conn:
-        conn.execute(sa.delete(t.images).where(t.images.c._id == resolved_id))
-        conn.execute(
-            sa.delete(t.image_gen_raw).where(t.image_gen_raw.c._id == resolved_id)
-        )
+        keys = image_delete.delete_rows(conn, [resolved_id])
         _touch_library(conn, library_id, indexed_delta=-1)
     tag_index.invalidate()
-    if thumb_key:
-        try:
-            from .storage_fs import delete_thumb
-
-            delete_thumb(thumb_key)
-        except Exception:
-            pass
+    image_delete.drop_thumbs(keys)
 
 
 def reconcile_stale(
@@ -351,6 +340,33 @@ def reconcile_stale(
             if doc.get("thumb_key"):
                 stale_thumb_keys.append(doc["thumb_key"])
     return stale_ids, stale_thumb_keys
+
+
+# Stale images are removed this many per transaction, so a big removal never
+# holds SQLite's single write lock for the whole run.
+_STALE_CHUNK = 500
+
+
+def _delete_stale(stale_ids: list[str]) -> None:
+    """Remove stale images (their tag rows cascade) in small transactions.
+
+    Chunks commit independently, so a failure part-way leaves the earlier
+    chunks gone and the rest still indexed; both are consistent (each chunk
+    removes an image's rows together), and the next scan finishes the job.
+    The tag index is invalidated once after the last chunk, or on the way out
+    if one failed, since the chunks that did commit moved tag counts."""
+    keys: list[str] = []
+    try:
+        for i in range(0, len(stale_ids), _STALE_CHUNK):
+            with sync_tx() as conn:
+                chunk_keys = image_delete.delete_rows(
+                    conn, stale_ids[i : i + _STALE_CHUNK]
+                )
+            keys += chunk_keys  # only once the chunk has committed
+    finally:
+        if stale_ids:
+            tag_index.invalidate()
+            image_delete.drop_thumbs(keys)
 
 
 def stale_guard(root_path: Path, discovered: int, existing: int) -> str | None:
@@ -765,7 +781,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
                     walk_errors[0],
                 )
                 scan_note = "Some folders could not be read; their images were kept"
-            stale_image_ids, stale_thumb_keys = reconcile_stale(
+            stale_image_ids, _ = reconcile_stale(
                 discovered_image_ids, existing_docs, unread
             )
             keep_reason = stale_guard(
@@ -779,34 +795,9 @@ def scan_library_async(library_id: str, root: str) -> dict:
                     keep_reason,
                 )
                 scan_note = f"Kept {len(stale_image_ids)} images: {keep_reason}"
-                stale_image_ids, stale_thumb_keys = [], []
+                stale_image_ids = []
 
-            # Remove stale images (image_tags / image_gen_terms cascade via FK).
-            if stale_image_ids:
-                with sync_tx() as conn:
-                    conn.execute(
-                        sa.delete(t.images).where(t.images.c._id.in_(stale_image_ids))
-                    )
-                    # Drop their raw generation docs too, else they orphan forever.
-                    conn.execute(
-                        sa.delete(t.image_gen_raw).where(
-                            t.image_gen_raw.c._id.in_(stale_image_ids)
-                        )
-                    )
-                # This tx owns the reconcile, so it owns the post-commit
-                # invalidation: the cascade dropped those images' tag rows.
-                tag_index.invalidate()
-
-                # Clean up corresponding thumbnail files on disk
-                if stale_thumb_keys:
-                    try:
-                        from .storage_fs import delete_thumb
-
-                        for key in stale_thumb_keys:
-                            delete_thumb(key)
-                    except Exception:
-                        # Best effort cleanup - don't fail the scan if it fails
-                        pass
+            _delete_stale(stale_image_ids)
 
             _save_stamp(library_id, stamp, failed_ids)
 

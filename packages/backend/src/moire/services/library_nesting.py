@@ -23,7 +23,7 @@ import sqlalchemy as sa
 
 from ..database import schema as t
 from ..database.db import sync_conn, sync_tx
-from . import activity, image_tags
+from . import activity, image_delete, image_tags
 
 logger = logging.getLogger("moire.library_nesting")
 
@@ -263,13 +263,8 @@ def _adopt_plan(
                     # tags and all, until it is. A copy of a deleted file goes.
                     continue
                 gone.append(outer_id)
-                if copy.thumb_key:
-                    thumbs.append(copy.thumb_key)
             if gone:
-                conn.execute(sa.delete(im).where(im.c._id.in_(gone)))
-                conn.execute(
-                    sa.delete(t.image_gen_raw).where(t.image_gen_raw.c._id.in_(gone))
-                )
+                thumbs.extend(image_delete.delete_rows(conn, gone))
                 dropped.extend(gone)
             task.advance(len(chunk))
     if dropped:
@@ -284,13 +279,7 @@ def _adopt_plan(
                 .where(t.libraries.c._id == outer.id)
                 .values(indexed_count=count)
             )
-        from .storage_fs import delete_thumb
-
-        for key in thumbs:
-            try:
-                delete_thumb(key)
-            except Exception:
-                pass  # a leftover thumbnail only wastes space
+        image_delete.drop_thumbs(thumbs)
         logger.info(
             "Folded %d images of library %s into the libraries inside it",
             len(dropped),

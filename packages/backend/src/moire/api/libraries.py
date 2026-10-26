@@ -15,7 +15,7 @@ from ..services import activity, library_discover, library_nesting
 from ..services.scanner import cancel_scan, restart_scan, scan_library_async
 
 from ..services.storage_fs import delete_by_prefix
-from ..services import tag_index
+from ..services import image_delete, tag_index
 from ..services import library_watch
 
 router = APIRouter()
@@ -149,14 +149,7 @@ async def remove_library(library_id: str):
                 sa.delete(t.libraries).where(t.libraries.c._id == library_id)
             )
             # image_tags / image_gen_terms cascade via FK when images are deleted.
-            await conn.execute(
-                sa.delete(t.images).where(t.images.c.library_id == library_id)
-            )
-            await conn.execute(
-                sa.delete(t.image_gen_raw).where(
-                    t.image_gen_raw.c.library_id == library_id
-                )
-            )
+            await image_delete.delete_library_rows_async(conn, library_id)
         # Every image of this library is gone, so every tag count moved.
         tag_index.invalidate()
         library_nesting.invalidate()

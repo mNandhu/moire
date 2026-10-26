@@ -15,9 +15,9 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from ..services.storage_fs import delete_thumb, small_thumb_path, thumb_path
+from ..services.storage_fs import small_thumb_path, thumb_path
 from ..services import gen_metadata, image_shapes, image_tags, image_feed, tag_index
-from ..services import thumb_version
+from ..services import image_delete, thumb_version
 from ..services.image_feed import FeedFilter, FeedFilterError
 from ..services.image_tags import find_image as _find_image_doc  # type: ignore
 
@@ -625,20 +625,9 @@ async def purge_image(image_id: str, body: PurgeBody):
 
     async with async_tx() as conn:
         # image_tags / image_gen_terms rows cascade via the FK.
-        await conn.execute(sa.delete(t.images).where(t.images.c._id == rid))
-        await conn.execute(
-            sa.delete(t.image_gen_raw).where(t.image_gen_raw.c._id == rid)
-        )
+        keys = await image_delete.delete_rows_async(conn, [rid])
     # Cascaded away this image's join rows, so the tag counts moved.
     tag_index.invalidate()
-
-    thumb_key = img.get("thumb_key")
-    if thumb_key:
-        try:
-            await anyio.to_thread.run_sync(  # type: ignore[attr-defined]
-                lambda: delete_thumb(thumb_key)
-            )
-        except Exception:
-            pass
+    await anyio.to_thread.run_sync(image_delete.drop_thumbs, keys)  # type: ignore[attr-defined]
 
     return {"_id": rid, "purged": True}
