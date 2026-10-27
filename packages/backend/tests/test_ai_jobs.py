@@ -6,7 +6,7 @@ import time
 
 from PIL import Image
 
-from moire.services import ai_jobs
+from moire.services import activity, ai_jobs
 from moire.services.ai_jobs import AIJobManager
 from moire.services.ai_tagger import TagParams, TaggerManager
 
@@ -243,6 +243,7 @@ async def test_cancel_while_the_model_loads(monkeypatch):
 
 async def test_a_cancelled_model_load_fails_the_job_not_the_worker(monkeypatch):
     events: list[str] = []
+    ended_before = activity.ended().get("ai_job", 0)
     mgr = _job_manager(monkeypatch, events)
     monkeypatch.setattr(mgr, "_prepare_model", AIJobManager._prepare_model.__get__(mgr))
 
@@ -258,7 +259,7 @@ async def test_a_cancelled_model_load_fails_the_job_not_the_worker(monkeypatch):
     monkeypatch.setattr(ai_jobs, "get_tagger_manager", lambda: _SlowLoader(0))
     second = await _run(mgr, ["b"])
     assert second.status == "done"
-    assert mgr.finished == 2
+    assert activity.ended().get("ai_job", 0) == ended_before + 2
 
 
 async def test_active_jobs_lists_every_unfinished_job_oldest_first():

@@ -56,7 +56,14 @@ def track(
     finally:
         with _lock:
             _tasks.pop(key, None)
-            _ended[kind] = _ended.get(kind, 0) + 1
+        note_ended(kind)
+
+
+def note_ended(kind: str) -> None:
+    """Count one piece of ``kind`` of work as ended, for work whose state is
+    kept elsewhere (a scan, an AI job, a download) and so isn't tracked here."""
+    with _lock:
+        _ended[kind] = _ended.get(kind, 0) + 1
 
 
 def snapshot() -> list[dict[str, Any]]:

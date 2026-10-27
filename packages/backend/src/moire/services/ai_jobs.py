@@ -14,7 +14,7 @@ from PIL import Image
 
 from ..database.db import async_conn
 from ..database import schema as t
-from . import ai_coverage, image_tags
+from . import activity, ai_coverage, image_tags
 from .ai_settings import DEFAULT_AI_SETTINGS, get_ai_settings, update_ai_settings
 from .ai_tagger import (
     PreparedImage,
@@ -91,6 +91,22 @@ class AIJob:
             out["eta_s"] = round(max(0, self.total - processed) / rate, 1)
         return out
 
+    def activity_item(self) -> dict[str, Any]:
+        """This job as an activity-list item (``api/activity``)."""
+        return {
+            "key": f"ai:{self.id}",
+            "kind": "ai_job",
+            "job_id": self.id,
+            "status": self.status,
+            "phase": self.phase,
+            "done": self.done + self.failed,
+            "total": self.total,
+            **self.throughput(),
+            # A one-image job (an image's own "Run AI tagging") names it,
+            # so that image's panel, opened again mid-job, follows it.
+            **({"image_id": self.ids[0]} if self.total == 1 else {}),
+        }
+
     def public(self) -> dict[str, Any]:
         """Serializable view for the API, without the ``ids`` work list."""
         out = {k: v for k, v in self.__dict__.items() if k != "ids"}
@@ -140,7 +156,6 @@ class AIJobManager:
         self._in_flight: Counter[str] = Counter()
         # Jobs that have ended, however: the activity poll compares it to
         # notice a job that came and went between two polls.
-        self.finished = 0
 
     def start(self) -> None:
         if self._worker_task is None or self._worker_task.done():
@@ -214,7 +229,7 @@ class AIJobManager:
         else:
             # Nothing to do; mark as done so UI doesn't show it as queued forever.
             job.status = "done"
-            self.finished += 1
+            activity.note_ended("ai_job")
         return job
 
     async def enqueue_untagged(
@@ -238,7 +253,7 @@ class AIJobManager:
         if job.status == "queued":
             removed = await self._queue.remove(job_id)
             job.status = "cancelled"
-            self.finished += 1
+            activity.note_ended("ai_job")
             self._release(job.ids)
             return removed
 
@@ -332,7 +347,7 @@ class AIJobManager:
                 job.current = None
                 if job.started_at is not None:
                     job.finished_at = time.time()
-                self.finished += 1
+                activity.note_ended("ai_job")
                 self._release(ids[released:])
 
     def _release(self, ids: list[str]) -> None:

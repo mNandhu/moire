@@ -18,6 +18,8 @@ from typing import Any
 
 import httpx
 
+from . import activity
+
 logger = logging.getLogger("moire.ai_download")
 
 # The default model cache location. Lives here (the dependency-free module) so
@@ -141,6 +143,17 @@ def files_progress(files: list[dict[str, Any]] | None) -> tuple[int, int] | None
     )
 
 
+def activity_item(key: str, kind: str, state: dict[str, Any]) -> dict[str, Any] | None:
+    """A model download in flight as an activity-list item, in bytes."""
+    if state.get("status") != "downloading":
+        return None
+    item: dict[str, Any] = {"key": key, "kind": kind, "unit": "bytes"}
+    progress = files_progress(state.get("files"))
+    if progress:
+        item["done"], item["total"] = progress
+    return item
+
+
 class ModelDownloadManager:
     def __init__(self) -> None:
         self._lock = asyncio.Lock()
@@ -161,10 +174,12 @@ class ModelDownloadManager:
         model_repo: str,
         cache_dir: str,
         files: list[RemoteFile] | None = None,
+        kind: str = "model_download",
     ) -> ModelDownloadState:
         """Fetch a model's files in the background. ``files`` names them for a
         model other than the tagger, ``model_repo`` then being any key unique
-        to that model (repo plus variant)."""
+        to that model (repo plus variant). ``kind`` is the activity kind
+        counted as ended when the download stops, however it stops."""
         key = (model_repo, cache_dir)
         async with self._lock:
             st = self.get_state(model_repo=model_repo, cache_dir=cache_dir)
@@ -204,6 +219,7 @@ class ModelDownloadManager:
                     st.error = str(e)
                 finally:
                     st.updated_at = time.time()
+                    activity.note_ended(kind)
 
             self._tasks[key] = asyncio.create_task(
                 _runner(), name=f"model-download:{model_repo}"

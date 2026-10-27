@@ -86,7 +86,7 @@ export function useRefreshOnFinish() {
       void qc.invalidateQueries({ queryKey: TAG_SAMPLES_KEY });
     }
     // Library work's and a reprojection's tag refresh is in invalidateFeeds above.
-    if (["ai_job", "faces"].some((k) => ended.has(k))) {
+    if (["ai_job", "faces", "face_download"].some((k) => ended.has(k))) {
       void qc.invalidateQueries({ queryKey: TAGS_KEY });
       void qc.invalidateQueries({ queryKey: TAG_SAMPLES_KEY });
     }

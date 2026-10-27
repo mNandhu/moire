@@ -8,7 +8,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import sync_conn, sync_tx
 from ..database import schema as t
-from . import image_delete
+from . import activity, image_delete
 from . import image_tags
 from . import tag_index
 from . import gen_metadata
@@ -426,13 +426,6 @@ _cancel_scans: set[str] = set()
 _scan_threads: dict[str, threading.Thread] = {}
 # Libraries moved mid-scan: the scan is cancelled and started afresh on its way out.
 _rescan_after: set[str] = set()
-# Scans that have ended, however (the activity poll's "ended" count).
-_scans_ended = 0
-
-
-def scans_ended() -> int:
-    with _scan_lock:
-        return _scans_ended
 
 
 def _is_cancel_requested(library_id: str) -> bool:
@@ -785,7 +778,6 @@ def scan_library_async(library_id: str, root: str) -> dict:
     )
 
     def _run():
-        global _scans_ended
         nonlocal root_path
         processed = 0
         skipped = 0
@@ -905,8 +897,8 @@ def scan_library_async(library_id: str, root: str) -> dict:
         finally:
             if has_slot:
                 _scan_slots.release()
+            activity.note_ended("scan")
             with _scan_lock:
-                _scans_ended += 1
                 _current_scans.discard(library_id)
                 _cancel_scans.discard(library_id)
                 _scan_threads.pop(library_id, None)

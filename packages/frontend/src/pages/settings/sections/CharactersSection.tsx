@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Section } from "../../../components/ui/Card";
@@ -47,15 +46,6 @@ export function CharactersSection() {
       return s && (s.download.status === "downloading" || s.pending > 0) ? 1000 : false;
     },
   });
-
-  // When the model arrives or the avatars are all looked at, the character
-  // queries refresh: the first refresh also queues every avatar.
-  const busy = !!faces && (faces.download.status === "downloading" || faces.pending > 0);
-  const wasBusy = useRef(false);
-  useEffect(() => {
-    if (wasBusy.current && !busy) void qc.invalidateQueries({ queryKey: TAGS_KEY });
-    wasBusy.current = busy;
-  }, [busy, qc]);
 
   const run = async (path: string) => {
     qc.setQueryData(FACES_KEY, await api<FaceStatus>(`/api/v1/ai/faces/${path}`, { method: "POST" }));

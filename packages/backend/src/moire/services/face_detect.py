@@ -28,10 +28,11 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import ai_settings, storage_fs
+from . import activity, ai_settings, storage_fs
 from .ai_tagger import resolved_model_target
 from .ai_tagger_download import (
     RemoteFile,
+    activity_item,
     get_download_manager,
     hf_url,
 )
@@ -74,7 +75,10 @@ async def ready() -> bool:
 async def start_download():
     cache_dir = await _cache_dir()
     st = await get_download_manager().start(
-        model_repo=MODEL, cache_dir=cache_dir, files=files(cache_dir)
+        model_repo=MODEL,
+        cache_dir=cache_dir,
+        files=files(cache_dir),
+        kind="face_download",
     )
     return st
 
@@ -191,8 +195,6 @@ def detect(image_path: str, cache_dir: str):
 _pending: set[str] = set()
 # Images queued since the worker last went idle: the "of N" in its progress.
 _batch = 0
-# Times the worker has emptied its queue (the activity poll's "ended" count).
-drains = 0
 _worker: asyncio.Task | None = None
 
 
@@ -270,7 +272,6 @@ async def detect_now(image_id: str) -> None:
 
 
 async def _drain() -> None:
-    global drains
     cache_dir = await _cache_dir()
     try:
         while _pending:
@@ -280,7 +281,7 @@ async def _drain() -> None:
             finally:
                 _pending.discard(image_id)  # counted as pending until stored
     finally:
-        drains += 1
+        activity.note_ended("faces")
 
 
 _avatars_queued = False
@@ -339,6 +340,21 @@ def progress() -> tuple[int, int]:
     if not _pending:
         return 0, 0
     return _batch - len(_pending), _batch
+
+
+def activity_items(cache_dir: str) -> list[dict[str, Any]]:
+    """The face model's download and the detection pass, as activity-list
+    items (``api/activity``); only those running."""
+    items: list[dict[str, Any]] = []
+    download = activity_item(
+        "face-download", "face_download", download_state(cache_dir)
+    )
+    if download:
+        items.append(download)
+    done, total = progress()
+    if total:
+        items.append({"key": "faces", "kind": "faces", "done": done, "total": total})
+    return items
 
 
 def download_state(cache_dir: str) -> dict[str, Any]:
