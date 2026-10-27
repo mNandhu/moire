@@ -224,7 +224,7 @@ export const SWATCHES = [
 ] as const;
 
 /** Under this many images, a character's look is called a guess. */
-export const FEW_IMAGES = 5;
+const FEW_IMAGES = 5;
 
 /**
  * The note under a look read from only a few images, else null: a

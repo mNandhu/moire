@@ -21,6 +21,28 @@ export type AISettings = {
   face_detect: boolean;
 };
 
+/** The face detector that crops character avatars: its model download and
+ * the avatars waiting to be looked at. */
+export type FaceStatus = {
+  model: string;
+  enabled: boolean;
+  downloaded: boolean;
+  download: {
+    status: string;
+    error: string | null;
+    cancel_requested: boolean;
+    done: number | null;
+    total: number | null;
+  };
+  /** Avatar images waiting to be looked at. */
+  pending: number;
+};
+
+/** The face model is downloading or avatars are waiting. Pure. */
+export function isFacesBusy(s: FaceStatus | undefined | null): boolean {
+  return !!s && (s.download.status === "downloading" || s.pending > 0);
+}
+
 /** A single failure recorded while an AI Job processed one image. */
 export type AiJobError = { image_id: string; error: string };
 
@@ -254,6 +276,10 @@ export function fetchAiCoverage(signal?: AbortSignal): Promise<AiCoverage> {
   return api<AiCoverage>("/api/v1/ai/coverage", { signal });
 }
 
+export function fetchFaces(signal?: AbortSignal): Promise<FaceStatus> {
+  return api<FaceStatus>("/api/v1/ai/faces", { signal });
+}
+
 export function fetchAiSettings(): Promise<AISettings> {
   return api<AISettings>("/api/v1/ai/settings");
 }
@@ -266,6 +292,7 @@ export function fetchAiSettings(): Promise<AISettings> {
 // job it was. The context now owns state and toast policy; it knows no URLs.
 
 export const AI_STATUS_KEY = ["aiStatus"] as const;
+export const FACES_KEY = ["ai", "faces"] as const;
 export const aiJobKey = (jobId: string | null) => ["aiJob", jobId] as const;
 
 const POST = { method: "POST" } as const;
@@ -308,6 +335,11 @@ export function postModelDownloadCancel(): Promise<{ ok: boolean }> {
 
 export function postModelUnload(): Promise<unknown> {
   return api("/api/v1/ai/model/unload", POST);
+}
+
+/** A face-model command (`download`, `download-cancel`); returns the new status. */
+export function postFaces(command: "download" | "download-cancel"): Promise<FaceStatus> {
+  return api<FaceStatus>(`/api/v1/ai/faces/${command}`, POST);
 }
 
 /** Queue AI tagging for up to `limit` images that have no AI tags yet. */

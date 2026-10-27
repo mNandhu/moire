@@ -16,7 +16,7 @@ import { useOutfitMenuData, useSetOutfitCover } from "../../hooks/useOutfitData"
 import { outfitsHref } from "../../lib/outfit";
 
 /** What a cover choice lacks of the outfit, as its caption. Pure. */
-export function coverCaption(missing: readonly string[]): string {
+function coverCaption(missing: readonly string[]): string {
   return missing.length ? `no ${missing.map(displayWord).join(", ")}` : "wears all";
 }
 

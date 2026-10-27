@@ -75,14 +75,12 @@ def test_lookup(listed):
     assert not attire.is_attire("adjusting_scarf")  # an action, not a garment
     assert attire.is_attire("anklet")  # primary place is feet, also accessories
     assert attire.group_of("thighhighs") == "legwear"
-    assert attire.category_of("blue_eyes") == "body"
     assert attire.group_of("1girl") is None
 
 
 def test_spelling_is_canonicalised(listed):
     assert attire.is_attire(" Serafuku ")
     assert attire.group_of("THIGHHIGHS") == "legwear"
-    assert attire.category_of("blue eyes") == "body"
 
 
 def test_attire_tags_use_the_attire_group(listed):
@@ -96,20 +94,16 @@ def test_attire_tags_use_the_attire_group(listed):
         "jewelry": "accessories",
         "strapless": "exposure",
     }
-    assert attire.all_tags("body")["blue_eyes"] == "eyes_tags"
-    assert len(attire.all_tags()) == 8
-    attire.all_tags()["x"] = "y"
-    assert "x" not in attire.all_tags()
 
 
 def test_missing_or_broken_file_is_empty(tmp_path, monkeypatch):
     monkeypatch.setattr(attire, "TAG_GROUPS_PATH", tmp_path / "nope.json")
     attire.entries.cache_clear()
-    assert attire.all_tags() == {}
+    assert attire.entries() == {}
     (tmp_path / "bad.json").write_text("{not json", encoding="utf-8")
     monkeypatch.setattr(attire, "TAG_GROUPS_PATH", tmp_path / "bad.json")
     attire.entries.cache_clear()
-    assert attire.all_tags() == {}
+    assert attire.entries() == {}
     attire.entries.cache_clear()
 
 

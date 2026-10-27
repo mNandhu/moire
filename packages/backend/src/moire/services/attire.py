@@ -326,19 +326,6 @@ def group_of(tag: str) -> str | None:
     return _attire_group(key, entry) or entry[1]
 
 
-def category_of(tag: str) -> str | None:
-    """The primary top-level category (body, sex, ...) of a listed tag."""
-    entry = entries().get(tag_key(tag))
-    return entry[0] if entry else None
-
-
-def all_tags(category: str | None = None) -> dict[str, str]:
-    """``tag -> group`` for every listed tag, or only one primary category's."""
-    return {
-        t: group_of(t) or e[1] for t, e in entries().items() if category in (None, e[0])
-    }
-
-
 def library_groups(names: Iterable[str]) -> dict[str, dict[str, str]]:
     """The group page's map: ``tags`` is ``tag -> group`` for each of
     ``names`` (the library's tags) that has one, ``categories`` is ``group ->
