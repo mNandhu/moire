@@ -7,8 +7,6 @@ import { useConfirm } from "../ConfirmDialog";
 import { useToast } from "../Toasts";
 import { cn } from "../../lib/cn";
 import {
-  DEFAULT_OUTFIT,
-  DEFAULT_OUTFIT_NAME,
   OUTFITS_KEY,
   createOutfit,
   defaultOutfitKey,
@@ -24,11 +22,15 @@ import { useAttireGroups, useThumbUrl } from "../../lib/queries";
 import { AttireTagInput, OutfitChip, OutfitThumb } from "./Outfit";
 import { CoverGrid } from "./OutfitCover";
 import { Image as ImageIcon } from "lucide-react";
-import { MAX_OUTFIT_TAGS, suggestOutfitName } from "../../lib/outfit";
-
-type Source = "image" | "usual" | "added";
-/** `struck`: a Default's computed tag left out (restorable). */
-type Row = { tag: string; group: string | null; checkable: boolean; source: Source; struck?: boolean };
+import {
+  MAX_OUTFIT_TAGS,
+  outfitModeOf,
+  outfitSavePlan,
+  seedOutfit,
+  suggestOutfitName,
+  type OutfitRow as Row,
+  type OutfitRowSource as Source,
+} from "../../lib/outfit";
 
 const SOURCE_STYLE: Record<Source, string> = {
   image: "",
@@ -86,10 +88,11 @@ export function SaveOutfitDialog({
   // Editing: the cover picked in the Change strip (shown open), saved with the rest.
   const [cover, setCover] = useState<string | null>(null);
   const [changing, setChanging] = useState(false);
-  const isDefault = outfit?._id === DEFAULT_OUTFIT;
+  const mode = outfitModeOf(outfit, imageId);
+  const isDefault = mode === "default";
   // A new outfit with no image (a character page's New outfit) starts from
   // their usual clothes and picks its thumbnail with Change.
-  const blank = !outfit && !imageId;
+  const blank = mode === "blank";
   const shown = outfit || blank ? cover : imageId;
   // The outfit's own cover comes with it; only another one is looked up.
   const lookedUp = useThumbUrl(shown && shown === outfit?.image_id ? null : shown);
@@ -99,33 +102,18 @@ export function SaveOutfitDialog({
     if (!open) return setSeeded(false);
     if (seeded) return;
     setTyped(!!outfit);
-    if (outfit) {
-      setCover(outfit.image_id);
+    // Without a prefill (the image or character is gone): start empty.
+    if (!outfit && (blank ? !usual && !noUsual : !prefill && !noPrefill)) return;
+    const seed = seedOutfit(mode, { outfit, prefill, usual });
+    setName(seed.name);
+    setShared(seed.shared);
+    setRows(seed.rows);
+    if (seed.cover !== undefined) {
+      setCover(seed.cover);
       setChanging(false);
-      setName(outfit._id === DEFAULT_OUTFIT && outfit.name === DEFAULT_OUTFIT_NAME ? "" : outfit.name);
-      setShared(outfit.shared);
-      setRows(
-        outfit.chips
-          ? outfit.chips.map((c) => ({ ...c, source: c.added ? "added" : "image", struck: c.dropped }))
-          : outfit.tags.map((t) => ({ ...t, source: "image" })),
-      );
-      setSeeded(true);
-    } else if (blank) {
-      if (!usual && !noUsual) return;
-      setName("");
-      setShared(false);
-      setCover(null);
-      setChanging(false);
-      setRows((usual?.tags ?? []).map((t) => ({ ...t, source: "usual" })));
-      setSeeded(true);
-    } else if (prefill || noPrefill) {
-      // Without a prefill (the image or character is gone): start empty.
-      setName("");
-      setShared(false);
-      setRows((prefill?.tags ?? []).map((t) => ({ ...t, source: t.source })));
-      setSeeded(true);
     }
-  }, [open, outfit, prefill, noPrefill, blank, usual, noUsual, seeded]);
+    setSeeded(true);
+  }, [open, outfit, prefill, noPrefill, blank, usual, noUsual, seeded, mode]);
 
   const taken = useMemo(() => new Set(rows.map((r) => r.tag)), [rows]);
   const shownName = typed ? name : suggestOutfitName(rows);
@@ -135,18 +123,12 @@ export function SaveOutfitDialog({
   };
   const save = useMutation({
     mutationFn: () => {
-      if (isDefault) {
-        return putDefaultOutfit(character, {
-          name: name.trim(),
-          dropped: rows.filter((r) => r.struck).map((r) => r.tag),
-          added: rows.filter((r) => r.source === "added").map((r) => r.tag),
-          ...(cover !== outfit!.image_id ? { image_id: cover } : {}),
-        });
-      }
-      const body = { name: shownName.trim(), tags: rows.map((r) => r.tag), shared };
-      return outfit
-        ? updateOutfit(outfit._id, cover !== outfit.image_id ? { ...body, image_id: cover } : body)
-        : createOutfit({ ...body, character, image_id: imageId ?? cover });
+      const plan = outfitSavePlan(mode, { outfit, character, imageId, name, shownName, rows, shared, cover });
+      return plan.kind === "default"
+        ? putDefaultOutfit(character, plan.body)
+        : plan.kind === "update"
+          ? updateOutfit(plan.id, plan.body)
+          : createOutfit(plan.body);
     },
     onSuccess: (o) => {
       if (isDefault) qc.setQueryData(defaultOutfitKey(character), o);

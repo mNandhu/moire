@@ -3,7 +3,8 @@
  * outfit's tags, so chip edits (drop one, add one) apply to this batch only
  * and a draft survives the outfit being edited or deleted.
  */
-import type { Outfit, OutfitInput } from "./generate";
+import { DEFAULT_OUTFIT, DEFAULT_OUTFIT_NAME } from "./generate";
+import type { DefaultOutfitPatch, Outfit, OutfitBody, OutfitInput, OutfitPrefill } from "./generate";
 import { galleryHref } from "./imageFilter";
 import { canonicalName } from "./tags";
 
@@ -163,4 +164,86 @@ export function suggestOutfitName(
     .map(({ r }) => r.tag.replace(/_/g, " "));
   const name = pieces.join(" + ");
   return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+/** What the save dialog is doing: saving an image's attire as a new outfit,
+ * a New outfit with no image (from their usual clothes), editing a saved
+ * outfit, or editing a character's Default. */
+export type OutfitMode = "from-image" | "blank" | "edit" | "default";
+
+/** The dialog's mode for `outfit` (being edited) and `imageId` (saved from). Pure. */
+export function outfitModeOf(outfit: Pick<Outfit, "_id"> | undefined, imageId: string | null): OutfitMode {
+  if (outfit) return outfit._id === DEFAULT_OUTFIT ? "default" : "edit";
+  return imageId ? "from-image" : "blank";
+}
+
+/** Where a dialog row came from; the chips are styled by it. */
+export type OutfitRowSource = "image" | "usual" | "added";
+/** `struck`: a Default's computed tag left out (restorable). */
+export type OutfitRow = { tag: string; group: string | null; checkable: boolean; source: OutfitRowSource; struck?: boolean };
+
+/** The dialog's starting fields. `cover` only where the dialog picks the
+ * thumbnail (editing, or a New outfit); a save from an image uses the image. */
+export type OutfitSeed = { name: string; shared: boolean; rows: OutfitRow[]; cover?: string | null };
+
+/** The dialog's starting fields for `mode`, from the outfit being edited,
+ * the image's prefill or the character's usual clothes (either may be
+ * missing: then no tags). Pure. */
+export function seedOutfit(
+  mode: OutfitMode,
+  { outfit, prefill, usual }: { outfit?: Outfit; prefill?: OutfitPrefill; usual?: Outfit },
+): OutfitSeed {
+  if ((mode === "edit" || mode === "default") && outfit) {
+    return {
+      name: outfit._id === DEFAULT_OUTFIT && outfit.name === DEFAULT_OUTFIT_NAME ? "" : outfit.name,
+      shared: outfit.shared,
+      rows: outfit.chips
+        ? outfit.chips.map((c) => ({ ...c, source: c.added ? "added" : "image", struck: c.dropped }))
+        : outfit.tags.map((t) => ({ ...t, source: "image" })),
+      cover: outfit.image_id,
+    };
+  }
+  if (mode === "blank") return { name: "", shared: false, cover: null, rows: (usual?.tags ?? []).map((t) => ({ ...t, source: "usual" })) };
+  return { name: "", shared: false, rows: (prefill?.tags ?? []).map((t) => ({ ...t, source: t.source })) };
+}
+
+/** The request a Save makes: a Default's patch, a saved outfit's update, or
+ * a new outfit. */
+export type OutfitSavePlan =
+  | { kind: "default"; body: DefaultOutfitPatch }
+  | { kind: "update"; id: string; body: Partial<OutfitBody> }
+  | { kind: "create"; body: OutfitBody };
+
+/** The save dialog's request for `mode`. The cover goes only when it
+ * changed; a new outfit takes the image it was saved from, else the picked
+ * cover. Pure. */
+export function outfitSavePlan(
+  mode: OutfitMode,
+  s: {
+    outfit?: Outfit;
+    character: string;
+    imageId: string | null;
+    /** The typed name; `shownName` is it or the suggested one. */
+    name: string;
+    shownName: string;
+    rows: readonly OutfitRow[];
+    shared: boolean;
+    cover: string | null;
+  },
+): OutfitSavePlan {
+  if (mode === "default") {
+    return {
+      kind: "default",
+      body: {
+        name: s.name.trim(),
+        dropped: s.rows.filter((r) => r.struck).map((r) => r.tag),
+        added: s.rows.filter((r) => r.source === "added").map((r) => r.tag),
+        ...(s.cover !== s.outfit!.image_id ? { image_id: s.cover } : {}),
+      },
+    };
+  }
+  const body = { name: s.shownName.trim(), tags: s.rows.map((r) => r.tag), shared: s.shared };
+  return s.outfit
+    ? { kind: "update", id: s.outfit._id, body: s.cover !== s.outfit.image_id ? { ...body, image_id: s.cover } : body }
+    : { kind: "create", body: { ...body, character: s.character, image_id: s.imageId ?? s.cover } };
 }

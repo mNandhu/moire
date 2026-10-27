@@ -4,9 +4,12 @@ import {
   keepPicked,
   outfitGalleryHref,
   outfitInput,
+  outfitModeOf,
+  outfitSavePlan,
   outfitsHref,
   pickFromInput,
   pickOf,
+  seedOutfit,
   suggestOutfitName,
   restoreWorn,
   strikeWorn,
@@ -17,7 +20,7 @@ import {
 import { previewText } from "./generateForm";
 import { loadDraft } from "./generateDraft";
 import { formFromBatch, wearingOutfit, withCharacter } from "./remixForm";
-import type { BatchInputs } from "./generate";
+import type { BatchInputs, Outfit, OutfitTag } from "./generate";
 import { DEFAULT_FILTERS } from "./imageFilter";
 import { searchTerms, withSearchTerms } from "./searchTerms";
 
@@ -220,5 +223,99 @@ describe("suggestOutfitName", () => {
   });
   it("is empty with nothing to name it by", () => {
     expect(suggestOutfitName([row("midriff", "exposure"), row("odd", null)])).toBe("");
+  });
+});
+
+describe("save dialog", () => {
+  const tag = (t: string): OutfitTag => ({ tag: t, group: "attire", checkable: true });
+  const saved: Outfit = {
+    _id: "o1",
+    name: "Coat",
+    character: "a",
+    shared: true,
+    tags: [tag("coat")],
+    image_id: "L:1.png",
+    thumb_url: null,
+    hidden: false,
+  };
+  const dflt: Outfit = {
+    ...saved,
+    _id: "default",
+    name: "Default",
+    shared: false,
+    chips: [
+      { ...tag("coat"), dropped: true, added: false },
+      { ...tag("hat"), dropped: false, added: true },
+    ],
+  };
+
+  it("tells the four modes apart", () => {
+    expect(outfitModeOf(undefined, "L:1.png")).toBe("from-image");
+    expect(outfitModeOf(undefined, null)).toBe("blank");
+    expect(outfitModeOf(saved, "L:1.png")).toBe("edit");
+    expect(outfitModeOf(dflt, null)).toBe("default");
+  });
+
+  it("seeds each mode from its own data", () => {
+    expect(seedOutfit("edit", { outfit: saved })).toEqual({
+      name: "Coat",
+      shared: true,
+      rows: [{ ...tag("coat"), source: "image" }],
+      cover: "L:1.png",
+    });
+    // An unrenamed Default starts with no name; struck and added chips keep their marks.
+    expect(seedOutfit("default", { outfit: dflt })).toMatchObject({
+      name: "",
+      rows: [
+        { tag: "coat", source: "image", struck: true },
+        { tag: "hat", source: "added", struck: false },
+      ],
+    });
+    expect(seedOutfit("blank", { usual: saved })).toEqual({
+      name: "",
+      shared: false,
+      cover: null,
+      rows: [{ ...tag("coat"), source: "usual" }],
+    });
+    const prefill = { image_id: "L:2.png", character: "a", tags: [{ ...tag("hat"), source: "image" as const }] };
+    const fromImage = seedOutfit("from-image", { prefill });
+    expect(fromImage.rows).toEqual([{ ...tag("hat"), source: "image" }]);
+    expect("cover" in fromImage).toBe(false);
+    expect(seedOutfit("from-image", {}).rows).toEqual([]);
+  });
+
+  const state = {
+    character: "a",
+    imageId: null,
+    name: " Mine ",
+    shownName: " Mine ",
+    rows: [
+      { ...tag("coat"), source: "image" as const, struck: true },
+      { ...tag("hat"), source: "added" as const },
+    ],
+    shared: false,
+    cover: "L:1.png",
+  };
+
+  it("patches a Default, sending the cover only when it changed", () => {
+    expect(outfitSavePlan("default", { ...state, outfit: dflt })).toEqual({
+      kind: "default",
+      body: { name: "Mine", dropped: ["coat"], added: ["hat"] },
+    });
+    expect(outfitSavePlan("default", { ...state, outfit: dflt, cover: null }).body).toMatchObject({ image_id: null });
+  });
+
+  it("updates a saved outfit, or creates one on the image it came from", () => {
+    expect(outfitSavePlan("edit", { ...state, outfit: saved })).toEqual({
+      kind: "update",
+      id: "o1",
+      body: { name: "Mine", tags: ["coat", "hat"], shared: false },
+    });
+    expect(outfitSavePlan("edit", { ...state, outfit: saved, cover: "L:3.png" }).body).toMatchObject({ image_id: "L:3.png" });
+    expect(outfitSavePlan("from-image", { ...state, imageId: "L:2.png" })).toEqual({
+      kind: "create",
+      body: { name: "Mine", tags: ["coat", "hat"], shared: false, character: "a", image_id: "L:2.png" },
+    });
+    expect(outfitSavePlan("blank", state).body).toMatchObject({ image_id: "L:1.png" });
   });
 });
