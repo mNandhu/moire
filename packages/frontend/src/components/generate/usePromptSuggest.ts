@@ -7,6 +7,7 @@ import { toPromptText } from "../../lib/tags";
 import type { TagSuggestion } from "../../lib/tagSuggest";
 import { useDismiss } from "../../hooks/useDismiss";
 import { useSuggestNav, useTagMatches } from "../../hooks/useSuggestNav";
+import { embeddingWord, isEmbedding } from "../../lib/compose";
 
 const LIST_W = 320;
 
@@ -37,7 +38,7 @@ export function usePromptSuggest({
   // suggestions have been shown.
   const [wantCovers, setWantCovers] = useState(false);
   const thumbOf = useTagCovers(wantCovers);
-  const resources = useMemo(() => embeddings.map((n) => ({ _id: `embedding:${n}`, count: 0 })), [embeddings]);
+  const resources = useMemo(() => embeddings.map((n) => ({ _id: embeddingWord(n), count: 0 })), [embeddings]);
   // Characters the tagger knows that the library doesn't have yet, offered
   // after the library's own tags (no count, no cover).
   const { data: names } = useCharacterNames();
@@ -71,7 +72,7 @@ export function usePromptSuggest({
 
   const pick = (s: TagSuggestion) => {
     if (!term) return;
-    const word = s._id.startsWith("embedding:") ? s._id : toPromptText([s._id]);
+    const word = isEmbedding(s._id) ? s._id : toPromptText([s._id]);
     const next = replaceTerm(value, term, word);
     onChange(next.text);
     setTerm(null);

@@ -11,10 +11,15 @@
 import { promptTerms as readTerms } from "./promptOutline";
 import { formatTag } from "./tags";
 
-export const EMBEDDING_PREFIX = "embedding:";
+const EMBEDDING_PREFIX = "embedding:";
 
 export function isEmbedding(word: string): boolean {
   return word.startsWith(EMBEDDING_PREFIX);
+}
+
+/** An installed embedding as a prompt word (`embedding:name`). */
+export function embeddingWord(name: string): string {
+  return EMBEDDING_PREFIX + name;
 }
 
 function chipText(word: string): string {

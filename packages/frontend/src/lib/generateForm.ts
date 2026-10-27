@@ -7,7 +7,7 @@
  * A preset is referenced with a snapshot of its text, so a deleted preset
  * still sends what it said.
  */
-import { composeParts, promptTerms } from "./compose";
+import { composeParts, embeddingWord, promptTerms } from "./compose";
 import type {
   CharacterInput,
   EstimateBody,
@@ -175,7 +175,7 @@ export function previewText(parts: readonly PromptPart[], characterTags: readonl
         ? [p.text ?? ""]
         : p.kind === "character"
           ? characterTags
-          : [p.name ? `embedding:${p.name}` : ""],
+          : [p.name ? embeddingWord(p.name) : ""],
     ),
   );
 }
