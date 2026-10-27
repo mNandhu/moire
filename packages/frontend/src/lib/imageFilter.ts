@@ -255,7 +255,7 @@ export function serializeFiltersForPeek(filters: Filters): string {
 export function hasActiveFilter(f: Filters): boolean {
   const sp = serializeFilters({ ...f, sort: DEFAULT_FILTERS.sort, group: false });
   sp.delete("logic");
-  return sp.size > 0;
+  return sp.toString() !== "";
 }
 
 /**
