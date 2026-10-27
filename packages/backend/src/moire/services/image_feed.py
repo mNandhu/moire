@@ -16,17 +16,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 
 from ..database.db import async_conn
 from ..database import schema as t
 from . import image_shapes, image_tags, workflow_family
+from .outfit_wear import WearRule, wear_condition
 from .tag_names import canonical_name
-
-if TYPE_CHECKING:
-    from .outfits import WearRule
 
 
 class FeedFilterError(ValueError):
@@ -150,7 +147,7 @@ class FeedFilter:
     # The family's signatures, resolved from `workflow_id` by `_resolved`
     # before the query is built (not a user input).
     family_sigs: tuple[str, ...] | None = None
-    # Each outfit's `outfits.WearRule`, resolved from `outfit` by `_resolved`;
+    # Each outfit's `outfit_wear.WearRule`, resolved from `outfit` by `_resolved`;
     # None for an unknown outfit (matches nothing).
     outfit_rules: tuple[WearRule | None, ...] | None = None
     # The images of the filter's rarest tag group or prompt term, when that
@@ -277,26 +274,8 @@ def feed_where(f: FeedFilter):
     if f.outfit:
         if f.outfit_rules is None:
             raise RuntimeError("outfit filter used before _resolved()")
-        it = t.image_tags
-        for rule in f.outfit_rules:
-            if not rule:
-                conds.append(sa.false())
-                continue
-            # Its thumbnail, or wears most of it: carries `need` of its tags,
-            # any source (`outfits.wears`).
-            either = []
-            if rule.image_id:
-                either.append(t.images.c._id == rule.image_id)
-            if rule.tags:
-                either.append(
-                    t.images.c._id.in_(
-                        sa.select(it.c.image_id)
-                        .where(it.c.base.in_(rule.tags))
-                        .group_by(it.c.image_id)
-                        .having(sa.func.count(sa.distinct(it.c.base)) >= rule.need)
-                    )
-                )
-            conds.append(sa.or_(*either) if either else sa.false())
+        # An unknown outfit (None) matches nothing.
+        conds += [wear_condition(r) if r else sa.false() for r in f.outfit_rules]
     if f.shape:
         conds.append(image_shapes.where(f.shape))
     if f.min_w is not None:

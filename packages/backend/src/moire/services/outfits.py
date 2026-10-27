@@ -13,11 +13,10 @@ vocabulary) is kept but marked: nothing can check an image wears it.
 
 from __future__ import annotations
 
-import math
 import re
 import time
 import uuid
-from typing import Any, Iterable, NamedTuple
+from typing import Any, Iterable
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -26,6 +25,7 @@ from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from . import attire, recipes, tag_categories, tag_detail
 from .image_tags import find_image
+from .outfit_wear import WearRule, wears, wears_most
 from .tag_names import canonical_name
 
 MAX_TAGS = 40
@@ -96,34 +96,6 @@ def tag_info(tags: Iterable[str], general: frozenset[str]) -> list[dict[str, Any
         }
         for tag in tags
     ]
-
-
-# How much of an outfit an image must wear to match the gallery's outfit
-# filter: two thirds of its tags, rounded up (1 of 1, 2 of 3, 4 of 6).
-WEARS_MOST = 2 / 3
-
-
-def wears_most(n: int) -> int:
-    """Tags of ``n`` an image must carry to wear the outfit. Pure."""
-    return max(1, math.ceil(n * WEARS_MOST - 1e-9)) if n else 0
-
-
-class WearRule(NamedTuple):
-    """When an image wears an outfit: it carries ``need`` of ``tags``, or it
-    is the outfit's own thumbnail (``image_id``), which wears it by being
-    picked, whatever its tags say."""
-
-    tags: tuple[str, ...]
-    need: int
-    image_id: str | None
-
-
-def wears(rule: WearRule, image_id: str, bases: Iterable[str]) -> bool:
-    """Whether one image (its tag bases) wears the outfit. Pure; the feed's
-    SQL condition says the same."""
-    if image_id == rule.image_id:
-        return True
-    return bool(rule.tags) and len(set(rule.tags) & set(bases)) >= rule.need
 
 
 def rule_of(o: dict[str, Any]) -> WearRule:
