@@ -2,11 +2,11 @@ import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
-import { Box, FolderOpen, History, Layers, Plus, Puzzle, Search, Settings, Tags, Wand2 } from "lucide-react";
+import { Box, FolderOpen, History, Layers, Puzzle, Search, Tags, Wand2 } from "lucide-react";
 import { Dialog } from "./ui/Dialog";
 import { CharacterAvatar } from "./CharacterAvatar";
 import { useCharacters } from "../lib/queries";
-import { NAV } from "./Sidebar";
+import { NAV_PAGES } from "../lib/nav";
 import { SETTINGS_SECTIONS } from "../pages/settings/registry";
 import { cn } from "../lib/cn";
 import { smallThumb } from "../lib/media";
@@ -35,15 +35,10 @@ import {
 
 /** Pages: the sidebar's, then Settings and its sections, then "New workflow". */
 const PAGES: { item: SearchItem; icon: LucideIcon }[] = [
-  ...NAV.flatMap((g): readonly { label: string; path: string; icon: LucideIcon }[] => g.items).map(({ label, path, icon }) => ({
-    item: { key: `page:${path}`, group: "pages" as const, label, href: path },
+  ...NAV_PAGES.map(({ label, path, icon, detail }) => ({
+    item: { key: `page:${path}`, group: "pages" as const, label, detail, href: path },
     icon,
   })),
-  { item: { key: "page:/settings", group: "pages", label: "Settings", href: "/settings" }, icon: Settings },
-  {
-    item: { key: "page:/generate/workflows/new", group: "pages", label: "New workflow", detail: "Generate", href: "/generate/workflows/new" },
-    icon: Plus,
-  },
   ...SETTINGS_SECTIONS.map((s) => ({
     item: {
       key: `settings:${s.id}`,

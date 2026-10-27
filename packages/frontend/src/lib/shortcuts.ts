@@ -4,6 +4,8 @@
  * Pure.
  */
 
+import { SEARCH_KEYS } from "./platform";
+
 export type ShortcutPage = "everywhere" | "gallery" | "image" | "generations";
 
 export type ShortcutGroup = {
@@ -12,15 +14,13 @@ export type ShortcutGroup = {
   keys: [string, string][];
 };
 
-const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
-const MOD = IS_MAC ? "⌘" : "Ctrl";
 
 export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: "Everywhere",
     page: "everywhere",
     keys: [
-      [`${MOD} K`, "Search everything"],
+      [SEARCH_KEYS, "Search everything"],
       ["?", "This help"],
       ["Esc", "Close what's open"],
     ],

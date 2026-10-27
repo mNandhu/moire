@@ -1,57 +1,14 @@
 import type { LucideIcon } from "lucide-react";
-import {
-  Home,
-  Images,
-  FolderOpen,
-  Tags as TagsIcon,
-  Workflow,
-  Settings,
-  Sparkles,
-  PanelLeftClose,
-  Wand2,
-  History,
-  Search,
-  Shirt,
-} from "lucide-react";
+import { PanelLeftClose, Search } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "../lib/cn";
+import { NAV, SETTINGS_PAGE } from "../lib/nav";
+import { SEARCH_ARIA_KEYS, SEARCH_KEYS } from "../lib/platform";
 import { MoireMark } from "./ui/Logo";
 import { ActivityIndicator } from "./ActivityIndicator";
 import { BackButton } from "./HistoryButtons";
 
 type Status = string;
-
-const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
-/** The search's shortcut as this keyboard writes it. */
-export const SEARCH_KEYS = IS_MAC ? "⌘K" : "Ctrl K";
-
-// Browse first (where the images are), then the places you manage them.
-export const NAV = [
-  {
-    section: null,
-    items: [
-      { label: "Overview", path: "/overview", icon: Home },
-      { label: "All Images", path: "/", icon: Images },
-      { label: "Tags", path: "/tags", icon: TagsIcon },
-    ],
-  },
-  {
-    section: "Create",
-    items: [
-      { label: "Generate", path: "/generate", icon: Wand2 },
-      { label: "Generations", path: "/generations", icon: History },
-      { label: "Outfits", path: "/outfits", icon: Shirt },
-    ],
-  },
-  {
-    section: "Manage",
-    items: [
-      { label: "Libraries", path: "/libraries", icon: FolderOpen },
-      { label: "AI Tagging", path: "/ai-tagging", icon: Sparkles },
-      { label: "Rules", path: "/rules", icon: Workflow },
-    ],
-  },
-] as const;
 
 // Module scope: a component defined inside Sidebar is a new type on every
 // render, which remounts every link.
@@ -160,7 +117,7 @@ export function Sidebar({
             onClick={onSearch}
             title={collapsed ? `Search (${SEARCH_KEYS})` : undefined}
             aria-label="Search"
-            aria-keyshortcuts={IS_MAC ? "Meta+K" : "Control+K"}
+            aria-keyshortcuts={SEARCH_ARIA_KEYS}
             className={cn(
               "w-full flex items-center gap-3 rounded-lg text-sm text-muted transition-colors hover:bg-raised/60 hover:text-neutral-100",
               collapsed ? "justify-center px-0 py-2.5" : "px-3 py-2",
@@ -215,7 +172,7 @@ export function Sidebar({
             {!collapsed && <span>Backend offline</span>}
           </div>
         )}
-        <NavButton label="Settings" path="/settings" icon={Settings} collapsed={collapsed} />
+        <NavButton {...SETTINGS_PAGE} collapsed={collapsed} />
       </div>
     </aside>
   );
