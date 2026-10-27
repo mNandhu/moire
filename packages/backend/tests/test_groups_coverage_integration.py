@@ -79,6 +79,14 @@ async def test_groups_span_page_order_desc(client, seed):
     assert ids == ["L1:b", "L1:a"]  # rep _id desc
 
 
+async def test_groups_honor_group_id_filter(client, seed):
+    seed("L1:a1", gen={"group_id": "GA", "workflow_sig": "s"})
+    seed("L1:a2", gen={"group_id": "GA", "workflow_sig": "s"})
+    seed("L1:b1", gen={"group_id": "GB", "workflow_sig": "s"})
+    rows = (await client.get("/images/groups", params={"group_id": "GA"})).json()
+    assert [(r["_id"], r["group_count"]) for r in rows] == [("L1:a2", 2)]
+
+
 async def test_ai_coverage_per_library_counts(client, seed):
     seed("L1:a", tags=("1girl",), library_id="L1")  # ai-tagged
     seed("L1:b", tags=("manual:fav",), library_id="L1")  # not ai-tagged

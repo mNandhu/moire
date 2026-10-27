@@ -454,63 +454,15 @@ async def image_stats(
 
 @router.get("/groups")
 async def list_groups(
-    tags: list[str] | None = Query(default=None),
-    logic: str = Query(default="and"),
-    library_id: str | None = Query(default=None),
+    f: FeedFilter = Depends(feed_filter),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=200, ge=1, le=1000),
-    no_tags: int | None = Query(default=None, alias="no_tags"),
-    no_ai_tags: int | None = Query(default=None, alias="no_ai_tags"),
-    ai_tagged: int | None = Query(default=None),
-    quarantined: int | None = Query(default=None),
-    needs_mapping: int | None = Query(default=None),
-    pterms: list[str] | None = Query(default=None),
-    plogic: str = Query(default="and"),
-    model: list[str] | None = Query(default=None),
-    lora: list[str] | None = Query(default=None),
-    embedding: list[str] | None = Query(default=None),
-    shape: list[str] | None = Query(default=None),
-    min_w: int | None = Query(default=None, ge=0),
-    max_w: int | None = Query(default=None, ge=0),
-    min_h: int | None = Query(default=None, ge=0),
-    max_h: int | None = Query(default=None, ge=0),
-    workflow: str | None = Query(default=None, max_length=256),
-    workflow_sig: str | None = Query(default=None, max_length=256),
-    outfit: list[str] | None = Query(default=None),
-    sort: str = Query(default="newest"),
 ):
     """Batch-collapsed view of the same feed: images sharing a gen_group_id fold
     into one entry (the newest member is the representative, plus a count).
     Prompt-less / ungrouped images stand alone. Grouping spans page boundaries
-    because it's a full aggregation, not a paged-then-grouped pass."""
-    try:
-        f = FeedFilter(
-            tags=tags,
-            logic=logic,
-            library_id=library_id,
-            no_tags=no_tags,
-            no_ai_tags=no_ai_tags,
-            ai_tagged=ai_tagged,
-            quarantined=quarantined,
-            needs_mapping=needs_mapping,
-            pterms=pterms,
-            plogic=plogic,
-            model=model,
-            lora=lora,
-            embedding=embedding,
-            shape=shape,
-            min_w=min_w,
-            max_w=max_w,
-            min_h=min_h,
-            max_h=max_h,
-            workflow_id=workflow,
-            workflow_sig=workflow_sig,
-            outfit=outfit,
-            sort=sort,
-        )
-    except FeedFilterError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
-
+    because it's a full aggregation, not a paged-then-grouped pass. group_id is
+    honored like any other filter (it narrows the view to that one batch)."""
     out = await image_feed.list_groups(f, offset=offset, limit=limit)
     await _attach_thumb_urls(out)
     return out
