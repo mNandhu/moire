@@ -8,7 +8,7 @@ import time
 import pytest
 
 from moire.core.config import settings
-from moire.services import library_watch, scanner
+from moire.services import library_watch, scan_incremental, scanner
 
 
 def _wait(pred, timeout=15.0):
@@ -35,7 +35,7 @@ def ingested(monkeypatch):
         got.set()
         return True
 
-    monkeypatch.setattr(scanner, "ingest_single_file", fake_ingest)
+    monkeypatch.setattr(scan_incremental, "ingest_single_file", fake_ingest)
     monkeypatch.setattr(scanner, "is_scanning", lambda _id: False)
     yield seen, got
     library_watch.stop_all()
@@ -133,7 +133,9 @@ def test_batches_queued_during_an_ingest_are_merged(tmp_path, monkeypatch):
     monkeypatch.setattr(scanner, "is_scanning", lambda _id: False)
     calls = []
     monkeypatch.setattr(
-        scanner, "ingest_single_file", lambda _lib, _root, p: calls.append(p.name)
+        scan_incremental,
+        "ingest_single_file",
+        lambda _lib, _root, p: calls.append(p.name),
     )
     (tmp_path / "a.png").write_bytes(b"x")
     w = library_watch._Watch("W1", tmp_path)

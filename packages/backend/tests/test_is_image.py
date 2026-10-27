@@ -1,15 +1,15 @@
 from pathlib import Path
 
-from moire.services import library_discover, scanner
+from moire.services import library_discover, scanner, thumbnailer
 
 
 def test_is_image_applies_the_ignore_rules_the_watcher_always_had():
-    assert scanner.is_image(Path("/x/a.PNG"))
-    assert not scanner.is_image(Path("/x/.cover.png"))
-    assert not scanner.is_image(Path("/x/._a.png"))
-    assert not scanner.is_image(Path("/x/~a.png"))
-    assert not scanner.is_image(Path("/x/a.png.part"))
-    assert not scanner.is_image(Path("/x/a.txt"))
+    assert thumbnailer.is_image(Path("/x/a.PNG"))
+    assert not thumbnailer.is_image(Path("/x/.cover.png"))
+    assert not thumbnailer.is_image(Path("/x/._a.png"))
+    assert not thumbnailer.is_image(Path("/x/~a.png"))
+    assert not thumbnailer.is_image(Path("/x/a.png.part"))
+    assert not thumbnailer.is_image(Path("/x/a.txt"))
 
 
 def test_scan_walk_and_discover_count_agree(tmp_path):

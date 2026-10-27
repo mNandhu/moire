@@ -2,7 +2,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import image_delete, scanner, storage_fs
+from moire.services import image_delete, scan_reconcile, scan_writer, storage_fs
 
 
 def _count(table) -> int:
@@ -42,21 +42,21 @@ def test_delete_rows_handles_more_ids_than_one_statement_chunk(temp_db, seed):
 
 
 def test_delete_stale_commits_in_chunks_and_drops_thumbs(temp_db, seed, monkeypatch):
-    monkeypatch.setattr(scanner, "_STALE_CHUNK", 2)
+    monkeypatch.setattr(scan_reconcile, "_STALE_CHUNK", 2)
     dropped: list[str] = []
     monkeypatch.setattr(storage_fs, "delete_thumb", dropped.append)
     ids = [f"L1:{i}.png" for i in range(5)]
     for n, i in enumerate(ids):
         seed(i, thumb_key=f"k{n}")
     commits = []
-    real_tx = scanner.sync_tx
+    real_tx = scan_reconcile.sync_tx
 
     def counting_tx():
         commits.append(1)
         return real_tx()
 
-    monkeypatch.setattr(scanner, "sync_tx", counting_tx)
-    scanner._delete_stale(ids)
+    monkeypatch.setattr(scan_reconcile, "sync_tx", counting_tx)
+    scan_reconcile._delete_stale(ids)
     assert len(commits) == 3
     assert _count(t.images) == 0
     assert sorted(dropped) == [f"k{n}" for n in range(5)]
@@ -65,10 +65,10 @@ def test_delete_stale_commits_in_chunks_and_drops_thumbs(temp_db, seed, monkeypa
 def test_delete_stale_failure_keeps_earlier_chunks_consistent(
     temp_db, seed, monkeypatch
 ):
-    monkeypatch.setattr(scanner, "_STALE_CHUNK", 2)
+    monkeypatch.setattr(scan_reconcile, "_STALE_CHUNK", 2)
     dropped: list[str] = []
     monkeypatch.setattr(storage_fs, "delete_thumb", dropped.append)
-    monkeypatch.setattr(scanner.time, "sleep", lambda s: None)
+    monkeypatch.setattr(scan_writer.time, "sleep", lambda s: None)
     ids = [f"L1:{i}.png" for i in range(4)]
     for n, i in enumerate(ids):
         seed(i, thumb_key=f"k{n}")
@@ -83,7 +83,7 @@ def test_delete_stale_failure_keeps_earlier_chunks_consistent(
 
     monkeypatch.setattr(image_delete, "delete_rows", flaky)
     try:
-        scanner._delete_stale(ids)
+        scan_reconcile._delete_stale(ids)
     except RuntimeError:
         pass
     assert _count(t.images) == 2  # first chunk gone, second rolled back
@@ -91,8 +91,8 @@ def test_delete_stale_failure_keeps_earlier_chunks_consistent(
 
 
 def test_delete_stale_retries_a_locked_chunk(temp_db, seed, monkeypatch):
-    monkeypatch.setattr(scanner, "_STALE_CHUNK", 2)
-    monkeypatch.setattr(scanner.time, "sleep", lambda s: None)
+    monkeypatch.setattr(scan_reconcile, "_STALE_CHUNK", 2)
+    monkeypatch.setattr(scan_writer.time, "sleep", lambda s: None)
     monkeypatch.setattr(storage_fs, "delete_thumb", lambda k: None)
     ids = [f"L1:{i}.png" for i in range(4)]
     for i in ids:
@@ -107,5 +107,5 @@ def test_delete_stale_retries_a_locked_chunk(temp_db, seed, monkeypatch):
         return real(conn, chunk)
 
     monkeypatch.setattr(image_delete, "delete_rows", locked_once)
-    scanner._delete_stale(ids)
+    scan_reconcile._delete_stale(ids)
     assert _count(t.images) == 0

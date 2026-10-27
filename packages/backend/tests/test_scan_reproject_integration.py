@@ -13,7 +13,7 @@ from PIL.PngImagePlugin import PngInfo
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import reproject, scanner
+from moire.services import reproject, scanner, thumbnailer
 
 pytestmark = pytest.mark.asyncio
 
@@ -358,14 +358,14 @@ async def test_rescan_skips_unchanged_files_and_rebuilds_on_change(
     _wait_scan(lib_id)
 
     opened: list[str] = []
-    real_make = scanner._make_thumb_bytes
+    real_make = thumbnailer.make_thumb_bytes
 
     def counting_make(path):
         opened.append(path.name)
         return real_make(path)
 
     reprojected: list[str] = []
-    monkeypatch.setattr(scanner, "_make_thumb_bytes", counting_make)
+    monkeypatch.setattr(thumbnailer, "make_thumb_bytes", counting_make)
     monkeypatch.setattr(
         reproject, "reproject_library_async", lambda lid: reprojected.append(lid)
     )
@@ -477,7 +477,7 @@ async def test_a_file_that_failed_in_a_rebuild_is_read_again(
     _wait_scan(lib_id)
 
     opened: list[str] = []
-    real_make = scanner._make_thumb_bytes
+    real_make = thumbnailer.make_thumb_bytes
     fail = {"b.png"}
 
     def flaky_make(path):
@@ -490,7 +490,7 @@ async def test_a_file_that_failed_in_a_rebuild_is_read_again(
             raise OSError("share hiccup")
         return real_make(path)
 
-    monkeypatch.setattr(scanner, "_make_thumb_bytes", flaky_make)
+    monkeypatch.setattr(thumbnailer, "make_thumb_bytes", flaky_make)
     monkeypatch.setattr(settings, "thumb_max_size", 640)
 
     async def rescan() -> list[str]:
@@ -572,7 +572,7 @@ async def test_moving_a_library_mid_scan_rescans_the_new_folder(
     _write_png(new_dir / "fresh.png")
 
     entered, release = threading.Event(), threading.Event()
-    real_process = scanner._process_image
+    real_process = scanner.process_image
 
     def blocking_process(library_id, root, p, known):
         if root == old_dir:
@@ -580,7 +580,7 @@ async def test_moving_a_library_mid_scan_rescans_the_new_folder(
             release.wait(timeout=20)
         return real_process(library_id, root, p, known)
 
-    monkeypatch.setattr(scanner, "_process_image", blocking_process)
+    monkeypatch.setattr(scanner, "process_image", blocking_process)
 
     resp = await client.post("/libraries", json={"path": str(old_dir)})
     lib_id = resp.json()["_id"]

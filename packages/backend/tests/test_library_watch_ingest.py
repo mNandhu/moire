@@ -13,7 +13,7 @@ from PIL import Image
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import scanner
+from moire.services import scan_incremental
 
 pytestmark = pytest.mark.asyncio
 
@@ -35,7 +35,7 @@ async def test_ingest_single_file_adds_one_row_without_touching_others(
     new_path = lib_dir / "new.png"
     Image.new("RGB", (4, 4)).save(new_path, "PNG")
 
-    ok = scanner.ingest_single_file("L1", lib_dir, new_path)
+    ok = scan_incremental.ingest_single_file("L1", lib_dir, new_path)
     assert ok is True
 
     row = await _img("L1:new.png")
@@ -54,10 +54,10 @@ async def test_ingest_single_file_refreshes_metadata_on_modify(temp_db, tmp_path
     lib_dir.mkdir()
     p = lib_dir / "a.png"
     Image.new("RGB", (4, 4)).save(p, "PNG")
-    assert scanner.ingest_single_file("L1", lib_dir, p) is True
+    assert scan_incremental.ingest_single_file("L1", lib_dir, p) is True
 
     Image.new("RGB", (16, 16)).save(p, "PNG")
-    assert scanner.ingest_single_file("L1", lib_dir, p) is True
+    assert scan_incremental.ingest_single_file("L1", lib_dir, p) is True
 
     row = await _img("L1:a.png")
     assert row.width == 16 and row.height == 16
@@ -67,7 +67,7 @@ async def test_remove_single_image_deletes_only_that_row(temp_db, seed):
     seed("L1:keep.jpg", tags=("cat",))
     seed("L1:gone.jpg", tags=("dog",), thumb_key=None)
 
-    scanner.remove_single_image("L1", "L1:gone.jpg")
+    scan_incremental.remove_single_image("L1", "L1:gone.jpg")
 
     assert await _img("L1:gone.jpg") is None
     keep = await _img("L1:keep.jpg")
@@ -76,4 +76,4 @@ async def test_remove_single_image_deletes_only_that_row(temp_db, seed):
 
 async def test_remove_single_image_is_a_noop_for_unknown_id(temp_db):
     # Should not raise even though the row was never indexed.
-    scanner.remove_single_image("L1", "L1:never-existed.jpg")
+    scan_incremental.remove_single_image("L1", "L1:never-existed.jpg")

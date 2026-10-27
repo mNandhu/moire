@@ -14,6 +14,7 @@ with a list of fake rows and a counting sink; no DB, no threads.
 
 from __future__ import annotations
 
+import time
 from typing import Callable
 
 # A commit sink is handed the image rows and the raw-gen rows for one batch and is
@@ -56,3 +57,27 @@ class ScanWriter:
         self._gen_raw_rows.clear()
         self._commit(imgs, raws)
         self.indexed += len(imgs)
+
+
+def retry(
+    fn,
+    *,
+    attempts: int = 3,
+    base_delay_s: float = 0.2,
+    retry_exceptions: tuple[type[BaseException], ...] = (Exception,),
+):
+    """Call ``fn``, retrying failures (a busy "database is locked") with
+    capped exponential backoff; re-raises the last error."""
+    last: BaseException | None = None
+    for i in range(max(1, int(attempts))):
+        try:
+            return fn()
+        except retry_exceptions as e:  # type: ignore[misc]
+            last = e
+            if i >= attempts - 1:
+                break
+            # Exponential backoff with a small cap
+            delay = min(2.0, base_delay_s * (2**i))
+            time.sleep(delay)
+    assert last is not None
+    raise last

@@ -21,7 +21,7 @@ async def _img(image_id):
 
 def _upsert(doc: dict) -> None:
     with db.sync_tx() as conn:
-        stmt = scanner._image_upsert_stmt()
+        stmt = scanner.image_upsert_stmt()
         conn.execute(stmt, scanner.image_upsert_values(doc))
 
 

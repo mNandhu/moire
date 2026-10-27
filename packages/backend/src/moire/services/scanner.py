@@ -1,25 +1,21 @@
 from __future__ import annotations
 import os
 from pathlib import Path
-from io import BytesIO
-from PIL import Image as PILImage
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import sync_conn, sync_tx
 from ..database import schema as t
-from . import activity, app_settings, image_delete
+from . import activity
 from . import image_tags
-from . import tag_index
-from . import gen_metadata, workflow_identity
+from . import workflow_identity
 from . import batch_pool
 from . import library_nesting
-from .scan_writer import ScanWriter
+from . import scan_reconcile, thumbnailer
+from .scan_writer import ScanWriter, retry
 from .storage_fs import put_thumb, thumb_path
-from .blurhash import blurhash_for_image
 import hashlib
 import logging
-import mimetypes
 from dataclasses import dataclass
 from datetime import datetime
 from multiprocessing import cpu_count
@@ -31,116 +27,6 @@ from ..core.config import settings
 
 logger = logging.getLogger("moire.scanner")
 
-IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
-
-_THUMB_QUALITY = 85
-# Bump when the thumbnail encoding changes in code (resampling, encoder
-# options) so existing thumbnails are rebuilt on the next scan.
-_THUMB_RECIPE = 1
-
-
-def thumb_stamp() -> str:
-    """Everything a scan derives from a file: the thumbnail recipe and the
-    generation-metadata capture. A rescan skips unchanged files only while
-    the library's last full scan ran with this same stamp, so changing the
-    size/format settings, `_THUMB_RECIPE` or `gen_metadata.CAPTURE_VERSION`
-    re-reads every file."""
-    size = max(16, settings.thumb_max_size)
-    return (
-        f"{size}/webp/q{_THUMB_QUALITY}/r{_THUMB_RECIPE}"
-        f"/c{gen_metadata.CAPTURE_VERSION}"
-    )
-
-
-def _stamp_row(library_id: str) -> str:
-    return f"thumbs:{library_id}"
-
-
-# How many failed ids a stamp remembers; past it, the next scan rebuilds all.
-_MAX_RETRY_IDS = 5000
-
-
-def _load_stamp(library_id: str) -> tuple[str | None, set[str]]:
-    """The library's last full-scan stamp and the ids that failed in it."""
-    doc = app_settings.read_sync(_stamp_row(library_id))
-    doc = doc or {}
-    return doc.get("stamp"), set(doc.get("retry") or [])
-
-
-def _save_stamp(library_id: str, stamp: str | None, retry: list[str]) -> None:
-    """Record a finished scan. Files that failed in it kept whatever row an
-    earlier scan wrote (maybe with an older thumbnail recipe or capture), so
-    they are listed for the next scan to re-read rather than skip; too many
-    to list, and the stamp is dropped so the next scan re-reads everything."""
-    if len(retry) > _MAX_RETRY_IDS:
-        stamp, retry = None, []
-    doc = {"stamp": stamp, "retry": retry}
-    app_settings.write_sync(_stamp_row(library_id), doc)
-
-
-def _make_thumb_bytes(
-    path: Path,
-) -> tuple[bytes | None, str | None, int, int, dict | None]:
-    """Render thumbnail bytes, a BlurHash placeholder, original dimensions, and
-    embedded generation metadata from a single image open.
-
-    Returns ``(thumb_bytes, blurhash, width, height, gen_raw)``; thumb/blurhash
-    may be None on failure, dimensions 0 if the header couldn't be read, gen_raw
-    None when the image carries no generation data.
-    """
-    try:
-        with PILImage.open(path) as img:
-            # Original dimensions come from the header (no full decode), read
-            # them before draft()/thumbnail() shrink the in-memory image.
-            width, height = img.size
-
-            # Capture embedded generation metadata from the same open. The
-            # format knowledge lives in gen_metadata, which owns both halves.
-            gen_raw = gen_metadata.read_gen_raw(img)
-
-            size = max(16, settings.thumb_max_size)
-            # draft() lets the JPEG decoder emit a pre-shrunk image (1/2, 1/4,
-            # 1/8 scale), so large sources decode several times faster. No-op
-            # for non-JPEG formats.
-            img.draft("RGB", (size, size))
-            img.thumbnail((size, size))
-
-            buf = BytesIO()
-            img.save(buf, format="WEBP", quality=_THUMB_QUALITY)
-
-            # BlurHash from the already-downsampled thumbnail (it shrinks to
-            # ~64px internally, so the result is identical to encoding the
-            # full-res image but far cheaper).
-            bh = blurhash_for_image(img)
-            return buf.getvalue(), bh, int(width), int(height), gen_raw
-    except Exception:
-        return None, None, 0, 0, None
-
-
-# Editors/downloaders/generators stage output under these suffixes before the
-# final rename; never index them.
-_IGNORED_SUFFIXES = (".tmp", ".part", ".partial", ".crdownload", ".download")
-
-
-def is_ignored(path: Path) -> bool:
-    """Files no part of Moiré indexes whatever they hold: dotfiles (including
-    macOS `._x.png` sidecars), `~` temp files and half-written downloads."""
-    name = path.name
-    if name.startswith((".", "~")):
-        return True
-    return path.suffix.lower() in _IGNORED_SUFFIXES
-
-
-def is_image(path: Path) -> bool:
-    """The one rule for what is indexed: the full scan, the watcher, single
-    ingest and the add-library preview all ask this."""
-    if is_ignored(path):
-        return False
-    if path.suffix.lower() in IMAGE_EXTS:
-        return True
-    mt, _ = mimetypes.guess_type(str(path))
-    return mt is not None and mt.startswith("image/")
-
 
 def file_hash(path: Path) -> str:
     h = hashlib.sha1()
@@ -148,28 +34,6 @@ def file_hash(path: Path) -> str:
         for chunk in iter(lambda: f.read(8192), b""):
             h.update(chunk)
     return h.hexdigest()
-
-
-def _retry(
-    fn,
-    *,
-    attempts: int = 3,
-    base_delay_s: float = 0.2,
-    retry_exceptions: tuple[type[BaseException], ...] = (Exception,),
-):
-    last: BaseException | None = None
-    for i in range(max(1, int(attempts))):
-        try:
-            return fn()
-        except retry_exceptions as e:  # type: ignore[misc]
-            last = e
-            if i >= attempts - 1:
-                break
-            # Exponential backoff with a small cap
-            delay = min(2.0, base_delay_s * (2**i))
-            time.sleep(delay)
-    assert last is not None
-    raise last
 
 
 def image_id_for(library_id: str, root_path: Path, p: Path) -> str:
@@ -198,7 +62,7 @@ def image_upsert_values(doc: dict) -> dict:
     return {**doc, **image_tags.initial_tag_fields()}
 
 
-def _image_upsert_stmt():
+def image_upsert_stmt():
     stmt = sqlite_insert(t.images)
     return stmt.on_conflict_do_update(
         index_elements=[t.images.c._id],
@@ -206,7 +70,7 @@ def _image_upsert_stmt():
     )
 
 
-def _gen_raw_upsert_stmt():
+def gen_raw_upsert_stmt():
     stmt = sqlite_insert(t.image_gen_raw)
     return stmt.on_conflict_do_update(
         index_elements=[t.image_gen_raw.c._id],
@@ -218,7 +82,7 @@ def _gen_raw_upsert_stmt():
     )
 
 
-def _gen_raw_values(gen_raw_doc: dict) -> dict:
+def gen_raw_values(gen_raw_doc: dict) -> dict:
     """Split the captured gen-raw doc into the cold-table row shape."""
     meta = {"_id", "library_id", "workflow_sig"}
     raw = {k: v for k, v in gen_raw_doc.items() if k not in meta}
@@ -238,170 +102,6 @@ def _lib_set(library_id: str, values: dict) -> None:
             .where(t.libraries.c._id == library_id)
             .values(**values)
         )
-
-
-def _touch_library(conn, library_id: str, *, indexed_delta: int) -> None:
-    """Nudge one watched library's `indexed_count`/`last_event_at` by a delta,
-    inside the caller's transaction. A SQL-side increment (not a `SELECT
-    COUNT(*)` + write) keeps a single watcher event O(1) regardless of how
-    many images the library already holds."""
-    conn.execute(
-        sa.update(t.libraries)
-        .where(t.libraries.c._id == library_id)
-        .values(
-            indexed_count=sa.func.max(0, t.libraries.c.indexed_count + indexed_delta),
-            last_event_at=datetime.utcnow().isoformat(),
-        )
-    )
-
-
-def ingest_single_file(library_id: str, root_path: Path, path: Path) -> bool:
-    """Index one file the watcher observed as added/modified.
-
-    Mirrors one iteration of the full scan (`_process_image` + the same
-    upsert statements) without touching any other row, the incremental
-    counterpart to `scan_library_async`'s batch walk. Returns ``True`` on
-    success (including "not an image, skipped").
-    """
-    if not is_image(path):
-        return True
-    res = _process_image(library_id, root_path, path)
-    if not res.ok or res.doc is None:
-        return False
-    with sync_tx() as conn:
-        existed = (
-            conn.execute(
-                sa.select(t.images.c._id).where(t.images.c._id == res.image_id)
-            ).first()
-            is not None
-        )
-        if res.gen_raw_doc is not None:
-            conn.execute(_gen_raw_upsert_stmt(), _gen_raw_values(res.gen_raw_doc))
-        conn.execute(_image_upsert_stmt(), image_upsert_values(res.doc))
-        _touch_library(conn, library_id, indexed_delta=0 if existed else 1)
-    # A brand-new row carries no gen data to reproject over, but a modified
-    # file may have replaced its embedded metadata, so re-deriving is always safe.
-    if res.gen_raw_doc is not None:
-        try:
-            from .reproject import reproject_image
-
-            reproject_image(res.image_id)
-        except Exception:
-            pass
-    return True
-
-
-def remove_single_image(library_id: str, image_id: str) -> None:
-    """Remove one image the watcher observed as deleted (file no longer on
-    disk). Mirrors the full scan's stale-reconciliation for a single id.
-
-    Resolves ``image_id`` through the same slash/backslash-tolerant lookup as
-    every other id-based operation (`image_tags.resolve_image_id_sync`), so a row
-    whose stored id spells its separator differently than the watcher's
-    freshly-computed id (e.g. written by an older scan on a different OS)
-    still gets found instead of silently left behind.
-    """
-    from . import image_tags
-
-    with sync_conn() as conn:
-        resolved_id = image_tags.resolve_image_id_sync(conn, image_id)
-    if resolved_id is None:
-        return
-    with sync_tx() as conn:
-        keys = image_delete.delete_rows(conn, [resolved_id])
-        _touch_library(conn, library_id, indexed_delta=-1)
-    tag_index.invalidate()
-    image_delete.drop_thumbs(keys)
-
-
-def reconcile_stale(
-    discovered_ids: set[str],
-    existing_docs: list[dict],
-    unread_prefixes: list[str] | tuple[str, ...] = (),
-) -> tuple[list[str], list[str]]:
-    """Given the ids seen this scan and the docs already in the DB, return
-    ``(stale_image_ids, stale_thumb_keys)``: images that no longer exist on disk.
-    Ids under ``unread_prefixes`` (folders the walk could not read) are never stale.
-
-    Pure set math, extracted from the scan loop because it *deletes* images and so
-    is the highest-risk part to get wrong.
-    """
-    stale_ids: list[str] = []
-    stale_thumb_keys: list[str] = []
-    for doc in existing_docs:
-        if doc["_id"] not in discovered_ids and not doc["_id"].startswith(
-            tuple(unread_prefixes)
-        ):
-            stale_ids.append(doc["_id"])
-            if doc.get("thumb_key"):
-                stale_thumb_keys.append(doc["thumb_key"])
-    return stale_ids, stale_thumb_keys
-
-
-# Stale images are removed this many per transaction, so a big removal never
-# holds SQLite's single write lock for the whole run.
-_STALE_CHUNK = 500
-
-
-def _delete_stale(stale_ids: list[str]) -> None:
-    """Remove stale images (their tag rows cascade) in small transactions.
-
-    Chunks commit independently, so a failure part-way leaves the earlier
-    chunks gone and the rest still indexed; both are consistent (each chunk
-    removes an image's rows together), and the next scan finishes the job.
-    The tag index is invalidated once after the last chunk, or on the way out
-    if one failed, since the chunks that did commit moved tag counts."""
-    keys: list[str] = []
-    try:
-        for i in range(0, len(stale_ids), _STALE_CHUNK):
-            chunk = stale_ids[i : i + _STALE_CHUNK]
-
-            def _do(chunk=chunk) -> list[str]:
-                with sync_tx() as conn:
-                    return image_delete.delete_rows(conn, chunk)
-
-            # A busy database ("database is locked") retries like a batch write.
-            chunk_keys = _retry(_do, attempts=3, base_delay_s=0.2)
-            keys += chunk_keys  # only once the chunk has committed
-    finally:
-        if stale_ids:
-            tag_index.invalidate()
-            image_delete.drop_thumbs(keys)
-
-
-def stale_guard(root_path: Path, discovered: int, existing: int) -> str | None:
-    """Why this scan must not delete any stale image, or None when it may.
-
-    Deleting an image drops its tags, ratings and scores, so only a discovery we
-    can trust may delete. Not trusted: a root that vanished mid-scan, or a root
-    that is suddenly empty while the library has images (an unmounted drive's
-    mount point is an empty folder).
-    """
-    if not root_path.is_dir():
-        return "library folder disappeared during the scan"
-    if discovered == 0 and existing > 0:
-        return "library folder is empty (is the drive connected?)"
-    return None
-
-
-def unread_prefixes(
-    library_id: str, root_path: Path, errors: list[OSError]
-) -> list[str]:
-    """Image-id prefixes of the folders the walk could not read.
-
-    Their images were not seen, not deleted, so they must not count as stale.
-    An error without a usable path covers the whole library.
-    """
-    prefixes: list[str] = []
-    for err in errors:
-        try:
-            rel = Path(err.filename).relative_to(root_path)
-        except (TypeError, ValueError):
-            return [f"{library_id}:"]
-        if rel == Path("."):
-            return [f"{library_id}:"]
-        prefixes.append(f"{library_id}:{rel}{os.sep}")
-    return prefixes
 
 
 # --- Async scanning with progress tracking ---
@@ -470,7 +170,7 @@ def _unchanged(
     )
 
 
-def _process_image(
+def process_image(
     library_id: str, root_path: Path, p: Path, known: Known | None = None
 ) -> _ScanResult:
     """Process a single image file.
@@ -491,7 +191,7 @@ def _process_image(
         # Single decode yields the thumbnail, BlurHash placeholder, the original
         # dimensions (read from the header before downscaling), and any embedded
         # generation metadata.
-        thumb_bytes, blurhash, width, height, gen_raw = _make_thumb_bytes(p)
+        thumb_bytes, blurhash, width, height, gen_raw = thumbnailer.make_thumb_bytes(p)
 
         # Upload thumbnail if generated (optional)
         thumb_key = None
@@ -501,7 +201,7 @@ def _process_image(
                 return put_thumb(library_id, image_id, thumb_bytes)
 
             try:
-                thumb_key = _retry(
+                thumb_key = retry(
                     _upload_thumb,
                     attempts=3,
                     base_delay_s=0.2,
@@ -603,9 +303,11 @@ def _walk(
         dirnames[:] = library_nesting.skip_dirs(dirpath, dirnames, nested)
         for fname in filenames:
             p = Path(dirpath) / fname
-            if is_image(p):
+            if thumbnailer.is_image(p):
                 files.append(p)
-            elif not (is_ignored(p) and p.suffix.lower() in IMAGE_EXTS):
+            elif not (
+                thumbnailer.is_ignored(p) and p.suffix.lower() in thumbnailer.IMAGE_EXTS
+            ):
                 continue
             # An ignored image is never indexed, but a row a scan wrote before
             # the ignore rule existed may hold tags: keep it while the file does.
@@ -620,7 +322,7 @@ def _walk(
 def _load_known(library_id: str, stamp: str) -> Known | None:
     """The library's rows a scan may skip when their file is unchanged, or
     None when the last full scan used a different stamp (rebuild all)."""
-    last_stamp, retry = _load_stamp(library_id)
+    last_stamp, retry = scan_reconcile.load_stamp(library_id)
     if last_stamp != stamp:
         return None
     with sync_conn() as conn:
@@ -646,66 +348,15 @@ def _commit_batch(imgs: list[dict], raws: list[dict]) -> None:
     def _do_flush():
         with sync_tx() as conn:
             if raws:
-                stmt = _gen_raw_upsert_stmt()
+                stmt = gen_raw_upsert_stmt()
                 for row in raws:
                     conn.execute(stmt, row)
             if imgs:
-                stmt = _image_upsert_stmt()
+                stmt = image_upsert_stmt()
                 for row in imgs:
                     conn.execute(stmt, row)
 
-    _retry(_do_flush, attempts=3, base_delay_s=0.2)
-
-
-def _reconcile(
-    library_id: str,
-    root_path: Path,
-    nested: list[str],
-    discovered_image_ids: set[str],
-    walk_errors: list[OSError],
-) -> str | None:
-    """Remove images that exist in the DB but were not discovered. Returns a
-    note for the library row when something was kept instead."""
-    scan_note: str | None = None
-    with sync_conn() as conn:
-        existing = conn.execute(
-            sa.select(t.images.c._id, t.images.c.path, t.images.c.thumb_key).where(
-                t.images.c.library_id == library_id
-            )
-        ).fetchall()
-    # Copies of a nested library's files aren't stale: adopt_nested_copies
-    # carries their tags over to that library's rows before dropping them.
-    nested_copies = library_nesting.under_nested(
-        {r._id: r.path for r in existing}, nested
-    )
-    existing_docs = [
-        {"_id": r._id, "thumb_key": r.thumb_key}
-        for r in existing
-        if r._id not in nested_copies
-    ]
-
-    unread = unread_prefixes(library_id, root_path, walk_errors)
-    if unread:
-        logger.warning(
-            "Scan of library %s could not read %d folders, keeping their images: %s",
-            library_id,
-            len(walk_errors),
-            walk_errors[0],
-        )
-        scan_note = "Some folders could not be read; their images were kept"
-    stale_image_ids, _ = reconcile_stale(discovered_image_ids, existing_docs, unread)
-    keep_reason = stale_guard(root_path, len(discovered_image_ids), len(existing_docs))
-    if keep_reason and stale_image_ids:
-        logger.warning(
-            "Scan of library %s kept %d missing images: %s",
-            library_id,
-            len(stale_image_ids),
-            keep_reason,
-        )
-        scan_note = f"Kept {len(stale_image_ids)} images: {keep_reason}"
-        stale_image_ids = []
-    _delete_stale(stale_image_ids)
-    return scan_note
+    retry(_do_flush, attempts=3, base_delay_s=0.2)
 
 
 def _after_scan(library_id: str, *, wrote_any: bool) -> None:
@@ -791,7 +442,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
             # Rows a previous scan wrote with the current thumbnail settings
             # can be skipped when their file is unchanged. With a different
             # stamp (or none yet) every file is rebuilt.
-            stamp = thumb_stamp()
+            stamp = thumbnailer.thumb_stamp()
             known = _load_known(library_id, stamp)
 
             # Scanning is I/O + CPU heavy and competes with API traffic, so
@@ -817,7 +468,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
                 elif isinstance(res, _ScanResult) and res.ok and res.doc:
                     writer.add(
                         image_upsert_values(res.doc),
-                        _gen_raw_values(res.gen_raw_doc)
+                        gen_raw_values(res.gen_raw_doc)
                         if res.gen_raw_doc is not None
                         else None,
                     )
@@ -850,7 +501,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
 
             batch_pool.run_pool(
                 files,
-                lambda p: _process_image(library_id, root_path, p, known),
+                lambda p: process_image(library_id, root_path, p, known),
                 _on_complete,
                 max_workers=workers,
                 is_cancelled=lambda: _is_cancel_requested(library_id),
@@ -860,10 +511,10 @@ def scan_library_async(library_id: str, root: str) -> dict:
             writer.flush()
             indexed = writer.indexed + skipped
 
-            scan_note = _reconcile(
+            scan_note = scan_reconcile.reconcile(
                 library_id, root_path, nested, discovered_image_ids, walk_errors
             )
-            _save_stamp(library_id, stamp, failed_ids)
+            scan_reconcile.save_stamp(library_id, stamp, failed_ids)
             _lib_set(
                 library_id,
                 {

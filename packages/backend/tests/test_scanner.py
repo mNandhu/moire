@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 
 
-from moire.services import scanner
+from moire.services import scan_reconcile, scanner
 
 
 def test_image_id_for_is_library_prefixed_relative_path():
@@ -33,7 +33,7 @@ def test_image_upsert_values_merges_initial_tag_state():
 
 
 def test_gen_raw_values_splits_into_row_shape():
-    row = scanner._gen_raw_values(
+    row = scanner.gen_raw_values(
         {
             "_id": "L1:x.jpg",
             "library_id": "L1",
@@ -56,7 +56,7 @@ def test_reconcile_stale_flags_only_undiscovered_images():
         {"_id": "L1:gone_nothumb.jpg"},
     ]
     discovered = {"L1:keep.jpg"}
-    stale_ids, stale_thumbs = scanner.reconcile_stale(discovered, existing)
+    stale_ids, stale_thumbs = scan_reconcile.reconcile_stale(discovered, existing)
     assert set(stale_ids) == {"L1:gone.jpg", "L1:gone_nothumb.jpg"}
     # Only the thumb key that exists is queued for cleanup
     assert stale_thumbs == ["L1/gone.webp"]
@@ -65,28 +65,32 @@ def test_reconcile_stale_flags_only_undiscovered_images():
 def test_reconcile_stale_keeps_everything_when_all_discovered():
     existing = [{"_id": "L1:a.jpg"}, {"_id": "L1:b.jpg"}]
     discovered = {"L1:a.jpg", "L1:b.jpg"}
-    assert scanner.reconcile_stale(discovered, existing) == ([], [])
+    assert scan_reconcile.reconcile_stale(discovered, existing) == ([], [])
 
 
 def test_reconcile_stale_never_flags_images_in_unread_folders():
     existing = [{"_id": "L1:gone.jpg"}, {"_id": f"L1:locked{os.sep}a.jpg"}]
-    stale_ids, _ = scanner.reconcile_stale(set(), existing, [f"L1:locked{os.sep}"])
+    stale_ids, _ = scan_reconcile.reconcile_stale(
+        set(), existing, [f"L1:locked{os.sep}"]
+    )
     assert stale_ids == ["L1:gone.jpg"]
 
 
 def test_unread_prefixes_scope_errors_to_their_folder(tmp_path):
     err = PermissionError(13, "denied", str(tmp_path / "locked"))
-    assert scanner.unread_prefixes("L1", tmp_path, [err]) == [f"L1:locked{os.sep}"]
+    assert scan_reconcile.unread_prefixes("L1", tmp_path, [err]) == [
+        f"L1:locked{os.sep}"
+    ]
     # An error with no usable path (or on the root itself) covers the library.
-    assert scanner.unread_prefixes("L1", tmp_path, [OSError("odd")]) == ["L1:"]
+    assert scan_reconcile.unread_prefixes("L1", tmp_path, [OSError("odd")]) == ["L1:"]
     root_err = OSError(5, "io", str(tmp_path))
-    assert scanner.unread_prefixes("L1", tmp_path, [root_err]) == ["L1:"]
+    assert scan_reconcile.unread_prefixes("L1", tmp_path, [root_err]) == ["L1:"]
 
 
 def test_stale_guard_blocks_deletes_on_untrusted_discovery(tmp_path):
-    assert scanner.stale_guard(tmp_path, discovered=3, existing=5) is None
+    assert scan_reconcile.stale_guard(tmp_path, discovered=3, existing=5) is None
     # A gone root, or an empty one while the library has images: keep everything.
-    assert scanner.stale_guard(tmp_path / "missing", 0, 5)
-    assert scanner.stale_guard(tmp_path, discovered=0, existing=5)
+    assert scan_reconcile.stale_guard(tmp_path / "missing", 0, 5)
+    assert scan_reconcile.stale_guard(tmp_path, discovered=0, existing=5)
     # A library that was already empty may stay empty.
-    assert scanner.stale_guard(tmp_path, discovered=0, existing=0) is None
+    assert scan_reconcile.stale_guard(tmp_path, discovered=0, existing=0) is None

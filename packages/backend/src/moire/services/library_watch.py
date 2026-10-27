@@ -2,8 +2,8 @@
 
 Hybrid model (see docs/phase-functional-features.md #4): this module gives the
 "near real-time" half: a `watchfiles` thread per watched library that feeds
-single-file adds/modifies/deletes to `scanner.ingest_single_file` /
-`scanner.remove_single_image`. The "periodic reconciliation" half is just the
+single-file adds/modifies/deletes to `scan_incremental.ingest_single_file` /
+`scan_incremental.remove_single_image`. The "periodic reconciliation" half is just the
 existing full `scan_library_async`, re-run on a timer here as a backstop for
 events a watcher misses (network shares, drives that don't deliver
 inotify/ReadDirectoryChanges reliably, the process being down when a change
@@ -33,7 +33,7 @@ from pathlib import Path
 from watchfiles import Change
 
 from ..core.config import settings
-from . import library_nesting, scanner
+from . import library_nesting, scan_incremental, scanner, thumbnailer
 from .watch_child import ChildWatcher
 
 logger = logging.getLogger("moire.watch")
@@ -163,7 +163,7 @@ def _run_watch(w: _Watch) -> None:
                 # scan that starts mid-batch still stops the rest of it.
                 continue
             path = Path(raw_path)
-            if scanner.is_ignored(path):
+            if thumbnailer.is_ignored(path):
                 continue
             # A library inside this one watches its own folder.
             if library_nesting.owned_by_nested(w.library_id, w.root, path):
@@ -171,13 +171,13 @@ def _run_watch(w: _Watch) -> None:
             try:
                 if change == Change.deleted:
                     image_id = scanner.image_id_for(w.library_id, w.root, path)
-                    scanner.remove_single_image(w.library_id, image_id)
+                    scan_incremental.remove_single_image(w.library_id, image_id)
                 else:
-                    if not path.is_file() or not scanner.is_image(path):
+                    if not path.is_file() or not thumbnailer.is_image(path):
                         continue
                     if not _wait_stable(path, w.stop_event):
                         continue
-                    scanner.ingest_single_file(w.library_id, w.root, path)
+                    scan_incremental.ingest_single_file(w.library_id, w.root, path)
             except Exception:
                 logger.exception(
                     "watch event failed library=%s change=%s path=%s",

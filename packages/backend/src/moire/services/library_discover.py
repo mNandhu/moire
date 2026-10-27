@@ -23,7 +23,7 @@ from typing import Iterable
 
 from ..models.library import normalize_path, validate_library_path
 from .library_nesting import is_inside, path_key, same_or_inside
-from .scanner import is_image
+from .thumbnailer import is_image
 
 __all__ = ["discover", "as_dicts"]
 
