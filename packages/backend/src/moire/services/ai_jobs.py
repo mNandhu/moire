@@ -15,7 +15,7 @@ from PIL import Image
 from ..database.db import async_conn
 from ..database import schema as t
 from . import activity, ai_coverage, image_tags
-from .ai_settings import DEFAULT_AI_SETTINGS, get_ai_settings, update_ai_settings
+from .ai_settings import get_ai_settings
 from .ai_tagger import (
     PreparedImage,
     TagParams,
@@ -35,9 +35,6 @@ _KEEP_FINISHED = 50
 _KEEP_RECENT_S = 600.0
 
 __all__ = [
-    "DEFAULT_AI_SETTINGS",
-    "get_ai_settings",
-    "update_ai_settings",
     "AIJobManager",
     "get_ai_job_manager",
 ]

@@ -5,13 +5,12 @@ from pydantic import BaseModel, Field, create_model
 
 
 from ..services import ai_coverage as ai_coverage_service, face_detect, image_tags
-from ..services.ai_settings import DEFAULT_AI_SETTINGS
-
-from ..services.ai_jobs import (
-    get_ai_job_manager,
+from ..services.ai_settings import (
+    DEFAULT_AI_SETTINGS,
     get_ai_settings,
     update_ai_settings,
 )
+from ..services.ai_jobs import get_ai_job_manager
 from ..services.ai_tagger import (
     get_tagger_manager,
     model_status_view,

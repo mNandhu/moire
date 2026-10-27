@@ -10,7 +10,8 @@ import sqlalchemy as sa
 from ..database import schema as t
 from ..database.db import async_conn, ensure_schema
 from . import library_nesting, library_watch, tag_migrations
-from .ai_jobs import get_ai_job_manager, get_ai_settings
+from .ai_jobs import get_ai_job_manager
+from .ai_settings import get_ai_settings
 from .ai_tagger import get_tagger_manager
 from .generation_jobs import get_generation_manager
 from .storage_fs import ensure_thumb_root

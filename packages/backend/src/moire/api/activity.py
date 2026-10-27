@@ -19,7 +19,8 @@ from fastapi import APIRouter
 from ..database import schema as t
 from ..database.db import async_conn
 from ..services import activity, face_detect, generation_estimate
-from ..services.ai_jobs import get_ai_job_manager, get_ai_settings
+from ..services.ai_jobs import get_ai_job_manager
+from ..services.ai_settings import get_ai_settings
 from ..services.ai_tagger import model_status_view, resolved_model_target
 from ..services.ai_tagger_download import activity_item
 from ..services.generation_jobs import get_generation_manager
