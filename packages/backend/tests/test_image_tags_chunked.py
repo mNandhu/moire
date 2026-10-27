@@ -85,6 +85,33 @@ async def test_rename_manual_failure_keeps_earlier_chunks_consistent(
         assert _tags(i) == ["manual:old"]
 
 
+async def test_rename_manual_reaches_an_image_tagged_mid_run(
+    temp_db, seed, monkeypatch
+):
+    monkeypatch.setattr(image_tags, "_CHUNK", 2)
+    for i in range(3):
+        seed(f"L1:{i}.png", tags=("manual:old",))
+    seed("L1:late.png")
+    real_tx = image_tags.async_tx
+    opened = []
+
+    class TagsLateBetweenChunks:
+        async def __aenter__(self):
+            opened.append(1)
+            if len(opened) == 2:  # after chunk one committed
+                async with real_tx() as conn:
+                    await image_tags._persist(conn, "L1:late.png", ["manual:old"])
+            self._cm = real_tx()
+            return await self._cm.__aenter__()
+
+        async def __aexit__(self, *exc):
+            return await self._cm.__aexit__(*exc)
+
+    monkeypatch.setattr(image_tags, "async_tx", TagsLateBetweenChunks)
+    assert await image_tags.rename_manual("manual:old", "manual:new") == 4
+    assert _tags("L1:late.png") == ["manual:new"]
+
+
 async def test_chunked_rewrites_cover_every_image_and_dirty_the_index(
     temp_db, seed, monkeypatch
 ):

@@ -347,8 +347,8 @@ async def bulk_manual(
     ``_BULK_ATOMIC`` images.
 
     One transaction rather than one per image: a selection of a thousand is one
-    writer slot on single-writer SQLite instead of a thousand, and the edit
-    lands all or nothing. Past ``_BULK_ATOMIC`` it is split so no single
+    writer slot on single-writer SQLite instead of a thousand, and up to
+    ``_BULK_ATOMIC`` images the edit lands all or nothing. Past that it is split so no single
     transaction holds the writer for long; a failure then leaves earlier
     chunks applied (each is consistent). Unknown ids are skipped. Returns
     ``(matched, modified)``.
@@ -413,26 +413,41 @@ async def _rewrite_in_chunks(
 async def rename_manual(old: str, new: str) -> int:
     """Rename (or, when ``new`` exists, merge) a manual tag on every image that
     carries it, a chunk of images per transaction. Both are stored ``manual:``
-    tags. Returns the number of images changed."""
-    async with async_conn() as conn:
-        ids = [
-            r._id
-            for r in (
-                await conn.execute(
-                    sa.select(t.images.c._id).where(
-                        sa.exists(
-                            sa.select(1).where(
-                                t.image_tags.c.image_id == t.images.c._id,
-                                t.image_tags.c.tag == old,
-                            )
-                        )
-                    )
-                )
-            ).fetchall()
-        ]
-    return await _rewrite_in_chunks(
-        ids, lambda current: (with_renamed(current, old, new), None)
+    tags. Returns the number of images changed.
+
+    Each chunk picks the next images still carrying ``old`` inside its own
+    transaction, so an image that gains ``old`` mid-run is renamed too."""
+    if old == new:
+        return 0
+    carries_old = sa.exists(
+        sa.select(1).where(
+            t.image_tags.c.image_id == t.images.c._id,
+            t.image_tags.c.tag == old,
+        )
     )
+    changed = 0
+    try:
+        while True:
+            async with async_tx() as conn:
+                rows = (
+                    await conn.execute(
+                        sa.select(t.images.c._id, t.images.c.tags)
+                        .where(carries_old)
+                        .order_by(t.images.c._id)
+                        .limit(_CHUNK)
+                    )
+                ).fetchall()
+                for row in rows:
+                    await _persist(
+                        conn, row._id, with_renamed(row.tags or [], old, new)
+                    )
+            changed += len(rows)
+            if len(rows) < _CHUNK:
+                break
+    finally:
+        if changed:
+            _dirty_tag_index()
+    return changed
 
 
 async def replace_ai(
@@ -505,8 +520,8 @@ async def clear_ai_all() -> tuple[int, int]:
             modified += 1
         return new, cleared_extra
 
-    await _rewrite_in_chunks(ids, rewrite)
-    return len(ids), modified
+    matched = await _rewrite_in_chunks(ids, rewrite)
+    return matched, modified
 
 
 # --- Sync repo helpers (scanner / reproject threads) --------------------------
