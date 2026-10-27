@@ -52,6 +52,7 @@ Tooling and tests:
 - [ ] **F25** 8 eslint warnings in the frontend not triaged [P3]
 - [ ] **F26** LibrariesPage.test "drops both the flat feed and the grouped view on delete" flakes under full-suite load (passes alone) [P2]
 - [ ] **F27** 44 pytest warnings: sync tests in modules with `pytestmark = pytest.mark.asyncio` (e.g. test_scan_reproject_integration.py, test_tag_settings_integration.py); `asyncio_mode = "auto"` makes the module mark unnecessary [new]
+- [ ] **F28** L2.3 rest: TS `FeedItem.group_id?: string` but the wire sends null for ungrouped batch representatives (truthiness checks only, so harmless; fixing it changes `useBatchScrub`'s signature); TS image fields are all still optional [P5]
 
 ## P0. Bugs (verify with a failing test first)
 
@@ -252,7 +253,7 @@ P5 status (2026-10-27): lanes P and Q were stopped on the usage limit, then pick
 - [x] **S11.4** (9f4bc75) 'Which batch is in front / waiting' is derived three different ways (dedupe, S, L3)
 - [x] **S13.5** (c84ac2e) Sidebar owns nav data, shortcut text and platform detection that two other modules re-derive (dedupe, S, L3, TW)
 - [x] **S8.6** (7378dc0) The Generator test gate lives in the 'read side' module and generator_view writes on GET (boundary, M, L3)
-- [ ] **L2.3** (in progress 2026-10-27, worktree lane S) No response models or generated types: every payload and closed vocabulary is typed by hand on both sides (boundary, M, L3, TW)
+- [x] **L2.3** (a16ca6e, 04ab82c, bd5f4f3, 5a358d2: payload key snapshot shared by both suites, ImageDoc split into FeedItem/ImageDetail, BoardSection/FeedSort/ThumbSize parity tests, pydantic response models on /images, /images/groups, /images/{id}, /tags, /libraries with byte-identical wire output; openapi-typescript not added, the snapshot covers the image payloads) No response models or generated types: every payload and closed vocabulary is typed by hand on both sides (boundary, M, L3, TW)
 - [x] **S8.9** (ed7f768) Rejected duplicates ComfyRejected, and non-ComfyUI failures are raised as ComfyRejected (naming, S, L2)
 - [x] **S2.8** (f2cb841) imageMutations holds tag and character writes, contradicting its 'per-image' contract; JSON boilerplate repeated (naming, S, L2)
 - [x] **S2.9** (96f5a12+7a8dda1) Rating vocabulary spread over three places; ratingBadgeClass has a phantom 'safe' (drift, S, L2)
