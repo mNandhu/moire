@@ -4,7 +4,7 @@ Status of every finding from the 2026-10-22 pass. Details per ID in `catalogue.m
 
 Legend: `[ ]` open, `[x]` done (commit hash), `[-]` dropped (reason). Tags: kind, size S/M/L, leverage L1-5, TW = tag-weights path. Update the line in the same commit as the fix.
 
-Housekeeping, not findings:
+Housekeeping, not findings (release work lives in `../release-tracker.md`):
 
 - [x] Fix CLAUDE.md: it names `nextCursorOf` (deleted); re-check the feed/cursor paragraph (L4.6)
 - [x] (9d22081) Remove `packages/frontend/test-optimizations.js` and unused devDependency `@vitest/coverage-v8` (knip)
