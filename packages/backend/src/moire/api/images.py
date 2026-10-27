@@ -16,7 +16,8 @@ import sqlalchemy as sa
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ..services.storage_fs import small_thumb_path, thumb_path
-from ..services import gen_metadata, image_shapes, image_tags, image_feed, tag_index
+from ..services import gen_metadata, gen_raw, image_shapes, image_tags, image_feed
+from ..services import tag_index
 from ..services import image_delete, image_visibility, thumb_version
 from ..services.image_feed import FeedFilter, FeedFilterError
 from ..services.image_tags import find_image as _find_image_doc  # type: ignore
@@ -476,16 +477,7 @@ async def get_image_workflow(image_id: str):
     plus the `prompt` (API graph); A1111 returns the `parameters` string.
     """
     async with async_conn() as conn:
-        resolved = await image_tags.resolve_image_id(conn, image_id)
-        raw = None
-        if resolved is not None:
-            raw = (
-                await conn.execute(
-                    sa.select(t.image_gen_raw.c.raw).where(
-                        t.image_gen_raw.c._id == resolved
-                    )
-                )
-            ).scalar()
+        raw = await gen_raw.raw_for(conn, image_id)
     if not raw:
         raise HTTPException(status_code=404, detail="No generation data for image")
 

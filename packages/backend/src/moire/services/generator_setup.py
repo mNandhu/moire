@@ -20,7 +20,8 @@ import sqlalchemy as sa
 
 from ..database import schema as t
 from ..database.db import async_conn, async_tx
-from . import attire, comfy_models, gen_metadata, tag_categories, workflow_family
+from . import attire, comfy_models, gen_metadata, rulesets, tag_categories
+from . import workflow_family
 from .model_names import model_stem
 from .prompt_parse import without_terms
 from .generator_discovery import check_slots, discover
@@ -112,13 +113,7 @@ async def image_source(image_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
         name = label["name"] if label else None
         # An unnamed family: the imported workflow file it matches.
         file_name = label["file_name"] if label and not name else None
-        pins = (
-            await conn.execute(
-                sa.select(t.gen_rulesets.c.doc).where(
-                    t.gen_rulesets.c.sig == row.workflow_sig
-                )
-            )
-        ).scalar()
+        pins = await rulesets.doc_for(conn, row.workflow_sig)
     source = {
         "kind": "image",
         "image_id": image_id,
