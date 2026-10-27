@@ -100,41 +100,17 @@ async def image_source(image_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
             graph = gen_metadata.loads_lenient(graph)
         if not isinstance(graph, dict) or not graph:
             raise SetupError("This image has no ComfyUI workflow to run")
-        workflow = raw.get("workflow") if isinstance(raw.get("workflow"), dict) else {}
-        family = workflow.get("id") if isinstance(workflow.get("id"), str) else None
-        moire = raw.get("moire") if isinstance(raw.get("moire"), dict) else {}
-        if not family and isinstance(moire.get("family"), str):
-            family = moire["family"]
-        name = None
+        family = workflow_family.family_key(raw) or None
+        label = None
         if family:
-            name = (
-                await conn.execute(
-                    sa.select(t.workflow_names.c.name).where(
-                        t.workflow_names.c.workflow_id == family
-                    )
-                )
-            ).scalar()
-        file_name = None
-        if family and not name:
-            # An unnamed family: the imported workflow file it matches.
-            files = [
-                (r.filename, list(r.node_types or []))
-                for r in (
-                    await conn.execute(
-                        sa.select(
-                            t.workflow_files.c.filename, t.workflow_files.c.node_types
-                        ).where(t.workflow_files.c.workflow_id == family)
-                    )
-                ).fetchall()
-            ]
-            nodes = workflow.get("nodes")
-            match = gen_metadata.match_workflow_file(
-                gen_metadata.editor_node_types(
-                    {"nodes": nodes} if isinstance(nodes, list) else None
-                ),
-                files,
-            )
-            file_name = match[0] if match else None
+            workflow = raw.get("workflow")
+            nodes = workflow.get("nodes") if isinstance(workflow, dict) else None
+            label = (
+                await workflow_family.family_labels(conn, [family], {family: nodes})
+            )[family]
+        name = label["name"] if label else None
+        # An unnamed family: the imported workflow file it matches.
+        file_name = label["file_name"] if label and not name else None
         pins = (
             await conn.execute(
                 sa.select(t.gen_rulesets.c.doc).where(

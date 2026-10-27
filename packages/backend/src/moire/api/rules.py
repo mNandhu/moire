@@ -20,7 +20,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ..services import extraction_settings, gen_metadata, reproject, workflow_family
-from ..services.image_tags import id_candidates
+from ..services import image_tags
 from ..services import thumb_version
 
 router = APIRouter()
@@ -86,6 +86,13 @@ async def list_signatures():
             sa.text("count DESC"),
         )
     )
+
+    def _json(text: object) -> object:
+        try:
+            return json.loads(text) if isinstance(text, str) else None
+        except ValueError:
+            return None
+
     async with async_conn() as conn:
         rows = (await conn.execute(stmt)).fetchall()
         mapped = {
@@ -122,35 +129,7 @@ async def list_signatures():
             for r in sample_by_id.values()
             if isinstance(r.workflow_id, str)
         }
-        names: dict[str, str] = {}
-        files: dict[str, list[tuple[str, list[str]]]] = {}
-        if family_ids:
-            for r in (
-                await conn.execute(
-                    sa.select(t.workflow_names).where(
-                        t.workflow_names.c.workflow_id.in_(family_ids)
-                    )
-                )
-            ).fetchall():
-                names[r.workflow_id] = r.name
-            for r in (
-                await conn.execute(
-                    sa.select(
-                        t.workflow_files.c.workflow_id,
-                        t.workflow_files.c.filename,
-                        t.workflow_files.c.node_types,
-                    ).where(t.workflow_files.c.workflow_id.in_(family_ids))
-                )
-            ).fetchall():
-                files.setdefault(r.workflow_id, []).append(
-                    (r.filename, list(r.node_types or []))
-                )
-
-    def _json(text: object) -> object:
-        try:
-            return json.loads(text) if isinstance(text, str) else None
-        except ValueError:
-            return None
+        names, files = await workflow_family.family_records(conn, family_ids)
 
     def _prompt_graph(image_id: str) -> dict | None:
         s = sample_by_id.get(image_id)
@@ -171,18 +150,21 @@ async def list_signatures():
         wid = (
             s.workflow_id if s is not None and isinstance(s.workflow_id, str) else None
         )
-        match = None
-        if wid and files.get(wid):
-            nodes = _json(s.ui_nodes)
-            ui_types = gen_metadata.editor_node_types(
-                {"nodes": nodes} if isinstance(nodes, list) else None
+        # Matched per sample, so versions of one family can match different files.
+        lab = (
+            workflow_family.label(
+                names.get(wid),
+                files.get(wid),
+                _json(s.ui_nodes) if s is not None else None,
             )
-            match = gen_metadata.match_workflow_file(ui_types, files[wid])
+            if wid
+            else {"name": None, "file_name": None, "file_match": None}
+        )
         return {
             "workflow_id": wid,
-            "workflow_name": names.get(wid) if wid else None,
-            "file_name": match[0] if match else None,
-            "file_match": round(match[1], 3) if match else None,
+            "workflow_name": lab["name"],
+            "file_name": lab["file_name"],
+            "file_match": lab["file_match"],
         }
 
     return [
@@ -355,18 +337,16 @@ async def preview_ruleset(body: PreviewBody):
     Returns the final ``gen`` (== what reproject would write) plus per-path
     resolution so the UI can show whether each pin fired."""
     async with async_conn() as conn:
+        image_id = await image_tags.resolve_image_id(conn, body.sample_image_id)
         raw = None
-        for candidate in id_candidates(body.sample_image_id):
-            row = (
+        if image_id is not None:
+            raw = (
                 await conn.execute(
                     sa.select(t.image_gen_raw.c.raw).where(
-                        t.image_gen_raw.c._id == candidate
+                        t.image_gen_raw.c._id == image_id
                     )
                 )
-            ).first()
-            if row is not None:
-                raw = row.raw
-                break
+            ).scalar()
     if not raw:
         raise HTTPException(status_code=404, detail="No generation data for image")
 
