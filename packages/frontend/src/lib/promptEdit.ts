@@ -7,6 +7,7 @@
  * Pure.
  */
 import { SEPARATORS } from "./promptOutline";
+import { isEmbedding } from "./compose";
 
 export type Term = { start: number; end: number; query: string };
 
@@ -19,7 +20,7 @@ export function termAt(text: string, caret: number): Term | null {
   // Leading spaces and weight brackets aren't part of the word.
   while (start < caret && /[\s([]/.test(text[start])) start++;
   const query = text.slice(start, caret);
-  if (!query.trim() || query.includes(":") && !query.startsWith("embedding:")) return null;
+  if (!query.trim() || query.includes(":") && !isEmbedding(query)) return null;
   return { start, end, query };
 }
 

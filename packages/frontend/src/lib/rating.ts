@@ -5,7 +5,7 @@ import type { ImageDoc } from "./imageFilter";
 export const RATINGS = ["general", "sensitive", "questionable", "explicit"] as const;
 export type Rating = (typeof RATINGS)[number];
 
-export function isRating(s: string): s is Rating {
+function isRating(s: string): s is Rating {
   return (RATINGS as readonly string[]).includes(s);
 }
 
