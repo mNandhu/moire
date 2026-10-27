@@ -46,7 +46,13 @@ from .comfy_history import (
     run_seconds,
 )
 from .generation_compose import batch_name
-from .generation_errors import Invalid, Rejected, Unavailable, annotate_node_errors
+from .generation_errors import (
+    GraphInvalid,
+    Invalid,
+    Rejected,
+    Unavailable,
+    annotate_node_errors,
+)
 from .generation_inputs import (
     BatchPlan,
     build_batch_inputs,
@@ -484,18 +490,18 @@ class GenerationManager:
             self.current = row.batch_id
         try:
             await self._submit(row.batch_id, row.idx)
-        except ComfyRejected as e:
+        except Rejected as e:
             # That one fails; the next tick goes on with the same batch.
             await self._fail_request(row.batch_id, row.idx, e)
         except (ComfyUnreachable, ComfyError) as e:
             self._down(str(e))
 
-    async def _fail_request(self, batch_id: int, idx: int, e: ComfyRejected) -> None:
+    async def _fail_request(self, batch_id: int, idx: int, e: Rejected) -> None:
         first = e.node_errors[0] if e.node_errors else {}
         error = {
             "node": first.get("node", ""),
             "class_type": first.get("class_type"),
-            "type": "rejected",
+            "type": e.kind,
             "message": "; ".join(
                 f"{n['message']}: {n['details']}".strip(": ") for n in e.node_errors
             )
@@ -510,7 +516,8 @@ class GenerationManager:
             )
 
     async def _submit(self, batch_id: int, idx: int) -> str:
-        """Build and send one request. Raises ComfyRejected / ComfyUnreachable."""
+        """Build and send one request. Raises Rejected (ComfyRejected or
+        GraphInvalid) / ComfyUnreachable."""
         assert self.client is not None
         b, r = t.generation_batches, t.generation_requests
         async with async_conn() as conn:
@@ -522,7 +529,7 @@ class GenerationManager:
             ).one()
         gen = await load_generator(batch.generator_id)
         if gen is None:
-            raise ComfyRejected("Its workflow was deleted", [])
+            raise GraphInvalid("Its workflow was deleted")
         inputs = batch.inputs
         values = {
             "positive": inputs["positive_text"],
@@ -540,7 +547,7 @@ class GenerationManager:
         try:
             graph = build_prompt(gen["graph"], gen["slots"], values)
         except GraphError as e:
-            raise ComfyRejected(str(e), []) from e
+            raise GraphInvalid(str(e)) from e
         pnginfo = None
         # A graph saved before setup cleaned it may still hold NaN.
         graph = gen_metadata.sanitize_json(graph)
@@ -661,9 +668,9 @@ class GenerationManager:
         # then parked if other batches are ahead of it.
         try:
             pid = await self._submit(batch_id, 0)
-        except ComfyRejected as e:
+        except Rejected:
             await self._delete_batch(batch_id)
-            raise Rejected(e.message, e.node_errors) from e
+            raise
         except (ComfyUnreachable, ComfyError) as e:
             await self._delete_batch(batch_id)
             self._down(str(e))

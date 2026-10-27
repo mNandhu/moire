@@ -17,12 +17,28 @@ class Invalid(Exception):
 
 
 class Rejected(Exception):
-    """ComfyUI rejected the first request; nothing was kept."""
+    """A request can't run: ComfyUI rejected it (``ComfyRejected``) or its
+    graph couldn't be built (:class:`GraphInvalid`). Queueing a batch keeps
+    nothing when its first request is rejected. ``node_errors`` is flattened
+    to ``[{node, class_type, type, message, input}]``."""
+
+    #: The failed request's ``error.type``.
+    kind = "rejected"
 
     def __init__(self, message: str, node_errors: list[dict[str, Any]]):
         super().__init__(message)
         self.message = message
         self.node_errors = node_errors
+
+
+class GraphInvalid(Rejected):
+    """The request's graph couldn't be built (its workflow was deleted, or a
+    slot no longer fits): ComfyUI never saw it."""
+
+    kind = "invalid"
+
+    def __init__(self, message: str):
+        super().__init__(message, [])
 
 
 def annotate_node_errors(

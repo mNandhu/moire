@@ -16,6 +16,8 @@ from typing import Any, AsyncIterator, Callable
 
 import httpx
 
+from .generation_errors import Rejected
+
 log = logging.getLogger(__name__)
 # The websocket client logs every reconnect attempt at INFO; a ComfyUI that is
 # off would fill the log. Moiré reports the connection state itself.
@@ -42,14 +44,8 @@ class ComfyError(Exception):
         self.status = status
 
 
-class ComfyRejected(Exception):
-    """``POST /prompt`` failed validation. ``node_errors`` is flattened to
-    ``[{node, class_type, type, message, input}]``."""
-
-    def __init__(self, message: str, node_errors: list[dict[str, Any]]):
-        super().__init__(message)
-        self.message = message
-        self.node_errors = node_errors
+class ComfyRejected(Rejected):
+    """``POST /prompt`` failed validation."""
 
 
 def flatten_node_errors(body: dict[str, Any]) -> list[dict[str, Any]]:

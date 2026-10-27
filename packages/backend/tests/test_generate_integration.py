@@ -973,3 +973,25 @@ async def test_rejected_comfyui_patch_registers_no_output_library(client, tmp_pa
     assert r.status_code == 400
     assert (await client.get("/libraries")).json() == []
     assert not (await comfy_settings.get_settings()).get("output_library_id")
+
+
+async def test_unbuildable_request_fails_as_invalid_not_rejected(
+    client, comfy, seed, monkeypatch
+):
+    # A request whose graph can't be built never reached ComfyUI: its error
+    # says so instead of passing for a ComfyUI rejection.
+    await make_ready(client, comfy, seed)
+    await comfy_settings.update_settings({"builtin_per_request": 1})
+    b = (await client.post("/generate/batches", json={"base": "x", "count": 2})).json()
+
+    async def gone(_id):
+        return None
+
+    monkeypatch.setattr(generation_jobs, "load_generator", gone)
+    scanned(seed, comfy.finish(comfy.order[-1]))
+    await tick()
+    await tick()
+    reqs = (await client.get(f"/generate/batches/{b['_id']}")).json()["requests"]
+    assert reqs[1]["state"] == "failed"
+    assert reqs[1]["error"]["type"] == "invalid"
+    assert reqs[1]["error"]["message"] == "Its workflow was deleted"
