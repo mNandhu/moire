@@ -10,8 +10,10 @@ from typing import Any
 
 import sqlalchemy as sa
 
-from ..database.db import async_conn, async_tx
+from ..database.db import async_tx
 from ..database import schema as t
+from . import app_settings
+from .preset_store import PresetError, Store, clean_name, clean_text
 
 KINDS = ("positive", "negative")
 FLAG = "prompt_presets"
@@ -35,38 +37,26 @@ DEFAULTS = [
 ]
 
 
-class PresetError(ValueError):
-    pass
-
-
 def clean(patch: dict[str, Any], *, new: bool) -> dict[str, Any]:
     """A preset from the API: name (1-80 chars), kind, text. Pure."""
     out: dict[str, Any] = {}
     if "name" in patch or new:
-        name = str(patch.get("name") or "").strip()
-        if not 1 <= len(name) <= 80:
-            raise PresetError("name must be 1 to 80 characters")
-        out["name"] = name
+        out["name"] = clean_name(patch)
     if "kind" in patch or new:
         if patch.get("kind") not in KINDS:
             raise PresetError("kind must be positive or negative")
         out["kind"] = patch["kind"]
     if "text" in patch or new:
-        text = str(patch.get("text") or "")
-        if len(text) > 4000:
-            raise PresetError("text is too long")
-        out["text"] = text.strip()
+        out["text"] = clean_text(patch)
     return out
 
 
 async def _seed() -> None:
+    if await app_settings.read(FLAG):
+        return
     async with async_tx() as conn:
-        done = (
-            await conn.execute(
-                sa.select(t.app_settings.c.doc).where(t.app_settings.c._id == FLAG)
-            )
-        ).scalar()
-        if done:
+        # Re-check inside the write transaction: two first listings can race.
+        if (await conn.execute(app_settings.doc_stmt(FLAG))).scalar():
             return
         now = time.time()
         await conn.execute(
@@ -82,47 +72,12 @@ async def _seed() -> None:
                 for n, k, x in DEFAULTS
             ],
         )
-        await conn.execute(
-            sa.insert(t.app_settings).values(_id=FLAG, doc={"seeded": True})
-        )
+        await conn.execute(app_settings.upsert_stmt(FLAG, {"seeded": True}))
 
 
-async def listing() -> list[dict[str, Any]]:
-    await _seed()
-    async with async_conn() as conn:
-        rows = (
-            await conn.execute(
-                sa.select(t.prompt_presets).order_by(
-                    t.prompt_presets.c.kind, sa.func.lower(t.prompt_presets.c.name)
-                )
-            )
-        ).mappings()
-        return [dict(r) for r in rows]
-
-
-async def create(body: dict[str, Any]) -> dict[str, Any]:
-    values = clean(body, new=True)
-    row = {"_id": uuid.uuid4().hex, **values, "updated_at": time.time()}
-    async with async_tx() as conn:
-        await conn.execute(sa.insert(t.prompt_presets).values(**row))
-    return row
-
-
-async def update(preset_id: str, patch: dict[str, Any]) -> dict[str, Any] | None:
-    values = clean(patch, new=False)
-    p = t.prompt_presets
-    async with async_tx() as conn:
-        if values:
-            values["updated_at"] = time.time()
-            await conn.execute(
-                sa.update(p).where(p.c._id == preset_id).values(**values)
-            )
-        row = (await conn.execute(sa.select(p).where(p.c._id == preset_id))).first()
-    return dict(row._mapping) if row else None
-
-
-async def delete(preset_id: str) -> bool:
-    p = t.prompt_presets
-    async with async_tx() as conn:
-        res = await conn.execute(sa.delete(p).where(p.c._id == preset_id))
-    return bool(res.rowcount)
+store = Store(
+    t.prompt_presets,
+    clean,
+    [t.prompt_presets.c.kind, sa.func.lower(t.prompt_presets.c.name)],
+    seed=_seed,
+)

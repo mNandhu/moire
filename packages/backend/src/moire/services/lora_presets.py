@@ -13,16 +13,16 @@ from __future__ import annotations
 
 import json
 import time
-import uuid
 from typing import Any
 
 import sqlalchemy as sa
 
-from ..database.db import async_conn, async_tx
+from ..database.db import async_conn
 from ..database import schema as t
 from . import image_tags
 from .comfy_client import ComfyClient, ComfyError, ComfyUnreachable
 from .generator_graph import lora_stem
+from .preset_store import PresetError, Store, clean_name, clean_text
 
 # A library word must be in at least this share of the LoRA's prompts, and
 # this many times likelier there than across the library.
@@ -38,10 +38,6 @@ FREQUENT = 0.5
 LIMIT = 8
 
 
-class PresetError(ValueError):
-    pass
-
-
 def clean(patch: dict[str, Any], *, new: bool) -> dict[str, Any]:
     """A preset from the API: stem (from a LoRA name), name (1-80 chars),
     text, strength (null or -2..2). Pure."""
@@ -52,15 +48,9 @@ def clean(patch: dict[str, Any], *, new: bool) -> dict[str, Any]:
             raise PresetError("lora is required")
         out["stem"] = stem
     if "name" in patch or new:
-        name = str(patch.get("name") or "").strip()
-        if not 1 <= len(name) <= 80:
-            raise PresetError("name must be 1 to 80 characters")
-        out["name"] = name
+        out["name"] = clean_name(patch)
     if "text" in patch or new:
-        text = str(patch.get("text") or "")
-        if len(text) > 4000:
-            raise PresetError("text is too long")
-        out["text"] = text.strip()
+        out["text"] = clean_text(patch)
     if "strength" in patch:
         s = patch["strength"]
         if s is not None and (
@@ -71,46 +61,12 @@ def clean(patch: dict[str, Any], *, new: bool) -> dict[str, Any]:
     return out
 
 
-async def listing() -> list[dict[str, Any]]:
-    p = t.lora_presets
-    async with async_conn() as conn:
-        rows = (
-            await conn.execute(sa.select(p).order_by(p.c.stem, sa.func.lower(p.c.name)))
-        ).mappings()
-        return [dict(r) for r in rows]
-
-
-async def create(body: dict[str, Any]) -> dict[str, Any]:
-    values = clean(body, new=True)
-    row = {
-        "_id": uuid.uuid4().hex,
-        "strength": None,
-        **values,
-        "updated_at": time.time(),
-    }
-    async with async_tx() as conn:
-        await conn.execute(sa.insert(t.lora_presets).values(**row))
-    return row
-
-
-async def update(preset_id: str, patch: dict[str, Any]) -> dict[str, Any] | None:
-    values = clean(patch, new=False)
-    p = t.lora_presets
-    async with async_tx() as conn:
-        if values:
-            values["updated_at"] = time.time()
-            await conn.execute(
-                sa.update(p).where(p.c._id == preset_id).values(**values)
-            )
-        row = (await conn.execute(sa.select(p).where(p.c._id == preset_id))).first()
-    return dict(row._mapping) if row else None
-
-
-async def delete(preset_id: str) -> bool:
-    p = t.lora_presets
-    async with async_tx() as conn:
-        res = await conn.execute(sa.delete(p).where(p.c._id == preset_id))
-    return bool(res.rowcount)
+store = Store(
+    t.lora_presets,
+    clean,
+    [t.lora_presets.c.stem, sa.func.lower(t.lora_presets.c.name)],
+    defaults={"strength": None},
+)
 
 
 # -- Suggestions ----------------------------------------------------------------

@@ -23,6 +23,7 @@ from ..services import (
     library_watch,
     lora_presets,
     outfits,
+    preset_store,
     prompt_presets,
     recipes,
     remix,
@@ -585,72 +586,42 @@ async def hide_outfit(outfit_id: str, body: HiddenIn):
     return {"ok": True}
 
 
-# -- Prompt presets --------------------------------------------------------------
+# -- Prompt and LoRA presets ------------------------------------------------------
 
 
-@router.get("/presets")
-async def list_presets():
-    return await prompt_presets.listing()
+def preset_routes(prefix: str, store: preset_store.Store) -> None:
+    """The four CRUD routes for one preset kind; PresetError is a 400."""
+
+    @router.get(prefix)
+    async def list_presets():
+        return await store.listing()
+
+    @router.post(prefix)
+    async def create_preset(body: dict[str, Any]):
+        try:
+            return await store.create(body)
+        except preset_store.PresetError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+    @router.put(prefix + "/{preset_id}")
+    async def update_preset(preset_id: str, body: dict[str, Any]):
+        try:
+            row = await store.update(preset_id, body)
+        except preset_store.PresetError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        if row is None:
+            raise HTTPException(status_code=404, detail="Preset not found")
+        return row
+
+    @router.delete(prefix + "/{preset_id}")
+    async def delete_preset(preset_id: str):
+        if not await store.delete(preset_id):
+            raise HTTPException(status_code=404, detail="Preset not found")
+        return {"ok": True}
 
 
-@router.post("/presets")
-async def create_preset(body: dict[str, Any]):
-    try:
-        return await prompt_presets.create(body)
-    except prompt_presets.PresetError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-@router.put("/presets/{preset_id}")
-async def update_preset(preset_id: str, body: dict[str, Any]):
-    try:
-        row = await prompt_presets.update(preset_id, body)
-    except prompt_presets.PresetError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    if row is None:
-        raise HTTPException(status_code=404, detail="Preset not found")
-    return row
-
-
-@router.delete("/presets/{preset_id}")
-async def delete_preset(preset_id: str):
-    if not await prompt_presets.delete(preset_id):
-        raise HTTPException(status_code=404, detail="Preset not found")
-    return {"ok": True}
-
-
-# -- LoRA activation presets ------------------------------------------------------
-
-
-@router.get("/lora-presets")
-async def list_lora_presets():
-    return await lora_presets.listing()
-
-
-@router.post("/lora-presets")
-async def create_lora_preset(body: dict[str, Any]):
-    try:
-        return await lora_presets.create(body)
-    except lora_presets.PresetError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-@router.put("/lora-presets/{preset_id}")
-async def update_lora_preset(preset_id: str, body: dict[str, Any]):
-    try:
-        row = await lora_presets.update(preset_id, body)
-    except lora_presets.PresetError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    if row is None:
-        raise HTTPException(status_code=404, detail="Preset not found")
-    return row
-
-
-@router.delete("/lora-presets/{preset_id}")
-async def delete_lora_preset(preset_id: str):
-    if not await lora_presets.delete(preset_id):
-        raise HTTPException(status_code=404, detail="Preset not found")
-    return {"ok": True}
+preset_routes("/presets", prompt_presets.store)
+preset_routes("/lora-presets", lora_presets.store)
 
 
 @router.get("/lora-words")
