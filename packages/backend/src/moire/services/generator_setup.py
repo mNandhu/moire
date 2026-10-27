@@ -31,26 +31,6 @@ from .prompt_parse import parse_prompt
 from .tag_names import canonical_name
 
 _PIN = re.compile(r"^prompt\.([^.]+)\.inputs\.([^.]+)$")
-# Slot keys a client may set; anything else in a PUT is dropped.
-_SLOT_KEYS = (
-    "positive",
-    "negative",
-    "replace_links",
-    "seeds",
-    "width",
-    "height",
-    "batch_size",
-    "per_request",
-    "checkpoint",
-    "sampler",
-    "scheduler",
-    "steps",
-    "cfg",
-    "lora_model",
-    "lora_clip",
-    "drop_loras",
-    "lora_text",
-)
 
 
 class SetupError(ValueError):

@@ -173,51 +173,49 @@ def prompt_slot(graph: Graph, sampler: str, side: str) -> dict[str, Any] | None:
     return None
 
 
+def _is_prompt_literal(key: str, value: Any) -> bool:
+    """A literal string input that could hold a prompt."""
+    return (
+        isinstance(value, str)
+        and not _NOT_TEXT.search(key)
+        # An unused join input ("text3": "") is no place for a prompt.
+        and (bool(value.strip()) or key in _TEXT_INPUTS)
+        # A switch or a number typed as text is no prompt.
+        and value.strip().lower() not in ("true", "false", "none")
+        and not value.strip().replace(".", "", 1).isdigit()
+    )
+
+
+def _side_upstream(graph: Graph, sampler: str | None, side: str) -> set[str]:
+    """The nodes feeding the sampler's ``side`` prompt (empty without one)."""
+    if sampler is None:
+        return set()
+    ref = node_inputs(graph, sampler).get(side)
+    return _prompt_upstream(graph, ref) if is_link(ref) else set()
+
+
+# (feeds positive, feeds negative) -> what a text input reaches.
+_REACHES = {(True, True): "both", (True, False): "positive", (False, True): "negative"}
+
+
 def text_inputs(graph: Graph, sampler: str | None) -> list[dict[str, Any]]:
     """Everything the node picker lists: each literal text input, plus each
     encoder whose text is a link (writing there replaces the link). ``reaches``
     says which of the sampler's prompts it feeds (positive / negative / both,
     or None: used elsewhere, a detailer's own prompt, a file name)."""
-    pos = neg = set()
-    if sampler is not None:
-        s_inp = node_inputs(graph, sampler)
-        pos = (
-            _prompt_upstream(graph, s_inp.get("positive"))
-            if is_link(s_inp.get("positive"))
-            else set()
-        )
-        neg = (
-            _prompt_upstream(graph, s_inp.get("negative"))
-            if is_link(s_inp.get("negative"))
-            else set()
-        )
+    pos = _side_upstream(graph, sampler, "positive")
+    neg = _side_upstream(graph, sampler, "negative")
     out = []
     for nid in graph:
         inp = node_inputs(graph, nid)
         for key, value in inp.items():
-            literal = (
-                isinstance(value, str)
-                and not _NOT_TEXT.search(key)
-                # An unused join input ("text3": "") is no place for a prompt.
-                and (bool(value.strip()) or key in _TEXT_INPUTS)
-                # A switch or a number typed as text is no prompt.
-                and value.strip().lower() not in ("true", "false", "none")
-                and not value.strip().replace(".", "", 1).isdigit()
-            )
+            literal = _is_prompt_literal(key, value)
             joined = (
                 key in ("text", "text_g") and is_link(value) and _encodes(graph, nid)
             )
             if not (literal or joined):
                 continue
-            reaches = (
-                "both"
-                if nid in pos and nid in neg
-                else "positive"
-                if nid in pos
-                else "negative"
-                if nid in neg
-                else None
-            )
+            reaches = _REACHES.get((nid in pos, nid in neg))
             out.append(
                 {
                     "path": [nid, key],
@@ -346,6 +344,97 @@ def _consumers(graph: Graph, ref: list[Any] | None) -> list[dict[str, Any]]:
     ]
 
 
+def _prompt_slots(graph: Graph, sampler: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The positive and negative prompt picks, and the slots of the literal
+    ones (a runtime-built prompt needs the user's pick)."""
+    slots: dict[str, Any] = {}
+    found: dict[str, Any] = {}
+    for side in ("positive", "negative"):
+        pick = prompt_slot(graph, sampler, side)
+        found[side] = pick
+        if pick and not pick["replaces_link"]:
+            slots[side] = pick["path"]
+    return slots, found
+
+
+def _latent_slots(graph: Graph, sampler: str) -> dict[str, Any]:
+    """Size and batch slots on the node that sizes the sampler's latent."""
+    slots: dict[str, Any] = {}
+    latent = _latent(graph, sampler)
+    for key in ("width", "height", "batch_size"):
+        path = _literal_path(graph, latent, key, int)
+        if path:
+            slots[key] = path
+    if latent is not None and slots.get("batch_size"):
+        slots["per_request"] = node_inputs(graph, latent)["batch_size"]
+    return slots
+
+
+def _sampling_slots(graph: Graph, sampler: str) -> dict[str, Any]:
+    """The sampler's literal sampling inputs."""
+    slots: dict[str, Any] = {}
+    for key in SAMPLING:
+        kind = (int, float) if key == "cfg" else int if key == "steps" else str
+        path = _literal_path(graph, sampler, SAMPLING_INPUTS[key], kind)
+        if path:
+            slots[key] = path
+    return slots
+
+
+def _model_slots(graph: Graph, sampler: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The checkpoint the sampler's loader offers and the LoRA insertion point
+    after it (nothing without a loader)."""
+    slots: dict[str, Any] = {}
+    found: dict[str, Any] = {}
+    loader = model_loader(graph, sampler)
+    if loader is None:
+        return slots, found
+    # Offered, never chosen: a workflow is often tied to its model.
+    # Checkpoints only: a UNET's file isn't in ComfyUI's checkpoint list.
+    ckpt = (
+        "ckpt_name"
+        if isinstance(node_inputs(graph, loader).get("ckpt_name"), str)
+        else None
+    )
+    if ckpt:
+        found["checkpoint"] = {
+            "path": [loader, ckpt],
+            "value": node_inputs(graph, loader)[ckpt],
+        }
+    model, clip = lora_insertion(graph, loader)
+    slots["lora_model"] = model
+    slots["lora_clip"] = clip
+    found["lora"] = {
+        "loader": {"node": loader, "title": node_title(graph, loader)},
+        "model": {"ref": model, "title": node_title(graph, str(model[0]))},
+        "clip": {"ref": clip, "title": node_title(graph, str(clip[0]))}
+        if clip
+        else None,
+        "existing": [
+            {
+                "name": n["inputs"].get("lora_name"),
+                "strength": n["inputs"].get("strength_model"),
+            }
+            for _, n in stock_lora_nodes(graph)
+            if isinstance(n["inputs"].get("lora_name"), str)
+        ],
+        "consumers": _consumers(graph, model),
+    }
+    return slots, found
+
+
+def _input_images(graph: Graph) -> list[dict[str, Any]]:
+    return [
+        {
+            "node": nid,
+            "title": node_title(graph, nid),
+            "image": node_inputs(graph, nid).get("image"),
+        }
+        for nid in graph
+        if "loadimage" in str(graph[nid].get("class_type", "")).lower()
+    ]
+
+
 def discover(graph: Graph) -> dict[str, Any]:
     """What setup proposes for ``graph``: ``slots`` (the best guess, ready to
     save once the user confirms) plus what the setup page shows around them."""
@@ -354,57 +443,14 @@ def discover(graph: Graph) -> dict[str, Any]:
     found: dict[str, Any] = {"sampler": None}
     if sampler is not None:
         found["sampler"] = {"node": sampler, "title": node_title(graph, sampler)}
-        for side in ("positive", "negative"):
-            pick = prompt_slot(graph, sampler, side)
-            found[side] = pick
-            # A runtime-built prompt needs the user's pick.
-            if pick and not pick["replaces_link"]:
-                slots[side] = pick["path"]
-        latent = _latent(graph, sampler)
-        for key in ("width", "height", "batch_size"):
-            path = _literal_path(graph, latent, key, int)
-            if path:
-                slots[key] = path
-        if latent is not None and slots.get("batch_size"):
-            slots["per_request"] = node_inputs(graph, latent)["batch_size"]
-        for key in SAMPLING:
-            kind = (int, float) if key == "cfg" else int if key == "steps" else str
-            path = _literal_path(graph, sampler, SAMPLING_INPUTS[key], kind)
-            if path:
-                slots[key] = path
-        loader = model_loader(graph, sampler)
-        if loader is not None:
-            # Offered, never chosen: a workflow is often tied to its model.
-            # Checkpoints only: a UNET's file isn't in ComfyUI's checkpoint list.
-            ckpt = (
-                "ckpt_name"
-                if isinstance(node_inputs(graph, loader).get("ckpt_name"), str)
-                else None
-            )
-            if ckpt:
-                found["checkpoint"] = {
-                    "path": [loader, ckpt],
-                    "value": node_inputs(graph, loader)[ckpt],
-                }
-            model, clip = lora_insertion(graph, loader)
-            slots["lora_model"] = model
-            slots["lora_clip"] = clip
-            found["lora"] = {
-                "loader": {"node": loader, "title": node_title(graph, loader)},
-                "model": {"ref": model, "title": node_title(graph, str(model[0]))},
-                "clip": {"ref": clip, "title": node_title(graph, str(clip[0]))}
-                if clip
-                else None,
-                "existing": [
-                    {
-                        "name": n["inputs"].get("lora_name"),
-                        "strength": n["inputs"].get("strength_model"),
-                    }
-                    for _, n in stock_lora_nodes(graph)
-                    if isinstance(n["inputs"].get("lora_name"), str)
-                ],
-                "consumers": _consumers(graph, model),
-            }
+        prompt_slots, prompt_found = _prompt_slots(graph, sampler)
+        model_slots, model_found = _model_slots(graph, sampler)
+        slots |= prompt_slots
+        slots |= _latent_slots(graph, sampler)
+        slots |= _sampling_slots(graph, sampler)
+        slots |= model_slots
+        found |= prompt_found
+        found |= model_found
     # The workflow's own LoRAs: each can be left out (not on this ComfyUI).
     found["loras"] = [
         {
@@ -423,15 +469,7 @@ def discover(graph: Graph) -> dict[str, Any]:
         "text_inputs": text_inputs(graph, sampler),
         "seeds": seeds,
         "outputs": outputs(graph),
-        "input_images": [
-            {
-                "node": nid,
-                "title": node_title(graph, nid),
-                "image": node_inputs(graph, nid).get("image"),
-            }
-            for nid in graph
-            if "loadimage" in str(graph[nid].get("class_type", "")).lower()
-        ],
+        "input_images": _input_images(graph),
     }
 
 
@@ -501,10 +539,7 @@ def outputs(graph: Graph) -> list[dict[str, Any]]:
     return out
 
 
-def check_slots(graph: Graph, slots: dict[str, Any]) -> list[str]:
-    """What stops these slots from being saved (empty: they can be). Each path
-    must point at an input of a node in the graph; a prompt path may replace a
-    link only when the slot says so."""
+def _prompt_problems(graph: Graph, slots: dict[str, Any]) -> list[str]:
     problems = []
     replaces = set(slots.get("replace_links") or [])
     for key in ("positive", "negative"):
@@ -519,6 +554,11 @@ def check_slots(graph: Graph, slots: dict[str, Any]) -> list[str]:
             problems.append(f"The {key} prompt's input is a link")
     if slots.get("positive") and slots.get("positive") == slots.get("negative"):
         problems.append("Positive and negative can't be the same input")
+    return problems
+
+
+def _value_problems(graph: Graph, slots: dict[str, Any]) -> list[str]:
+    problems = []
     for key in ("width", "height", "batch_size", "checkpoint", *SAMPLING):
         path = slots.get(key)
         if path and not _literal_input(graph, path):
@@ -528,6 +568,11 @@ def check_slots(graph: Graph, slots: dict[str, Any]) -> list[str]:
     for path in slots.get("seeds") or []:
         if not _literal_input(graph, path):
             problems.append(f"Seed input {path[0]}.{path[1]} isn't a value")
+    return problems
+
+
+def _lora_problems(graph: Graph, slots: dict[str, Any]) -> list[str]:
+    problems = []
     for key in ("lora_model", "lora_clip"):
         ref = slots.get(key)
         if ref and str(ref[0]) not in graph:
@@ -535,6 +580,18 @@ def check_slots(graph: Graph, slots: dict[str, Any]) -> list[str]:
     for nid in slots.get("drop_loras") or []:
         if (graph.get(str(nid)) or {}).get("class_type") not in STOCK_LORA_LOADERS:
             problems.append(f"Node {nid} isn't a LoRA loader")
+    return problems
+
+
+def check_slots(graph: Graph, slots: dict[str, Any]) -> list[str]:
+    """What stops these slots from being saved (empty: they can be). Each path
+    must point at an input of a node in the graph; a prompt path may replace a
+    link only when the slot says so."""
+    problems = [
+        *_prompt_problems(graph, slots),
+        *_value_problems(graph, slots),
+        *_lora_problems(graph, slots),
+    ]
     if not has_save_image(graph):
         problems.append("Add a Save Image node: previews never reach the library")
     return problems
