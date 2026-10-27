@@ -56,7 +56,6 @@ def test_hires_graph(hires):
     assert s["steps"] == ["16", "steps"] and s["cfg"] == ["16", "cfg"]
     # After the graph's own four LoRAs.
     assert s["lora_model"] == ["40", 0] and s["lora_clip"] == ["40", 1]
-    assert len(d["found"]["lora"]["existing"]) == 4
     # Three passes, three different seeds: three groups, all ticked.
     assert [len(g["inputs"]) for g in d["seeds"]] == [1, 1, 1]
     assert sorted(s["seeds"]) == [["16", "seed"], ["26", "seed"], ["34", "seed"]]

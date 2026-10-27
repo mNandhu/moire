@@ -214,7 +214,6 @@ async def setup_view(
         "defaults": {"base": base, "negative": negative},
         "offer": offer,
         "base_without": without_terms(base, drop, canonical_name) if offer else base,
-        "problems": check_slots(graph, chosen),
     }
 
 

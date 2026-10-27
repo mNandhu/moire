@@ -74,7 +74,8 @@ export function tickGroup(slots: GeneratorSlots, group: SeedGroup, on: boolean):
 export type CheckItem = { label: string; ok: boolean; note?: boolean };
 
 /** "Before it can be used": what the slots have, and what's still missing.
- * ``note`` items don't block saving. */
+ * ``note`` items don't block saving. The server checks the same rules on
+ * save (``check_slots``); the ones a pick here can break are mirrored. */
 export function checklist(setup: GeneratorSetup, slots: GeneratorSlots): CheckItem[] {
   const items: CheckItem[] = [
     slots.positive
@@ -83,6 +84,9 @@ export function checklist(setup: GeneratorSetup, slots: GeneratorSlots): CheckIt
     slots.negative
       ? { label: "Negative prompt found", ok: true }
       : { label: "Negative prompt: choose a node", ok: false },
+    ...(samePath(slots.positive, slots.negative)
+      ? [{ label: "Positive and negative can't be the same input", ok: false }]
+      : []),
     setup.outputs.some((o) => o.saves)
       ? { label: "Saves into the ComfyUI output library", ok: true }
       : { label: "No Save Image node: add one in ComfyUI", ok: false },

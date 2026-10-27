@@ -332,18 +332,6 @@ def model_loader(graph: Graph, sampler: str) -> str | None:
     return None
 
 
-def _consumers(graph: Graph, ref: list[Any] | None) -> list[dict[str, Any]]:
-    if not ref:
-        return []
-    return [
-        {"node": nid, "title": node_title(graph, nid)}
-        for nid in graph
-        if any(
-            v == [str(ref[0]), int(ref[1])] for v in node_inputs(graph, nid).values()
-        )
-    ]
-
-
 def _prompt_slots(graph: Graph, sampler: str) -> tuple[dict[str, Any], dict[str, Any]]:
     """The positive and negative prompt picks, and the slots of the literal
     ones (a runtime-built prompt needs the user's pick)."""
@@ -410,15 +398,6 @@ def _model_slots(graph: Graph, sampler: str) -> tuple[dict[str, Any], dict[str, 
         "clip": {"ref": clip, "title": node_title(graph, str(clip[0]))}
         if clip
         else None,
-        "existing": [
-            {
-                "name": n["inputs"].get("lora_name"),
-                "strength": n["inputs"].get("strength_model"),
-            }
-            for _, n in stock_lora_nodes(graph)
-            if isinstance(n["inputs"].get("lora_name"), str)
-        ],
-        "consumers": _consumers(graph, model),
     }
     return slots, found
 

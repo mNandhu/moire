@@ -78,7 +78,6 @@ async def test_discover_from_a_library_image(client, seed):
     }
     assert d["slots"]["positive"] == ["14", "text"]
     assert d["defaults"]["base"].startswith("text 2 of 14.text")
-    assert d["problems"] == []
 
 
 async def test_ruleset_pin_fills_a_runtime_prompt(client, seed):

@@ -41,7 +41,6 @@ const setup = (over: Partial<GeneratorSetup> = {}): GeneratorSetup => ({
   defaults: { base: "", negative: "" },
   offer: [],
   base_without: "",
-  problems: [],
   ...over,
 });
 
@@ -118,6 +117,13 @@ describe("checklist", () => {
     expect(canSave(items)).toBe(true);
     expect(items.filter((i) => i.note)).toEqual([]);
   });
+
+  it("blocks one input picked for both prompts, as the server does", () => {
+    const items = checklist(setup(), { positive: ["6", "text"], negative: ["6", "text"] });
+    expect(items.filter((i) => !i.ok).map((i) => i.label)).toEqual([
+      "Positive and negative can't be the same input",
+    ]);
+  });
 });
 
 it("defaultName prefers the family, then the file", () => {
@@ -162,8 +168,6 @@ describe("finalSlots", () => {
     loader: { node: "4", title: "Loader" },
     model: { ref: ["4", 0] as [string, number], title: "Loader" },
     clip: { ref: ["4", 1] as [string, number], title: "Loader" },
-    existing: [],
-    consumers: [],
   };
   const slots = { positive: ["6", "text"] as [string, string], lora_model: ["1", 0] as [string, number], lora_clip: ["1", 1] as [string, number], lora_text: true };
 

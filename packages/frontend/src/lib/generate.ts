@@ -186,8 +186,6 @@ export type GeneratorSetup = {
       loader: NodeRef;
       model: { ref: OutputRef; title: string };
       clip: { ref: OutputRef; title: string } | null;
-      existing: { name: string; strength: number | null }[];
-      consumers: NodeRef[];
     };
   };
   text_inputs: TextInput[];
@@ -199,8 +197,6 @@ export type GeneratorSetup = {
   /** Tags in the default Base that the Character and Outfit blocks add. */
   offer: string[];
   base_without: string;
-  /** What still stops these slots from being saved. */
-  problems: string[];
 };
 
 /** Sampler settings; one left out stays as the Generator's graph has it. */
