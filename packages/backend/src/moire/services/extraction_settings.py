@@ -17,7 +17,7 @@ import sqlalchemy as sa
 
 from ..database import schema as t
 from ..database.db import async_conn, sync_conn
-from . import ai_settings, app_settings, prompt_guess
+from . import ai_settings, app_settings, prompt_guess, tag_rules
 
 _ROW = "extraction"
 
@@ -26,13 +26,13 @@ _ROW = "extraction"
 class ExtractionConfig:
     """What deriving ``gen.*`` reads besides the ruleset: the guessing
     keywords, the positive-only switch (stored with the AI settings) and the
-    prompt-tag rules (``from -> [to, ...]``, see services/tag_rename.py).
+    merge and split rules (``from -> [to, ...]``, see services/tag_rules.py).
     Reprojection and the rules preview both load it here and derive through
     :func:`services.gen_metadata.derive`, so they can't disagree."""
 
     keywords: prompt_guess.Keywords
     positive_only: bool
-    aliases: dict[str, list[str]]
+    rules: dict[str, list[str]]
 
 
 def _lists(doc: dict | None) -> tuple[list[str], list[str]]:
@@ -49,14 +49,11 @@ def _keywords(doc: dict | None) -> prompt_guess.Keywords:
     return prompt_guess.Keywords(frozenset(pos), frozenset(neg))
 
 
-_RULES_STMT = sa.select(t.tag_rules.c.from_name, t.tag_rules.c.to_names)
-
-
 def _config(keywords_doc, ai_doc, rules) -> ExtractionConfig:
     return ExtractionConfig(
         keywords=_keywords(keywords_doc),
         positive_only=ai_settings.prompt_positive_only(ai_doc),
-        aliases={r.from_name: list(r.to_names) for r in rules},
+        rules=rules,
     )
 
 
@@ -66,7 +63,7 @@ def load_sync() -> ExtractionConfig:
         return _config(
             conn.execute(app_settings.doc_stmt(_ROW)).scalar(),
             conn.execute(app_settings.doc_stmt(ai_settings.ROW)).scalar(),
-            conn.execute(_RULES_STMT).fetchall(),
+            tag_rules.load_rules_sync(conn),
         )
 
 
@@ -76,7 +73,7 @@ async def load() -> ExtractionConfig:
         return _config(
             (await conn.execute(app_settings.doc_stmt(_ROW))).scalar(),
             (await conn.execute(app_settings.doc_stmt(ai_settings.ROW))).scalar(),
-            (await conn.execute(_RULES_STMT)).fetchall(),
+            await tag_rules.load_rules(conn),
         )
 
 

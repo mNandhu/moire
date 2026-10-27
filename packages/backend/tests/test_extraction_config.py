@@ -71,8 +71,8 @@ async def test_preview_derives_what_reprojection_writes(
 async def test_config_reads_positive_only_default_and_rules(temp_db):
     config = extraction_settings.load_sync()
     assert config.positive_only is True
-    assert config.aliases == {}
+    assert config.rules == {}
     _setup(positive_only=False, rules={"a": ["b"]})
     for config in (extraction_settings.load_sync(), await extraction_settings.load()):
         assert config.positive_only is False
-        assert config.aliases == {"a": ["b"]}
+        assert config.rules == {"a": ["b"]}

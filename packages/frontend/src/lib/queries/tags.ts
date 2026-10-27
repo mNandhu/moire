@@ -126,7 +126,7 @@ export function useTagGroups() {
 // --- Tag rename / merge -------------------------------------------------------
 
 /** A merge rule (`to` one name) or a split (several), services/tag_rename.py. */
-export type TagAlias = { from: string; to: string[]; created_at: number | null };
+export type TagRule = { from: string; to: string[]; created_at: number | null };
 export type TagRenameResult = {
   kind: "manual" | "prompt";
   from: string;
@@ -138,13 +138,13 @@ export type TagRenameResult = {
   background?: boolean;
 };
 
-export const TAG_ALIASES_KEY = ["tag-aliases"] as const;
+export const TAG_RULES_KEY = ["tag-rules"] as const;
 
-/** Prompt-tag merge rules (services/tag_rename.py), newest first. */
-export function useTagAliases() {
+/** Prompt-tag merge and split rules (services/tag_rules.py), newest first. */
+export function useTagRules() {
   return useQuery({
-    queryKey: TAG_ALIASES_KEY,
-    queryFn: ({ signal }) => api<TagAlias[]>("/api/v1/tags/aliases", { signal }),
+    queryKey: TAG_RULES_KEY,
+    queryFn: ({ signal }) => api<TagRule[]>("/api/v1/tags/rules", { signal }),
   });
 }
 
@@ -154,10 +154,10 @@ export function renameTag(tag: string, to: string): Promise<TagRenameResult> {
   return apiJson<TagRenameResult>("/api/v1/tags/rename", "POST", { tag, to });
 }
 
-export function deleteTagAlias(
+export function deleteTagRule(
   from: string,
 ): Promise<{ from: string; to: string[]; images: number; background?: boolean }> {
-  return api(`/api/v1/tags/aliases/${encodeURIComponent(from)}`, { method: "DELETE" });
+  return api(`/api/v1/tags/rules/${encodeURIComponent(from)}`, { method: "DELETE" });
 }
 
 /** Store several merge / split rules at once. A rule that would loop is skipped. */
@@ -170,7 +170,7 @@ export function addTagRules(
   /** Many images: they are updated in the background (shown as activity). */
   background: boolean;
 }> {
-  return apiJson("/api/v1/tags/aliases", "POST", { rules });
+  return apiJson("/api/v1/tags/rules", "POST", { rules });
 }
 
 /** How a suggestion reads the prompt tag (services/tag_canon.py stages). */

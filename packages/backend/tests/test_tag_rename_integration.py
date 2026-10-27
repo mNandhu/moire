@@ -110,6 +110,8 @@ async def test_prompt_merge_is_a_rule_that_survives_reprojection(client, seed):
     resp = await client.get("/images", params={"pterms": "blonde hair"})
     assert sorted(it["_id"] for it in resp.json()) == ["L1:a", "L1:b"]
 
+    assert (await client.get("/tags/rules")).json()[0]["from"] == "blonde"
+    # The old name of the same routes still answers.
     assert (await client.get("/tags/aliases")).json()[0]["from"] == "blonde"
 
 
@@ -123,11 +125,11 @@ async def test_deleting_a_rule_restores_the_original_names(client, seed):
         "/tags/rename", json={"tag": "prompt:blonde", "to": "blonde_hair"}
     )
 
-    resp = await client.delete("/tags/aliases/blonde")
+    resp = await client.delete("/tags/rules/blonde")
     assert resp.status_code == 200, resp.text
     assert await _tags("L1:a") == ["prompt:blonde"]
     assert await _tags("L1:b") == ["prompt:blonde_hair"]
-    assert (await client.delete("/tags/aliases/blonde")).status_code == 404
+    assert (await client.delete("/tags/rules/blonde")).status_code == 404
 
 
 async def test_rules_stay_one_hop_and_refuse_loops(client, seed):
@@ -139,7 +141,7 @@ async def test_rules_stay_one_hop_and_refuse_loops(client, seed):
     await client.post("/tags/rename", json={"tag": "prompt:a1", "to": "b1"})
     # b1 -> c1 repoints a1 -> c1 rather than chaining a1 -> b1 -> c1.
     await client.post("/tags/rename", json={"tag": "prompt:b1", "to": "c1"})
-    rules = {r["from"]: r["to"] for r in (await client.get("/tags/aliases")).json()}
+    rules = {r["from"]: r["to"] for r in (await client.get("/tags/rules")).json()}
     assert rules == {"a1": ["c1"], "b1": ["c1"]}
     assert await _tags("L1:a") == ["prompt:c1"]
 
@@ -149,7 +151,7 @@ async def test_rules_stay_one_hop_and_refuse_loops(client, seed):
 
 
 async def _rules(client):
-    return {r["from"]: r["to"] for r in (await client.get("/tags/aliases")).json()}
+    return {r["from"]: r["to"] for r in (await client.get("/tags/rules")).json()}
 
 
 async def test_split_rule_reads_one_prompt_name_as_several(client, seed):
@@ -159,7 +161,7 @@ async def test_split_rule_reads_one_prompt_name_as_several(client, seed):
     _raw("L1:b", "long hair, white hair")
     reproject.reproject_library("L1")
     resp = await client.post(
-        "/tags/aliases",
+        "/tags/rules",
         json={
             "rules": [{"from": "long white hair", "to": ["long hair", "white_hair"]}]
         },
@@ -176,7 +178,7 @@ async def test_split_rule_reads_one_prompt_name_as_several(client, seed):
 
     # Undo: only images carrying every target are re-derived; both get their
     # own prompt's names back.
-    resp = await client.delete("/tags/aliases/long_white_hair")
+    resp = await client.delete("/tags/rules/long_white_hair")
     assert resp.json()["to"] == ["long_hair", "white_hair"]
     assert resp.json()["images"] == 2
     assert await _tags("L1:a") == ["prompt:long_white_hair", "prompt:smile"]
@@ -188,9 +190,9 @@ async def test_split_targets_follow_a_later_merge(client, seed):
     _raw("L1:a", "x1, y1")
     reproject.reproject_library("L1")
     await client.post(
-        "/tags/aliases", json={"rules": [{"from": "a1", "to": ["b1", "c1"]}]}
+        "/tags/rules", json={"rules": [{"from": "a1", "to": ["b1", "c1"]}]}
     )
-    await client.post("/tags/aliases", json={"rules": [{"from": "b1", "to": ["d1"]}]})
+    await client.post("/tags/rules", json={"rules": [{"from": "b1", "to": ["d1"]}]})
     assert await _rules(client) == {"a1": ["d1", "c1"], "b1": ["d1"]}
     # Merging onto a split name stands for its split.
     resp = await client.post("/tags/rename", json={"tag": "prompt:x1", "to": "a1"})
@@ -201,15 +203,15 @@ async def test_split_targets_follow_a_later_merge(client, seed):
 async def test_a_name_has_one_rule_and_loops_through_splits_are_refused(client, seed):
     seed("L1:a", tags=())
     await client.post(
-        "/tags/aliases", json={"rules": [{"from": "a1", "to": ["b1", "c1"]}]}
+        "/tags/rules", json={"rules": [{"from": "a1", "to": ["b1", "c1"]}]}
     )
-    await client.post("/tags/aliases", json={"rules": [{"from": "a1", "to": ["e1"]}]})
+    await client.post("/tags/rules", json={"rules": [{"from": "a1", "to": ["e1"]}]})
     assert await _rules(client) == {"a1": ["e1"]}
     await client.post(
-        "/tags/aliases", json={"rules": [{"from": "a1", "to": ["b1", "c1"]}]}
+        "/tags/rules", json={"rules": [{"from": "a1", "to": ["b1", "c1"]}]}
     )
     resp = await client.post(
-        "/tags/aliases",
+        "/tags/rules",
         json={"rules": [{"from": "c1", "to": ["a1"]}, {"from": "f1", "to": ["g1"]}]},
     )
     assert resp.json() == {
@@ -244,7 +246,7 @@ async def test_merge_suggestions_read_prompt_tags_against_danbooru(
     _raw("L1:a", "long white hair, black heart pasties, blowjob, long hair, sparkles")
     reproject.reproject_library("L1")
     await client.post(
-        "/tags/aliases", json={"rules": [{"from": "blowjob", "to": ["fellatio"]}]}
+        "/tags/rules", json={"rules": [{"from": "blowjob", "to": ["fellatio"]}]}
     )
 
     body = (await client.get("/tags/merge-suggestions")).json()
@@ -274,7 +276,7 @@ def _chars(*names, **candidates):
 async def _split(client, name):
     return (
         await client.post(
-            "/tags/aliases", json={"rules": [{"from": name, "to": ["aa", "bb"]}]}
+            "/tags/rules", json={"rules": [{"from": name, "to": ["aa", "bb"]}]}
         )
     ).json()
 
@@ -324,14 +326,14 @@ async def test_a_character_is_not_split_or_suggested(client, seed):
             sa.insert(t.characters).values(tag="red_hood", kind="character")
         )
     resp = await client.post(
-        "/tags/aliases",
+        "/tags/rules",
         json={"rules": [{"from": "red_hood", "to": ["red_cape", "hood"]}]},
     )
     assert resp.json()["rules"] == 0
     assert "character" in resp.json()["skipped"][0]["reason"]
     # A plain merge still works.
     resp = await client.post(
-        "/tags/aliases", json={"rules": [{"from": "red_hood", "to": ["hood"]}]}
+        "/tags/rules", json={"rules": [{"from": "red_hood", "to": ["hood"]}]}
     )
     assert resp.json()["rules"] == 1
 
@@ -340,10 +342,10 @@ async def test_replacing_a_rule_reprojects_the_images_it_had_merged(client, seed
     seed("L1:a", tags=())
     _raw("L1:a", "a1")
     reproject.reproject_library("L1")
-    await client.post("/tags/aliases", json={"rules": [{"from": "a1", "to": ["b1"]}]})
+    await client.post("/tags/rules", json={"rules": [{"from": "a1", "to": ["b1"]}]})
     assert await _tags("L1:a") == ["prompt:b1"]
     resp = await client.post(
-        "/tags/aliases", json={"rules": [{"from": "a1", "to": ["c1", "d1"]}]}
+        "/tags/rules", json={"rules": [{"from": "a1", "to": ["c1", "d1"]}]}
     )
     assert resp.json()["images"] == 1
     assert await _tags("L1:a") == ["prompt:c1", "prompt:d1"]
@@ -363,7 +365,7 @@ async def test_suggestions_leave_out_names_a_rule_leads_to(
     reproject.reproject_library("L1")
     # The user prefers silver_hair: Danbooru's alias mustn't undo that.
     await client.post(
-        "/tags/aliases", json={"rules": [{"from": "grey_hair", "to": ["silver_hair"]}]}
+        "/tags/rules", json={"rules": [{"from": "grey_hair", "to": ["silver_hair"]}]}
     )
     body = (await client.get("/tags/merge-suggestions")).json()
     assert body == {"available": True, "suggestions": []}
@@ -426,7 +428,7 @@ async def test_every_rule_change_reprojects_big_sets_in_the_background(
     queued: list[list[str]] = []
     monkeypatch.setattr(tag_rename, "_SYNC_REPROJECT", 0)
     monkeypatch.setattr(reproject, "reproject_ids_async", queued.append)
-    resp = await client.delete("/tags/aliases/blonde")
+    resp = await client.delete("/tags/rules/blonde")
     assert resp.json()["background"] is True
     resp = await client.post(
         "/tags/rename", json={"tag": "prompt:blonde_hair", "to": "yellow"}
@@ -499,5 +501,5 @@ async def test_an_inline_reprojection_failure_finishes_in_the_background(
     assert resp.json()["background"] is True
     assert queued == [["L1:a"]]
     assert invalidated
-    aliases = (await client.get("/tags/aliases")).json()
+    aliases = (await client.get("/tags/rules")).json()
     assert [a["from"] for a in aliases] == ["blonde"]

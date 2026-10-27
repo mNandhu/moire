@@ -15,14 +15,14 @@ import { smallThumb } from "../lib/media";
 import { galleryHref } from "../lib/imageFilter";
 import {
   MERGE_SUGGESTIONS_KEY,
-  TAG_ALIASES_KEY,
+  TAG_RULES_KEY,
   addTagRules,
-  deleteTagAlias,
+  deleteTagRule,
   renameTag,
   useAiCoverage,
   useBoilerplate,
   useTagAggregate,
-  useTagAliases,
+  useTagRules,
   useTagBrowse,
   useTagDescriptions,
   useTagGroups,
@@ -156,7 +156,7 @@ export default function TagsPage({ group }: { group?: string } = {}) {
   const { push } = useToast();
   const [renaming, setRenaming] = useState<TagAgg | null>(null);
   const [showRules, setShowRules] = useState(false);
-  const { data: aliases } = useTagAliases();
+  const { data: mergeRules } = useTagRules();
   const [showSuggestions, setShowSuggestions] = useState(false);
   const { data: suggested } = useMergeSuggestions();
   const suggestions = suggested?.suggestions;
@@ -166,7 +166,7 @@ export default function TagsPage({ group }: { group?: string } = {}) {
   const afterTagWrite = () => {
     invalidateFeeds(queryClient);
     queryClient.invalidateQueries({ queryKey: TAG_SAMPLES_KEY });
-    queryClient.invalidateQueries({ queryKey: TAG_ALIASES_KEY });
+    queryClient.invalidateQueries({ queryKey: TAG_RULES_KEY });
     queryClient.invalidateQueries({ queryKey: MERGE_SUGGESTIONS_KEY });
   };
 
@@ -189,7 +189,7 @@ export default function TagsPage({ group }: { group?: string } = {}) {
 
   const onUndoRule = async (from: string) => {
     try {
-      const res = await deleteTagAlias(from);
+      const res = await deleteTagRule(from);
       afterTagWrite();
       push(
         `Removed rule “${formatTag(res.from)}” → “${res.to.map(formatTag).join(" + ")}”` +
@@ -321,13 +321,13 @@ export default function TagsPage({ group }: { group?: string } = {}) {
               <Wand2 size={15} /> Suggested merges ({suggestions.length.toLocaleString()})
             </Button>
           )}
-          {!group && !!aliases?.length && (
+          {!group && !!mergeRules?.length && (
             <Button
               active={showRules}
               onClick={() => setShowRules((v) => !v)}
               title="Prompt tags you merged into another name"
             >
-              <GitMerge size={15} /> Merge rules ({aliases.length.toLocaleString()})
+              <GitMerge size={15} /> Merge rules ({mergeRules.length.toLocaleString()})
             </Button>
           )}
         </div>
@@ -336,9 +336,9 @@ export default function TagsPage({ group }: { group?: string } = {}) {
           <MergeSuggestions suggestions={suggestions} onAccept={onAcceptSuggestions} />
         )}
 
-        {showRules && !!aliases?.length && (
+        {showRules && !!mergeRules?.length && (
           <div className="mb-6 rounded-xl border border-white/5 bg-surface shadow-panel divide-y divide-white/5">
-            {aliases.map((a) => (
+            {mergeRules.map((a) => (
               <div key={a.from} className="flex items-center gap-3 px-4 py-2 text-sm">
                 <span className="truncate text-muted">{formatTag(a.from)}</span>
                 <span className="text-faint">→</span>

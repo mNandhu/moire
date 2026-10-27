@@ -443,10 +443,12 @@ async def rename_tag(body: TagRename):
         raise HTTPException(status_code=422, detail=str(exc))
 
 
-@router.get("/aliases")
-async def list_aliases():
-    """The prompt-tag merge rules, newest first."""
-    return await tag_rename.list_aliases()
+# Merge and split rules. `/aliases` is their old name, kept for old clients.
+@router.get("/rules")
+@router.get("/aliases", include_in_schema=False)
+async def list_rules():
+    """The prompt-tag merge and split rules, newest first."""
+    return await tag_rename.list_rules()
 
 
 class TagRule(BaseModel):
@@ -459,8 +461,9 @@ class TagRules(BaseModel):
     rules: list[TagRule] = Field(max_length=50_000)
 
 
-@router.post("/aliases")
-async def add_aliases(body: TagRules):
+@router.post("/rules")
+@router.post("/aliases", include_in_schema=False)
+async def add_rules(body: TagRules):
     """Store several merge / split rules at once (accepted suggestions)."""
     return await tag_rename.add_rules([(r.from_, r.to) for r in body.rules])
 
@@ -471,9 +474,10 @@ async def merge_suggestions():
     return JSONResponse(await tag_rename.merge_suggestions())
 
 
-@router.delete("/aliases/{from_name:path}")
-async def delete_alias(from_name: str):
-    res = await tag_rename.delete_alias(from_name)
+@router.delete("/rules/{from_name:path}")
+@router.delete("/aliases/{from_name:path}", include_in_schema=False)
+async def delete_rule(from_name: str):
+    res = await tag_rename.delete_rule(from_name)
     if res is None:
         raise HTTPException(status_code=404, detail="No such merge rule")
     return res

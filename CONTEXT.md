@@ -30,7 +30,13 @@ belongs in this file.
   merge is stored as a **Merge rule** (`tag_rules`, `from -> [to]`, kept one
   hop) that reprojection applies to the extracted terms. A **Split rule** is
   the same row with several targets (`long_white_hair` -> `long_hair`,
-  `white_hair`). Owned by `services/tag_rename.py`.
+  `white_hair`). Owned by `services/tag_rename.py` (writes) and
+  `services/tag_rules.py` (reads, `apply_rules`); `/tags/rules` in the API,
+  `useTagRules` in the frontend. Code never calls these *aliases* (that word
+  is a Danbooru alias or a character's bare name). Not to be confused with a
+  **Ruleset**: what the Rules page (`/rules`, `gen_rulesets`) edits, one
+  workflow signature's extraction rules saying where its prompt and fields
+  are. Merge rules live on the Tags page.
 - **Suggested merge**: a merge or split rule for a prompt tag that isn't a
   Danbooru tag, read from Danbooru's list: its alias, a respelling, colour
   plus thing as one tag, a split per describing word, or the colour dropped.

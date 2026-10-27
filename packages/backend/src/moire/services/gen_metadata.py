@@ -34,7 +34,8 @@ from typing import TYPE_CHECKING, Any
 from . import prompt_guess, text_eval
 from .model_names import model_stem
 from .prompt_parse import EMBEDDING_TOKEN, parse_prompt
-from .tag_names import apply_aliases, canonical_name
+from .tag_names import canonical_name
+from .tag_rules import apply_rules
 
 if TYPE_CHECKING:
     from .extraction_settings import ExtractionConfig
@@ -1096,5 +1097,5 @@ def derive(
         guess_keywords=config.keywords,
     )
     if g is not None:
-        g["prompt_terms"] = apply_aliases(g.get("prompt_terms") or [], config.aliases)
+        g["prompt_terms"] = apply_rules(g.get("prompt_terms") or [], config.rules)
     return g

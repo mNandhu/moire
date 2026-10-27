@@ -42,6 +42,7 @@ from . import (
     tag_categories,
     tag_covers,
     tag_index,
+    tag_rules,
 )
 from .tag_names import canonical_name
 
@@ -116,15 +117,6 @@ async def _images_with(tags: list[str], *, every: bool = False) -> list[str]:
         return list((await conn.execute(stmt)).scalars())
 
 
-async def _load_rules(conn) -> dict[str, tuple[list[str], float | None]]:
-    """Every prompt rule as ``from -> ([to, ...], created_at)``: a merge has
-    one target, a split several."""
-    return {
-        r.from_name: (list(r.to_names), r.created_at)
-        for r in await conn.execute(sa.select(t.tag_rules))
-    }
-
-
 async def _put_rule(
     conn, name: str, targets: list[str], created_at: float | None
 ) -> None:
@@ -155,7 +147,7 @@ async def _write_rule(
     rules: dict | None = None,
 ) -> list[str]:
     """Store the rule ``name -> targets`` and return its targets as stored.
-    ``rules`` (from :func:`_load_rules`) is kept up to date in place, so a
+    ``rules`` (from :func:`tag_rules.load_dated`) is kept up to date in place, so a
     batch reads them once; ``characters`` is :func:`_characters_among`.
 
     Rules stay one hop: a target that has a rule of its own stands for that
@@ -165,7 +157,7 @@ async def _write_rule(
     if name in targets:
         raise RenameError("new name is the same as the old one")
     if rules is None:
-        rules = await _load_rules(conn)
+        rules = await tag_rules.load_dated(conn)
     resolved = list(
         dict.fromkeys(x for to in targets for x in rules.get(to, ([to], None))[0])
     )
@@ -291,7 +283,7 @@ async def add_rules(rules: list[tuple[str, list[str]]]) -> dict:
             pass  # skipped with its reason below
     characters = await _characters_among(names)
     async with async_tx() as conn:
-        stored = await _load_rules(conn)
+        stored = await tag_rules.load_dated(conn)
         for name, targets in rules:
             try:
                 name = _target_name(name, prompt=True)
@@ -361,7 +353,7 @@ async def merge_suggestions() -> dict:
                 .group_by(it.c.base)
             )
         ).fetchall()
-        rules = await _load_rules(conn)
+        rules = await tag_rules.load_dated(conn)
     characters = await _characters_among({r.base for r in rows})
     ruled = set(rules) | {x for to, _ in rules.values() for x in to}
     counts = {
@@ -389,11 +381,11 @@ async def merge_suggestions() -> dict:
     return out
 
 
-async def list_aliases() -> list[dict]:
+async def list_rules() -> list[dict]:
     """Merge and split rules, newest first. ``to`` is a list (one name for a
     merge)."""
     async with async_conn() as conn:
-        rules = await _load_rules(conn)
+        rules = await tag_rules.load_dated(conn)
     return [
         {"from": name, "to": to, "created_at": created_at}
         for name, (to, created_at) in sorted(
@@ -402,12 +394,12 @@ async def list_aliases() -> list[dict]:
     ]
 
 
-async def delete_alias(from_name: str) -> dict | None:
+async def delete_rule(from_name: str) -> dict | None:
     """Drop a merge or split rule and reproject the images it touched, so the
     original name comes back. ``None`` if there was no such rule."""
     from_name = canonical_name(from_name)
     async with async_tx() as conn:
-        rule = (await _load_rules(conn)).get(from_name)
+        rule = (await tag_rules.load_dated(conn)).get(from_name)
         if rule is None:
             return None
         await _put_rule(conn, from_name, [], None)

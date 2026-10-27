@@ -1,4 +1,4 @@
-"""Pure tests for the canonical tag spelling and merge-rule mapping."""
+"""Pure tests for the canonical tag spelling."""
 
 from moire.services import tag_names as tn
 
@@ -17,23 +17,3 @@ def test_canonical_name_is_idempotent_and_keeps_case():
 
 def test_canonical_name_leaves_lora_tokens_alone():
     assert tn.canonical_name("<lora:my style:0.8>") == "<lora:my style:0.8>"
-
-
-def test_apply_aliases_maps_dedupes_and_sorts():
-    out = tn.apply_aliases(
-        ["blonde", "blonde_hair", "smile"], {"blonde": ["blonde_hair"]}
-    )
-    assert out == ["blonde_hair", "smile"]
-
-
-def test_apply_aliases_without_rules_is_identity():
-    terms = ["b", "a"]
-    assert tn.apply_aliases(terms, {}) is terms
-
-
-def test_apply_aliases_splits_one_term_into_several():
-    out = tn.apply_aliases(
-        ["long_white_hair", "long_hair", "smile"],
-        {"long_white_hair": ["long_hair", "white_hair"]},
-    )
-    assert out == ["long_hair", "smile", "white_hair"]
