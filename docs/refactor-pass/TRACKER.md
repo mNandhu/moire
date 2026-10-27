@@ -2,7 +2,7 @@
 
 Status of every finding from the 2026-10-22 pass. Details per ID in `catalogue.md`, themes and reasoning in `README.md`.
 
-Legend: `[ ]` open, `[x]` done (commit hash), `[-]` dropped (reason). Tags: kind, size S/M/L, leverage L1-5, TW = tag-weights path. Update the line in the same commit as the fix.
+Legend: `[ ]` open, `[~]` committed on an unmerged lane branch, `[x]` done (commit hash), `[-]` dropped (reason). Tags: kind, size S/M/L, leverage L1-5, TW = tag-weights path. Update the line in the same commit as the fix.
 
 Housekeeping, not findings:
 
@@ -199,35 +199,42 @@ P4 status (2026-10-27): backend wave done (3 worktree lanes H, I, J; 16 items, 5
 
 ## P5. Contracts, naming, dead code, housekeeping
 
+P5 status (2026-10-27, PAUSED on usage limit): two worktree lanes ran with docs/refactor-pass/p5-lane-preamble.md and were stopped mid-run. Their commits are NOT on main and NOT verified: no full suite ran, no lane report was written. `[~]` = committed on a lane branch, awaiting merge. L2.3 left out by user decision (deferred, not dropped).
+
+- Lane P (backend-led): branch `worktree-agent-a8f5eb41796861ddc`, worktree `.claude/worktrees/agent-a8f5eb41796861ddc`, working tree clean. 13 commits efb4a49..7b5f70b. Stopped right after S6.6 while repointing a test that pinned GET /ai/faces' old enqueue side effect: run test_face_detect.py and test_activity_integration.py first. S6.6 added no new route; check where avatar enqueue now happens (services/startup.py, face_worker.py) and whether the frontend still relies on GET /ai/faces to kick work.
+- Lane Q (frontend): branch `worktree-agent-a6e02eb10b20bbd5a`, worktree `.claude/worktrees/agent-a6e02eb10b20bbd5a`, working tree clean. 12 commits 395fce2..2224d1d. Lane Q owns CharactersSection.tsx and the face helpers in lib/ai.ts (S12.10, 8b7aece).
+- Not started (lane Q): S13.5, S1.10, S13.6, L2.8, S13.10, S6.8, test-optimizations.js + @vitest/coverage-v8 removal, knip sweep.
+- Resume: cherry-pick lane P then lane Q onto main (`git cherry-pick main..<branch>`), run full backend + frontend suites, tsc, eslint, route diff (only POST /tags/ai/{image_id} should disappear), page smoke test; flip `[~]` to `[x]` with the main hashes; ASK the user before any code review (usage limit); then start a fresh lane for the not-started items. Remove the two worktrees and branches once picked.
+
 - [x] **L4.6** (ec8a50b) SORT_KEY / SCORE_KEY are defined twice (image_feed.py and schema.py); CLAUDE.md names a deleted nextCursorOf (drift, S, L3)
-- [ ] **S3.5** PUT /tags/focus runs the full 8-query detail aggregate just to learn the pin and existence (simplify, S, L3)
-- [ ] **S10.4** ChipInput component is dead; the file survives only as the home of bareTagPool (dead, S, L3)
-- [ ] **S11.4** 'Which batch is in front / waiting' is derived three different ways (dedupe, S, L3)
+- [~] **S3.5** (lane 747880f) PUT /tags/focus runs the full 8-query detail aggregate just to learn the pin and existence (simplify, S, L3)
+- [~] **S10.4** (lane 395fce2) ChipInput component is dead; the file survives only as the home of bareTagPool (dead, S, L3)
+- [~] **S11.4** (lane 2224d1d) 'Which batch is in front / waiting' is derived three different ways (dedupe, S, L3)
 - [ ] **S13.5** Sidebar owns nav data, shortcut text and platform detection that two other modules re-derive (dedupe, S, L3, TW)
-- [ ] **S8.6** The Generator test gate lives in the 'read side' module and generator_view writes on GET (boundary, M, L3)
-- [ ] **L2.3** No response models or generated types: every payload and closed vocabulary is typed by hand on both sides (boundary, M, L3, TW)
-- [ ] **S8.9** Rejected duplicates ComfyRejected, and non-ComfyUI failures are raised as ComfyRejected (naming, S, L2)
-- [ ] **S2.8** imageMutations holds tag and character writes, contradicting its 'per-image' contract; JSON boilerplate repeated (naming, S, L2)
-- [ ] **S2.9** Rating vocabulary spread over three places; ratingBadgeClass has a phantom 'safe' (drift, S, L2)
-- [ ] **L4.8** Original files are served 'immutable' for a year at an unversioned URL (invariant, S, L2)
-- [ ] **L4.9** Native window.confirm still reachable through useRulesetSession default in ResolvePromptDialog (invariant, S, L2)
-- [ ] **S3.9** GET /tags (non-merged) computes thumbnails and pins nothing reads (dead, S, L2)
-- [ ] **S1.9** Per-tile preResolved/resolveMediaUrl branch in the load slot is dead for the gallery; density clamp written four times (dead, S, L2)
+- [~] **S8.6** (lane a1b43d8) The Generator test gate lives in the 'read side' module and generator_view writes on GET (boundary, M, L3)
+- [ ] **L2.3** (deferred by user 2026-10-27) No response models or generated types: every payload and closed vocabulary is typed by hand on both sides (boundary, M, L3, TW)
+- [~] **S8.9** (lane b6ce3d4) Rejected duplicates ComfyRejected, and non-ComfyUI failures are raised as ComfyRejected (naming, S, L2)
+- [~] **S2.8** (lane 83a61bb) imageMutations holds tag and character writes, contradicting its 'per-image' contract; JSON boilerplate repeated (naming, S, L2)
+- [~] **S2.9** (lane 6427fba+35f99e4) Rating vocabulary spread over three places; ratingBadgeClass has a phantom 'safe' (drift, S, L2)
+- [~] **L4.8** (lane 3346372) Original files are served 'immutable' for a year at an unversioned URL (invariant, S, L2)
+- [~] **L4.9** (lane 0d31ee7) Native window.confirm still reachable through useRulesetSession default in ResolvePromptDialog (invariant, S, L2)
+- [~] **S3.9** (lane 37f993d) GET /tags (non-merged) computes thumbnails and pins nothing reads (dead, S, L2)
+- [~] **S1.9** (lane 9df0ae2) Per-tile preResolved/resolveMediaUrl branch in the load slot is dead for the gallery; density clamp written four times (dead, S, L2)
 - [ ] **S1.10** Grid column count is measured twice, and tile crossfade state machine lives inside ThumbnailTile (deepen, S, L2)
-- [ ] **L2.4** Hair/eye colour palette is copied into tagColour.ts with only a comment tying it to characters.COLOURS (dedupe, S, L2)
-- [ ] **L2.6** canonicalName exists on the frontend but five call sites inline their own whitespace-to-underscore rule (invariant, S, L2)
+- [~] **L2.4** (lane 31bd262) Hair/eye colour palette is copied into tagColour.ts with only a comment tying it to characters.COLOURS (dedupe, S, L2)
+- [~] **L2.6** (lane e84d975) canonicalName exists on the frontend but five call sites inline their own whitespace-to-underscore rule (invariant, S, L2)
 - [ ] **L2.8** Character name/series split is frontend-only while the backend returns overrides only (boundary, S, L2)
-- [ ] **S11.9** Dead or test-only code: requestFrames fallback, fixedSeeds, optional `frames`, unused Frame/FrameState exports (dead, S, L2)
-- [ ] **S9.4** Setup payload computes fields nothing reads, and the page's checklist re-derives the server's checks (dead, S, L2)
+- [~] **S11.9** (lane 35dbd5a) Dead or test-only code: requestFrames fallback, fixedSeeds, optional `frames`, unused Frame/FrameState exports (dead, S, L2)
+- [~] **S9.4** (lane a114916) Setup payload computes fields nothing reads, and the page's checklist re-derives the server's checks (dead, S, L2)
 - [ ] **S13.6** App.tsx re-implements lib helpers and carries 70 lines of key-scroll logic plus a raw health fetch (boundary, S, L2)
-- [ ] **S13.8** Dead backend pieces and stale Mongo-era docs: models/image.py, models.library.Library, Settings.ai_tagging_url, db.write_lock()/sync_write_lock() (dead, S, L2)
+- [~] **S13.8** (lane 5d207f8) Dead backend pieces and stale Mongo-era docs: models/image.py, models.library.Library, Settings.ai_tagging_url, db.write_lock()/sync_write_lock() (dead, S, L2)
 - [ ] **S13.10** SettingsContext is the AI-tagging controller under a generic name, and wraps every settings tab (naming, S, L2)
-- [ ] **S6.6** GET /ai/faces enqueues every avatar; face worker state is module globals and rides the AI router and settings blob (boundary, M, L2)
+- [~] **S6.6** (lane 7b5f70b) GET /ai/faces enqueues every avatar; face worker state is module globals and rides the AI router and settings blob (boundary, M, L2)
 - [ ] **S6.8** AITaggingPage borrows page-level components from settings/sections and mounts the whole settings controller (boundary, M, L2)
-- [ ] **S8.10** Test-only wrappers in generation_estimate and an unused on_state hook in the client (dead, S, L1)
-- [ ] **L4.10** Deprecated POST /tags/ai/{image_id} has no caller (dead, S, L1)
-- [ ] **L1.10** Dead helpers: scanner.file_hash and ai_tagger_download._download_if_missing (dead, S, L1)
-- [ ] **S12.10** CharactersSection does raw face-status fetches and hosts a Generate setting; test-only and unused exports linger (boundary, S, L1)
-- [ ] **S6.9** Settings readers go through the ai_jobs re-export shim while others import ai_settings directly (simplify, S, L1)
-- [ ] **S10.10** The `embedding:` word spelling is hand-built in four places beside compose.ts's EMBEDDING_PREFIX (dedupe, S, L1)
-- [ ] **S9.5** newer_version has an always-false branch and a duplicated field (dead, S, L1)
+- [~] **S8.10** (lane fcfe84f) Test-only wrappers in generation_estimate and an unused on_state hook in the client (dead, S, L1)
+- [~] **L4.10** (lane 3180ea6) Deprecated POST /tags/ai/{image_id} has no caller (dead, S, L1)
+- [~] **L1.10** (lane efb4a49) Dead helpers: scanner.file_hash and ai_tagger_download._download_if_missing (dead, S, L1)
+- [~] **S12.10** (lane 8b7aece) CharactersSection does raw face-status fetches and hosts a Generate setting; test-only and unused exports linger (boundary, S, L1)
+- [~] **S6.9** (lane 263dbf6) Settings readers go through the ai_jobs re-export shim while others import ai_settings directly (simplify, S, L1)
+- [~] **S10.10** (lane 21fd4e1+35f99e4) The `embedding:` word spelling is hand-built in four places beside compose.ts's EMBEDDING_PREFIX (dedupe, S, L1)
+- [~] **S9.5** (lane 780a7a8) newer_version has an always-false branch and a duplicated field (dead, S, L1)
