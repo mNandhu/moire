@@ -113,7 +113,7 @@ P2 done 2026-10-24 (51a86c7..4f8dd84). Review fixes: wave 1 1a32926, 6fe6bd0, b0
 
 ## P3. Backend dedupe, tag core, background work
 
-**P3 status 2026-10-27.** P3 done: waves 1 and 2 merged, reviewed and fixed. Wave 1 ran as 4 worktree lanes; each lane owns its files.
+**P3 status 2026-10-27.** P3 done: waves 1 and 2 merged, reviewed, fixed and pushed (..e4f00af). Next: P4 big-file splits. Open P3 tails: bulk_manual over 2000 ids can fail with earlier chunks applied (only the docstring says so); 9 eslint warnings in frontend not triaged. Wave 1 ran as 4 worktree lanes; each lane owns its files.
 - Lane D (settings/AI jobs): merged on main (66743a1..966cc4a), full suites green. New: `services/app_settings.py`, `ai_tagger.TagParams`, `files_progress`, `aiJobPhaseLabel`/`cancelJobMessage`.
 - Lane C (scanner/libraries): merged 552aded..b0ce609, full suite green. S5.8 behavior change: hidden/tilde/temp files are no longer indexed.
 - Lane A (generation core): merged 69bf2d7..60bfd69, full suite green. New modules: comfy_history, generation_outputs, generation_inputs, generators_store, generation_errors, generation_states.
