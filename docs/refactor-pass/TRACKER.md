@@ -199,7 +199,7 @@ P4 status (2026-10-27): backend wave done (3 worktree lanes H, I, J; 16 items, 5
 
 ## P5. Contracts, naming, dead code, housekeeping
 
-P5 status (2026-10-27): lanes P and Q were stopped on the usage limit, then picked onto main as bb0c628..9f4bc75 (25 commits) and verified together: backend 974 passed, frontend 977 passed, tsc, ruff and eslint clean (0 errors), route diff drops only POST /tags/ai/{image_id}, page smoke test (desktop + phone, 17 pages) clean. S6.6: avatars are queued at startup, when the face model download completes, and by the characters list for missing crops. Not code-reviewed yet (ask the user first). L2.3 left out by user decision (deferred, not dropped).
+P5 status (2026-10-27): lanes P and Q were stopped on the usage limit, then picked onto main as bb0c628..9f4bc75 (25 commits) and verified together: backend 974 passed, frontend 977 passed, tsc, ruff and eslint clean (0 errors), route diff drops only POST /tags/ai/{image_id}, page smoke test (desktop + phone, 17 pages) clean. S6.6: avatars are queued at startup, when the face model download completes, and by the characters list for missing crops. Reviewed (medium); 6 findings fixed in 28534af; skipped: ratingBadgeClass("safe") (no current writer or tagger yields it), PUT /tags/focus 404 with no visible cover (nothing to focus on). L2.3 left out by user decision (deferred, not dropped).
 
 - Not started: S13.5, S1.10, S13.6, L2.8, S13.10, S6.8, test-optimizations.js + @vitest/coverage-v8 removal, knip sweep. Next: one fresh lane with docs/refactor-pass/p5-lane-preamble.md.
 
