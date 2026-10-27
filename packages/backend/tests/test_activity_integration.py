@@ -7,7 +7,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import activity, face_detect
+from moire.services import activity, face_worker
 
 
 async def _items(client):
@@ -84,12 +84,12 @@ def test_registry_is_safe_across_threads():
     assert activity.snapshot() == []
 
 
-def test_face_progress_counts_the_current_batch(monkeypatch):
-    monkeypatch.setattr(face_detect, "_pending", {"x", "y"})
-    monkeypatch.setattr(face_detect, "_batch", 5)
-    assert face_detect.progress() == (3, 5)
-    monkeypatch.setattr(face_detect, "_pending", set())
-    assert face_detect.progress() == (0, 0)
+def test_face_progress_counts_the_current_batch():
+    w = face_worker.FaceWorker()
+    w._pending, w._batch = {"x", "y"}, 5
+    assert w.progress() == (3, 5)
+    w._pending = set()
+    assert w.progress() == (0, 0)
 
 
 def test_reprojecting_ids_never_moves_the_bar_back(monkeypatch):

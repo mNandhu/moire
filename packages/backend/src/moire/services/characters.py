@@ -25,6 +25,7 @@ from . import (
     attire,
     character_look,
     face_detect,
+    face_worker,
     image_tags,
     image_visibility,
     tag_browse,
@@ -442,7 +443,7 @@ async def _avatars(image_ids: list[str | None]) -> dict[str, dict]:
         ).fetchall()
     # Switched off: no crops, even from faces already found.
     faces = await face_detect.faces_for(ids) if await face_detect.ready() else {}
-    await face_detect.queue([i for i in ids if i not in faces])
+    await face_worker.get_face_worker().queue([i for i in ids if i not in faces])
     return {
         r._id: {
             "face": list(faces[r._id]) if r._id in faces else None,

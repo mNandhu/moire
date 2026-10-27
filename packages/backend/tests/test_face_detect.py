@@ -6,7 +6,16 @@ from pathlib import Path
 
 import numpy as np
 
-from moire.services import face_detect, tag_categories
+import pytest
+
+from moire.services import face_detect, face_worker, tag_categories
+
+
+@pytest.fixture(autouse=True)
+def _fresh_worker():
+    face_worker.reset_for_tests()
+    yield
+    face_worker.reset_for_tests()
 
 
 def test_letterbox_fits_the_long_side():
@@ -65,7 +74,7 @@ async def test_avatars_get_their_face_in_the_background(
 
     first = (await client.get("/tags/characters")).json()[0]
     assert first["face"] is None and round(first["aspect"], 2) == 0.7
-    await face_detect.idle()
+    await face_worker.get_face_worker().idle()
     again = (await client.get("/tags/characters")).json()[0]
     assert again["face"] == [0.5, 0.2, 0.25, 0.18]
     page = (await client.get("/tags/character", params={"tag": "frieren"})).json()
@@ -80,7 +89,7 @@ async def test_nothing_runs_until_switched_on_and_downloaded(client, seed, monke
         face_detect, "detect", lambda *a: (_ for _ in ()).throw(AssertionError)
     )
     await client.get("/tags/characters")  # not downloaded: nothing queued
-    assert not face_detect._pending
+    assert not face_worker.get_face_worker()._pending
     status = (await client.get("/ai/faces")).json()
     assert (status["enabled"], status["downloaded"]) == (True, False)
 
@@ -88,7 +97,7 @@ async def test_nothing_runs_until_switched_on_and_downloaded(client, seed, monke
     saved = await client.post("/ai/settings", json={"face_detect": False})
     assert saved.json()["face_detect"] is False
     await client.get("/tags/characters")
-    assert not face_detect._pending
+    assert not face_worker.get_face_worker()._pending
 
 
 async def test_pinning_an_avatar_finds_its_face_at_once(
@@ -105,6 +114,41 @@ async def test_pinning_an_avatar_finds_its_face_at_once(
     got = await client.post("/tags/thumbnail/frieren", json={"image_id": "L1:b"})
     assert got.status_code == 200
     assert await face_detect.faces_for(["L1:b"]) == {"L1:b": (0.4, 0.3, 0.2, 0.2)}
+
+
+async def test_reading_the_face_status_queues_nothing(client, seed, monkeypatch):
+    monkeypatch.setattr(tag_categories, "load", _chars("frieren"))
+    seed("L1:a", tags=("frieren",), thumb_key="k/a")
+    monkeypatch.setattr(face_detect, "downloaded", lambda cache_dir: True)
+    status = (await client.get("/ai/faces")).json()
+    assert status["downloaded"] is True and status["pending"] == 0
+    assert not face_worker.get_face_worker()._pending
+
+
+async def test_a_finished_download_queues_every_avatar(
+    client, seed, monkeypatch, tmp_path
+):
+    monkeypatch.setattr(tag_categories, "load", _chars("frieren"))
+    seed("L1:a", tags=("frieren",), thumb_key="k/a")
+    monkeypatch.setattr(face_detect, "downloaded", lambda cache_dir: True)
+    monkeypatch.setattr(face_detect, "detect", lambda *a: (0.4, 0.3, 0.2, 0.2, 0.9))
+    monkeypatch.setattr(
+        face_detect.storage_fs, "thumb_path", lambda key: Path(tmp_path / key)
+    )
+    started = {}
+
+    async def fake_start(**kw):
+        started.update(kw)
+        await kw["on_done"]()  # as the download task does once complete
+        return face_detect.get_download_manager().get_state(
+            model_repo=kw["model_repo"], cache_dir=kw["cache_dir"]
+        )
+
+    monkeypatch.setattr(face_detect.get_download_manager(), "start", fake_start)
+    await face_detect.start_download()
+    await face_worker.get_face_worker().idle()
+    assert started["kind"] == "face_download"
+    assert await face_detect.faces_for(["L1:a"]) == {"L1:a": (0.4, 0.3, 0.2, 0.2)}
 
 
 def _chars(*names, **candidates):
@@ -126,14 +170,13 @@ async def test_the_model_arriving_queues_every_avatar(
     monkeypatch.setattr(tag_categories, "load", _chars("frieren", "himmel"))
     seed("L1:a", tags=("frieren",), thumb_key="k/a")
     seed("L1:b", tags=("himmel",), thumb_key="k/b")
-    monkeypatch.setattr(face_detect, "_avatars_queued", False)
     monkeypatch.setattr(face_detect, "downloaded", lambda cache_dir: True)
     monkeypatch.setattr(face_detect, "detect", lambda *a: (0.5, 0.3, 0.2, 0.2, 0.9))
     monkeypatch.setattr(
         face_detect.storage_fs, "thumb_path", lambda key: Path(tmp_path / key)
     )
-    await client.get("/ai/faces")  # the Settings page polling
-    await face_detect.idle()
+    face_worker.get_face_worker().start_avatars()  # startup / download done
+    await face_worker.get_face_worker().idle()
     assert set(await face_detect.faces_for(["L1:a", "L1:b"])) == {"L1:a", "L1:b"}
 
 
@@ -148,7 +191,7 @@ async def test_switching_off_stops_the_crops_already_found(
         face_detect.storage_fs, "thumb_path", lambda key: Path(tmp_path / key)
     )
     await client.get("/tags/characters")
-    await face_detect.idle()
+    await face_worker.get_face_worker().idle()
     assert (await client.get("/tags/characters")).json()[0]["face"]
     await client.post("/ai/settings", json={"face_detect": False})
     assert (await client.get("/tags/characters")).json()[0]["face"] is None
@@ -168,8 +211,8 @@ async def test_a_changed_file_is_looked_at_again(client, seed, monkeypatch, tmp_
     monkeypatch.setattr(
         face_detect.storage_fs, "thumb_path", lambda key: Path(tmp_path / key)
     )
-    await face_detect.queue(["L1:a"])
-    await face_detect.idle()
+    await face_worker.get_face_worker().queue(["L1:a"])
+    await face_worker.get_face_worker().idle()
     assert (await face_detect.faces_for(["L1:a"]))["L1:a"][0] == 0.5
     # re-rendered in place: the scanner rewrites the row, no cascade
     async with db.async_tx() as conn:
@@ -177,8 +220,8 @@ async def test_a_changed_file_is_looked_at_again(client, seed, monkeypatch, tmp_
             sa.update(t.images).where(t.images.c._id == "L1:a").values(mtime=200)
         )
     assert await face_detect.faces_for(["L1:a"]) == {}
-    await face_detect.queue(["L1:a"])
-    await face_detect.idle()
+    await face_worker.get_face_worker().queue(["L1:a"])
+    await face_worker.get_face_worker().idle()
     assert (await face_detect.faces_for(["L1:a"]))["L1:a"][0] == 0.2
 
 
@@ -199,9 +242,9 @@ async def test_a_failing_image_is_tried_once(client, seed, monkeypatch, tmp_path
     # a pin answers even when detection fails
     got = await client.post("/tags/thumbnail/frieren", json={"image_id": "L1:a"})
     assert got.status_code == 200
-    await face_detect.queue(["L1:a"])
-    await face_detect.idle()
-    assert calls == [1] and not face_detect._pending
+    await face_worker.get_face_worker().queue(["L1:a"])
+    await face_worker.get_face_worker().idle()
+    assert calls == [1] and not face_worker.get_face_worker()._pending
 
 
 async def test_the_mtime_migration_replaces_the_cache(client, seed):

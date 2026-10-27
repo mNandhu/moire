@@ -13,6 +13,7 @@ from . import library_nesting, library_watch, tag_migrations
 from .ai_jobs import get_ai_job_manager
 from .ai_settings import get_ai_settings
 from .ai_tagger import get_tagger_manager
+from .face_worker import get_face_worker
 from .generation_jobs import get_generation_manager
 from .storage_fs import ensure_thumb_root
 
@@ -53,6 +54,9 @@ async def _start_ai() -> None:
         logger.exception("Failed to load AI settings during startup; continuing")
     # The tagger owns its idle-unload loop (started here, stopped on shutdown).
     get_tagger_manager().start(idle_unload_s)
+    # Crop every avatar to its face (in the background; a no-op until the
+    # face model is switched on and downloaded).
+    get_face_worker().start_avatars()
 
 
 async def _start_watchers() -> None:

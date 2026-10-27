@@ -18,7 +18,7 @@ from fastapi import APIRouter
 
 from ..database import schema as t
 from ..database.db import async_conn
-from ..services import activity, face_detect, generation_estimate
+from ..services import activity, face_worker, generation_estimate
 from ..services.ai_jobs import get_ai_job_manager
 from ..services.ai_settings import get_ai_settings
 from ..services.ai_tagger import model_status_view, resolved_model_target
@@ -66,7 +66,7 @@ async def background_activity():
         items.append({"key": "model-load", "kind": "model_load"})
 
     items.extend(job.activity_item() for job in get_ai_job_manager().active_jobs())
-    items.extend(face_detect.activity_items(resolved_model_target(settings)[1]))
+    items.extend(face_worker.activity_items(resolved_model_target(settings)[1]))
 
     manager = get_generation_manager()
     gen = manager.status()

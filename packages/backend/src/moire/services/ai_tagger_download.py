@@ -14,7 +14,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 import httpx
 
@@ -160,11 +160,14 @@ class ModelDownloadManager:
         cache_dir: str,
         files: list[RemoteFile] | None = None,
         kind: str = "model_download",
+        on_done: Callable[[], Awaitable[None]] | None = None,
     ) -> ModelDownloadState:
         """Fetch a model's files in the background. ``files`` names them for a
         model other than the tagger, ``model_repo`` then being any key unique
         to that model (repo plus variant). ``kind`` is the activity kind
-        counted as ended when the download stops, however it stops."""
+        counted as ended when the download stops, however it stops.
+        ``on_done`` runs once a download this call started completes (not
+        when the files were already there: the state says ``done`` then)."""
         key = (model_repo, cache_dir)
         async with self._lock:
             st = self.get_state(model_repo=model_repo, cache_dir=cache_dir)
@@ -194,6 +197,11 @@ class ModelDownloadManager:
                         st.status = "cancelled"
                     else:
                         st.status = "done"
+                        if on_done is not None:
+                            try:
+                                await on_done()
+                            except Exception:
+                                logger.exception("After downloading %s", model_repo)
                 except asyncio.CancelledError:
                     st.status = "cancelled"
                     st.cancel_requested = True

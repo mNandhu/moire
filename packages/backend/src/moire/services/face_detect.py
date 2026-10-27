@@ -7,7 +7,7 @@ It is optional. Nothing downloads until the user asks (Settings > Characters);
 without it avatars keep their default framing.
 
 It runs only on avatar images (a character's cover), in a background worker
-off the event loop, and keeps what it found in ``image_faces``: one row per
+off the event loop (:mod:`face_worker`), and keeps what it found in ``image_faces``: one row per
 image, a NULL ``conf`` for "ran, no face". Several faces in one image: the
 largest of the confident ones wins; telling which face is the character would
 need recognition, so a hand-set centre on the character page is the fix.
@@ -28,14 +28,9 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import activity, ai_settings, storage_fs
+from . import ai_settings, storage_fs
 from .ai_tagger import resolved_model_target
-from .ai_tagger_download import (
-    RemoteFile,
-    activity_item,
-    get_download_manager,
-    hf_url,
-)
+from .ai_tagger_download import RemoteFile, get_download_manager, hf_url
 
 logger = logging.getLogger("moire.faces")
 
@@ -58,7 +53,7 @@ def files(cache_dir: str) -> list[RemoteFile]:
     ]
 
 
-async def _cache_dir() -> str:
+async def model_cache_dir() -> str:
     return resolved_model_target(await ai_settings.get_ai_settings())[1]
 
 
@@ -69,38 +64,48 @@ def downloaded(cache_dir: str) -> bool:
 async def ready() -> bool:
     """Whether faces are being found: switched on and the model on disk."""
     s = await ai_settings.get_ai_settings()
-    return bool(s.get("face_detect")) and downloaded(await _cache_dir())
+    return bool(s.get("face_detect")) and downloaded(await model_cache_dir())
 
 
 async def start_download():
-    cache_dir = await _cache_dir()
+    """Fetch the model in the background; once it is on disk every avatar is
+    queued (``face_worker``)."""
+    from .face_worker import get_face_worker  # imports this module
+
+    folder = await model_cache_dir()
     st = await get_download_manager().start(
         model_repo=MODEL,
-        cache_dir=cache_dir,
-        files=files(cache_dir),
+        cache_dir=folder,
+        files=files(folder),
         kind="face_download",
+        on_done=get_face_worker().queue_avatars,
     )
+    if st.status == "done":
+        # Already on disk: no download ran to say so.
+        get_face_worker().start_avatars()
     return st
 
 
 async def cancel_download() -> bool:
     return await get_download_manager().cancel(
-        model_repo=MODEL, cache_dir=await _cache_dir()
+        model_repo=MODEL, cache_dir=await model_cache_dir()
     )
 
 
 async def status() -> dict[str, Any]:
-    cache_dir = await _cache_dir()
+    """Switched on, downloaded, the download's progress and how many images
+    wait. Only reads: avatars are queued by ``face_worker``."""
+    from .face_worker import get_face_worker  # imports this module
+
     s = await ai_settings.get_ai_settings()
+    cache_dir = resolved_model_target(s)[1]
     dl = get_download_manager().get_state(model_repo=MODEL, cache_dir=cache_dir)
-    if await ready():
-        await _queue_avatars()
     return {
         "model": MODEL,
         "enabled": bool(s.get("face_detect")),
         "downloaded": downloaded(cache_dir),
         "download": dl.as_dict(),
-        "pending": len(_pending),
+        "pending": get_face_worker().pending,
     }
 
 
@@ -190,12 +195,7 @@ def detect(image_path: str, cache_dir: str):
     return pick(boxes(out, threshold, w, h))
 
 
-# --- The worker ----------------------------------------------------------------
-
-_pending: set[str] = set()
-# Images queued since the worker last went idle: the "of N" in its progress.
-_batch = 0
-_worker: asyncio.Task | None = None
+# --- What was found -------------------------------------------------------------
 
 
 def _current():
@@ -233,7 +233,7 @@ async def faces_for(
     return {r.image_id: (r.cx, r.cy, r.w, r.h) for r in rows}
 
 
-async def _unchecked(image_ids: list[str]) -> list[str]:
+async def unchecked(image_ids: list[str]) -> list[str]:
     f = t.image_faces
     async with async_conn() as conn:
         done = set(
@@ -248,58 +248,14 @@ async def _unchecked(image_ids: list[str]) -> list[str]:
     return [i for i in image_ids if i not in done]
 
 
-async def queue(image_ids: list[str]) -> None:
-    """Find faces in these images in the background, skipping ones already
-    looked at. Does nothing while detection is off or not downloaded."""
-    global _worker, _batch
-    ids = [i for i in dict.fromkeys(image_ids) if i and i not in _pending]
-    if not ids or not await ready():
-        return
-    fresh = await _unchecked(ids)
-    if not _pending:
-        _batch = 0
-    _batch += len(set(fresh) - _pending)
-    _pending.update(fresh)
-    if _pending and (_worker is None or _worker.done()):
-        _worker = asyncio.create_task(_drain(), name="face-detect")
-
-
 async def detect_now(image_id: str) -> None:
     """Look at one image before answering (a newly pinned avatar). Never
     fails the caller: a failure is logged and stored as no face."""
-    if await ready() and await _unchecked([image_id]):
-        await _detect_and_store(image_id, await _cache_dir())
+    if await ready() and await unchecked([image_id]):
+        await detect_and_store(image_id, await model_cache_dir())
 
 
-async def _drain() -> None:
-    cache_dir = await _cache_dir()
-    try:
-        while _pending:
-            image_id = next(iter(_pending))
-            try:
-                await _detect_and_store(image_id, cache_dir)
-            finally:
-                _pending.discard(image_id)  # counted as pending until stored
-    finally:
-        activity.note_ended("faces")
-
-
-_avatars_queued = False
-
-
-async def _queue_avatars() -> None:
-    """Once per run, once the model is ready: every current avatar, so they
-    are cropped before anyone opens a character."""
-    global _avatars_queued
-    if _avatars_queued:
-        return
-    from . import characters  # imports this module
-
-    await characters.listing()  # queues each avatar not looked at yet
-    _avatars_queued = True
-
-
-async def _detect_and_store(image_id: str, cache_dir: str) -> None:
+async def detect_and_store(image_id: str, cache_dir: str) -> None:
     """Look at one image and remember the answer. An image that can't be
     read, or makes the model fail, is remembered as having no face, so it
     isn't tried again until its file changes."""
@@ -334,29 +290,6 @@ async def _detect_and_store(image_id: str, cache_dir: str) -> None:
         )
 
 
-def progress() -> tuple[int, int]:
-    """``(done, total)`` of the images queued since the worker last went
-    idle; ``(0, 0)`` while it is."""
-    if not _pending:
-        return 0, 0
-    return _batch - len(_pending), _batch
-
-
-def activity_items(cache_dir: str) -> list[dict[str, Any]]:
-    """The face model's download and the detection pass, as activity-list
-    items (``api/activity``); only those running."""
-    items: list[dict[str, Any]] = []
-    download = activity_item(
-        "face-download", "face_download", download_state(cache_dir)
-    )
-    if download:
-        items.append(download)
-    done, total = progress()
-    if total:
-        items.append({"key": "faces", "kind": "faces", "done": done, "total": total})
-    return items
-
-
 def download_state(cache_dir: str) -> dict[str, Any]:
     """The face model's download, for the model cache at ``cache_dir``."""
     return (
@@ -364,9 +297,3 @@ def download_state(cache_dir: str) -> dict[str, Any]:
         .get_state(model_repo=MODEL, cache_dir=cache_dir)
         .as_dict()
     )
-
-
-async def idle() -> None:
-    """Wait for the worker to finish (tests)."""
-    if _worker is not None:
-        await _worker
