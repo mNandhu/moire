@@ -13,7 +13,7 @@ import { cn } from "../lib/cn";
 import { deleteCharacter, updateCharacter } from "../lib/imageMutations";
 import { TAGS_KEY } from "../lib/queries";
 import { useComfyModels, useRecipe } from "../lib/generate";
-import { RecipeEditor } from "./generate/CharacterBlock";
+import { RecipeEditor } from "./generate/RecipeEditor";
 import { useConfirm } from "./ConfirmDialog";
 import { loadDraft, saveDraft } from "../lib/generateDraft";
 import {
