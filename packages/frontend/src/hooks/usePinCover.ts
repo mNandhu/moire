@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "../components/Toasts";
-import { clearTagThumbnail, setTagThumbnail } from "../lib/imageMutations";
+import { clearTagThumbnail, setTagThumbnail } from "../lib/tagMutations";
 import { TAGS_KEY } from "../lib/queries";
 import { TAG_SAMPLES_KEY } from "../lib/tagSamples";
 import { errorText } from "../lib/api";

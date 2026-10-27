@@ -13,7 +13,7 @@ import { useSuggestNav, useTagMatches } from "../hooks/useSuggestNav";
 import { cn } from "../lib/cn";
 import { characterHref, characterName, displayName } from "../lib/character";
 import { canonicalName } from "../lib/tags";
-import { createCharacter } from "../lib/imageMutations";
+import { createCharacter } from "../lib/tagMutations";
 import { TAGS_KEY } from "../lib/queries";
 import { putRecipe, useCharacterNames, useComfyModels, useLoraWords } from "../lib/generate";
 import { stemOf } from "../lib/modelNames";

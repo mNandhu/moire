@@ -15,7 +15,7 @@ import { errorText } from "../lib/api";
 import { cn } from "../lib/cn";
 import { useSignatures } from "../lib/rules";
 import { DEFAULT_FILTERS, galleryHref } from "../lib/imageFilter";
-import { updateCharacter } from "../lib/imageMutations";
+import { updateCharacter } from "../lib/tagMutations";
 import { characterHref, tagHref } from "../lib/character";
 import { CharacterAvatar } from "./CharacterAvatar";
 import { useCharacterLookup } from "../lib/queries";

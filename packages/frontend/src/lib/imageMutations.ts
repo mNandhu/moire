@@ -1,18 +1,11 @@
 /**
- * Every per-image mutation the UI can issue, in one place.
- *
- * These were split three ways: score/quarantine/purge lived in lib/gen (they
- * are curation, not generation metadata), while rating, apply-tags and
- * set-tag-thumbnail were hand-rolled `fetch` + JSON.stringify inside ImageView,
- * bypassing the shared client entirely. "How does the UI mutate an Image" had
- * no single answer. You grepped.
- *
- * The backend counterpart is services/image_tags.py, the single owner of
- * per-image writes; this is its mirror on the client.
+ * Every write the UI can make to Images: one Image's rating, score,
+ * quarantine, purge and tags, and manual tags on many at once. The backend
+ * counterpart is services/image_tags.py, the single owner of per-image
+ * writes. Tag and character state lives in lib/tagMutations.ts.
  */
 
-import { api, apiJson } from "./api";
-import type { CharacterPatch } from "./character";
+import { apiJson } from "./api";
 
 const post = <T>(url: string, body?: unknown) => apiJson<T>(url, "POST", body);
 
@@ -50,43 +43,6 @@ export function applyTags(id: string, tags: string[]): Promise<unknown> {
 
 export function removeTags(id: string, tags: string[]): Promise<unknown> {
   return post(`/api/v1/tags/remove/${encodeURIComponent(id)}`, tags);
-}
-
-/** Pin this image as the mosaic thumbnail for a tag. `tag` is the raw stored
- * form, prefix included. */
-/** Pin a tag's cover. Keyed by the tag's name, so it shows for every source. */
-export function setTagThumbnail(tag: string, imageId: string): Promise<unknown> {
-  return post(`/api/v1/tags/thumbnail/${encodeURIComponent(tag)}`, {
-    image_id: imageId,
-  });
-}
-
-/** Unpin a tag's cover; its mosaic goes back to picking images itself. */
-export function clearTagThumbnail(tag: string): Promise<unknown> {
-  return api(`/api/v1/tags/thumbnail/${encodeURIComponent(tag)}`, { method: "DELETE" });
-}
-
-/** Set what the user decides for a character (any of its names); "" clears. */
-export function updateCharacter(tag: string, patch: CharacterPatch): Promise<unknown> {
-  return apiJson(`/api/v1/tags/character?${new URLSearchParams({ tag })}`, "PATCH", patch);
-}
-
-/** Centre a plain tag's cover on a point (0..1); null puts it back. */
-export function setTagFocus(tag: string, focus: readonly [number, number] | null): Promise<unknown> {
-  return apiJson(`/api/v1/tags/focus?${new URLSearchParams({ tag })}`, "PUT", {
-    focus_x: focus ? focus[0] : "",
-    focus_y: focus ? focus[1] : "",
-  });
-}
-
-/** Make a character by hand; returns its stored settings (with its tag). */
-export function createCharacter(body: { tag: string; name?: string; series?: string; color?: string }) {
-  return post<{ tag: string }>(`/api/v1/tags/characters`, body);
-}
-
-/** Forget a character made by hand (only while no image has it). */
-export function deleteCharacter(tag: string): Promise<unknown> {
-  return api(`/api/v1/tags/character?${new URLSearchParams({ tag })}`, { method: "DELETE" });
 }
 
 /** Add/remove manual tags (bare names) on many images in one transaction. */

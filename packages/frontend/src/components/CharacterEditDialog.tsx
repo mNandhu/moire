@@ -10,7 +10,7 @@ import { useToast } from "./Toasts";
 import { CharacterAvatar } from "./CharacterAvatar";
 import { FocusPicker } from "./FocusPicker";
 import { cn } from "../lib/cn";
-import { deleteCharacter, updateCharacter } from "../lib/imageMutations";
+import { deleteCharacter, updateCharacter } from "../lib/tagMutations";
 import { TAGS_KEY } from "../lib/queries";
 import { useComfyModels, useRecipe } from "../lib/generate";
 import { RecipeEditor } from "./generate/RecipeEditor";

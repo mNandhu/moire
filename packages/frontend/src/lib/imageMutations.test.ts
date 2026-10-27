@@ -6,7 +6,6 @@ import {
   setQuarantine,
   setRating,
   setScore,
-  setTagThumbnail,
 } from "./imageMutations";
 
 afterEach(() => {
@@ -67,15 +66,6 @@ describe("per-image mutations", () => {
     const spy = mockFetch();
     await removeTags("L1:a.jpg", ["cat"]);
     expect(spy.mock.calls[0][0]).toBe("/api/v1/tags/remove/L1%3Aa.jpg");
-  });
-
-  it("setTagThumbnail encodes the raw prefixed tag", async () => {
-    const spy = mockFetch();
-    await setTagThumbnail("manual:my fav", "L1:a.jpg");
-    expect(spy).toHaveBeenCalledWith("/api/v1/tags/thumbnail/manual%3Amy%20fav", {
-      ...JSON_POST,
-      body: JSON.stringify({ image_id: "L1:a.jpg" }),
-    });
   });
 
   it("throws the response body on failure", async () => {

@@ -8,7 +8,7 @@ import { Checkbox } from "./ui/Checkbox";
 import { useToast } from "./Toasts";
 import { CharacterAvatar } from "./CharacterAvatar";
 import { FocusPicker } from "./FocusPicker";
-import { setTagFocus, updateCharacter } from "../lib/imageMutations";
+import { setTagFocus, updateCharacter } from "../lib/tagMutations";
 import { TAGS_KEY } from "../lib/queries";
 import { characterHref, type CharacterPage } from "../lib/character";
 import { errorText } from "../lib/api";
