@@ -10,7 +10,7 @@ import { fetchRemix, remixKey, useGenerators, type Generator, type RemixInfo } f
 import { formFromRemix, loadDraft, saveDraft, type GenerateForm, type SeedChoice } from "../../lib/generateForm";
 import { generatorFor, InGenerateBadge } from "./InGenerate";
 import { useToast } from "../Toasts";
-import { TestBadge } from "./WorkflowPicker";
+import { TestBadge } from "./TestBadge";
 
 /** How Generate is told about a remix made while it is mounted (the viewer
  * can sit over it): router state, read once. */

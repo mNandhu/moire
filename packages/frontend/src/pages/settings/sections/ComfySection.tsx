@@ -5,7 +5,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Section } from "../../../components/ui/Card";
 import { Badge, Button, Checkbox, Input, Picker } from "../../../components/ui";
 import { ComfyStatusLine } from "../../../components/generate/ComfyStatusLine";
-import { TestBadge } from "../../../components/generate/WorkflowPicker";
+import { TestBadge } from "../../../components/generate/TestBadge";
 import {
   GEN_KEY,
   HEADER_MASK,

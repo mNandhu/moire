@@ -1,22 +1,10 @@
 import { ChevronDown, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Badge, Picker } from "../ui";
+import { Picker } from "../ui";
 import { cn } from "../../lib/cn";
 import type { Generator } from "../../lib/generate";
-import { SET_UP, testState, workflowOptions, type TestState } from "../../lib/generatorRunBar";
-
-const STATE: Record<TestState, { tone: "success" | "warning" | "danger" | "brand"; label: string }> = {
-  ready: { tone: "success", label: "Ready" },
-  untested: { tone: "warning", label: "Needs a test run" },
-  running: { tone: "brand", label: "Testing" },
-  waiting: { tone: "brand", label: "Waiting for scan" },
-  failed: { tone: "danger", label: "Test failed" },
-};
-
-export function TestBadge({ gen }: { gen: Generator }) {
-  const s = STATE[testState(gen)];
-  return <Badge tone={s.tone}>{s.label}</Badge>;
-}
+import { SET_UP, testState, workflowOptions } from "../../lib/generatorRunBar";
+import { TestBadge } from "./TestBadge";
 
 /**
  * The Generate header's workflow picker: Built-in and every set-up workflow

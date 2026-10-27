@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
 import type { GeneratorSetup, SeedGroup, TextInput } from "./generate";
-import { canSave, checklist, defaultName, groupTicked, leaveOut, pickPrompt, pickerOptions, tickGroup } from "./generatorSetup";
+import { PER_REQUEST_MAX } from "./generationLimits";
+import {
+  canSave,
+  checklist,
+  clampPerRequest,
+  defaultName,
+  finalSlots,
+  groupTicked,
+  leaveOut,
+  pickPrompt,
+  pickerOptions,
+  tickGroup,
+  workflowOrigin,
+} from "./generatorSetup";
 
 const input = (over: Partial<TextInput>): TextInput => ({
   path: ["1", "text"],
@@ -142,4 +155,53 @@ describe("missing models", () => {
     expect(canSave(checklist(s, fixed))).toBe(true);
     expect(leaveOut(fixed, "8", false).drop_loras).toEqual([]);
   });
+});
+
+describe("finalSlots", () => {
+  const lora = {
+    loader: { node: "4", title: "Loader" },
+    model: { ref: ["4", 0] as [string, number], title: "Loader" },
+    clip: { ref: ["4", 1] as [string, number], title: "Loader" },
+    existing: [],
+    consumers: [],
+  };
+  const slots = { positive: ["6", "text"] as [string, string], lora_model: ["1", 0] as [string, number], lora_clip: ["1", 1] as [string, number], lora_text: true };
+
+  it("drops the LoRA refs with LoRAs off or no insertion point", () => {
+    for (const out of [finalSlots(slots, false, lora), finalSlots(slots, true, undefined)]) {
+      expect(out.lora_model).toBeUndefined();
+      expect(out.lora_clip).toBeUndefined();
+      expect(out.lora_text).toBe(true);
+      expect(out.positive).toEqual(["6", "text"]);
+    }
+  });
+
+  it("takes the insertion point's refs and drops prompt-text LoRAs with LoRAs on", () => {
+    const out = finalSlots(slots, true, lora);
+    expect(out.lora_model).toEqual(["4", 0]);
+    expect(out.lora_clip).toEqual(["4", 1]);
+    expect(out.lora_text).toBeUndefined();
+    expect(finalSlots(slots, true, { ...lora, clip: null }).lora_clip).toBeNull();
+  });
+
+  it("leaves the input alone", () => {
+    finalSlots(slots, false, lora);
+    expect(slots.lora_model).toEqual(["1", 0]);
+  });
+});
+
+it("clampPerRequest keeps 1 to PER_REQUEST_MAX", () => {
+  expect(clampPerRequest(0)).toBe(1);
+  expect(clampPerRequest(5)).toBe(5);
+  expect(clampPerRequest(PER_REQUEST_MAX + 1)).toBe(PER_REQUEST_MAX);
+});
+
+it("workflowOrigin names the family, the matched file or the upload", () => {
+  const img = { kind: "image" as const, image_id: "a", family: "f", family_name: null, workflow_sig: "s" };
+  expect(workflowOrigin({ ...img, family_name: "Portrait" })).toBe("From Portrait");
+  expect(workflowOrigin({ ...img, file_name: "Portrait v3" })).toBe("From Portrait v3");
+  expect(workflowOrigin(img)).toBe("From an image");
+  expect(workflowOrigin({ kind: "upload", filename: "flow.json" })).toBe("flow.json");
+  expect(workflowOrigin({ kind: "upload", filename: null })).toBe("Uploaded file");
+  expect(workflowOrigin(undefined)).toBeUndefined();
 });
