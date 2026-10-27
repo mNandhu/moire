@@ -4,7 +4,7 @@ import { durationWords } from "../../lib/format";
 import { useBatchChanged } from "../../hooks/useBatchActions";
 import { useBatch, useBatches, useComfyStatus } from "../../lib/generate";
 import { leftLabel } from "../../lib/eta";
-import { queueLegs } from "../../lib/queueClock";
+import { queueRoles } from "../../lib/queueClock";
 import { BatchResults } from "./BatchResults";
 
 /** Batches shown in the output column. */
@@ -65,8 +65,8 @@ export function OutputFeed() {
   // Waiting its turn: in the queue, nothing made, and not the one in front
   // (which may sit queued in ComfyUI a moment before it runs).
   const active = (status?.active ?? []).filter((a) => !a.test);
-  const front = queueLegs(active).legs[0]?.id;
-  const behind = new Set(active.filter((a) => isWaiting(a) && a._id !== front).map((a) => a._id));
+  const queued = queueRoles(active).behind;
+  const behind = new Set(active.filter((a) => isWaiting(a) && queued.has(a._id)).map((a) => a._id));
   // Enough to get past every one of them.
   const { data } = useBatches(SHOWN + behind.size);
   const started = data

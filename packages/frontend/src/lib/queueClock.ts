@@ -63,6 +63,16 @@ export function queueLegs(active: readonly ActiveBatch[]): { legs: Leg[]; total:
   return { legs, total: cursor };
 }
 
+/**
+ * Which live batch is in front of the queue and which wait behind it, in the
+ * same run order queueLegs uses (the one being made, then by start). Test
+ * batches are left out. Pure.
+ */
+export function queueRoles(active: readonly ActiveBatch[]): { front: number | undefined; behind: Set<number> } {
+  const legs = queueLegs(active.filter((a) => !a.test)).legs;
+  return { front: legs[0]?.id, behind: new Set(legs.slice(1).map((l) => l.id)) };
+}
+
 /** Images still to make: frames waiting or being made. Pure. */
 export function imagesLeft(legs: readonly Leg[]): number {
   return legs.reduce((n, l) => n + l.frames.filter((f) => f.state === "waiting" || f.state === "making").length, 0);

@@ -213,6 +213,23 @@ export function isWaiting(a: Turn): boolean {
   return !a.running && a.finished === 0;
 }
 
+/** What a batch without images is doing: being made now, waiting its turn in
+ * ComfyUI's queue, or made and waiting for the download and library scan. */
+export type Phase = "Running" | "Queued" | "Paused" | "Arriving";
+
+/** A batch's phase, given the queue's front and the batches behind it
+ * (queueClock.queueRoles). Pure. */
+export function phaseOf(
+  b: Pick<BatchSummary, "_id" | "state" | "arriving">,
+  front: number | undefined,
+  behind: ReadonlySet<number>,
+): Phase {
+  if (b.state === "paused") return "Paused";
+  if (b._id === front) return "Running";
+  if (behind.has(b._id)) return "Queued";
+  return b.arriving > 0 ? "Arriving" : "Running";
+}
+
 /** When a queued batch starts or is done, its turns among the others counted:
  * "starts in about 2m", "about 9m left". Null when there's no number. */
 export function turnLabel(a: Turn): string | null {

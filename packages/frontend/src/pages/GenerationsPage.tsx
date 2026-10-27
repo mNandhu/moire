@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { History, ImageOff, Layers, Loader2, Search } from "lucide-react";
 import { QueueFrames } from "../components/generate/QueueFrames";
 import { Badge, EmptyState, Input, PageBody, PageHeader } from "../components/ui";
-import { batchLine, coverAspect, dayLabel, scrubIndex, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
+import { batchLine, coverAspect, dayLabel, phaseOf, type Phase, scrubIndex, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
+import { queueRoles } from "../lib/queueClock";
 import { useBatches, useComfyStatus, type BatchSummary } from "../lib/generate";
 import { cn } from "../lib/cn";
 import { fuzzyRank } from "../lib/fuzzy";
@@ -16,17 +17,6 @@ type Show = "all" | "running" | "failed";
 // different shapes pack without gaps while staying in reading order.
 const MIN_COL = 190;
 const GAP = 12;
-
-/** What a batch without images is doing: being made now, waiting its turn in
- * ComfyUI's queue, or made and waiting for the download and library scan. */
-type Phase = "Running" | "Queued" | "Paused" | "Arriving";
-
-function phaseOf(b: BatchSummary, runningId: number | undefined, queued: Set<number>): Phase {
-  if (b.state === "paused") return "Paused";
-  if (b._id === runningId) return "Running";
-  if (queued.has(b._id)) return "Queued";
-  return b.arriving > 0 ? "Arriving" : "Running";
-}
 
 /** One card in the masonry grid, spanning its own measured height. */
 function MasonryItem({ children }: { children: ReactNode }) {
@@ -206,11 +196,7 @@ export default function GenerationsPage() {
   // Batches take turns: the one ComfyUI is making now, the rest wait.
   // Keyed on the poll's own array so the grid isn't redrawn every second.
   const active = status?.active;
-  const { runningId, queued } = useMemo(() => {
-    const live = (active ?? []).filter((a) => !a.test);
-    const runningId = (live.find((a) => a.running) ?? live[0])?._id;
-    return { runningId, queued: new Set(live.filter((a) => a._id !== runningId).map((a) => a._id)) };
-  }, [active]);
+  const { front: runningId, behind: queued } = useMemo(() => queueRoles(active ?? []), [active]);
   const [q, setQ] = useState("");
   const [show, setShow] = useState<Show>("all");
 

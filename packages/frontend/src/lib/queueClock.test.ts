@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { imagesLeft, legClock, queueLegs } from "./queueClock";
+import { imagesLeft, legClock, queueLegs, queueRoles } from "./queueClock";
 import { clockText } from "./format";
 import type { ActiveBatch } from "./generate";
 
@@ -42,6 +42,24 @@ describe("queueLegs without server times", () => {
     const { legs } = queueLegs([b(1, 2, 0, 60), { ...b(2, 2, 0, 30), running: true }]);
     expect(legs.map((l) => [l.id, l.start, l.end])).toEqual([[2, 0, 30], [1, 30, 90]]);
     expect(legs[1].guess).toBe(false);
+  });
+});
+
+describe("queueRoles", () => {
+  it("is empty with nothing queued", () => {
+    expect(queueRoles([])).toEqual({ front: undefined, behind: new Set() });
+  });
+  it("puts the running batch in front", () => {
+    const r = queueRoles([b(1, 2, 0, 30), { ...b(2, 2, 0, 30), running: true }]);
+    expect(r).toEqual({ front: 2, behind: new Set([1]) });
+  });
+  it("with none running, the earliest start leads; test batches are left out", () => {
+    const r = queueRoles([
+      { ...b(1, 2, 0, 30), starts_in: 50, done_in: 80 },
+      { ...b(2, 2, 0, 30), starts_in: 0, done_in: 40 },
+      { ...b(3, 1, 0, 5), test: true },
+    ]);
+    expect(r).toEqual({ front: 2, behind: new Set([1]) });
   });
 });
 
