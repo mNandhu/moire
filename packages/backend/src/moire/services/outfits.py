@@ -119,7 +119,7 @@ async def wear_rule(outfit_id: str) -> WearRule | None:
 
 
 # The people tagged in one image the viewer asks about: a read-path guard, not
-# the composer's MAX_CHARACTERS (8 per prompt), which caps what is generated.
+# the composer's MAX_CHARACTERS (per prompt), which caps what is generated.
 WORN_MAX_CHARACTERS = 10
 
 
