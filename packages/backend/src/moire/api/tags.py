@@ -1,30 +1,23 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import asyncio
 
-import sqlalchemy as sa
-
-from ..database.db import async_conn
-from ..database import schema as t
 from ..services import thumb_version
 from ..services import tag_detail as tag_panel
 from ._utils import validate_tags
 from ..services import (
-    attire,
     characters,
     danbooru_tags,
     face_detect,
     image_tags,
-    prompt_board,
-    tag_categories,
     tag_descriptions,
     tag_kinds,
     tag_browse,
     tag_covers,
-    tag_index,
     tag_rename,
     tag_settings,
+    tag_views,
 )
 
 router = APIRouter()
@@ -54,46 +47,12 @@ class TagSettingsPatch(BaseModel):
     boilerplate: list[str]
 
 
-_maps_lock = asyncio.Lock()
-
-
-async def _tag_maps() -> tuple[dict[str, str], dict[str, str], dict]:
-    """The attire and facet maps (and the library's tag groups) over the tagger's vocabulary plus every tag in
-    the library (free-form prompt tags like ``pastel_pink_dolphin_shorts``
-    included). Classifying ~10k names takes tens of milliseconds, so they are
-    built together in a thread and kept until a tag write or a new
-    vocabulary."""
-    async with _maps_lock:
-        gen = tag_index.current_generation()
-        vocab = await tag_categories.load()
-        cached = tag_index.read_derived("tag-maps")
-        if cached is not None and cached[0] is vocab.general:
-            return cached[1], cached[2], cached[3]
-        async with async_conn() as conn:
-            bases = (
-                await conn.execute(sa.select(t.image_tags.c.base).distinct())
-            ).scalars()
-            library = [b for b in bases if b]
-            names = list(dict.fromkeys([*vocab.general, *library]))
-        attire_map, facet_map, groups = await asyncio.to_thread(
-            lambda: (
-                attire.attire_tags(names),
-                attire.facets(names),
-                attire.library_groups(library),
-            )
-        )
-        tag_index.store_derived(
-            "tag-maps", gen, (vocab.general, attire_map, facet_map, groups)
-        )
-        return attire_map, facet_map, groups
-
-
 @router.get("/attire")
 async def get_attire_groups():
     """``tag -> attire group`` (headwear, accessories, ...) for every attire
     tag the app knows of: outfit chips are labelled by it, and the attire
     autocomplete ranks by it. Changes with the library's tags."""
-    return JSONResponse((await _tag_maps())[0])
+    return JSONResponse((await tag_views.tag_maps())[0])
 
 
 @router.get("/facets")
@@ -101,7 +60,7 @@ async def get_tag_facets():
     """``tag -> facet`` (look, outfit, pose, scene, framing) for every listed
     tag that has one, plus the library's own tags that :func:`attire.facet_of`
     places: the image view tints tags by it."""
-    return JSONResponse((await _tag_maps())[1])
+    return JSONResponse((await tag_views.tag_maps())[1])
 
 
 @router.get("/groups")
@@ -110,7 +69,7 @@ async def get_tag_groups():
     library's tags; ``categories``: each of those groups' top-level category.
     The group pages list a group's tags from it. Built with the attire and
     facet maps, kept until a tag write."""
-    return JSONResponse((await _tag_maps())[2])
+    return JSONResponse((await tag_views.tag_maps())[2])
 
 
 class PlaceBody(BaseModel):
@@ -123,34 +82,7 @@ async def place_tags(body: PlaceBody):
     tag lists know of it (group, Danbooru posts, the tag an alias stands
     for). ``list``: whether Danbooru's list is in; until it is, no name is
     called unknown. ``fetching``: it is being downloaded."""
-    tags = await danbooru_tags.load()
-    vocab = await tag_categories.load()
-    library = frozenset(await _library_bases())
-    placed = await asyncio.to_thread(
-        prompt_board.place_all, body.names, tags, vocab.names, library
-    )
-    return JSONResponse(
-        {"names": placed, "list": bool(tags.tags), "fetching": danbooru_tags.fetching()}
-    )
-
-
-async def _library_bases() -> list[str]:
-    """Every tag name the library's images carry, prefix dropped. Kept until
-    the next tag write."""
-    gen = tag_index.current_generation()
-    cached = tag_index.read_derived("library-bases")
-    if cached is not None:
-        return cached
-    async with async_conn() as conn:
-        bases = [
-            b
-            for b in (
-                await conn.execute(sa.select(t.image_tags.c.base).distinct())
-            ).scalars()
-            if b
-        ]
-    tag_index.store_derived("library-bases", gen, bases)
-    return bases
+    return JSONResponse(await tag_views.place(body.names))
 
 
 @router.get("/board")
@@ -158,18 +90,7 @@ async def board_offers():
     """``section -> [[tag, posts], ...]``: what each prompt-board section can
     suggest, the library's tags among them. Changes with the library's tags
     and when Danbooru's list arrives."""
-    gen = tag_index.current_generation()
-    tags = await danbooru_tags.load()
-    vocab = await tag_categories.load()
-    cached = tag_index.read_derived("board-offers")
-    if cached is not None and cached[0] is tags and cached[1] is vocab:
-        return JSONResponse(cached[2])
-    bases = await _library_bases()
-    out = await asyncio.to_thread(
-        prompt_board.offers, vocab.general, tags, vocab.names, bases
-    )
-    tag_index.store_derived("board-offers", gen, (tags, vocab, out))
-    return JSONResponse(out)
+    return JSONResponse(await tag_views.board_offers())
 
 
 @router.get("/settings")
@@ -218,6 +139,12 @@ async def tag_samples(
     }
 
 
+def _base(tag: str) -> str:
+    """The tag a route names (query or path), as its covers and pages key
+    it: validated, any source prefix dropped."""
+    return tag_covers.pin_key(validate_tags([tag])[0])
+
+
 def _source(source: str) -> str:
     if source not in tag_browse.SOURCES:
         raise HTTPException(status_code=422, detail=f"unknown source {source!r}")
@@ -255,10 +182,9 @@ async def list_characters():
 
 
 @router.get("/character")
-async def character_page(tag: str):
+async def character_page(base: str = Depends(_base)):
     """A character page, by any of the character's names. Any other tag gets
     the same page (the tag page), its focus being the cover's framing."""
-    base = tag_covers.pin_key(validate_tags([tag])[0])
     got = await characters.page(base)
     if got is None:
         raise HTTPException(status_code=404, detail="No image has this tag")
@@ -295,7 +221,7 @@ async def create_character(body: dict):
     if not raw:
         raise HTTPException(status_code=422, detail="tag is required")
     # Lower case, as the tagger writes characters, so images match it.
-    tag = tag_covers.pin_key(validate_tags([raw])[0]).lower()
+    tag = _base(raw).lower()
     patch = {k: body[k] for k in ("name", "series", "color") if k in body}
     try:
         return await characters.create(tag, patch)
@@ -306,11 +232,9 @@ async def create_character(body: dict):
 
 
 @router.delete("/character")
-async def delete_character(tag: str):
+async def delete_character(base: str = Depends(_base)):
     """Forget a character made by hand, while no image has its tag."""
-    if not await characters.remove_made(
-        tag_covers.pin_key(validate_tags([tag])[0]).lower()
-    ):
+    if not await characters.remove_made(base.lower()):
         raise HTTPException(
             status_code=409, detail="Only a character with no images can be deleted"
         )
@@ -318,13 +242,12 @@ async def delete_character(tag: str):
 
 
 @router.get("/detail")
-async def tag_detail(tag: str, source: str = "all"):
+async def tag_detail(source: str = "all", base: str = Depends(_base)):
     """The Tags page panel for one tag, by name (any spelling or prefix)."""
-    base = tag_covers.pin_key(validate_tags([tag])[0])
     got = await tag_panel.detail(base, _source(source))
     if got is None:
         raise HTTPException(status_code=404, detail="No image has this tag")
-    cover = await _cover_of(base, got["thumb_image_id"])
+    cover = await tag_views.cover_of(base, got["thumb_image_id"])
     thumbs = await thumb_version.urls([got["thumb_image_id"], cover])
     return {
         **got,
@@ -336,19 +259,10 @@ async def tag_detail(tag: str, source: str = "all"):
     }
 
 
-async def _cover_of(base: str, pinned: str | None) -> str | None:
-    """A tag's cover: the pin, else what its mosaic leads with."""
-    if pinned:
-        return pinned
-    lead = await tag_covers.samples_for_tag(f"{tag_kinds.ANY_PREFIX}{base}", 1)
-    return lead[0]["_id"] if lead else None
-
-
 @router.put("/focus")
-async def set_tag_focus(tag: str, body: dict):
+async def set_tag_focus(body: dict, base: str = Depends(_base)):
     """Centre a tag's cover on a point (``focus_x``, ``focus_y``, 0..1);
     empty values clear it. The point belongs to the cover it was set on."""
-    base = tag_covers.pin_key(validate_tags([tag])[0])
     try:
         point = tag_covers.clean(body.get("focus_x"), body.get("focus_y"))
     except tag_covers.FocusError as e:
@@ -356,18 +270,17 @@ async def set_tag_focus(tag: str, body: dict):
     got = await tag_panel.detail(base, "all")
     if got is None:
         raise HTTPException(status_code=404, detail="No image has this tag")
-    cover = await _cover_of(base, got["thumb_image_id"])
+    cover = await tag_views.cover_of(base, got["thumb_image_id"])
     return {"tag": base, "focus": await tag_covers.put_focus(base, point, cover)}
 
 
 @router.post("/thumbnail/{tag:path}")
-async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
+async def set_tag_thumbnail(body: TagThumbnailSet, base: str = Depends(_base)):
     """Pin a tag's cover. Keyed by the tag's name, so it shows whichever
     sources found the tag; the image must carry it from one of them."""
-    tag = tag_covers.pin_key(validate_tags([tag])[0])
     # A character's avatar may come from an image under any of its names,
     # and is kept under the name its page uses.
-    key, names, is_character = await characters.names_of(tag)
+    key, names, is_character = await characters.names_of(base)
     tag = key
     image_id = await tag_covers.set_pin(tag, names, body.image_id)
     if image_id is None:
@@ -378,8 +291,8 @@ async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
 
 
 @router.delete("/thumbnail/{tag:path}")
-async def clear_tag_thumbnail(tag: str):
-    tag, *_ = await characters.names_of(tag_covers.pin_key(validate_tags([tag])[0]))
+async def clear_tag_thumbnail(base: str = Depends(_base)):
+    tag, *_ = await characters.names_of(base)
     await tag_covers.clear_pin(tag)
     return {"tag": tag, "cleared": True}
 
