@@ -1,11 +1,15 @@
 import { durationWords } from "./format";
 import { describe, expect, it } from "vitest";
+import type { BatchInputs } from "./generate";
 import {
+  batchCast,
   batchLine,
   batchRunTime,
+  batchStats,
   coverAspect,
   dayLabel,
   isWaiting,
+  partRows,
   resultGrid,
   resultSlots,
   scrubIndex,
@@ -112,5 +116,44 @@ describe("isWaiting / turnLabel", () => {
     expect(turnLabel(a)).toBe("about 10m left");
     expect(isWaiting({ ...a, finished: 0, running: true })).toBe(false);
     expect(turnLabel({ ...a, done_in: null })).toBeNull();
+  });
+});
+
+describe("batch page", () => {
+  const req = (state: string, inLibrary: boolean[], ran: number | null = null) =>
+    ({ state, ran, expected: null, elapsed: null, outputs: inLibrary.map((l, idx) => ({ idx, in_library: l })) }) as never;
+
+  it("counts images, runs, failures and runs still going", () => {
+    const s = batchStats({
+      inputs: { per_request: 2 } as BatchInputs,
+      requests: [req("done", [true, false], 10), req("failed", []), req("lost", []), req("running", []), req("pending", [])],
+    });
+    expect(s).toMatchObject({ images: 2, inLibrary: 1, runs: 5, perRun: 2, unfinished: 2, done: 3 });
+    expect(s.failed.map((q) => q.state)).toEqual(["failed", "lost"]);
+    expect(s.took).toEqual({ total: 10, perImage: 5, images: 2 });
+  });
+
+  it("brings back an older batch's one character", () => {
+    const one = { tag: "a", label: "A", tags: ["a"], lora: null };
+    expect(batchCast({ character: one })).toEqual([one]);
+    expect(batchCast({ character: one, characters: [] })).toEqual([]);
+    expect(batchCast({})).toEqual([]);
+  });
+
+  it("lists the layers' text, a prefix by its preset's name", () => {
+    expect(
+      partRows([
+        { kind: "text", role: "prefix", label: "Quality", text: "masterpiece" },
+        { kind: "character" },
+        { kind: "text", role: "prompt", text: "swing" },
+        { kind: "text", role: "style", text: " " },
+        { kind: "text", role: "text", text: "extra" },
+      ]),
+    ).toEqual([
+      { role: "prefix", label: "Prefix", value: "Quality" },
+      { role: "prompt", label: "Prompt", value: "swing" },
+    ]);
+    expect(partRows([{ kind: "text", role: "prefix", label: "", text: "t" }])[0].value).toBe("t");
+    expect(partRows(undefined)).toEqual([]);
   });
 });

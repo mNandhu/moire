@@ -1,9 +1,9 @@
 import { Link } from "react-router-dom";
-import { batchRunTime, isWaiting, turnLabel } from "../../lib/batches";
+import { batchStats, isWaiting, turnLabel } from "../../lib/batches";
 import { durationWords } from "../../lib/format";
 import { useBatchChanged } from "../../hooks/useBatchActions";
 import { useBatch, useBatches, useComfyStatus } from "../../lib/generate";
-import { batchLeft, leftLabel } from "../../lib/eta";
+import { leftLabel } from "../../lib/eta";
 import { queueLegs } from "../../lib/queueClock";
 import { BatchResults } from "./BatchResults";
 
@@ -15,12 +15,10 @@ function BatchPanel({ id }: { id: number }) {
   const changed = useBatchChanged(id);
   const { data: status } = useComfyStatus();
   if (!b) return null;
-  const done = b.requests.filter((q) => !["pending", "queued", "running"].includes(q.state)).length;
-  const took = batchRunTime(b.requests);
+  const { done, took, left } = batchStats(b);
   // With others queued its own time left isn't when it's done: the queue's
   // word for it first.
   const turn = status?.active.find((a) => a._id === id);
-  const left = batchLeft(b.requests);
   const leftText = turn ? turnLabel(turn) : left && leftLabel(left);
   return (
     // No card: a frame sized to the column sat wider than a portrait batch.

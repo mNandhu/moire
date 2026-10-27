@@ -1,8 +1,19 @@
 /** Batch display helpers shared by the Generations list, its rows and the
  * run panel's recent batches. Pure. */
-import { leftLabel } from "./eta";
+import { retryable } from "./batchActions";
+import { batchLeft, leftLabel } from "./eta";
 import { etaLabel } from "./format";
-import type { ActiveBatch, Batch, BatchState, BatchSummary, GenRequest, Output } from "./generate";
+import type {
+  ActiveBatch,
+  Batch,
+  BatchInputs,
+  BatchState,
+  BatchSummary,
+  CharacterInput,
+  GenRequest,
+  Output,
+  PromptPart,
+} from "./generate";
 
 export const STATE_LABEL: Record<BatchState, string> = {
   running: "Running",
@@ -132,6 +143,52 @@ export function batchRunTime(
   const images = made.reduce((a, q) => a + q.outputs.length, 0);
   const spent = made.reduce((a, q) => a + (q.ran ?? 0), 0);
   return { total, perImage: images ? spent / images : null, images };
+}
+
+/** A batch's numbers as the batch page and the output panel show them, each
+ * in its own words: images made and how many are in the library, runs and
+ * images per run, run time, time left, the requests a retry picks up, and
+ * runs still going or done. Pure. */
+export function batchStats(b: Pick<Batch, "requests" | "inputs">): {
+  images: number;
+  inLibrary: number;
+  runs: number;
+  perRun: number | null;
+  took: ReturnType<typeof batchRunTime>;
+  left: ReturnType<typeof batchLeft>;
+  failed: GenRequest[];
+  unfinished: number;
+  done: number;
+} {
+  const outputs = b.requests.flatMap((q) => q.outputs);
+  const unfinished = b.requests.filter((q) => GOING.has(q.state)).length;
+  return {
+    images: outputs.length,
+    inLibrary: outputs.filter((o) => o.in_library).length,
+    runs: b.requests.length,
+    perRun: b.inputs.per_request,
+    took: batchRunTime(b.requests),
+    left: batchLeft(b.requests),
+    failed: retryable(b.requests),
+    unfinished,
+    done: b.requests.length - unfinished,
+  };
+}
+
+/** The characters a batch was queued with; older batches have one `character`. Pure. */
+export function batchCast(i: Pick<BatchInputs, "characters" | "character">): CharacterInput[] {
+  return i.characters ?? (i.character ? [i.character] : []);
+}
+
+/** Which layers' text the inputs list shows, and as what. */
+const PART_ROW: Partial<Record<string, string>> = { prefix: "Prefix", prompt: "Prompt", style: "LoRA words" };
+
+/** The layers' text rows of a batch's inputs: Prefix (its preset's name,
+ * else its text), Prompt and LoRA words, the empty ones left out. Pure. */
+export function partRows(positive: readonly PromptPart[] | null | undefined): { role: string; label: string; value: string }[] {
+  return (positive ?? [])
+    .filter((p) => p.kind === "text" && p.text?.trim() && p.role && p.role in PART_ROW)
+    .map((p) => ({ role: p.role!, label: PART_ROW[p.role!]!, value: (p.role === "prefix" ? p.label || p.text : p.text)! }));
 }
 
 /** A batch cover's width / height: the batch's own shape (every image in a
