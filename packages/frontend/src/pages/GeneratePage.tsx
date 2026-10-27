@@ -1,32 +1,27 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, CircleAlert, FlaskConical, Loader2, Lock, Sparkles, Wand2 } from "lucide-react";
-import { Badge, Button, ButtonLink, Card, EmptyState, PageBody, PageHeader, Tooltip } from "../components/ui";
+import { Sparkles, Wand2 } from "lucide-react";
+import { ButtonLink, EmptyState, PageBody, PageHeader } from "../components/ui";
 import { bareTagPool } from "../components/generate/ChipInput";
-import { BatchName, CheckpointPicker, CountStepper, FixedValue, SeedControl, SizePicker } from "../components/generate/fields";
-import { SamplingControl } from "../components/generate/SamplingControl";
-import { MAX_CHARACTERS } from "../lib/generationLimits";
 import { stemOf } from "../lib/modelNames";
-import { CharacterLayer } from "../components/generate/CharacterBlock";
-import { StyleLayer } from "../components/generate/StyleLayer";
 import { ComfyStatusLine } from "../components/generate/ComfyStatusLine";
 import { WorkflowPicker } from "../components/generate/WorkflowPicker";
 import { RemixStrip, type RemixState } from "../components/generate/Remix";
-import { canRunTest, countModeOf, defaultBatchSize, forWorkflow, runBarOf, testState } from "../lib/generatorRunBar";
+import { blockedReason, countModeOf, defaultBatchSize, forWorkflow, runBarOf } from "../lib/generatorRunBar";
 import { useCharacters } from "../lib/queries";
 import { useNextEstimate } from "../components/generate/NextBatch";
 import { QueueDeck } from "../components/generate/QueueDeck";
 import { OutputFeed } from "../components/generate/OutputFeed";
+import { PositiveLayers } from "../components/generate/PositiveLayers";
+import { RunBar } from "../components/generate/RunBar";
 import { autoBatchName } from "../lib/batchName";
 import {
-  GENERATORS_KEY,
   MODELS_KEY,
   RejectedError,
   invalidateQueue,
   queueBatch,
   refreshModels,
-  startTest,
   useComfyModels,
   useComfySettings,
   fetchDefaultOutfit,
@@ -38,141 +33,25 @@ import {
   usePresets,
   useRecipes,
   type CharacterInput,
-  type Generator,
   type NodeError,
 } from "../lib/generate";
-import {
-  insertBlock,
-  nameWords,
-  presetText,
-  previewText,
-  removeBlock,
-  toParts,
-  toEstimateBody,
-  toQueueBody,
-  updateBlock,
-  type GenerateForm,
-} from "../lib/generateForm";
-import { keepOff, loadDraft, saveDraft } from "../lib/generateDraft";
+import { nameWords, previewText, toParts, toEstimateBody, toQueueBody, type GenerateForm } from "../lib/generateForm";
+import { loadDraft, saveDraft } from "../lib/generateDraft";
+import { settleFresh, switchWorkflow } from "../lib/composerEdits";
+import { boardLayersOf } from "../lib/boardLayers";
 import { rejectedFields } from "../lib/sampling";
-import { PromptRepeats } from "../components/generate/PromptRepeats";
-import { prefixRepeats } from "../lib/promptRepeats";
 import { checkCountTags, countRanges, expectedTags, fixCountTags, followCast, type Kind } from "../lib/countTags";
-import { queueTitle } from "../lib/eta";
-import { etaShort } from "../lib/format";
-import { cn } from "../lib/cn";
-import { countText, type CountMode } from "../lib/requests";
+import type { CountMode } from "../lib/requests";
 import { PromptInput, type PromptFlash } from "../components/generate/PromptInput";
-import { AddLayer, EmbeddingLayer, LayerRow, NegativeLayer, PresetControl, TextLayer } from "../components/generate/Layers";
 import { characterPageQuery, useTagAggregate } from "../lib/queries";
 import { characterColours, displayName, mixColours } from "../lib/character";
 import { useAmbientTint } from "../lib/ambient";
-import { characterInput, characterTags, restoreOff, strikeOff, toggleOff } from "../lib/recipe";
-import { keepPicked, outfitInput, pickOf, restoreWorn, strikeWorn, toggleWorn, wornTags, type OutfitPick } from "../lib/outfit";
+import { characterInput, characterTags } from "../lib/recipe";
+import { outfitInput, pickOf, wornTags, type OutfitPick } from "../lib/outfit";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
-import { PromptBoard, type BoardLayer } from "../components/generate/PromptBoard";
 
 const NO_STRINGS: string[] = [];
-
-/** ComfyUI's rejection: the node errors, with Refresh models / Dismiss. */
-function RejectedBox({
-  errors,
-  onRefresh,
-  onDismiss,
-  refreshing,
-}: {
-  errors: NodeError[];
-  onRefresh: () => void;
-  onDismiss: () => void;
-  refreshing: boolean;
-}) {
-  return (
-    <div role="alert" className="rounded-lg border border-red-800/70 bg-red-950/30 px-3.5 py-3 text-sm">
-      <div className="flex items-start gap-2 text-red-200">
-        <CircleAlert size={16} className="mt-0.5 shrink-0" />
-        <span>Nothing was queued</span>
-      </div>
-      <dl className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-xs">
-        {errors.map((e, i) => (
-          <div key={i} className="contents">
-            <dt className="truncate text-red-200">
-              {e.class_type ?? "Node"}{" "}
-              <span className="font-mono text-2xs text-red-300/80">{e.added ? "added by Moiré" : `node ${e.node}`}</span>
-            </dt>
-            <dd className="font-mono text-red-300" title={e.details || undefined}>
-              {e.input ? `${e.input}: ` : ""}
-              {e.message}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      <div className="mt-3 flex gap-2">
-        <Button size="sm" onClick={onRefresh} disabled={refreshing}>
-          Refresh models
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onDismiss}>
-          Dismiss
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/** The test-run gate: one image proves the output folder and the checkpoint. */
-function TestRunCard({ gen, checkpoint, disabled }: { gen: Generator; checkpoint: string | null; disabled: boolean }) {
-  const qc = useQueryClient();
-  const [errors, setErrors] = useState<NodeError[] | null>(null);
-  const run = useMutation({
-    mutationFn: () => startTest(gen._id, checkpoint),
-    onMutate: () => setErrors(null),
-    onError: (e) => {
-      if (e instanceof RejectedError) setErrors(e.nodeErrors);
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: GENERATORS_KEY }),
-  });
-  const t = gen.test;
-  const state = testState(gen);
-  const running = state === "running";
-  const waiting = state === "waiting";
-  const failed = state === "failed";
-  return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm text-neutral-100">Test run</div>
-        <Button
-          size="sm"
-          variant="primary"
-          onClick={() => run.mutate()}
-          disabled={disabled || !canRunTest(state) || run.isPending}
-          title={disabled ? "Waiting for connection" : "One image at the chosen checkpoint"}
-        >
-          {(running || run.isPending) && <Loader2 size={14} className="animate-spin" />}
-          {running ? "Running" : waiting || failed ? "Run again" : "Test run"}
-        </Button>
-      </div>
-      {failed && t?.error && (
-        <div className="mt-2 font-mono text-xs text-red-300">
-          {t.error.class_type} {t.error.node && `node ${t.error.node}`}: {t.error.message}
-        </div>
-      )}
-      {failed && !t?.error && t?.state !== "done" && <div className="mt-2 text-xs text-red-300">{t?.state === "lost" ? "Lost" : "Cancelled"}</div>}
-      {failed && t?.state === "done" && <div className="mt-2 text-xs text-red-300">Returned 0 images</div>}
-      {waiting && <div className="mt-2 text-xs text-muted">Waiting for the library scan</div>}
-      {run.error && !(run.error instanceof RejectedError) && (
-        <div className="mt-2 text-xs text-red-300">{run.error.message}</div>
-      )}
-      {errors && (
-        <div className="mt-3">
-          <RejectedBox errors={errors} onRefresh={() => refreshModels()} onDismiss={() => setErrors(null)} refreshing={false} />
-        </div>
-      )}
-    </Card>
-  );
-}
-
-/** A prompt part's layer, named on the prompt board. */
-const LAYER_LABEL: Record<string, string> = { prefix: "Prefix", style: "Style", text: "Text", preset: "Preset" };
 
 /** "Eula", "Eula and Furina", "Eula, Furina and Zhongli". */
 function andList(names: readonly string[]): string {
@@ -196,40 +75,14 @@ export default function GeneratePage() {
   // The "+" between layers asked for another character: the Character layer
   // shows a row with its picker open.
   const [addingCharacter, setAddingCharacter] = useState(false);
-  const addCharacter = form.characters.length < MAX_CHARACTERS ? () => setAddingCharacter(true) : undefined;
   const set = <K extends keyof GenerateForm>(k: K, v: GenerateForm[K]) => setForm((f) => ({ ...f, [k]: v }));
-  // An outfit chosen by hand settles the character: no late Default over it.
-  const setOutfit = (tag: string, pick: OutfitPick | null) =>
-    setForm((f) => {
-      const outfits = { ...f.outfits };
-      if (pick) outfits[tag] = pick;
-      else delete outfits[tag];
-      return { ...f, outfits, fresh: f.fresh.filter((t) => t !== tag) };
-    });
-  const setCharacters = (tags: string[]) =>
-    setForm((f) => ({
-      ...f,
-      characters: tags,
-      outfits: keepPicked(f.outfits, tags),
-      identityOff: keepOff(f.identityOff, tags),
-      fresh: [...f.fresh, ...tags.filter((t) => !f.characters.includes(t))].filter((t) => tags.includes(t)),
-    }));
   // Characters just picked (here or from a character page) start wearing
   // what Settings says: none unless set to their usual clothes. A remix
   // or a replayed batch brings its own and marks none.
   const startAs = settings?.new_character_outfit;
   useEffect(() => {
     if (!form.fresh.length || !startAs) return;
-    const settle = (tag: string, pick: OutfitPick | null) =>
-      setForm((f) =>
-        f.fresh.includes(tag)
-          ? {
-              ...f,
-              fresh: f.fresh.filter((t) => t !== tag),
-              outfits: pick && f.characters.includes(tag) && !f.outfits[tag] ? { ...f.outfits, [tag]: pick } : f.outfits,
-            }
-          : f,
-      );
+    const settle = (tag: string, pick: OutfitPick | null) => setForm((f) => settleFresh(f, tag, pick));
     for (const tag of form.fresh) {
       if (startAs !== "default") {
         settle(tag, null);
@@ -263,19 +116,9 @@ export default function GeneratePage() {
   // bar would ride above it, over the field being typed in.
   const [writing, setWriting] = useState(false);
   const asked = params.get("workflow");
-  const hasSampling = bar.sampling;
-  /** Switching workflows: settings tied to the old graph go; an empty
-   * Prompt and Negative take the new one's own. */
   const chooseWorkflow = (id: string) => {
     const next = generators?.find((g) => g._id === id);
-    setForm((f) => ({
-      ...f,
-      workflow: id,
-      sampling: {},
-      perRequest: null,
-      prompt: !f.prompt.trim() && next?.defaults ? next.defaults.base : f.prompt,
-      negative: !f.negative.trim() && next?.defaults ? next.defaults.negative : f.negative,
-    }));
+    setForm((f) => switchWorkflow(f, id, next));
   };
   const checkpoints = models?.checkpoints ?? NO_STRINGS;
   // The first installed checkpoint until the user picks one.
@@ -333,7 +176,6 @@ export default function GeneratePage() {
         })),
   );
   const defaultPerRequest = defaultBatchSize(gen, settings?.builtin_per_request ?? 1);
-  const ownBatchSize = bar.batchSize;
   // How the backend will split the count, per workflow.
   const countMode: CountMode = countModeOf(gen, form.perRequest, settings?.builtin_per_request ?? 1);
   const setupLink = gen?.kind === "custom" ? { text: "Open its setup", to: `/generate/workflows/${gen._id}` } : undefined;
@@ -480,115 +322,19 @@ export default function GeneratePage() {
       flash={flash}
     />
   );
-  // What the other layers already say, for the prompt board. A character's
-  // tags strike out there as they do in their card, for this batch only:
-  // the recipe itself changes in its Edit dialog.
-  const toggleIdentity = (character: string, tag: string) =>
-    setForm((f) => ({ ...f, identityOff: { ...f.identityOff, [character]: toggleOff(f.identityOff[character], tag) } }));
-  const boardLayers: BoardLayer[] = [
-    ...parts.positive.flatMap((p, i) =>
-      p.kind === "text" && p.role !== "prompt" && p.text?.trim()
-        ? [{ key: `part:${i}`, label: p.label || LAYER_LABEL[p.role ?? ""] || "Layer", text: p.text }]
-        : [],
-    ),
-    ...recipes.flatMap((r) => {
-      if (!r) return [];
-      const entry = everyone?.find((c) => c.tag === r.tag);
-      const pick = form.outfits[r.tag];
-      return [
-        {
-          key: `character:${r.tag}`,
-          label: displayName(entry ?? { tag: r.tag }).name,
-          character: entry,
-          onStrike: (tags: string[]) => {
-            const was = { off: form.identityOff[r.tag], pick: form.outfits[r.tag] };
-            const mine = tags.filter((t) => r.identity.some((c) => c.tag === t));
-            setForm((f) => {
-              const out = { ...f, identityOff: { ...f.identityOff, [r.tag]: strikeOff(f.identityOff[r.tag], mine) } };
-              const cur = f.outfits[r.tag];
-              if (cur) out.outfits = { ...f.outfits, [r.tag]: strikeWorn(cur, tags.filter((t) => cur.tags.includes(t))) };
-              return out;
-            });
-            return () =>
-              setForm((f) => {
-                const out = { ...f, identityOff: { ...f.identityOff, [r.tag]: restoreOff(f.identityOff[r.tag], mine) } };
-                const cur = f.outfits[r.tag];
-                if (cur && was.pick && cur.id === was.pick.id) out.outfits = { ...f.outfits, [r.tag]: restoreWorn(cur, was.pick, tags) };
-                return out;
-              });
-          },
-          tags: [
-            { tag: r.tag, self: true },
-            ...r.identity
-              .filter((c) => !c.dropped)
-              .map((c) => ({
-                tag: c.tag,
-                dropped: !!form.identityOff[r.tag]?.includes(c.tag),
-                onToggle: () => toggleIdentity(r.tag, c.tag),
-              })),
-            ...(pick?.tags ?? []).map((t) => ({
-              tag: t,
-              dropped: pick!.dropped.includes(t),
-              onToggle: () => setOutfit(r.tag, toggleWorn(pick!, t)),
-            })),
-          ],
-        },
-      ];
-    }),
-  ];
+  const boardLayers = boardLayersOf(parts.positive, recipes, everyone, form, setForm);
   // As the backend merges them: characters' LoRAs first, each file once.
   const sentLoras = [...(characters ?? []).flatMap((c) => (c.lora ? [c.lora] : [])), ...form.loras].filter(
     (l, i, all) => all.findIndex((x) => stemOf(x.name) === stemOf(l.name)) === i,
   );
   const ready = !!gen?.ready;
-  // Why Queue can't run yet, said on the button itself.
-  const blocked = !connected
-    ? "Waiting for ComfyUI"
-    : !ready
-      ? "Run the test first"
-      : !settings?.output_library_id
-        ? "Set the output folder"
-        : form.characters.length && !characters
-          ? "Loading character"
-          : null;
-  const canQueue = !blocked && !queue.isPending;
-
-  // One button, two places: in the settings card from lg, pinned to the
-  // bottom of the screen on phones so it never sits a long scroll away.
-  const runButton = blocked ? (
-    <Button
-      className="w-full h-11 text-[15px]"
-      disabled
-      title={!ready && connected ? "Use Test run above: one image proves the checkpoint and the output folder" : undefined}
-    >
-      {blocked === "Run the test first" ? <FlaskConical size={16} /> : <Lock size={16} />}
-      {blocked}
-    </Button>
-  ) : (
-    <Button
-      variant="primary"
-      className="w-full h-11 text-[15px]"
-      disabled={!canQueue}
-      onClick={() => queue.mutate()}
-      title={queueTitle(estimate)}
-    >
-      {queue.isPending ? (
-        <Loader2 size={16} className="animate-spin" />
-      ) : justQueued ? (
-        <Check size={16} />
-      ) : (
-        <Wand2 size={16} />
-      )}
-      {justQueued && !queue.isPending ? (
-        "Queued"
-      ) : (
-        <>
-          Queue {countText(form.count, countMode)}
-          {estimate?.seconds != null && <span className="font-normal tabular-nums opacity-70">~{etaShort(estimate.seconds)}</span>}
-        </>
-      )}
-    </Button>
-  );
+  const blocked = blockedReason({
+    connected,
+    ready,
+    outputLibraryId: settings?.output_library_id,
+    picked: form.characters.length,
+    loaded: !!characters,
+  });
 
   return (
     <>
@@ -618,147 +364,25 @@ export default function GeneratePage() {
             onBlur={() => setWriting(false)}
           >
             {form.remix && <RemixStrip remix={form.remix} seed={form.seed} onClear={() => set("remix", null)} />}
-            <div className="flex flex-col" aria-label="Positive prompt">
-              {form.blocks.map((blk, i) => (
-                <div key={"id" in blk ? blk.id : blk.kind}>
-                  {i > 0 && (
-                    <AddLayer onAdd={(k) => set("blocks", insertBlock(form.blocks, i, k))} onCharacter={addCharacter} />
-                  )}
-                  {blk.kind === "prefix" ? (
-                    <LayerRow
-                      label="Prefix"
-                      footer={
-                        <PromptRepeats
-                          repeats={prefixRepeats(presetText(form.prefix, presets), form.prompt)}
-                          prompt={form.prompt}
-                          onPrompt={(v) => set("prompt", v)}
-                        />
-                      }
-                    >
-                      <PresetControl kind="positive" value={form.prefix} onChange={(v) => set("prefix", v)} presets={presets} label="Prefix preset" />
-                    </LayerRow>
-                  ) : blk.kind === "character" ? (
-                    <CharacterLayer
-                      value={form.characters}
-                      onChange={setCharacters}
-                      outfits={form.outfits}
-                      onOutfit={setOutfit}
-                      identityOff={form.identityOff}
-                      onIdentityOff={toggleIdentity}
-                      prompt={form.prompt}
-                      onPrompt={(v) => set("prompt", v)}
-                      adding={addingCharacter}
-                      onAdded={() => setAddingCharacter(false)}
-                      installedLoras={models?.loras ?? NO_STRINGS}
-                      rejectedLoras={flagged.loras}
-                    />
-                  ) : blk.kind === "prompt" ? (
-                    <Card
-                      className={cn(
-                        "px-4 pb-3 pt-3.5 ring-1 ring-brand-700/70 shadow-[0_0_0_3px_rgb(110_82_214/0.15)]",
-                        rejected?.some((e) => e.field === "positive") && "ring-red-700",
-                      )}
-                    >
-                      <div className="mb-1.5 flex items-center gap-2">
-                        <span className="text-sm font-semibold text-neutral-50">Prompt</span>
-                        {gen?.defaults?.base && form.prompt.trim() !== gen.defaults.base.trim() && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="ml-auto"
-                            onClick={() => setForm((f) => ({ ...f, prompt: gen.defaults!.base, negative: gen.defaults!.negative }))}
-                          >
-                            Use {gen.name}'s prompt
-                          </Button>
-                        )}
-                      </div>
-                      {promptEditor}
-                      <PromptBoard
-                        prompt={form.prompt}
-                        onPrompt={(v) => set("prompt", v)}
-                        layers={boardLayers}
-                        pool={pool}
-                        glow={boardGlow != null ? { key: boardGlow, box: "subject" } : null}
-                      />
-                    </Card>
-                  ) : blk.kind === "style" && !bar.loras ? (
-                    <LayerRow label="Style" className="opacity-60">
-                      <Tooltip
-                        content={
-                          <div className="space-y-1.5">
-                            <p>This workflow has no place for Moiré's LoRAs, so the Style layer and character LoRAs are off.</p>
-                            {setupLink && (
-                              <Link to={setupLink.to} className="text-brand-300 hover:text-brand-200">
-                                Map a LoRA insertion point in its setup
-                              </Link>
-                            )}
-                          </div>
-                        }
-                      >
-                        <Button size="sm" aria-disabled="true" className="cursor-default" tabIndex={0}>
-                          Add LoRA
-                        </Button>
-                      </Tooltip>
-                      <Badge>Off for this workflow</Badge>
-                    </LayerRow>
-                  ) : blk.kind === "style" ? (
-                    <StyleLayer
-                      value={form.loras}
-                      onChange={(v) => set("loras", v)}
-                      installed={models?.loras ?? NO_STRINGS}
-                      usage={usage}
-                      invalid={flagged.loras}
-                      presets={loraPresets}
-                    />
-                  ) : blk.kind === "text" ? (
-                    <TextLayer
-                      value={blk.text}
-                      onChange={(text) => set("blocks", updateBlock(form.blocks, blk.id, { text }))}
-                      onRemove={() => set("blocks", removeBlock(form.blocks, blk.id))}
-                    />
-                  ) : blk.kind === "preset" ? (
-                    <LayerRow label="Preset" onRemove={() => set("blocks", removeBlock(form.blocks, blk.id))}>
-                      <PresetControl
-                        kind="positive"
-                        value={blk.preset}
-                        onChange={(preset) => set("blocks", updateBlock(form.blocks, blk.id, { preset }))}
-                        presets={presets}
-                        label="Preset"
-                      />
-                    </LayerRow>
-                  ) : (
-                    <EmbeddingLayer
-                      value={blk.name}
-                      onChange={(name) => set("blocks", updateBlock(form.blocks, blk.id, { name }))}
-                      onRemove={() => set("blocks", removeBlock(form.blocks, blk.id))}
-                      embeddings={models?.embeddings ?? NO_STRINGS}
-                    />
-                  )}
-                </div>
-              ))}
-              <AddLayer
-                onAdd={(k) => set("blocks", insertBlock(form.blocks, form.blocks.length, k))}
-                onCharacter={addCharacter}
-              />
-              <NegativeLayer
-                preset={form.negativePreset}
-                onPreset={(v) => set("negativePreset", v)}
-                presets={presets}
-                text={form.negative}
-              >
-                <PromptInput
-                  label="Negative prompt"
-                  value={form.negative}
-                  onChange={(v) => set("negative", v)}
-                  suggestions={pool}
-                  embeddings={models?.embeddings ?? NO_STRINGS}
-                  rows={2}
-                  placeholder="More to avoid"
-                  invalid={rejected?.some((e) => e.field === "negative")}
-                  className="text-sm"
-                />
-              </NegativeLayer>
-            </div>
+            <PositiveLayers
+              form={form}
+              setForm={setForm}
+              gen={gen}
+              bar={bar}
+              presets={presets}
+              loraPresets={loraPresets}
+              models={models}
+              usage={usage}
+              pool={pool}
+              rejected={rejected}
+              rejectedLoras={flagged.loras}
+              promptEditor={promptEditor}
+              boardLayers={boardLayers}
+              boardGlow={boardGlow}
+              setupLink={setupLink}
+              addingCharacter={addingCharacter}
+              setAddingCharacter={setAddingCharacter}
+            />
             <details className="rounded-lg border border-line bg-neutral-950/40 px-4 py-2.5 text-sm">
               <summary className="cursor-pointer text-muted">Prompt as sent</summary>
               <div className="mt-2 space-y-2 font-mono text-xs text-neutral-300 break-words">
@@ -772,81 +396,31 @@ export default function GeneratePage() {
               </div>
             </details>
             <div className="flex-1" />
-            <div className="lg:sticky bottom-0 z-[5] -mx-2 bg-gradient-to-t from-canvas from-80% to-transparent px-2 pb-4 pt-3">
-              <Card className="space-y-3 p-4 shadow-panel">
-                {gen && !ready && (
-                  <TestRunCard gen={gen} checkpoint={bar.checkpoint ? form.checkpoint : null} disabled={!connected} />
-                )}
-                <div
-                  className={cn(
-                    "grid grid-cols-2 items-start gap-3",
-                    ownBatchSize ? "md:grid-cols-4" : "md:grid-cols-3",
-                    hasSampling
-                      ? "2xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,0.7fr)_minmax(0,1.6fr)_auto_minmax(0,0.9fr)]"
-                      : "2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1.6fr)_auto_minmax(0,0.9fr)]",
-                  )}
-                >
-                  {bar.checkpoint ? (
-                    <CheckpointPicker
-                      value={form.checkpoint}
-                      options={checkpoints}
-                      onChange={(v) => set("checkpoint", v)}
-                      invalid={flagged.checkpoint ? "Not in ComfyUI's checkpoint list" : null}
-                    />
-                  ) : (
-                    <FixedValue
-                      label="Checkpoint"
-                      value={gen?.fixed.checkpoint ? stemOf(gen.fixed.checkpoint) : null}
-                      why={`${gen?.name ?? "This workflow"} loads its checkpoint itself. To choose one here, map its checkpoint in the workflow's setup.`}
-                      fix={setupLink}
-                    />
-                  )}
-                  {gen && hasSampling && (
-                    <SamplingControl
-                      value={form.sampling}
-                      defaults={gen.sampling}
-                      samplers={models?.samplers ?? NO_STRINGS}
-                      schedulers={models?.schedulers ?? NO_STRINGS}
-                      onChange={(v) => set("sampling", v)}
-                      invalid={flagged.sampling ? "ComfyUI refused these sampler settings" : null}
-                    />
-                  )}
-                  {bar.size ? (
-                    <SizePicker value={{ width: form.width, height: form.height }} onChange={(sz) => setForm((f) => ({ ...f, ...sz }))} />
-                  ) : (
-                    <FixedValue
-                      label="Size"
-                      value={gen?.fixed.size?.replace("x", "×")}
-                      why={`${gen?.name ?? "This workflow"} sets its own image size. To choose it here, map its width and height in the workflow's setup.`}
-                      fix={setupLink}
-                    />
-                  )}
-                  <SeedControl value={form.seed} onChange={(v) => set("seed", v)} />
-                  <CountStepper
-                    value={form.count}
-                    onChange={(v) => set("count", v)}
-                    mode={countMode}
-                    className={ownBatchSize ? "col-span-2 2xl:col-span-1" : undefined}
-                    batchSize={
-                      ownBatchSize ? { value: form.perRequest, default: defaultPerRequest, onChange: (n) => set("perRequest", n) } : null
-                    }
-                  />
-                  <BatchName auto={autoName} custom={form.name} onChange={(v) => set("name", v)} />
-                </div>
-                {rejected && (
-                  <RejectedBox
-                    errors={rejected}
-                    onRefresh={() => refresh.mutate()}
-                    onDismiss={() => setRejected(null)}
-                    refreshing={refresh.isPending}
-                  />
-                )}
-                <div className="hidden lg:block">{runButton}</div>
-              </Card>
-            </div>
-            <div className={cn("lg:hidden -mx-2 px-2 pb-3 pt-4", !writing && "sticky bottom-0 z-[5] bg-gradient-to-t from-canvas from-60% to-transparent")}>
-              {runButton}
-            </div>
+            <RunBar
+              gen={gen}
+              bar={bar}
+              form={form}
+              setForm={setForm}
+              models={models}
+              flagged={flagged}
+              setupLink={setupLink}
+              countMode={countMode}
+              defaultPerRequest={defaultPerRequest}
+              autoName={autoName}
+              rejected={rejected}
+              onRefresh={() => refresh.mutate()}
+              refreshing={refresh.isPending}
+              onDismissRejected={() => setRejected(null)}
+              writing={writing}
+              run={{
+                blocked,
+                connected,
+                pending: queue.isPending,
+                justQueued,
+                onQueue: () => queue.mutate(),
+                estimate,
+              }}
+            />
           </div>
 
           <aside

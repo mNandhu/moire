@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { Generator, QueueBody } from "./generate";
-import { countModeOf, defaultBatchSize, forWorkflow, runBarOf, testState, workflowLine, workflowOptions } from "./generatorRunBar";
+import {
+  blockedReason,
+  countModeOf,
+  defaultBatchSize,
+  forWorkflow,
+  runBarOf,
+  testState,
+  workflowLine,
+  workflowOptions,
+} from "./generatorRunBar";
 
 const gen = (over: Partial<Generator> = {}): Generator => ({
   _id: "g1",
@@ -82,4 +91,20 @@ it("a test that made images but none reached the library waits, one that made no
   const t = { batch_id: 1, error: null, progress: null, image_id: null };
   expect(testState(gen({ ready: false, test: { ...t, state: "done", outputs: 2 } }))).toBe("waiting");
   expect(testState(gen({ ready: false, test: { ...t, state: "done", outputs: 0 } }))).toBe("failed");
+});
+
+describe("blockedReason", () => {
+  const ok = { connected: true, ready: true, outputLibraryId: "L", picked: 1, loaded: true };
+
+  it("says the first thing in the way", () => {
+    expect(blockedReason({ ...ok, connected: false, ready: false })).toBe("Waiting for ComfyUI");
+    expect(blockedReason({ ...ok, ready: false, outputLibraryId: null })).toBe("Run the test first");
+    expect(blockedReason({ ...ok, outputLibraryId: null })).toBe("Set the output folder");
+    expect(blockedReason({ ...ok, loaded: false })).toBe("Loading character");
+  });
+
+  it("is null when Queue can run", () => {
+    expect(blockedReason(ok)).toBeNull();
+    expect(blockedReason({ ...ok, picked: 0, loaded: false })).toBeNull();
+  });
 });

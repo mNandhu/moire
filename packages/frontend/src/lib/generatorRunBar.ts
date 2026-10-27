@@ -89,3 +89,23 @@ export function forWorkflow(body: QueueBody, bar: RunBar): QueueBody {
     characters: bar.loras ? body.characters : body.characters.map((c) => ({ ...c, lora: null })),
   };
 }
+
+/** Why Queue can't run yet, said on the button itself; null when it can. */
+export function blockedReason(s: {
+  connected: boolean;
+  ready: boolean;
+  outputLibraryId: string | null | undefined;
+  /** Characters picked, and whether every one's recipe has loaded. */
+  picked: number;
+  loaded: boolean;
+}): string | null {
+  return !s.connected
+    ? "Waiting for ComfyUI"
+    : !s.ready
+      ? "Run the test first"
+      : !s.outputLibraryId
+        ? "Set the output folder"
+        : s.picked && !s.loaded
+          ? "Loading character"
+          : null;
+}
