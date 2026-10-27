@@ -2,6 +2,9 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useLocalPref } from "./hooks/useLocalPref";
 import { Outlet, useLocation } from "react-router-dom";
 import { useHotkeys } from "./hooks/useHotkeys";
+import { useMediaQuery } from "./hooks/useMediaQuery";
+import { useBackendStatus } from "./hooks/useBackendStatus";
+import { useShellKeyScroll } from "./hooks/useShellKeyScroll";
 import { Sidebar } from "./components/Sidebar";
 import { SearchPalette } from "./components/SearchPalette";
 import { PageErrorBoundary } from "./components/ErrorScreen";
@@ -14,7 +17,7 @@ import { usePrefetchCharacters } from "./lib/queries";
 export default function App() {
   useQueueTitle();
   usePrefetchCharacters();
-  const [status, setStatus] = useState("loading");
+  const status = useBackendStatus();
   const [collapsed, setCollapsed] = useLocalPref("sidebar:collapsed", false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -41,15 +44,10 @@ export default function App() {
     overlay: "ignore",
     fields: true,
   });
+  const wide = useMediaQuery("(min-width: 768px)");
   useEffect(() => {
-    if (!mobileNavOpen) return;
-    const mq = window.matchMedia?.("(min-width: 768px)");
-    const onWide = (e: MediaQueryListEvent) => {
-      if (e.matches) setMobileNavOpen(false);
-    };
-    mq?.addEventListener?.("change", onWide);
-    return () => mq?.removeEventListener?.("change", onWide);
-  }, [mobileNavOpen]);
+    if (wide) setMobileNavOpen(false);
+  }, [wide]);
 
   // Ctrl/Cmd+K opens the search from anywhere, a text field or a dialog
   // included; again closes it. Capture phase, ahead of a dialog's key trap.
@@ -80,64 +78,7 @@ export default function App() {
     restoreAmbient();
   }, []);
 
-  useEffect(() => {
-    fetch("/api/v1/health")
-      .then(async (r) => setStatus((await r.json()).status))
-      .catch(() => setStatus("offline"));
-  }, []);
-
-  // Enable keyboard scrolling (PageDown/PageUp/Home/End/Space) for the main scroll container.
-  // The app scrolls inside an overflow div, so default PageDown on window does nothing.
-  // ImageView is mounted on top of the gallery, not routed in place of it, so
-  // its own key handling would otherwise fire alongside this one and scroll
-  // the hidden gallery underneath (useHotkeys bails while an overlay is open).
-  const scrollBy = (e: KeyboardEvent, top: number) => {
-    e.preventDefault();
-    scrollRef.current?.scrollBy({ top, behavior: "auto" });
-  };
-  const pageSize = () => Math.max(120, Math.floor((scrollRef.current?.clientHeight ?? 0) * 0.9));
-  useHotkeys([
-    { keys: ["PageDown"], run: (e) => scrollBy(e, pageSize()) },
-    { keys: ["PageUp"], run: (e) => scrollBy(e, -pageSize()) },
-    // Ctrl/Cmd+Home/End mean top/bottom too; other combos stay the browser's.
-    {
-      keys: ["Home"],
-      mods: "ctrl",
-      run: (e) => {
-        e.preventDefault();
-        scrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
-      },
-    },
-    {
-      keys: ["End"],
-      mods: "ctrl",
-      run: (e) => {
-        e.preventDefault();
-        const scroller = scrollRef.current;
-        scroller?.scrollTo({ top: scroller.scrollHeight, behavior: "auto" });
-      },
-    },
-    {
-      keys: [" ", "Spacebar"],
-      run: (e) => {
-        // Space scrolls down; Shift+Space scrolls up.
-        // Don't prevent default if focus is on a button (Space activates buttons).
-        const active = document.activeElement as HTMLElement | null;
-        if (active && active.tagName?.toLowerCase() === "button") return;
-        scrollBy(e, e.shiftKey ? -pageSize() : pageSize());
-      },
-    },
-    // Arrows for consistent behavior when focus is on body. Only override them
-    // when the body has focus, so we don't interfere with keyboard navigation
-    // in interactive controls.
-    {
-      keys: ["ArrowDown", "ArrowUp"],
-      run: (e) => {
-        if (document.activeElement !== document.body) return;
-        scrollBy(e, e.key === "ArrowDown" ? 48 : -48);
-      },
-    },
-  ]);
+  useShellKeyScroll(scrollRef);
 
   return (
     // Transparent, not `bg-neutral-900`: index.css paints the app's radial

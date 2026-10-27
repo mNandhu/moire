@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasModifier, isFormField, scrollParent } from "./dom";
+import { hasModifier, isFormField, scrollDeltaForKey, scrollParent } from "./dom";
 
 function el(tag: string): HTMLElement {
   return document.createElement(tag);
@@ -58,5 +58,29 @@ describe("scrollParent", () => {
     expect(scrollParent(leaf)).toBeNull();
     expect(scrollParent(null)).toBeNull();
     leaf.remove();
+  });
+});
+
+describe("scrollDeltaForKey", () => {
+  const key = (k: string, shiftKey = false) => ({ key: k, shiftKey });
+
+  it("pages by 90% of the scroller, at least 120px", () => {
+    expect(scrollDeltaForKey(key("PageDown"), 1000)).toBe(900);
+    expect(scrollDeltaForKey(key("PageUp"), 1000)).toBe(-900);
+    expect(scrollDeltaForKey(key("PageDown"), 50)).toBe(120);
+  });
+
+  it("scrolls Space down and Shift+Space up", () => {
+    expect(scrollDeltaForKey(key(" "), 1000)).toBe(900);
+    expect(scrollDeltaForKey(key(" ", true), 1000)).toBe(-900);
+    expect(scrollDeltaForKey(key("Spacebar"), 1000)).toBe(900);
+  });
+
+  it("steps arrows and jumps Home/End", () => {
+    expect(scrollDeltaForKey(key("ArrowDown"), 1000)).toBe(48);
+    expect(scrollDeltaForKey(key("ArrowUp"), 1000)).toBe(-48);
+    expect(scrollDeltaForKey(key("Home"), 1000)).toBe("top");
+    expect(scrollDeltaForKey(key("End"), 1000)).toBe("bottom");
+    expect(scrollDeltaForKey(key("a"), 1000)).toBeNull();
   });
 });

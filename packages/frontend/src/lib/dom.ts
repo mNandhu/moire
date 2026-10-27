@@ -34,3 +34,32 @@ export function scrollParent(el: Element | null): HTMLElement | null {
   }
   return null;
 }
+
+/** How far a key scrolls a scroller `clientHeight` tall: a pixel delta, or
+ * "top"/"bottom". Null for a key this doesn't scroll by. Modifier rules are
+ * the caller's (its hotkey bindings). */
+export function scrollDeltaForKey(
+  e: { key: string; shiftKey: boolean },
+  clientHeight: number,
+): number | "top" | "bottom" | null {
+  const page = Math.max(120, Math.floor(clientHeight * 0.9));
+  switch (e.key) {
+    case "PageDown":
+      return page;
+    case "PageUp":
+      return -page;
+    case " ":
+    case "Spacebar":
+      return e.shiftKey ? -page : page;
+    case "ArrowDown":
+      return 48;
+    case "ArrowUp":
+      return -48;
+    case "Home":
+      return "top";
+    case "End":
+      return "bottom";
+    default:
+      return null;
+  }
+}
