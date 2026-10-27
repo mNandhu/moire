@@ -16,6 +16,19 @@ export default tseslint.config(
       "react-hooks/set-state-in-effect": "off",
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
       "@typescript-eslint/no-explicit-any": "warn",
+      // Tag spelling has one rule: lib/tags.ts canonicalName (mirrors the
+      // backend's tag_names.canonical_name, lora tokens left alone).
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.property.name=/^replace(All)?$/][arguments.0.regex.pattern='\\\\s+'][arguments.1.value='_']",
+          message: "Use canonicalName from lib/tags.ts for tag spelling.",
+        },
+      ],
     },
+  },
+  {
+    files: ["src/lib/tags.ts"],
+    rules: { "no-restricted-syntax": "off" },
   },
 );

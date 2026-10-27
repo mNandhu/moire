@@ -2,6 +2,7 @@
 // typed as `lora:name` etc., mapped to and from the Image filter. Pure.
 
 import type { Filters } from "./imageFilter";
+import { canonicalName } from "./tags";
 
 /** How a lora, embedding or outfit reads as a search term: `lora:name`.
  * ComfyUI's own spelling; `emb:` is accepted as short for `embedding:`. */
@@ -67,7 +68,7 @@ export function withSearchTerms(
     if (!r) {
       // A plain name that is an outfit, and not a tag the library has.
       const o = outfitNamed(term.trim());
-      if (o && !outfits.tags?.has(term.trim().replace(/\s+/g, "_"))) {
+      if (o && !outfits.tags?.has(canonicalName(term))) {
         if (!next.outfit.includes(o.id)) next.outfit.push(o.id);
       } else next.tags.push(term);
       continue;
