@@ -31,10 +31,18 @@ async def _focus(tag):
 async def test_set_pin_needs_an_image_carrying_one_of_the_names(seed):
     seed("L1:a", tags=("cat",))
     seed("L1:b", tags=("dog",))
-    assert await tag_covers.set_pin("cat", ["cat"], "L1:b") is False
+    assert await tag_covers.set_pin("cat", ["cat"], "L1:b") is None
     assert await _pin("cat") is None
-    assert await tag_covers.set_pin("cat", ["cat"], "L1:a") is True
+    assert await tag_covers.set_pin("cat", ["cat"], "L1:a") == "L1:a"
     assert await _pin("cat") == "L1:a"
+
+
+async def test_a_pin_by_a_backslash_spelling_keeps_the_stored_id(client, seed):
+    seed("L1:sub/a.png", tags=("cat",))
+    r = await client.post("/tags/thumbnail/cat", json={"image_id": "L1:sub\\a.png"})
+    assert r.status_code == 200
+    assert r.json()["thumb_image_id"] == "L1:sub/a.png"
+    assert await _pin("cat") == "L1:sub/a.png"
 
 
 async def test_set_pin_replaces_and_clear_pin_drops_and_both_invalidate(seed):

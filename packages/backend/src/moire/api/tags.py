@@ -365,12 +365,12 @@ async def set_tag_thumbnail(tag: str, body: TagThumbnailSet):
     """Pin a tag's cover. Keyed by the tag's name, so it shows whichever
     sources found the tag; the image must carry it from one of them."""
     tag = tag_covers.pin_key(validate_tags([tag])[0])
-    image_id = body.image_id
     # A character's avatar may come from an image under any of its names,
     # and is kept under the name its page uses.
     key, names, is_character = await characters.names_of(tag)
     tag = key
-    if not await tag_covers.set_pin(tag, names, image_id):
+    image_id = await tag_covers.set_pin(tag, names, body.image_id)
+    if image_id is None:
         raise HTTPException(status_code=404, detail="Image not found for tag thumbnail")
     if is_character:
         await face_detect.detect_now(image_id)  # the new avatar crops at once

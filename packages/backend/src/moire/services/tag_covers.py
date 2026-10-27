@@ -19,7 +19,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import image_visibility, tag_index, tag_kinds
+from . import image_tags, image_visibility, tag_index, tag_kinds
 
 _HASH_MUL, _HASH_MOD = 2654435761, 4294967291
 # The seed reads this many leading characters of the name (plus its length).
@@ -95,11 +95,15 @@ async def pins(conn, bases: set[str]) -> dict[str, str]:
     return {r.tag: r.thumb_image_id for r in rows if r.thumb_image_id}
 
 
-async def set_pin(key: str, names: list[str], image_id: str) -> bool:
-    """Pin ``image_id`` as the cover kept under ``key``. The image must carry
-    one of ``names`` (a character's cover may come from any of its names);
-    False, with nothing written, when it doesn't."""
+async def set_pin(key: str, names: list[str], image_id: str) -> str | None:
+    """Pin ``image_id`` (any slash spelling) as the cover kept under ``key``;
+    returns the stored id. The image must carry one of ``names`` (a
+    character's cover may come from any of its names); None, with nothing
+    written, when it doesn't or is unknown."""
     async with async_tx() as conn:
+        image_id = await image_tags.resolve_image_id(conn, image_id)
+        if image_id is None:
+            return None
         carries = (
             await conn.execute(
                 sa.select(t.images.c._id).where(
@@ -114,7 +118,7 @@ async def set_pin(key: str, names: list[str], image_id: str) -> bool:
             )
         ).scalar()
         if not carries:
-            return False
+            return None
         stmt = sqlite_insert(t.tag_meta).values(
             tag=key, thumb_image_id=image_id, updated_at=time.time()
         )
@@ -127,7 +131,7 @@ async def set_pin(key: str, names: list[str], image_id: str) -> bool:
         )
         await conn.execute(stmt)
     tag_index.invalidate()
-    return True
+    return image_id
 
 
 async def clear_pin(key: str) -> None:
