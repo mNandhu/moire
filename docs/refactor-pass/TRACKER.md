@@ -10,6 +10,49 @@ Housekeeping, not findings:
 - [x] (9d22081) Remove `packages/frontend/test-optimizations.js` and unused devDependency `@vitest/coverage-v8` (knip)
 - [x] (3cf63f6) Sweep knip's unused exports in `leads.txt`
 
+## Follow-ups (leftovers from the phase reviews)
+
+Gathered 2026-10-27 from the "left open" notes under each phase below, so they are not lost in prose. IDs are `F<n>`; the phase note they came from is in brackets. Items the reviews judged intentional or not a bug (PUT /tags/focus 404 with no cover, ratingBadgeClass "safe", "⌘K" overlay text, useCrossfade `front`) are not listed.
+
+Bugs and correctness:
+
+- [ ] **F1** Dialog decides Escape by a selector of popup markers; TagSearchInput and other comboboxes inside a dialog still lose Escape to it. Fix: popups claim Escape, Dialog acts only on unclaimed ones [P0]
+- [ ] **F2** DropdownMenu closes on Escape from both a wrapper handler and a document listener [P0]
+- [ ] **F3** Facet counts always leave quarantined images out, so the Quarantined view's filter dropdowns miss models used only there [P0]
+- [ ] **F4** Removing every member of an unclosed prompt group ("(smile, red eyes") leaves a lone "(" [P1]
+- [ ] **F5** A rule change computes its affected images before taking the reproject lock; a run in flight with the old config can leave a stale tag outside that set [P1]
+- [ ] **F6** bulk_manual over 2000 ids can fail with earlier chunks already applied (only the docstring says so) [P3]
+- [ ] **F7** scan_incremental's exact-id "existed" check misses backslash ids; a real fix upserts under the resolved id [P4]
+- [ ] **F8** TagEditDialog and CharacterEditDialog can leave a stuck `saving` flag; part of F10 [P2]
+
+Duplication and structure:
+
+- [ ] **F9** L2.5 fixtures not done: the frontend prompt splitter copies prompt_parse's emoticon list, PROSE_WORDS, ABBREV and JOINERS with no kaomojis/compose/split_requests fixture guarding them [P1]
+- [ ] **F10** L3.9 outside Generate: TagEditDialog, CharacterEditDialog, NewCharacterDialog, RenameTagDialog, BulkTagDialog and six settings sections hand-roll save flags; use `Button pending` + `DialogFooter` [P2]
+- [ ] **F11** S11.5: one backend `POST /batches/{id}/retry-failed` to replace the client retry loop [P2]
+- [ ] **F12** S2.7: a `loadImage` helper and a general `imageUrl(id, suffix)` for imageMutations' `forImage`; `useSizePresets` still lives in SizeFilter.tsx [P2]
+- [ ] **F13** Shortcut help table in lib/shortcuts.ts is still hand-kept beside the keyboard registry (L3.4) [P2]
+- [ ] **F14** OutfitMenu not split into its own file (S12.8) [P2]
+- [ ] **F15** S2.1: ImageView's stepper and details-sheet hooks not extracted (ImageView.tsx is still ~1300 lines) [P1]
+- [ ] **F16** Generator test settle (`_arrived`) and `test_status` derive the same thing twice; only cross-referenced in comments [P5]
+- [ ] **F17** AI settings Save does not share the model card's busy flag [P5]
+- [ ] **F18** L2.8 rest: the character name/series split is still frontend-only (null name/series means "unset" on the wire, ~20 callers split bare tags) [P5]
+- [ ] **F19** Behaviour-changing dedupes skipped in P4: gallery desktop/phone Sort/Group/Select controls, CountStepper on NumberStepper, OutfitChip into TagPill, a shared InlineRename, workflowLine sharing workflowOrigin [P4]
+
+Dead code and small efficiency:
+
+- [ ] **F20** `GET /libraries/{id}/progress` is unused by the app; move scripts/test-docker.sh and tests/perf_benchmark.py to GET /libraries, then drop the route [P2]
+- [ ] **F21** `feedCache.patchImageEverywhere` is only used by tests [P2]
+- [ ] **F22** JsonTree re-walks each subtree per entry for `forced` (quadratic on big graphs) [P0]
+- [ ] **F23** image_delete re-SELECTs thumb_key that callers already hold [P3]
+- [ ] **F24** batchStats does extra work per BatchPanel render; SaveOutfitDialog keeps blank/isDefault aliases of mode; test_status repeats batch_exists; known_workflow_ids rebuilds family_sigs' per-signature sample subquery [P4]
+
+Tooling and tests:
+
+- [ ] **F25** 8 eslint warnings in the frontend not triaged [P3]
+- [ ] **F26** LibrariesPage.test "drops both the flat feed and the grouped view on delete" flakes under full-suite load (passes alone) [P2]
+- [ ] **F27** 44 pytest warnings: sync tests in modules with `pytestmark = pytest.mark.asyncio` (e.g. test_scan_reproject_integration.py, test_tag_settings_integration.py); `asyncio_mode = "auto"` makes the module mark unnecessary [new]
+
 ## P0. Bugs (verify with a failing test first)
 
 - [x] **SCAN-UI** Library `scan_error` is never shown in the UI (bug, S), done dba7d9f
@@ -209,7 +252,7 @@ P5 status (2026-10-27): lanes P and Q were stopped on the usage limit, then pick
 - [x] **S11.4** (9f4bc75) 'Which batch is in front / waiting' is derived three different ways (dedupe, S, L3)
 - [x] **S13.5** (c84ac2e) Sidebar owns nav data, shortcut text and platform detection that two other modules re-derive (dedupe, S, L3, TW)
 - [x] **S8.6** (7378dc0) The Generator test gate lives in the 'read side' module and generator_view writes on GET (boundary, M, L3)
-- [ ] **L2.3** (deferred by user 2026-10-27) No response models or generated types: every payload and closed vocabulary is typed by hand on both sides (boundary, M, L3, TW)
+- [ ] **L2.3** (in progress 2026-10-27, worktree lane S) No response models or generated types: every payload and closed vocabulary is typed by hand on both sides (boundary, M, L3, TW)
 - [x] **S8.9** (ed7f768) Rejected duplicates ComfyRejected, and non-ComfyUI failures are raised as ComfyRejected (naming, S, L2)
 - [x] **S2.8** (f2cb841) imageMutations holds tag and character writes, contradicting its 'per-image' contract; JSON boilerplate repeated (naming, S, L2)
 - [x] **S2.9** (96f5a12+7a8dda1) Rating vocabulary spread over three places; ratingBadgeClass has a phantom 'safe' (drift, S, L2)
