@@ -157,7 +157,7 @@ export default function WorkflowSetupPage() {
         {id && newer && (
           <Card className="mb-4 flex flex-wrap items-center gap-3 border-brand-700/60 p-4">
             <span className="text-sm text-neutral-100">
-              A newer version is in your library: version {newer.version} of {newer.versions}.
+              A newer version is in your library ({newer.versions} versions).
             </span>
             <Tooltip content="Opens it here with your choices carried over where its nodes still fit. Saving puts the workflow back behind a test run.">
               <Button size="sm" className="ml-auto" onClick={() => setParams({ update: newer.image_id })}>

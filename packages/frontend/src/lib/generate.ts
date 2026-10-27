@@ -553,7 +553,7 @@ export const getGeneratorSetup = (id: string, signal?: AbortSignal, image?: stri
     { signal },
   );
 
-export type NewerVersion = { image_id: string; workflow_sig: string; version: number; versions: number };
+export type NewerVersion = { image_id: string; workflow_sig: string; versions: number };
 export const getGeneratorLatest = (id: string, signal?: AbortSignal) =>
   api<{ newer: NewerVersion | null }>(`${BASE}/generators/${encodeURIComponent(id)}/latest`, { signal });
 export const putRecipe = (tag: string, patch: RecipePatch) =>

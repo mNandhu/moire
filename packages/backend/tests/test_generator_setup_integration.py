@@ -443,7 +443,6 @@ async def test_update_from_a_newer_version(client, seed):
     assert newer == {
         "image_id": "L1:b.png",
         "workflow_sig": "sig-2",
-        "version": 2,
         "versions": 2,
     }
 

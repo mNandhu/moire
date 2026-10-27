@@ -363,7 +363,8 @@ async def newer_version(gen: dict[str, Any]) -> dict[str, Any] | None:
     version (by when it was first used, counting only images Moire didn't
     make: its own outputs carry the family but a graph it edited) when it is
     newer than the one this workflow was set up from. ``{image_id,
-    workflow_sig, version, versions}``, else None."""
+    workflow_sig, versions}`` (``versions``: how many the family has), else
+    None."""
     src = gen.get("source") or {}
     if src.get("kind") != "image" or not src.get("family"):
         return None
@@ -386,10 +387,6 @@ async def newer_version(gen: dict[str, Any]) -> dict[str, Any] | None:
         order = [r[0] for r in sorted(firsts, key=lambda r: (r[1] or 0, r[0]))]
         if not order or order[-1] == src.get("workflow_sig"):
             return None
-        if src.get("workflow_sig") in order and order.index(
-            src["workflow_sig"]
-        ) > order.index(order[-1]):
-            return None
         image_id = (
             await conn.execute(
                 sa.select(images.c._id)
@@ -406,7 +403,6 @@ async def newer_version(gen: dict[str, Any]) -> dict[str, Any] | None:
     return {
         "image_id": image_id,
         "workflow_sig": order[-1],
-        "version": len(order),
         "versions": len(order),
     }
 
