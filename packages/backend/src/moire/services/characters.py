@@ -17,6 +17,7 @@ from __future__ import annotations
 import math
 import re
 import time
+from dataclasses import dataclass
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -307,6 +308,64 @@ async def signature_counts(
     return counts, counted
 
 
+@dataclass(frozen=True)
+class Look:
+    """What a character's images say about them (:func:`look_of`). Frozen,
+    tuples only: one is memoized and shared by every caller."""
+
+    images: int  # the images they're in
+    counted: int  # the ones the signature was read from (signature_counts)
+    signature: tuple[tuple[str, int], ...]  # (tag, images), uncapped
+    gender: str | None
+
+
+async def look_of(
+    gen: int, key: str, names: list[str], key_of: dict[str, str], rows: list[dict]
+) -> Look:
+    """The look of the character ``key`` (all its ``names``; ``key_of`` and
+    ``rows`` from :func:`_named`): how many images they're in, their
+    :func:`signature`, uncapped and unfiltered (the page keeps the
+    :data:`LOOK` facets, a recipe splits identity from attire), and their
+    :func:`gender`. Kept until the next tag write; ``gen`` is the
+    generation captured before ``key_of`` and ``rows`` were read. A new
+    tagger vocabulary doesn't bump the generation, so the vocabulary it was
+    read with is kept beside it."""
+    vocab = await tag_categories.load()
+    cached = tag_index.read_derived(f"look:{key}")
+    if cached is not None and cached[0] is vocab:
+        return cached[1]
+    ids = tag_detail.image_ids(names)
+    it = t.image_tags
+    async with async_conn() as conn:
+        n = (
+            await conn.execute(
+                sa.select(sa.func.count(sa.distinct(it.c.image_id))).where(
+                    it.c.image_id.in_(ids)
+                )
+            )
+        ).scalar_one()
+        total = await tag_detail.visible_count(conn)
+        here, counted = await signature_counts(
+            conn, ids, [c for c in key_of if c not in names], n
+        )
+    sig = signature(
+        here,
+        counted,
+        {r["tag"]: r["count"] for r in rows},
+        total,
+        skip=set(key_of) | set(names),
+        visual=vocab.general,
+        # Callers filter first and cap after: near-duplicate images tie many
+        # scene tags at the top and would crowd out hair and eyes.
+        limit=len(here),
+    )
+    look = Look(
+        n, counted, tuple((s["tag"], s["count"]) for s in sig), gender(here, counted)
+    )
+    tag_index.store_derived(f"look:{key}", gen, (vocab, look))
+    return look
+
+
 def groups(characters: list[str], vocab: tag_categories.Vocab) -> dict[str, list[str]]:
     """Each character's names, keyed by the one the page uses: a bare name
     joins its full name when both are in the library. Pure."""
@@ -321,14 +380,21 @@ def groups(characters: list[str], vocab: tag_categories.Vocab) -> dict[str, list
     return out
 
 
-async def _named(base: str) -> tuple[str, list[str], dict[str, str], list[dict]]:
-    """``base``'s page key and all its names; every character name's page key;
-    and the browse rows."""
+async def grouped() -> tuple[dict[str, list[str]], dict[str, str], list[dict]]:
+    """Every character's names by page key (:func:`groups`), every character
+    name's page key, and the browse rows."""
     rows = await tag_browse.browse("all")
     vocab = await tag_categories.load()
     chars = [r["tag"] for r in rows if r["category"] == "character"]
     found = groups(chars, vocab)
     key_of = {name: key for key, names in found.items() for name in names}
+    return found, key_of, rows
+
+
+async def _named(base: str) -> tuple[str, list[str], dict[str, str], list[dict]]:
+    """``base``'s page key and all its names; every character name's page key;
+    and the browse rows."""
+    found, key_of, rows = await grouped()
     key = key_of.get(base, base)
     return key, found.get(key, [base]), key_of, rows
 
@@ -642,6 +708,7 @@ async def page(base: str) -> dict | None:
     Any other tag gets the same page (the tag page, see ``/tags/character``)
     without the look: only a character's ``palette`` and ``signature`` are
     read, a plain tag's come back empty."""
+    gen = tag_index.current_generation()  # before reading what the look reads
     key, names, key_of, rows = await _named(base)
     detail = await tag_detail.detail(key, "all", aliases=tuple(names[1:]))
     if detail is None:
@@ -650,7 +717,7 @@ async def page(base: str) -> dict | None:
         return made_page(made[0]) if made else None
     core, crowded = await _page_core(key, names, key_of, rows, detail)
     if detail["category"] == "character":
-        look = await _page_look(names, key_of, rows, detail["count"], crowded)
+        look = await _page_look(gen, key, names, key_of, rows, detail["count"], crowded)
     else:
         look = {"palette": [], "signature": [], "signature_images": 0}
     return {**core, **look}
@@ -756,6 +823,8 @@ async def _page_core(
 
 
 async def _page_look(
+    gen: int,
+    key: str,
     names: list[str],
     key_of: dict[str, str],
     rows: list[dict],
@@ -763,25 +832,15 @@ async def _page_look(
     crowded: set[str],
 ) -> dict:
     """A character page's look: the colours of their hair and eyes, and the
-    signature tags of how they're drawn and dressed, over their ``n`` images
-    (``crowded``: the ones another character is on too)."""
-    ids = tag_detail.image_ids(names)
+    signature tags of how they're drawn and dressed (:func:`look_of`), over
+    their ``n`` images (``crowded``: the ones another character is on too)."""
+    look = await look_of(gen, key, names, key_of, rows)
     it = t.image_tags
-    library = {r["tag"]: r["count"] for r in rows}
-    vocab = await tag_categories.load()
     async with async_conn() as conn:
-        total = (
-            await conn.execute(
-                sa.select(sa.func.count()).where(image_visibility.not_quarantined())
-            )
-        ).scalar_one()
-        tags_here, sig_images = await signature_counts(
-            conn, ids, [c for c in key_of if c not in names], n
-        )
         hair_eyes = (
             await conn.execute(
                 sa.select(it.c.image_id, it.c.base).where(
-                    it.c.image_id.in_(ids), _HAIR_EYES
+                    it.c.image_id.in_(tag_detail.image_ids(names)), _HAIR_EYES
                 )
             )
         ).fetchall()
@@ -791,20 +850,12 @@ async def _page_look(
         # and expression shared by a few images from one set aren't it; a
         # tag the groups don't place (`cat_girl`, `tail`) stays.
         "signature": [
-            s
-            for s in signature(
-                tags_here,
-                sig_images,
-                library,
-                total,
-                skip=set(key_of) | set(names),
-                visual=vocab.general,
-                limit=len(tags_here),
-            )
-            if attire.facet_of(s["tag"]) in LOOK
+            {"tag": tag, "count": count}
+            for tag, count in look.signature
+            if attire.facet_of(tag) in LOOK
         ][:30],
         # The images the signature was read from: few means it's a guess.
-        "signature_images": sig_images,
+        "signature_images": look.counted,
     }
 
 

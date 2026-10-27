@@ -167,13 +167,7 @@ async def worn(image_id: str, characters: list[str]) -> list[dict[str, Any]] | N
                 )
             )
         }
-    keys = [
-        k
-        for k in dict.fromkeys(
-            [await _key(n) for n in characters[:WORN_MAX_CHARACTERS]]
-        )
-        if k
-    ]
+    keys = await recipes.character_keys(characters[:WORN_MAX_CHARACTERS])
     if not keys:
         return []
     # Every saved outfit any of them has, in one go: their own, and the

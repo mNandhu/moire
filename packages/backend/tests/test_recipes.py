@@ -5,12 +5,14 @@ ComfyUI as an installed file."""
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 
+import pytest
 import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import recipes, tag_categories
+from moire.services import characters, image_tags, recipes, tag_categories
 from moire.services.generator_graph import merge_loras
 from moire.services.recipes import LoraUse
 from tests.test_characters import _chars
@@ -252,3 +254,68 @@ async def test_recipe_edit_and_queue(client, comfy, seed, monkeypatch):  # noqa:
         n["inputs"].get("lora_name") == "chars/hu_tao_v2.safetensors"
         for n in graph.values()
     )
+
+
+HU = "hu_tao_(genshin_impact)"
+
+
+def _one_vocab(monkeypatch):
+    """One vocabulary object for the whole test, as the app has between
+    word-list changes: the look and wardrobe caches keep only for it."""
+    vocab = tag_categories.Vocab(
+        frozenset({HU}),
+        {"hu_tao": tag_categories.Candidate("genshin_impact", HU)},
+    )
+
+    async def load():
+        return vocab
+
+    monkeypatch.setattr(tag_categories, "load", load)
+
+
+def _count_looks(monkeypatch) -> list[int]:
+    looked: list[int] = []
+    real = characters.signature_counts
+
+    async def counting(*args, **kwargs):
+        looked.append(1)
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr(characters, "signature_counts", counting)
+    return looked
+
+
+async def test_a_tag_write_reaches_the_cached_look(client, seed, monkeypatch):
+    _one_vocab(monkeypatch)
+    await asyncio.to_thread(_library, seed)
+    looked = _count_looks(monkeypatch)
+    first = await recipes.wardrobe(HU)
+    page = (await client.get("/tags/character", params={"tag": HU})).json()
+    assert "long_coat" not in first["outfit"]
+    assert "long_coat" not in {s["tag"] for s in page["signature"]}
+    # Read once: the page, the wardrobe and the recipe share one look.
+    await recipes.recipe(HU)
+    assert await recipes.wardrobe(HU) == first and len(looked) == 1
+    # A tag write, with no one clearing anything by hand.
+    for i in range(4):
+        await image_tags.apply_manual(f"L1:h{i}", ["long_coat"])
+    assert "long_coat" in (await recipes.wardrobe(HU))["outfit"]
+    page = (await client.get("/tags/character", params={"tag": HU})).json()
+    assert "long_coat" in {s["tag"] for s in page["signature"]}
+    assert len(looked) == 2
+
+
+async def test_a_cached_wardrobe_survives_its_callers(client, seed, monkeypatch):
+    _one_vocab(monkeypatch)
+    await asyncio.to_thread(_library, seed)
+    first = await recipes.wardrobe(HU)
+    snapshot = {k: list(v) if isinstance(v, list) else v for k, v in first.items()}
+    first["outfit"].append("ball_gown")
+    first["names"].clear()
+    first["count"] = 0
+    assert await recipes.wardrobe(HU) == snapshot
+    # The look itself can't be changed in place.
+    look = await characters.look_of(0, HU, [HU], {HU: HU}, [])
+    assert isinstance(look.signature, tuple)
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        look.images = 0  # type: ignore[misc]

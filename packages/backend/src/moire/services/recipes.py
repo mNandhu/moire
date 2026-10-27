@@ -35,6 +35,7 @@ from . import (
     image_visibility,
     tag_categories,
     tag_detail,
+    tag_index,
     tag_kinds,
 )
 from .generator_graph import lora_stem
@@ -245,45 +246,6 @@ async def _uses(names: list[str]) -> list[LoraUse]:
     ]
 
 
-async def _signature(
-    names: list[str], key_of: dict, rows: list
-) -> tuple[int, int, list[str], str | None]:
-    """How many images the character is in, how many the signature was read
-    from (:func:`characters.signature_counts`), their signature tags, and
-    their :func:`characters.gender`."""
-    it = t.image_tags
-    ids = tag_detail.image_ids(names)
-    vocab = await tag_categories.load()
-    async with async_conn() as conn:
-        n = (
-            await conn.execute(
-                sa.select(sa.func.count(sa.distinct(it.c.image_id))).where(
-                    it.c.image_id.in_(ids)
-                )
-            )
-        ).scalar_one()
-        total = (
-            await conn.execute(
-                sa.select(sa.func.count()).where(image_visibility.not_quarantined())
-            )
-        ).scalar_one()
-        here, counted = await characters.signature_counts(
-            conn, ids, [c for c in key_of if c not in names], n
-        )
-    sig = characters.signature(
-        here,
-        counted,
-        {r["tag"]: r["count"] for r in rows},
-        total,
-        skip=set(key_of) | set(names),
-        visual=vocab.general,
-        # Filter to body features first, cap after: near-duplicate images tie
-        # many scene tags at the top and would crowd out hair and eyes.
-        limit=10_000,
-    )
-    return n, counted, [s["tag"] for s in sig], characters.gender(here, counted)
-
-
 async def character_key(tag: str) -> tuple[str, list[str], dict, list] | None:
     """``characters._named`` for a character in the library (or made by
     hand); None when ``tag`` isn't one."""
@@ -293,33 +255,60 @@ async def character_key(tag: str) -> tuple[str, list[str], dict, list] | None:
     return key, names, key_of, rows
 
 
+async def character_keys(tags: list[str]) -> list[str]:
+    """The page keys of those of ``tags`` that are characters (any of their
+    names, or made by hand), each once, in order: :func:`character_key` for
+    many, reading the library's characters once."""
+    _, key_of, rows = await characters.grouped()
+    keys = []
+    for tag in tags:
+        key = key_of.get(tag, tag)
+        if key in key_of or await characters.is_made(key, rows):
+            keys.append(key)
+    return list(dict.fromkeys(keys))
+
+
 async def wardrobe(tag: str) -> dict | None:
     """Just the default outfit of ``tag``'s recipe (no LoRA or file work):
-    ``tag`` (page key), ``names``, ``count`` and ``outfit``."""
-    found = await character_key(tag)
-    if found is None:
-        return None
-    key, names, key_of, rows = found
-    count, _, sig, _ = await _signature(names, key_of, rows)
-    return {
-        "tag": key,
-        "names": names,
-        "count": count,
-        "outfit": split_signature(sig)[1],
-    }
+    ``tag`` (page key), ``names``, ``count`` and ``outfit``. Kept until the
+    next tag write (every outfit call and image view asks); each call gets
+    its own lists."""
+    gen = tag_index.current_generation()  # before reading what it is made of
+    vocab = await tag_categories.load()
+    cached = tag_index.read_derived(f"wardrobe:{tag}")
+    if cached is None or cached[0] is not vocab:
+        found = await character_key(tag)
+        if found is None:
+            return None
+        key, names, key_of, rows = found
+        look = await characters.look_of(gen, key, names, key_of, rows)
+        cached = (
+            vocab,
+            (key, tuple(names), look.images, tuple(_split(look)[1])),
+        )
+        tag_index.store_derived(f"wardrobe:{tag}", gen, cached)
+    key, names, count, outfit = cached[1]
+    return {"tag": key, "names": list(names), "count": count, "outfit": list(outfit)}
+
+
+def _split(look: characters.Look) -> tuple[list[str], list[str]]:
+    return split_signature([tag for tag, _ in look.signature])
 
 
 async def recipe(tag: str) -> dict | None:
     """The Character block for ``tag`` (any of the character's names), or
     ``None`` when it isn't a character in the library."""
+    gen = tag_index.current_generation()
     found = await character_key(tag)
     if found is None:
         return None
     key, names, key_of, rows = found
-    count, sig_images, sig, read = await _signature(names, key_of, rows)
+    look = await characters.look_of(gen, key, names, key_of, rows)
+    count, sig_images, read = look.images, look.counted, look.gender
     set_gender = await _gender(key)
-    identity, outfit = split_signature(sig)
-    total = await _visible_count()
+    identity, outfit = _split(look)
+    async with async_conn() as conn:
+        total = await tag_detail.visible_count(conn)
     candidates = lora_candidates(
         await _uses(names), names, count / total if total else 0.0
     )
@@ -362,15 +351,6 @@ async def recipe(tag: str) -> dict | None:
             for c in candidates
         ],
     }
-
-
-async def _visible_count() -> int:
-    async with async_conn() as conn:
-        return (
-            await conn.execute(
-                sa.select(sa.func.count()).where(image_visibility.not_quarantined())
-            )
-        ).scalar_one()
 
 
 async def _files(stems: list[str]) -> dict[str, str | None]:

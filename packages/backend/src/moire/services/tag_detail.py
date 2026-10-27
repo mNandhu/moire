@@ -1,6 +1,7 @@
 """The Tags page panel for one tag (:func:`detail`), and :func:`image_ids`,
 the visible images carrying a tag that characters, recipes and outfits read
-from too. One small query per panel section."""
+from too (with :func:`visible_count`, how many images there are to read).
+One small query per panel section."""
 
 from __future__ import annotations
 
@@ -27,6 +28,16 @@ def image_ids(bases: list[str], source: str = "all"):
         .distinct()
         .scalar_subquery()
     )
+
+
+async def visible_count(conn) -> int:
+    """How many images are visible: what a tag's share of the library (a
+    character's signature, a LoRA's spread) is measured against."""
+    return (
+        await conn.execute(
+            sa.select(sa.func.count()).where(image_visibility.not_quarantined())
+        )
+    ).scalar_one()
 
 
 async def _span(conn, in_ids):
