@@ -58,6 +58,8 @@ describe("toPromptText", () => {
     expect(toPromptText(["smile", "prompt:smile", "prompt:hu_tao_(genshin_impact)", "solo"], weights)).toBe(
       "(smile:1.2), (hu_tao_\\(genshin_impact\\):0.91), solo",
     );
+    // Its prompt tag gone, the weight goes too.
+    expect(toPromptText(["smile"], weights)).toBe("smile");
   });
 });
 

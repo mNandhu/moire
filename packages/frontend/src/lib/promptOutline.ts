@@ -281,7 +281,7 @@ function scan(text: string): Raw[] {
  * (`comfy/sd1_clip.py` `token_weights`): only a closed `(...)` weighs, x1.1,
  * and an explicit `(...:w)` replaces the weight around it, so `((a:1.2))` is
  * 1.2 and `((a):1.2)` is 1.32. `[...]`, `{...}` and an unclosed `(` are text;
- * so is `smile:1.05` outside any group. Undefined at 1. The backend's
+ * so is `smile:1.05` outside any group. Undefined at 1 (to two places). The backend's
  * `prompt_parse.Piece.weight` is the authority. */
 function comfyWeight(text: string, group: Group | null): number | undefined {
   let w = 1;
@@ -294,7 +294,8 @@ function comfyWeight(text: string, group: Group | null): number | undefined {
     w *= 1.1;
   }
   w = Math.round(w * 1e4) / 1e4;
-  return w === 1 ? undefined : w;
+  // What would show as 1 is no weight.
+  return Math.abs(w - 1) < 0.005 ? undefined : w;
 }
 
 /** A sentence fragment rather than a tag: 9+ words, or 5+ with a sentence

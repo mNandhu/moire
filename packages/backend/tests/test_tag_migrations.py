@@ -109,3 +109,19 @@ async def test_rules_migration_moves_merges_and_splits_into_one_table(temp_db):
     assert not tables & {"tag_aliases", "tag_splits"}
     # Run again (nothing left to move): a no-op.
     tag_migrations.migrate_tag_rules()
+
+
+def test_gen_term_weights_adds_the_column_and_keeps_the_rows(temp_db):
+    from moire.services.tag_migrations import migrate_gen_term_weights
+
+    with db.sync_tx() as conn:
+        conn.execute(sa.text("DROP TABLE image_gen_terms"))
+        conn.execute(sa.text("CREATE TABLE image_gen_terms (image_id TEXT, term TEXT)"))
+        conn.execute(sa.text("INSERT INTO image_gen_terms VALUES ('L1:a', 'cat')"))
+    migrate_gen_term_weights()
+    migrate_gen_term_weights()  # idempotent
+    with db.sync_conn() as conn:
+        rows = conn.execute(
+            sa.text("SELECT image_id, term, weight FROM image_gen_terms")
+        ).all()
+    assert [tuple(r) for r in rows] == [("L1:a", "cat", 1.0)]

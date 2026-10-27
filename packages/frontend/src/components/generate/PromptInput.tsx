@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { cn } from "../../lib/cn";
-import { WEIGHT_STEP, bumpWeight } from "../../lib/promptEdit";
+import { WEIGHT_STEP, bumpWeight, changedSpan } from "../../lib/promptEdit";
 import { TagSuggestList } from "../TagSuggestList";
 import type { TagSuggestion } from "../../lib/tagSuggest";
 import { usePromptMarks, type PromptFlash, type PromptMark } from "./PromptOverlay";
@@ -67,13 +67,9 @@ export function PromptInput({
     if (!next) return;
     e.preventDefault();
     suggest.close();
-    const old = el.value;
-    let from = 0;
-    while (from < old.length && from < next.text.length && old[from] === next.text[from]) from++;
-    let back = 0;
-    while (back < old.length - from && back < next.text.length - from && old[old.length - 1 - back] === next.text[next.text.length - 1 - back]) back++;
-    el.setSelectionRange(from, old.length - back);
-    const typed = document.execCommand?.("insertText", false, next.text.slice(from, next.text.length - back));
+    const change = changedSpan(el.value, next.text);
+    el.setSelectionRange(change.start, change.end);
+    const typed = document.execCommand?.("insertText", false, change.text);
     if (typed && el.value === next.text) el.setSelectionRange(next.start, next.end);
     else {
       onChange(next.text);

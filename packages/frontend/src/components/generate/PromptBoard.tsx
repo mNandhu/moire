@@ -105,7 +105,8 @@ export function PromptBoard({
     const t = promptTerms(typed)[0];
     if (!t || t.kind !== "tag") return;
     if (present.has(t.name) || present.has(places?.names[t.name]?.alias_of ?? "")) return;
-    const wrapped = t.start !== t.nameStart || t.end !== t.nameEnd;
+    // Brackets or a `:weight` around the name; not a joiner or a full stop.
+    const wrapped = /[()[\]{}:]/.test(typed.slice(t.start, t.nameStart) + typed.slice(t.nameEnd, t.end));
     onPrompt(wrapped ? appendPiece(prompt, typed.trim()) : appendTag(prompt, t.name));
   };
   const remove = (t: Placed) => onPrompt(removeTerms(prompt, [t]));

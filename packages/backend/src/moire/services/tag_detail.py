@@ -148,18 +148,20 @@ async def _workflows(conn, in_ids) -> list[dict]:
 async def _weights(conn, ids, bases: list[str]) -> dict | None:
     """The prompt weights the tag was written at on these images: lowest,
     highest, the most common (the lowest on a tie) and how many of the
-    prompted images weighted it. ``None`` when no prompt weighted it."""
+    prompted images weighted it, counted per image (one written under two
+    of ``bases`` counts once). ``None`` when no prompt weighted it."""
     gt = t.image_gen_terms
     w = sa.func.round(gt.c.weight, 2).label("w")
+    where = (gt.c.image_id.in_(ids), gt.c.term.in_(bases))
+    images = sa.func.count(sa.distinct(gt.c.image_id))
     rows = (
         await conn.execute(
-            sa.select(w, sa.func.count().label("count"))
-            .where(gt.c.image_id.in_(ids), gt.c.term.in_(bases))
-            .group_by(w)
-            .order_by(w)
+            sa.select(w, images.label("count")).where(*where).group_by(w).order_by(w)
         )
     ).fetchall()
-    weighted = sum(r.count for r in rows if r.w != 1)
+    weighted = (
+        await conn.execute(sa.select(images).where(*where, w != 1))
+    ).scalar_one()
     if not weighted:
         return None
     return {
@@ -167,7 +169,7 @@ async def _weights(conn, ids, bases: list[str]) -> dict | None:
         "max": rows[-1].w,
         "mode": max(rows, key=lambda r: r.count).w,
         "weighted": weighted,
-        "prompted": sum(r.count for r in rows),
+        "prompted": (await conn.execute(sa.select(images).where(*where))).scalar_one(),
     }
 
 

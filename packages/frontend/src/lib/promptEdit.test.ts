@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bumpWeight, replaceTerm, termAt } from "./promptEdit";
+import { bumpWeight, changedSpan, replaceTerm, termAt } from "./promptEdit";
 
 describe("prompt autocomplete", () => {
   it("finds the term at the caret", () => {
@@ -72,8 +72,23 @@ describe("prompt weight keys", () => {
     expect(press("([smile]:0)", -0.05)).toBe("([smile]:0)");
   });
 
+  it("keeps the wrapper when dropping it would run the term into its neighbour", () => {
+    expect(press("1girl ([smile]:1.05)", -0.05)).toBe("1girl ([smile]:1)");
+  });
+
   it("leaves LoRAs and separators alone", () => {
     expect(press("<lora:x:0.8|>", 0.05)).toBeNull();
     expect(press("cat,|  dog", 0.05)).toBeNull();
+  });
+});
+
+describe("changedSpan", () => {
+  it("finds the one span that changed", () => {
+    expect(changedSpan("a, smile, b", "a, (smile:1.05), b")).toEqual({ start: 3, end: 8, text: "(smile:1.05)" });
+    expect(changedSpan("a, (smile:1.05), b", "a, smile, b")).toEqual({ start: 3, end: 15, text: "smile" });
+    expect(changedSpan("(x:1.1)", "(x:1.15)")).toEqual({ start: 6, end: 6, text: "5" });
+    expect(changedSpan("same", "same")).toEqual({ start: 4, end: 4, text: "" });
+    // Repeated letters at the seam: the prefix wins, the suffix never overlaps it.
+    expect(changedSpan("aa", "aaa")).toEqual({ start: 2, end: 2, text: "a" });
   });
 });

@@ -167,12 +167,19 @@ def migrate_tag_rules() -> None:
 
 
 def migrate_gen_term_weights() -> None:
-    """``image_gen_terms`` gained each term's prompt weight. It is derived
-    from ``gen``, so the old table is replaced, not altered; the reprojection
-    after it writes ``gen.prompt_weights`` and refills the rows."""
+    """``image_gen_terms`` gained each term's prompt weight. The column is
+    added in place (1.0 for every row), so the prompt-term filters keep
+    working until the reprojection after it writes ``gen.prompt_weights``
+    and the real weights."""
     with sync_tx() as conn:
-        t.image_gen_terms.drop(conn, checkfirst=True)
-        t.image_gen_terms.create(conn)
+        cols = {c["name"] for c in sa.inspect(conn).get_columns("image_gen_terms")}
+        if "weight" not in cols:
+            conn.execute(
+                sa.text(
+                    "ALTER TABLE image_gen_terms"
+                    " ADD COLUMN weight FLOAT NOT NULL DEFAULT 1.0"
+                )
+            )
 
 
 _MIGRATIONS = (

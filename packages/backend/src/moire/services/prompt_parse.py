@@ -120,7 +120,8 @@ class _Group:
     open: int
     weight: float | None = None
     closed: bool = False
-    # ``[from:to:0.5]`` or ``[x:0.5]``: A1111 prompt editing, not emphasis.
+    # ``[from:to:0.5]``, ``[x:0.5]`` or ``[a|b]``: A1111 prompt editing or
+    # alternation, not emphasis.
     edit: bool = False
     # Where the last emoticon read in it starts (``(a, :3)``: not a weight).
     emoticon: int = -1
@@ -163,10 +164,13 @@ class Piece:
 
     def weight(self, source: str | None) -> float:
         """The piece's prompt weight as ``source`` (``gen.source``) reads it;
-        anything not ComfyUI reads as A1111. Rounded to 4 places."""
+        anything not ComfyUI reads as A1111. Rounded to 4 places; one that
+        shows as 1 at the two places it is shown at is 1."""
         rule = _comfyui_weight if source == "comfyui" else _a1111_weight
         w = rule(self.groups)
-        return round(w, 4) if math.isfinite(w) else 1.0
+        if not math.isfinite(w) or round(w, 2) == 1:
+            return 1.0
+        return round(w, 4)
 
 
 def _qualifier_end(text: str, i: int) -> int | None:
@@ -337,6 +341,9 @@ def _scan(text: str) -> list[RawPiece]:
             i += 2
             continue
         if ch in _SEPARATORS:
+            if ch == "|" and stack and stack[-1].kind == "[":
+                # ``[a|b]``: A1111 alternation, not emphasis.
+                stack[-1].edit = True
             flush()
             i += 1
             continue

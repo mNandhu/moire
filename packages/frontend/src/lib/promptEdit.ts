@@ -113,10 +113,12 @@ export function bumpWeight(
   const head = text.slice(0, outer.start);
   const tail = text.slice(outer.end);
   // Bare when that already reads as the target (back to 1, or to the weight
-  // of the group it sits in).
+  // of the group it sits in) and still splits the same: without its
+  // brackets, `1girl (smile)` would run into one term.
   const bare = head + body + tail;
-  const there = firstIn(promptTerms(bare), { start: outer.start, end: outer.start + body.length });
-  if (Number((there?.weight ?? 1).toFixed(2)) === target) {
+  const bareTerms = promptTerms(bare);
+  const there = firstIn(bareTerms, { start: outer.start, end: outer.start + body.length });
+  if (there && bareTerms.length === terms.length && Number((there.weight ?? 1).toFixed(2)) === target) {
     return { text: bare, start: outer.start, end: outer.start + body.length };
   }
   return {
@@ -124,4 +126,21 @@ export function bumpWeight(
     start: outer.start + 1,
     end: outer.start + 1 + body.length,
   };
+}
+
+/** The one span of `before` that differs from `after`: [start, end) in
+ * `before` and the text that replaces it, so an edit can go in as typing
+ * (`insertText`) and stay one undo step. */
+export function changedSpan(before: string, after: string): { start: number; end: number; text: string } {
+  let start = 0;
+  while (start < before.length && start < after.length && before[start] === after[start]) start++;
+  let back = 0;
+  while (
+    back < before.length - start &&
+    back < after.length - start &&
+    before[before.length - 1 - back] === after[after.length - 1 - back]
+  ) {
+    back++;
+  }
+  return { start, end: before.length - back, text: after.slice(start, after.length - back) };
 }

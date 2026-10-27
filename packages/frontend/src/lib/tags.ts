@@ -116,10 +116,12 @@ export function toPromptText(tags: readonly string[], weights?: PromptWeights | 
   // An AI tag and its prompt twin (`blue_eyes`, `prompt:blue_eyes`) are one
   // word in a prompt: first occurrence wins.
   const names = [...new Set(tags.map(tagName))];
+  // Only a name the prompt still names carries its weight, as in tagFlow.
+  const prompted = new Set(tags.filter(isPrompt).map((t) => tagName(t).toLowerCase()));
   return names
     .map((n) => {
       const word = n.replace(/([()])/g, "\\$1");
-      const w = weightOf(n, weights);
+      const w = prompted.has(n.toLowerCase()) ? weightOf(n, weights) : undefined;
       return w === undefined ? word : `(${word}:${formatWeight(w)})`;
     })
     .join(", ");
