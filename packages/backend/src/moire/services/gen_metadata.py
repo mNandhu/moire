@@ -32,6 +32,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from . import prompt_guess, text_eval
+from .model_names import model_stem
 from .prompt_parse import EMBEDDING_TOKEN, parse_prompt
 from .tag_names import apply_aliases, canonical_name
 
@@ -590,7 +591,6 @@ def _resolve_ckpt(
 #   - stackers (Efficiency, Comfyroll): ``lora_name_1`` + ``model_str_1`` /
 #     ``lora_wt_1`` / ``strength_1``, often with a ``switch_1`` on/off
 
-_LORA_EXT = re.compile(r"\.(?:safetensors|ckpt|pt|pth|bin)$", re.IGNORECASE)
 _LORA_TAG = r"<(?:lora|lyco|lycoris):([^:>]+)(?::([-\d.]+))?"
 _LORA_TOKEN = re.compile("^" + _LORA_TAG, re.IGNORECASE)
 _LORA_ANYWHERE = re.compile(_LORA_TAG, re.IGNORECASE)
@@ -602,8 +602,7 @@ _PROMPT_LORA_NODES = re.compile(r"WildcardEncode|RemoteQueue", re.IGNORECASE)
 
 def lora_name(raw: str) -> str:
     """Display / filter name of a lora file: no folders, no extension."""
-    base = re.split(r"[\\/]", raw.strip())[-1]
-    return _LORA_EXT.sub("", base).strip()
+    return model_stem(raw)
 
 
 def _add_lora(out: dict[str, float | None], raw: Any, strength: Any) -> None:

@@ -21,7 +21,7 @@ from ..database.db import async_conn
 from ..database import schema as t
 from . import image_tags
 from .comfy_client import ComfyClient, ComfyError, ComfyUnreachable
-from .generator_graph import lora_stem
+from .model_names import model_stem
 from .preset_store import PresetError, Store, clean_name, clean_text
 
 # A library word must be in at least this share of the LoRA's prompts, and
@@ -43,7 +43,7 @@ def clean(patch: dict[str, Any], *, new: bool) -> dict[str, Any]:
     text, strength (null or -2..2). Pure."""
     out: dict[str, Any] = {}
     if new:
-        stem = lora_stem(str(patch.get("lora") or patch.get("stem") or "").strip())
+        stem = model_stem(str(patch.get("lora") or patch.get("stem") or "").strip())
         if not stem:
             raise PresetError("lora is required")
         out["stem"] = stem
@@ -268,7 +268,9 @@ async def _file(
             {"modelspec.trigger_phrase": (meta or {}).get("modelspec.trigger_phrase")}
         )
     }
-    common = await _common([w for w in words if _key(w) not in stated], lora_stem(name))
+    common = await _common(
+        [w for w in words if _key(w) not in stated], model_stem(name)
+    )
     return [w for w in words if w not in common][:LIMIT]
 
 
@@ -277,7 +279,7 @@ async def suggestions(
 ) -> list[dict[str, Any]]:
     """Words to offer for the LoRA file ``name``: each with where it came
     from (``file``, ``library``) and, from the library, in how many prompts."""
-    lib = await _library(lora_stem(name))
+    lib = await _library(model_stem(name))
     out: dict[str, dict[str, Any]] = {}
     for w in await _file(client, name, describe):
         out[_key(w)] = {"word": w, "sources": ["file"], "prompts": 0}

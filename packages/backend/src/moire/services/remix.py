@@ -22,7 +22,7 @@ from . import comfy_models, generator_setup, recipes, tag_categories
 from .prompt_parse import without_terms
 from .image_tags import find_image
 from .generator_discovery import base_settings
-from .generator_graph import lora_stem
+from .model_names import model_stem
 from .prompt_parse import parse_prompt
 from .tag_names import canonical_name
 
@@ -112,7 +112,7 @@ def matched_loras(
         name = lo.get("name")
         if not isinstance(name, str) or not name:
             continue
-        stem = lora_stem(name)
+        stem = model_stem(name)
         if stem in seen:
             continue
         seen.add(stem)
@@ -246,7 +246,7 @@ async def remix_view(image_id: str, full: bool = True) -> dict[str, Any] | None:
     have.update(await comfy_models.sampling())
     used = [lo for lo in gen.get("loras") or [] if isinstance(lo.get("name"), str)]
     table = await _lora_table(
-        list(dict.fromkeys(lora_stem(lo["name"]) for lo in used)), have["lora"]
+        list(dict.fromkeys(model_stem(lo["name"]) for lo in used)), have["lora"]
     )
 
     # Characters with a recipe move to Character blocks: their name and the
@@ -275,7 +275,7 @@ async def remix_view(image_id: str, full: bool = True) -> dict[str, Any] | None:
             (
                 c
                 for c in have["checkpoint"]
-                if c == model or lora_stem(c) == lora_stem(model)
+                if c == model or model_stem(c) == model_stem(model)
             ),
             None,
         )

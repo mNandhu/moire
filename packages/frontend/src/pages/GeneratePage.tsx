@@ -12,14 +12,14 @@ import {
   CountStepper,
   SeedControl,
   SizePicker,
-  stemOf,
 } from "../components/generate/RunControls";
+import { stemOf } from "../lib/modelNames";
 import { CharacterLayer } from "../components/generate/CharacterBlock";
 import { StyleLayer } from "../components/generate/StyleLayer";
 import { ComfyStatusLine } from "../components/generate/ComfyStatusLine";
 import { WorkflowPicker } from "../components/generate/WorkflowPicker";
 import { RemixStrip, type RemixState } from "../components/generate/Remix";
-import { canRunTest, countModeOf, defaultBatchSize, forWorkflow, runBarOf, testState } from "../lib/workflow";
+import { canRunTest, countModeOf, defaultBatchSize, forWorkflow, runBarOf, testState } from "../lib/generatorRunBar";
 import { useCharacters } from "../lib/queries";
 import { useNextEstimate } from "../components/generate/NextBatch";
 import { QueueDeck } from "../components/generate/QueueDeck";

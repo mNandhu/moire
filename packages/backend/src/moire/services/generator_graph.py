@@ -32,7 +32,12 @@ import random
 from dataclasses import dataclass
 from typing import Any
 
+from .model_names import model_stem
+
 Graph = dict[str, dict[str, Any]]
+
+# The older name of model_stem, still imported by recipes.
+lora_stem = model_stem
 
 LORA_LOADER = "LoraLoader"
 LORA_LOADER_MODEL_ONLY = "LoraLoaderModelOnly"
@@ -50,18 +55,6 @@ class GraphError(ValueError):
 class LoraPick:
     name: str  # ComfyUI's lora_name value (folder + file)
     strength: float
-
-
-def lora_stem(name: str) -> str:
-    """``"styles/flat_color_xl.safetensors"`` -> ``"flat_color_xl"``: no folder,
-    no extension. The key that matches ``image_loras.name``."""
-    base = name.replace("\\", "/").rsplit("/", 1)[-1]
-    if "." in base:
-        stem, ext = base.rsplit(".", 1)
-        # Only drop a real file extension, so "v1.5_style" keeps its dot.
-        if ext.lower() in ("safetensors", "ckpt", "pt", "pth", "bin"):
-            return stem
-    return base
 
 
 def is_link(value: Any) -> bool:
@@ -168,7 +161,7 @@ def merge_loras(
     out: list[LoraPick] = []
     seen: set[str] = set()
     for lo in [c for c in characters if c] + list(style or []):
-        stem = lora_stem(lo["name"])
+        stem = model_stem(lo["name"])
         if stem in seen:
             continue
         seen.add(stem)
@@ -234,13 +227,13 @@ def splice_loras(
             raise GraphError(f"node {ref[0]} not in graph")
 
     existing = {
-        lora_stem(n["inputs"]["lora_name"]): n
+        model_stem(n["inputs"]["lora_name"]): n
         for _, n in stock_lora_nodes(graph)
         if isinstance(n["inputs"].get("lora_name"), str)
     }
     to_add: list[LoraPick] = []
     for pick in loras:
-        node = existing.get(lora_stem(pick.name))
+        node = existing.get(model_stem(pick.name))
         if node is None:
             to_add.append(pick)
             continue

@@ -7,6 +7,7 @@ import { countHint, countLabel, randomSeed, type CountMode } from "../../lib/req
 import { ShapeIcon, SIZE_GROUP, useSizePresets } from "../SizeFilter";
 import { Input, Picker, Tooltip, type PickerOption } from "../ui";
 import type { Sampling } from "../../lib/generate";
+import { stemOf } from "../../lib/modelNames";
 import { samplerLabel, samplingLabel } from "../../lib/generateForm";
 
 export function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
@@ -15,12 +16,6 @@ export function FieldLabel({ children, htmlFor }: { children: React.ReactNode; h
       {children}
     </label>
   );
-}
-
-/** File name without folder or extension, as LoRAs show in the library. */
-export function stemOf(name: string): string {
-  const base = name.replace(/\\/g, "/").split("/").pop() ?? name;
-  return base.replace(/\.(safetensors|ckpt|pt|pth|bin)$/i, "");
 }
 
 export function CheckpointPicker({

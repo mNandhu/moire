@@ -219,7 +219,8 @@ belongs in this file.
   image reached the library. The UI calls it a **workflow** (one that is set
   up to run in Generate): the same ComfyUI workflow the extraction rules and
   the gallery filter list, at a later stage. "Generator" stays the code and
-  API name.
+  API name. In code, `workflow_family` / `lib/workflows.ts` are the families
+  (editor graph ids); `lib/generatorRunBar.ts` is the Generators' run bar.
 - **ComfyUI connection**: the one ComfyUI server Moiré queues on. Its
   installed LoRAs are matched to an image's LoRA names by file name, folders
   and extension ignored, so a recipe can say when a LoRA isn't installed.

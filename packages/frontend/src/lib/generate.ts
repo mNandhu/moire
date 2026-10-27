@@ -2,7 +2,7 @@
  * Generation (ComfyUI) API: types, fetchers and the polled queries. The
  * browser never talks to ComfyUI; everything goes through `/api/v1/generate`.
  */
-import { testState } from "./workflow";
+import { testState } from "./generatorRunBar";
 import { keepPreviousData, useQueries, useQuery, type QueryClient } from "@tanstack/react-query";
 import { api, apiJson, httpError, jsonInit } from "./api";
 import type { NewEstimate } from "./eta";

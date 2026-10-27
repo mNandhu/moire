@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from .comfy_client import ComfyClient, ComfyError
-from .generator_graph import lora_stem
+from .model_names import model_stem
 
 
 def _combo(info: dict[str, Any], class_type: str, input_name: str) -> list[str]:
@@ -43,9 +43,9 @@ async def refresh(client: ComfyClient) -> dict[str, int]:
     schedulers = _combo(sampler_info, "KSampler", "scheduler")
     embeddings = await client.embeddings()
     rows = (
-        [{"kind": "checkpoint", "name": n, "stem": lora_stem(n)} for n in checkpoints]
-        + [{"kind": "lora", "name": n, "stem": lora_stem(n)} for n in loras]
-        + [{"kind": "embedding", "name": n, "stem": lora_stem(n)} for n in embeddings]
+        [{"kind": "checkpoint", "name": n, "stem": model_stem(n)} for n in checkpoints]
+        + [{"kind": "lora", "name": n, "stem": model_stem(n)} for n in loras]
+        + [{"kind": "embedding", "name": n, "stem": model_stem(n)} for n in embeddings]
         # Kept in ComfyUI's order (the common ones first), not sorted.
         + [{"kind": "sampler", "name": n, "stem": n} for n in samplers]
         + [{"kind": "scheduler", "name": n, "stem": n} for n in schedulers]
@@ -104,7 +104,7 @@ def match_table(
     not installed, or when two files share it and no pick was made). Pure."""
     by_stem: dict[str, list[str]] = defaultdict(list)
     for name in loras:
-        by_stem[lora_stem(name)].append(name)
+        by_stem[model_stem(name)].append(name)
     out = []
     for stem, count in used:
         files = sorted(by_stem.get(stem, []))
@@ -130,7 +130,7 @@ async def matching() -> list[dict[str, Any]]:
         ).fetchall()
     choices = {r.stem: r.name for r in rows}
     loras = (await installed())["lora"]
-    return match_table([(lora_stem(n), c) for n, c in used], loras, choices)
+    return match_table([(model_stem(n), c) for n, c in used], loras, choices)
 
 
 async def set_choice(stem: str, name: str | None) -> None:

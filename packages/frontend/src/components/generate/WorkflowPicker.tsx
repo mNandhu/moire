@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Badge, Picker } from "../ui";
 import { cn } from "../../lib/cn";
 import type { Generator } from "../../lib/generate";
-import { SET_UP, testState, workflowOptions, type TestState } from "../../lib/workflow";
+import { SET_UP, testState, workflowOptions, type TestState } from "../../lib/generatorRunBar";
 
 const STATE: Record<TestState, { tone: "success" | "warning" | "danger" | "brand"; label: string }> = {
   ready: { tone: "success", label: "Ready" },

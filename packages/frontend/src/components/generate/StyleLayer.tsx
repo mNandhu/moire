@@ -17,7 +17,7 @@ import { toPromptText } from "../../lib/tags";
 import { PresetDialogShell } from "./PresetDialogShell";
 import { PresetPicker } from "./PresetPicker";
 import { ExpandButton } from "./Layers";
-import { stemOf } from "./RunControls";
+import { stemOf } from "../../lib/modelNames";
 
 const DEFAULT_STRENGTH = 0.7;
 

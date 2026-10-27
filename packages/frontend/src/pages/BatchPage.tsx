@@ -11,7 +11,7 @@ import { renameBatch, requeueBatch, useBatch, type Batch } from "../lib/generate
 import { retryable } from "../lib/batchActions";
 import { useBatchChanged, useCancelBatch, useRetryFailed } from "../hooks/useBatchActions";
 import { formFromBatch, samplingLabel, saveDraft } from "../lib/generateForm";
-import { stemOf } from "../components/generate/RunControls";
+import { stemOf } from "../lib/modelNames";
 import { BatchResults } from "../components/generate/BatchResults";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";

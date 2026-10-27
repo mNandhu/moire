@@ -21,7 +21,7 @@ import sqlalchemy as sa
 from ..database import schema as t
 from ..database.db import async_conn, async_tx
 from . import attire, comfy_models, gen_metadata, tag_categories, workflow_family
-from .generator_graph import lora_stem
+from .model_names import model_stem
 from .prompt_parse import without_terms
 from .generator_discovery import check_slots, discover
 from .generator_graph import SAMPLING, STOCK_LORA_LOADERS
@@ -195,9 +195,9 @@ async def setup_view(
     # What the connected ComfyUI has (empty before the first connection: then
     # nothing is judged missing).
     have = await comfy_models.installed()
-    lora_stems = {lora_stem(n) for n in have["lora"]}
+    lora_stems = {model_stem(n) for n in have["lora"]}
     for lo in d["found"]["loras"]:
-        lo["installed"] = lora_stem(lo["name"]) in lora_stems if have["lora"] else None
+        lo["installed"] = model_stem(lo["name"]) in lora_stems if have["lora"] else None
     ckpt = d["found"].get("checkpoint")
     if ckpt:
         ckpt["installed"] = (

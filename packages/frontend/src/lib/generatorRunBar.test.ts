@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Generator, QueueBody } from "./generate";
-import { countModeOf, defaultBatchSize, forWorkflow, runBarOf, testState, workflowLine, workflowOptions } from "./workflow";
+import { countModeOf, defaultBatchSize, forWorkflow, runBarOf, testState, workflowLine, workflowOptions } from "./generatorRunBar";
 
 const gen = (over: Partial<Generator> = {}): Generator => ({
   _id: "g1",

@@ -16,7 +16,7 @@ import { canonicalName } from "../lib/tags";
 import { createCharacter } from "../lib/imageMutations";
 import { TAGS_KEY } from "../lib/queries";
 import { putRecipe, useCharacterNames, useComfyModels, useLoraWords } from "../lib/generate";
-import { stemOf } from "./generate/RunControls";
+import { stemOf } from "../lib/modelNames";
 import { errorText } from "../lib/api";
 
 /**

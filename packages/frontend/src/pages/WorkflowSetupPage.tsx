@@ -39,7 +39,8 @@ import {
 } from "../lib/generatorSetup";
 import { cn } from "../lib/cn";
 import { errorText } from "../lib/api";
-import { canRunTest, testState } from "../lib/workflow";
+import { canRunTest, testState } from "../lib/generatorRunBar";
+import { stemOf } from "../lib/modelNames";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
@@ -405,7 +406,7 @@ function SetupForm({
               {setup.found.loras!.map((l) => (
                 <li key={l.node} className="flex flex-wrap items-center gap-2.5 text-[13px]">
                   <span className={cn("min-w-0 truncate", (slots.drop_loras ?? []).includes(l.node) ? "text-faint line-through" : "text-neutral-200")}>
-                    {l.name.replace(/\.safetensors$/, "").split("/").pop()}
+                    {stemOf(l.name)}
                   </span>
                   {l.strength != null && <span className="font-mono text-xs text-faint">{+l.strength.toFixed(2)}</span>}
                   {l.installed === false && <Badge tone="warning">Not on ComfyUI</Badge>}
