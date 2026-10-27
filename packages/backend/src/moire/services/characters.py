@@ -637,18 +637,33 @@ SOLO_ENOUGH = 3
 
 async def page(base: str) -> dict | None:
     """Everything a character page shows (``None`` when no image has the
-    tag). ``tag`` is the page's key: a bare name answers with its full one."""
+    tag). ``tag`` is the page's key: a bare name answers with its full one.
+
+    Any other tag gets the same page (the tag page, see ``/tags/character``)
+    without the look: only a character's ``palette`` and ``signature`` are
+    read, a plain tag's come back empty."""
     key, names, key_of, rows = await _named(base)
     detail = await tag_detail.detail(key, "all", aliases=tuple(names[1:]))
     if detail is None:
         async with async_conn() as conn:
             made = await _made(conn, {r["tag"] for r in rows}, key)
         return made_page(made[0]) if made else None
-    n = detail["count"]
+    core, crowded = await _page_core(key, names, key_of, rows, detail)
+    if detail["category"] == "character":
+        look = await _page_look(names, key_of, rows, detail["count"], crowded)
+    else:
+        look = {"palette": [], "signature": [], "signature_images": 0}
+    return {**core, **look}
+
+
+async def _page_core(
+    key: str, names: list[str], key_of: dict[str, str], rows: list[dict], detail: dict
+) -> tuple[dict, set[str]]:
+    """Every tag page's part: the panel ``detail``, cover, who else is on the
+    images, the best and scored ones, ratings and the LoRAs' scores. Also the
+    images another character is on too (for :func:`_page_look`)."""
     ids = tag_detail.image_ids(names)
     im, it = t.images, t.image_tags
-    library = {r["tag"]: r["count"] for r in rows}
-    vocab = await tag_categories.load()
     by = {r["tag"]: r for r in rows}
     async with async_conn() as conn:
         cover = (
@@ -656,21 +671,6 @@ async def page(base: str) -> dict | None:
                 conn, {key: names}, {key: by.get(key, {"thumb_image_id": None})}
             )
         )[key]
-        total = (
-            await conn.execute(
-                sa.select(sa.func.count()).where(image_visibility.not_quarantined())
-            )
-        ).scalar_one()
-        tags_here, sig_images = await signature_counts(
-            conn, ids, [c for c in key_of if c not in names], n
-        )
-        hair_eyes = (
-            await conn.execute(
-                sa.select(it.c.image_id, it.c.base).where(
-                    it.c.image_id.in_(ids), _HAIR_EYES
-                )
-            )
-        ).fetchall()
         others = (
             await conn.execute(
                 sa.select(it.c.image_id, it.c.base).where(
@@ -732,7 +732,7 @@ async def page(base: str) -> dict | None:
         key=lambda r: (-r["count"], r["tag"]),
     )
     crowded = set().union(*shared.values()) if shared else set()
-    return {
+    core = {
         **detail,
         "tag": key,
         "cover": cover,
@@ -743,8 +743,50 @@ async def page(base: str) -> dict | None:
         "color": meta.get("color"),
         "focus": _focus(meta),
         **(await _avatars([cover])).get(cover or "", _NO_AVATAR),
-        "palette": solo_palette([tuple(r) for r in hair_eyes], n, crowded),
         "cover_blurhash": cover_hash,
+        "with": with_others[:12],
+        "best": [{"image_id": r._id, "score": r.score} for r in best],
+        "scored": {
+            "count": scored[0],
+            "average": round(scored[1], 2) if scored[0] >= SCORED_ENOUGH else None,
+        },
+        "ratings": {r: c for r, c in ratings},
+    }
+    return core, crowded
+
+
+async def _page_look(
+    names: list[str],
+    key_of: dict[str, str],
+    rows: list[dict],
+    n: int,
+    crowded: set[str],
+) -> dict:
+    """A character page's look: the colours of their hair and eyes, and the
+    signature tags of how they're drawn and dressed, over their ``n`` images
+    (``crowded``: the ones another character is on too)."""
+    ids = tag_detail.image_ids(names)
+    it = t.image_tags
+    library = {r["tag"]: r["count"] for r in rows}
+    vocab = await tag_categories.load()
+    async with async_conn() as conn:
+        total = (
+            await conn.execute(
+                sa.select(sa.func.count()).where(image_visibility.not_quarantined())
+            )
+        ).scalar_one()
+        tags_here, sig_images = await signature_counts(
+            conn, ids, [c for c in key_of if c not in names], n
+        )
+        hair_eyes = (
+            await conn.execute(
+                sa.select(it.c.image_id, it.c.base).where(
+                    it.c.image_id.in_(ids), _HAIR_EYES
+                )
+            )
+        ).fetchall()
+    return {
+        "palette": solo_palette([tuple(r) for r in hair_eyes], n, crowded),
         # Their look: how they're drawn and dressed. Scene, framing, pose
         # and expression shared by a few images from one set aren't it; a
         # tag the groups don't place (`cat_girl`, `tail`) stays.
@@ -763,13 +805,6 @@ async def page(base: str) -> dict | None:
         ][:30],
         # The images the signature was read from: few means it's a guess.
         "signature_images": sig_images,
-        "with": with_others[:12],
-        "best": [{"image_id": r._id, "score": r.score} for r in best],
-        "scored": {
-            "count": scored[0],
-            "average": round(scored[1], 2) if scored[0] >= SCORED_ENOUGH else None,
-        },
-        "ratings": {r: c for r, c in ratings},
     }
 
 

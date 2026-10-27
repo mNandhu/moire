@@ -444,3 +444,24 @@ def test_gender_comes_from_the_count_tags():
     assert characters.gender({"1girl": 6, "1boy": 6}, 6) is None
     assert characters.gender({"1girl": 2}, 6) is None
     assert characters.gender({}, 0) is None
+
+
+async def test_a_plain_tag_page_skips_the_look(client, seed, monkeypatch):
+    monkeypatch.setattr(tag_categories, "load", _chars("nahida"))
+    for i in range(4):
+        seed(f"L1:n{i}", tags=("nahida", "smile", "green_eyes", "white_hair"))
+    looked: list[int] = []
+    real = characters.signature_counts
+
+    async def counting(*args, **kwargs):
+        looked.append(1)
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr(characters, "signature_counts", counting)
+    page = (await client.get("/tags/character", params={"tag": "smile"})).json()
+    assert looked == []
+    assert page["palette"] == [] and page["signature"] == []
+    assert page["signature_images"] == 0
+    assert page["with"] == [{"tag": "nahida", "count": 4}]
+    page = (await client.get("/tags/character", params={"tag": "nahida"})).json()
+    assert looked and page["signature_images"] == 4 and page["palette"]
