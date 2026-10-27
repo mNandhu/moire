@@ -157,7 +157,7 @@ export function tagMarkStyle(
 export const TAG_TINT_CLASS = "bg-[color:var(--tag-tint)]";
 
 /** Tailwind `raised`: the fill of tag chips. */
-export const CHIP_GROUND = "#1e1c26";
+const CHIP_GROUND = "#1e1c26";
 
 /**
  * Inline style that draws a bordered tag chip's border in the tag's colour

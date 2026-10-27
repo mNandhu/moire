@@ -79,7 +79,7 @@ export type ComfyModels = {
   matching: LoraMatch[];
 };
 
-export type GeneratorTest = {
+type GeneratorTest = {
   batch_id: number;
   state: RequestState;
   error: RequestError | null;
@@ -110,7 +110,7 @@ export type Generator = {
 /** ``[node id, input name]`` in the Generator's graph. */
 export type SlotPath = [string, string];
 /** ``[node id, output index]``: where Moiré's LoRA chain starts. */
-export type OutputRef = [string, number];
+type OutputRef = [string, number];
 
 export type GeneratorSlots = Partial<{
   positive: SlotPath;
@@ -135,7 +135,7 @@ export type GeneratorSlots = Partial<{
   drop_loras: string[];
 }>;
 
-export type GeneratorOrigin =
+type GeneratorOrigin =
   | {
       kind: "image";
       image_id: string;
@@ -150,9 +150,9 @@ export type GeneratorOrigin =
 /** What setup is given: a library image, or an uploaded Export (API) file. */
 export type GeneratorSourceIn = { image_id: string } | { graph: unknown; filename?: string };
 
-export type NodeRef = { node: string; title: string };
+type NodeRef = { node: string; title: string };
 
-export type FoundPrompt = { path: SlotPath; replaces_link: boolean; text?: string | null; from?: "rule" };
+type FoundPrompt = { path: SlotPath; replaces_link: boolean; text?: string | null; from?: "rule" };
 
 export type TextInput = {
   path: SlotPath;
@@ -202,7 +202,7 @@ export type GeneratorSetup = {
 /** Sampler settings; one left out stays as the Generator's graph has it. */
 export type Sampling = Partial<{ sampler: string; scheduler: string; steps: number; cfg: number }>;
 
-export type RequestState =
+type RequestState =
   | "pending"
   | "queued"
   | "running"
@@ -213,7 +213,7 @@ export type RequestState =
 
 export type BatchState = "running" | "paused" | "done" | "failed" | "cancelled";
 
-export type RequestError = {
+type RequestError = {
   node: string;
   class_type: string | null;
   type: string | null;
@@ -255,7 +255,7 @@ export type GenRequest = {
   outputs: Output[];
 };
 
-export type LoraPick = { name: string; strength: number };
+type LoraPick = { name: string; strength: number };
 
 /** A style LoRA in the composer: the pick plus its activation preset (a
  * snapshot of the words, like a prompt preset's). */
@@ -828,7 +828,7 @@ export function useBatches(limit = 50) {
 }
 
 /** True while some output still waits for the download or library scan. */
-export function waitingForScan(b: Batch): boolean {
+function waitingForScan(b: Batch): boolean {
   return b.requests.some((q) => q.outputs.some((o) => o.arriving));
 }
 

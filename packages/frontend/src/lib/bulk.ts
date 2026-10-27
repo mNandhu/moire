@@ -17,7 +17,7 @@ export type BulkResult = {
   failed: { id: string; error: unknown }[];
 };
 
-export const DEFAULT_CONCURRENCY = 6;
+const DEFAULT_CONCURRENCY = 6;
 
 export async function runBulk(
   ids: readonly string[],

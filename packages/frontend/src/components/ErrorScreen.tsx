@@ -11,7 +11,7 @@ function messageOf(error: unknown): string | undefined {
 }
 
 /** What a crashed page shows instead of a blank screen. */
-export function ErrorPanel({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
+function ErrorPanel({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const message = messageOf(error);
   return (
     <EmptyState

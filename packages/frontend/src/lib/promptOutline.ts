@@ -501,7 +501,7 @@ export function removeTerms(text: string, ranges: readonly { start: number; end:
 }
 
 /** How a tag reads in a prompt: spaces, parens escaped. */
-export function promptWord(name: string): string {
+function promptWord(name: string): string {
   return name.replace(/_/g, " ").replace(/([()])/g, "\\$1");
 }
 

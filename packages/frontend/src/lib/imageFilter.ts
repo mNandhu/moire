@@ -45,7 +45,7 @@ export type ImageDoc = {
   };
 };
 
-export type TagLogic = "and" | "or";
+type TagLogic = "and" | "or";
 
 /** Feed order; see services/image_feed.py `SORTS`. */
 export type FeedSort = "newest" | "oldest" | "top";

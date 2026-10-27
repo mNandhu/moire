@@ -10,7 +10,7 @@ const samePath = (a: SlotPath | undefined | null, b: SlotPath | undefined | null
 export const pathKey = (p: SlotPath) => `${p[0]}\u0000${p[1]}`;
 
 /** "#14 text": a node id and the input on it. */
-export const pathLabel = (p: SlotPath) => `#${p[0]} ${p[1]}`;
+const pathLabel = (p: SlotPath) => `#${p[0]} ${p[1]}`;
 
 /** The text input a slot points at, if the picker lists it. */
 export function inputAt(setup: GeneratorSetup, path: SlotPath | undefined): TextInput | undefined {

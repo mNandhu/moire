@@ -199,7 +199,7 @@ function StripThumb({ s }: { s: ResultSlot }) {
 }
 
 /** In place of a thumbnail that isn't there, why: failed, on its way, or missing. */
-export function NoImageMark({
+function NoImageMark({
   why,
   className,
   style,

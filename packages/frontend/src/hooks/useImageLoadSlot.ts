@@ -61,7 +61,7 @@ export class ImageLoadQueue {
   }
 }
 
-export const imageLoadQueue = new ImageLoadQueue();
+const imageLoadQueue = new ImageLoadQueue();
 
 export type UseImageLoadSlot = {
   /** The URL to put on the <img>, or null while the tile has no slot yet. */

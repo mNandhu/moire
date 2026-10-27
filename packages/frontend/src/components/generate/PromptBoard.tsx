@@ -26,7 +26,7 @@ import { descriptionKey } from "../../lib/tags";
 import { useToast } from "../Toasts";
 import { GroupBox } from "./board/GroupBox";
 
-export type { BoardLayer, BoxKey, LayerTag } from "../../lib/promptBoard";
+export type { BoardLayer, BoxKey } from "../../lib/promptBoard";
 
 // Per viewer: whether the board is folded away. Until they choose, a phone
 // starts folded: one box per part, stacked, is a long scroll of empty slots.

@@ -21,7 +21,7 @@ import { promptTerms, removeTerms } from "./promptOutline";
 
 export type Kind = "girl" | "boy" | "other";
 
-export type CountMark = {
+type CountMark = {
   /** Offsets of the term in the prompt text (trimmed of spaces). */
   start: number;
   end: number;

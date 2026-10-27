@@ -11,7 +11,7 @@ import { cn } from "../../lib/cn";
 // the time, and this halo (a tight dark outline plus a soft drop) covers the
 // rest, e.g. a yellow region under the digit. Checked against flat amber,
 // white and yellow with no scrim at all.
-export const MARKER_DIGIT =
+const MARKER_DIGIT =
   "font-marker text-amber-300 leading-none inline-block -rotate-6 " +
   "[text-shadow:0_0_1px_rgb(0_0_0/0.95),0_0_2px_rgb(0_0_0/0.9),0_1px_4px_rgb(0_0_0/0.75)]";
 

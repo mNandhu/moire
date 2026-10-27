@@ -11,7 +11,7 @@ import { workflowFilterName, type WorkflowFamily } from "./workflows";
 export type TagSource = "all" | "ai" | "prompt" | "manual";
 export type TagSort = "count" | "name" | "recent";
 export type TagView = "grid" | "list";
-export type TagCategory = "character" | "general";
+type TagCategory = "character" | "general";
 
 /** One entry of `/tags/browse`: a tag name, its sources merged. */
 export type BrowseTag = {

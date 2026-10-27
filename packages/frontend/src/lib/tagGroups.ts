@@ -22,7 +22,7 @@ export function groupLabel(group: string): string {
 }
 
 /** `attire_and_body_accessories` reads "Attire and body accessories". */
-export function categoryLabel(category: string): string {
+function categoryLabel(category: string): string {
   return capital(words(category));
 }
 

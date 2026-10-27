@@ -9,9 +9,9 @@ import { AlertTriangle, Info, Trash2 } from "lucide-react";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 
-export type ConfirmTone = "default" | "warning" | "danger";
+type ConfirmTone = "default" | "warning" | "danger";
 
-export type ConfirmOptions = {
+type ConfirmOptions = {
   title: string;
   message?: React.ReactNode;
   confirmLabel?: string;

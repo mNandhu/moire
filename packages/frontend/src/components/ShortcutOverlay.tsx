@@ -53,7 +53,7 @@ export function ShortcutHelp() {
   return <ShortcutOverlay open={open} onClose={() => setOpen(false)} pathname={pathname} />;
 }
 
-export function ShortcutOverlay({ open, onClose, pathname }: { open: boolean; onClose: () => void; pathname: string }) {
+function ShortcutOverlay({ open, onClose, pathname }: { open: boolean; onClose: () => void; pathname: string }) {
   return (
     <Dialog
       open={open}

@@ -7,7 +7,7 @@ import { etaLabel, formatDuration } from "./format";
  * progress. Pure.
  */
 
-export type TaskKind =
+type TaskKind =
   | "scan"
   | "delete"
   | "reproject"

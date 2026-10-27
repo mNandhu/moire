@@ -15,7 +15,7 @@ export type ShortcutGroup = {
 };
 
 
-export const SHORTCUT_GROUPS: ShortcutGroup[] = [
+const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: "Everywhere",
     page: "everywhere",

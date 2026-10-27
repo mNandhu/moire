@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-export const APP_NAME = "Moiré";
+const APP_NAME = "Moiré";
 
 // Put before whatever the page titles the tab (time left on the generation
 // queue); kept apart so pages and the prefix don't overwrite each other.

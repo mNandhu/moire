@@ -45,7 +45,7 @@ export function cleanPath(raw: string): string {
 }
 
 /** A drive (`C:\`, `C:/`), a POSIX root (`/`) or a share (`\\server`). */
-export const isFullPath = (p: string) => /^([a-z]:[\\/]|\/|\\\\)/i.test(p);
+const isFullPath = (p: string) => /^([a-z]:[\\/]|\/|\\\\)/i.test(p);
 
 /** One spelling per folder, for comparing: forward slashes, no trailing
  * slash, and case folded for Windows paths (their file systems ignore it). */

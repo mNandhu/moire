@@ -22,7 +22,7 @@ export type RemixState = { remixForm: GenerateForm };
  * queued, the workflow its batch ran. `exact`: that workflow is the very
  * version that made the image, so the same seed can repeat it (one set up
  * from another version of the family only shares the name). */
-export function useRemixWorkflow(info: RemixInfo) {
+function useRemixWorkflow(info: RemixInfo) {
   const { data: generators } = useGenerators();
   const w = info.workflow;
   const ran = info.batch ? generators?.find((g) => g._id === info.batch!.generator_id) : undefined;

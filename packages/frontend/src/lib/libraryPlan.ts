@@ -4,7 +4,7 @@
 
 import { apiJson } from "./api";
 
-export type CandidateStatus = "new" | "registered" | "overlap" | "empty";
+type CandidateStatus = "new" | "registered" | "overlap" | "empty";
 
 export type LibraryCandidate = {
   path: string;
