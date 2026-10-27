@@ -127,6 +127,20 @@ export const DEFAULT_FILTERS: Filters = {
 export const PAGE_LIMIT = 100;
 
 /**
+ * `f` with its mutually exclusive axes made consistent: `aiTagged` is
+ * dropped beside `noTags` / `noAiTags` (the server rejects the pair), and a
+ * workflow version (`workflowSig`) replaces a workflow family. The one place
+ * these rules live: parse and serialize apply it, so a hand-built URL is
+ * repaired and no call site repeats the rule.
+ */
+export function normalizeFilters(f: Filters): Filters {
+  const aiTagged = f.aiTagged && !f.noTags && !f.noAiTags;
+  const workflow = f.workflowSig ? undefined : f.workflow;
+  if (aiTagged === f.aiTagged && workflow === f.workflow) return f;
+  return { ...f, aiTagged, workflow };
+}
+
+/**
  * Read an Image filter out of URL search params.
  *
  * Back-compat: accepts the legacy singular `tag` param as well as `tags`.
@@ -137,13 +151,13 @@ export function parseFilters(sp: URLSearchParams): Filters {
   const tags = sp.getAll("tags");
   const legacy = sp.getAll("tag");
   const logic = sp.get("logic");
-  return {
+  return normalizeFilters({
     tags: tags.length ? tags : legacy,
     logic: logic === "or" ? "or" : "and",
     libraryId: sp.get("library_id") || undefined,
     noTags: sp.get("no_tags") === "1",
     noAiTags: sp.get("no_ai_tags") === "1",
-    aiTagged: sp.get("ai_tagged") === "1" && sp.get("no_ai_tags") !== "1" && sp.get("no_tags") !== "1",
+    aiTagged: sp.get("ai_tagged") === "1",
     quarantined: sp.get("quarantined") === "1",
     promptTerms: sp.getAll("pterms"),
     promptLogic: sp.get("plogic") === "or" ? "or" : "and",
@@ -161,7 +175,7 @@ export function parseFilters(sp: URLSearchParams): Filters {
     workflow: sp.get("workflow") || undefined,
     workflowSig: sp.get("workflow_sig") || undefined,
     sort: SORTS.find((x) => x === sp.get("sort")) ?? "newest",
-  };
+  });
 }
 
 function numOrUndef(v: string | null): number | undefined {
@@ -175,14 +189,15 @@ function numOrUndef(v: string | null): number | undefined {
  * pagination cursor/limit). Used both for pushing the gallery URL and for
  * carrying the filter when navigating to ImageView.
  */
-export function serializeFilters(filters: Filters): URLSearchParams {
+export function serializeFilters(f: Filters): URLSearchParams {
+  const filters = normalizeFilters(f);
   const sp = new URLSearchParams();
   filters.tags.forEach((t) => sp.append("tags", t));
   if (filters.logic) sp.set("logic", filters.logic);
   if (filters.libraryId) sp.set("library_id", filters.libraryId);
   if (filters.noTags) sp.set("no_tags", "1");
   if (filters.noAiTags) sp.set("no_ai_tags", "1");
-  if (filters.aiTagged && !filters.noAiTags && !filters.noTags) sp.set("ai_tagged", "1");
+  if (filters.aiTagged) sp.set("ai_tagged", "1");
   if (filters.quarantined) sp.set("quarantined", "1");
   filters.promptTerms.forEach((t) => sp.append("pterms", t));
   if (filters.promptTerms.length && filters.promptLogic)
@@ -234,29 +249,13 @@ export function serializeFiltersForPeek(filters: Filters): string {
   return sp.toString();
 }
 
-/** Whether any filter axis is set (vs the empty default feed). */
+/** Whether any filter axis is set (vs the empty default feed): whatever the
+ * URL codec writes beyond the view settings (match logic, order, grouping),
+ * so a new axis counts as soon as it is serialized. */
 export function hasActiveFilter(f: Filters): boolean {
-  return (
-    f.tags.length > 0 ||
-    !!f.libraryId ||
-    f.noTags ||
-    f.noAiTags ||
-    f.aiTagged ||
-    f.quarantined ||
-    f.promptTerms.length > 0 ||
-    !!f.model ||
-    f.lora.length > 0 ||
-    f.embedding.length > 0 ||
-    f.outfit.length > 0 ||
-    f.shape.length > 0 ||
-    f.minW != null ||
-    f.maxW != null ||
-    f.minH != null ||
-    f.maxH != null ||
-    !!f.groupId ||
-    !!f.workflow ||
-    !!f.workflowSig
-  );
+  const sp = serializeFilters({ ...f, sort: DEFAULT_FILTERS.sort, group: false });
+  sp.delete("logic");
+  return sp.size > 0;
 }
 
 /**
@@ -307,11 +306,12 @@ function rangeLabel(name: string, min?: number, max?: number): string {
  * version signature.
  */
 export function activeFilterChips(
-  f: Filters,
+  filters: Filters,
   libraryName: (id: string) => string | undefined = () => undefined,
   workflowName: (key: { workflow?: string; workflowSig?: string }) => string | undefined = () =>
     undefined,
 ): FilterChip[] {
+  const f = normalizeFilters(filters);
   const chips: FilterChip[] = [];
   const add = (key: string, label: string, patch: Partial<Filters>) =>
     chips.push({ key, label, without: { ...f, ...patch } });
@@ -324,7 +324,7 @@ export function activeFilterChips(
   }
   if (f.noTags) add("noTags", "Untagged", { noTags: false });
   if (f.noAiTags) add("noAiTags", "No AI tags", { noAiTags: false });
-  if (f.aiTagged && !f.noAiTags && !f.noTags) add("aiTagged", "AI tagged", { aiTagged: false });
+  if (f.aiTagged) add("aiTagged", "AI tagged", { aiTagged: false });
   if (f.quarantined) add("quarantined", "Quarantined", { quarantined: false });
   for (const term of f.promptTerms) {
     add(`prompt:${term}`, `Prompt: ${term}`, {

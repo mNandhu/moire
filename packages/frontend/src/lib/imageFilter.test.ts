@@ -10,6 +10,7 @@ import {
   withoutFilters,
   galleryHref,
   imageHref,
+  normalizeFilters,
 } from "./imageFilter";
 
 const roundTrip = (f: Filters): Filters =>
@@ -269,5 +270,79 @@ describe("imageHref", () => {
   it("has no query without a filter", () => {
     expect(imageHref("a")).toBe("/image/a");
     expect(imageHref("a", "")).toBe("/image/a");
+  });
+});
+
+describe("normalizeFilters", () => {
+  it("drops aiTagged beside noTags / noAiTags", () => {
+    expect(normalizeFilters({ ...DEFAULT_FILTERS, aiTagged: true, noTags: true }).aiTagged).toBe(false);
+    expect(normalizeFilters({ ...DEFAULT_FILTERS, aiTagged: true, noAiTags: true }).aiTagged).toBe(false);
+    expect(normalizeFilters({ ...DEFAULT_FILTERS, aiTagged: true }).aiTagged).toBe(true);
+  });
+
+  it("lets a workflow version replace a workflow family", () => {
+    const f = normalizeFilters({ ...DEFAULT_FILTERS, workflow: "fam", workflowSig: "sig" });
+    expect(f.workflow).toBeUndefined();
+    expect(f.workflowSig).toBe("sig");
+  });
+
+  it("repairs a hand-typed URL on parse, and returns a consistent filter untouched", () => {
+    const f = parseFilters(new URLSearchParams("workflow=fam&workflow_sig=sig&ai_tagged=1&no_tags=1"));
+    expect(f).toMatchObject({ workflow: undefined, workflowSig: "sig", aiTagged: false, noTags: true });
+    expect(normalizeFilters(f)).toBe(f);
+  });
+
+  it("makes the chips ignore a contradicted aiTagged", () => {
+    const f = { ...DEFAULT_FILTERS, aiTagged: true, noTags: true };
+    expect(activeFilterChips(f).map((c) => c.key)).toEqual(["noTags"]);
+  });
+});
+
+// One sample per Filters key, none equal to the default. A key added to
+// Filters without a sample here fails the first test; one without a codec
+// line fails the round trip.
+const SAMPLES: Record<keyof Filters, Partial<Filters>> = {
+  tags: { tags: ["a", "b"] },
+  logic: { logic: "or" },
+  libraryId: { libraryId: "L1" },
+  noTags: { noTags: true },
+  noAiTags: { noAiTags: true },
+  aiTagged: { aiTagged: true },
+  quarantined: { quarantined: true },
+  promptTerms: { promptTerms: ["x"] },
+  promptLogic: { promptTerms: ["x"], promptLogic: "or" },
+  model: { model: "m" },
+  lora: { lora: ["l"] },
+  embedding: { embedding: ["e"] },
+  outfit: { outfit: ["o"] },
+  shape: { shape: ["2:3"] },
+  minW: { minW: 1 },
+  maxW: { maxW: 2 },
+  minH: { minH: 3 },
+  maxH: { maxH: 4 },
+  group: { group: true },
+  groupId: { groupId: "g" },
+  workflow: { workflow: "w" },
+  workflowSig: { workflowSig: "s" },
+  sort: { sort: "top" },
+};
+
+describe("every Filters key", () => {
+  it("has a sample", () => {
+    expect(Object.keys(SAMPLES).sort()).toEqual(Object.keys(DEFAULT_FILTERS).sort());
+  });
+
+  it.each(Object.keys(SAMPLES) as (keyof Filters)[])("round-trips through the URL: %s", (key) => {
+    const f: Filters = { ...DEFAULT_FILTERS, ...SAMPLES[key] };
+    expect(roundTrip(f)).toEqual(f);
+    expect(serializeFilters(f).toString()).not.toBe(serializeFilters(DEFAULT_FILTERS).toString());
+  });
+
+  it("counts as an active filter unless it is a view setting", () => {
+    const view = new Set<keyof Filters>(["logic", "group", "sort"]);
+    for (const key of Object.keys(SAMPLES) as (keyof Filters)[]) {
+      const f: Filters = { ...DEFAULT_FILTERS, ...SAMPLES[key] };
+      expect([key, hasActiveFilter(f)]).toEqual([key, !view.has(key)]);
+    }
   });
 });

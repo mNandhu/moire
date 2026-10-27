@@ -400,7 +400,7 @@ export default function AllImagesPage() {
         e.preventDefault();
         const next = !filters.noTags;
         push(next ? "No-tags filter ON" : "No-tags filter OFF", "info");
-        setFilters({ ...filters, noTags: next, aiTagged: next ? false : filters.aiTagged });
+        setFilters({ ...filters, noTags: next });
       },
     },
     {
@@ -409,7 +409,7 @@ export default function AllImagesPage() {
         e.preventDefault();
         const next = !filters.noAiTags;
         push(next ? "No-AI-tags filter ON" : "No-AI-tags filter OFF", "info");
-        setFilters({ ...filters, noAiTags: next, aiTagged: next ? false : filters.aiTagged });
+        setFilters({ ...filters, noAiTags: next });
       },
     },
     {
@@ -979,7 +979,7 @@ export default function AllImagesPage() {
                     variant="secondary"
                     active={filters.noTags}
                     onClick={() =>
-                      setFilters({ ...filters, noTags: !filters.noTags, aiTagged: false })
+                      setFilters({ ...filters, noTags: !filters.noTags })
                     }
                     aria-label={filters.noTags ? "No tags on" : "No tags off"}
                     title="Images with no tags at all"
@@ -992,7 +992,7 @@ export default function AllImagesPage() {
                     variant="secondary"
                     active={filters.noAiTags}
                     onClick={() =>
-                      setFilters({ ...filters, noAiTags: !filters.noAiTags, aiTagged: false })
+                      setFilters({ ...filters, noAiTags: !filters.noAiTags })
                     }
                     aria-label={
                       filters.noAiTags ? "No AI tags on" : "No AI tags off"
