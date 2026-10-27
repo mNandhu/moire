@@ -122,3 +122,33 @@ async def test_a_versioned_url_is_kept_and_a_bare_one_revalidated(client, thumbe
     )
     assert changed.status_code == 200
     assert changed.content == bare.content
+
+
+@pytest.mark.asyncio
+async def test_an_original_is_revalidated_not_kept(client, temp_db, seed, tmp_path):
+    # Its URL has no version: a file replaced at the same path must show.
+    import os
+
+    import sqlalchemy as sa
+
+    from moire.database import db
+    from moire.database import schema as t
+
+    f = tmp_path / "a.png"
+    f.write_bytes(b"one")
+    seed("L1:a.png")
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.update(t.images).where(t.images.c._id == "L1:a.png").values(path=str(f))
+        )
+
+    first = await client.get("/images/L1:a.png/file")
+    assert first.headers["cache-control"] == "no-cache"
+    etag = first.headers["etag"]
+    same = await client.get("/images/L1:a.png/file", headers={"If-None-Match": etag})
+    assert same.status_code == 304 and same.headers["cache-control"] == "no-cache"
+
+    f.write_bytes(b"two!")
+    os.utime(f, (1e9, 1e9))
+    new = await client.get("/images/L1:a.png/file", headers={"If-None-Match": etag})
+    assert new.status_code == 200 and new.content == b"two!"

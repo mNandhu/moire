@@ -37,25 +37,47 @@ async def _original_path(image_id: str) -> str:
     return path
 
 
+# A URL without a version (an original, or a thumbnail URL built before they
+# had one) is checked again on every use: its file may have changed under it.
+_REVALIDATE = {"Cache-Control": "no-cache"}
+
+
+def _etag_matches(if_none_match: str | None, etag: str) -> bool:
+    """`If-None-Match` names this ETag (or `*`). Weak tags compare equal."""
+    if not if_none_match:
+        return False
+    tags = [x.strip().removeprefix("W/") for x in if_none_match.split(",")]
+    return "*" in tags or etag.removeprefix("W/") in tags
+
+
 @router.get("/{image_id:path}/file")
 async def get_image_file(
     image_id: str,
     request: Request,
     range: str | None = Header(default=None, alias="Range"),
 ):
-    """Serve the original image file directly from the local filesystem."""
+    """Serve the original image file directly from the local filesystem.
+    Its URL has no version and the file can change under it (edited, or
+    replaced at the same path), so the browser asks again on every use and
+    gets a 304 while the file's ETag still matches."""
     path = await _original_path(image_id)
 
     media_type, _ = mimetypes.guess_type(path)
+    try:
+        st = await anyio.to_thread.run_sync(lambda: os.stat(path))  # type: ignore[attr-defined]
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Original file not found on disk")
     # FileResponse handles Range headers, ETag, Content-Length natively
-    return FileResponse(
+    resp = FileResponse(
         path,
         media_type=media_type or "application/octet-stream",
-        headers={
-            "Cache-Control": "public, max-age=31536000, immutable",
-            "Accept-Ranges": "bytes",
-        },
+        headers={**_REVALIDATE, "Accept-Ranges": "bytes"},
+        stat_result=st,
     )
+    etag = resp.headers["etag"]
+    if _etag_matches(request.headers.get("if-none-match"), etag):
+        return Response(status_code=304, headers={"ETag": etag, **_REVALIDATE})
+    return resp
 
 
 @router.head("/{image_id:path}/file")
@@ -85,19 +107,6 @@ _SMALL_LIMIT = anyio.CapacityLimiter(4)
 
 
 _IMMUTABLE = {"Cache-Control": "public, max-age=31536000, immutable"}
-
-
-# A URL without its version (one built before URLs had one) is checked again
-# on every use: its file may have been rebuilt under it.
-_REVALIDATE = {"Cache-Control": "no-cache"}
-
-
-def _etag_matches(if_none_match: str | None, etag: str) -> bool:
-    """`If-None-Match` names this ETag (or `*`). Weak tags compare equal."""
-    if not if_none_match:
-        return False
-    tags = [x.strip().removeprefix("W/") for x in if_none_match.split(",")]
-    return "*" in tags or etag.removeprefix("W/") in tags
 
 
 def _media_type(path: str) -> str:
