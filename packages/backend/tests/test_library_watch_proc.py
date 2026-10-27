@@ -26,7 +26,7 @@ def ingested(monkeypatch):
     library_watch.stop_all()  # a child left by an earlier test's library add
     monkeypatch.setattr(settings, "watch_debounce_ms", 50)
     monkeypatch.setattr(settings, "watch_stability_window_ms", 50)
-    monkeypatch.setattr(library_watch, "_restart_delay_s", 0.0)
+    monkeypatch.setattr(library_watch._child, "restart_delay_s", 0.0)
     seen: list[tuple[str, str]] = []
     got = threading.Event()
 
@@ -45,14 +45,14 @@ def ingested(monkeypatch):
 def spawned(monkeypatch):
     """Every child process the watcher starts."""
     procs = []
-    real = library_watch._spawn
+    real = library_watch._child.spawn
 
     def spy(closing):
         proc = real(closing)
         procs.append(proc)
         return proc
 
-    monkeypatch.setattr(library_watch, "_spawn", spy)
+    monkeypatch.setattr(library_watch._child, "spawn", spy)
     return procs
 
 
@@ -118,9 +118,9 @@ def test_backoff_does_not_hold_up_stop_all(tmp_path, ingested, spawned, monkeypa
     lib.mkdir()
     library_watch.start_watch("W1", str(lib))
     assert _wait(lambda: len(spawned) == 1)
-    monkeypatch.setattr(library_watch, "_restart_delay_s", 60.0)
+    monkeypatch.setattr(library_watch._child, "restart_delay_s", 60.0)
     spawned[0].kill()
-    assert _wait(lambda: library_watch._respawn_at > time.monotonic() + 30)
+    assert _wait(lambda: library_watch._child.respawn_at > time.monotonic() + 30)
 
     t = time.monotonic()
     library_watch.stop_all()
