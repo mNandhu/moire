@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countHint, countLabel, countText, fixedSeeds, splitRequests } from "./requests";
+import { countHint, countLabel, countText, splitRequests } from "./requests";
 
 describe("splitRequests", () => {
   it("matches the backend split", () => {
@@ -37,6 +37,3 @@ describe("countLabel", () => {
   });
 });
 
-it("fixed seeds count up per request", () => {
-  expect(fixedSeeds(100, 3)).toEqual([100, 101, 102]);
-});

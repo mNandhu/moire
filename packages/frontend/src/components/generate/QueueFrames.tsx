@@ -6,15 +6,13 @@ import { useLiveQueue, type LiveLeg } from "./useLiveQueue";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-export type FrameState = QueueFrame["state"];
-
 /** Frames drawn per batch at most; the rest are a count. */
 const MAX_FRAMES = 12;
 
 /** A batch's frames: on the one being made, its last few made (or failed)
  * images, the ones in the works and the rest; on a waiting batch, only what
  * it has left. At most `max`, with how many more there are. */
-export function framesOf(l: LiveLeg, max = MAX_FRAMES): { frames: (QueueFrame & { key: number })[]; more: number } {
+function framesOf(l: LiveLeg, max = MAX_FRAMES): { frames: (QueueFrame & { key: number })[]; more: number } {
   const all = l.frames.map((f, key) => ({ ...f, key }));
   const open = all.filter((f) => f.state === "waiting" || f.state === "making");
   // Of a long run's made images, the last two say enough.
@@ -24,7 +22,7 @@ export function framesOf(l: LiveLeg, max = MAX_FRAMES): { frames: (QueueFrame & 
 
 /** One image of the queue, `size` rem tall at its batch's shape: its
  * thumbnail once done and in the library, filling while made. */
-export function Frame({ frame, leg, size = 3, className }: { frame: QueueFrame; leg: LiveLeg; size?: number; className?: string }) {
+function Frame({ frame, leg, size = 3, className }: { frame: QueueFrame; leg: LiveLeg; size?: number; className?: string }) {
   const { state, thumb } = frame;
   return (
     <span

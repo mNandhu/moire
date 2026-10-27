@@ -18,7 +18,7 @@ export type Leg = {
   end: number;
   width: number | null;
   height: number | null;
-  /** One per image asked; a request each when the server doesn't say. */
+  /** One per image asked. */
   frames: QueueFrame[];
 };
 
@@ -55,20 +55,12 @@ export function queueLegs(active: readonly ActiveBatch[]): { legs: Leg[]; total:
       end,
       width: a.width ?? null,
       height: a.height ?? null,
-      frames: a.frames ?? requestFrames(a),
+      frames: a.frames,
     });
   }
   // The one being made leads, then by when each starts.
   legs.sort((x, y) => Number(y.running) - Number(x.running) || x.start - y.start);
   return { legs, total: cursor };
-}
-
-/** A frame per request, from the counts alone. */
-function requestFrames(a: ActiveBatch): QueueFrame[] {
-  return Array.from({ length: a.requests }, (_, i) => ({
-    state: i < a.finished ? "done" : a.running && i === a.finished ? "making" : "waiting",
-    thumb: null,
-  }));
 }
 
 /** Images still to make: frames waiting or being made. Pure. */

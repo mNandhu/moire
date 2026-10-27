@@ -13,6 +13,7 @@ const b = (id: number, requests: number, finished: number, eta: number | null): 
   failed: 0,
   progress: null,
   eta,
+  frames: Array.from({ length: requests }, () => ({ state: "waiting" as const, thumb: null })),
 });
 
 describe("queueLegs", () => {
@@ -45,7 +46,7 @@ describe("queueLegs without server times", () => {
 });
 
 describe("imagesLeft", () => {
-  it("counts the server's per-image frames, else a request each", () => {
+  it("counts the server's per-image frames still waiting or being made", () => {
     const making = { state: "making" as const, thumb: null };
     const done = { state: "done" as const, thumb: "/t" };
     const { legs } = queueLegs([{ ...b(1, 2, 1, 30), frames: [done, done, making, making] }, b(2, 3, 0, 30)]);

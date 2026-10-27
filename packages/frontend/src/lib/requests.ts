@@ -51,11 +51,6 @@ export function countHint(count: number, mode: CountMode): string | undefined {
   return `${total} ComfyUI makes up to ${mode.perRequest} at a time (the batch size), so this is ${runs(sizes.length)}${listed}.`;
 }
 
-/** Fixed seeds count up per request, as the backend sends them. */
-export function fixedSeeds(seed: number, requests: number): number[] {
-  return Array.from({ length: requests }, (_, i) => seed + i);
-}
-
 /** A random seed for the dice button (within ComfyUI's range). */
 export function randomSeed(): number {
   return Math.floor(Math.random() * SEED_MAX);

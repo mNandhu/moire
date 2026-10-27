@@ -51,7 +51,7 @@ export type ActiveBatch = {
   width?: number | null;
   height?: number | null;
   /** One per image asked, in request order, with its thumbnail once in the library. */
-  frames?: QueueFrame[];
+  frames: QueueFrame[];
 };
 
 export type QueueFrame = { state: "done" | "failed" | "cancelled" | "making" | "waiting"; thumb: string | null };
