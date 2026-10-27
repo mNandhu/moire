@@ -3,7 +3,7 @@
 // mounted. Pure functions: the arithmetic that decides whether the grid shows
 // a blank band while scrolling belongs somewhere a test can reach.
 
-export type Dims = { width?: number; height?: number };
+export type Dims = { width?: number | null; height?: number | null };
 
 /**
  * Gallery density, as the target on-screen width of one tile in px. Columns are

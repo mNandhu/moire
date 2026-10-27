@@ -68,7 +68,7 @@ export function ImageThumbnail({
   width?: number;
   height?: number;
   priority?: boolean; // High priority for above-the-fold images
-  blurhash?: string; // BlurHash placeholder shown until the image loads
+  blurhash?: string | null; // BlurHash placeholder shown until the image loads
   // Scroll container to use as the IntersectionObserver root. Must be the actual
   // scrolling element: rootMargin only expands the root, while intermediate
   // scroll containers clip at zero margin, killing the preload window.

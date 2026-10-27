@@ -112,8 +112,8 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
         src={src}
         blurhash={item.blurhash}
         alt={item.path}
-        width={item.width}
-        height={item.height}
+        width={item.width ?? undefined}
+        height={item.height ?? undefined}
         selected={selected}
         dimmed={quarantined && dimQuarantined}
         onClick={() => (selectionMode ? onToggle(item._id) : onOpen(item._id))}

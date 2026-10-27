@@ -33,7 +33,7 @@ const MAX_MEMBERS = 12;
  * hover nicety.
  */
 export function useBatchScrub(
-  groupId: string | undefined,
+  groupId: string | null | undefined,
   active: boolean,
   peekQuery: string,
 ) {

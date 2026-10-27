@@ -9,7 +9,7 @@ import { decode } from "blurhash";
  * A frame with no real colour glows its plain average. Null for a missing
  * or invalid hash.
  */
-export function accentFromBlurhash(hash?: string): string | null {
+export function accentFromBlurhash(hash?: string | null): string | null {
   if (!hash) return null;
   const N = 8;
   let px: Uint8ClampedArray;
@@ -80,7 +80,7 @@ function hueChroma(hash: string): { hue: number; chroma: number } | null {
  * 15% of the vote are dropped. Output is a fixed saturation and lightness so
  * the wash has the same strength whatever the library. Strongest first.
  */
-export function ambientPalette(hashes: (string | undefined)[], n = 3): string[] {
+export function ambientPalette(hashes: (string | null | undefined)[], n = 3): string[] {
   const buckets = new Map<number, { weight: number; hueSum: number }>();
   let total = 0;
   for (const h of hashes) {

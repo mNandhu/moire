@@ -756,8 +756,8 @@ export default function ImageView() {
               src={thumbUrl}
               alt=""
               aria-hidden="true"
-              width={listItem?.width ?? data?.width}
-              height={listItem?.height ?? data?.height}
+              width={listItem?.width ?? data?.width ?? undefined}
+              height={listItem?.height ?? data?.height ?? undefined}
               onError={() => setThumbFailed(true)}
               className={`${stageW && stageH ? "w-full h-full" : "max-w-full max-h-dvh w-auto h-auto"} object-contain blur-xl scale-105 transition-opacity duration-300 ${
                 imgLoaded || thumbFailed ? "opacity-0" : "opacity-100"
@@ -967,8 +967,8 @@ export default function ImageView() {
                       <GenPanel
                         imageId={data._id}
                         gen={data.gen}
-                        width={data.width}
-                        height={data.height}
+                        width={data.width ?? undefined}
+                        height={data.height ?? undefined}
                         onCopyAll={() => void copyWorkflow()}
                         batchScope={serializeFiltersForPeek(filters)}
                         thumbUrl={data.thumb_url}

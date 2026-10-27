@@ -6,7 +6,7 @@ import asyncio
 from ..services import thumb_version
 from ..services import tag_detail as tag_panel
 from ._utils import validate_tags
-from ..models.responses import TagCount
+from ..models.responses import TagCount, documents
 from ..services import (
     characters,
     danbooru_tags,
@@ -28,7 +28,7 @@ class TagThumbnailSet(BaseModel):
     image_id: str
 
 
-@router.get("", response_model=list[TagCount])
+@router.get("", **documents(list[TagCount]))
 async def list_tags(
     include_manual: bool = False,
     include_prompt: bool = False,

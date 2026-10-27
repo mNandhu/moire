@@ -1,23 +1,19 @@
 """Response models for the hottest read routes.
 
-They document the wire in the OpenAPI schema and, on the routes that return
-plain data, check it on the way out. They describe the payloads as they were;
-they must not change them:
+They document the wire in the OpenAPI schema; they never touch it. Each route
+declares its model through ``documents``, which lists it as the 200 response
+without making it the ``response_model``, so FastAPI neither validates nor
+re-serializes the payload: a stored value of an unexpected type is served as
+before instead of turning the route into a 500, and the bytes are whatever the
+service built. test_response_models_integration.py holds each model to real
+route rows in strict mode instead.
 
-- Every key the route always sends is a required field with no default, so a
-  missing key fails loudly instead of turning into ``null``.
-- ``extra="allow"`` passes an undeclared key through untouched, so a column
-  added on the service side reaches the client as before; the payload key
-  snapshot (tests/fixtures/mirrored/image_payloads.json) is what notices it.
-- Fields are declared in the order the services build the dicts, so the JSON
-  bytes are unchanged too. JSON subdocuments (``gen``, ``ai``) are ``Any``
-  inside, never coerced.
-- ``_id`` would be a private attribute in pydantic; it is the alias of ``id``,
-  and FastAPI serializes response models by alias.
-
-Routes that return a ``JSONResponse`` for speed (the feed, the tag list) skip
-response validation; for them the model is documentation, and a test holds it
-to real rows.
+- Every key the route always sends is a required field with no default.
+- ``extra="allow"`` so a model validates a row carrying a key it does not
+  declare yet; the payload key snapshot
+  (tests/fixtures/mirrored/image_payloads.json) is what notices that key.
+- JSON subdocuments (``gen``, ``ai``) are ``Any`` inside.
+- ``_id`` would be a private attribute in pydantic; it is the alias of ``id``.
 """
 
 from __future__ import annotations
@@ -29,6 +25,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class _Payload(BaseModel):
     model_config = ConfigDict(extra="allow")
+
+
+def documents(model: Any) -> dict[str, Any]:
+    """Route kwargs that list ``model`` as the 200 response for the OpenAPI
+    schema without validating or re-serializing what the route returns."""
+    return {"response_model": None, "responses": {200: {"model": model}}}
 
 
 class FeedRow(_Payload):
@@ -48,49 +50,27 @@ class FeedRow(_Payload):
     thumb_url: str
 
 
-class GroupRow(_Payload):
+class GroupRow(FeedRow):
     """One grouped-view row (GET /images/groups): the batch's representative
     with the batch id (null when ungrouped) and its member count."""
 
-    id: str = Field(alias="_id")
-    path: str | None
-    width: int | None
-    height: int | None
-    blurhash: str | None
-    score: float | None
-    rating: str | None
-    quarantined: bool | None
-    has_ai_tags: bool | None
-    mtime: float | None
     group_id: str | None
     group_count: int
-    thumb_url: str
 
 
-class ImageDetail(_Payload):
+class ImageDetail(FeedRow):
     """The single-image document (GET /images/{id}): image_tags.row_to_doc
     plus thumb_url."""
 
-    id: str = Field(alias="_id")
     library_id: str
-    path: str | None
     size: int | None
-    width: int | None
-    height: int | None
     ctime: float | None
-    mtime: float | None
     thumb_key: str | None
-    blurhash: str | None
-    score: float | None
-    rating: str | None
-    quarantined: bool | None
     has_tags: bool | None
-    has_ai_tags: bool | None
     has_prompt_tags: bool | None
     tags: list[str]
     ai: dict[str, Any] | None
     gen: dict[str, Any] | None
-    thumb_url: str
 
 
 class TagCount(_Payload):

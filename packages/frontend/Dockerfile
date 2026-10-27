@@ -18,6 +18,9 @@ RUN pnpm install --frozen-lockfile
 # Copy frontend source code
 COPY packages/frontend/ ./packages/frontend/
 
+# Fixtures the frontend's mirrored tests import (tsc -b checks tests too)
+COPY packages/backend/tests/fixtures/mirrored/ ./packages/backend/tests/fixtures/mirrored/
+
 # Build the app
 RUN pnpm -C packages/frontend build
 

@@ -11,7 +11,7 @@ from ..services import image_delete, thumb_version
 from ..services.image_feed import FeedFilter, FeedFilterError
 from ..services.image_tags import find_image as _find_image_doc  # type: ignore
 from . import image_facets, image_media
-from ..models.responses import FeedRow, GroupRow, ImageDetail
+from ..models.responses import FeedRow, GroupRow, ImageDetail, documents
 
 router = APIRouter()
 
@@ -96,7 +96,7 @@ def feed_filter(
         raise HTTPException(status_code=422, detail=str(exc))
 
 
-@router.get("", response_model=list[FeedRow])
+@router.get("", **documents(list[FeedRow]))
 async def list_images(
     f: FeedFilter = Depends(feed_filter),
     offset: int = Query(default=0, ge=0),
@@ -149,7 +149,7 @@ router.include_router(image_media.router)
 router.include_router(image_facets.router)
 
 
-@router.get("/groups", response_model=list[GroupRow])
+@router.get("/groups", **documents(list[GroupRow]))
 async def list_groups(
     f: FeedFilter = Depends(feed_filter),
     offset: int = Query(default=0, ge=0),
@@ -193,7 +193,7 @@ async def get_image_workflow(image_id: str):
     return {"source": source}
 
 
-@router.get("/{image_id:path}", response_model=ImageDetail)
+@router.get("/{image_id:path}", **documents(ImageDetail))
 async def get_image(image_id: str):
     img = await _find_image_doc(image_id)
     if not img:

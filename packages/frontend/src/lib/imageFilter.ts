@@ -15,27 +15,28 @@
 export type ImageFields = {
   _id: string;
   path: string;
-  width?: number;
-  height?: number;
+  width?: number | null;
+  height?: number | null;
   // Ready-to-use thumbnail URL: the API streaming route
   // (`/api/v1/images/{id}/thumb?v=`, versioned). Lets the grid render <img src> with no per-tile
   // resolve request. See services/thumb_version.py.
   thumb_url?: string;
   // Compact blurred-preview hash; decoded to an instant placeholder so tiles
   // never show a grey loading skeleton. See services/blurhash.py.
-  blurhash?: string;
-  // Null, not undefined, when unset: these come straight from SQL columns.
+  blurhash?: string | null;
+  // Null, not undefined, when unset: the nullable fields come straight from
+  // SQL columns.
   rating?: string | null;
   // 0-5 quality score (distinct from `rating`, the content-safety axis).
   score?: number | null;
   // DB-only curation flag; quarantined images leave the default feed.
-  quarantined?: boolean;
+  quarantined?: boolean | null;
   // File modification time (epoch seconds): the feed's newest-first sort key
   // and half of its cursor. Null for rows scanned without one.
   mtime?: number | null;
   // Summary flag maintained by services/image_tags.py. The grid draws an
   // "untagged" marker from it so an un-AI-tagged image is visible at a glance.
-  has_ai_tags?: boolean;
+  has_ai_tags?: boolean | null;
 };
 
 /** A gallery tile: a feed row (GET /images), or a grouped-view row
@@ -43,7 +44,7 @@ export type ImageFields = {
 export type FeedItem = ImageFields & {
   // Batch grouping (grouped view only): the representative's group + member
   // count. group_count > 1 means this tile stands for a batch of variations.
-  group_id?: string;
+  group_id?: string | null;
   group_count?: number;
 };
 

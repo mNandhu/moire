@@ -28,16 +28,27 @@ async def _payload_keys(client, seed) -> dict[str, list[str]]:
         mtime=100,
     )
     seed("L1:b.png", gen={"group_id": "g1"}, mtime=50)
+    seed("L1:c.png", mtime=10)
 
     async def get(path):
         resp = await client.get(path)
         assert resp.status_code == 200, resp.text
         return resp.json()
 
-    feed, _ = await get("/images")
-    (group,) = await get("/images/groups")
-    detail = await get("/images/L1:a.png")
-    return {"feed": sorted(feed), "group": sorted(group), "detail": sorted(detail)}
+    def keys(rows: list[dict]) -> list[str]:
+        # Every row's keys, so a key sent only on some rows (an ungrouped
+        # tile, a NULL column) still reaches the snapshot.
+        assert rows
+        return sorted(set().union(*rows))
+
+    groups = await get("/images/groups")
+    assert {row["group_id"] for row in groups} == {"g1", None}
+    details = [await get(f"/images/L1:{name}.png") for name in "abc"]
+    return {
+        "feed": keys(await get("/images")),
+        "group": keys(groups),
+        "detail": keys(details),
+    }
 
 
 async def test_image_payload_keys_match_snapshot(client, seed):

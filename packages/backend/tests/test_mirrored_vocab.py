@@ -145,5 +145,11 @@ def test_thumb_sizes_match():
     from moire.api.image_media import ThumbSize
 
     # No TS union: each size is a helper in media.ts that adds its query.
-    src = _src("media.ts")
-    assert set(re.findall(r"size=(\w+)", src)) == set(get_args(ThumbSize))
+    # Comment lines are skipped so a stale doc mention cannot stand in for a
+    # helper that is gone.
+    code = "\n".join(
+        line
+        for line in _src("media.ts").splitlines()
+        if not line.lstrip().startswith(("//", "*", "/*"))
+    )
+    assert set(re.findall(r"size=(\w+)", code)) == set(get_args(ThumbSize))

@@ -10,14 +10,14 @@ from ..models.library import (
     LibraryIn,
     LibraryUpdate,
 )
-from ..models.responses import LibraryRow
+from ..models.responses import LibraryRow, documents
 from ..services import library_discover, library_ops
 from ..services.scanner import scan_library_async
 
 router = APIRouter()
 
 
-@router.get("", response_model=list[LibraryRow])
+@router.get("", **documents(list[LibraryRow]))
 async def list_libraries():
     return await library_ops.listing()
 
