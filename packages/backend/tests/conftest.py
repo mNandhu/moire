@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from moire.core.config import settings
 from moire.database import db
 from moire.database import schema as t
-from moire.services import image_tags, tag_index, tag_kinds
+from moire.services import image_tags, lora_words, tag_index, tag_kinds
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -48,10 +48,13 @@ def isolated_storage(tmp_path_factory):
 @pytest.fixture(autouse=True)
 def fresh_tag_index():
     """The tag index cache is module-global; drop it around every test so a
-    cached aggregation can't leak across DB fixtures."""
+    cached aggregation can't leak across DB fixtures. So does lora_words'
+    minute-long prompt total."""
     tag_index.reset_for_tests()
+    lora_words._last_total = None
     yield
     tag_index.reset_for_tests()
+    lora_words._last_total = None
 
 
 @pytest_asyncio.fixture

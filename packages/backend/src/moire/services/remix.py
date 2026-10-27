@@ -20,6 +20,7 @@ from ..database import schema as t
 from ..database.db import async_conn
 from . import (
     comfy_models,
+    gen_raw,
     generation_batches,
     generator_setup,
     recipes,
@@ -209,13 +210,7 @@ async def _base_settings(
         sampling = {**sampling, **found["sampling"]}
     elif gen.get("source") == "a1111":
         async with async_conn() as conn:
-            raw = (
-                await conn.execute(
-                    sa.select(t.image_gen_raw.c.raw).where(
-                        t.image_gen_raw.c._id == image_id
-                    )
-                )
-            ).scalar()
+            raw = await gen_raw.raw_for(conn, image_id)
         size = a1111_size(raw.get("parameters") if isinstance(raw, dict) else None)
     return size, sampling
 

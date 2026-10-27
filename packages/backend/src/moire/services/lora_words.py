@@ -10,6 +10,7 @@ prompt says nothing about which of its words belong to the LoRA.
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 import sqlalchemy as sa
@@ -110,13 +111,23 @@ def _prompt_scope():
     return key, tagged, prompt
 
 
+# The last total and when it was counted: while tags are being written
+# (an AI job, a reprojection) it is reused for up to a minute.
+_last_total: tuple[float, int] | None = None
+_TOTAL_MIN_AGE = 60.0
+
+
 async def _prompt_total() -> int:
-    """Distinct prompts in the library, kept until the next tag write: every
-    suggestion measures against it, and it is a scan of every prompt tag."""
+    """Distinct prompts in the library, kept until the next tag write (but
+    counted at most once a minute): every suggestion measures against it,
+    and it is a scan of every prompt tag."""
+    global _last_total
     gen = tag_index.current_generation()
     cached = tag_index.read_derived("lora-prompt-total")
     if cached is not None:
         return cached
+    if _last_total and time.monotonic() - _last_total[0] < _TOTAL_MIN_AGE:
+        return _last_total[1]
     key, tagged, prompt = _prompt_scope()
     async with async_conn() as conn:
         n = (
@@ -127,6 +138,7 @@ async def _prompt_total() -> int:
             )
         ).scalar_one()
     tag_index.store_derived("lora-prompt-total", gen, n)
+    _last_total = (time.monotonic(), n)
     return n
 
 

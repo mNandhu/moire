@@ -961,3 +961,15 @@ def test_a_cancelled_request_keeps_the_images_it_made():
     frames = _frames(q, [{"thumb_url": "/a"}, {"thumb_url": "/b"}])
     assert [f["state"] for f in frames] == ["done", "done", "cancelled", "cancelled"]
     assert [f["thumb"] for f in frames[:2]] == ["/a", "/b"]
+
+
+async def test_rejected_comfyui_patch_registers_no_output_library(client, tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    r = await client.put(
+        "/generate/comfyui",
+        json={"output_path": str(out), "ca_cert": str(tmp_path / "missing.pem")},
+    )
+    assert r.status_code == 400
+    assert (await client.get("/libraries")).json() == []
+    assert not (await comfy_settings.get_settings()).get("output_library_id")

@@ -38,7 +38,8 @@ class GZipExceptMedia:
 
 class SlowRequestLog:
     """Logs a request that took ``log_slow_requests_ms`` or longer, timed
-    until its whole body is sent (or it raised)."""
+    until its response starts (or it raised): a big original streaming to a
+    slow client isn't a slow handler."""
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -48,10 +49,18 @@ class SlowRequestLog:
             await self.app(scope, receive, send)
             return
         start = time.perf_counter()
+        started: list[float] = []
+
+        async def timed_send(message) -> None:
+            if message["type"] == "http.response.start" and not started:
+                started.append(time.perf_counter())
+            await send(message)
+
         try:
-            await self.app(scope, receive, send)
+            await self.app(scope, receive, timed_send)
         finally:
-            dur_ms = (time.perf_counter() - start) * 1000.0
+            end = started[0] if started else time.perf_counter()
+            dur_ms = (end - start) * 1000.0
             if dur_ms >= settings.log_slow_requests_ms:
                 # Keep logs lightweight; uvicorn already logs access lines.
                 logger.warning(
@@ -83,6 +92,9 @@ class RescanRateLimit:
         ip = client[0] if client else "unknown"
         key = (ip, "libraries:rescan")
         now = time.time()
+        # Expired windows go, so one entry per IP doesn't pile up forever.
+        for k in [k for k, (w, _) in self.state.items() if now - w >= 60]:
+            del self.state[k]
         window_start, count = self.state.get(key, (now, 0))
         if now - window_start >= 60:
             window_start, count = now, 0

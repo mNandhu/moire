@@ -5,6 +5,7 @@ reusing the scan's per-file processing and upsert statements.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -14,6 +15,8 @@ from ..database import schema as t
 from ..database.db import sync_conn, sync_tx
 from . import image_delete, image_tags, scanner, tag_index
 from .thumbnailer import is_image
+
+logger = logging.getLogger(__name__)
 
 
 def _touch_library(conn, library_id: str, *, indexed_delta: int) -> None:
@@ -65,7 +68,8 @@ def ingest_single_file(library_id: str, root_path: Path, path: Path) -> bool:
 
             reproject_image(res.image_id)
         except Exception:
-            pass
+            # Re-runnable via the manual endpoint, as after a full scan.
+            logger.warning("Reprojection failed for %s", res.image_id, exc_info=True)
     return True
 
 

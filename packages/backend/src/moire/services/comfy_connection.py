@@ -32,6 +32,15 @@ async def apply_patch(patch: dict[str, Any]) -> None:
     Raises library_ops.BadPath or SettingsError."""
     patch = dict(patch)
     output_path = patch.pop("output_path", None)
+    if patch.get("ca_cert"):
+        try:
+            ssl.create_default_context(cafile=patch["ca_cert"].strip())
+        except (OSError, ssl.SSLError) as e:
+            raise SettingsError(f"Can't read the certificate: {e}") from e
+    if patch.get("output_root") and not os.path.isdir(patch["output_root"].strip()):
+        raise SettingsError("That folder doesn't exist")
+    # Everything is checked before the output folder is registered: a
+    # rejected patch must not leave a new library behind.
     if output_path is not None:
         if not output_path.strip():
             patch["output_library_id"] = None
@@ -46,13 +55,6 @@ async def apply_patch(patch: dict[str, Any]) -> None:
             patch["output_library_id"] = await library_ops.ensure_watched(
                 lib.path, "ComfyUI output"
             )
-    if patch.get("ca_cert"):
-        try:
-            ssl.create_default_context(cafile=patch["ca_cert"].strip())
-        except (OSError, ssl.SSLError) as e:
-            raise SettingsError(f"Can't read the certificate: {e}") from e
-    if patch.get("output_root") and not os.path.isdir(patch["output_root"].strip()):
-        raise SettingsError("That folder doesn't exist")
     before = await comfy_settings.get_settings()
     after = await comfy_settings.update_settings(patch)
     # Another ComfyUI saves somewhere else: find its folder again.
