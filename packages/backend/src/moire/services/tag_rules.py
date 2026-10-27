@@ -49,3 +49,20 @@ def apply_rules(terms: list[str], rules: dict[str, list[str]]) -> list[str]:
     if not rules:
         return terms
     return sorted({to for term in terms for to in rules.get(term, (term,))})
+
+
+def apply_rule_weights(
+    weights: dict[str, float], rules: dict[str, list[str]]
+) -> dict[str, float]:
+    """``gen.prompt_weights`` through the same rules as :func:`apply_rules`:
+    each target takes its source's weight, and where several sources merge
+    into one target the weight farthest from 1 wins (the first on a tie, as
+    within one prompt). Pure."""
+    if not rules:
+        return weights
+    out: dict[str, float] = {}
+    for term, w in weights.items():
+        for to in rules.get(term, (term,)):
+            if abs(w - 1) > abs(out.get(to, 1.0) - 1):
+                out[to] = w
+    return out

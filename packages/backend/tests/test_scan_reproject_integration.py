@@ -102,6 +102,37 @@ async def test_reproject_model_filter_works_after_real_reprojection(client, seed
     assert [it["_id"] for it in resp.json()] == [image_id]
 
 
+async def test_reproject_stores_each_prompt_terms_weight(temp_db, seed):
+    image_id = "L1:art.png"
+    seed(image_id)
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.insert(t.image_gen_raw).values(
+                _id=image_id,
+                library_id="L1",
+                workflow_sig=None,
+                raw={
+                    "source": "a1111",
+                    "parameters": "(smile:1.2), 1girl, [rain]\nSteps: 20, Seed: 1",
+                },
+            )
+        )
+    reproject.reproject_library("L1")
+    with db.sync_conn() as conn:
+        gen = conn.execute(
+            sa.select(t.images.c.gen).where(t.images.c._id == image_id)
+        ).scalar_one()
+        rows = dict(
+            conn.execute(
+                sa.select(t.image_gen_terms.c.term, t.image_gen_terms.c.weight).where(
+                    t.image_gen_terms.c.image_id == image_id
+                )
+            ).all()
+        )
+    assert gen["prompt_weights"] == {"smile": 1.2, "rain": 0.9091}
+    assert rows == {"smile": 1.2, "1girl": 1.0, "rain": 0.9091}
+
+
 async def test_unchanged_rows_are_skipped_unless_forced(temp_db, seed):
     """A plain re-run leaves rows whose gen and tags already match alone; a
     forced one (migrations) rebuilds them, so a derived table added later

@@ -13,6 +13,9 @@ export type GenMeta = {
   steps?: number | null;
   cfg?: number | null;
   prompt_terms?: string[];
+  /** Each prompt term's weight, as the source tool read its emphasis; only
+   * terms not at 1 (services/gen_metadata.py prompt_weights). */
+  prompt_weights?: Record<string, number>;
   /** Loras the image was generated with (services/gen_metadata.py). */
   loras?: { name: string; strength: number | null }[];
   /** Embeddings named in the prompt or the negative prompt. */

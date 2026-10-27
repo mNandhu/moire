@@ -166,6 +166,15 @@ def migrate_tag_rules() -> None:
             conn.execute(sa.text(f"DROP TABLE IF EXISTS {name}"))
 
 
+def migrate_gen_term_weights() -> None:
+    """``image_gen_terms`` gained each term's prompt weight. It is derived
+    from ``gen``, so the old table is replaced, not altered; the reprojection
+    after it writes ``gen.prompt_weights`` and refills the rows."""
+    with sync_tx() as conn:
+        t.image_gen_terms.drop(conn, checkfirst=True)
+        t.image_gen_terms.create(conn)
+
+
 _MIGRATIONS = (
     ("tag_underscores", migrate_tag_underscores, True),
     ("prompt_parser_v2", None, True),
@@ -182,6 +191,7 @@ _MIGRATIONS = (
     ("image_faces_mtime", migrate_image_faces_mtime, False),
     ("gen_prompt_loras", None, True),
     ("tag_rules", migrate_tag_rules, False),
+    ("gen_term_weights", migrate_gen_term_weights, True),
 )
 
 

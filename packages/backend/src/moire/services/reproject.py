@@ -107,7 +107,11 @@ def _write_gens(conn, gens: list[tuple[str, dict]]) -> None:
     for table in (t.image_gen_terms, t.image_loras, t.image_embeddings):
         conn.execute(sa.delete(table).where(table.c.image_id.in_(ids)))
     terms = [
-        {"image_id": image_id, "term": term}
+        {
+            "image_id": image_id,
+            "term": term,
+            "weight": (g.get("prompt_weights") or {}).get(term, 1.0),
+        }
         for image_id, g in gens
         for term in dict.fromkeys(g.get("prompt_terms") or [])
     ]

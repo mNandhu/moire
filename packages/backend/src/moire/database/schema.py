@@ -78,7 +78,8 @@ image_tags = sa.Table(
     sa.Column("base", sa.Text, nullable=False),
 )
 
-# Derived from images.gen.prompt_terms.
+# Derived from images.gen.prompt_terms, each with its gen.prompt_weights
+# weight (1.0 when none is written).
 image_gen_terms = sa.Table(
     "image_gen_terms",
     metadata,
@@ -89,6 +90,7 @@ image_gen_terms = sa.Table(
         primary_key=True,
     ),
     sa.Column("term", sa.Text, primary_key=True),
+    sa.Column("weight", sa.Float, nullable=False, server_default="1.0"),
 )
 
 libraries = sa.Table(

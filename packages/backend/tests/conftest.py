@@ -146,7 +146,14 @@ def seed(temp_db):
             if terms:
                 conn.execute(
                     sa.insert(t.image_gen_terms),
-                    [{"image_id": image_id, "term": term} for term in terms],
+                    [
+                        {
+                            "image_id": image_id,
+                            "term": term,
+                            "weight": (gen.get("prompt_weights") or {}).get(term, 1.0),
+                        }
+                        for term in terms
+                    ],
                 )
 
     return _seed

@@ -651,3 +651,48 @@ def test_comfy_prompt_lora_tags_count_after_the_graph_loras():
         {"name": "eyes", "strength": 1.0},
         {"name": "Fern_IlluXL", "strength": 0.8},
     ]
+
+
+# --- Prompt weights ----------------------------------------------------------
+
+
+def test_prompt_weights_read_emphasis_as_the_source_does():
+    text = "1girl, ((smile:1.2)), [red eyes], {solo}"
+    assert gm.prompt_weights(text, "comfyui") == {"smile": 1.2}
+    assert gm.prompt_weights(text, "a1111") == {"smile": 1.32, "red_eyes": 0.9091}
+
+
+def test_prompt_weights_keep_the_weight_farthest_from_1():
+    assert gm.prompt_weights("smile, (smile:1.3), (smile:0.8)", "comfyui") == {
+        "smile": 1.3
+    }
+    # A tie keeps the first.
+    assert gm.prompt_weights("(cat:0.8), (cat:1.2)", "comfyui") == {"cat": 0.8}
+
+
+def test_extract_weights_come_from_the_positive_prompt_only():
+    params = "(neon:1.2), city\nNegative prompt: (blurry:1.4), (neon:0.5)\nSteps: 20, Seed: 1"
+    g = gm.extract(
+        {"source": "a1111", "parameters": params}, prompt_positive_only=False
+    )
+    assert "blurry" in g["prompt_terms"]
+    assert g["prompt_weights"] == {"neon": 1.2}
+
+
+def test_derive_carries_weights_through_merge_and_split_rules():
+    from moire.services.extraction_settings import ExtractionConfig
+    from moire.services.prompt_guess import DEFAULT_KEYWORDS
+
+    params = "(cat:1.2), (kitty:1.4), [dog], (outfit:0.8)\nSteps: 20, Seed: 1"
+    config = ExtractionConfig(
+        keywords=DEFAULT_KEYWORDS,
+        positive_only=True,
+        rules={"kitty": ["cat"], "outfit": ["shirt", "skirt"]},
+    )
+    g = gm.derive({"source": "a1111", "parameters": params}, None, config)
+    assert g["prompt_weights"] == {
+        "cat": 1.4,
+        "dog": 0.9091,
+        "shirt": 0.8,
+        "skirt": 0.8,
+    }

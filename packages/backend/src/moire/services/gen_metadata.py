@@ -37,7 +37,7 @@ from . import comfy_text, prompt_guess, workflow_identity
 from .model_names import model_stem
 from .prompt_parse import EMBEDDING_TOKEN, parse_prompt
 from .tag_names import canonical_name
-from .tag_rules import apply_rules
+from .tag_rules import apply_rule_weights, apply_rules
 
 if TYPE_CHECKING:
     from .extraction_settings import ExtractionConfig
@@ -112,6 +112,7 @@ _EMPTY: dict[str, Any] = {
     "steps": None,
     "cfg": None,
     "prompt_terms": [],
+    "prompt_weights": {},
     "loras": [],
     "embeddings": [],
     "group_id": None,
@@ -262,6 +263,23 @@ def tokenize_prompt(*texts: str | None) -> list[str]:
             if piece.kind == "tag":
                 terms.add(canonical_name(piece.text))
     return sorted(terms)
+
+
+def prompt_weights(text: str | None, source: str | None) -> dict[str, float]:
+    """``{term: weight}`` for the tag terms of a positive prompt whose weight,
+    as ``source`` reads emphasis (:meth:`Piece.weight`), is not 1. A term
+    written more than once keeps the weight farthest from 1, the first on a
+    tie. Only the positive prompt: a negative prompt's emphasis is not how
+    strongly the image shows a tag."""
+    out: dict[str, float] = {}
+    for piece in parse_prompt(text):
+        if piece.kind != "tag":
+            continue
+        term = canonical_name(piece.text)
+        w = piece.weight(source)
+        if abs(w - 1) > abs(out.get(term, 1.0) - 1):
+            out[term] = w
+    return out
 
 
 def group_id(sig: str | None, positive: str | None) -> str | None:
@@ -774,6 +792,7 @@ def extract(
         g["prompt_terms"] = tokenize_prompt(g.get("prompt"))
     else:
         g["prompt_terms"] = tokenize_prompt(g.get("prompt"), g.get("negative"))
+    g["prompt_weights"] = prompt_weights(g.get("prompt"), source)
     g["group_id"] = group_id(g.get("workflow_sig"), g.get("prompt"))
     return g
 
@@ -795,4 +814,7 @@ def derive(
     )
     if g is not None:
         g["prompt_terms"] = apply_rules(g.get("prompt_terms") or [], config.rules)
+        g["prompt_weights"] = apply_rule_weights(
+            g.get("prompt_weights") or {}, config.rules
+        )
     return g
