@@ -49,7 +49,7 @@ export function WorkflowFamilyList({
   const { push } = useToast();
   const [wfQuery, setWfQuery] = useState("");
   const wfq = wfQuery.trim().toLowerCase();
-  const shownFamilies = useMemo(() => filterFamilies(families, wfQuery), [families, wfQuery]);
+  const shownFamilies = useMemo(() => filterFamilies(families, wfq), [families, wfq]);
 
   // undefined = not editing; a family id = that family's name is open.
   const [editingFamily, setEditingFamily] = useState<string | null | undefined>();

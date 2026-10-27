@@ -2,7 +2,7 @@
 import type { NodeError, Sampling } from "./generate";
 import { CFG_RANGE, STEPS_RANGE } from "./generationLimits";
 
-const isStr = (v: unknown): v is string => typeof v === "string";
+export const isStr = (v: unknown): v is string => typeof v === "string";
 
 /** The sampling settings a stored value holds, the rest dropped. Pure. */
 export function samplingOf(v: unknown): Sampling {

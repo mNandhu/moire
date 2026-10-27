@@ -8,11 +8,10 @@ import type { StyleLora } from "./generate";
 import { DEFAULT_BLOCKS, DEFAULT_FORM, type Block, type COMPOSER_KEYS, type GenerateForm, type PresetRef } from "./generateForm";
 import { MAX_CHARACTERS, PER_REQUEST_MAX } from "./generationLimits";
 import { keepPicked, validOutfits } from "./outfit";
-import { samplingOf } from "./sampling";
+import { isStr, samplingOf } from "./sampling";
 
 // -- Validation (drafts and batches are stored data: never trust their shape) --
 
-const isStr = (v: unknown): v is string => typeof v === "string";
 
 export function presetRef(v: unknown): PresetRef | undefined {
   if (v === null) return null;

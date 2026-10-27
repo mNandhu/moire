@@ -116,7 +116,7 @@ export const canSave = (items: readonly CheckItem[]) => items.every((i) => i.ok)
  * fallback. */
 export function defaultName(setup: GeneratorSetup): string {
   const s = setup.source;
-  const file = s.kind === "image" ? (s.family_name ?? s.file_name) : s.filename;
+  const file = s.kind === "image" ? (s.family_name || s.file_name) : s.filename;
   if (file) return file.replace(/\.json$/i, "");
   const prefix = setup.outputs.find((o) => o.saves && o.prefix)?.prefix;
   if (prefix) return prefix.split("/").filter(Boolean).pop() ?? prefix;
@@ -154,7 +154,7 @@ export function finalSlots(
 export function workflowOrigin(source: GeneratorSetup["source"] | undefined): string | undefined {
   return source?.kind === "image"
     ? source.family_name || source.file_name
-      ? `From ${source.family_name ?? source.file_name}`
+      ? `From ${source.family_name || source.file_name}`
       : "From an image"
     : source?.kind === "upload"
       ? (source.filename ?? "Uploaded file")

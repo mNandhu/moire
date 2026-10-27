@@ -414,6 +414,7 @@ export default function GeneratePage() {
               writing={writing}
               run={{
                 blocked,
+                ready,
                 connected,
                 pending: queue.isPending,
                 justQueued,

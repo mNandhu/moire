@@ -40,8 +40,12 @@ export function boardLayersOf(
           label: displayName(entry ?? { tag: r.tag }).name,
           character: entry,
           onStrike: (tags: string[]) => {
-            const was = form.outfits[r.tag];
-            edit((f) => strikeCharacter(f, r, tags));
+            // The pick at strike time, from the state the strike applies to.
+            let was: GenerateForm["outfits"][string];
+            edit((f) => {
+              was = f.outfits[r.tag];
+              return strikeCharacter(f, r, tags);
+            });
             return () => edit((f) => undoStrike(f, r, tags, was));
           },
           tags: [

@@ -200,6 +200,7 @@ it("workflowOrigin names the family, the matched file or the upload", () => {
   const img = { kind: "image" as const, image_id: "a", family: "f", family_name: null, workflow_sig: "s" };
   expect(workflowOrigin({ ...img, family_name: "Portrait" })).toBe("From Portrait");
   expect(workflowOrigin({ ...img, file_name: "Portrait v3" })).toBe("From Portrait v3");
+  expect(workflowOrigin({ ...img, family_name: "", file_name: "my_flow.json" })).toBe("From my_flow.json");
   expect(workflowOrigin(img)).toBe("From an image");
   expect(workflowOrigin({ kind: "upload", filename: "flow.json" })).toBe("flow.json");
   expect(workflowOrigin({ kind: "upload", filename: null })).toBe("Uploaded file");

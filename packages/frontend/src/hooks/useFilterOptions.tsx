@@ -79,8 +79,9 @@ export function useFilterOptions(filters: Filters, filtersOpen: boolean) {
     [workflowFamilies, generators],
   );
 
-  return {
-    workflowFamilies,
+  return useMemo(
+    () => ({
+      workflowFamilies,
     tagOptions,
     modelOptions,
     embeddingOptions,
@@ -89,8 +90,21 @@ export function useFilterOptions(filters: Filters, filtersOpen: boolean) {
     tagNames,
     resourceSuggestions,
     knownResources,
-    workflowPickerOptions,
-  };
+      workflowPickerOptions,
+    }),
+    [
+      workflowFamilies,
+      tagOptions,
+      modelOptions,
+      embeddingOptions,
+      loraOptions,
+      knownOutfits,
+      tagNames,
+      resourceSuggestions,
+      knownResources,
+      workflowPickerOptions,
+    ],
+  );
 }
 
 export type FilterOptions = ReturnType<typeof useFilterOptions>;

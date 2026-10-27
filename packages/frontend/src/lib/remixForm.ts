@@ -2,6 +2,7 @@
  * The composer filled from elsewhere: a batch's inputs ("Edit and queue"),
  * an image to remix, or a character or outfit picked on another page.
  */
+import { batchCast } from "./batches";
 import { compose } from "./compose";
 import type { BatchInputs, Generator, RemixDoc, Sampling } from "./generate";
 import { DEFAULT_FORM, type GenerateForm, type PresetRef } from "./generateForm";
@@ -19,7 +20,7 @@ function loraPresetOf(composer: Record<string, unknown> | null | undefined, name
  * stays; an auto name is picked again. */
 export function formFromBatch(i: BatchInputs, name: string | null, workflow = "builtin"): GenerateForm {
   const c = i.composer && (i.composer as { v?: unknown }).v === 2 ? composerFrom(i.composer) : null;
-  const chars = i.characters ?? (i.character ? [i.character] : []);
+  const chars = batchCast(i);
   return {
     ...DEFAULT_FORM,
     ...(c ?? {

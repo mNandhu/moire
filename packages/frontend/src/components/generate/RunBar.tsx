@@ -200,15 +200,14 @@ export function RunBar({
   /** Writing in the form: the phone's pinned button lets go. */
   writing: boolean;
   /** The Queue button's state; the rest it reads from the form. */
-  run: Omit<RunButtonProps, "ready" | "count" | "countMode">;
+  run: Omit<RunButtonProps, "count" | "countMode">;
 }) {
   const set = <K extends keyof GenerateForm>(k: K, v: GenerateForm[K]) => setForm((f) => ({ ...f, [k]: v }));
-  const ready = !!gen?.ready;
-  const connected = run.connected;
+  const { ready, connected } = run;
   const hasSampling = bar.sampling;
   const ownBatchSize = bar.batchSize;
   const checkpoints = models?.checkpoints ?? NO_STRINGS;
-  const runButton = <RunButton {...run} ready={ready} count={form.count} countMode={countMode} />;
+  const runButton = <RunButton {...run} count={form.count} countMode={countMode} />;
   return (
     <>
       <div className="lg:sticky bottom-0 z-[5] -mx-2 bg-gradient-to-t from-canvas from-80% to-transparent px-2 pb-4 pt-3">
