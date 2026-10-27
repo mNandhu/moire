@@ -7,8 +7,8 @@ Legend: `[ ]` open, `[x]` done (commit hash), `[-]` dropped (reason). Tags: kind
 Housekeeping, not findings:
 
 - [x] Fix CLAUDE.md: it names `nextCursorOf` (deleted); re-check the feed/cursor paragraph (L4.6)
-- [ ] Remove `packages/frontend/test-optimizations.js` and unused devDependency `@vitest/coverage-v8` (knip)
-- [ ] Sweep knip's unused exports in `leads.txt`
+- [x] (9d22081) Remove `packages/frontend/test-optimizations.js` and unused devDependency `@vitest/coverage-v8` (knip)
+- [x] (3cf63f6) Sweep knip's unused exports in `leads.txt`
 
 ## P0. Bugs (verify with a failing test first)
 
@@ -201,13 +201,13 @@ P4 status (2026-10-27): backend wave done (3 worktree lanes H, I, J; 16 items, 5
 
 P5 status (2026-10-27): lanes P and Q were stopped on the usage limit, then picked onto main as bb0c628..9f4bc75 (25 commits) and verified together: backend 974 passed, frontend 977 passed, tsc, ruff and eslint clean (0 errors), route diff drops only POST /tags/ai/{image_id}, page smoke test (desktop + phone, 17 pages) clean. S6.6: avatars are queued at startup, when the face model download completes, and by the characters list for missing crops. Reviewed (medium); 6 findings fixed in 28534af; skipped: ratingBadgeClass("safe") (no current writer or tagger yields it), PUT /tags/focus 404 with no visible cover (nothing to focus on). L2.3 left out by user decision (deferred, not dropped).
 
-- Not started: S13.5, S1.10, S13.6, L2.8, S13.10, S6.8, test-optimizations.js + @vitest/coverage-v8 removal, knip sweep. Next: one fresh lane with docs/refactor-pass/p5-lane-preamble.md.
+- Lane R (2026-10-27) did the rest: be7f28b..3cf63f6, reviewed (medium), fixes in abec1ce (settings draft per page again, health re-check while offline, dead MOD_LABEL). Skipped from review: Save not sharing the model card's busy flag, the Mac shortcut overlay reading "⌘K" like the sidebar, useCrossfade's `front` read (current for the render that changed `src`). P5 done except L2.3 (deferred).
 
 - [x] **L4.6** (ec8a50b) SORT_KEY / SCORE_KEY are defined twice (image_feed.py and schema.py); CLAUDE.md names a deleted nextCursorOf (drift, S, L3)
 - [x] **S3.5** (682c226) PUT /tags/focus runs the full 8-query detail aggregate just to learn the pin and existence (simplify, S, L3)
 - [x] **S10.4** (3d4ace1) ChipInput component is dead; the file survives only as the home of bareTagPool (dead, S, L3)
 - [x] **S11.4** (9f4bc75) 'Which batch is in front / waiting' is derived three different ways (dedupe, S, L3)
-- [ ] **S13.5** Sidebar owns nav data, shortcut text and platform detection that two other modules re-derive (dedupe, S, L3, TW)
+- [x] **S13.5** (c84ac2e) Sidebar owns nav data, shortcut text and platform detection that two other modules re-derive (dedupe, S, L3, TW)
 - [x] **S8.6** (7378dc0) The Generator test gate lives in the 'read side' module and generator_view writes on GET (boundary, M, L3)
 - [ ] **L2.3** (deferred by user 2026-10-27) No response models or generated types: every payload and closed vocabulary is typed by hand on both sides (boundary, M, L3, TW)
 - [x] **S8.9** (ed7f768) Rejected duplicates ComfyRejected, and non-ComfyUI failures are raised as ComfyRejected (naming, S, L2)
@@ -217,17 +217,17 @@ P5 status (2026-10-27): lanes P and Q were stopped on the usage limit, then pick
 - [x] **L4.9** (625f783) Native window.confirm still reachable through useRulesetSession default in ResolvePromptDialog (invariant, S, L2)
 - [x] **S3.9** (58e2cf8) GET /tags (non-merged) computes thumbnails and pins nothing reads (dead, S, L2)
 - [x] **S1.9** (6538a07) Per-tile preResolved/resolveMediaUrl branch in the load slot is dead for the gallery; density clamp written four times (dead, S, L2)
-- [ ] **S1.10** Grid column count is measured twice, and tile crossfade state machine lives inside ThumbnailTile (deepen, S, L2)
+- [x] **S1.10** (b32ee3d) Grid column count is measured twice, and tile crossfade state machine lives inside ThumbnailTile (deepen, S, L2)
 - [x] **L2.4** (ba8d279) Hair/eye colour palette is copied into tagColour.ts with only a comment tying it to characters.COLOURS (dedupe, S, L2)
 - [x] **L2.6** (54607e0) canonicalName exists on the frontend but five call sites inline their own whitespace-to-underscore rule (invariant, S, L2)
-- [ ] **L2.8** Character name/series split is frontend-only while the backend returns overrides only (boundary, S, L2)
+- [x] **L2.8** (4531780, partial: the frontend split follows the backend one-qualifier rule; moving the split server-side skipped, since name/series null means "not set by the user" on the wire and ~20 callers split bare tags with no character entry) Character name/series split is frontend-only while the backend returns overrides only (boundary, S, L2)
 - [x] **S11.9** (fba47f7) Dead or test-only code: requestFrames fallback, fixedSeeds, optional `frames`, unused Frame/FrameState exports (dead, S, L2)
 - [x] **S9.4** (bd410e2) Setup payload computes fields nothing reads, and the page's checklist re-derives the server's checks (dead, S, L2)
-- [ ] **S13.6** App.tsx re-implements lib helpers and carries 70 lines of key-scroll logic plus a raw health fetch (boundary, S, L2)
+- [x] **S13.6** (0c72975) App.tsx re-implements lib helpers and carries 70 lines of key-scroll logic plus a raw health fetch (boundary, S, L2)
 - [x] **S13.8** (449bda7) Dead backend pieces and stale Mongo-era docs: models/image.py, models.library.Library, Settings.ai_tagging_url, db.write_lock()/sync_write_lock() (dead, S, L2)
-- [ ] **S13.10** SettingsContext is the AI-tagging controller under a generic name, and wraps every settings tab (naming, S, L2)
+- [x] **S13.10** (be7f28b) SettingsContext is the AI-tagging controller under a generic name, and wraps every settings tab (naming, S, L2)
 - [x] **S6.6** (9a333cb) GET /ai/faces enqueues every avatar; face worker state is module globals and rides the AI router and settings blob (boundary, M, L2)
-- [ ] **S6.8** AITaggingPage borrows page-level components from settings/sections and mounts the whole settings controller (boundary, M, L2)
+- [x] **S6.8** (be7f28b) AITaggingPage borrows page-level components from settings/sections and mounts the whole settings controller (boundary, M, L2)
 - [x] **S8.10** (ece4a47) Test-only wrappers in generation_estimate and an unused on_state hook in the client (dead, S, L1)
 - [x] **L4.10** (001eefd) Deprecated POST /tags/ai/{image_id} has no caller (dead, S, L1)
 - [x] **L1.10** (bb0c628) Dead helpers: scanner.file_hash and ai_tagger_download._download_if_missing (dead, S, L1)
