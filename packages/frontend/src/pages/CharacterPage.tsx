@@ -28,6 +28,7 @@ import { danbooruWikiUrl, formatTag, onDanbooru, toPromptText } from "../lib/tag
 import { useChipBorderStyle } from "../hooks/useTagMarks";
 import { tagWorkflows } from "../lib/tagBrowse";
 import { formatUsedRange, groupWorkflows } from "../lib/workflows";
+import { RATINGS } from "../lib/rating";
 import {
   characterColours,
   characterFilters,
@@ -40,7 +41,6 @@ import {
 
 const PAGE = 48;
 const SIGNATURE = 16;
-const RATING_ORDER = ["general", "sensitive", "questionable", "explicit"];
 
 
 /** A character's page; any other tag's page leaves out what only a person has. */
@@ -391,7 +391,7 @@ function Sidebar({ c, accent, onEdit, person }: { c: Character; accent?: string;
     [c.workflows, signatures],
   );
   const byTag = useMemo(() => new Map((everyone ?? []).map((e) => [e.tag, e])), [everyone]);
-  const ratings = RATING_ORDER.filter((r) => c.ratings[r]);
+  const ratings = RATINGS.filter((r) => c.ratings[r]);
 
   return (
     <aside className="space-y-6">

@@ -1,5 +1,20 @@
 import type { ImageDoc } from "./imageFilter";
 
+/** The ratings an image can have, mildest first; "-" is unrated. Mirrors the
+ * backend's image_tags.RATINGS (tests/test_mirrored_vocab.py). */
+export const RATINGS = ["general", "sensitive", "questionable", "explicit"] as const;
+export type Rating = (typeof RATINGS)[number];
+
+export function isRating(s: string): s is Rating {
+  return (RATINGS as readonly string[]).includes(s);
+}
+
+/** The rating picker's choices: Unrated, then each rating. */
+export const RATING_OPTIONS = [
+  { value: "-", label: "Unrated" },
+  ...RATINGS.map((r) => ({ value: r, label: r })),
+];
+
 /**
  * The rating to display for an image: the explicit `rating` if set, else the
  * highest-scoring label from the AI rating map, else "-". Pure precedence logic
@@ -24,21 +39,22 @@ export function pickRating(doc: ImageDoc | null | undefined): string {
   return "-";
 }
 
+/** Badge and tile-dot colours per rating (see ratingBadgeClass/ratingDotClass). */
+const RATING_STYLE: Record<Rating, { badge: string; dot: string | null }> = {
+  general: { badge: "bg-emerald-900/30 border-emerald-800 text-emerald-100", dot: null },
+  sensitive: { badge: "bg-amber-900/30 border-amber-800 text-amber-100", dot: "bg-amber-400" },
+  questionable: { badge: "bg-orange-900/30 border-orange-800 text-orange-100", dot: "bg-orange-400" },
+  explicit: { badge: "bg-red-900/30 border-red-800 text-red-100", dot: "bg-red-400" },
+};
+
+function styleOf(rating: string | null | undefined) {
+  const r = (rating || "").trim();
+  return isRating(r) ? RATING_STYLE[r] : undefined;
+}
+
 /** Tailwind classes for a rating badge. */
 export function ratingBadgeClass(rating: string): string {
-  switch (rating) {
-    case "general":
-    case "safe":
-      return "bg-emerald-900/30 border-emerald-800 text-emerald-100";
-    case "sensitive":
-      return "bg-amber-900/30 border-amber-800 text-amber-100";
-    case "questionable":
-      return "bg-orange-900/30 border-orange-800 text-orange-100";
-    case "explicit":
-      return "bg-red-900/30 border-red-800 text-red-100";
-    default:
-      return "bg-neutral-800 border-neutral-700 text-neutral-100";
-  }
+  return styleOf(rating)?.badge ?? "bg-neutral-800 border-neutral-700 text-neutral-100";
 }
 
 /**
@@ -51,14 +67,5 @@ export function ratingBadgeClass(rating: string): string {
  * unremarkable default, "-" means unrated). The tile draws nothing.
  */
 export function ratingDotClass(rating: string | null | undefined): string | null {
-  switch ((rating || "").trim()) {
-    case "sensitive":
-      return "bg-amber-400";
-    case "questionable":
-      return "bg-orange-400";
-    case "explicit":
-      return "bg-red-400";
-    default:
-      return null;
-  }
+  return styleOf(rating)?.dot ?? null;
 }

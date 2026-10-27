@@ -4,7 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { errorText } from "../../lib/api";
 import { writeImageFields } from "../../lib/feedCache";
 import { setRating as apiSetRating } from "../../lib/imageMutations";
-import { ratingBadgeClass } from "../../lib/rating";
+import { RATING_OPTIONS, ratingBadgeClass } from "../../lib/rating";
 import { useToast } from "../Toasts";
 import { Picker } from "../ui/Picker";
 
@@ -62,11 +62,3 @@ export function RatingEditor({
     />
   );
 }
-
-const RATING_OPTIONS = [
-  { value: "-", label: "Unrated" },
-  { value: "general", label: "general" },
-  { value: "sensitive", label: "sensitive" },
-  { value: "questionable", label: "questionable" },
-  { value: "explicit", label: "explicit" },
-];

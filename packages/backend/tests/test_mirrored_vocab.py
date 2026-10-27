@@ -92,3 +92,10 @@ def test_ai_settings_keys_match():
     block = _block(_src("ai.ts"), "export type AISettings")
     ts = set(re.findall(r"^\s+(\w+): ", block, re.M))
     assert ts == set(DEFAULT_AI_SETTINGS)
+
+
+def test_ratings_match():
+    from moire.services.image_tags import RATINGS
+
+    block = _block(_src("rating.ts"), "export const RATINGS")
+    assert ("-", *_quoted(block)) == RATINGS

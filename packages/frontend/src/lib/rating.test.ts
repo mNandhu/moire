@@ -30,7 +30,7 @@ describe("pickRating", () => {
 describe("ratingBadgeClass", () => {
   it("maps known ratings to distinct classes and unknowns to neutral", () => {
     expect(ratingBadgeClass("general")).toContain("emerald");
-    expect(ratingBadgeClass("safe")).toContain("emerald");
+    expect(ratingBadgeClass("safe")).toContain("neutral");
     expect(ratingBadgeClass("explicit")).toContain("red");
     expect(ratingBadgeClass("-")).toContain("neutral");
     expect(ratingBadgeClass("???")).toContain("neutral");
