@@ -6,7 +6,7 @@ Legend: `[ ]` open, `[x]` done (commit hash), `[-]` dropped (reason). Tags: kind
 
 Housekeeping, not findings:
 
-- [ ] Fix CLAUDE.md: it names `nextCursorOf` (deleted); re-check the feed/cursor paragraph (L4.6)
+- [x] Fix CLAUDE.md: it names `nextCursorOf` (deleted); re-check the feed/cursor paragraph (L4.6)
 - [ ] Remove `packages/frontend/test-optimizations.js` and unused devDependency `@vitest/coverage-v8` (knip)
 - [ ] Sweep knip's unused exports in `leads.txt`
 

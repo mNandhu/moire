@@ -63,11 +63,10 @@ FEED_KEYS = tuple(c.name for c in FEED_COLUMNS)
 # proxy for when an image was generated (a copy or move can reset it). Every
 # order ends in `_id` so it is total and cursor paging stable, and runs one
 # direction throughout so a single row-value comparison pages it. The
-# coalesces keep rows without an mtime (or score) pageable; the literal 0, not
-# a bound parameter, keeps each expression identical to its index's in
-# schema.py so SQLite can walk the index.
-SORT_KEY = sa.func.coalesce(t.images.c.mtime, sa.literal_column("0"))
-SCORE_KEY = sa.func.coalesce(t.images.c.score, sa.literal_column("0"))
+# coalesces keep rows without an mtime (or score) pageable. The expressions
+# live in schema.py beside the indexes they must match character for character.
+SORT_KEY = t.SORT_RECENT
+SCORE_KEY = t.SORT_SCORE
 
 # name -> (sort keys before _id, descending?). "top" is best scored first,
 # newest first among equals (so unscored images read as the newest feed).

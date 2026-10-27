@@ -498,14 +498,15 @@ generation_outputs = sa.Table(
 
 # --- Indexes ------------------------------------------------------------------
 # Feed orders (services/image_feed.SORTS). Each expression must match the
-# feed's SORT_KEY / SCORE_KEY exactly for SQLite to use it, and every index a
+# feed's sort keys exactly for SQLite to use it (image_feed imports these, and
+# test_image_feed checks the plan), and every index a
 # feed filter can lead with ends in the same keys, so a filtered or scoped page
 # walks one index in order instead of sorting all matches. "Oldest" walks the
 # newest-first indexes backwards.
-_recent = sa.func.coalesce(images.c.mtime, sa.literal_column("0"))
-_score = sa.func.coalesce(images.c.score, sa.literal_column("0"))
-_newest = (_recent.desc(), images.c._id.desc())
-_top = (_score.desc(), *_newest)
+SORT_RECENT = sa.func.coalesce(images.c.mtime, sa.literal_column("0"))
+SORT_SCORE = sa.func.coalesce(images.c.score, sa.literal_column("0"))
+_newest = (SORT_RECENT.desc(), images.c._id.desc())
+_top = (SORT_SCORE.desc(), *_newest)
 
 sa.Index("ix_images_recent", *_newest)
 sa.Index("ix_images_top", *_top)

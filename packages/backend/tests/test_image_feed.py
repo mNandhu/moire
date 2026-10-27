@@ -6,7 +6,16 @@ end-to-end behaviour stays covered by test_feed_integration.py.
 
 import pytest
 
-from moire.services.image_feed import FeedFilter, FeedFilterError, feed_where
+import sqlalchemy as sa
+
+from moire.database import schema as t
+from moire.services.image_feed import (
+    SORTS,
+    FeedFilter,
+    FeedFilterError,
+    _directed,
+    feed_where,
+)
 
 
 def test_defaults_are_valid():
@@ -60,3 +69,32 @@ def test_feed_where_is_pure_and_reusable():
     a = feed_where(f)
     b = feed_where(f)
     assert str(a) == str(b)
+
+
+@pytest.mark.parametrize(
+    "sort,index",
+    [
+        ("newest", "ix_images_recent"),
+        ("oldest", "ix_images_recent"),
+        ("top", "ix_images_top"),
+    ],
+)
+def test_first_page_walks_the_sort_index(sort, index):
+    """The feed's order expressions must match schema.py's indexes exactly, or
+    SQLite sorts every match instead of walking the index."""
+    engine = sa.create_engine("sqlite://")
+    t.metadata.create_all(engine)
+    keys, _ = SORTS[sort]
+    stmt = (
+        sa.select(t.images.c._id)
+        .where(feed_where(FeedFilter(sort=sort)))
+        .order_by(*_directed([*keys, t.images.c._id], sort))
+        .limit(50)
+    )
+    sql = str(stmt.compile(engine, compile_kwargs={"literal_binds": True}))
+    with engine.connect() as conn:
+        plan = " ".join(
+            r[-1] for r in conn.exec_driver_sql("EXPLAIN QUERY PLAN " + sql)
+        )
+    assert index in plan, plan
+    assert "TEMP B-TREE" not in plan, plan
