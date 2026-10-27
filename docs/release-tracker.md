@@ -25,4 +25,4 @@ What has to happen before Moiré is published (PyPI `moire-studio`, first `vX.Y.
 
 ## Docs
 
-- [x] **R10** Update the README for users, not contributors: what Moiré is, screenshots, install (`uv tool install`, Docker), first run, where data lives (`moire paths`), AI tagging model download, ComfyUI hookup, upgrade notes. Contributor setup moves to a CONTRIBUTING section or file.
+- [x] **R10** Update the README for users, not contributors: what Moiré is, screenshots, install (`uv tool install`, Docker), first run, where data lives (`moire paths`), AI tagging model download, ComfyUI hookup, upgrade notes. Contributor setup moves to a CONTRIBUTING section or file. (4f1a4e2)
