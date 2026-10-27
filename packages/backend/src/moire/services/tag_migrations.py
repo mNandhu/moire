@@ -32,7 +32,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import sync_tx
 from ..database import schema as t
-from . import app_settings, image_tags, reproject, tag_index
+from . import app_settings, image_tags, reproject, tag_covers, tag_index
 from .tag_names import canonical_name
 
 logger = logging.getLogger("moire.migrations")
@@ -102,28 +102,7 @@ def _rekey_tag_meta(key_of: Callable[[str], str] = image_tags.canonical_tag) -> 
     """Re-key pinned tag thumbnails by ``key_of``, the newer pin winning when
     two old keys land on one."""
     with sync_tx() as conn:
-        rows = conn.execute(sa.select(t.tag_meta)).fetchall()
-        best: dict[str, Any] = {}
-        for row in rows:
-            key = key_of(row.tag)
-            cur = best.get(key)
-            if cur is None or (row.updated_at or 0) > (cur.updated_at or 0):
-                best[key] = row
-        if all(key_of(r.tag) == r.tag for r in rows):
-            return
-        conn.execute(sa.delete(t.tag_meta))
-        if best:
-            conn.execute(
-                sa.insert(t.tag_meta),
-                [
-                    {
-                        "tag": key,
-                        "thumb_image_id": row.thumb_image_id,
-                        "updated_at": row.updated_at,
-                    }
-                    for key, row in best.items()
-                ],
-            )
+        tag_covers.rekey_pins_sync(conn, key_of)
 
 
 def migrate_tag_underscores() -> None:

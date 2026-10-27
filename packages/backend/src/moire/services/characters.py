@@ -460,9 +460,9 @@ async def remove_made(tag: str) -> bool:
             t.recipe_edits,
             t.recipe_additions,
             t.recipe_genders,
-            t.tag_meta,
         ):
             await conn.execute(sa.delete(table).where(table.c.tag == tag))
+        await tag_covers.drop_pin(conn, tag)
         # Its own outfits go; shared ones stay, since every character lists them.
         private = (t.outfits.c.character == tag) & t.outfits.c.shared.isnot(True)
         await conn.execute(

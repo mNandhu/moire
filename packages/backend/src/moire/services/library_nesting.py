@@ -24,7 +24,7 @@ import sqlalchemy as sa
 
 from ..database import schema as t
 from ..database.db import sync_conn, sync_tx
-from . import activity, image_delete, image_tags
+from . import activity, image_delete, image_tags, tag_covers
 
 logger = logging.getLogger("moire.library_nesting")
 
@@ -275,11 +275,7 @@ def _adopt_plan(
                 if inner is not None:
                     tags, extra = _merged(inner, copy)
                     image_tags.rewrite_tags_sync(conn, inner._id, tags, extra)
-                    conn.execute(
-                        sa.update(t.tag_meta)
-                        .where(t.tag_meta.c.thumb_image_id == outer_id)
-                        .values(thumb_image_id=inner._id)
-                    )
+                    tag_covers.repoint_pins_sync(conn, outer_id, inner._id)
                 elif inner_id.split(":", 1)[0] not in settled or os.path.exists(file):
                     # Not indexed there yet (or it failed to): keep the copy,
                     # tags and all, until it is. A copy of a deleted file goes.

@@ -5,12 +5,14 @@ and carries the tag, else the first image of a fixed per-tag shuffle. The
 mosaic (:func:`samples_for_tag`) and the Tags page rows
 (:mod:`services.tag_browse`) use the same shuffle, so the list shows the cover
 the mosaic leads with. Pins are keyed by the tag's base name
-(:func:`pin_key`), whichever sources found it.
+(:func:`pin_key`), whichever sources found it. This module is the only
+writer of ``tag_meta`` (and of ``tag_focus``, the cover's framing).
 """
 
 from __future__ import annotations
 
 import time
+from typing import Any, Callable
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -131,8 +133,53 @@ async def set_pin(key: str, names: list[str], image_id: str) -> bool:
 async def clear_pin(key: str) -> None:
     """Drop the cover pinned under ``key``: the shuffle picks it again."""
     async with async_tx() as conn:
-        await conn.execute(sa.delete(t.tag_meta).where(t.tag_meta.c.tag == key))
+        await drop_pin(conn, key)
     tag_index.invalidate()
+
+
+async def drop_pin(conn, key: str) -> None:
+    """:func:`clear_pin` on the caller's transaction (a hand-made character
+    forgotten with the rest of its rows; the caller invalidates)."""
+    await conn.execute(sa.delete(t.tag_meta).where(t.tag_meta.c.tag == key))
+
+
+def repoint_pins_sync(conn, old_image_id: str, new_image_id: str) -> None:
+    """Pins on ``old_image_id`` now name ``new_image_id`` (a nested library's
+    copy folded into the image it duplicates), on the caller's sync
+    transaction."""
+    conn.execute(
+        sa.update(t.tag_meta)
+        .where(t.tag_meta.c.thumb_image_id == old_image_id)
+        .values(thumb_image_id=new_image_id)
+    )
+
+
+def rekey_pins_sync(conn, key_of: Callable[[str], str]) -> None:
+    """Re-key every pin by ``key_of`` (a tag-spelling migration), the newer
+    pin winning when two old keys land on one, on the caller's sync
+    transaction. Writes nothing when every key already is its own."""
+    rows = conn.execute(sa.select(t.tag_meta)).fetchall()
+    if all(key_of(r.tag) == r.tag for r in rows):
+        return
+    best: dict[str, Any] = {}
+    for row in rows:
+        key = key_of(row.tag)
+        cur = best.get(key)
+        if cur is None or (row.updated_at or 0) > (cur.updated_at or 0):
+            best[key] = row
+    conn.execute(sa.delete(t.tag_meta))
+    if best:
+        conn.execute(
+            sa.insert(t.tag_meta),
+            [
+                {
+                    "tag": key,
+                    "thumb_image_id": row.thumb_image_id,
+                    "updated_at": row.updated_at,
+                }
+                for key, row in best.items()
+            ],
+        )
 
 
 async def move(conn, old: str, new: str) -> None:
