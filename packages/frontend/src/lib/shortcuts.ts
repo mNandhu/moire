@@ -4,7 +4,7 @@
  * Pure.
  */
 
-import { SEARCH_KEYS } from "./platform";
+import { SEARCH_KEYS, WEIGHT_KEYS } from "./platform";
 
 export type ShortcutPage = "everywhere" | "gallery" | "image" | "generate" | "generations";
 
@@ -69,7 +69,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: "Generate",
     page: "generate",
     keys: [
-      ["Ctrl + ↑ / ↓", "Raise / lower the weight of the term at the cursor"],
+      [WEIGHT_KEYS, "Raise / lower the weight of the term at the cursor"],
       ["Tab", "Take the suggested tag"],
     ],
   },

@@ -100,11 +100,13 @@ export function PromptBoard({
   const options = useMemo(() => rankOptions(offers, present, counts), [offers, present, counts]);
 
   const add = (typed: string) => {
-    // What was typed, read as a prompt piece: a weight stays as written.
+    // What was typed, read as a prompt piece: emphasis or a weight stays as
+    // written.
     const t = promptTerms(typed)[0];
     if (!t || t.kind !== "tag") return;
     if (present.has(t.name) || present.has(places?.names[t.name]?.alias_of ?? "")) return;
-    onPrompt(t.weight != null ? appendPiece(prompt, typed.trim()) : appendTag(prompt, t.name));
+    const wrapped = t.start !== t.nameStart || t.end !== t.nameEnd;
+    onPrompt(wrapped ? appendPiece(prompt, typed.trim()) : appendTag(prompt, t.name));
   };
   const remove = (t: Placed) => onPrompt(removeTerms(prompt, [t]));
   // The tag already in the prompt: the alias only goes.
