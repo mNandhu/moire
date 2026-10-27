@@ -3,11 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, create_model
 
-import sqlalchemy as sa
 
-from ..database.db import async_conn
-from ..database import schema as t
-from ..services import face_detect, image_tags
+from ..services import ai_coverage as ai_coverage_service, face_detect, image_tags
 from ..services.ai_settings import DEFAULT_AI_SETTINGS
 
 from ..services.ai_jobs import (
@@ -200,51 +197,5 @@ async def ai_cancel_job(job_id: str):
 
 @router.get("/coverage")
 async def ai_coverage():
-    """AI-tag coverage: how many images carry AI tags, globally and per library.
-
-    ``has_ai_tags`` is the summary flag maintained by ``image_tags`` and
-    backfilled onto older docs at startup, so a single grouped count is exact.
-    Quarantined images are excluded to match the default gallery.
-    """
-    stmt = (
-        sa.select(
-            t.images.c.library_id,
-            sa.func.count().label("total"),
-            sa.func.coalesce(
-                sa.func.sum(sa.cast(t.images.c.has_ai_tags, sa.Integer)), 0
-            ).label("ai_tagged"),
-            # No tags of any kind (`has_tags` false). The gallery's no_tags
-            # filter, counted so the Tags page shortcut can show its size.
-            sa.func.coalesce(
-                sa.func.sum(
-                    sa.case(
-                        (sa.func.coalesce(t.images.c.has_tags, False).is_(False), 1),
-                        else_=0,
-                    )
-                ),
-                0,
-            ).label("no_tags"),
-        )
-        .where(sa.func.coalesce(t.images.c.quarantined, False).is_(False))
-        .group_by(t.images.c.library_id)
-        .order_by(sa.text("total DESC"))
-    )
-    async with async_conn() as conn:
-        rows = (await conn.execute(stmt)).fetchall()
-    per_library = [
-        {
-            "library_id": r.library_id,
-            "total": r.total,
-            "ai_tagged": int(r.ai_tagged),
-        }
-        for r in rows
-    ]
-    total = sum(r["total"] for r in per_library)
-    ai_tagged = sum(r["ai_tagged"] for r in per_library)
-    return {
-        "total": total,
-        "ai_tagged": ai_tagged,
-        "untagged": total - ai_tagged,
-        "no_tags": sum(int(r.no_tags) for r in rows),
-        "per_library": per_library,
-    }
+    """AI-tag coverage, globally and per library (quarantined images excluded)."""
+    return await ai_coverage_service.coverage()

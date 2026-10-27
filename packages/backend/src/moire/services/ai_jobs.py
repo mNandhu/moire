@@ -14,7 +14,7 @@ from PIL import Image
 
 from ..database.db import async_conn
 from ..database import schema as t
-from . import image_tags
+from . import ai_coverage, image_tags
 from .ai_settings import DEFAULT_AI_SETTINGS, get_ai_settings, update_ai_settings
 from .ai_tagger import (
     PreparedImage,
@@ -220,14 +220,8 @@ class AIJobManager:
     async def enqueue_untagged(
         self, *, limit: int = 200, library_id: str | None = None
     ) -> AIJob | None:
-        # Quarantined images are excluded, matching /ai/coverage and the
-        # default gallery: a run must tag the set the UI counted for it.
-        stmt = sa.select(t.images.c._id).where(
-            t.images.c.has_ai_tags.is_(False),
-            sa.func.coalesce(t.images.c.quarantined, False).is_(False),
-        )
-        if library_id:
-            stmt = stmt.where(t.images.c.library_id == library_id)
+        # A run tags the set /ai/coverage counted (ai_coverage.untagged_clause).
+        stmt = sa.select(t.images.c._id).where(ai_coverage.untagged_clause(library_id))
         stmt = stmt.order_by(t.images.c._id.desc()).limit(int(limit))
         async with async_conn() as conn:
             ids = [row._id for row in (await conn.execute(stmt)).fetchall()]
