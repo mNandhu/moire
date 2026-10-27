@@ -23,7 +23,7 @@ they never assemble SQL.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Iterator
 
 import sqlalchemy as sa
 from sqlalchemy import Connection
@@ -343,61 +343,111 @@ def with_manual_edit(
     return union_tags(dropped, [canonical_tag(to_manual(x)) for x in add])
 
 
+# How many images a bulk rewrite holds the writer slot for at once: each chunk
+# is its own transaction, so the scanner and AI worker get turns between them.
+_CHUNK = 500
+# A bulk manual edit stays one atomic transaction up to this many images.
+_BULK_ATOMIC = 2000
+
+
+def _chunks(items: list[str], size: int) -> Iterator[list[str]]:
+    for i in range(0, len(items), size):
+        yield items[i : i + size]
+
+
 async def bulk_manual(
     image_ids: list[str], *, add: list[str], remove: list[str]
 ) -> tuple[int, int]:
-    """Apply one manual-tag edit to many images in a single transaction.
+    """Apply one manual-tag edit to many images, one transaction per
+    ``_BULK_ATOMIC`` images.
 
     One transaction rather than one per image: a selection of a thousand is one
     writer slot on single-writer SQLite instead of a thousand, and the edit
-    lands all or nothing. Unknown ids are skipped. Returns ``(matched,
-    modified)``.
+    lands all or nothing. Past ``_BULK_ATOMIC`` it is split so no single
+    transaction holds the writer for long; a failure then leaves earlier
+    chunks applied (each is consistent). Unknown ids are skipped. Returns
+    ``(matched, modified)``.
     """
     matched = modified = 0
-    async with async_tx() as conn:
-        seen: set[str] = set()
-        for image_id in image_ids:
-            resolved = await resolve_image_id(conn, image_id)
-            if resolved is None or resolved in seen:
-                continue
-            seen.add(resolved)
-            matched += 1
-            current = (
-                await conn.execute(
-                    sa.select(t.images.c.tags).where(t.images.c._id == resolved)
-                )
-            ).scalar() or []
-            new = with_manual_edit(current, add=add, remove=remove)
-            if new != current:
-                modified += 1
-                await _persist(conn, resolved, new)
-    if modified:
-        _dirty_tag_index()
+    seen: set[str] = set()
+    try:
+        for chunk in _chunks(image_ids, _BULK_ATOMIC):
+            async with async_tx() as conn:
+                for image_id in chunk:
+                    resolved = await resolve_image_id(conn, image_id)
+                    if resolved is None or resolved in seen:
+                        continue
+                    seen.add(resolved)
+                    matched += 1
+                    current = (
+                        await conn.execute(
+                            sa.select(t.images.c.tags).where(t.images.c._id == resolved)
+                        )
+                    ).scalar() or []
+                    new = with_manual_edit(current, add=add, remove=remove)
+                    if new != current:
+                        modified += 1
+                        await _persist(conn, resolved, new)
+    finally:
+        # After the last commit, and still when a later chunk failed: the
+        # earlier ones are visible.
+        if modified:
+            _dirty_tag_index()
     return matched, modified
+
+
+async def _rewrite_in_chunks(
+    ids: list[str], rewrite: Callable[[list[str]], tuple[list[str], dict | None]]
+) -> int:
+    """Rewrite each image's tags, ``_CHUNK`` images per transaction (tags read
+    inside it, so a concurrent edit isn't overwritten). ``rewrite`` maps the
+    current tags to ``(new tags, extra columns)``. Returns how many images
+    were rewritten (those still present when their chunk ran).
+    The tag index is dirtied once after the run, also when a later chunk
+    failed and earlier ones stayed committed."""
+    rewritten = 0
+    try:
+        for chunk in _chunks(ids, _CHUNK):
+            async with async_tx() as conn:
+                rows = (
+                    await conn.execute(
+                        sa.select(t.images.c._id, t.images.c.tags).where(
+                            t.images.c._id.in_(chunk)
+                        )
+                    )
+                ).fetchall()
+                for row in rows:
+                    new, extra = rewrite(row.tags or [])
+                    await _persist(conn, row._id, new, extra=extra)
+                    rewritten += 1
+    finally:
+        _dirty_tag_index()
+    return rewritten
 
 
 async def rename_manual(old: str, new: str) -> int:
     """Rename (or, when ``new`` exists, merge) a manual tag on every image that
-    carries it, in one transaction. Both are stored ``manual:`` tags. Returns
-    the number of images changed."""
-    async with async_tx() as conn:
-        rows = (
-            await conn.execute(
-                sa.select(t.images.c._id, t.images.c.tags).where(
-                    sa.exists(
-                        sa.select(1).where(
-                            t.image_tags.c.image_id == t.images.c._id,
-                            t.image_tags.c.tag == old,
+    carries it, a chunk of images per transaction. Both are stored ``manual:``
+    tags. Returns the number of images changed."""
+    async with async_conn() as conn:
+        ids = [
+            r._id
+            for r in (
+                await conn.execute(
+                    sa.select(t.images.c._id).where(
+                        sa.exists(
+                            sa.select(1).where(
+                                t.image_tags.c.image_id == t.images.c._id,
+                                t.image_tags.c.tag == old,
+                            )
                         )
                     )
                 )
-            )
-        ).fetchall()
-        for row in rows:
-            await _persist(conn, row._id, with_renamed(row.tags or [], old, new))
-    if rows:
-        _dirty_tag_index()
-    return len(rows)
+            ).fetchall()
+        ]
+    return await _rewrite_in_chunks(
+        ids, lambda current: (with_renamed(current, old, new), None)
+    )
 
 
 async def replace_ai(
@@ -454,21 +504,24 @@ async def set_quarantine(image_id: str, quarantined: bool) -> str | None:
 
 
 async def clear_ai_all() -> tuple[int, int]:
-    """Clear AI tags across every image. Returns ``(matched, modified)``."""
-    async with async_tx() as conn:
-        rows = (
-            await conn.execute(sa.select(t.images.c._id, t.images.c.tags))
-        ).fetchall()
-        matched = len(rows)
-        modified = 0
-        for row in rows:
-            current = row.tags or []
-            new = with_cleared_ai(current)
-            if new != current:
-                modified += 1
-            await _persist(conn, row._id, new, extra={"ai": None, "rating": "-"})
-    _dirty_tag_index()
-    return matched, modified
+    """Clear AI tags across every image, a chunk of images per transaction.
+    Returns ``(matched, modified)``."""
+    async with async_conn() as conn:
+        ids = [
+            r._id for r in (await conn.execute(sa.select(t.images.c._id))).fetchall()
+        ]
+    cleared_extra = {"ai": None, "rating": "-"}
+    modified = 0
+
+    def rewrite(current: list[str]):
+        nonlocal modified
+        new = with_cleared_ai(current)
+        if new != current:
+            modified += 1
+        return new, cleared_extra
+
+    await _rewrite_in_chunks(ids, rewrite)
+    return len(ids), modified
 
 
 # --- Sync repo helpers (scanner / reproject threads) --------------------------
