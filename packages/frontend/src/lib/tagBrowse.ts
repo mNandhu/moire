@@ -1,8 +1,10 @@
 /**
  * The Tags page's pure logic: which tags show, in what order and section,
- * where a tag links, and how its detail reads (months, workflows, renames).
+ * where a tag links, how its detail reads (months, workflows, renames) and
+ * what a rename or merge rule write says when it lands.
  * The page itself only wires these to queries and markup.
  */
+import type { TagRenameResult } from "./queries/tags";
 import { ANY_PREFIX, MANUAL_PREFIX, PROMPT_PREFIX, formatTag, tagQueryText } from "./tags";
 import { workflowFilterName, type WorkflowFamily } from "./workflows";
 
@@ -195,4 +197,40 @@ export function renamableTags(detail: Pick<TagDetail, "tag" | "sources">): strin
   if (detail.sources.prompt) out.push(`${PROMPT_PREFIX}${detail.tag}`);
   if (detail.sources.manual) out.push(`${MANUAL_PREFIX}${detail.tag}`);
   return out;
+}
+
+/** The toast after a rename (manual tag) or merge (prompt tag). */
+export function renameMessage(res: TagRenameResult): string {
+  return (
+    `${res.kind === "prompt" ? "Merged" : "Renamed"} “${formatTag(res.from)}” into “${(res.to_all ?? [res.to]).map(formatTag).join(" + ")}” on ${res.images.toLocaleString()} images` +
+    (res.background ? ", updating them in the background" : "")
+  );
+}
+
+/** The toast after a merge rule is removed. */
+export function undoRuleMessage(res: { from: string; to: string[]; background?: boolean }): string {
+  return (
+    `Removed rule “${formatTag(res.from)}” → “${res.to.map(formatTag).join(" + ")}”` +
+    (res.background ? ", updating its images in the background" : "")
+  );
+}
+
+/** The toast after accepting suggested merges: the first three skipped
+ * rules are named, the rest counted. */
+export function acceptMessage(res: {
+  rules: number;
+  skipped: { from: string; reason: string }[];
+  images: number;
+  background: boolean;
+}): string {
+  return (
+    `Merged ${res.rules.toLocaleString()} ${res.rules === 1 ? "tag" : "tags"} on ${res.images.toLocaleString()} images` +
+    (res.background ? ", updating them in the background" : "") +
+    (res.skipped.length
+      ? `; skipped ${res.skipped
+          .slice(0, 3)
+          .map((s) => `“${formatTag(s.from)}” (${s.reason})`)
+          .join(", ")}${res.skipped.length > 3 ? ` and ${res.skipped.length - 3} more` : ""}`
+      : "")
+  );
 }

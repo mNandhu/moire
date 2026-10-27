@@ -10,6 +10,9 @@ import {
   sortTags,
   splitSections,
   tagWorkflows,
+  renameMessage,
+  undoRuleMessage,
+  acceptMessage,
   type BrowseTag,
 } from "./tagBrowse";
 
@@ -150,5 +153,51 @@ describe("renamableTags", () => {
     const sources = { ai: 3, prompt: 2, manual: 0 };
     expect(renamableTags({ tag: "cat", sources })).toEqual(["prompt:cat"]);
     expect(renamableTags({ tag: "cat", sources: { ai: 1, prompt: 0, manual: 0 } })).toEqual([]);
+  });
+});
+
+describe("renameMessage", () => {
+  it("says Renamed for a manual tag and Merged for a prompt tag", () => {
+    expect(renameMessage({ kind: "manual", from: "manual:blue_eyes", to: "manual:aqua_eyes", images: 3 })).toBe(
+      "Renamed “blue eyes” into “aqua eyes” on 3 images",
+    );
+    expect(renameMessage({ kind: "prompt", from: "prompt:cat", to: "prompt:dog", images: 1, background: true })).toBe(
+      "Merged “cat” into “dog” on 1 images, updating them in the background",
+    );
+  });
+  it("names every target of a split", () => {
+    expect(
+      renameMessage({ kind: "prompt", from: "prompt:ab", to: "prompt:a", to_all: ["prompt:a", "prompt:b"], images: 2 }),
+    ).toBe("Merged “ab” into “a + b” on 2 images");
+  });
+});
+
+describe("undoRuleMessage", () => {
+  it("names the rule and the background update", () => {
+    expect(undoRuleMessage({ from: "ab", to: ["a", "b"] })).toBe("Removed rule “ab” → “a + b”");
+    expect(undoRuleMessage({ from: "x", to: ["y"], background: true })).toBe(
+      "Removed rule “x” → “y”, updating its images in the background",
+    );
+  });
+});
+
+describe("acceptMessage", () => {
+  const skip = (from: string) => ({ from, reason: "loop" });
+  it("counts tags and images", () => {
+    expect(acceptMessage({ rules: 1, skipped: [], images: 5, background: false })).toBe("Merged 1 tag on 5 images");
+    expect(acceptMessage({ rules: 2, skipped: [], images: 5, background: true })).toBe(
+      "Merged 2 tags on 5 images, updating them in the background",
+    );
+  });
+  it("names up to three skipped rules and counts the rest", () => {
+    expect(acceptMessage({ rules: 0, skipped: [skip("a_b")], images: 0, background: false })).toBe(
+      "Merged 0 tags on 0 images; skipped “a b” (loop)",
+    );
+    expect(
+      acceptMessage({ rules: 0, skipped: ["a", "b", "c"].map(skip), images: 0, background: false }),
+    ).toBe("Merged 0 tags on 0 images; skipped “a” (loop), “b” (loop), “c” (loop)");
+    expect(
+      acceptMessage({ rules: 0, skipped: ["a", "b", "c", "d", "e"].map(skip), images: 0, background: false }),
+    ).toBe("Merged 0 tags on 0 images; skipped “a” (loop), “b” (loop), “c” (loop) and 2 more");
   });
 });
