@@ -53,6 +53,12 @@ describe("toPromptText", () => {
   it("writes a tag once when AI and prompt both carry it", () => {
     expect(toPromptText(["blue_eyes", "manual:x", "prompt:blue_eyes"])).toBe("blue_eyes, x");
   });
+  it("writes a prompted weight back as emphasis", () => {
+    const weights = { smile: 1.2, "hu_tao_(genshin_impact)": 0.9091 };
+    expect(toPromptText(["smile", "prompt:smile", "prompt:hu_tao_(genshin_impact)", "solo"], weights)).toBe(
+      "(smile:1.2), (hu_tao_\\(genshin_impact\\):0.91), solo",
+    );
+  });
 });
 
 describe("tag kind predicates", () => {
@@ -129,6 +135,21 @@ describe("tagFlow", () => {
       ["solo", "ai", ["manual", "prompt"]],
       ["manual:neon", "manual", ["prompt"]],
       ["manual:fav", "manual", undefined],
+    ]);
+  });
+
+  it("puts the prompt weight on whichever entry lists the prompted name", () => {
+    const flow = tagFlow(
+      ["solo", "prompt:solo", "manual:fav", "prompt:fav", "prompt:Neon", "tassel"],
+      ai,
+      { solo: 1.2, fav: 0.9, neon: 1.1, tassel: 1.3 },
+    );
+    expect(flow.map((t) => [t.raw, t.weight])).toEqual([
+      ["solo", 1.2],
+      // Seen, never prompted: a stray weight for its name isn't its own.
+      ["tassel", undefined],
+      ["manual:fav", 0.9],
+      ["prompt:Neon", 1.1],
     ]);
   });
 

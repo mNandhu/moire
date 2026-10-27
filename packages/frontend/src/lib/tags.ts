@@ -98,16 +98,31 @@ export function tagQueryText(q: string): string {
   return q.replace(/_/g, " ").toLowerCase();
 }
 
+/** An image's prompt weights (`gen.prompt_weights`), keyed by term. */
+export type PromptWeights = Readonly<Record<string, number>>;
+
+/** A tag's prompt weight on an image, if it was prompted at one other than 1. */
+export function weightOf(raw: string, weights?: PromptWeights | null): number | undefined {
+  return weights?.[tagName(raw).toLowerCase()];
+}
+
 /**
  * Tags as prompt text for pasting into ComfyUI / A1111: stored (underscore)
  * names, comma separated, each once, with `(` and `)` escaped, since bare parentheses
- * are emphasis syntax there (`hu_tao_\(genshin_impact\)`).
+ * are emphasis syntax there (`hu_tao_\(genshin_impact\)`). A name the image
+ * was prompted with at a weight goes out at it (`(smile:1.2)`).
  */
-export function toPromptText(tags: readonly string[]): string {
+export function toPromptText(tags: readonly string[], weights?: PromptWeights | null): string {
   // An AI tag and its prompt twin (`blue_eyes`, `prompt:blue_eyes`) are one
   // word in a prompt: first occurrence wins.
   const names = [...new Set(tags.map(tagName))];
-  return names.map((n) => n.replace(/([()])/g, "\\$1")).join(", ");
+  return names
+    .map((n) => {
+      const word = n.replace(/([()])/g, "\\$1");
+      const w = weightOf(n, weights);
+      return w === undefined ? word : `(${word}:${formatWeight(w)})`;
+    })
+    .join(", ");
 }
 
 /**
@@ -161,6 +176,9 @@ export type FlowTag = {
   /** The image's other stored kinds of this same name (yours, prompt),
    * which are not listed again. */
   also?: ("manual" | "prompt")[];
+  /** Its prompt weight, when prompted at one other than 1: on the prompt
+   * tag, or on the entry its prompt twin is folded into. */
+  weight?: number;
 };
 
 /**
@@ -168,9 +186,14 @@ export type FlowTag = {
  * tags most confident first, then the user's own, then prompt tags. Each name
  * is listed once, where it first appears in that order (an AI tag keeps its
  * confidence); the later kinds it also has go in `also`. Reading, it is one
- * word whichever kinds stored it.
+ * word whichever kinds stored it. A prompted name carries its prompt weight
+ * wherever it is listed.
  */
-export function tagFlow(tags: readonly string[] = [], ai?: AiTagMeta | null): FlowTag[] {
+export function tagFlow(
+  tags: readonly string[] = [],
+  ai?: AiTagMeta | null,
+  weights?: PromptWeights | null,
+): FlowTag[] {
   const conf = new Map<string, number>();
   for (const [t, p] of ai?.general_tags ?? []) conf.set(t, p);
   const characters = new Set<string>();
@@ -185,7 +208,8 @@ export function tagFlow(tags: readonly string[] = [], ai?: AiTagMeta | null): Fl
   const prompted = new Set(prompt.map(fold));
   const alsoOf = (raw: string, kinds: readonly ("manual" | "prompt")[]) => {
     const also = kinds.filter((k) => (k === "manual" ? mine : prompted).has(fold(raw)));
-    return also.length ? { also } : {};
+    const weight = prompted.has(fold(raw)) ? weightOf(raw, weights) : undefined;
+    return { ...(also.length ? { also } : {}), ...(weight !== undefined ? { weight } : {}) };
   };
   const aiFlow = aiTags.map(
     (raw): FlowTag => ({
@@ -210,7 +234,7 @@ export function tagFlow(tags: readonly string[] = [], ai?: AiTagMeta | null): Fl
       .map((raw): FlowTag => ({ raw, label: formatTag(raw), kind: "manual", ...alsoOf(raw, ["prompt"]) })),
     ...prompt
       .filter((raw) => !tagged.has(fold(raw)) && !mine.has(fold(raw)))
-      .map((raw): FlowTag => ({ raw, label: formatTag(raw), kind: "prompt" })),
+      .map((raw): FlowTag => ({ raw, label: formatTag(raw), kind: "prompt", ...alsoOf(raw, []) })),
   ];
 }
 

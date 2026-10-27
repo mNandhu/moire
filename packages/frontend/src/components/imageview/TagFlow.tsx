@@ -6,7 +6,7 @@ import { characterHref, tagHref } from "../../lib/character";
 import { splitBoilerplate } from "../../lib/boilerplate";
 import { useBoilerplate, useTagFacets } from "../../lib/queries";
 import { FACET_LABEL, FACET_TINT, TAG_TINT_CLASS, tagMarkStyle, type Facet } from "../../lib/tagColour";
-import { adherenceGroups, tagName, type FlowTag, type TagGroup, type TagKind } from "../../lib/tags";
+import { adherenceGroups, formatWeight, tagName, type FlowTag, type TagGroup, type TagKind } from "../../lib/tags";
 
 
 /** A tag's own page: the character page for a character, else the tag page. */
@@ -35,6 +35,7 @@ function tagDetail(t: FlowTag): string {
   const parts = [KIND_NOUN[t.kind]];
   if (t.also?.length) parts.push(`also ${t.also.map((k) => ALSO_TEXT[k]).join(" and ")}`);
   if (t.confidence != null) parts.push(`${Math.round(t.confidence * 100)}% confident`);
+  if (t.weight != null) parts.push(`prompted at ${formatWeight(t.weight)}`);
   return parts.join(" · ");
 }
 
@@ -174,6 +175,9 @@ export function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.
             }}
           >
             {t.label}
+            {t.weight != null && (
+              <span className="ml-0.5 text-[10px] tabular-nums text-amber-300">{formatWeight(t.weight)}</span>
+            )}
           </Link>
         </Tooltip>
         {i < list.length - 1 && <span className="text-line-strong">, </span>}

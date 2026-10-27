@@ -617,15 +617,16 @@ export default function ImageView() {
       return;
     }
     // Prompt-ready: stored names with parentheses escaped, so a paste into
-    // ComfyUI reads `hu_tao_(genshin_impact)` as a tag, not as emphasis.
-    const text = toPromptText(all);
+    // ComfyUI reads `hu_tao_(genshin_impact)` as a tag, not as emphasis;
+    // prompted weights kept.
+    const text = toPromptText(all, data?.gen?.prompt_weights);
     try {
       await navigator.clipboard.writeText(text);
       push("Tags copied to clipboard", "success");
     } catch (e) {
       push(`Copy failed: ${errorText(e)}`, "error");
     }
-  }, [data?.tags, push]);
+  }, [data?.tags, data?.gen?.prompt_weights, push]);
 
   const copyPath = useCallback(async () => {
     if (!data?.path) return;
@@ -640,7 +641,8 @@ export default function ImageView() {
   useDocumentTitle(data?.path ? data.path.split(/[\\/]/).pop() : null);
   const { data: libraries } = useLibraries({ poll: false });
   const library = libraries?.find((l) => l._id === data?.library_id);
-  const flowTags = useMemo(() => tagFlow(data?.tags, data?.ai), [data?.tags, data?.ai]);
+  const weights = data?.gen?.prompt_weights;
+  const flowTags = useMemo(() => tagFlow(data?.tags, data?.ai, weights), [data?.tags, data?.ai, weights]);
   // The Tags tab counts what its panel lists: folded boilerplate aside.
   const isBoilerplate = useBoilerplate();
   const shownTagCount = useMemo(
