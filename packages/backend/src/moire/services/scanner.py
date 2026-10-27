@@ -8,7 +8,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import sync_conn, sync_tx
 from ..database import schema as t
-from . import activity, image_delete
+from . import activity, app_settings, image_delete
 from . import image_tags
 from . import tag_index
 from . import gen_metadata
@@ -62,12 +62,7 @@ _MAX_RETRY_IDS = 5000
 
 def _load_stamp(library_id: str) -> tuple[str | None, set[str]]:
     """The library's last full-scan stamp and the ids that failed in it."""
-    with sync_conn() as conn:
-        doc = conn.execute(
-            sa.select(t.app_settings.c.doc).where(
-                t.app_settings.c._id == _stamp_row(library_id)
-            )
-        ).scalar()
+    doc = app_settings.read_sync(_stamp_row(library_id))
     doc = doc or {}
     return doc.get("stamp"), set(doc.get("retry") or [])
 
@@ -80,13 +75,7 @@ def _save_stamp(library_id: str, stamp: str | None, retry: list[str]) -> None:
     if len(retry) > _MAX_RETRY_IDS:
         stamp, retry = None, []
     doc = {"stamp": stamp, "retry": retry}
-    with sync_tx() as conn:
-        stmt = sqlite_insert(t.app_settings).values(_id=_stamp_row(library_id), doc=doc)
-        conn.execute(
-            stmt.on_conflict_do_update(
-                index_elements=[t.app_settings.c._id], set_={"doc": doc}
-            )
-        )
+    app_settings.write_sync(_stamp_row(library_id), doc)
 
 
 def _make_thumb_bytes(
