@@ -20,6 +20,12 @@ describe("characterName", () => {
     });
     expect(characterName("2b_(nier:automata)")).toEqual({ name: "2b", series: "nier:automata" });
     expect(characterName("holo")).toEqual({ name: "holo", series: null });
+    expect(characterName("hu_tao_(genshin_impact)")).toEqual({ name: "hu tao", series: "genshin impact" });
+  });
+
+  it("splits one trailing qualifier only, like the backend", () => {
+    expect(characterName("a_(b)_(c)")).toEqual({ name: "a (b) (c)", series: null });
+    expect(characterName("x_(y_(z))")).toEqual({ name: "x (y (z))", series: null });
   });
 });
 
