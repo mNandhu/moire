@@ -33,4 +33,5 @@ def test_family_key_agrees_with_the_sql_workflow_id():
                 sa.select(wf.WORKFLOW_ID).where(t.image_gen_raw.c._id == str(i))
             ).scalar()
             assert wf.family_key(d) == (sql if isinstance(sql, str) else None), d
+    assert wf.family_key({"workflow": {"id": ""}, "moire": {"family": "b"}}) == "b"
     assert wf.family_key(None) is None

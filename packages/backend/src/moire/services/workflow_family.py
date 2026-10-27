@@ -23,8 +23,9 @@ SAMPLE_ID = sa.func.max(t.images.c._id)
 
 # A raw generation document's editor-graph id (the family key); an image
 # Moire queued carries it in its own chunk instead (no editor workflow).
+# An empty editor id counts as none.
 WORKFLOW_ID = sa.func.coalesce(
-    sa.func.json_extract(t.image_gen_raw.c.raw, "$.workflow.id"),
+    sa.func.nullif(sa.func.json_extract(t.image_gen_raw.c.raw, "$.workflow.id"), ""),
     sa.func.json_extract(t.image_gen_raw.c.raw, "$.moire.family"),
 )
 
@@ -52,7 +53,7 @@ def family_key(raw: Any) -> str | None:
         return None
     workflow = raw.get("workflow")
     key = workflow.get("id") if isinstance(workflow, dict) else None
-    if key is None:
+    if key is None or key == "":
         moire = raw.get("moire")
         key = moire.get("family") if isinstance(moire, dict) else None
     return key if isinstance(key, str) else None
