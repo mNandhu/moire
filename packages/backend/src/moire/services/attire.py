@@ -149,7 +149,7 @@ _GARMENT_HUBS = {
 _PHRASE = re.compile(r"_(with|in|on|under|over|from|and|of)_")
 
 
-def _key(tag: str) -> str:
+def tag_key(tag: str) -> str:
     return canonical_name(tag).lower()
 
 
@@ -174,7 +174,7 @@ _EXPOSURE_LEAD = frozenset({"bare", "exposed"})
 
 def _clothing(entry: tuple[str, str, tuple[str, ...]]) -> bool:
     """Listed somewhere about clothing, attire or not (`naked_shirt`)."""
-    return bool(_groups(entry) & (ATTIRE_GROUPS | {"nudity"}))
+    return bool(groups_of(entry) & (ATTIRE_GROUPS | {"nudity"}))
 
 
 def _garment_group(key: str) -> str | None:
@@ -187,7 +187,7 @@ def _garment_group(key: str) -> str | None:
     `girl_holding_mask`). `sky_blue_hair` has no garment ending."""
     if _PHRASE.search(key) or _NOT_WORN.search(key):
         return None
-    listed = _load()
+    listed = entries()
     words = key.split("_")
     for i in range(1, len(words)):
         tail = "_".join(words[i:])
@@ -218,7 +218,7 @@ def _garment_group(key: str) -> str | None:
 def _unlisted_group(key: str) -> str | None:
     """An attire tag the groups don't list: a hub, or a garment with words in
     front. Only beside a loaded list, like everything else here."""
-    if not _load():
+    if not entries():
         return None
     return UNLISTED_ATTIRE.get(key) or _garment_group(key)
 
@@ -243,25 +243,25 @@ def parse(doc: object) -> dict[str, tuple[str, str, tuple[str, ...]]]:
             continue
         if not (isinstance(also, list) and all(isinstance(a, str) for a in also)):
             also = []
-        out[_key(name)] = (category, group, tuple(also))
+        out[tag_key(name)] = (category, group, tuple(also))
     return out
 
 
 @lru_cache(maxsize=1)
-def _load() -> dict[str, tuple[str, str, tuple[str, ...]]]:
+def entries() -> dict[str, tuple[str, str, tuple[str, ...]]]:
     try:
         return parse(json.loads(TAG_GROUPS_PATH.read_text(encoding="utf-8")))
     except (OSError, ValueError):
         return {}
 
 
-def _groups(entry: tuple[str, str, tuple[str, ...]]) -> set[str]:
+def groups_of(entry: tuple[str, str, tuple[str, ...]]) -> set[str]:
     return {entry[1], *(a.rpartition("/")[2] for a in entry[2])}
 
 
 def _attire_group(tag: str, entry: tuple[str, str, tuple[str, ...]]) -> str | None:
-    groups = _groups(entry) & ATTIRE_GROUPS
-    if not groups and "nudity" in _groups(entry):
+    groups = groups_of(entry) & ATTIRE_GROUPS
+    if not groups and "nudity" in groups_of(entry):
         return EXPOSURE_GROUP if tag in EXPOSURE_TAGS else None
     if not groups or _NOT_WORN.search(tag):
         return None
@@ -286,8 +286,8 @@ EYE_STATES = frozenset(
 
 
 def is_attire(tag: str) -> bool:
-    key = _key(tag)
-    entry = _load().get(key)
+    key = tag_key(tag)
+    entry = entries().get(key)
     if entry is None:
         return _unlisted_group(key) is not None
     return _attire_group(key, entry) is not None
@@ -297,11 +297,11 @@ def is_identity(tag: str) -> bool:
     """A body-feature tag (hair, eyes, ears, ...). An unlisted tag counts when
     its name says so (``halo``, ``mole_under_eye``, ``x_pupils``); from the
     breasts group only the sizes do. Never attire."""
-    key = _key(tag)
+    key = tag_key(tag)
     # A passing eye state: how they look in one picture, not who they are.
     if key in EYE_STATES:
         return False
-    entry = _load().get(key)
+    entry = entries().get(key)
     if entry is None:
         return bool(_BODY_WORDS.search(key))
     if _attire_group(key, entry) is not None or key.startswith("looking_"):
@@ -309,7 +309,7 @@ def is_identity(tag: str) -> bool:
     # An expression, though also listed with eyes (`@_@`, `closed_eyes`).
     if entry[1] == "face_tags":
         return False
-    groups = _groups(entry) & IDENTITY_GROUPS
+    groups = groups_of(entry) & IDENTITY_GROUPS
     if groups == {"breasts_tags"}:
         return key.endswith("breasts") or key == "flat_chest"
     return bool(groups)
@@ -319,8 +319,8 @@ def group_of(tag: str) -> str | None:
     """The group of a listed tag, ``None`` when it is unlisted. An attire tag
     answers with its attire group (``bikini`` is attire, not ``water``);
     others with their most specific group."""
-    key = _key(tag)
-    entry = _load().get(key)
+    key = tag_key(tag)
+    entry = entries().get(key)
     if entry is None:
         return _unlisted_group(key)
     return _attire_group(key, entry) or entry[1]
@@ -328,14 +328,14 @@ def group_of(tag: str) -> str | None:
 
 def category_of(tag: str) -> str | None:
     """The primary top-level category (body, sex, ...) of a listed tag."""
-    entry = _load().get(_key(tag))
+    entry = entries().get(tag_key(tag))
     return entry[0] if entry else None
 
 
 def all_tags(category: str | None = None) -> dict[str, str]:
     """``tag -> group`` for every listed tag, or only one primary category's."""
     return {
-        t: group_of(t) or e[1] for t, e in _load().items() if category in (None, e[0])
+        t: group_of(t) or e[1] for t, e in entries().items() if category in (None, e[0])
     }
 
 
@@ -344,10 +344,10 @@ def library_groups(names: Iterable[str]) -> dict[str, dict[str, str]]:
     ``names`` (the library's tags) that has one, ``categories`` is ``group ->
     top-level category`` for those groups, so a page can list a group's
     siblings."""
-    listed = _load()
+    listed = entries()
     tags: dict[str, str] = {}
     for name in names:
-        key = _key(name)
+        key = tag_key(name)
         if key not in tags and (group := group_of(key)):
             tags[key] = group
     primary: dict[str, str] = {}
@@ -366,10 +366,10 @@ def unlisted_attire(names: Iterable[str]) -> dict[str, str]:
     """``tag -> attire group`` for the unlisted garments among ``names`` (the
     tagger's vocabulary, the library's tags): coloured or otherwise
     described, which the lists below can't enumerate from the groups alone."""
-    listed = _load()
+    listed = entries()
     out: dict[str, str] = {}
     for name in names:
-        key = _key(name)
+        key = tag_key(name)
         if key not in listed and (group := _unlisted_group(key)):
             out[key] = group
     return out
@@ -379,7 +379,7 @@ def attire_tags(extra: Iterable[str] = ()) -> dict[str, str]:
     """``tag -> attire group`` for every attire tag; ``extra`` names (the
     tagger's vocabulary) add the coloured garments among them."""
     out: dict[str, str] = {}
-    listed = _load()
+    listed = entries()
     for tag, entry in listed.items():
         group = _attire_group(tag, entry)
         if group:
@@ -429,7 +429,9 @@ FACET_GROUPS: dict[str, frozenset[str]] = {
 FACETS = ("look", "outfit", "pose", "scene", "framing")
 
 
-def _facet(key: str, entry: tuple[str, str, tuple[str, ...]] | None) -> str | None:
+def facet_of_entry(
+    key: str, entry: tuple[str, str, tuple[str, ...]] | None
+) -> str | None:
     if key in EYE_STATES:
         return "pose"
     if entry is None:
@@ -444,7 +446,7 @@ def _facet(key: str, entry: tuple[str, str, tuple[str, ...]] | None) -> str | No
         return "outfit"
     if is_identity(key):
         return "look"
-    groups = _groups(entry)
+    groups = groups_of(entry)
     # The primary group decides first, so `holding_umbrella` (holding, also
     # listed under rain) is a pose.
     for facet, members in FACET_GROUPS.items():
@@ -458,8 +460,8 @@ def _facet(key: str, entry: tuple[str, str, tuple[str, ...]] | None) -> str | No
 
 def facet_of(tag: str) -> str | None:
     """The facet (one of :data:`FACETS`) of a tag, or ``None``."""
-    key = _key(tag)
-    return _facet(key, _load().get(key))
+    key = tag_key(tag)
+    return facet_of_entry(key, entries().get(key))
 
 
 _facets_cache: tuple[dict, dict[str, str]] | None = None
@@ -470,16 +472,16 @@ def facets(extra: Iterable[str] = ()) -> dict[str, str]:
     ``extra`` names that :func:`facet_of` places (a described garment, a body
     word). The listed part is rebuilt whenever the list itself is reloaded."""
     global _facets_cache
-    listed = _load()
+    listed = entries()
     if _facets_cache is None or _facets_cache[0] is not listed:
-        out = {t: f for t, e in listed.items() if (f := _facet(t, e))}
+        out = {t: f for t, e in listed.items() if (f := facet_of_entry(t, e))}
         if listed:
             out.update({t: "outfit" for t in UNLISTED_ATTIRE if t not in listed})
         _facets_cache = (listed, out)
     added: dict[str, str] = {}
     if listed:
         for name in extra:
-            key = _key(name)
-            if key not in listed and (f := _facet(key, None)):
+            key = tag_key(name)
+            if key not in listed and (f := facet_of_entry(key, None)):
                 added[key] = f
     return {**_facets_cache[1], **added} if added else _facets_cache[1]

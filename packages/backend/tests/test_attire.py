@@ -58,9 +58,9 @@ def listed(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.setattr(attire, "TAG_GROUPS_PATH", path)
-    attire._load.cache_clear()
+    attire.entries.cache_clear()
     yield
-    attire._load.cache_clear()
+    attire.entries.cache_clear()
 
 
 def test_lookup(listed):
@@ -104,13 +104,13 @@ def test_attire_tags_use_the_attire_group(listed):
 
 def test_missing_or_broken_file_is_empty(tmp_path, monkeypatch):
     monkeypatch.setattr(attire, "TAG_GROUPS_PATH", tmp_path / "nope.json")
-    attire._load.cache_clear()
+    attire.entries.cache_clear()
     assert attire.all_tags() == {}
     (tmp_path / "bad.json").write_text("{not json", encoding="utf-8")
     monkeypatch.setattr(attire, "TAG_GROUPS_PATH", tmp_path / "bad.json")
-    attire._load.cache_clear()
+    attire.entries.cache_clear()
     assert attire.all_tags() == {}
-    attire._load.cache_clear()
+    attire.entries.cache_clear()
 
 
 def test_parse_drops_malformed_entries():
@@ -259,7 +259,7 @@ def test_facets_from_groups(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.setattr(attire, "TAG_GROUPS_PATH", path)
-    attire._load.cache_clear()
+    attire.entries.cache_clear()
     try:
         assert attire.facet_of("sitting") == "pose"
         assert attire.facet_of("holding_umbrella") == "pose"  # primary group first
@@ -267,7 +267,7 @@ def test_facets_from_groups(tmp_path, monkeypatch):
         assert attire.facet_of("cowboy_shot") == "framing"
         assert attire.facet_of("rain") == "scene"  # through its other place
     finally:
-        attire._load.cache_clear()
+        attire.entries.cache_clear()
 
 
 def test_expressions_and_eye_states_are_not_identity():
@@ -282,7 +282,7 @@ def test_expressions_and_eye_states_are_not_identity():
         assert not attire.is_identity(tag), tag
         assert attire.facet_of(tag) == "pose", tag
     # Even with no tag groups to go on.
-    assert attire._facet("tearing_up", None) == "pose"
+    assert attire.facet_of_entry("tearing_up", None) == "pose"
     assert not attire.is_identity("tearing_up")
     # What the eyes are like stays.
     for tag in ("red_eyes", "heart-shaped_pupils", "heterochromia"):
@@ -291,13 +291,16 @@ def test_expressions_and_eye_states_are_not_identity():
 
 def test_animal_traits_are_a_look():
     cats = ("creatures", "cats", ())
-    assert attire._facet("cat_girl", cats) == "look"
-    assert attire._facet("cat", cats) is None  # the animal itself
-    assert attire._facet("tail", ("body", "body_parts", ("sex/sex_acts",))) == "look"
+    assert attire.facet_of_entry("cat_girl", cats) == "look"
+    assert attire.facet_of_entry("cat", cats) is None  # the animal itself
+    assert (
+        attire.facet_of_entry("tail", ("body", "body_parts", ("sex/sex_acts",)))
+        == "look"
+    )
     # Unlisted kemonomimi.
-    assert attire._facet("fox_girl", None) == "look"
-    assert attire._facet("wolf_boy", None) == "look"
-    assert attire._facet("magical_girl", None) is None
+    assert attire.facet_of_entry("fox_girl", None) == "look"
+    assert attire.facet_of_entry("wolf_boy", None) == "look"
+    assert attire.facet_of_entry("magical_girl", None) is None
 
 
 def test_coloured_garments_count_as_their_garment():
