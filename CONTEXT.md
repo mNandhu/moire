@@ -7,7 +7,8 @@ belongs in this file.
 ## Concepts
 
 - **Library**: a root directory of images registered for indexing. Owns scan
-  progress state. (`api/libraries.py`, `models/library.py`)
+  progress state. (`api/libraries.py`, lifecycle in `services/library_ops.py`,
+  `models/library.py`)
 - **Image**: one indexed file. Id is `{library_id}:{path-relative-to-root}`.
 - **Tag**: a label on an image. Three kinds share one `tags` array:
   - **AI tag**: produced by the tagger, stored unprefixed (`1girl`).
@@ -90,7 +91,8 @@ belongs in this file.
   (`@_@`, `closed_eyes`), props and tags the groups can't place, common to a
   few images of one set, aren't a look.
   Few images shows a "may be off" note. The avatar is the tag's cover pin; the
-  `characters` table holds only overrides. (`services/characters.py`)
+  `characters` table holds only overrides. (`services/characters.py`; the
+  look statistics in `services/character_look.py`)
 - **Face detection**: an optional anime face model (YOLOv8 nano, ONNX,
   downloaded from Settings > Characters) that finds the face in each
   character's avatar, in a background worker, kept in `image_faces`. Avatars
@@ -114,7 +116,7 @@ belongs in this file.
   from a table test.
 - **Runtime-built prompt**: a prompt assembled while the workflow runs (a
   captioner's output joined to fixed text), so the graph never holds it. The
-  extractor walks upstream from the sampler (`gen_metadata._resolve_text`):
+  extractor walks upstream from the sampler (`comfy_text.resolve_text`):
   literal text, then the text computed from the graph's string nodes
   (`services/text_eval.py`: literals, find/replace, regex extraction, joins;
   exact or nothing), then text a display node (pysssss ShowText and kin)
@@ -155,8 +157,9 @@ belongs in this file.
   parser improvement reaches existing images by reprojection (a named
   `tag_migrations` step).
 - **Scan**: discovering a library's files, indexing them, and **reconciling**
-  away images that vanished from disk. (`services/scanner.py`;
-  `reconcile_stale` is the pure deletion-decision step.) The scan's batched
+  away images that vanished from disk. (`services/scanner.py`, with
+  `thumbnailer.py` and the watcher's `scan_incremental.py`;
+  `scan_reconcile.reconcile_stale` is the pure deletion-decision step.) The scan's batched
   transactional writer is `services/scan_writer.py` (`ScanWriter`: accumulate,
   flush every N, flush the remainder); the bounded-concurrency worker loop is
   `services/batch_pool.py`.

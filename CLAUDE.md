@@ -34,7 +34,7 @@ The backend's import package is `moire` (`packages/backend/src/moire`, PyPI name
 
 **Read `CONTEXT.md` first**: it is the authoritative glossary for Library, Image, the three tag kinds, Tag-state, Rating, Scan, AI Job, Tagger. Key invariants that constrain edits:
 
-- **Image `_id` is `{library_id}:{relative/path}`.** ID lookups normalize `/` vs `\` (`api/images.py` `_find_image_doc`).
+- **Image `_id` is `{library_id}:{relative/path}`.** ID lookups normalize `/` vs `\` (`services/image_tags.py` `find_image`).
 - **One `tags[]` array holds three tag kinds:** AI tags unprefixed (`1girl`), manual tags `manual:`-prefixed, prompt tags `prompt:`-prefixed. AI and prompt tags may overlap and are never deduped against each other.
 - **Tag names are stored with underscores** (`blue_eyes`, Danbooru style); `services/tag_names.py` `canonical_name` is the one spelling rule. Every writer and every route/filter that takes a tag from the user canonicalizes (`image_tags.canonical_tag`), so `blue eyes` = `blue_eyes`. Spaces are display only (`lib/tags.ts` `formatTag`); `toPromptText` builds paste-into-ComfyUI text (parens escaped).
 - **`services/image_tags.py` is the ONLY place that mutates `tags` and recomputes the summary flags** (`has_tags`, `has_ai_tags`, `has_prompt_tags`, `rating`). It writes the ordered `tags` JSON array, the flags, and the derived `image_tags(image_id, tag, base)` join rows **in one transaction** so they never drift. `normalize_rating` is the single rating normalizer.
