@@ -91,7 +91,7 @@ P0 review fixes: 924e1e1 (UI batch), e86ea57 (data and library batch). Review fi
 
 - [x] **L2.1** promptOutline (board) and prompt_parse (tags) read the same prompt differently; an unclosed bracket makes the board see one term (bug, M, L5, TW; moved from P0: fixed by the one-parser-per-side work), done 7e0a30d
 - [x] **L4.2** Bulk prompt-tag write is a second, hand-synced copy of the tag-state write (invariant, S, L4, TW), done d2a8323
-- [x] **S7.1** Prompt weight rule exists nowhere yet; plan's premise is wrong and parsers disagree on brackets (drift, M, L5, TW), done cfb0aa1 (rule by gen.source, shared fixture weights; storage 50e5f08)
+- [x] **S7.1** Prompt weight rule exists nowhere yet; plan's premise is wrong and parsers disagree on brackets (drift, M, L5, TW), done cfb0aa1 (rule by gen.source, shared fixture weights; storage 50e5f08; review (medium) fixes 97229bc, bcb4914)
 - [x] **S7.2** Three more ad-hoc prompt splitters in the frontend duplicate promptOutline (dedupe, M, L4, TW), done f126a01, f965983
 - [x] **S2.5** countTags re-implements prompt term splitting and weight stripping beside promptOutline (dedupe, M, L3, TW), done 50549a9
 - [x] **S8.3** generation_compose holds a second, weaker prompt parser (prompt_terms, without_terms/_top_level_pieces) beside prompt_parse; escaped-paren auto-name bug (dedupe, S, L4, TW), done 0962a4c

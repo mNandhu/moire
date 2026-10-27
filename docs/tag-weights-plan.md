@@ -1,6 +1,6 @@
 # Tag weights plan
 
-Status: steps 1 to 4 done 2026-10-27 (cfb0aa1..9e1a9cf); step 5 (gallery) skipped by decision.
+Status: steps 1 to 4 done 2026-10-27 (cfb0aa1..9e1a9cf), reviewed (medium) and fixed (97229bc, bcb4914); step 5 (gallery) skipped by decision. Review leftover: with positive_only off, negative-prompt terms get image_gen_terms rows at 1.0, which pull the tag panel's "mostly" toward 1 (rows cannot tell the two prompts apart).
 
 ## Decisions (2026-10-27)
 
