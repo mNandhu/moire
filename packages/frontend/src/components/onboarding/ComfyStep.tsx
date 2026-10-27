@@ -1,9 +1,8 @@
 import { useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "../ui/Button";
 import { errorText } from "../../lib/api";
 import { filesFromDrop } from "../../lib/dropFiles";
-import { GEN_KEY, putSettings, testConnection } from "../../lib/generate";
+import { useConnectComfy } from "../../lib/generate";
 import { plural } from "../../lib/onboarding";
 import { readWorkflowFiles } from "../../lib/workflows";
 import { cn } from "../../lib/cn";
@@ -47,7 +46,7 @@ export function ComfyStep({
   workflows: WorkflowRead | null;
   setWorkflows: (w: WorkflowRead | null) => void;
 }) {
-  const qc = useQueryClient();
+  const { connect: connectComfy, disconnect: disconnectComfy } = useConnectComfy();
   const folderInput = useRef<HTMLInputElement | null>(null);
   const [reading, setReading] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -57,24 +56,21 @@ export function ComfyStep({
     if (!address) return;
     setComfy({ address, phase: "checking" });
     try {
-      await putSettings({ address });
-      const r = await testConnection();
+      const { result: r } = await connectComfy({ address });
       setComfy({ address, phase: r.ok ? "connected" : "failed", error: r.error });
     } catch (e) {
       setComfy({ address, phase: "failed", error: errorText(e) });
     }
-    void qc.invalidateQueries({ queryKey: GEN_KEY });
   };
 
   const disconnect = async () => {
     setComfy({ ...comfy, phase: "checking" });
     try {
-      await putSettings({ address: "" });
+      await disconnectComfy();
       setComfy({ address: comfy.address, phase: "idle" });
     } catch (e) {
       setComfy({ ...comfy, phase: "failed", error: errorText(e) });
     }
-    void qc.invalidateQueries({ queryKey: GEN_KEY });
   };
 
   const read = async (files: File[], from: string) => {

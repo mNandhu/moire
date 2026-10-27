@@ -14,9 +14,9 @@ import {
   putSettings,
   refreshModels,
   setLoraChoice,
-  testConnection,
   useComfyModels,
   useComfySettings,
+  useConnectComfy,
   useGenerators,
   type ComfySettings,
   type LoraMatch,
@@ -143,19 +143,15 @@ export function ComfySection() {
     },
     onError: (e) => toast.push(e.message, "error"),
   });
+  const { connect } = useConnectComfy();
   const test = useMutation({
-    mutationFn: async () => {
-      const saved = dirty ? await putSettings({ address: address.trim(), ca_cert: caCert.trim(), headers: headerMap() }) : null;
-      return { saved, result: await testConnection() };
-    },
+    mutationFn: () => connect(dirty ? { address: address.trim(), ca_cert: caCert.trim(), headers: headerMap() } : null),
     onSuccess: ({ saved, result: r }) => {
-      if (saved) qc.setQueryData(SETTINGS_KEY, saved);
       const prefix = saved ? "Saved. " : "";
       toast.push(
         r.ok ? `${prefix}Connected` : `${prefix}Can't reach ComfyUI${r.error ? `: ${r.error}` : ""}`,
         r.ok ? "success" : "error",
       );
-      void qc.invalidateQueries({ queryKey: GEN_KEY });
     },
     onError: (e) => toast.push(e.message, "error"),
   });

@@ -3,7 +3,7 @@
  * browser never talks to ComfyUI; everything goes through `/api/v1/generate`.
  */
 import { testState } from "./generatorRunBar";
-import { keepPreviousData, useQueries, useQuery, type QueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { api, apiJson, httpError, jsonInit } from "./api";
 import type { NewEstimate } from "./eta";
 
@@ -611,6 +611,34 @@ export function useComfyStatus() {
 
 export function useComfySettings() {
   return useQuery({ queryKey: SETTINGS_KEY, queryFn: ({ signal }) => api<ComfySettings>(`${BASE}/comfyui`, { signal }) });
+}
+
+/** Connecting and disconnecting ComfyUI, for the screens that offer it. `connect`
+ * saves `patch` (when given), then tests; both refresh everything generate
+ * shows. Each screen keeps its own progress and feedback. */
+export function useConnectComfy() {
+  const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries({ queryKey: GEN_KEY });
+  return {
+    connect: async (patch: Partial<ComfySettings> | null) => {
+      try {
+        const saved = patch ? await putSettings(patch) : null;
+        if (saved) qc.setQueryData(SETTINGS_KEY, saved);
+        return { saved, result: await testConnection() };
+      } finally {
+        void refresh();
+      }
+    },
+    disconnect: async () => {
+      try {
+        const saved = await putSettings({ address: "" });
+        qc.setQueryData(SETTINGS_KEY, saved);
+        return saved;
+      } finally {
+        void refresh();
+      }
+    },
+  };
 }
 
 export function useComfyModels() {
