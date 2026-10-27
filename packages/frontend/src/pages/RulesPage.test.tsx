@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { JsonTree, matchesQuery, collectMatches } from "./RulesPage";
+import { JsonTree, matchesQuery, collectMatches } from "../components/GraphTree";
 
 // The load-bearing, silent-on-failure interaction: clicking a tree leaf must
 // build the dot-path rooted at the raw doc (so pins read `prompt.<n>.inputs.<w>`

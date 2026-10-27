@@ -23,6 +23,37 @@ export const RULE_FIELDS = [
 export type RuleField = (typeof RULE_FIELDS)[number];
 export type RuleFields = Partial<Record<RuleField, string[]>>;
 
+export const FIELD_LABEL: Record<RuleField, string> = {
+  prompt: "Positive prompt",
+  negative: "Negative prompt",
+  seed: "Seed",
+  model: "Model",
+  sampler: "Sampler",
+  steps: "Steps",
+  cfg: "CFG",
+};
+
+/**
+ * Where `gen` guessed `field` from by keyword match: its pinnable path, null
+ * when the guess has no path, undefined when the field wasn't guessed.
+ */
+export function guessPath(gen: GenMeta | null | undefined, field: RuleField): string | null | undefined {
+  return gen?.guessed?.includes(field as "prompt" | "negative")
+    ? (gen.guess_paths?.[field as "prompt" | "negative"] ?? null)
+    : undefined;
+}
+
+/** Graph marks for guessed prompts that have no pin yet: path → label. */
+export function guessMarks(gen: GenMeta | null | undefined, fields: RuleFields): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const field of ["prompt", "negative"] as const) {
+    if ((fields[field] || []).length > 0) continue;
+    const p = gen?.guessed?.includes(field) ? gen.guess_paths?.[field] : null;
+    if (p) m.set(p, `Guessed ${FIELD_LABEL[field].toLowerCase()}`);
+  }
+  return m;
+}
+
 export type Ruleset = { _id: string; fields: RuleFields; updated_at?: number };
 
 export type SignatureRow = {

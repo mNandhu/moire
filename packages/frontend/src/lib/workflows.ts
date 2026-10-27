@@ -234,6 +234,40 @@ export function workflowFilterName(
   return undefined;
 }
 
+/**
+ * The Rules page picker's search: versions matching `q` by title, note, file
+ * or signature; a workflow whose own name matches keeps all its versions.
+ * Families left with no version drop out.
+ */
+export function filterFamilies(families: WorkflowFamily[], q: string): WorkflowFamily[] {
+  const wfq = q.trim().toLowerCase();
+  if (!wfq) return families;
+  return families
+    .map((f) =>
+      f.name.toLowerCase().includes(wfq)
+        ? f
+        : {
+            ...f,
+            versions: f.versions.filter((v) =>
+              [v.title, v.note, v.file, v.row.workflow_sig].some((x) => x?.toLowerCase().includes(wfq)),
+            ),
+          },
+    )
+    .filter((f) => f.versions.length);
+}
+
+/** What a workflow-file import says: files imported, how many workflows in
+ * the library they belong to, and how many files weren't workflows. */
+export function importSummary({ imported, known, skipped }: { imported: number; known: number; skipped: number }): string {
+  return (
+    `Imported ${imported} ${imported === 1 ? "file" : "files"}` +
+    (known
+      ? ` · ${known} ${known === 1 ? "workflow" : "workflows"} in your library`
+      : ". None belong to workflows in your library") +
+    (skipped ? ` · ${skipped} skipped (not a workflow)` : "")
+  );
+}
+
 export async function putWorkflowName(id: string, name: string): Promise<void> {
   await apiJson(`/api/v1/rules/workflows/${encodeURIComponent(id)}/name`, "PUT", { name });
 }

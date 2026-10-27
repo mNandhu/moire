@@ -2,8 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import type { SignatureRow } from "./rules";
 import {
   fileStem,
+  filterFamilies,
   formatUsedRange,
   groupWorkflows,
+  importSummary,
   parseWorkflowFile,
   readWorkflowFiles,
   type WorkflowFile,
@@ -212,5 +214,46 @@ describe("readWorkflowFiles", () => {
     const res = await readWorkflowFiles([file("api.json", { "3": {} })], send);
     expect(send).not.toHaveBeenCalled();
     expect(res).toEqual({ parsed: [], imported: 0, known: 0 });
+  });
+});
+
+describe("filterFamilies", () => {
+  const version = (sig: string, title: string, note: string | null = null, file: string | null = null) => ({
+    row: row({ workflow_sig: sig }),
+    title,
+    note,
+    file,
+  });
+  const fams = [
+    { id: "A", name: "Remote", unnamed: false, images: 2, versions: [version("s1", "Upscale"), version("s2", "Plain", "Oct 3")] },
+    { id: "B", name: "Local", unnamed: false, images: 1, versions: [version("s3", "Inpaint", null, "inpaintV2")] },
+  ];
+  it("returns every family for a blank query", () => {
+    expect(filterFamilies(fams, "  ")).toBe(fams);
+  });
+  it("keeps all versions of a family whose name matches", () => {
+    expect(filterFamilies(fams, "REMOTE").map((f) => f.versions.length)).toEqual([2]);
+  });
+  it("narrows to versions matching by title, note, file or signature", () => {
+    expect(filterFamilies(fams, "oct").map((f) => f.versions.map((v) => v.row.workflow_sig))).toEqual([["s2"]]);
+    expect(filterFamilies(fams, "inpaintv2").map((f) => f.id)).toEqual(["B"]);
+    expect(filterFamilies(fams, "s1").map((f) => f.versions.map((v) => v.row.workflow_sig))).toEqual([["s1"]]);
+  });
+  it("drops families with no matching version", () => {
+    expect(filterFamilies(fams, "nothing")).toEqual([]);
+  });
+});
+
+describe("importSummary", () => {
+  it("counts files, known workflows and skipped files", () => {
+    expect(importSummary({ imported: 1, known: 1, skipped: 0 })).toBe("Imported 1 file · 1 workflow in your library");
+    expect(importSummary({ imported: 3, known: 2, skipped: 1 })).toBe(
+      "Imported 3 files · 2 workflows in your library · 1 skipped (not a workflow)",
+    );
+  });
+  it("says when none belong to the library", () => {
+    expect(importSummary({ imported: 2, known: 0, skipped: 0 })).toBe(
+      "Imported 2 files. None belong to workflows in your library",
+    );
   });
 });

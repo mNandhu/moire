@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { workflowClipboardText, type WorkflowPayload } from "./rules";
+import { guessMarks, guessPath, workflowClipboardText, type WorkflowPayload } from "./rules";
 
 describe("workflowClipboardText", () => {
   it("ComfyUI copies the UI workflow graph (canvas-paste)", () => {
@@ -24,5 +24,21 @@ describe("workflowClipboardText", () => {
   it("returns null for unknown/empty source", () => {
     expect(workflowClipboardText({ source: null })).toBeNull();
     expect(workflowClipboardText({ source: "comfyui", workflow: null, prompt: null })).toBeNull();
+  });
+});
+
+describe("guessPath / guessMarks", () => {
+  const gen = { guessed: ["prompt" as const], guess_paths: { prompt: "prompt.6.inputs.text" } };
+  it("gives a guessed field's path, null without one, undefined when not guessed", () => {
+    expect(guessPath(gen, "prompt")).toBe("prompt.6.inputs.text");
+    expect(guessPath({ guessed: ["negative"] }, "negative")).toBeNull();
+    expect(guessPath(gen, "negative")).toBeUndefined();
+    expect(guessPath(gen, "seed")).toBeUndefined();
+    expect(guessPath(null, "prompt")).toBeUndefined();
+  });
+  it("marks guessed paths of unpinned prompts only", () => {
+    expect([...guessMarks(gen, {})]).toEqual([["prompt.6.inputs.text", "Guessed positive prompt"]]);
+    expect(guessMarks(gen, { prompt: ["prompt.3.inputs.text"] }).size).toBe(0);
+    expect(guessMarks(null, {}).size).toBe(0);
   });
 });
