@@ -9,89 +9,69 @@ import { ComfySection } from "./sections/ComfySection";
 import { TagColoursSection } from "./sections/TagColoursSection";
 
 /**
- * One settings page section: a left-nav entry + the panel it renders.
+ * One settings page section: a tab + the panel it renders.
  *
  * To add a new settings section: write a `*Section` component, then append one
- * entry to a group's `items` below. The nav, routing (`?section=<id>`), and
- * active highlight all derive from this registry. No other file needs editing.
+ * entry to `SETTINGS_SECTIONS` below. The tab strip, routing (`?section=<id>`)
+ * and active highlight all derive from this registry. No other file needs editing.
  */
 export type SettingsSection = {
   /** URL slug (`?section=<id>`) and stable key. */
   id: string;
   label: string;
   icon: LucideIcon;
-  /** Subtitle shown in the panel header. */
+  /** Line shown above the panel. */
   description?: string;
-  /** Rendered in the right-hand content panel when active. */
+  /** Rendered under the tab strip when active. */
   Component: () => React.ReactNode;
 };
 
-export type SettingsGroup = {
-  /** Optional uppercase heading above the group; omit for an ungrouped block. */
-  title?: string;
-  items: SettingsSection[];
-};
-
-export const SETTINGS_GROUPS: SettingsGroup[] = [
+/** Every section, in tab order. */
+export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
-    title: "Tags",
-    items: [
-      {
-        id: "tagging",
-        label: "AI Tagging",
-        icon: Tags,
-        description: "How confident the tagger must be, how many tags it keeps, and which model it uses.",
-        Component: TaggingSection,
-      },
-      {
-        id: "prompt-tags",
-        label: "Prompt Tags",
-        icon: FileText,
-        description: "Tags taken from the generation prompt embedded in each image (A1111 / ComfyUI).",
-        Component: PromptTagsSection,
-      },
-      {
-        id: "prompt-guess",
-        label: "Prompt Guessing",
-        icon: Wand2,
-        Component: PromptGuessSection,
-      },
-      {
-        id: "boilerplate",
-        label: "Boilerplate",
-        icon: EyeOff,
-        Component: BoilerplateSection,
-      },
-      {
-        id: "tag-colours",
-        label: "Tag Colours",
-        icon: Palette,
-        description: "How tag lists mark hair and eye colours and kinds of tags.",
-        Component: TagColoursSection,
-      },
-      {
-        id: "characters",
-        label: "Characters",
-        icon: UserRound,
-        description: "How character avatars are framed.",
-        Component: CharactersSection,
-      },
-    ],
+    id: "tagging",
+    label: "AI Tagging",
+    icon: Tags,
+    description: "How confident the tagger must be, how many tags it keeps, and which model it uses.",
+    Component: TaggingSection,
   },
   {
-    title: "Generation",
-    items: [
-      {
-        id: "comfyui",
-        label: "ComfyUI",
-        icon: Plug,
-        Component: ComfySection,
-      },
-    ],
+    id: "prompt-tags",
+    label: "Prompt Tags",
+    icon: FileText,
+    description: "Tags taken from the generation prompt embedded in each image (A1111 / ComfyUI).",
+    Component: PromptTagsSection,
+  },
+  {
+    id: "prompt-guess",
+    label: "Prompt Guessing",
+    icon: Wand2,
+    Component: PromptGuessSection,
+  },
+  {
+    id: "boilerplate",
+    label: "Boilerplate",
+    icon: EyeOff,
+    Component: BoilerplateSection,
+  },
+  {
+    id: "tag-colours",
+    label: "Tag Colours",
+    icon: Palette,
+    description: "How tag lists mark hair and eye colours and kinds of tags.",
+    Component: TagColoursSection,
+  },
+  {
+    id: "characters",
+    label: "Characters",
+    icon: UserRound,
+    description: "How character avatars are framed.",
+    Component: CharactersSection,
+  },
+  {
+    id: "comfyui",
+    label: "ComfyUI",
+    icon: Plug,
+    Component: ComfySection,
   },
 ];
-
-/** Flattened section list, in nav order. */
-export const SETTINGS_SECTIONS: SettingsSection[] = SETTINGS_GROUPS.flatMap(
-  (g) => g.items
-);

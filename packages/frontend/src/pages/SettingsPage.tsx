@@ -1,7 +1,6 @@
 import { useSearchParams } from "react-router-dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { cn } from "../lib/cn";
-import { SettingsProvider } from "./settings/SettingsContext";
 import { SETTINGS_SECTIONS } from "./settings/registry";
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
 
@@ -25,7 +24,7 @@ export default function SettingsPage() {
   // A handful of sections reads best as tabs under one header; a second
   // sidebar holding two items was a nav for its own sake.
   return (
-    <SettingsProvider>
+    <>
       <PageHeader title="Settings" />
       <PageBody className="space-y-5">
         <nav
@@ -58,6 +57,6 @@ export default function SettingsPage() {
         )}
         <ActivePanel />
       </PageBody>
-    </SettingsProvider>
+    </>
   );
 }

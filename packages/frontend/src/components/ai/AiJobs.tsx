@@ -1,7 +1,7 @@
-import { Section } from "../../../components/ui/Card";
-import { Button } from "../../../components/ui/Button";
-import { Badge } from "../../../components/ui/Badge";
-import { ProgressBar } from "../../../components/ui/ProgressBar";
+import { Section } from "../ui/Card";
+import { Button } from "../ui/Button";
+import { Badge } from "../ui/Badge";
+import { ProgressBar } from "../ui/ProgressBar";
 import {
   isActiveJob,
   jobAgo,
@@ -11,8 +11,8 @@ import {
   jobThroughput,
   type AiJob,
   type AiJobError,
-} from "../../../lib/ai";
-import { useSettings } from "../SettingsContext";
+} from "../../lib/ai";
+import { useAiController } from "../../hooks/useAiController";
 
 /** Expandable per-job failure list. The backend records one entry per image
  * that threw during tagging ({@link AiJobError}); the status poll already
@@ -44,7 +44,7 @@ function statusTone(status: string) {
 
 /** Progress of the job that's running now, with its cancel control. */
 export function ActiveJob({ job }: { job: AiJob }) {
-  const { running, progressPct, cancelJob } = useSettings();
+  const { running, progressPct, cancelJob } = useAiController();
   const processed = job.done + job.failed;
   const speed = jobThroughput(job);
   const label = aiJobPhaseLabel(job);
@@ -79,7 +79,7 @@ export function ActiveJob({ job }: { job: AiJob }) {
 }
 
 export function RecentJobs() {
-  const { status } = useSettings();
+  const { status } = useAiController();
   const jobs = status?.jobs?.recent || [];
 
   return (
@@ -121,7 +121,7 @@ export function RecentJobs() {
 
 /** The one destructive action on the page, set apart from the run controls. */
 export function ResetAiTags() {
-  const { running, clearAllAiTags } = useSettings();
+  const { running, clearAllAiTags } = useAiController();
   return (
     <Section
       title="Start over"

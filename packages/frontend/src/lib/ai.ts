@@ -286,7 +286,7 @@ export function fetchAiSettings(): Promise<AISettings> {
 
 // --- Commands ---------------------------------------------------------------
 //
-// Every AI mutation the UI can issue. These used to live inside SettingsContext,
+// Every AI mutation the UI can issue. These used to live inside the AI controller,
 // fused to toast + busy-flag state, which meant six endpoints existed in exactly
 // one React hook and `/jobs/:id/cancel` had two adapters that disagreed on whose
 // job it was. The context now owns state and toast policy; it knows no URLs.

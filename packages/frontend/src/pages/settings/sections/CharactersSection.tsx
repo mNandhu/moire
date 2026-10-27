@@ -8,7 +8,7 @@ import { FACES_KEY, postFaces } from "../../../lib/ai";
 import { TAGS_KEY } from "../../../lib/queries";
 import { taskPct } from "../../../lib/backgroundTasks";
 import { formatBytes } from "../../../lib/format";
-import { useSettings } from "../SettingsContext";
+import { useAiSettingsForm } from "../useAiSettingsForm";
 import { useFaceStatus } from "../../../hooks/useFaceStatus";
 
 /**
@@ -18,7 +18,7 @@ import { useFaceStatus } from "../../../hooks/useFaceStatus";
  */
 export function CharactersSection() {
   const qc = useQueryClient();
-  const { settings, setSettings, saving, save } = useSettings();
+  const { settings, setSettings, saving, save } = useAiSettingsForm();
   const { data: faces } = useFaceStatus();
 
   const run = async (command: "download" | "download-cancel") => {

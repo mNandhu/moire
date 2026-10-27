@@ -1,10 +1,10 @@
 import { Section } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { Checkbox } from "../../../components/ui/Checkbox";
-import { useSettings } from "../SettingsContext";
+import { useAiSettingsForm } from "../useAiSettingsForm";
 
 export function PromptTagsSection() {
-  const { settings, setSettings, saving, save } = useSettings();
+  const { settings, setSettings, saving, save } = useAiSettingsForm();
 
   return (
     <div className="space-y-5">

@@ -14,9 +14,9 @@ import {
   type AiLibraryCoverage,
 } from "../lib/ai";
 import { libraryPageHref, useAiCoverage, useLibraries } from "../lib/queries";
-import { SettingsProvider, useSettings } from "./settings/SettingsContext";
-import { ModelStatusLine } from "./settings/sections/ModelSection";
-import { ActiveJob, RecentJobs, ResetAiTags } from "./settings/sections/JobsSection";
+import { AiControllerProvider, useAiController } from "../hooks/useAiController";
+import { ModelStatusLine } from "../components/ai/ModelStatus";
+import { ActiveJob, RecentJobs, ResetAiTags } from "../components/ai/AiJobs";
 
 /** A thin AI-coverage bar shared by the global stat and per-library rows. */
 function CoverageBar({ tagged, total }: { tagged: number; total: number }) {
@@ -31,7 +31,7 @@ function CoverageBar({ tagged, total }: { tagged: number; total: number }) {
  */
 function TaggingPanel() {
   const { status, running, untaggedLimit, setUntaggedLimit, latestJob, runUntagged } =
-    useSettings();
+    useAiController();
   const busy = isStatusBusy(status);
   const { data: cov } = useAiCoverage({ busy });
   const { data: libs } = useLibraries();
@@ -124,7 +124,7 @@ function LibraryCoverage({
   perLibrary: AiLibraryCoverage[];
   nameOf: (id: string) => string;
 }) {
-  const { running, untaggedLimit, runUntagged } = useSettings();
+  const { running, untaggedLimit, runUntagged } = useAiController();
   const [all, setAll] = useState(false);
   const { todo, done } = libraryCoverageRows(perLibrary, nameOf);
   const shown = all ? todo : todo.slice(0, SHOWN);
@@ -199,7 +199,7 @@ function LibraryCoverage({
 
 export default function AITaggingPage() {
   return (
-    <SettingsProvider>
+    <AiControllerProvider>
       <PageHeader
         title="AI Tagging"
         description="Tag images with a local WD tagger model."
@@ -209,6 +209,6 @@ export default function AITaggingPage() {
         <RecentJobs />
         <ResetAiTags />
       </PageBody>
-    </SettingsProvider>
+    </AiControllerProvider>
   );
 }

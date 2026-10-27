@@ -106,7 +106,7 @@ describe("isStatusBusy", () => {
 
 // --- Commands ---------------------------------------------------------------
 //
-// These six endpoints previously existed only inside SettingsContext, so
+// These six endpoints previously existed only inside the AI controller (hooks/useAiController), so
 // "does cancel-download hit the right URL" needed renderHook + a provider + a
 // fetch mock. As adapters they are the same shape of test as api.test.ts.
 

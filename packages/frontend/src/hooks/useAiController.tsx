@@ -1,17 +1,15 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
-import { useToast } from "../../components/Toasts";
-import { useConfirm } from "../../components/ConfirmDialog";
-import { useAiStatus } from "../../hooks/useAiStatus";
-import type { AISettings, AIStatus, AiJob } from "../../lib/ai";
+import { useToast } from "../components/Toasts";
+import { useConfirm } from "../components/ConfirmDialog";
+import { useAiStatus } from "./useAiStatus";
+import type { AIStatus, AiJob } from "../lib/ai";
 import {
-  fetchAiSettings,
   cancelJobMessage,
   postAiJobCancel,
   postClearAiTags,
@@ -20,24 +18,19 @@ import {
   postModelLoadCancel,
   postModelUnload,
   postTagUntagged,
-  saveAiSettings,
-} from "../../lib/ai";
-import { errorText } from "../../lib/api";
-
+} from "../lib/ai";
+import { errorText } from "../lib/api";
 
 type LatestJob = AiJob | null;
 
 /**
- * All AI settings state + actions shared across settings sections.
- * Lives once so sections (Model, Tagging, Prompt tags, Jobs) read/write the
- * same `settings`/`status` without prop-threading. Independent future sections
- * (e.g. Appearance) are free to own local state and ignore this context.
+ * The AI tagging controller: polled status plus the job and model commands,
+ * sharing one busy flag and toast policy. Mounted by the AI Tagging page and
+ * the Settings model card; the editable settings form is a separate hook
+ * (`useAiSettingsForm`).
  */
-export type SettingsController = {
-  settings: AISettings | null;
-  setSettings: React.Dispatch<React.SetStateAction<AISettings | null>>;
+export type AiController = {
   status: AIStatus | undefined;
-  saving: boolean;
   running: boolean;
   isModelLoaded: boolean;
   isModelLoading: boolean;
@@ -45,7 +38,6 @@ export type SettingsController = {
   progressPct: number;
   untaggedLimit: number;
   setUntaggedLimit: (n: number) => void;
-  save: () => Promise<void>;
   loadModel: () => Promise<void>;
   cancelModelLoad: () => Promise<void>;
   cancelModelDownload: () => Promise<void>;
@@ -56,11 +48,9 @@ export type SettingsController = {
   cancelJob: (jobId: string) => Promise<void>;
 };
 
-function useSettingsController(): SettingsController {
+function useAiControllerState(): AiController {
   const { push } = useToast();
   const confirm = useConfirm();
-  const [settings, setSettings] = useState<AISettings | null>(null);
-  const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [untaggedLimit, setUntaggedLimit] = useState(200);
 
@@ -69,18 +59,6 @@ function useSettingsController(): SettingsController {
 
   const isModelLoaded = Boolean(status?.model?.loaded);
   const isModelLoading = status?.model_load?.status === "loading";
-
-  // Initial load
-  useEffect(() => {
-    fetchAiSettings()
-      .then(setSettings)
-      .catch((e) => push(`Failed to load AI settings: ${errorText(e)}`, "error"));
-  }, [push]);
-
-  // Seed the editable form from polled status until the user's copy loads.
-  useEffect(() => {
-    if (status?.settings) setSettings((prev) => prev ?? status.settings);
-  }, [status?.settings]);
 
   // The job being worked on, else the newest: a job queued behind the
   // running one mustn't take its place on the page.
@@ -121,19 +99,6 @@ function useSettingsController(): SettingsController {
       (r) => cancelJobMessage(r.ok),
       "Failed to cancel"
     );
-
-  const save = async () => {
-    if (!settings) return;
-    setSaving(true);
-    try {
-      setSettings(await saveAiSettings(settings));
-      push("Saved AI settings", "success");
-    } catch (e) {
-      push(`Failed to save: ${errorText(e)}`, "error");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const loadModel = () =>
     runCommand(
@@ -199,10 +164,7 @@ function useSettingsController(): SettingsController {
   };
 
   return {
-    settings,
-    setSettings,
     status,
-    saving,
     running,
     isModelLoaded,
     isModelLoading,
@@ -210,7 +172,6 @@ function useSettingsController(): SettingsController {
     progressPct,
     untaggedLimit,
     setUntaggedLimit,
-    save,
     loadModel,
     cancelModelLoad,
     cancelModelDownload,
@@ -221,15 +182,15 @@ function useSettingsController(): SettingsController {
   };
 }
 
-const Ctx = createContext<SettingsController | null>(null);
+const Ctx = createContext<AiController | null>(null);
 
-export function SettingsProvider({ children }: { children: ReactNode }) {
-  const controller = useSettingsController();
+export function AiControllerProvider({ children }: { children: ReactNode }) {
+  const controller = useAiControllerState();
   return <Ctx.Provider value={controller}>{children}</Ctx.Provider>;
 }
 
-export function useSettings(): SettingsController {
+export function useAiController(): AiController {
   const v = useContext(Ctx);
-  if (!v) throw new Error("useSettings must be used within <SettingsProvider>");
+  if (!v) throw new Error("useAiController must be used within <AiControllerProvider>");
   return v;
 }

@@ -1,12 +1,13 @@
 import { Section } from "../../../components/ui/Card";
 import { ModelSection } from "./ModelSection";
+import { AiControllerProvider } from "../../../hooks/useAiController";
 import { Button } from "../../../components/ui/Button";
 import { Input, Field } from "../../../components/ui/Input";
 import { Checkbox } from "../../../components/ui/Checkbox";
-import { useSettings } from "../SettingsContext";
+import { useAiSettingsForm } from "../useAiSettingsForm";
 
 export function TaggingSection() {
-  const { settings, setSettings, saving, save } = useSettings();
+  const { settings, setSettings, saving, save } = useAiSettingsForm();
 
   return (
     <div className="space-y-5">
@@ -100,7 +101,9 @@ export function TaggingSection() {
 
           <Section title="Model">
             <div className="space-y-5">
-            <ModelSection />
+            <AiControllerProvider>
+              <ModelSection />
+            </AiControllerProvider>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-4 border-t border-line">
               <Field
                 label="Model (Hugging Face repo)"
