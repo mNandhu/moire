@@ -152,7 +152,7 @@ async def test_name_only_edit_of_unnormalized_path_does_not_rescan(
     # dialog re-sends its path, which now arrives normalized.
     import sqlalchemy as sa
 
-    from moire.api import libraries as libs_api
+    from moire.services import library_ops
     from moire.database import schema as t
     from moire.database.db import async_tx
 
@@ -163,7 +163,7 @@ async def test_name_only_edit_of_unnormalized_path_does_not_rescan(
             )
         )
     scans: list[str] = []
-    monkeypatch.setattr(libs_api, "scan_library_async", lambda i, p: scans.append(i))
+    monkeypatch.setattr(library_ops, "scan_library_async", lambda i, p: scans.append(i))
 
     resp = await client.patch(
         "/libraries/L1", json={"name": "new", "path": str(tmp_path) + "/"}

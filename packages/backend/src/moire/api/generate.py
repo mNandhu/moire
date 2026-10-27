@@ -13,14 +13,13 @@ from fastapi import Query, APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from ..models.library import LibraryIn
 from ..services import (
     comfy_models,
     comfy_settings,
     generation_batches,
     generation_estimate,
     generator_setup,
-    library_watch,
+    library_ops,
     lora_presets,
     outfits,
     preset_store,
@@ -183,13 +182,7 @@ async def _settings_view() -> dict[str, Any]:
     out = comfy_settings.public(s)
     out["output_path"] = None
     if s.get("output_library_id"):
-        from ..api.libraries import list_libraries
-
-        lib = next(
-            (x for x in await list_libraries() if x["_id"] == s["output_library_id"]),
-            None,
-        )
-        out["output_path"] = lib["path"] if lib else None
+        out["output_path"] = await library_ops.path_of(s["output_library_id"])
     return out
 
 
@@ -209,20 +202,13 @@ async def put_comfyui(body: ComfyPatch):
         if not output_path.strip():
             patch["output_library_id"] = None
         else:
-            from ..api.libraries import add_library, update_library
-            from ..models.library import LibraryUpdate
-
-            try:
-                lib = await add_library(
-                    LibraryIn(path=output_path, name="ComfyUI output")
-                )
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e)) from e
             # Outputs reach the library through its watcher, so a reused
             # library with watching off gets it turned on.
-            if not library_watch.is_watching(lib["_id"]):
-                await update_library(lib["_id"], LibraryUpdate(watch_enabled=True))
-            patch["output_library_id"] = lib["_id"]
+            try:
+                lib_id = await library_ops.ensure_watched(output_path, "ComfyUI output")
+            except library_ops.BadPath as e:
+                raise HTTPException(status_code=400, detail=str(e)) from e
+            patch["output_library_id"] = lib_id
     if patch.get("ca_cert"):
         import ssl
 

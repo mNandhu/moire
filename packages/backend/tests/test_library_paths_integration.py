@@ -49,10 +49,10 @@ async def test_a_case_only_edit_is_not_a_move(client, temp_db, tmp_path, monkeyp
         conn.execute(
             sa.insert(t.libraries), {"_id": "L", "path": str(lib), "name": "l"}
         )
-    from moire.api import libraries
+    from moire.services import library_ops
 
     moved = []
-    monkeypatch.setattr(libraries, "restart_scan", lambda *a: moved.append(a))
+    monkeypatch.setattr(library_ops, "restart_scan", lambda *a: moved.append(a))
     (tmp_path / "images").mkdir()  # the PATCH checks the folder exists
     resp = await client.patch("/libraries/L", json={"path": str(tmp_path / "images")})
     assert resp.status_code == 200, resp.text

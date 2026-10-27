@@ -1,78 +1,24 @@
-import logging
-import hashlib
-from pathlib import Path
-
 from fastapi import APIRouter, HTTPException
 import anyio  # type: ignore[import-not-found]
 
 import sqlalchemy as sa
 
-from ..core.config import settings
-from ..database.db import async_conn, async_tx
+from ..database.db import async_conn
 from ..database import schema as t
 from ..models.library import (
     LibraryDiscoverIn,
     LibraryIn,
     LibraryUpdate,
 )
-from ..services import activity, library_discover, library_nesting
-from ..services.scanner import cancel_scan, restart_scan, scan_library_async
-
-from ..services.storage_fs import delete_by_prefix
-from ..services import image_delete, tag_index
-from ..services import library_watch
+from ..services import library_discover, library_ops
+from ..services.scanner import scan_library_async
 
 router = APIRouter()
-logger = logging.getLogger("moire.libraries")
-
-# Columns the list/summary views expose (kept minimal).
-_LIB_LIST_COLS = (
-    t.libraries.c._id,
-    t.libraries.c.path,
-    t.libraries.c.name,
-    t.libraries.c.indexed_count,
-    t.libraries.c.last_scanned,
-    t.libraries.c.scanning,
-    t.libraries.c.scan_total,
-    t.libraries.c.scan_done,
-    t.libraries.c.scan_error,
-    t.libraries.c.scan_failed_count,
-    t.libraries.c.watch_enabled,
-    t.libraries.c.last_event_at,
-)
-
-
-async def _rescan_libraries_around(path: str, *, exclude: str) -> None:
-    """Rescan every library holding ``path``, so it indexes the files of a
-    library that was inside it and no longer is (removed, or moved away)."""
-    async with async_conn() as conn:
-        rows = (
-            await conn.execute(sa.select(t.libraries.c._id, t.libraries.c.path))
-        ).fetchall()
-    key = library_nesting.path_key(path)
-    for r in rows:
-        if (
-            r._id != exclude
-            and r.path
-            and library_nesting.is_inside(key, library_nesting.path_key(r.path))
-        ):
-            scan_library_async(r._id, r.path)
-
-
-def library_id_for(path: str) -> str:
-    """A library's id, from its (normalized) folder: the same folder added
-    again gets the same id, so what points at its images by `_id` (a
-    generation's outputs, a pinned cover) finds them again after the rescan.
-    Libraries added before this keep their random ids."""
-    return hashlib.sha1(path.encode("utf-8")).hexdigest()[:32]
 
 
 @router.get("")
 async def list_libraries():
-    async with async_conn() as conn:
-        rows = (await conn.execute(sa.select(*_LIB_LIST_COLS))).fetchall()
-    deleting = activity.running("delete")
-    return [{**r._mapping, "deleting": r._id in deleting} for r in rows]
+    return await library_ops.listing()
 
 
 @router.post("/discover")
@@ -92,95 +38,21 @@ async def discover_libraries(body: LibraryDiscoverIn):
 
 @router.post("")
 async def add_library(body: LibraryIn):
-    # Dedupe before touching the filesystem: an already-registered library
-    # whose drive is temporarily offline (unplugged external disk, unmounted
-    # share) should still return the existing record on a repeat POST, not a
-    # 400 that makes it look unregistered.
-    # Compare folder keys, so a library stored before paths were normalized
-    # (`D:/images/`) or spelled in another case on Windows (`d:/Images`) still
-    # dedupes, the same way the add-library preview calls it registered.
-    async with async_conn() as conn:
-        rows = (await conn.execute(sa.select(t.libraries))).fetchall()
-    key = library_nesting.path_key(body.path)
-    existing = next(
-        (r for r in rows if r.path and library_nesting.path_key(r.path) == key), None
-    )
-    if existing:
-        return dict(existing._mapping)
-
-    if not await anyio.to_thread.run_sync(lambda: Path(body.path).is_dir()):  # type: ignore[attr-defined]
-        raise HTTPException(
-            status_code=400,
-            detail=f"Path does not exist or is not a directory: {body.path}",
-        )
-    watch_enabled = settings.watch_enabled_default
-    async with async_tx() as conn:
-        lib_id = library_id_for(body.path)
-        await conn.execute(
-            sa.insert(t.libraries).values(
-                _id=lib_id,
-                path=body.path,
-                name=body.name or body.path,
-                indexed_count=0,
-                last_scanned=None,
-                watch_enabled=watch_enabled,
-            )
-        )
-    library_nesting.invalidate()
-    # trigger initial scan in background; when it finishes, any library this
-    # one sits inside hands over its copies of these files.
-    scan_library_async(lib_id, body.path)
-    if watch_enabled:
-        await anyio.to_thread.run_sync(library_watch.start_watch, lib_id, body.path)  # type: ignore[attr-defined]
-    return {"_id": lib_id, "path": body.path, "name": body.name or body.path}
+    try:
+        return await library_ops.create(body.path, body.name)
+    except library_ops.BadPath as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.delete("/{library_id}")
 async def remove_library(library_id: str):
-    # Shown as deleting until it's gone: a big library takes a while.
-    with activity.track("delete", library_id=library_id):
-        # Cancel an in-flight scan first to avoid the scan recreating rows/files after deletion.
-        # Both join a thread, so off the loop (as main.py's shutdown does).
-        # The watcher goes first, so it can't start a new scan meanwhile.
-        await anyio.to_thread.run_sync(library_watch.stop_watch, library_id)  # type: ignore[attr-defined]
-        await anyio.to_thread.run_sync(cancel_scan, library_id)  # type: ignore[attr-defined]
-
-        async with async_tx() as conn:
-            gone_path = (
-                await conn.execute(
-                    sa.select(t.libraries.c.path).where(t.libraries.c._id == library_id)
-                )
-            ).scalar()
-            await conn.execute(
-                sa.delete(t.libraries).where(t.libraries.c._id == library_id)
-            )
-            # image_tags / image_gen_terms cascade via FK when images are deleted.
-            await image_delete.delete_library_rows_async(conn, library_id)
-        # Every image of this library is gone, so every tag count moved.
-        tag_index.invalidate()
-        library_nesting.invalidate()
-        # A library it sat inside takes its folder back.
-        if gone_path:
-            await _rescan_libraries_around(gone_path, exclude=library_id)
-        # remove thumbnail files for this library
-        try:
-            await anyio.to_thread.run_sync(lambda: delete_by_prefix(f"{library_id}/"))  # type: ignore[attr-defined]
-        except Exception:
-            # The library is already gone from the DB; leftover thumbs only waste space.
-            logger.warning(
-                "Failed to delete thumbnails for library %s", library_id, exc_info=True
-            )
+    await library_ops.remove(library_id)
     return {"removed": library_id}
 
 
 @router.post("/{library_id}/rescan")
 async def rescan_library(library_id: str):
-    async with async_conn() as conn:
-        path = (
-            await conn.execute(
-                sa.select(t.libraries.c.path).where(t.libraries.c._id == library_id)
-            )
-        ).scalar()
+    path = await library_ops.path_of(library_id)
     if path is None:
         raise HTTPException(status_code=404, detail="Library not found")
     scan_library_async(library_id, path)
@@ -231,50 +103,9 @@ async def update_library(library_id: str, body: LibraryUpdate):
     update_doc = {k: v for k, v in body.model_dump(exclude_unset=True).items()}
     if not update_doc:
         raise HTTPException(status_code=400, detail="No fields to update")
-    if "path" in update_doc and (
-        update_doc["path"] is None
-        or not await anyio.to_thread.run_sync(lambda: Path(update_doc["path"]).is_dir())
-    ):  # type: ignore[attr-defined]
-        raise HTTPException(
-            status_code=400,
-            detail=f"Path does not exist or is not a directory: {update_doc['path']}",
-        )
-    async with async_tx() as conn:
-        old = (
-            await conn.execute(
-                sa.select(t.libraries).where(t.libraries.c._id == library_id)
-            )
-        ).first()
-        if old is None:
-            raise HTTPException(status_code=404, detail="Library not found")
-        await conn.execute(
-            sa.update(t.libraries)
-            .where(t.libraries.c._id == library_id)
-            .values(**update_doc)
-        )
-        doc = (
-            await conn.execute(
-                sa.select(t.libraries).where(t.libraries.c._id == library_id)
-            )
-        ).first()
-    result = dict(doc._mapping) if doc else None
-    new_path = update_doc.get("path", old._mapping.get("path"))
-    # Compare folder keys, so a name-only edit of a library stored as `/x/`
-    # (or a case-only edit on Windows) doesn't count as a move.
-    path_changed = "path" in update_doc and library_nesting.path_key(
-        update_doc["path"]
-    ) != library_nesting.path_key(old._mapping.get("path") or "")
-    if path_changed:
-        library_nesting.invalidate()
-        restart_scan(library_id, new_path)
-        # A library it was inside takes the old folder back.
-        await _rescan_libraries_around(old._mapping["path"], exclude=library_id)
-    watch_enabled = update_doc.get("watch_enabled", old._mapping.get("watch_enabled"))
-    if path_changed or "watch_enabled" in update_doc:
-        if watch_enabled:
-            await anyio.to_thread.run_sync(  # type: ignore[attr-defined]
-                library_watch.start_watch, library_id, new_path
-            )
-        else:
-            await anyio.to_thread.run_sync(library_watch.stop_watch, library_id)  # type: ignore[attr-defined]
-    return result
+    try:
+        return await library_ops.update(library_id, update_doc)
+    except library_ops.BadPath as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except library_ops.NotFound as e:
+        raise HTTPException(status_code=404, detail="Library not found") from e

@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from moire.api import libraries
+from moire.services import library_ops
 from moire.services import library_watch
 
 pytestmark = pytest.mark.asyncio
@@ -15,7 +15,7 @@ async def test_delete_does_not_block_the_loop_on_thread_joins(client, monkeypatc
     def slow_join(*_a, **_k):
         time.sleep(0.2)
 
-    monkeypatch.setattr(libraries, "cancel_scan", slow_join)
+    monkeypatch.setattr(library_ops, "cancel_scan", slow_join)
     monkeypatch.setattr(library_watch, "stop_watch", slow_join)
 
     ticks = 0
