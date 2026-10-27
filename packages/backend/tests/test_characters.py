@@ -3,7 +3,7 @@ folded into its full one, and what the user sets."""
 
 import pytest
 
-from moire.services import characters, tag_browse, tag_categories
+from moire.services import character_look, characters, tag_browse, tag_categories
 
 
 def _chars(*names, **candidates):
@@ -20,12 +20,12 @@ def _chars(*names, **candidates):
 
 
 def test_colour_words_come_from_hair_and_eyes_only():
-    assert characters.colour_of("large_innocent_green_eyes") == "green"
-    assert characters.colour_of("light_blue_hair") == "light_blue"
-    assert characters.colour_of("white_hair") == "white"
-    assert characters.colour_of("multicolored_hair") is None
-    assert characters.colour_of("hair_between_eyes") is None
-    assert characters.colour_of("blue_dress") is None
+    assert character_look.colour_of("large_innocent_green_eyes") == "green"
+    assert character_look.colour_of("light_blue_hair") == "light_blue"
+    assert character_look.colour_of("white_hair") == "white"
+    assert character_look.colour_of("multicolored_hair") is None
+    assert character_look.colour_of("hair_between_eyes") is None
+    assert character_look.colour_of("blue_dress") is None
 
 
 def test_palette_prefers_a_real_colour_over_white_hair():
@@ -33,15 +33,15 @@ def test_palette_prefers_a_real_colour_over_white_hair():
     rows = [(f"i{n}", "white_hair") for n in range(10)]
     rows += [(f"i{n}", "green_eyes") for n in range(6)]
     rows += [("i0", "large_innocent_green_eyes")]
-    assert characters.palette(rows, 10) == ["hsl(130 50% 45%)"]
+    assert character_look.palette(rows, 10) == ["hsl(130 50% 45%)"]
 
 
 def test_palette_counts_images_not_tags_and_drops_rare_colours():
     # Arima Kana: red hair on one image of seven is no colour at all.
-    assert characters.palette([("a", "red_hair"), ("a", "red_eyes")], 7) == []
+    assert character_look.palette([("a", "red_hair"), ("a", "red_eyes")], 7) == []
     # Hu Tao: red eyes beat brown hair, which is dull.
     rows = [(i, "red_eyes") for i in "abcd"] + [(i, "brown_hair") for i in "abcd"]
-    assert characters.palette(rows, 4)[0] == "hsl(355 70% 52%)"
+    assert character_look.palette(rows, 4)[0] == "hsl(355 70% 52%)"
 
 
 def test_signature_tags_are_common_here_and_rare_elsewhere():
@@ -53,13 +53,13 @@ def test_signature_tags_are_common_here_and_rare_elsewhere():
         "genshin_impact": 10,
         "other": 3,
     }
-    got = characters.signature(
+    got = character_look.signature(
         counts, 6, library, 100, skip={"other"}, visual=frozenset()
     )
     assert [r["tag"] for r in got] == ["genshin_impact", "top_hat"]
     # with the tagger's list, only what can be seen
     seen = frozenset({"top_hat", "1girl", "gloves"})
-    got = characters.signature(counts, 6, library, 100, skip=set(), visual=seen)
+    got = character_look.signature(counts, 6, library, 100, skip=set(), visual=seen)
     assert [r["tag"] for r in got] == ["top_hat"]
 
 
@@ -332,41 +332,43 @@ async def test_the_list_carries_each_characters_colour(client, seed, monkeypatch
 
 def test_a_share_needs_enough_images_to_be_trusted():
     # 1 of 3 is a third, but could be chance; 2 of 3 is not.
-    assert not characters.confident(1, 3)
-    assert characters.confident(2, 3)
-    assert not characters.confident(1, 2)
-    assert characters.confident(2, 2)
-    assert characters.confident(1, 1)  # a one-image character has only that
-    assert not characters.confident(1, 5)
-    assert characters.confident(2, 6)
+    assert not character_look.confident(1, 3)
+    assert character_look.confident(2, 3)
+    assert not character_look.confident(1, 2)
+    assert character_look.confident(2, 2)
+    assert character_look.confident(1, 1)  # a one-image character has only that
+    assert not character_look.confident(1, 5)
+    assert character_look.confident(2, 6)
     # with more images a third is enough
-    assert characters.confident(4, 12)
-    assert characters.confident(17, 50)
-    assert not characters.confident(0, 5)
-    assert not characters.confident(1, 0)
+    assert character_look.confident(4, 12)
+    assert character_look.confident(17, 50)
+    assert not character_look.confident(0, 5)
+    assert not character_look.confident(1, 0)
 
 
 def test_signature_reads_solo_images_only_when_there_are_enough():
-    assert characters.reads_solo(5, 3)
-    assert not characters.reads_solo(5, 2)
+    assert character_look.reads_solo(5, 3)
+    assert not character_look.reads_solo(5, 2)
     # 3 of 100 alone is too few to judge a look on
-    assert not characters.reads_solo(100, 3)
-    assert characters.reads_solo(100, 10)
-    assert characters.reads_solo(10, 5)
+    assert not character_look.reads_solo(100, 3)
+    assert character_look.reads_solo(100, 10)
+    assert character_look.reads_solo(10, 5)
 
 
 def test_signature_drops_one_off_tags_on_few_images():
     # Arima Kana on three images: red eyes on all, a cap on one.
     counts = {"red_eyes": 3, "blonde_hair": 3, "beret": 1}
     library = {"red_eyes": 10, "blonde_hair": 10, "beret": 1}
-    got = characters.signature(counts, 3, library, 1000, skip=set(), visual=frozenset())
+    got = character_look.signature(
+        counts, 3, library, 1000, skip=set(), visual=frozenset()
+    )
     assert [r["tag"] for r in got] == ["blonde_hair", "red_eyes"]
 
 
 def test_signature_keeps_one_colour_per_slot():
     counts = {"blonde_hair": 9, "brown_hair": 4, "red_eyes": 9, "blue_eyes": 4}
     library = dict.fromkeys(counts, 10)
-    got = characters.signature(
+    got = character_look.signature(
         counts, 10, library, 1000, skip=set(), visual=frozenset()
     )
     assert [r["tag"] for r in got] == ["blonde_hair", "red_eyes"]
@@ -382,7 +384,7 @@ def test_a_multicolour_tag_makes_room_for_a_second_colour():
         {"tag": "black_hair", "count": 5},
         {"tag": "long_hair", "count": 9},
     ]
-    got = [r["tag"] for r in characters.one_colour_per_slot(found)]
+    got = [r["tag"] for r in character_look.one_colour_per_slot(found)]
     assert got == ["red_eyes", "heterochromia", "blue_eyes", "white_hair", "long_hair"]
 
 
@@ -436,14 +438,14 @@ async def test_page_look_is_how_they_are_drawn_and_dressed(client, seed, monkeyp
 
 
 def test_gender_comes_from_the_count_tags():
-    assert characters.gender({"1girl": 9, "solo": 8}, 10) == "girl"
-    assert characters.gender({"1boy": 5, "1girl": 1}, 6) == "boy"
-    assert characters.gender({"multiple_girls": 4, "1girl": 2}, 6) == "girl"
-    assert characters.gender({"2girls": 4}, 6) == "girl"
+    assert character_look.gender({"1girl": 9, "solo": 8}, 10) == "girl"
+    assert character_look.gender({"1boy": 5, "1girl": 1}, 6) == "boy"
+    assert character_look.gender({"multiple_girls": 4, "1girl": 2}, 6) == "girl"
+    assert character_look.gender({"2girls": 4}, 6) == "girl"
     # always drawn with someone of the other kind: can't tell
-    assert characters.gender({"1girl": 6, "1boy": 6}, 6) is None
-    assert characters.gender({"1girl": 2}, 6) is None
-    assert characters.gender({}, 0) is None
+    assert character_look.gender({"1girl": 6, "1boy": 6}, 6) is None
+    assert character_look.gender({"1girl": 2}, 6) is None
+    assert character_look.gender({}, 0) is None
 
 
 async def test_a_plain_tag_page_skips_the_look(client, seed, monkeypatch):

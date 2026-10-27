@@ -7,7 +7,7 @@ the other side follows."""
 import re
 from pathlib import Path
 
-from moire.services import attire, characters, tag_canon
+from moire.services import attire, character_look, tag_canon
 from moire.services.tag_names import KAOMOJIS, canonical_name
 
 LIB = Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib"
@@ -37,15 +37,15 @@ def test_colour_table_matches():
             r"^\s+(\w+): \[(\d+), (\d+), (\d+)\],", block, re.M
         )
     }
-    assert {k: v for k, v in ts.items() if k in characters.COLOURS} == (
-        characters.COLOURS
+    assert {k: v for k, v in ts.items() if k in character_look.COLOURS} == (
+        character_look.COLOURS
     )
-    assert set(ts) - set(characters.COLOURS) == set(characters.NEUTRALS)
+    assert set(ts) - set(character_look.COLOURS) == set(character_look.NEUTRALS)
 
 
 def test_multicolour_tags_match():
     block = _block(_src("tagColour.ts"), "const MULTICOLOUR")
-    py = set().union(*characters.MULTICOLOUR.values())
+    py = set().union(*character_look.MULTICOLOUR.values())
     assert set(_quoted(block)) == py
 
 

@@ -4,7 +4,7 @@ A recipe is computed from the library, with the user's edits on top (the
 ``recipe_edits`` row; an edit wins, like the ``characters`` overrides):
 
 - the character tag (the page key, the tagger's full name);
-- identity tags: the character's signature (:func:`characters.signature`)
+- identity tags: the character's signature (:func:`character_look.signature`)
   limited to body features (hair, eyes, ears, ...); attire belongs to the
   outfit, and scene, pose and expression tags to neither;
 - the default outfit: the signature's attire tags (phase 4 shows it);
@@ -30,6 +30,7 @@ from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from . import (
     attire,
+    character_look,
     characters,
     comfy_models,
     image_visibility,
@@ -247,9 +248,9 @@ async def _uses(names: list[str]) -> list[LoraUse]:
 
 
 async def character_key(tag: str) -> tuple[str, list[str], dict, list] | None:
-    """``characters._named`` for a character in the library (or made by
+    """``characters.named`` for a character in the library (or made by
     hand); None when ``tag`` isn't one."""
-    key, names, key_of, rows = await characters._named(tag)
+    key, names, key_of, rows = await characters.named(tag)
     if key not in key_of and not await characters.is_made(key, rows):
         return None
     return key, names, key_of, rows
@@ -376,7 +377,7 @@ def clean(patch: dict) -> dict:
     out: dict[str, Any] = {}
     if "gender" in patch:
         g = patch["gender"]
-        if g is not None and g not in characters.GENDERS:
+        if g is not None and g not in character_look.GENDERS:
             raise RecipeError("gender must be girl, boy, other or null")
         out["gender"] = g
     if "dropped" in patch:
