@@ -156,6 +156,16 @@ belongs in this file.
   settings, joiners, stray weights). The raw prompt is never changed, so a
   parser improvement reaches existing images by reprojection (a named
   `tag_migrations` step).
+- **Prompt weight**: how strongly the prompt asked for a prompt tag, read from
+  its emphasis by the rule of the tool that made the image (`gen.source`):
+  ComfyUI weighs only a closed `(...)`, x1.1, and an explicit `(...:w)`
+  replaces the weight around it; A1111 multiplies every `(` (x1.1 or its
+  `:w`) and divides by 1.1 per `[`. `{...}` and a bare `smile:1.05` are text
+  to both. Stored beside the tag, never in it: `gen.prompt_weights`
+  (`{term: weight}`, positive prompt only, terms not at 1, through merge
+  rules) and the `weight` column of `image_gen_terms`.
+  (`prompt_parse.Piece.weight`, `gen_metadata.prompt_weights`; the frontend's
+  `promptOutline` reads Generate's prompt with the ComfyUI rule.)
 - **Scan**: discovering a library's files, indexing them, and **reconciling**
   away images that vanished from disk. (`services/scanner.py`, with
   `thumbnailer.py` and the watcher's `scan_incremental.py`;

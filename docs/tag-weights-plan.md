@@ -1,6 +1,17 @@
 # Tag weights plan
 
-Status: not started. Planned as its own session, with no other work running alongside it.
+Status: steps 1 to 4 done 2026-10-27 (cfb0aa1..9e1a9cf); step 5 (gallery) skipped by decision.
+
+## Decisions (2026-10-27)
+
+- **Rule by source.** `Piece.weight(gen.source)`: ComfyUI (only a closed `(` weighs, x1.1; an explicit `:w` replaces the outer weight, as `comfy/sd1_clip.py` `token_weights` does) or A1111 (every `(` multiplies, `[` divides by 1.1, closed or not). `{}` is 1.0 for both; bare `smile:1.05` outside parens is 1.0 (neither tool reads it). One shared fixture: `tests/fixtures/mirrored/prompt_terms.json` rows carry `[name, kind, comfyui, a1111]`; the frontend checks the ComfyUI column.
+- **Storage.** `gen.prompt_weights` (positive prompt only, terms not at 1, a repeated term keeps the weight farthest from 1, carried through merge/split rules) plus a derived `weight` column on `image_gen_terms` (1.0 default) for aggregates and future `smile > 1.2` filters. `image_tags` and its writer are untouched. Migration `gen_term_weights` recreates the table and reprojects.
+- **Image view.** The tag run shows the weight (amber number, "prompted at 1.2" in the bubble) on whichever entry lists the prompted name. The Prompt tab already shows the raw prompt, so it is unchanged. Copy tags writes `(name:w)`.
+- **Tag panel.** "Prompt weight: 0.8 to 1.4, mostly 1.2" from `/tags/detail` `weights`.
+- **Gallery.** Skipped: tiles have no hover tag list.
+- **Ctrl+Up/Down** (`promptEdit.bumpWeight`) starts from the weight ComfyUI reads, so a member of `(a, b:1.2)` goes to 1.25, not 1.05.
+
+Open: weights filter in the gallery (`smile > 1.2`) if wanted; A1111-syntax encode nodes inside ComfyUI graphs (smZ) are read with the ComfyUI rule.
 
 ## Goal
 
