@@ -14,7 +14,6 @@ from . import library_nesting
 from . import scan_reconcile, thumbnailer
 from .scan_writer import ScanWriter, retry
 from .storage_fs import put_thumb, thumb_path
-import hashlib
 import logging
 from dataclasses import dataclass
 from datetime import datetime
@@ -26,14 +25,6 @@ import time
 from ..core.config import settings
 
 logger = logging.getLogger("moire.scanner")
-
-
-def file_hash(path: Path) -> str:
-    h = hashlib.sha1()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def image_id_for(library_id: str, root_path: Path, p: Path) -> str:

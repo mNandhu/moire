@@ -58,21 +58,6 @@ def _get_hf_endpoint() -> str:
     return hf_endpoint.rstrip("/")
 
 
-async def _download_if_missing(url: str, dst_path: str) -> None:
-    # Back-compat helper: keep simple behavior for any other callers.
-    os.makedirs(os.path.dirname(dst_path), exist_ok=True)
-    if os.path.exists(dst_path):
-        return
-
-    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
-        async with client.stream("GET", url) as r:
-            r.raise_for_status()
-            with open(dst_path, "wb") as f:
-                async for chunk in r.aiter_bytes(chunk_size=1024 * 256):
-                    if chunk:
-                        f.write(chunk)
-
-
 @dataclass
 class DownloadFileState:
     name: str
