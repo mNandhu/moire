@@ -156,7 +156,6 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
     >
       <ImageThumbnail
         src={src}
-        preResolved={!!item.thumb_url}
         blurhash={item.blurhash}
         alt={item.path}
         width={item.width}

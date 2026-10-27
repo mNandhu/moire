@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  clampDensity,
   gridColumns,
   PHONE_DEFAULT_DENSITY,
   targetTileWidth,
@@ -61,6 +62,12 @@ describe("gridColumns", () => {
   it("clamps out-of-range density indices instead of returning NaN", () => {
     expect(targetTileWidth(-5)).toBe(DENSITY_STEPS[0]);
     expect(targetTileWidth(99)).toBe(DENSITY_STEPS[DENSITY_STEPS.length - 1]);
+  });
+
+  it("clampDensity rounds to a step and clamps to the ends", () => {
+    expect(clampDensity(1.4)).toBe(1);
+    expect(clampDensity(-3)).toBe(0);
+    expect(clampDensity(99)).toBe(DENSITY_STEPS.length - 1);
   });
 });
 

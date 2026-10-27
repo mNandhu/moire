@@ -55,7 +55,6 @@ export function ImageThumbnail({
   width,
   height,
   priority = false,
-  preResolved = false,
   blurhash,
   getRoot,
   eager = false,
@@ -69,7 +68,6 @@ export function ImageThumbnail({
   width?: number;
   height?: number;
   priority?: boolean; // High priority for above-the-fold images
-  preResolved?: boolean; // src is already a usable URL; skip resolveMediaUrl
   blurhash?: string; // BlurHash placeholder shown until the image loads
   // Scroll container to use as the IntersectionObserver root. Must be the actual
   // scrolling element: rootMargin only expands the root, while intermediate
@@ -86,7 +84,6 @@ export function ImageThumbnail({
       src,
       priority,
       eager,
-      preResolved,
       getRoot,
       // Start loading ~1.5 screens early so thumbs are decoded by the time they
       // scroll into view. Shares one constant with the virtualized grid's

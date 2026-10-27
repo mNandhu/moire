@@ -37,9 +37,14 @@ export const PHONE_DEFAULT_DENSITY = 1;
 export const MIN_COLUMNS = 1;
 export const MAX_COLUMNS = 14;
 
+/** A density as a valid step index: rounded and clamped to the steps. */
+export function clampDensity(density: number): number {
+  return Math.max(0, Math.min(DENSITY_STEPS.length - 1, Math.round(density)));
+}
+
 /** Target tile width for a density index, clamped to the available steps. */
 export function targetTileWidth(density: number): number {
-  const i = Math.max(0, Math.min(DENSITY_STEPS.length - 1, Math.round(density)));
+  const i = clampDensity(density);
   return DENSITY_STEPS[i];
 }
 
@@ -58,7 +63,7 @@ export function gridColumns(
 ): number {
   if (containerWidth <= 0) return MIN_COLUMNS;
   if (containerWidth < PHONE_MAX_WIDTH) {
-    const i = Math.max(0, Math.min(DENSITY_STEPS.length - 1, Math.round(density)));
+    const i = clampDensity(density);
     // n tiles and n-1 gutters must fit: n*tile + (n-1)*gap <= width.
     const gap = gapForDensity(i);
     const fit = Math.floor((containerWidth + gap) / (PHONE_MIN_TILE + gap));
@@ -75,7 +80,7 @@ export function gridColumns(
  * and as a cramped seam at 460px.
  */
 export function gapForDensity(density: number): number {
-  const i = Math.max(0, Math.min(DENSITY_STEPS.length - 1, Math.round(density)));
+  const i = clampDensity(density);
   return [16, 14, 12, 10, 8][i];
 }
 

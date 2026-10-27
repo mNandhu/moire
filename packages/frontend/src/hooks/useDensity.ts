@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { useLocalPref } from "./useLocalPref";
 import {
+  clampDensity,
   DEFAULT_DENSITY,
   DENSITY_STEPS,
   PHONE_DEFAULT_DENSITY,
@@ -14,10 +15,6 @@ const KEY = "gallery:density";
 function fallback(): number {
   const phone = window.matchMedia?.(`(max-width: ${PHONE_MAX_WIDTH - 1}px)`)?.matches;
   return phone ? PHONE_DEFAULT_DENSITY : DEFAULT_DENSITY;
-}
-
-function clampStep(n: number): number {
-  return Math.max(0, Math.min(DENSITY_STEPS.length - 1, Math.round(n)));
 }
 
 /**
@@ -34,7 +31,7 @@ export function useDensity() {
   // the other way round.
   const [initial] = useState(fallback);
   const [density, setDensity] = useLocalPref(KEY, initial, {
-    parse: (raw) => (Number.isFinite(Number(raw)) ? clampStep(Number(raw)) : undefined),
+    parse: (raw) => (Number.isFinite(Number(raw)) ? clampDensity(Number(raw)) : undefined),
   });
 
   const zoomIn = useCallback(() => {

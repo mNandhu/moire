@@ -6,10 +6,6 @@ import {
   type UseImageLoadSlot,
 } from "./useImageLoadSlot";
 
-vi.mock("../lib/media", () => ({
-  resolveMediaUrl: vi.fn(async (s: string) => `${s}?resolved`),
-}));
-
 let observers: Array<{ cb: IntersectionObserverCallback }> = [];
 
 beforeEach(() => {
@@ -46,7 +42,6 @@ function setup(props: Partial<Props> = {}, maxConcurrent = 12) {
   function Harness({ src }: { src: string }) {
     slot = useImageLoadSlot({
       eager: true,
-      preResolved: true,
       rootMargin: "0px",
       queue,
       ...props,
@@ -207,12 +202,12 @@ describe("useImageLoadSlot", () => {
     expect(h.slot.assignedSrc).not.toBe("old.jpg");
   });
 
-  it("resolves the media URL when the src is not pre-resolved", async () => {
-    const h = setup({ preResolved: false });
+  it("shows an error and takes no slot when there is no src", () => {
+    const h = setup({ src: "" });
 
-    await act(async () => {});
-
-    expect(h.slot.assignedSrc).toBe("a.jpg?resolved");
+    expect(h.slot.error).toBe(true);
+    expect(h.slot.assignedSrc).toBe(null);
+    expect(h.queue.active).toBe(0);
   });
 
   it("waits for the observer to fire when not eager or priority", () => {

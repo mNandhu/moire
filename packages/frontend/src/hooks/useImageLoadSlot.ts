@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { resolveMediaUrl } from "../lib/media";
 
 /**
  * The thumbnail load-slot module: a global concurrency limit plus the per-tile
@@ -78,7 +77,6 @@ export function useImageLoadSlot({
   src,
   priority = false,
   eager = false,
-  preResolved = false,
   getRoot,
   rootMargin,
   queue = imageLoadQueue,
@@ -86,7 +84,6 @@ export function useImageLoadSlot({
   src: string;
   priority?: boolean;
   eager?: boolean;
-  preResolved?: boolean;
   getRoot?: () => HTMLElement | null;
   rootMargin: string;
   queue?: ImageLoadQueue;
@@ -168,7 +165,7 @@ export function useImageLoadSlot({
   // Acquire a slot, and only then assign the real <img src>, assigning earlier
   // would double-fetch (a preload Image() plus the <img>).
   useEffect(() => {
-    if (!shouldLoad || loaded || error) return;
+    if (!shouldLoad || loaded || error || !src) return;
     if (assignedSrc || enqueuedRef.current) return;
 
     enqueuedRef.current = true;
@@ -190,30 +187,16 @@ export function useImageLoadSlot({
       const token = Symbol("loadToken");
       currentSlotTokenRef.current = token;
 
-      // src already usable (embedded in the list payload): assign directly.
-      if (preResolved) {
-        setAssignedSrc(srcAtEnqueue);
-        return;
-      }
-      // Resolve the real media URL only now (lazy). With FS-backed media this is
-      // a passthrough; the deferral stays cheap and future-proof for any mode
-      // that needs a per-tile network resolve.
-      resolveMediaUrl(srcAtEnqueue)
-        .then((u) => {
-          if (!mountedRef.current || currentSlotTokenRef.current !== token) return;
-          setAssignedSrc(u);
-        })
-        .catch(() => {
-          if (!mountedRef.current || currentSlotTokenRef.current !== token) return;
-          setAssignedSrc(srcAtEnqueue);
-        });
+      // src is the list payload's versioned thumbnail URL: assign directly.
+      setAssignedSrc(srcAtEnqueue);
     });
-  }, [shouldLoad, loaded, error, assignedSrc, src, preResolved, queue]);
+  }, [shouldLoad, loaded, error, assignedSrc, src, queue]);
 
   return {
     assignedSrc,
     loaded,
-    error,
+    // No URL to load (a row without thumb_url) shows as the error state.
+    error: error || !src,
     imgRef,
     onLoad: () => {
       if (!mountedRef.current) return;
