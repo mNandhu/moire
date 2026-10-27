@@ -177,7 +177,7 @@ async def test_generator(generator_id: str, body: TestIn):
 async def get_remix(image_id: str, full: bool = False):
     """The image's workflow for the viewer; with ``full``, what Remix starts
     the composer from."""
-    r = await remix.remix_view(image_id, full)
+    r = await (remix.remix_doc if full else remix.remix_info)(image_id)
     if r is None:
         raise HTTPException(status_code=404, detail="No generation data")
     return r

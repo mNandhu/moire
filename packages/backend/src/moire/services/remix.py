@@ -18,7 +18,13 @@ import sqlalchemy as sa
 
 from ..database import schema as t
 from ..database.db import async_conn
-from . import comfy_models, generator_setup, recipes, tag_categories
+from . import (
+    comfy_models,
+    generation_batches,
+    generator_setup,
+    recipes,
+    tag_categories,
+)
 from .prompt_parse import without_terms
 from .image_tags import find_image
 from .generation_limits import CFG_RANGE, MAX_CHARACTERS, STEPS_RANGE
@@ -128,48 +134,6 @@ def matched_loras(
     return out
 
 
-async def _batch_of(conn, image_id: str) -> dict[str, Any] | None:
-    """The batch and request a Moiré output came from, else None."""
-    row = (
-        await conn.execute(
-            sa.select(
-                t.generation_batches.c._id,
-                t.generation_batches.c.name,
-                t.generation_batches.c.auto_name,
-                t.generation_batches.c.generator_id,
-                t.generation_batches.c.inputs,
-                t.generation_requests.c.seed,
-                t.generation_requests.c.images,
-                t.generation_outputs.c.idx,
-            )
-            .select_from(
-                t.generation_outputs.join(
-                    t.generation_requests,
-                    t.generation_requests.c._id == t.generation_outputs.c.request_id,
-                ).join(
-                    t.generation_batches,
-                    t.generation_batches.c._id == t.generation_requests.c.batch_id,
-                )
-            )
-            .where(t.generation_outputs.c.image_id == image_id)
-            .order_by(t.generation_requests.c._id.desc())
-            .limit(1)
-        )
-    ).first()
-    if row is None or not isinstance(row.inputs, dict):
-        return None
-    return {
-        "id": row._id,
-        "name": row.name,
-        "auto_name": bool(row.auto_name),
-        "generator_id": row.generator_id,
-        "inputs": row.inputs,
-        "seed": row.seed,
-        "images": row.images,
-        "index": row.idx,
-    }
-
-
 async def _lora_table(stems: list[str], installed: list[str]) -> dict[str, str | None]:
     """Stem -> the installed file Moiré sends, for these stems only."""
     if not stems:
@@ -187,17 +151,18 @@ async def _lora_table(stems: list[str], installed: list[str]) -> dict[str, str |
     return {m["stem"]: m["name"] for m in table}
 
 
-async def remix_view(image_id: str, full: bool = True) -> dict[str, Any] | None:
-    """What Remix starts from for ``image_id``; None when it has no
-    generation data. Not ``full``: only what the viewer shows before Remix
-    is clicked (the workflow, the batch), none of the heavier reads."""
+async def _info(
+    image_id: str,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None] | None:
+    """The light read, plus the image's ``gen`` and ComfyUI graph for the
+    full one; None when it has no generation data."""
     img = await find_image(image_id)
     gen = img.get("gen") if img else None
     if not isinstance(gen, dict) or not gen.get("source"):
         return None
     image_id = img["_id"]
     async with async_conn() as conn:
-        batch = await _batch_of(conn, image_id)
+        batch = await generation_batches.batch_of_image(conn, image_id)
 
     workflow = None
     graph = None
@@ -218,9 +183,21 @@ async def remix_view(image_id: str, full: bool = True) -> dict[str, Any] | None:
         "seed": gen.get("seed") if isinstance(gen.get("seed"), int) else None,
         "batch": batch,
     }
-    if not full:
-        return out
+    return out, gen, graph
 
+
+async def remix_info(image_id: str) -> dict[str, Any] | None:
+    """What the viewer shows before Remix is clicked (the workflow, the
+    batch), none of the heavier reads; None without generation data."""
+    found = await _info(image_id)
+    return found[0] if found else None
+
+
+async def _base_settings(
+    gen: dict[str, Any], graph: dict[str, Any] | None, image_id: str
+) -> tuple[tuple[int, int] | None, dict[str, Any]]:
+    """The base size and sampling the image was made with: the graph's
+    literal values over what the scan read, or an A1111 image's size line."""
     size = None
     sampling: dict[str, Any] = {
         k: gen.get(k) for k in ("sampler", "steps", "cfg") if gen.get(k) is not None
@@ -240,18 +217,13 @@ async def remix_view(image_id: str, full: bool = True) -> dict[str, Any] | None:
                 )
             ).scalar()
         size = a1111_size(raw.get("parameters") if isinstance(raw, dict) else None)
+    return size, sampling
 
-    have = await comfy_models.installed()
-    have.update(await comfy_models.sampling())
-    used = [lo for lo in gen.get("loras") or [] if isinstance(lo.get("name"), str)]
-    table = await _lora_table(
-        list(dict.fromkeys(model_stem(lo["name"]) for lo in used)), have["lora"]
-    )
 
-    # Characters with a recipe move to Character blocks: their name and the
-    # identity tags the block adds back leave the prompt. Worn things stay
-    # (the Outfit block comes later).
-    prompt = strip_networks(gen.get("prompt") or "")
+async def _split_characters(prompt: str) -> tuple[list[str], str]:
+    """Characters with a recipe move to Character blocks: their name and the
+    identity tags the block adds back leave the prompt. Worn things stay
+    (the Outfit block comes later)."""
     vocab = await tag_categories.load()
     characters: list[str] = []
     drop: set[str] = set()
@@ -266,18 +238,39 @@ async def remix_view(image_id: str, full: bool = True) -> dict[str, Any] | None:
         drop.update(canonical_name(c["tag"]) for c in r["identity"] if not c["dropped"])
     if drop:
         prompt = without_terms(prompt, drop, canonical_name)
+    return characters, prompt
 
-    model = gen.get("model")
-    checkpoint = None
-    if isinstance(model, str) and model:
-        checkpoint = next(
-            (
-                c
-                for c in have["checkpoint"]
-                if c == model or model_stem(c) == model_stem(model)
-            ),
-            None,
-        )
+
+def _match_checkpoint(model: object, installed: list[str]) -> str | None:
+    """The installed checkpoint the image's ``model`` names (same file or
+    stem), else None. Pure."""
+    if not isinstance(model, str) or not model:
+        return None
+    return next(
+        (c for c in installed if c == model or model_stem(c) == model_stem(model)),
+        None,
+    )
+
+
+async def remix_doc(image_id: str) -> dict[str, Any] | None:
+    """What Remix starts the composer from for ``image_id``: the light read
+    plus prompt, characters, size, sampling, checkpoint and LoRAs; None
+    without generation data."""
+    found = await _info(image_id)
+    if found is None:
+        return None
+    out, gen, graph = found
+    size, sampling = await _base_settings(gen, graph, out["image_id"])
+
+    have = await comfy_models.installed()
+    have.update(await comfy_models.sampling())
+    used = [lo for lo in gen.get("loras") or [] if isinstance(lo.get("name"), str)]
+    table = await _lora_table(
+        list(dict.fromkeys(model_stem(lo["name"]) for lo in used)), have["lora"]
+    )
+    characters, prompt = await _split_characters(
+        strip_networks(gen.get("prompt") or "")
+    )
 
     return {
         **out,
@@ -287,6 +280,6 @@ async def remix_view(image_id: str, full: bool = True) -> dict[str, Any] | None:
         "width": size[0] if size else None,
         "height": size[1] if size else None,
         "sampling": checked_sampling(sampling, have),
-        "checkpoint": checkpoint,
+        "checkpoint": _match_checkpoint(gen.get("model"), have["checkpoint"]),
         "loras": matched_loras(used, table),
     }

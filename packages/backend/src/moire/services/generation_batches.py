@@ -176,6 +176,48 @@ async def get_batch(batch_id: int, manager: GenerationManager) -> dict[str, Any]
     }
 
 
+async def batch_of_image(conn, image_id: str) -> dict[str, Any] | None:
+    """The batch and request a Moiré output came from, else None."""
+    row = (
+        await conn.execute(
+            sa.select(
+                t.generation_batches.c._id,
+                t.generation_batches.c.name,
+                t.generation_batches.c.auto_name,
+                t.generation_batches.c.generator_id,
+                t.generation_batches.c.inputs,
+                t.generation_requests.c.seed,
+                t.generation_requests.c.images,
+                t.generation_outputs.c.idx,
+            )
+            .select_from(
+                t.generation_outputs.join(
+                    t.generation_requests,
+                    t.generation_requests.c._id == t.generation_outputs.c.request_id,
+                ).join(
+                    t.generation_batches,
+                    t.generation_batches.c._id == t.generation_requests.c.batch_id,
+                )
+            )
+            .where(t.generation_outputs.c.image_id == image_id)
+            .order_by(t.generation_requests.c._id.desc())
+            .limit(1)
+        )
+    ).first()
+    if row is None or not isinstance(row.inputs, dict):
+        return None
+    return {
+        "id": row._id,
+        "name": row.name,
+        "auto_name": bool(row.auto_name),
+        "generator_id": row.generator_id,
+        "inputs": row.inputs,
+        "seed": row.seed,
+        "images": row.images,
+        "index": row.idx,
+    }
+
+
 async def list_batches(
     manager: GenerationManager, *, limit: int = 50, before: int | None = None
 ) -> list[dict[str, Any]]:
