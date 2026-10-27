@@ -19,7 +19,9 @@ Three passes, all pure:
    it is emphasis, as ComfyUI reads it. Lora / embedding tokens and emoticon
    tags (``:d``, ``>_<``) pass whole.
 2. **Clean** each piece: whitespace collapsed, stray edge punctuation and,
-   inside a group, a trailing ``:weight`` dropped, lowercased.
+   inside a group, a trailing ``:weight`` dropped, lowercased. The piece's
+   emphasis is kept apart as the groups around it, read into a number by
+   :func:`piece_weight` with the rule of the tool that made the image.
 3. **Classify** (:func:`classify`): ``tag``, ``prose`` (a sentence fragment:
    kept in the prompt text, never a tag), ``noise`` (leaked settings, lone
    joiners, stray weights) or ``network`` (a ``<lora:...>`` / embedding token,
@@ -31,8 +33,9 @@ becomes a prompt tag, so it can be improved and simply re-run (reprojection).
 
 from __future__ import annotations
 
+import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 from functools import lru_cache
 
@@ -104,10 +107,66 @@ _QUALIFIER = re.compile(r"\([^()]*\)")
 _WEIGHT_AHEAD = re.compile(r"\s*-?\d*\.?\d+\s*(?:[)\]},]|$)")
 
 
+# A ``:weight`` written last in a ``(...)`` group, which weighs the whole group.
+_GROUP_WEIGHT = re.compile(r":\s*(-?\d*\.?\d+)\s*$")
+
+
+@dataclass(eq=False)
+class _Group:
+    """An emphasis group as scanned. Filled in as the scan goes: its weight
+    and whether it closed are only known at its closer."""
+
+    kind: str  # "(" | "[" | "{"
+    open: int
+    weight: float | None = None
+    closed: bool = False
+    # ``[from:to:0.5]`` or ``[x:0.5]``: A1111 prompt editing, not emphasis.
+    edit: bool = False
+    # Where the last emoticon read in it starts (``(a, :3)``: not a weight).
+    emoticon: int = -1
+
+
+# Weight rules by source. ComfyUI (``comfy/sd1_clip.py`` ``token_weights``):
+# only a closed ``(...)`` weighs, x1.1, and an explicit ``(...:w)`` *replaces*
+# the weight around it; ``[...]``, ``{...}`` and an unclosed ``(`` are text.
+# A1111 (``prompt_parser.parse_prompt_attention``): every ``(`` multiplies,
+# x1.1 or by its explicit ``:w``, every ``[`` divides by 1.1, closed or not;
+# ``{...}`` is text. Outside any group ``smile:1.05`` is text to both.
+WEIGHT_SOURCES = ("comfyui", "a1111")
+
+
+def _comfyui_weight(groups: tuple[_Group, ...]) -> float:
+    w = 1.0
+    for g in groups:  # outermost first
+        if g.kind == "(" and g.closed:
+            w = g.weight if g.weight is not None else w * 1.1
+    return w
+
+
+def _a1111_weight(groups: tuple[_Group, ...]) -> float:
+    w = 1.0
+    for g in groups:
+        if g.kind == "(":
+            w *= g.weight if g.weight is not None else 1.1
+        elif g.kind == "[" and not g.edit:
+            w /= 1.1
+    return w
+
+
 @dataclass(frozen=True)
 class Piece:
     text: str
     kind: str  # "tag" | "prose" | "noise" | "network"
+    # The emphasis groups around it, outermost first. Not part of equality:
+    # two pieces reading the same text are the same piece.
+    groups: tuple[_Group, ...] = field(default=(), compare=False, repr=False)
+
+    def weight(self, source: str | None) -> float:
+        """The piece's prompt weight as ``source`` (``gen.source``) reads it;
+        anything not ComfyUI reads as A1111. Rounded to 4 places."""
+        rule = _comfyui_weight if source == "comfyui" else _a1111_weight
+        w = rule(self.groups)
+        return round(w, 4) if math.isfinite(w) else 1.0
 
 
 def _qualifier_end(text: str, i: int) -> int | None:
@@ -201,13 +260,33 @@ def _is_edit_colon(text: str, i: int) -> bool:
 @dataclass(frozen=True)
 class RawPiece:
     text: str
-    # The enclosing bracket kinds, outermost first (empty outside any group).
-    stack: tuple[str, ...]
+    # The enclosing groups, outermost first (empty outside any group).
+    groups: tuple[_Group, ...]
+
+    @property
+    def stack(self) -> tuple[str, ...]:
+        """The enclosing bracket kinds, outermost first."""
+        return tuple(g.kind for g in self.groups)
 
     @property
     def in_group(self) -> bool:
         """Only inside a group is ``:n`` a weight."""
-        return bool(self.stack)
+        return bool(self.groups)
+
+
+def _close(text: str, g: _Group, i: int) -> None:
+    """Mark ``g`` closed by the closer at ``i`` and read its weight: only a
+    ``(...)`` carries one, written last (``(a, b:1.2)``). A ``:n`` closing a
+    ``[...]`` is A1111 prompt editing. A last member that is an emoticon
+    (``(a, :3)``) is a member, not a weight."""
+    g.closed = True
+    m = _GROUP_WEIGHT.search(text, g.open + 1, i)
+    if not m or m.start() == g.open + 1:
+        return
+    if g.kind == "[":
+        g.edit = True
+    elif g.kind == "(" and g.emoticon != m.start():
+        g.weight = float(m.group(1))
 
 
 def _scan(text: str) -> list[RawPiece]:
@@ -218,8 +297,8 @@ def _scan(text: str) -> list[RawPiece]:
     # Whether `buf` holds any non-space text (kept as a flag, not re-derived,
     # so the scan stays linear in the prompt length).
     has_text = False
-    # Open bracket kinds, innermost last.
-    stack: list[str] = []
+    # Open groups, innermost last.
+    stack: list[_Group] = []
 
     def flush() -> None:
         nonlocal has_text
@@ -241,6 +320,8 @@ def _scan(text: str) -> list[RawPiece]:
             continue
         atom = _atom_at(text, i, has_text)
         if atom:
+            if stack and not has_text:
+                stack[-1].emoticon = i
             emit(atom[0])
             i = atom[1]
             continue
@@ -270,19 +351,20 @@ def _scan(text: str) -> list[RawPiece]:
                 continue
         if ch in _OPEN:
             flush()
-            stack.append(ch)
+            stack.append(_Group(ch, i))
             i += 1
             continue
         if ch in _CLOSE:
             # Closes a group, or is a stray: a boundary either way.
             flush()
             if stack:
-                stack.pop()
+                _close(text, stack.pop(), i)
             i += 1
             continue
-        if ch == ":" and has_text and stack and stack[-1] == "[":
+        if ch == ":" and has_text and stack and stack[-1].kind == "[":
             # A weight colon is left for _clean to strip.
             if _is_edit_colon(text, i):
+                stack[-1].edit = True
                 flush()
                 i += 1
                 continue
@@ -363,7 +445,7 @@ def _parse_cached(text: str) -> tuple[Piece, ...]:
     for raw in _scan(text):
         s = _clean(raw.text, raw.in_group)
         if s or raw.text.strip():
-            out.append(Piece(s, classify(s, raw.text)))
+            out.append(Piece(s, classify(s, raw.text), raw.groups))
     return tuple(out)
 
 

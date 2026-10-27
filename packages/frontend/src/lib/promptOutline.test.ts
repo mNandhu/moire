@@ -9,7 +9,7 @@ describe("promptTerms", () => {
     expect(names("1girl, (white dress:1.2), ((blue eyes)), [smile], x_\\(cosplay\\), (red bow:0.8)")).toEqual([
       ["1girl", null, "tag"],
       ["white_dress", 1.2, "tag"],
-      ["blue_eyes", null, "tag"],
+      ["blue_eyes", 1.21, "tag"],
       ["smile", null, "tag"],
       ["x_(cosplay)", null, "tag"],
       ["red_bow", 0.8, "tag"],
@@ -33,13 +33,13 @@ describe("promptTerms", () => {
     ]);
   });
 
-  it("unwraps nested and square-bracket groups", () => {
+  it("unwraps nested groups, x1.1 a layer; square brackets are text to ComfyUI", () => {
     expect(names("((sunflower field, blue sky)), [red bow, smile], ((solo))")).toEqual([
-      ["sunflower_field", null, "tag"],
-      ["blue_sky", null, "tag"],
+      ["sunflower_field", 1.21, "tag"],
+      ["blue_sky", 1.21, "tag"],
       ["red_bow", null, "tag"],
       ["smile", null, "tag"],
-      ["solo", null, "tag"],
+      ["solo", 1.21, "tag"],
     ]);
     expect(names("((cat, dog:1.3))")).toEqual([
       ["cat", 1.3, "tag"],
@@ -70,15 +70,15 @@ describe("promptTerms", () => {
     expect(promptTerms(text).map((t) => [t.name, t.weight ?? null, t.grouped, text.slice(t.start, t.end)])).toEqual([
       ["cat", 1.05, false, "(cat:1.05)"],
       ["dog", 1.25, false, "(dog:1.25)"],
-      ["cat", 1.2, true, "(cat)"],
+      ["cat", 1.32, true, "(cat)"],
       ["dog", 1.2, true, "dog"],
-      ["smile", 1.05, false, "smile:1.05"],
+      ["smile", null, false, "smile:1.05"],
     ]);
   });
 
-  it("reads an unbracketed decimal weight, not a time or a ratio", () => {
+  it("takes an unbracketed decimal weight off the name, though ComfyUI ignores it", () => {
     expect(names("smile:1.05, 16:9, 12:00")).toEqual([
-      ["smile", 1.05, "tag"],
+      ["smile", null, "tag"],
       ["16:9", null, "tag"],
       ["12:00", null, "tag"],
     ]);
@@ -86,8 +86,8 @@ describe("promptTerms", () => {
 
   it("reads an emoticon last in a group as a member, not the group's weight", () => {
     expect(names("(smile, :3)")).toEqual([
-      ["smile", null, "tag"],
-      [":3", null, "tag"],
+      ["smile", 1.1, "tag"],
+      [":3", 1.1, "tag"],
     ]);
     expect(names("(cat:3), (dog, :d:1.1)")).toEqual([
       ["cat", 3, "tag"],
@@ -180,13 +180,14 @@ describe("appendTag / replaceName", () => {
 // The backend's prompt_parse is the authority on how a prompt splits; the
 // fixture's `about` says what is compared.
 const read = (text: string) =>
-  promptTerms(text).map((t) =>
-    t.kind === "lora" || t.kind === "embedding" ? [t.written.toLowerCase(), "network"] : [t.name, t.kind],
-  );
+  promptTerms(text).map((t) => [
+    ...(t.kind === "lora" || t.kind === "embedding" ? [t.written.toLowerCase(), "network"] : [t.name, t.kind]),
+    t.weight ?? 1,
+  ]);
 
 describe("promptTerms agrees with the backend's prompt_parse", () => {
   for (const c of fixture.cases) {
-    const want = c.terms.filter(([name]) => name);
+    const want = c.terms.filter(([name]) => name).map(([name, kind, comfyui]) => [name, kind, comfyui]);
     it(JSON.stringify(c.text), () => {
       expect(read(c.text)).toEqual(want);
     });

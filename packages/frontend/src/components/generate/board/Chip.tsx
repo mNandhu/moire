@@ -1,6 +1,7 @@
 import { Undo2, X } from "lucide-react";
 import { cn } from "../../../lib/cn";
 import type { Cover, Placed } from "../../../lib/promptBoard";
+import { formatWeight } from "../../../lib/tags";
 import { CharacterAvatar } from "../../CharacterAvatar";
 import { Tooltip } from "../../ui";
 import { TagPreview } from "./TagPreview";
@@ -33,7 +34,7 @@ export function Chip({
         )}
       >
         {label}
-        {term.weight != null && <span className="text-[10px] opacity-70">{term.weight}</span>}
+        {term.weight != null && <span className="text-[10px] opacity-70">{formatWeight(term.weight)}</span>}
         {onRemove && (
           <button
             type="button"

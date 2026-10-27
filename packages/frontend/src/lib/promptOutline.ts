@@ -18,6 +18,7 @@ export type PromptTerm = {
   name: string;
   /** The name as written. */
   written: string;
+  /** Its prompt weight as ComfyUI reads it (`comfyWeight`); unset at 1. */
   weight?: number;
   /** "noise": leaked settings, a lone joiner or a stray weight; in the
    * prompt, never a tag. */
@@ -276,6 +277,26 @@ function scan(text: string): Raw[] {
   return pieces;
 }
 
+/** The weight of a piece inside `group`, as ComfyUI reads emphasis
+ * (`comfy/sd1_clip.py` `token_weights`): only a closed `(...)` weighs, x1.1,
+ * and an explicit `(...:w)` replaces the weight around it, so `((a:1.2))` is
+ * 1.2 and `((a):1.2)` is 1.32. `[...]`, `{...}` and an unclosed `(` are text;
+ * so is `smile:1.05` outside any group. Undefined at 1. The backend's
+ * `prompt_parse.Piece.weight` is the authority. */
+function comfyWeight(text: string, group: Group | null): number | undefined {
+  let w = 1;
+  for (let g = group; g; g = g.parent) {
+    if (text[g.open] !== "(" || g.close < 0) continue;
+    if (g.weight !== undefined) {
+      w *= g.weight;
+      break;
+    }
+    w *= 1.1;
+  }
+  w = Math.round(w * 1e4) / 1e4;
+  return w === 1 ? undefined : w;
+}
+
 /** A sentence fragment rather than a tag: 9+ words, or 5+ with a sentence
  * end or a prose word. Words in `(...)` qualifiers don't count. */
 function isProse(raw: string): boolean {
@@ -308,9 +329,6 @@ function readTerm(text: string, p: Raw): PromptTerm | null {
   while (r > l && isSpace(chars[r - 1])) r--;
   const start = l;
   let end = r;
-  // Outside a group, a decimal weight written bare (`smile:1.05`) is the
-  // piece's own.
-  let own: number | undefined;
   const win = () => chars.slice(l, r).join("");
   const read = () =>
     collapse(win())
@@ -328,7 +346,6 @@ function readTerm(text: string, p: Raw): PromptTerm | null {
         r -= w[0].length;
         // Inside a group the weight is the group's, not this piece's.
         if (inGroup) end = r;
-        else own = Number(w[1]);
       }
       while (l < r && EDGE_PUNCT.includes(chars[l])) l++;
       while (r > l && EDGE_PUNCT.includes(chars[r - 1])) r--;
@@ -339,8 +356,7 @@ function readTerm(text: string, p: Raw): PromptTerm | null {
   const nameStart = p.from[l];
   const nameEnd = p.to[r - 1];
   const written = text.slice(nameStart, nameEnd);
-  let weight = own;
-  for (let g = p.group; g && weight === undefined; g = g.parent) weight = g.weight;
+  const weight = comfyWeight(text, p.group);
   const at = { start: p.from[start], end: p.to[end - 1], nameStart, nameEnd, weight, grouped: inGroup };
   const kind = classify(name, chars.join(""));
   if (kind === "network") {

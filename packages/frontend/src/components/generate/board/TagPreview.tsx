@@ -3,7 +3,7 @@ import { smallThumb } from "../../../lib/media";
 import { tagHref } from "../../../lib/character";
 import type { Placed } from "../../../lib/promptBoard";
 import { useTagDescription } from "../../../lib/queries";
-
+import { formatWeight } from "../../../lib/tags";
 import { groupHref } from "../../../lib/tagGroups";
 import { useTagSamples } from "../../../lib/tagSamples";
 
@@ -23,7 +23,7 @@ export function TagPreview({ term, count, swap }: { term: Placed; count: number 
     <div className="w-[17rem] space-y-2">
       <div className="flex items-center gap-2">
         <span className="font-medium text-neutral-50">{term.written}</span>
-        {term.weight != null && <span className="text-xs text-amber-300">{term.weight}</span>}
+        {term.weight != null && <span className="text-xs text-amber-300">{formatWeight(term.weight)}</span>}
         {tagged && (
           <span className="ml-auto text-xs text-faint">
             {count ? `${count.toLocaleString()} ${count === 1 ? "image" : "images"}` : "Not in library"}

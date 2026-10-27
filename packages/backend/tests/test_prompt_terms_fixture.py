@@ -19,7 +19,10 @@ FIXTURE = json.loads(
 
 @pytest.mark.parametrize("case", FIXTURE["cases"], ids=lambda c: repr(c["text"]))
 def test_parse_prompt_reads_the_shared_cases(case):
-    got = [[canonical_name(p.text), p.kind] for p in parse_prompt(case["text"])]
+    got = [
+        [canonical_name(p.text), p.kind, p.weight("comfyui"), p.weight("a1111")]
+        for p in parse_prompt(case["text"])
+    ]
     assert got == case["terms"]
 
 

@@ -68,6 +68,11 @@ export function formatTag(raw: string): string {
   return KAOMOJIS.has(name) ? name : name.replace(/_/g, " ");
 }
 
+/** A prompt weight as written and shown: two places at most (`1.1`, `1.05`). */
+export function formatWeight(w: number): string {
+  return String(Number(w.toFixed(2)));
+}
+
 /** The key a tag's description is filed under: bare, underscored, lowercase. */
 export function descriptionKey(raw: string): string {
   return canonicalName(tagName(raw)).toLowerCase();

@@ -1,32 +1,44 @@
 {
-  "about": "Prompt text -> the terms both prompt splitters read from it, in order. The backend's services/prompt_parse.parse_prompt is the authority: each row of `terms` is [name, kind] for one of its pieces, name being the piece's text through canonical_name (lowercase, unescaped, no weight or edge punctuation, spaces as underscores) and kind one of tag, prose, noise, network. This is the level both sides agree on: before keyword filtering, aliases or the prompt: prefix. The frontend's lib/promptOutline.promptTerms must read the same rows, comparing a network term (its lora or embedding kind) by its text as written, lowercased. Rows with an empty name (a weight left over beside an emoticon) are pieces the frontend skips, since there is nothing to show. Weights are not compared yet. Checked by tests/test_prompt_terms_fixture.py and promptOutline.test.ts.",
+  "about": "Prompt text -> the terms both prompt splitters read from it, in order. The backend's services/prompt_parse.parse_prompt is the authority: each row of `terms` is [name, kind] for one of its pieces, name being the piece's text through canonical_name (lowercase, unescaped, no weight or edge punctuation, spaces as underscores) and kind one of tag, prose, noise, network. This is the level both sides agree on: before keyword filtering, aliases or the prompt: prefix. The frontend's lib/promptOutline.promptTerms must read the same rows, comparing a network term (its lora or embedding kind) by its text as written, lowercased. Rows with an empty name (a weight left over beside an emoticon) are pieces the frontend skips, since there is nothing to show. The last two items of a row are the piece's prompt weight as ComfyUI and as A1111 read its emphasis (prompt_parse.Piece.weight); the frontend reads Generate's prompt, which is always ComfyUI's, so it compares the first. Checked by tests/test_prompt_terms_fixture.py and promptOutline.test.ts.",
   "cases": [
     {
       "text": "1girl, (white dress:1.2), ((blue eyes)), [smile], x_\\(cosplay\\), (red bow:0.8)",
       "terms": [
         [
           "1girl",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "white_dress",
-          "tag"
+          "tag",
+          1.2,
+          1.2
         ],
         [
           "blue_eyes",
-          "tag"
+          "tag",
+          1.21,
+          1.21
         ],
         [
           "smile",
-          "tag"
+          "tag",
+          1.0,
+          0.9091
         ],
         [
           "x_(cosplay)",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "red_bow",
-          "tag"
+          "tag",
+          0.8,
+          0.8
         ]
       ]
     },
@@ -35,15 +47,21 @@
       "terms": [
         [
           "sunflower_field",
-          "tag"
+          "tag",
+          1.1,
+          1.1
         ],
         [
           "blue_sky",
-          "tag"
+          "tag",
+          1.1,
+          1.1
         ],
         [
           "solo",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -52,23 +70,33 @@
       "terms": [
         [
           "sunflower_field",
-          "tag"
+          "tag",
+          1.21,
+          1.21
         ],
         [
           "blue_sky",
-          "tag"
+          "tag",
+          1.21,
+          1.21
         ],
         [
           "red_bow",
-          "tag"
+          "tag",
+          1.0,
+          0.9091
         ],
         [
           "smile",
-          "tag"
+          "tag",
+          1.0,
+          0.9091
         ],
         [
           "solo",
-          "tag"
+          "tag",
+          1.21,
+          1.21
         ]
       ]
     },
@@ -77,11 +105,15 @@
       "terms": [
         [
           "cat",
-          "tag"
+          "tag",
+          1.3,
+          1.43
         ],
         [
           "dog",
-          "tag"
+          "tag",
+          1.3,
+          1.43
         ]
       ]
     },
@@ -90,19 +122,27 @@
       "terms": [
         [
           "<lora:foo:0.8>",
-          "network"
+          "network",
+          1.0,
+          1.0
         ],
         [
           "embedding:bad",
-          "network"
+          "network",
+          1.0,
+          1.0
         ],
         [
           "a_gentle_breeze_moving_through_her_hair",
-          "prose"
+          "prose",
+          1.0,
+          1.0
         ],
         [
           "holding_hands_with_a_friend",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -111,19 +151,27 @@
       "terms": [
         [
           ":3",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "16:9",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           ":d",
-          "tag"
+          "tag",
+          1.1,
+          1.1
         ],
         [
           "",
-          "noise"
+          "noise",
+          1.1,
+          1.1
         ]
       ]
     },
@@ -132,15 +180,21 @@
       "terms": [
         [
           "smile",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "standing",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "outdoors",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -149,19 +203,27 @@
       "terms": [
         [
           "1girl",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "smile",
-          "tag"
+          "tag",
+          1.0,
+          1.1
         ],
         [
           "red_eyes",
-          "tag"
+          "tag",
+          1.0,
+          1.1
         ],
         [
           "rain",
-          "tag"
+          "tag",
+          1.0,
+          1.1
         ]
       ]
     },
@@ -170,19 +232,27 @@
       "terms": [
         [
           "1girl",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           ";(",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           ">:(",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "solo",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -191,27 +261,39 @@
       "terms": [
         [
           "cat",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "dog",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "rain",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "night",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "black_",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "_white",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -220,19 +302,27 @@
       "terms": [
         [
           "masterpiece",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "best_quality",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "cat",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "dog",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -241,15 +331,21 @@
       "terms": [
         [
           "<lora:a",
-          "network"
+          "network",
+          1.0,
+          1.0
         ],
         [
           "b:1>",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "x",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -258,15 +354,21 @@
       "terms": [
         [
           "<lyco:style:0.5>",
-          "network"
+          "network",
+          1.0,
+          1.0
         ],
         [
           "<embedding:neg>",
-          "network"
+          "network",
+          1.0,
+          1.0
         ],
         [
           "embedding:good",
-          "network"
+          "network",
+          1.2,
+          1.2
         ]
       ]
     },
@@ -275,11 +377,15 @@
       "terms": [
         [
           "hu_tao_(genshin_impact)",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "1girl",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -288,15 +394,21 @@
       "terms": [
         [
           "hu_tao",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "genshin_impact",
-          "tag"
+          "tag",
+          1.1,
+          1.1
         ],
         [
           "1girl",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -305,11 +417,15 @@
       "terms": [
         [
           "hu_tao_(genshin_impact)",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "kafka_(honkai)",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -318,15 +434,21 @@
       "terms": [
         [
           "cat",
-          "tag"
+          "tag",
+          1.05,
+          1.05
         ],
         [
           "dog",
-          "tag"
+          "tag",
+          1.25,
+          1.25
         ],
         [
           "rain",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -335,15 +457,21 @@
       "terms": [
         [
           "cat",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "dog",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "rain",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -352,19 +480,27 @@
       "terms": [
         [
           "from",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "to",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "cat",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "dog",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -373,15 +509,21 @@
       "terms": [
         [
           "smile",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "smile",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "12:00",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -390,7 +532,9 @@
       "terms": [
         [
           "blue_long_hair_red_eyes",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -399,7 +543,9 @@
       "terms": [
         [
           "she_is_standing_in_the_rain_at_night",
-          "prose"
+          "prose",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -408,23 +554,33 @@
       "terms": [
         [
           "a_girl",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "^_^",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           ">_<",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           ":d",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "...",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -433,27 +589,39 @@
       "terms": [
         [
           "1girl",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "solo",
-          "tag"
+          "tag",
+          1.1,
+          1.1
         ],
         [
           "and",
-          "noise"
+          "noise",
+          1.0,
+          1.0
         ],
         [
           "smile",
-          "tag"
+          "tag",
+          1.1,
+          1.1
         ],
         [
           "steps:_20",
-          "noise"
+          "noise",
+          1.0,
+          1.0
         ],
         [
           "1.15",
-          "noise"
+          "noise",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -462,15 +630,21 @@
       "terms": [
         [
           "cat",
-          "tag"
+          "tag",
+          1.32,
+          1.32
         ],
         [
           "dog",
-          "tag"
+          "tag",
+          1.2,
+          1.2
         ],
         [
           "rain",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ]
       ]
     },
@@ -479,15 +653,21 @@
       "terms": [
         [
           "cat",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "dog",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "rain",
-          "tag"
+          "tag",
+          1.0,
+          1.21
         ]
       ]
     },
@@ -496,11 +676,79 @@
       "terms": [
         [
           "blurry",
-          "tag"
+          "tag",
+          1.0,
+          1.0
         ],
         [
           "lowres",
-          "tag"
+          "tag",
+          1.0,
+          1.0
+        ]
+      ]
+    },
+    {
+      "text": "((smile:1.2)), ((smile):1.2), (smile",
+      "terms": [
+        [
+          "smile",
+          "tag",
+          1.2,
+          1.32
+        ],
+        [
+          "smile",
+          "tag",
+          1.32,
+          1.32
+        ],
+        [
+          "",
+          "noise",
+          1.2,
+          1.2
+        ],
+        [
+          "smile",
+          "tag",
+          1.0,
+          1.1
+        ]
+      ]
+    },
+    {
+      "text": "[[smile]], (a:1.2, b), ((a:0.8), b)",
+      "terms": [
+        [
+          "smile",
+          "tag",
+          1.0,
+          0.8264
+        ],
+        [
+          "a",
+          "noise",
+          1.1,
+          1.1
+        ],
+        [
+          "b",
+          "tag",
+          1.1,
+          1.1
+        ],
+        [
+          "a",
+          "noise",
+          0.8,
+          0.88
+        ],
+        [
+          "b",
+          "tag",
+          1.1,
+          1.1
         ]
       ]
     },
