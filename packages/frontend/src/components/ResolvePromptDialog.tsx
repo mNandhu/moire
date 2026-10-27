@@ -6,6 +6,7 @@ import { Dialog } from "./ui/Dialog";
 import { Input } from "./ui/Input";
 import { Skeleton } from "./ui/Skeleton";
 import { useToast } from "./Toasts";
+import { useConfirm } from "./ConfirmDialog";
 import { JsonTree, collectMatches } from "./GraphTree";
 import { useRulesetSession } from "../hooks/useRulesetSession";
 import type { GenMeta } from "../lib/gen";
@@ -44,8 +45,10 @@ export function ResolvePromptDialog({
   const [field, setField] = useState<Side>(first);
   const [query, setQuery] = useState("");
   const [missing, setMissing] = useState(false);
+  const confirm = useConfirm();
   const session = useRulesetSession({
     notify: push,
+    confirmDiscard: confirm,
     onSaved: () => {
       onSaved();
       onClose();

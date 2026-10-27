@@ -18,7 +18,7 @@ export function useUnsavedChangesGuard(
     message?: string;
     confirmLabel?: string;
     tone?: "default" | "warning" | "danger";
-  }) => Promise<boolean> = async ({ title }) => window.confirm(title),
+  }) => Promise<boolean>,
 ) {
   useEffect(() => {
     if (!dirty) return;

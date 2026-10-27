@@ -56,9 +56,6 @@ export type ConfirmDiscard = (opts: {
   tone?: "default" | "warning" | "danger";
 }) => Promise<boolean>;
 
-const nativeConfirm: ConfirmDiscard = async ({ title, message }) =>
-  window.confirm(message ? `${title}\n\n${message}` : title);
-
 /**
  * Comparable form of a field map: empty pin lists dropped, keys sorted. Pinning
  * then unpinning a path leaves `{model: []}`, and the server may return keys
@@ -76,12 +73,13 @@ function canonical(fields: RuleFields): string {
 export function useRulesetSession({
   notify,
   onSaved,
-  confirmDiscard = nativeConfirm,
+  confirmDiscard,
 }: {
   notify: (message: string, kind: "success" | "error" | "info") => void;
   /** Refresh the signature list after a save or delete changes it. */
   onSaved?: () => void;
-  confirmDiscard?: ConfirmDiscard;
+  /** The app's confirm dialog (useConfirm); never the native one. */
+  confirmDiscard: ConfirmDiscard;
 }): RulesetSession {
   const [selected, setSelected] = useState<SignatureRow | null>(null);
   const [fields, setFields] = useState<RuleFields>({});
