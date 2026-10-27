@@ -99,6 +99,14 @@ async def _outputs(conn, reqs: list[Any]) -> dict[int, list[dict[str, Any]]]:
     return out
 
 
+async def batch_exists(batch_id: int) -> bool:
+    async with async_conn() as conn:
+        found = (
+            await conn.execute(sa.select(_b.c._id).where(_b.c._id == batch_id))
+        ).first()
+    return found is not None
+
+
 async def get_batch(batch_id: int, manager: GenerationManager) -> dict[str, Any] | None:
     async with async_conn() as conn:
         batch = (await conn.execute(sa.select(_b).where(_b.c._id == batch_id))).first()
@@ -294,6 +302,51 @@ def _checkpoint_default(gen: dict[str, Any]) -> str | None:
     return value if isinstance(value, str) else None
 
 
+async def test_status(
+    batch_id: int, manager: GenerationManager
+) -> dict[str, Any] | None:
+    """A Generator test batch's state: its first request and its outputs,
+    without the batch view's timings and queue estimate. None when the
+    batch is gone."""
+    async with async_conn() as conn:
+        if not (
+            await conn.execute(sa.select(_b.c._id).where(_b.c._id == batch_id))
+        ).first():
+            return None
+        reqs = (
+            await conn.execute(
+                sa.select(_r.c._id, _r.c.state, _r.c.error, _r.c.prompt_id)
+                .where(_r.c.batch_id == batch_id, _VISIBLE)
+                .order_by(_r.c.idx)
+            )
+        ).fetchall()
+        order = {q._id: n for n, q in enumerate(reqs)}
+        outs = (
+            (
+                await conn.execute(
+                    sa.select(_o.c.request_id, _o.c.image_id, _i.c._id.label("found"))
+                    .select_from(_o.outerjoin(_i, _i.c._id == _o.c.image_id))
+                    .where(_o.c.request_id.in_(list(order)))
+                    .order_by(_o.c.idx)
+                )
+            ).fetchall()
+            if reqs
+            else []
+        )
+    outs = sorted(outs, key=lambda o: order[o.request_id])
+    req = reqs[0] if reqs else None
+    return {
+        "batch_id": batch_id,
+        "state": req.state if req else "done",
+        "error": req.error if req else None,
+        "progress": manager.progress.get(req.prompt_id)
+        if req and req.prompt_id
+        else None,
+        "outputs": len(outs),
+        "image_id": next((o.image_id for o in outs if o.found is not None), None),
+    }
+
+
 async def generator_view(
     manager: GenerationManager, generator_id: str
 ) -> dict[str, Any] | None:
@@ -304,27 +357,15 @@ async def generator_view(
         return None
     test = None
     if gen.get("test") and gen["test"].get("batch_id"):
-        batch = await get_batch(int(gen["test"]["batch_id"]), manager)
-        if batch is not None:
-            outs = [o for q in batch["requests"] for o in q["outputs"]]
-            found = next((o["image_id"] for o in outs if o["in_library"]), None)
-            req = batch["requests"][0] if batch["requests"] else None
-            test = {
-                "batch_id": batch["_id"],
-                "state": req["state"] if req else "done",
-                "error": req["error"] if req else None,
-                "progress": req["progress"] if req else None,
-                "outputs": len(outs),
-                "image_id": found,
-            }
-            if found and not gen["ready"]:
-                async with async_tx() as conn:
-                    await conn.execute(
-                        sa.update(t.generators)
-                        .where(t.generators.c._id == generator_id)
-                        .values(ready=True)
-                    )
-                gen["ready"] = True
+        test = await test_status(int(gen["test"]["batch_id"]), manager)
+        if test is not None and test["image_id"] and not gen["ready"]:
+            async with async_tx() as conn:
+                await conn.execute(
+                    sa.update(t.generators)
+                    .where(t.generators.c._id == generator_id)
+                    .values(ready=True)
+                )
+            gen["ready"] = True
     source = gen.get("source") or {}
     return {
         "_id": gen["_id"],

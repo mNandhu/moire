@@ -132,19 +132,23 @@ async def list_batches(limit: int = 50, before: int | None = None):
     )
 
 
-@router.get("/batches/{batch_id}")
-async def get_batch(batch_id: int):
+async def _batch_or_404(batch_id: int) -> dict[str, Any]:
     out = await generation_batches.get_batch(batch_id, get_generation_manager())
     if out is None:
         raise HTTPException(status_code=404, detail="Batch not found")
     return out
 
 
+@router.get("/batches/{batch_id}")
+async def get_batch(batch_id: int):
+    return await _batch_or_404(batch_id)
+
+
 @router.patch("/batches/{batch_id}")
 async def rename_batch(batch_id: int, body: RenameIn):
     if not await generation_batches.rename(batch_id, body.name):
         raise HTTPException(status_code=404, detail="Batch not found")
-    return await get_batch(batch_id)
+    return await _batch_or_404(batch_id)
 
 
 @router.post("/batches/{batch_id}/requeue")
@@ -163,19 +167,20 @@ async def retry_request(batch_id: int, request_id: int, body: RetryIn):
         await get_generation_manager().retry(batch_id, request_id, single=body.single)
     except Invalid as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    return await get_batch(batch_id)
+    return await _batch_or_404(batch_id)
 
 
 @router.post("/batches/{batch_id}/cancel")
 async def cancel_batch(batch_id: int):
-    await get_batch(batch_id)  # 404 for one that isn't there
+    if not await generation_batches.batch_exists(batch_id):
+        raise HTTPException(status_code=404, detail="Batch not found")
     # Null when it never ran and so was deleted.
     if await get_generation_manager().cancel(batch_id):
         return None
-    return await get_batch(batch_id)
+    return await _batch_or_404(batch_id)
 
 
 @router.post("/batches/{batch_id}/requests/{request_id}/cancel")
 async def cancel_request(batch_id: int, request_id: int):
     await get_generation_manager().cancel(batch_id, request_id)
-    return await get_batch(batch_id)
+    return await _batch_or_404(batch_id)

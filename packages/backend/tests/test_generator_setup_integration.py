@@ -159,9 +159,16 @@ async def test_custom_generator_gate_and_queue(client, comfy, seed):  # noqa: F8
     ]
     assert len(added) == 1 and sent[added[0]]["inputs"]["model"] == ["40", 0]
     assert sent["22"]["inputs"]["model"] == [added[0], 0]
+    test_batch = r.json()["batch_id"]
+    test = (await client.get(f"/generate/generators/{gen['_id']}")).json()["test"]
+    assert test["batch_id"] == test_batch and test["image_id"] is None
+    assert test["outputs"] == 0 and test["error"] is None
     await asyncio.to_thread(scanned, seed, comfy.finish(pid, images=1))
     await tick()
-    assert (await client.get(f"/generate/generators/{gen['_id']}")).json()["ready"]
+    view = (await client.get(f"/generate/generators/{gen['_id']}")).json()
+    assert view["ready"]
+    assert view["test"]["state"] == "done" and view["test"]["outputs"] == 1
+    assert view["test"]["image_id"]
 
     # Count is images: the graph's batch size of 4 splits 6 into 4 + 2.
     r = await client.post(
