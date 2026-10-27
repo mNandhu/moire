@@ -38,7 +38,8 @@ def source_clause(source: str):
 async def list_tags(
     *, include_manual: bool, include_prompt: bool, merge_sources: bool
 ) -> list[dict]:
-    """Grouped tag counts for the browser and the gallery autocomplete."""
+    """Grouped tag counts (``{_id, count}``) for the browser and the gallery
+    autocomplete."""
     cache_key = f"m{int(include_manual)}:p{int(include_prompt)}:s{int(merge_sources)}"
     cached = tag_index.read_view(cache_key)
     if cached is not None:
@@ -48,8 +49,7 @@ async def list_tags(
 
     # Merge mode (gallery search): collapse the three sources of each tag into
     # one cross-source `any:<base>` entry counting *distinct images*, so a tag
-    # the user both prompt- and manual-tagged isn't double-counted. No thumbs:
-    # the autocomplete only needs id + count.
+    # the user both prompt- and manual-tagged isn't double-counted.
     if merge_sources:
         stmt = (
             sa.select(
@@ -72,13 +72,7 @@ async def list_tags(
     # AI tags are primary (no prefix). Manual tags are `manual:<tag>`, prompt-
     # extracted tags are `prompt:<term>`. By default the browser is AI-only; the
     # Tags view opts into the other kinds.
-    stmt = sa.select(
-        t.image_tags.c.tag,
-        sa.func.count().label("count"),
-        # MAX picks the newest image id (ids sort like _id desc) for the default
-        # mosaic thumbnail.
-        sa.func.max(t.image_tags.c.image_id).label("sample_image_id"),
-    )
+    stmt = sa.select(t.image_tags.c.tag, sa.func.count().label("count"))
     for prefix in tag_kinds.excluded_prefixes(
         include_manual=include_manual, include_prompt=include_prompt
     ):
@@ -87,22 +81,7 @@ async def list_tags(
 
     async with async_conn() as conn:
         rows = (await conn.execute(stmt)).fetchall()
-        tag_ids = [r.tag for r in rows]
-        overrides: dict[str, str] = {}
-        if tag_ids:
-            overrides = await tag_covers.pins(
-                conn, {tag_kinds.base_of(tag) for tag in tag_ids}
-            )
-
-    result = [
-        {
-            "_id": r.tag,
-            "count": r.count,
-            "thumb_image_id": overrides.get(tag_kinds.base_of(r.tag))
-            or r.sample_image_id,
-        }
-        for r in rows
-    ]
+    result = [{"_id": r.tag, "count": r.count} for r in rows]
     tag_index.store_view(cache_key, gen, result)
     return result
 

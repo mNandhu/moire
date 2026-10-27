@@ -37,8 +37,8 @@ async def test_tag_cloud_default_is_ai_only(client, seed):
     seed("L1:a", tags=("cat", "manual:fav", "prompt:masterpiece"))
     seed("L1:b", tags=("cat",))
     resp = await client.get("/tags")
-    by_tag = {r["_id"]: r["count"] for r in resp.json()}
-    assert by_tag == {"cat": 2}  # manual:/prompt: excluded by default
+    # Just id + count: no per-tag cover rides along.
+    assert resp.json() == [{"_id": "cat", "count": 2}]  # manual:/prompt: excluded
 
 
 async def test_tag_cloud_opts_into_manual_and_prompt(client, seed):
