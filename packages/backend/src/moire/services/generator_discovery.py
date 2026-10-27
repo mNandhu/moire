@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from . import gen_metadata
+from . import comfy_text
 from .generator_graph import (
     SAMPLING,
     SAMPLING_INPUTS,
@@ -158,7 +158,7 @@ def prompt_slot(graph: Graph, sampler: str, side: str) -> dict[str, Any] | None:
     if key is None:
         return None
     value = inp[key]
-    text = gen_metadata.resolve_text(graph, [enc, 0])
+    text = comfy_text.resolve_text(graph, [enc, 0])
     if isinstance(value, str):
         return {"path": [enc, key], "replaces_link": False, "text": value}
     if is_link(value):
@@ -225,7 +225,7 @@ def text_inputs(graph: Graph, sampler: str | None) -> list[dict[str, Any]]:
                     "title": node_title(graph, nid),
                     "text": value
                     if literal
-                    else gen_metadata.resolve_text(graph, [nid, 0]),
+                    else comfy_text.resolve_text(graph, [nid, 0]),
                     "replaces_link": joined,
                     "reaches": reaches,
                 }
@@ -489,7 +489,7 @@ def outputs(graph: Graph) -> list[dict[str, Any]]:
             continue
         prefix = node_inputs(graph, nid).get("filename_prefix")
         if is_link(prefix):
-            prefix = gen_metadata.resolve_text(graph, prefix)
+            prefix = comfy_text.resolve_text(graph, prefix)
         out.append(
             {
                 "node": nid,

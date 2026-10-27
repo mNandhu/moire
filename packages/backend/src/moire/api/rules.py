@@ -20,6 +20,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ..services import extraction_settings, gen_metadata, reproject, workflow_family
+from ..services import workflow_identity
 from ..services import image_tags
 from ..services import thumb_version
 
@@ -137,12 +138,12 @@ async def list_signatures():
         return graph if isinstance(graph, dict) else None
 
     types_by_sig = {
-        r.workflow_sig: gen_metadata.workflow_node_types(
+        r.workflow_sig: workflow_identity.workflow_node_types(
             _prompt_graph(r.sample_image_id)
         )
         for r in rows
     }
-    described = gen_metadata.describe_signatures(types_by_sig)
+    described = workflow_identity.describe_signatures(types_by_sig)
     thumbs = await thumb_version.urls(r.sample_image_id for r in rows)
 
     def _family(image_id: str) -> dict:

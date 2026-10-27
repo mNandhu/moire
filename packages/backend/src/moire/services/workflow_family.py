@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from ..database import schema as t
-from . import gen_metadata
+from . import workflow_identity
 
 # The sample image of a signature, used as an aggregate over its images: the
 # newest by id. One image stands for the whole signature everywhere.
@@ -95,8 +95,8 @@ def label(name: str | None, files: FileList | None, ui_nodes: Any) -> dict[str, 
     editor nodes match best (``file_match`` 0..1, rounded). Pure."""
     match = None
     if files:
-        match = gen_metadata.match_workflow_file(
-            gen_metadata.editor_node_types(
+        match = workflow_identity.match_workflow_file(
+            workflow_identity.editor_node_types(
                 {"nodes": ui_nodes} if isinstance(ui_nodes, list) else None
             ),
             files,

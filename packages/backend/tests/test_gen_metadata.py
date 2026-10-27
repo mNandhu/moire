@@ -3,6 +3,7 @@ ComfyUI graph walking, signature stability across id renumbering, tokenisation,
 and grouping."""
 
 from moire.services import gen_metadata as gm
+from moire.services import workflow_identity as wi
 
 
 # --- A1111 -------------------------------------------------------------------
@@ -101,7 +102,7 @@ def test_comfyui_model_via_lora_passthrough():
 
 def test_signature_stable_across_id_renumber():
     renumbered = {("4" + k if False else str(int(k) + 40)): v for k, v in COMFY.items()}
-    assert gm.workflow_sig(COMFY) == gm.workflow_sig(renumbered)
+    assert wi.workflow_sig(COMFY) == wi.workflow_sig(renumbered)
 
 
 def test_signature_stable_across_value_tweak():
@@ -110,18 +111,18 @@ def test_signature_stable_across_value_tweak():
         "class_type": "CLIPTextEncode",
         "inputs": {"text": "totally different"},
     }
-    assert gm.workflow_sig(COMFY) == gm.workflow_sig(tweaked)
+    assert wi.workflow_sig(COMFY) == wi.workflow_sig(tweaked)
 
 
 def test_signature_changes_on_node_kind_change():
     extra = dict(COMFY)
     extra["99"] = {"class_type": "UpscaleModelLoader", "inputs": {}}
-    assert gm.workflow_sig(COMFY) != gm.workflow_sig(extra)
+    assert wi.workflow_sig(COMFY) != wi.workflow_sig(extra)
 
 
 def test_signature_none_on_empty():
-    assert gm.workflow_sig({}) is None
-    assert gm.workflow_sig(None) is None
+    assert wi.workflow_sig({}) is None
+    assert wi.workflow_sig(None) is None
 
 
 # --- Tokenise / group --------------------------------------------------------
@@ -297,7 +298,7 @@ def test_unknown_rule_field_ignored():
     rs = {"fields": {"workflow_sig": ["prompt.6.inputs.text"], "bogus": ["x"]}}
     g = gm.extract(RAW_COMFY, rs)
     # workflow_sig stays the computed hash, not overridden by a pin
-    assert g["workflow_sig"] == gm.workflow_sig(COMFY)
+    assert g["workflow_sig"] == wi.workflow_sig(COMFY)
 
 
 def test_resolve_ruleset_paths_reports_per_path():
@@ -387,13 +388,13 @@ def test_workflow_node_types_reads_class_types():
         "x": "not a node",
     }
     # Same multiset workflow_sig hashes: a node without class_type is "".
-    assert sorted(gm.workflow_node_types(graph)) == ["", "KSampler", "LoraLoader"]
-    assert gm.workflow_node_types(None) == []
+    assert sorted(wi.workflow_node_types(graph)) == ["", "KSampler", "LoraLoader"]
+    assert wi.workflow_node_types(None) == []
 
 
 def test_describe_signatures_subtracts_shared_baseline():
     base = ["KSampler", "CLIPTextEncode", "CLIPTextEncode", "VAEDecode"]
-    out = gm.describe_signatures(
+    out = wi.describe_signatures(
         {
             "a": base,
             "b": base + ["LoraLoader", "LoraLoader", "FaceDetailer"],
@@ -409,7 +410,7 @@ def test_describe_signatures_subtracts_shared_baseline():
 
 def test_describe_signatures_prefers_rare_nodes_and_skips_ui_nodes():
     base = ["KSampler"]
-    out = gm.describe_signatures(
+    out = wi.describe_signatures(
         {
             "a": base + ["PreviewImage", "PreviewImage", "Upscale"],
             "b": base + ["Upscale", "FaceDetailer"],
@@ -422,7 +423,7 @@ def test_describe_signatures_prefers_rare_nodes_and_skips_ui_nodes():
 
 
 def test_describe_single_signature_lists_its_most_common_nodes():
-    out = gm.describe_signatures({"a": ["A", "B", "B", "C"]}, limit=2)
+    out = wi.describe_signatures({"a": ["A", "B", "B", "C"]}, limit=2)
     assert out["a"]["distinct"] == [
         {"type": "B", "count": 2},
         {"type": "A", "count": 1},
@@ -431,7 +432,7 @@ def test_describe_single_signature_lists_its_most_common_nodes():
 
 def test_describe_signatures_ignores_unreadable_samples_for_baseline():
     base = ["KSampler", "CLIPTextEncode"]
-    out = gm.describe_signatures(
+    out = wi.describe_signatures(
         {"a": base, "b": base + ["FaceDetailer"], "broken": []}
     )
     # Without the guard, "broken" would zero the baseline and name every
@@ -443,15 +444,15 @@ def test_describe_signatures_ignores_unreadable_samples_for_baseline():
 
 def test_editor_node_types_reads_ui_graph():
     wf = {"nodes": [{"type": "KSampler"}, {"type": "Note"}, {"id": 3}, "junk"]}
-    assert gm.editor_node_types(wf) == ["KSampler", "Note"]
-    assert gm.editor_node_types({"nodes": "x"}) == []
-    assert gm.editor_node_types(None) == []
+    assert wi.editor_node_types(wf) == ["KSampler", "Note"]
+    assert wi.editor_node_types({"nodes": "x"}) == []
+    assert wi.editor_node_types(None) == []
 
 
 def test_node_type_similarity_is_multiset_jaccard():
-    assert gm.node_type_similarity(["A", "B"], ["A", "B"]) == 1.0
-    assert gm.node_type_similarity(["A", "A"], ["A"]) == 0.5
-    assert gm.node_type_similarity([], []) == 0.0
+    assert wi.node_type_similarity(["A", "B"], ["A", "B"]) == 1.0
+    assert wi.node_type_similarity(["A", "A"], ["A"]) == 0.5
+    assert wi.node_type_similarity([], []) == 0.0
 
 
 def test_match_workflow_file_picks_closest_above_threshold():
@@ -462,15 +463,15 @@ def test_match_workflow_file_picks_closest_above_threshold():
         ("RemoteQV2.2", image),  # exact
         ("Other", ["LoadImage"]),
     ]
-    assert gm.match_workflow_file(image, files) == ("RemoteQV2.2", 1.0)
+    assert wi.match_workflow_file(image, files) == ("RemoteQV2.2", 1.0)
     # The file has gained many nodes since: no longer recognisably this one.
-    assert gm.match_workflow_file(["LoadImage", "X", "Y", "Z", "W"], files) is None
-    assert gm.match_workflow_file([], files) is None
+    assert wi.match_workflow_file(["LoadImage", "X", "Y", "Z", "W"], files) is None
+    assert wi.match_workflow_file([], files) is None
 
 
 def test_match_workflow_file_ties_go_to_newest_name():
     t = ["A", "B", "C"]
-    assert gm.match_workflow_file(t, [("V2.2", t), ("V2.1", t)]) == ("V2.2", 1.0)
+    assert wi.match_workflow_file(t, [("V2.2", t), ("V2.1", t)]) == ("V2.2", 1.0)
 
 
 def test_tokenize_space_and_underscore_spellings_are_one_term():

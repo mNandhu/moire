@@ -11,7 +11,7 @@ from ..database import schema as t
 from . import activity, app_settings, image_delete
 from . import image_tags
 from . import tag_index
-from . import gen_metadata
+from . import gen_metadata, workflow_identity
 from . import batch_pool
 from . import library_nesting
 from .scan_writer import ScanWriter
@@ -528,7 +528,7 @@ def _process_image(
         gen_raw_doc = None
         if gen_raw is not None:
             sig = (
-                gen_metadata.workflow_sig(gen_raw.get("prompt"))
+                workflow_identity.workflow_sig(gen_raw.get("prompt"))
                 if gen_raw.get("source") == "comfyui"
                 else None
             )
