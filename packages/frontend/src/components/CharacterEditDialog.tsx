@@ -15,7 +15,7 @@ import { TAGS_KEY } from "../lib/queries";
 import { useComfyModels, useRecipe } from "../lib/generate";
 import { RecipeEditor } from "./generate/CharacterBlock";
 import { useConfirm } from "./ConfirmDialog";
-import { loadDraft, saveDraft } from "../lib/generateForm";
+import { loadDraft, saveDraft } from "../lib/generateDraft";
 import {
   SWATCHES,
   characterColours,

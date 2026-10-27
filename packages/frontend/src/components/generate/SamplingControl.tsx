@@ -5,7 +5,7 @@ import { cn } from "../../lib/cn";
 import { Picker, type PickerOption } from "../ui";
 import type { Sampling } from "../../lib/generate";
 import { CFG_RANGE, STEPS_RANGE } from "../../lib/generationLimits";
-import { samplerLabel, samplingLabel } from "../../lib/generateForm";
+import { samplerLabel, samplingLabel } from "../../lib/sampling";
 import { FieldLabel, NumberStepper } from "./fields";
 
 /**

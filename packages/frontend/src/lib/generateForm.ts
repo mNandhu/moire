@@ -1,6 +1,5 @@
 /**
- * The Generate composer's state, its request body, and the per-viewer draft
- * kept in localStorage so a half-written prompt survives navigation.
+ * The Generate composer's state and its request body.
  *
  * The positive prompt is an ordered list of layers: Prefix (a preset),
  * Character, Prompt (the main text), Style (the style LoRAs) and any the user
@@ -8,23 +7,18 @@
  * A preset is referenced with a snapshot of its text, so a deleted preset
  * still sends what it said.
  */
-import { compose, composeParts, promptTerms } from "./compose";
+import { composeParts, promptTerms } from "./compose";
 import type {
-  BatchInputs,
   CharacterInput,
   EstimateBody,
-  Generator,
   LoraPreset,
-  NodeError,
   Preset,
   PromptPart,
   QueueBody,
-  RemixDoc,
   Sampling,
   StyleLora,
 } from "./generate";
-import { CFG_RANGE, MAX_CHARACTERS, PER_REQUEST_MAX, STEPS_RANGE } from "./generationLimits";
-import { keepPicked, pickFromInput, validOutfits, type OutfitPick, type Outfits } from "./outfit";
+import type { Outfits } from "./outfit";
 
 export type PresetRef = { id: string; text: string } | null;
 
@@ -232,7 +226,7 @@ export function toEstimateBody(f: GenerateForm, generatorId: string): EstimateBo
   };
 }
 
-const COMPOSER_KEYS = ["prefix", "blocks", "prompt", "negativePreset", "negative"] as const;
+export const COMPOSER_KEYS = ["prefix", "blocks", "prompt", "negativePreset", "negative"] as const;
 
 function composerState(f: GenerateForm): Record<string, unknown> {
   return {
@@ -243,304 +237,4 @@ function composerState(f: GenerateForm): Record<string, unknown> {
     // Batch-only strikes, so Edit and queue strikes the same tags again.
     identityOff: f.identityOff,
   };
-}
-
-// -- Validation (drafts and batches are stored data: never trust their shape) --
-
-const isStr = (v: unknown): v is string => typeof v === "string";
-
-function presetRef(v: unknown): PresetRef | undefined {
-  if (v === null) return null;
-  if (v && typeof v === "object" && isStr((v as { id: unknown }).id) && isStr((v as { text: unknown }).text)) {
-    const r = v as { id: string; text: string };
-    return { id: r.id, text: r.text };
-  }
-  return undefined;
-}
-
-function block(v: unknown): Block | null {
-  if (!v || typeof v !== "object") return null;
-  const b = v as Record<string, unknown>;
-  if (b.kind === "prefix" || b.kind === "character" || b.kind === "prompt" || b.kind === "style") return { kind: b.kind };
-  if (!isStr(b.id)) return null;
-  if (b.kind === "text" && isStr(b.text)) return { kind: "text", id: b.id, text: b.text };
-  if (b.kind === "embedding" && isStr(b.name)) return { kind: "embedding", id: b.id, name: b.name };
-  if (b.kind === "preset") {
-    const p = presetRef(b.preset);
-    return p === undefined ? null : { kind: "preset", id: b.id, preset: p };
-  }
-  return null;
-}
-
-/** Stored layers, or the defaults when they're malformed: every layer valid
- * and Prefix, Character, Prompt and Style each there once. Layers saved
- * before Style existed get it after the Prompt. */
-export function validBlocks(v: unknown): Block[] {
-  if (!Array.isArray(v)) return DEFAULT_BLOCKS;
-  const out = v.map(block);
-  if (out.some((b) => b === null)) return DEFAULT_BLOCKS;
-  let blocks = out as Block[];
-  if (!blocks.some((b) => b.kind === "style")) {
-    const at = blocks.findIndex((b) => b.kind === "prompt") + 1;
-    blocks = [...blocks.slice(0, at), { kind: "style" }, ...blocks.slice(at)];
-  }
-  for (const k of ["prefix", "character", "prompt", "style"] as const) {
-    if (blocks.filter((b) => b.kind === k).length !== 1) return DEFAULT_BLOCKS;
-  }
-  return blocks;
-}
-
-/** The composer fields from a stored record, falling back field by field. */
-function composerFrom(d: Record<string, unknown>): Pick<GenerateForm, (typeof COMPOSER_KEYS)[number]> {
-  const prefix = presetRef(d.prefix);
-  const negativePreset = presetRef(d.negativePreset);
-  return {
-    prefix: prefix === undefined ? null : prefix,
-    blocks: validBlocks(d.blocks),
-    prompt: isStr(d.prompt) ? d.prompt : "",
-    negativePreset: negativePreset === undefined ? null : negativePreset,
-    negative: isStr(d.negative) ? d.negative : "",
-  };
-}
-
-/** The old Base + Extra composer's text: it held the user's whole prompt, so
- * it becomes the Prompt (not the Prefix). */
-function migrated(d: Record<string, unknown>): Partial<GenerateForm> {
-  const tags = (v: unknown) => (Array.isArray(v) ? v.filter(isStr) : []);
-  return {
-    prompt: compose(isStr(d.base) ? d.base : "", tags(d.extra)),
-    negative: compose(isStr(d.negativeBase) ? d.negativeBase : "", tags(d.negativeExtra)),
-  };
-}
-
-function loraPresetOf(composer: Record<string, unknown> | null | undefined, name: string): PresetRef {
-  const all = composer?.loraPresets;
-  if (!all || typeof all !== "object") return null;
-  return presetRef((all as Record<string, unknown>)[name]) ?? null;
-}
-
-/** A batch's inputs back in the composer ("Edit and queue"). A typed name
- * stays; an auto name is picked again. */
-export function formFromBatch(i: BatchInputs, name: string | null, workflow = "builtin"): GenerateForm {
-  const c = i.composer && (i.composer as { v?: unknown }).v === 2 ? composerFrom(i.composer) : null;
-  const chars = i.characters ?? (i.character ? [i.character] : []);
-  return {
-    ...DEFAULT_FORM,
-    ...(c ?? {
-      prompt: compose(i.base ?? "", i.extra ?? []),
-      negative: compose(i.negative_base ?? "", i.negative_extra ?? []),
-    }),
-    checkpoint: i.checkpoint,
-    sampling: { ...i.sampling },
-    loras: i.loras.map((l) => ({ ...l, preset: loraPresetOf(i.composer, l.name) })),
-    characters: chars.map((c) => c.tag),
-    outfits: Object.fromEntries(chars.flatMap((c) => {
-      const p = pickFromInput(c.outfit);
-      return p ? [[c.tag, p]] : [];
-    })),
-    identityOff: keepOff(i.composer?.identityOff, chars.map((c) => c.tag)),
-    width: i.width ?? DEFAULT_FORM.width,
-    height: i.height ?? DEFAULT_FORM.height,
-    seed: i.seed.mode === "fixed" ? { ...i.seed } : { mode: "random", value: null },
-    count: i.count,
-    perRequest: i.per_request_asked ?? null,
-    name,
-    workflow,
-  };
-}
-
-export type SeedChoice = "same" | "new";
-
-/** The composer for remixing an image with `target`. An image Moiré queued
- * replays its batch when remixed with that batch's workflow (same seed: the
- * whole request again, so the image is among its results). Otherwise the
- * image's own values, each only where the workflow takes it: the built-in
- * takes everything; a custom workflow keeps its graph's own LoRAs, and its
- * checkpoint, size and sampling unless it has a slot. A checkpoint slot
- * takes the image's checkpoint only on the image's `own` workflow; another
- * workflow starts on its own default, which fits its model family.
- * `current` gives what the image doesn't say (checkpoint, size). Pure. */
-export function formFromRemix(
-  doc: RemixDoc,
-  target: Generator,
-  seed: SeedChoice,
-  current: GenerateForm,
-  own = false,
-): GenerateForm {
-  const remix = { image: doc.image_id, seed: seed === "same" ? doc.seed : null };
-  const b = doc.batch;
-  if (b && !b.inputs.test && b.generator_id === target._id) {
-    const f = formFromBatch(b.inputs, null, target._id);
-    const same = seed === "same" && b.seed != null;
-    return {
-      ...f,
-      seed: same ? { mode: "fixed", value: b.seed } : { mode: "random", value: null },
-      count: same ? Math.max(1, b.images ?? 1) : 1,
-      remix: { image: doc.image_id, seed: same ? b.seed : null },
-    };
-  }
-  const builtin = target.kind === "builtin";
-  const slots = target.slots;
-  const sizeSlot = builtin || (!!slots.width && !!slots.height);
-  const sampling: Sampling = {};
-  const exposed = builtin ? null : Object.keys(target.sampling ?? {});
-  for (const [k, v] of Object.entries(doc.sampling) as [keyof Sampling, never][]) {
-    if (!exposed || exposed.includes(k)) sampling[k] = v;
-  }
-  return {
-    ...DEFAULT_FORM,
-    workflow: target._id,
-    prompt: doc.prompt,
-    negative: doc.negative,
-    characters: doc.characters.slice(0, MAX_CHARACTERS),
-    checkpoint:
-      builtin || (slots.checkpoint && own)
-        ? (doc.checkpoint ?? current.checkpoint)
-        : slots.checkpoint
-          ? target.checkpoint_default || current.checkpoint
-          : current.checkpoint,
-    sampling,
-    loras: builtin ? doc.loras.map((l) => ({ name: l.name, strength: l.strength, preset: null })) : [],
-    width: sizeSlot && doc.width ? doc.width : current.width,
-    height: sizeSlot && doc.height ? doc.height : current.height,
-    seed: seed === "same" && doc.seed != null ? { mode: "fixed", value: doc.seed } : { mode: "random", value: null },
-    count: 1,
-    remix,
-  };
-}
-
-/** Struck identity tags of characters still in the prompt; malformed or
- * empty entries dropped (a draft is stored data). Pure. */
-export function keepOff(v: unknown, characters: readonly string[]): Record<string, string[]> {
-  const out: Record<string, string[]> = {};
-  if (!v || typeof v !== "object" || Array.isArray(v)) return out;
-  for (const c of characters) {
-    const tags = (v as Record<string, unknown>)[c];
-    const list = Array.isArray(tags) ? [...new Set(tags.filter(isStr))] : [];
-    if (list.length) out[c] = list;
-  }
-  return out;
-}
-
-const DRAFT_KEY = "moire.generate.draft";
-
-/** The saved draft merged over defaults; defaults when storage is empty,
- * blocked or holds something else. A draft from the old composer has its
- * Base + Extra moved into the Prompt. */
-export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage()): GenerateForm {
-  try {
-    const raw = storage?.getItem(DRAFT_KEY);
-    if (!raw) return DEFAULT_FORM;
-    const d = JSON.parse(raw);
-    if (!d || typeof d !== "object" || Array.isArray(d)) return DEFAULT_FORM;
-    const out: GenerateForm = { ...DEFAULT_FORM, ...composerFrom(d) };
-    if (!("prompt" in d) && ("base" in d || "extra" in d)) Object.assign(out, migrated(d));
-    if (isStr(d.checkpoint) || d.checkpoint === null) out.checkpoint = d.checkpoint;
-    out.sampling = samplingOf(d.sampling);
-    // Drafts from before several characters keep their one.
-    if (Array.isArray(d.characters)) out.characters = [...new Set<string>(d.characters.filter(isStr))].slice(0, MAX_CHARACTERS);
-    else if (isStr(d.character)) out.characters = [d.character];
-    out.outfits = keepPicked(validOutfits(d.outfits), out.characters);
-    out.identityOff = keepOff(d.identityOff, out.characters);
-    if (Array.isArray(d.fresh)) out.fresh = d.fresh.filter((t: unknown) => isStr(t) && out.characters.includes(t));
-    if (isStr(d.name) || d.name === null) out.name = d.name;
-    if (isStr(d.workflow) && d.workflow) out.workflow = d.workflow;
-    for (const k of ["width", "height", "count"] as const) if (typeof d[k] === "number") out[k] = d[k];
-    if (Number.isInteger(d.perRequest) && d.perRequest >= 1 && d.perRequest <= PER_REQUEST_MAX) out.perRequest = d.perRequest;
-    if (Array.isArray(d.loras)) {
-      out.loras = d.loras
-        .filter(
-          (l: unknown): l is StyleLora =>
-            !!l && typeof l === "object" && isStr((l as StyleLora).name) && typeof (l as StyleLora).strength === "number",
-        )
-        .map((l: StyleLora) => ({ name: l.name, strength: l.strength, preset: presetRef(l.preset) ?? null }));
-    }
-    const rx = d.remix;
-    if (rx && typeof rx === "object" && isStr(rx.image) && (rx.seed === null || Number.isInteger(rx.seed))) {
-      out.remix = { image: rx.image, seed: rx.seed };
-    }
-    const seed = d.seed;
-    if (seed && (seed.mode === "random" || seed.mode === "fixed") && (seed.value === null || typeof seed.value === "number")) {
-      out.seed = { mode: seed.mode, value: seed.value };
-    }
-    return out;
-  } catch {
-    return DEFAULT_FORM;
-  }
-}
-
-export function saveDraft(f: GenerateForm, storage: Pick<Storage, "setItem"> | null = safeStorage()): void {
-  try {
-    storage?.setItem(DRAFT_KEY, JSON.stringify(f));
-  } catch {
-    /* private window or quota: the draft just isn't kept */
-  }
-}
-
-function safeStorage(): Storage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-/** The sampling settings a stored value holds, the rest dropped. Pure. */
-export function samplingOf(v: unknown): Sampling {
-  if (!v || typeof v !== "object") return {};
-  const d = v as Record<string, unknown>;
-  const out: Sampling = {};
-  if (isStr(d.sampler)) out.sampler = d.sampler;
-  if (isStr(d.scheduler)) out.scheduler = d.scheduler;
-  // The backend's limits; anything else is left to the Generator.
-  if (Number.isInteger(d.steps) && (d.steps as number) >= STEPS_RANGE[0] && (d.steps as number) <= STEPS_RANGE[1]) out.steps = d.steps as number;
-  if (typeof d.cfg === "number" && d.cfg >= CFG_RANGE[0] && d.cfg <= CFG_RANGE[1]) out.cfg = d.cfg;
-  return out;
-}
-
-/** A sampler as people write it: "euler a", "dpmpp 2m karras". Pure. */
-export function samplerLabel(sampler: string, scheduler?: string): string {
-  const name = sampler.replace(/_ancestral$/, " a").replace(/_/g, " ");
-  return scheduler && scheduler !== "normal" ? `${name} ${scheduler.replace(/_/g, " ")}` : name;
-}
-
-/** "euler a · 28 steps · CFG 6" (`short`: "euler a · 28 · 6"), from
- * whichever settings are given. Pure. */
-export function samplingLabel(s: Sampling, short = false): string {
-  return [
-    s.sampler ? samplerLabel(s.sampler, s.scheduler) : s.scheduler && `${s.scheduler.replace(/_/g, " ")} scheduler`,
-    s.steps != null && (short ? `${s.steps}` : `${s.steps} steps`),
-    s.cfg != null && (short ? `${s.cfg}` : `CFG ${s.cfg}`),
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}
-
-/** What a rejection flags: the checkpoint, sampling, and which LoRA names. */
-export function rejectedFields(errors: readonly NodeError[]): { checkpoint: boolean; sampling: boolean; loras: Set<string> } {
-  return {
-    checkpoint: errors.some((e) => e.field === "checkpoint"),
-    sampling: errors.some((e) => e.field === "sampling"),
-    loras: new Set(errors.filter((e) => e.field === "lora" && e.lora_name).map((e) => e.lora_name!)),
-  };
-}
-
-/** The draft no longer a remix: the image's seed it kept goes with it. */
-function endRemix(f: GenerateForm): GenerateForm {
-  if (!f.remix) return f;
-  const kept = f.seed.mode === "fixed" && f.remix.seed != null && f.seed.value === f.remix.seed;
-  return { ...f, remix: null, seed: kept ? { mode: "random", value: null } : f.seed };
-}
-
-/** The draft with `tag` as its one character, to start in what Settings
- * says new characters wear (a character page's Generate). A remix it was
- * is over. Pure. */
-export function withCharacter(f: GenerateForm, tag: string): GenerateForm {
-  return { ...endRemix(f), characters: [tag], outfits: {}, identityOff: {}, fresh: [tag] };
-}
-
-/** The draft with `tag` as its one character, wearing `pick` (an outfit's
- * Use in Generate). A remix it was is over. Pure. */
-export function wearingOutfit(f: GenerateForm, tag: string, pick: OutfitPick): GenerateForm {
-  return { ...endRemix(f), characters: [tag], outfits: { [tag]: pick }, identityOff: {}, fresh: [] };
 }

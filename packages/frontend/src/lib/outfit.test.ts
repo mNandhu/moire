@@ -14,7 +14,9 @@ import {
   validOutfits,
   wornTags,
 } from "./outfit";
-import { formFromBatch, loadDraft, previewText, wearingOutfit, withCharacter } from "./generateForm";
+import { previewText } from "./generateForm";
+import { loadDraft } from "./generateDraft";
+import { formFromBatch, wearingOutfit, withCharacter } from "./remixForm";
 import type { BatchInputs } from "./generate";
 import { DEFAULT_FILTERS } from "./imageFilter";
 import { searchTerms, withSearchTerms } from "./searchTerms";

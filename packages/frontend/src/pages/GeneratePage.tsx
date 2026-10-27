@@ -43,20 +43,18 @@ import {
 } from "../lib/generate";
 import {
   insertBlock,
-  keepOff,
-  loadDraft,
   nameWords,
   presetText,
   previewText,
-  rejectedFields,
   removeBlock,
-  saveDraft,
   toParts,
   toEstimateBody,
   toQueueBody,
   updateBlock,
   type GenerateForm,
 } from "../lib/generateForm";
+import { keepOff, loadDraft, saveDraft } from "../lib/generateDraft";
+import { rejectedFields } from "../lib/sampling";
 import { PromptRepeats } from "../components/generate/PromptRepeats";
 import { prefixRepeats } from "../lib/promptRepeats";
 import { checkCountTags, countRanges, expectedTags, fixCountTags, followCast, type Kind } from "../lib/countTags";

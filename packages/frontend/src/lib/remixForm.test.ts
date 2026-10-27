@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_FORM, formFromRemix, loadDraft } from "./generateForm";
-import type { BatchInputs, Generator, RemixDoc } from "./generate";
+import { DEFAULT_FORM, toQueueBody } from "./generateForm";
+import { loadDraft } from "./generateDraft";
+import { formFromBatch, formFromRemix } from "./remixForm";
+import type { BatchInputs, Generator, Preset, RemixDoc } from "./generate";
 
 const builtin: Generator = {
   _id: "builtin",
@@ -115,5 +117,43 @@ describe("draft remix", () => {
     const store = (v: unknown) => ({ getItem: () => JSON.stringify(v) });
     expect(loadDraft(store({ remix: { image: "L1:a.png", seed: 3 } })).remix).toEqual({ image: "L1:a.png", seed: 3 });
     expect(loadDraft(store({ remix: { image: 4 } })).remix).toBeNull();
+  });
+});
+
+const presets: Preset[] = [{ _id: "q", name: "Quality", kind: "positive", text: "masterpiece, best quality", updated_at: 0 }];
+
+describe("formFromBatch", () => {
+  const base = {
+    base: "b",
+    extra: ["x"],
+    negative_base: "n",
+    negative_extra: [],
+    checkpoint: "c.safetensors",
+    loras: [{ name: "l", strength: 0.5 }],
+    width: 1024,
+    height: 1024,
+    seed: { mode: "fixed", value: 5 },
+    count: 8,
+    per_request: 2,
+    positive_text: "b, x",
+    negative_text: "n",
+  } as BatchInputs;
+
+  it("brings an old batch's text back as the Prompt", () => {
+    const f = formFromBatch(base, null);
+    expect(f).toMatchObject({ prompt: "b, x", negative: "n", count: 8, seed: { mode: "fixed", value: 5 }, name: null });
+  });
+
+  it("brings back every character, or the one an older batch had", () => {
+    const one = { tag: "a", label: "A", tags: ["a"], lora: null };
+    const two = { tag: "b", label: "B", tags: ["b"], lora: null };
+    expect(formFromBatch({ ...base, character: one, characters: [one, two] }, null).characters).toEqual(["a", "b"]);
+    expect(formFromBatch({ ...base, character: one }, null).characters).toEqual(["a"]);
+  });
+
+  it("restores a layered batch's composer", () => {
+    const sent = toQueueBody({ ...DEFAULT_FORM, prompt: "swing", prefix: { id: "q", text: "t" } }, "builtin", [], presets);
+    const f = formFromBatch({ ...base, composer: sent.composer }, "Mine");
+    expect(f).toMatchObject({ prompt: "swing", prefix: { id: "q", text: "t" }, name: "Mine" });
   });
 });

@@ -3,21 +3,18 @@ import {
   replaceCharacter,
   DEFAULT_BLOCKS,
   DEFAULT_FORM,
-  formFromBatch,
   insertBlock,
-  loadDraft,
   previewText,
-  rejectedFields,
-  samplingLabel,
-  samplingOf,
   removeBlock,
   toParts,
   toEstimateBody,
   toQueueBody,
-  validBlocks,
   type GenerateForm,
 } from "./generateForm";
-import type { BatchInputs, LoraPreset, NodeError, Preset } from "./generate";
+import { loadDraft } from "./generateDraft";
+import { formFromBatch } from "./remixForm";
+import { samplingLabel, samplingOf } from "./sampling";
+import type { BatchInputs, LoraPreset, Preset } from "./generate";
 
 const presets: Preset[] = [
   { _id: "q", name: "Quality", kind: "positive", text: "masterpiece, best quality", updated_at: 0 },
@@ -63,19 +60,6 @@ describe("layers", () => {
       "masterpiece, best quality, hu_tao_\\(genshin_impact\\), embedding:pos/aesthetic, (smile:1.2), swing",
     );
     expect(removeBlock(blocks, emb.id)).toEqual(DEFAULT_BLOCKS);
-  });
-
-  it("rejects malformed stored layers", () => {
-    expect(validBlocks([{ kind: "prompt" }])).toEqual(DEFAULT_BLOCKS);
-    expect(validBlocks([...DEFAULT_BLOCKS, { kind: "text" }])).toEqual(DEFAULT_BLOCKS);
-    expect(validBlocks("x")).toEqual(DEFAULT_BLOCKS);
-    const ok = [...DEFAULT_BLOCKS, { kind: "text", id: "a", text: "t" }];
-    expect(validBlocks(ok)).toEqual(ok);
-  });
-
-  it("adds Style after the Prompt to layers saved before it existed", () => {
-    const old = [{ kind: "prefix" }, { kind: "prompt" }, { kind: "text", id: "a", text: "t" }, { kind: "character" }];
-    expect(validBlocks(old).map((b) => b.kind)).toEqual(["prefix", "prompt", "style", "text", "character"]);
   });
 });
 
@@ -127,55 +111,7 @@ it("replaceCharacter changes, removes, and never shows a tag twice", () => {
   expect(replaceCharacter(["a", "b", "c"], 2, "a")).toEqual(["b", "a"]);
 });
 
-describe("loadDraft", () => {
-  it("keeps batch strikes only for characters still picked", () => {
-    const f = draft({ characters: ["a"], identityOff: { a: ["x", "x", 3], b: ["y"] } });
-    expect(f.identityOff).toEqual({ a: ["x"] });
-    expect(draft({ characters: ["a"], identityOff: "junk" }).identityOff).toEqual({});
-  });
-
-  it("falls back to defaults on bad storage", () => {
-    expect(loadDraft({ getItem: () => "not json" })).toEqual(DEFAULT_FORM);
-    expect(
-      loadDraft({
-        getItem: () => {
-          throw new Error("blocked");
-        },
-      }),
-    ).toEqual(DEFAULT_FORM);
-    expect(loadDraft(null)).toEqual(DEFAULT_FORM);
-  });
-
-  it("keeps a draft's one character as the list", () => {
-    expect(draft({ character: "nahida" }).characters).toEqual(["nahida"]);
-    expect(draft({ characters: ["a", "b", "a", 3] }).characters).toEqual(["a", "b"]);
-  });
-
-  it("keeps known fields of the right type", () => {
-    const d = draft({ prompt: "x", count: "9", checkpoint: "a.safetensors", prefix: { id: "q", text: "t" }, junk: 1 });
-    expect(d.prompt).toBe("x");
-    expect(d.count).toBe(DEFAULT_FORM.count);
-    expect(d.checkpoint).toBe("a.safetensors");
-    expect(d.prefix).toEqual({ id: "q", text: "t" });
-    expect("junk" in d).toBe(false);
-  });
-
-  it("moves the old composer's Base and Extra into the Prompt", () => {
-    const d = draft({ base: "sitting on a swing, garden", extra: ["red_dress"], negativeBase: "lowres", negativeExtra: [] });
-    expect(d.prompt).toBe("sitting on a swing, garden, red_dress");
-    expect(d.negative).toBe("lowres");
-    expect(d.prefix).toBeNull();
-    expect(d.blocks).toEqual(DEFAULT_BLOCKS);
-  });
-});
-
 describe("sampling", () => {
-  it("labels a sampler as people write it", () => {
-    expect(samplingLabel({ sampler: "euler_ancestral", scheduler: "normal", steps: 28, cfg: 6 })).toBe("euler a · 28 steps · CFG 6");
-    expect(samplingLabel({ sampler: "dpmpp_2m", scheduler: "karras" })).toBe("dpmpp 2m karras");
-    expect(samplingLabel({ steps: 20 })).toBe("20 steps");
-    expect(samplingLabel({ sampler: "euler", steps: 28, cfg: 6.5 }, true)).toBe("euler · 28 · 6.5");
-  });
   it("round-trips through the queue body, a batch and the draft", () => {
     const form = { ...DEFAULT_FORM, sampling: { sampler: "dpmpp_2m", steps: 20 } };
     const sent = toQueueBody(form, "builtin", [], presets);
@@ -195,48 +131,6 @@ describe("sampling", () => {
   });
 });
 
-it("rejectedFields picks the checkpoint and LoRA names", () => {
-  const errs = [{ field: "checkpoint" }, { field: "lora", lora_name: "x.safetensors" }, { field: null }] as NodeError[];
-  const r = rejectedFields(errs);
-  expect(r.checkpoint).toBe(true);
-  expect([...r.loras]).toEqual(["x.safetensors"]);
-});
-
-describe("formFromBatch", () => {
-  const base = {
-    base: "b",
-    extra: ["x"],
-    negative_base: "n",
-    negative_extra: [],
-    checkpoint: "c.safetensors",
-    loras: [{ name: "l", strength: 0.5 }],
-    width: 1024,
-    height: 1024,
-    seed: { mode: "fixed", value: 5 },
-    count: 8,
-    per_request: 2,
-    positive_text: "b, x",
-    negative_text: "n",
-  } as BatchInputs;
-
-  it("brings an old batch's text back as the Prompt", () => {
-    const f = formFromBatch(base, null);
-    expect(f).toMatchObject({ prompt: "b, x", negative: "n", count: 8, seed: { mode: "fixed", value: 5 }, name: null });
-  });
-
-  it("brings back every character, or the one an older batch had", () => {
-    const one = { tag: "a", label: "A", tags: ["a"], lora: null };
-    const two = { tag: "b", label: "B", tags: ["b"], lora: null };
-    expect(formFromBatch({ ...base, character: one, characters: [one, two] }, null).characters).toEqual(["a", "b"]);
-    expect(formFromBatch({ ...base, character: one }, null).characters).toEqual(["a"]);
-  });
-
-  it("restores a layered batch's composer", () => {
-    const sent = toQueueBody({ ...DEFAULT_FORM, prompt: "swing", prefix: { id: "q", text: "t" } }, "builtin", [], presets);
-    const f = formFromBatch({ ...base, composer: sent.composer }, "Mine");
-    expect(f).toMatchObject({ prompt: "swing", prefix: { id: "q", text: "t" }, name: "Mine" });
-  });
-});
 
 describe("toEstimateBody", () => {
   it("keeps only what decides how long a batch takes", () => {

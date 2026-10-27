@@ -20,7 +20,8 @@ import {
   useOutfits,
   type Outfit,
 } from "../lib/generate";
-import { loadDraft, saveDraft, wearingOutfit } from "../lib/generateForm";
+import { loadDraft, saveDraft } from "../lib/generateDraft";
+import { wearingOutfit } from "../lib/remixForm";
 import { outfitGalleryHref, pickOf } from "../lib/outfit";
 
 /** What a click on an outfit card offers: edit it, wear it in Generate,
