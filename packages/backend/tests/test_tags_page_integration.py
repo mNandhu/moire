@@ -68,6 +68,7 @@ async def test_detail_describes_one_tag(client, seed):
     assert got["loras"] == [{"name": "fluffy", "count": 1, "strength": 1.0}]
     assert got["workflows"] == [{"sig": "S1", "count": 1}]
     assert got["related"] == [{"tag": "night", "count": 2}, {"tag": "rain", "count": 1}]
+    assert got["weights"] is None  # no prompt weighted it
 
     ai = (
         await client.get("/tags/detail", params={"tag": "cat", "source": "ai"})
@@ -75,6 +76,30 @@ async def test_detail_describes_one_tag(client, seed):
     assert ai["count"] == 1
     missing = await client.get("/tags/detail", params={"tag": "nothing"})
     assert missing.status_code == 404
+
+
+async def test_detail_gives_the_prompt_weight_spread(client, seed):
+    def prompted(image_id, weight=None):
+        weights = {"cat": weight} if weight is not None else {}
+        seed(
+            image_id,
+            tags=("prompt:cat",),
+            gen={"prompt_terms": ["cat"], "prompt_weights": weights},
+        )
+
+    prompted("L1:a", 1.2)
+    prompted("L1:b", 1.2)
+    prompted("L1:c", 0.8)
+    prompted("L1:d")
+    seed("L1:e", tags=("cat",))  # seen, never prompted: no row
+    got = (await client.get("/tags/detail", params={"tag": "any:cat"})).json()
+    assert got["weights"] == {
+        "min": 0.8,
+        "max": 1.2,
+        "mode": 1.2,
+        "weighted": 3,
+        "prompted": 4,
+    }
 
 
 async def test_a_pin_belongs_to_the_name_whichever_source(client, seed):

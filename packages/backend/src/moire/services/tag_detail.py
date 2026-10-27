@@ -145,6 +145,32 @@ async def _workflows(conn, in_ids) -> list[dict]:
     return [{"sig": r.sig, "count": r.count} for r in rows]
 
 
+async def _weights(conn, ids, bases: list[str]) -> dict | None:
+    """The prompt weights the tag was written at on these images: lowest,
+    highest, the most common (the lowest on a tie) and how many of the
+    prompted images weighted it. ``None`` when no prompt weighted it."""
+    gt = t.image_gen_terms
+    w = sa.func.round(gt.c.weight, 2).label("w")
+    rows = (
+        await conn.execute(
+            sa.select(w, sa.func.count().label("count"))
+            .where(gt.c.image_id.in_(ids), gt.c.term.in_(bases))
+            .group_by(w)
+            .order_by(w)
+        )
+    ).fetchall()
+    weighted = sum(r.count for r in rows if r.w != 1)
+    if not weighted:
+        return None
+    return {
+        "min": rows[0].w,
+        "max": rows[-1].w,
+        "mode": max(rows, key=lambda r: r.count).w,
+        "weighted": weighted,
+        "prompted": sum(r.count for r in rows),
+    }
+
+
 async def _related(conn, ids, bases: list[str]) -> list[dict]:
     """The other tags on these images, most shared first, untrimmed."""
     it = t.image_tags
@@ -168,7 +194,8 @@ async def detail(
     """What the Tags page panel shows for one tag (``None`` when no image has
     it): counts by source, first and last use, images per month, and what the
     images were made with (loras with their usual weight, positive-prompt
-    embeddings, workflow signatures) or tagged with besides. ``aliases`` are
+    embeddings, workflow signatures, the prompt weights the tag was written
+    at) or tagged with besides. ``aliases`` are
     other names of the same thing (a character's bare name), counted as one.
     Related tags come untrimmed (``_RELATED``) so the caller can drop its
     boilerplate and still have some left."""
@@ -185,6 +212,7 @@ async def detail(
         loras = await _loras(conn, ids)
         embeddings = await _embeddings(conn, ids)
         workflows = await _workflows(conn, in_ids)
+        weights = await _weights(conn, ids, bases)
         related = await _related(conn, ids, bases)
         pin = (await tag_covers.pins(conn, {base})).get(base)
         characters = await character_names.character_names(conn, vocab, {base})
@@ -200,6 +228,7 @@ async def detail(
         "loras": loras,
         "embeddings": embeddings,
         "workflows": workflows,
+        "weights": weights,
         "related": related,
         "thumb_image_id": pin,
     }

@@ -28,6 +28,7 @@ import {
   renamableTags,
   tagWorkflows,
   type TagSource,
+  weightSpreadText,
 } from "../lib/tagBrowse";
 
 const PICK_PAGE = 30; // a 3-wide grid: ten rows a page
@@ -226,6 +227,18 @@ export function TagPanel({
             total={detail.count}
             heading="h3"
           />
+
+          {detail.weights && (
+            <section>
+              <h3 className="text-2xs uppercase tracking-wider text-faint mb-1">Prompt weight</h3>
+              <p
+                className="text-xs text-neutral-200 tabular-nums"
+                title={`Weighted in ${detail.weights.weighted.toLocaleString()} of the ${detail.weights.prompted.toLocaleString()} prompts that name it`}
+              >
+                {weightSpreadText(detail.weights)}
+              </p>
+            </section>
+          )}
 
           {related.length > 0 && (
             <section>

@@ -12,6 +12,7 @@ import {
   tagWorkflows,
   renameMessage,
   undoRuleMessage,
+  weightSpreadText,
   acceptMessage,
   type BrowseTag,
 } from "./tagBrowse";
@@ -199,5 +200,13 @@ describe("acceptMessage", () => {
     expect(
       acceptMessage({ rules: 0, skipped: ["a", "b", "c", "d", "e"].map(skip), images: 0, background: false }),
     ).toBe("Merged 0 tags on 0 images; skipped “a” (loop), “b” (loop), “c” (loop) and 2 more");
+  });
+});
+
+describe("weightSpreadText", () => {
+  it("reads the spread, or the one weight it is always at", () => {
+    expect(weightSpreadText({ min: 0.8, max: 1.4, mode: 1.2, weighted: 5, prompted: 9 })).toBe("0.8 to 1.4, mostly 1.2");
+    expect(weightSpreadText({ min: 1.2, max: 1.2, mode: 1.2, weighted: 3, prompted: 3 })).toBe("always 1.2");
+    expect(weightSpreadText({ min: 1, max: 1.21, mode: 1, weighted: 1, prompted: 4 })).toBe("1 to 1.21, mostly 1");
   });
 });

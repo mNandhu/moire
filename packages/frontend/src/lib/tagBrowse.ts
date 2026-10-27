@@ -5,7 +5,7 @@
  * The page itself only wires these to queries and markup.
  */
 import type { TagRenameResult } from "./queries/tags";
-import { ANY_PREFIX, MANUAL_PREFIX, PROMPT_PREFIX, formatTag, tagQueryText } from "./tags";
+import { ANY_PREFIX, MANUAL_PREFIX, PROMPT_PREFIX, formatTag, formatWeight, tagQueryText } from "./tags";
 import { workflowFilterName, type WorkflowFamily } from "./workflows";
 
 export type TagSource = "all" | "ai" | "prompt" | "manual";
@@ -26,6 +26,16 @@ export type BrowseTag = {
   focus?: [number, number] | null;
 };
 
+/** A tag's prompt weights over the images that prompted it: lowest, highest,
+ * the most common, and how many of the `prompted` images weighted it. */
+export type WeightSpread = { min: number; max: number; mode: number; weighted: number; prompted: number };
+
+/** "0.8 to 1.4, mostly 1.2", or "always 1.2" when it never varies. */
+export function weightSpreadText(s: WeightSpread): string {
+  if (s.min === s.max) return `always ${formatWeight(s.min)}`;
+  return `${formatWeight(s.min)} to ${formatWeight(s.max)}, mostly ${formatWeight(s.mode)}`;
+}
+
 /** `/tags/detail`: what the side panel shows for one tag. */
 export type TagDetail = {
   tag: string;
@@ -41,6 +51,8 @@ export type TagDetail = {
   /** Embeddings in the positive prompt, most used first. */
   embeddings: Array<{ name: string; count: number }>;
   workflows: Array<{ sig: string; count: number }>;
+  /** The prompt weights it was written at; null when no prompt weighted it. */
+  weights: WeightSpread | null;
   /** Tags on the same images, most shared first, boilerplate included. */
   related: Array<{ tag: string; count: number }>;
   thumb_image_id: string | null;
