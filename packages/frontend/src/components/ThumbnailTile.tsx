@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Check, Layers, ShieldOff, Sparkles } from "lucide-react";
 import { ImageThumbnail } from "./ImageThumbnail";
 import { cn } from "../lib/cn";
 import { ratingDotClass } from "../lib/rating";
 import { ScoreMark } from "./ui/ScoreMark";
 import { useBatchScrub } from "../hooks/useBatchScrub";
+import { useCrossfade } from "../hooks/useCrossfade";
 import type { ImageDoc } from "../lib/imageFilter";
 
 type ImageDocWithDims = ImageDoc & { width?: number; height?: number };
@@ -29,11 +30,6 @@ type ImageDocWithDims = ImageDoc & { width?: number; height?: number };
  * on a screen whose entire job is looking at pictures, so entering the mode is
  * the deliberate opt-in that puts it there.
  */
-// Must match the `duration-300` class on the crossfade layers below: the
-// exit fade sets both layers to opacity-0 and waits this long for that
-// transition to finish before unmounting the <img> nodes.
-const SCRUB_CROSSFADE_MS = 300;
-
 export const ThumbnailTile = React.memo(function ThumbnailTile({
   item,
   index,
@@ -86,48 +82,8 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
     peekQuery,
   );
 
-  // Two stacked layers that swap which one is "front" on every frame change, so
-  // each step (including the wrap from the last member back to the first) is
-  // a dissolve between the previous frame and the next rather than a hard cut.
-  // A single <img> whose src is swapped in place can't do this: only a fresh
-  // element (or a genuinely new opacity target) retriggers a CSS transition.
-  const [scrubLayers, setScrubLayers] = useState<[string | null, string | null]>([null, null]);
-  // `null` means neither layer is front; both fade to opacity-0. Used only
-  // on hover-exit, so the layers stay mounted long enough to actually play
-  // the fade instead of vanishing with it.
-  const [scrubFront, setScrubFront] = useState<0 | 1 | null>(0);
-  const lastScrubSrc = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!scrub.src) {
-      if (lastScrubSrc.current === null) return;
-      lastScrubSrc.current = null;
-      // Fade the visible layer out to opacity-0 rather than unmounting both
-      // <img> layers in the same commit; removing the nodes immediately
-      // skipped the opacity transition and hard-cut straight back to the
-      // resting thumbnail on mouse-leave.
-      setScrubFront(null);
-      const t = setTimeout(
-        () => setScrubLayers([null, null]),
-        SCRUB_CROSSFADE_MS,
-      );
-      return () => clearTimeout(t);
-    }
-    if (scrub.src === lastScrubSrc.current) return;
-    lastScrubSrc.current = scrub.src;
-    const back = scrubFront === 0 ? 1 : 0;
-    setScrubLayers((layers) => {
-      const next: [string | null, string | null] = [...layers];
-      next[back] = scrub.src;
-      return next;
-    });
-    // Paint the new frame into the hidden layer first, then flip which layer
-    // is front on the next tick; flipping in the same update risks the
-    // browser coalescing both style changes and skipping the transition.
-    const raf = requestAnimationFrame(() => setScrubFront(back));
-    return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrub.src]);
+  // Cross-fades the peeked members over the representative.
+  const { layers: scrubLayers, front: scrubFront } = useCrossfade(scrub.src);
 
   const score = item.score ?? 0;
   const hasScore = score > 0;
@@ -173,7 +129,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
           swapped into ImageThumbnail's src so the tile's own load state, and
           the BlurHash it already resolved, are left alone. Two layers alternate
           front/back so every step dissolves, including the wrap back to the
-          first frame; see the scrubLayers effect above. */}
+          first frame; see useCrossfade. */}
       {scrubLayers.map((layerSrc, i) =>
         layerSrc ? (
           <img

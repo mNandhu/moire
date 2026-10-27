@@ -35,6 +35,8 @@ interface VirtualizedGridProps {
   /** Active gallery filters, serialized for tiles' batch-peek fetch; see
    * serializeFiltersForPeek. */
   peekQuery?: string;
+  /** Told the column count whenever it changes (arrow-key row jumps). */
+  onColumns?: (cols: number) => void;
 }
 
 /** Longest entrance stagger, so a 200-item page doesn't trickle in for 4s. */
@@ -67,6 +69,7 @@ export function VirtualizedGrid({
   dimQuarantined = true,
   restoreScrollTop = null,
   peekQuery = "",
+  onColumns,
 }: VirtualizedGridProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const virtualContainerRef = useRef<HTMLDivElement>(null);
@@ -88,6 +91,10 @@ export function VirtualizedGrid({
     const g = gapForDensity(density);
     return { cols: c, colWidth: columnWidth(wrapperWidth, c, g), gap: g };
   }, [wrapperWidth, density]);
+
+  useEffect(() => {
+    onColumns?.(cols);
+  }, [cols, onColumns]);
 
   // The element the grid scrolls in. The page's getter can come back empty:
   // React attaches an ancestor's ref only after its children's layout effects,

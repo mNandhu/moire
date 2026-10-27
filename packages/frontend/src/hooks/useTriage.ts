@@ -1,4 +1,4 @@
-import { useCallback, useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useCallback, useEffect, type Dispatch, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "../components/Toasts";
 import { errorText } from "../lib/api";
@@ -6,7 +6,6 @@ import { patchFeeds, writeImageFields } from "../lib/feedCache";
 import { nextFocusIndex, isGridNavKey, type GridNavKey } from "../lib/gridNav";
 import type { ImageDoc } from "../lib/imageFilter";
 import { setScore as apiSetScore, setQuarantine as apiSetQuarantine } from "../lib/imageMutations";
-import { gridColumns } from "../lib/masonryLayout";
 import { useHotkeys } from "./useHotkeys";
 
 /**
@@ -21,8 +20,7 @@ export function useTriage({
   setFocusedIndex,
   enabled,
   quarantined,
-  density,
-  gridWrapRef,
+  gridColsRef,
   getScrollContainer,
   openTile,
   refetchFeed,
@@ -33,8 +31,8 @@ export function useTriage({
   enabled: boolean;
   /** The quarantined view: X restores instead. */
   quarantined: boolean;
-  density: number;
-  gridWrapRef: RefObject<HTMLDivElement | null>;
+  /** The column count the grid packed (VirtualizedGrid's `onColumns`). */
+  gridColsRef: { readonly current: number };
   getScrollContainer: () => HTMLElement | null;
   openTile: (id: string) => void;
   refetchFeed: () => void;
@@ -93,7 +91,7 @@ export function useTriage({
         run: (e) => {
           e.preventDefault();
           const key = e.key as GridNavKey;
-          const cols = gridColumns(gridWrapRef.current?.clientWidth || 0, density);
+          const cols = gridColsRef.current;
           setFocusedIndex((prev) => nextFocusIndex(prev, key, cols, items.length));
         },
       },

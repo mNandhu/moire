@@ -153,12 +153,12 @@ export default function AllImagesPage() {
   // selection mode and in the grouped view (tiles there are batch reps).
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  // The grid's own box, not the padded page wrapper. Arrow-key row jumps have
-  // to step by the number of columns the grid actually packed, which means
-  // measuring the same element at the same density the grid measures, a
-  // padded parent's clientWidth is ~48px wider and rounds to a different
-  // column count at some widths.
-  const gridWrapRef = useRef<HTMLDivElement | null>(null);
+  // The column count the grid packed, as it reports it: arrow-key row jumps
+  // step by exactly that.
+  const gridColsRef = useRef(1);
+  const onGridColumns = useCallback((cols: number) => {
+    gridColsRef.current = cols;
+  }, []);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Filter popover (kept inside the sticky header so it stays accessible while scrolling)
@@ -299,8 +299,7 @@ export default function AllImagesPage() {
     setFocusedIndex,
     enabled: triageEnabled,
     quarantined: filters.quarantined,
-    density: density.density,
-    gridWrapRef,
+    gridColsRef,
     getScrollContainer,
     openTile,
     refetchFeed: feed.refetch,
@@ -486,7 +485,6 @@ export default function AllImagesPage() {
       )}
 
       {items.length > 0 && (
-        <div ref={gridWrapRef}>
         <VirtualizedGrid
           items={items}
           selection={selection}
@@ -503,9 +501,9 @@ export default function AllImagesPage() {
           dimQuarantined={!filters.quarantined}
           restoreScrollTop={restoreScroll}
           peekQuery={peekQuery}
+          onColumns={onGridColumns}
           className="min-h-screen"
         />
-        </div>
       )}
 
       <div ref={sentinelRef} className="h-8" />
