@@ -5,7 +5,7 @@
  * in a rainbow, and each tag is tinted by its facet (how the character looks,
  * what they wear, their pose, the scene, the framing).
  *
- * The colour words mirror the backend's services/characters.py `COLOURS` and
+ * The colour words mirror the backend's services/character_look.py `COLOURS` and
  * `colour_of` (which colour the character pages), so a character page and
  * its tags agree. Neutrals are lifted here so black hair still shows on the
  * dark canvas.
