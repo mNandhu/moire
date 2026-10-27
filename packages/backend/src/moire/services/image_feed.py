@@ -189,26 +189,38 @@ def _tag_group_exists(ids: list[str]):
     )
 
 
-def feed_where(f: FeedFilter):
-    """Build the SQL WHERE clause shared by the feed and the grouped view."""
+def _tag_groups(f: FeedFilter) -> list[list[str]]:
+    """The filter's tag groups: AND across groups, OR within each one.
+    `any:<base>` entries fan out to all sources; exact tags stay precise.
+    Either spelling finds a tag (`blue eyes` = `blue_eyes`), so a typed tag
+    or an old bookmarked URL still matches the canonical stored form."""
+    if not f.tags:
+        return []
+    wanted = [image_tags.canonical_tag(tag) for tag in f.tags]
+    return tag_kinds.tag_match_groups(wanted, f.logic)
+
+
+def _pterms(f: FeedFilter) -> list[str]:
+    """The filter's prompt terms, as ``image_gen_terms`` spells them."""
+    return [canonical_name(p.lower()) for p in f.pterms or [] if p and p.strip()]
+
+
+def _term_exists(cond):
+    return sa.exists(
+        sa.select(1).where(t.image_gen_terms.c.image_id == t.images.c._id, cond)
+    )
+
+
+def _tag_conds(f: FeedFilter) -> list:
+    """Tags, the tag-state flags and quarantine."""
     conds: list = []
-    if f.driver_ids is not None:
-        conds.append(t.images.c._id.in_(f.driver_ids))
-    if f.tags:
-        # `any:<base>` entries fan out to all sources; exact tags stay precise.
-        # AND across groups, OR within each group: one EXISTS per group.
-        # Either spelling finds a tag (`blue eyes` = `blue_eyes`), so a typed
-        # tag or an old bookmarked URL still matches the canonical stored form.
-        wanted = [image_tags.canonical_tag(tag) for tag in f.tags]
-        for group in tag_kinds.tag_match_groups(wanted, f.logic):
-            conds.append(_tag_group_exists(group))
-        if f.no_ai_tags == 1:
-            conds.append(t.images.c.has_ai_tags.is_(False))
-    else:
-        if f.no_tags == 1:
-            conds.append(t.images.c.has_tags.is_(False))
-        if f.no_ai_tags == 1:
-            conds.append(t.images.c.has_ai_tags.is_(False))
+    # One EXISTS per tag group.
+    for group in _tag_groups(f):
+        conds.append(_tag_group_exists(group))
+    if not f.tags and f.no_tags == 1:
+        conds.append(t.images.c.has_tags.is_(False))
+    if f.no_ai_tags == 1:
+        conds.append(t.images.c.has_ai_tags.is_(False))
     if f.ai_tagged == 1:
         conds.append(t.images.c.has_ai_tags.is_(True))
     if f.library_id:
@@ -219,32 +231,23 @@ def feed_where(f: FeedFilter):
         conds.append(t.images.c.quarantined.is_(True))
     else:
         conds.append(image_visibility.not_quarantined())
+    return conds
+
+
+def _gen_conds(f: FeedFilter) -> list:
+    """What made the image: prompt terms, model, loras, embeddings."""
+    conds: list = []
     if f.needs_mapping == 1:
         conds.append(t.images.c.gen_workflow_sig.isnot(None))
         conds.append(t.images.c.gen_prompt.is_(None))
-    if f.pterms:
-        terms = [canonical_name(p.lower()) for p in f.pterms if p and p.strip()]
-        if terms:
-            if f.plogic == "or":
-                conds.append(
-                    sa.exists(
-                        sa.select(1).where(
-                            t.image_gen_terms.c.image_id == t.images.c._id,
-                            t.image_gen_terms.c.term.in_(terms),
-                        )
-                    )
-                )
-            else:
-                # $all: the image must carry every term.
-                for term in terms:
-                    conds.append(
-                        sa.exists(
-                            sa.select(1).where(
-                                t.image_gen_terms.c.image_id == t.images.c._id,
-                                t.image_gen_terms.c.term == term,
-                            )
-                        )
-                    )
+    terms = _pterms(f)
+    if terms:
+        if f.plogic == "or":
+            conds.append(_term_exists(t.image_gen_terms.c.term.in_(terms)))
+        else:
+            # $all: the image must carry every term.
+            for term in terms:
+                conds.append(_term_exists(t.image_gen_terms.c.term == term))
     if f.model:
         models = [m for m in f.model if m]
         if models:
@@ -271,11 +274,20 @@ def feed_where(f: FeedFilter):
                     )
                 )
             )
-    if f.outfit:
-        if f.outfit_rules is None:
-            raise RuntimeError("outfit filter used before _resolved()")
-        # An unknown outfit (None) matches nothing.
-        conds += [wear_condition(r) if r else sa.false() for r in f.outfit_rules]
+    return conds
+
+
+def _outfit_conds(f: FeedFilter) -> list:
+    if not f.outfit:
+        return []
+    if f.outfit_rules is None:
+        raise RuntimeError("outfit filter used before _resolved()")
+    # An unknown outfit (None) matches nothing.
+    return [wear_condition(r) if r else sa.false() for r in f.outfit_rules]
+
+
+def _size_conds(f: FeedFilter) -> list:
+    conds: list = []
     if f.shape:
         conds.append(image_shapes.where(f.shape))
     if f.min_w is not None:
@@ -286,6 +298,11 @@ def feed_where(f: FeedFilter):
         conds.append(t.images.c.height >= f.min_h)
     if f.max_h is not None:
         conds.append(t.images.c.height <= f.max_h)
+    return conds
+
+
+def _workflow_conds(f: FeedFilter) -> list:
+    conds: list = []
     if f.workflow_id:
         if f.family_sigs is None:
             raise RuntimeError("workflow filter used before _resolved()")
@@ -295,6 +312,19 @@ def feed_where(f: FeedFilter):
     # Drill into one batch's members (used by the grouped view's expand).
     if f.group_id:
         conds.append(t.images.c.gen_group_id == f.group_id)
+    return conds
+
+
+def feed_where(f: FeedFilter):
+    """Build the SQL WHERE clause shared by the feed and the grouped view."""
+    conds: list = []
+    if f.driver_ids is not None:
+        conds.append(t.images.c._id.in_(f.driver_ids))
+    conds += _tag_conds(f)
+    conds += _gen_conds(f)
+    conds += _outfit_conds(f)
+    conds += _size_conds(f)
+    conds += _workflow_conds(f)
     return sa.and_(*conds) if conds else sa.true()
 
 
@@ -328,13 +358,10 @@ async def _drive_by_rarest(conn, f: FeedFilter) -> FeedFilter:
     other conditions still apply."""
     if f.driver_ids is not None:
         return f
-    groups = []  # (table, column, values)
-    if f.tags:
-        wanted = [image_tags.canonical_tag(tag) for tag in f.tags]
-        for grp in tag_kinds.tag_match_groups(wanted, f.logic):
-            groups.append((t.image_tags, t.image_tags.c.tag, grp))
-    if f.pterms and f.plogic == "and":
-        for term in [canonical_name(p.lower()) for p in f.pterms if p and p.strip()]:
+    # The same groups feed_where ANDs in, so the driver never prunes a match.
+    groups = [(t.image_tags, t.image_tags.c.tag, grp) for grp in _tag_groups(f)]
+    if f.plogic == "and":
+        for term in _pterms(f):
             groups.append((t.image_gen_terms, t.image_gen_terms.c.term, [term]))
     best: list[str] | None = None
     for tbl, col, vals in groups:
