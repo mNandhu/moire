@@ -160,7 +160,7 @@ async def get_image_file(
     range: str | None = Header(default=None, alias="Range"),
 ):
     """Serve the original image file directly from the local filesystem."""
-    img = await _find_image_doc(image_id, {"path": 1})
+    img = await _find_image_doc(image_id, ("path",))
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
     path = img.get("path")
@@ -186,7 +186,7 @@ async def get_image_file(
 @router.head("/{image_id:path}/file")
 async def head_image_file(image_id: str):
     """HEAD for the original image file: stat from the local filesystem."""
-    img = await _find_image_doc(image_id, {"path": 1})
+    img = await _find_image_doc(image_id, ("path",))
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
     path = img.get("path")
@@ -262,7 +262,7 @@ async def get_image_thumb(
     (made on first ask), for previews shown postage-stamp size. `v` is the
     URL's version (`thumb_version`): with it the response is kept for a year,
     without it the browser asks again (a 304 while the file is unchanged)."""
-    img = await _find_image_doc(image_id, {"thumb_key": 1})
+    img = await _find_image_doc(image_id, ("thumb_key",))
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
     thumb_key = img.get("thumb_key")
@@ -294,7 +294,7 @@ async def head_image_thumb(
     size: ThumbSize | None = None,
     v: str | None = Query(default=None, max_length=64),
 ):
-    img = await _find_image_doc(image_id, {"thumb_key": 1})
+    img = await _find_image_doc(image_id, ("thumb_key",))
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
     thumb_key = img.get("thumb_key", "") or ""
@@ -310,7 +310,7 @@ async def head_image_thumb(
 @router.get("/{image_id:path}/thumb-url")
 async def get_thumb_url(image_id: str):
     """The image's versioned thumbnail URL, for a page holding only its id."""
-    img = await _find_image_doc(image_id, {"_id": 1, "thumb_key": 1})
+    img = await _find_image_doc(image_id, ("thumb_key",))
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
     row = {"_id": img["_id"], "thumb_key": img.get("thumb_key")}
@@ -476,18 +476,16 @@ async def get_image_workflow(image_id: str):
     plus the `prompt` (API graph); A1111 returns the `parameters` string.
     """
     async with async_conn() as conn:
+        resolved = await image_tags.resolve_image_id(conn, image_id)
         raw = None
-        for candidate in image_tags.id_candidates(image_id):
-            row = (
+        if resolved is not None:
+            raw = (
                 await conn.execute(
                     sa.select(t.image_gen_raw.c.raw).where(
-                        t.image_gen_raw.c._id == candidate
+                        t.image_gen_raw.c._id == resolved
                     )
                 )
-            ).first()
-            if row is not None:
-                raw = row.raw
-                break
+            ).scalar()
     if not raw:
         raise HTTPException(status_code=404, detail="No generation data for image")
 
@@ -559,7 +557,7 @@ async def purge_image(image_id: str, body: PurgeBody):
     """
     if not body.confirm:
         raise HTTPException(status_code=400, detail="purge requires confirm=true")
-    img = await _find_image_doc(image_id, {"path": 1, "thumb_key": 1})
+    img = await _find_image_doc(image_id, ("path", "thumb_key"))
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
 

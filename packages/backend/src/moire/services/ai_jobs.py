@@ -380,7 +380,7 @@ class AIJobManager:
         """Read, decode and (with the model loaded) resize an image's original
         to the model's input, off the event loop. Running as the prefetch, it
         overlaps all of that with inference on the previous image."""
-        doc = await image_tags.find_image(image_id, {"path": 1})
+        doc = await image_tags.find_image(image_id, ("path",))
         if not doc:
             raise RuntimeError("image not found")
         path = doc.get("path")

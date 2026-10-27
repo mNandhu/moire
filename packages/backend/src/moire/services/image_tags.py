@@ -216,14 +216,24 @@ async def resolve_image_id(conn: AsyncConnection, image_id: str) -> str | None:
     return None
 
 
+def resolve_image_id_sync(conn: Connection, image_id: str) -> str | None:
+    """Sync twin of :func:`resolve_image_id` for scanner / reproject threads."""
+    for candidate in id_candidates(image_id):
+        found = conn.execute(
+            sa.select(t.images.c._id).where(t.images.c._id == candidate)
+        ).scalar()
+        if found is not None:
+            return found
+    return None
+
+
 async def find_image(
     image_id: str, columns: Iterable[str] | None = None
 ) -> dict | None:
     """Look up an image by id, tolerating slash/backslash id variants.
 
     ``columns`` names the ``images`` columns to read (``_id`` always comes
-    too); ``None`` reads the whole document. A Mongo-style ``{"path": 1}``
-    still works, as its keys are the names. The thumb and file routes read
+    too); ``None`` reads the whole document. The thumb and file routes read
     one column per grid tile, so they must not decode the JSON ones.
     """
     if columns is None:

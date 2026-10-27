@@ -307,7 +307,7 @@ def remove_single_image(library_id: str, image_id: str) -> None:
     disk). Mirrors the full scan's stale-reconciliation for a single id.
 
     Resolves ``image_id`` through the same slash/backslash-tolerant lookup as
-    every other id-based operation (`image_tags.id_candidates`), so a row
+    every other id-based operation (`image_tags.resolve_image_id_sync`), so a row
     whose stored id spells its separator differently than the watcher's
     freshly-computed id (e.g. written by an older scan on a different OS)
     still gets found instead of silently left behind.
@@ -315,14 +315,7 @@ def remove_single_image(library_id: str, image_id: str) -> None:
     from . import image_tags
 
     with sync_conn() as conn:
-        resolved_id = None
-        for candidate in image_tags.id_candidates(image_id):
-            found = conn.execute(
-                sa.select(t.images.c._id).where(t.images.c._id == candidate)
-            ).scalar()
-            if found is not None:
-                resolved_id = found
-                break
+        resolved_id = image_tags.resolve_image_id_sync(conn, image_id)
     if resolved_id is None:
         return
     with sync_tx() as conn:
