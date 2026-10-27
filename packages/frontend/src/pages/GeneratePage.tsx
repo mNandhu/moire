@@ -4,15 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, CircleAlert, FlaskConical, Loader2, Lock, Sparkles, Wand2 } from "lucide-react";
 import { Badge, Button, ButtonLink, Card, EmptyState, PageBody, PageHeader, Tooltip } from "../components/ui";
 import { bareTagPool } from "../components/generate/ChipInput";
-import {
-  BatchName,
-  CheckpointPicker,
-  FixedValue,
-  SamplingControl,
-  CountStepper,
-  SeedControl,
-  SizePicker,
-} from "../components/generate/RunControls";
+import { BatchName, CheckpointPicker, CountStepper, FixedValue, SeedControl, SizePicker } from "../components/generate/fields";
+import { SamplingControl } from "../components/generate/SamplingControl";
 import { MAX_CHARACTERS } from "../lib/generationLimits";
 import { stemOf } from "../lib/modelNames";
 import { CharacterLayer } from "../components/generate/CharacterBlock";

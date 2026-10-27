@@ -15,7 +15,7 @@ import { putRecipe, recipeKey, useRecipe, type Gender, type Recipe, type RecipeP
 import { characterTags, toggleDropped } from "../../lib/recipe";
 import { tagRepeats } from "../../lib/promptRepeats";
 import { PromptRepeats } from "./PromptRepeats";
-import { FieldLabel } from "./RunControls";
+import { FieldLabel } from "./fields";
 import { stemOf } from "../../lib/modelNames";
 import { ExpandButton } from "./Layers";
 import { replaceCharacter } from "../../lib/generateForm";
