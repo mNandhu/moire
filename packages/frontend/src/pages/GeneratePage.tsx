@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sparkles, Wand2 } from "lucide-react";
 import { ButtonLink, EmptyState, PageBody, PageHeader } from "../components/ui";
-import { bareTagPool } from "../components/generate/ChipInput";
+import { bareTagPool } from "../lib/tags";
 import { stemOf } from "../lib/modelNames";
 import { ComfyStatusLine } from "../components/generate/ComfyStatusLine";
 import { WorkflowPicker } from "../components/generate/WorkflowPicker";

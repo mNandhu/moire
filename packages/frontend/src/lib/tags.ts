@@ -9,6 +9,8 @@
  * predicates. They live here once.
  */
 
+import type { TagSuggestion } from "./tagSuggest";
+
 export const MANUAL_PREFIX = "manual:";
 export const PROMPT_PREFIX = "prompt:";
 /** The merged cross-source entry the gallery search emits (backend ANY_PREFIX). */
@@ -45,6 +47,19 @@ export function tagName(raw: string): string {
   if (isManual(raw)) return raw.slice(MANUAL_PREFIX.length);
   if (isPrompt(raw)) return raw.slice(PROMPT_PREFIX.length);
   return raw;
+}
+
+/**
+ * Library tags as composer suggestions: one row per bare name (an AI tag and
+ * its prompt twin are one word in a prompt), counts summed.
+ */
+export function bareTagPool(tags: readonly TagSuggestion[]): TagSuggestion[] {
+  const counts = new Map<string, number>();
+  for (const t of tags) {
+    const name = tagName(t._id);
+    counts.set(name, (counts.get(name) ?? 0) + t.count);
+  }
+  return [...counts].map(([_id, count]) => ({ _id, count }));
 }
 
 /** Display form: no kind prefix, underscores read as spaces (kaomoji kept). */

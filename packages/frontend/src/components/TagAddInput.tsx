@@ -1,10 +1,9 @@
 import { useMemo, useState } from "react";
 import { useTagAggregate } from "../lib/queries";
-import { canonicalName } from "../lib/tags";
+import { bareTagPool, canonicalName } from "../lib/tags";
 import type { TagSuggestion } from "../lib/tagSuggest";
 import { cn } from "../lib/cn";
 import { useSuggestNav, useTagMatches } from "../hooks/useSuggestNav";
-import { bareTagPool } from "./generate/ChipInput";
 import { TagSuggestList } from "./TagSuggestList";
 
 /**

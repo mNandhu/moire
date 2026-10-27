@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   adherenceGroups,
+  bareTagPool,
   bulkTagNames,
   danbooruWikiUrl,
   descriptionKey,
@@ -242,5 +243,18 @@ describe("onDanbooru", () => {
     expect(onDanbooru(3, undefined)).toBe(true);
     expect(onDanbooru(0, "A stray lock of hair.")).toBe(true);
     expect(onDanbooru(0, undefined)).toBe(false);
+  });
+});
+
+describe("bareTagPool", () => {
+  it("folds a tag's kinds into one bare row with summed counts", () => {
+    expect(bareTagPool([
+      { _id: "blue_eyes", count: 3 },
+      { _id: "prompt:blue_eyes", count: 2 },
+      { _id: "manual:smile", count: 1 },
+    ])).toEqual([
+      { _id: "blue_eyes", count: 5 },
+      { _id: "smile", count: 1 },
+    ]);
   });
 });
