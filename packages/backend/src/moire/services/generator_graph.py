@@ -36,7 +36,7 @@ Graph = dict[str, dict[str, Any]]
 
 LORA_LOADER = "LoraLoader"
 LORA_LOADER_MODEL_ONLY = "LoraLoaderModelOnly"
-_STOCK_LORA_LOADERS = (LORA_LOADER, LORA_LOADER_MODEL_ONLY)
+STOCK_LORA_LOADERS = (LORA_LOADER, LORA_LOADER_MODEL_ONLY)
 
 # ComfyUI's seed widgets take an unsigned 64-bit value; stay well inside it.
 SEED_MAX = 2**50
@@ -64,8 +64,44 @@ def lora_stem(name: str) -> str:
     return base
 
 
-def _is_link(value: Any) -> bool:
+def is_link(value: Any) -> bool:
     return isinstance(value, list) and len(value) == 2 and isinstance(value[0], str)
+
+
+def node_inputs(graph: Graph, node_id: Any) -> dict[str, Any]:
+    """A node's inputs, always a dict (empty for a missing node or null inputs)."""
+    node = graph.get(str(node_id))
+    inp = node.get("inputs") if isinstance(node, dict) else None
+    return inp if isinstance(inp, dict) else {}
+
+
+def upstream(graph: Graph, start: Any) -> set[str]:
+    """Every node a link (or node id) depends on, itself included."""
+    todo = [str(start[0]) if is_link(start) else str(start)]
+    seen: set[str] = set()
+    while todo:
+        nid = todo.pop()
+        if nid in seen or nid not in graph:
+            continue
+        seen.add(nid)
+        todo.extend(str(v[0]) for v in node_inputs(graph, nid).values() if is_link(v))
+    return seen
+
+
+def node_title(graph: Graph, node_id: str) -> str:
+    node = graph.get(node_id) or {}
+    meta = node.get("_meta")
+    title = meta.get("title") if isinstance(meta, dict) else None
+    return str(title or node.get("class_type") or node_id)
+
+
+def stock_lora_nodes(graph: Graph) -> list[tuple[str, dict[str, Any]]]:
+    """The graph's stock LoRA loader nodes, as (node id, node)."""
+    return [
+        (nid, n)
+        for nid, n in graph.items()
+        if n.get("class_type") in STOCK_LORA_LOADERS
+    ]
 
 
 def _write(
@@ -77,13 +113,21 @@ def _write(
     node = graph.get(node_id)
     if node is None:
         raise GraphError(f"node {node_id} not in graph")
-    if not over_link and _is_link(node["inputs"].get(name)):
+    if not over_link and is_link(node["inputs"].get(name)):
         raise GraphError(f"node {node_id} input {name} is a link, not a value")
     node["inputs"][name] = value
 
 
 #: Sampler settings a Generator may expose as slots; left out, the graph's own stay.
 SAMPLING = ("sampler", "scheduler", "steps", "cfg")
+
+#: The input each sampling slot maps to on a KSampler-like node.
+SAMPLING_INPUTS = {
+    "sampler": "sampler_name",
+    "scheduler": "scheduler",
+    "steps": "steps",
+    "cfg": "cfg",
+}
 
 
 def slot_value(graph: Graph, path: Any) -> Any:
@@ -92,7 +136,7 @@ def slot_value(graph: Graph, path: Any) -> Any:
     if not path:
         return None
     value = ((graph.get(str(path[0])) or {}).get("inputs") or {}).get(path[1])
-    return None if _is_link(value) else value
+    return None if is_link(value) else value
 
 
 def sampling_defaults(graph: Graph, slots: dict[str, Any]) -> dict[str, Any]:
@@ -158,9 +202,7 @@ def lora_insertion(graph: Graph, loader_id: str) -> tuple[list[Any], list[Any] |
     )
     while True:
         nxt = None
-        for nid, node in graph.items():
-            if node["class_type"] not in _STOCK_LORA_LOADERS:
-                continue
+        for nid, node in stock_lora_nodes(graph):
             if node["inputs"].get("model") != model:
                 continue
             if node["class_type"] == LORA_LOADER and node["inputs"].get("clip") != clip:
@@ -192,10 +234,9 @@ def splice_loras(
             raise GraphError(f"node {ref[0]} not in graph")
 
     existing = {
-        lora_stem(n["inputs"].get("lora_name", "")): n
-        for n in graph.values()
-        if n["class_type"] in _STOCK_LORA_LOADERS
-        and isinstance(n["inputs"].get("lora_name"), str)
+        lora_stem(n["inputs"]["lora_name"]): n
+        for _, n in stock_lora_nodes(graph)
+        if isinstance(n["inputs"].get("lora_name"), str)
     }
     to_add: list[LoraPick] = []
     for pick in loras:
@@ -243,7 +284,7 @@ def splice_loras(
         if nid == first:
             continue
         for name, value in node["inputs"].items():
-            if not _is_link(value) or nid in chain:
+            if not is_link(value) or nid in chain:
                 continue
             if value == model_from:
                 node["inputs"][name] = list(model)
@@ -258,17 +299,10 @@ def drop_missing(graph: Graph, missing: set[str]) -> list[str]:
     nodes reading from them that no output needs either. ComfyUI refuses a
     graph with any unknown class, used or not. Returns the missing classes an
     output does need (left in: ComfyUI's error names them). Mutates."""
-    saves = [nid for nid, n in graph.items() if is_save_image(n.get("class_type"))]
     needed: set[str] = set()
-    todo = list(saves)
-    while todo:
-        nid = todo.pop()
-        if nid in needed or nid not in graph:
-            continue
-        needed.add(nid)
-        todo.extend(
-            str(v[0]) for v in graph[nid].get("inputs", {}).values() if _is_link(v)
-        )
+    for nid, n in graph.items():
+        if is_save_image(n.get("class_type")):
+            needed |= upstream(graph, nid)
     gone = {
         nid
         for nid, n in graph.items()
@@ -281,7 +315,8 @@ def drop_missing(graph: Graph, missing: set[str]) -> list[str]:
             if nid not in gone
             and nid not in needed
             and any(
-                _is_link(v) and str(v[0]) in gone for v in n.get("inputs", {}).values()
+                is_link(v) and str(v[0]) in gone
+                for v in node_inputs(graph, nid).values()
             )
         }
         if not more:
@@ -307,20 +342,22 @@ def bypass_loras(
     refs = [list(r) if r else None for r in refs]
     for nid in node_ids:
         node = graph.get(str(nid))
-        if node is None or node.get("class_type") not in _STOCK_LORA_LOADERS:
+        if node is None or node.get("class_type") not in STOCK_LORA_LOADERS:
             continue
         nid = str(nid)
-        feeds = {0: node["inputs"].get("model"), 1: node["inputs"].get("clip")}
+        inp = node_inputs(graph, nid)
+        feeds = {0: inp.get("model"), 1: inp.get("clip")}
         del graph[nid]
 
         def moved(v: Any) -> Any:
-            if _is_link(v) and str(v[0]) == nid and feeds.get(int(v[1])) is not None:
+            if is_link(v) and str(v[0]) == nid and feeds.get(int(v[1])) is not None:
                 return list(feeds[int(v[1])])
             return v
 
-        for other in graph.values():
-            for name, v in list(other.get("inputs", {}).items()):
-                other["inputs"][name] = moved(v)
+        for oid in graph:
+            inputs = node_inputs(graph, oid)
+            for name, v in list(inputs.items()):
+                inputs[name] = moved(v)
         refs = [moved(r) if r else None for r in refs]
     return refs
 

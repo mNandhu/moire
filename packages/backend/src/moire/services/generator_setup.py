@@ -24,7 +24,7 @@ from . import attire, comfy_models, gen_metadata, tag_categories, workflow_famil
 from .generator_graph import lora_stem
 from .prompt_parse import without_terms
 from .generator_discovery import check_slots, discover
-from .generator_graph import SAMPLING
+from .generator_graph import SAMPLING, STOCK_LORA_LOADERS
 from .prompt_parse import parse_prompt
 from .tag_names import canonical_name
 
@@ -487,8 +487,7 @@ def carry_slots(
     drops = [
         n
         for n in old.get("drop_loras") or []
-        if same_node([n])
-        and graph[str(n)].get("class_type") in ("LoraLoader", "LoraLoaderModelOnly")
+        if same_node([n]) and graph[str(n)].get("class_type") in STOCK_LORA_LOADERS
     ]
     out["drop_loras"] = sorted(set(drops) | set(proposed.get("drop_loras") or []))
     return out

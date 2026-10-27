@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .generator_graph import SAMPLING
+from .generator_graph import SAMPLING, STOCK_LORA_LOADERS
 
 
 class Unavailable(Exception):
@@ -51,7 +51,7 @@ def annotate_node_errors(
             extra["field"] = "checkpoint"
         elif node and any(at_slot(k, node, err) for k in SAMPLING):
             extra["field"] = "sampling"
-        elif cls in ("LoraLoader", "LoraLoaderModelOnly"):
+        elif cls in STOCK_LORA_LOADERS:
             extra = {
                 "field": "lora",
                 "lora_name": graph[node]["inputs"].get("lora_name"),

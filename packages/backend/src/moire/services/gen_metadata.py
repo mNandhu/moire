@@ -484,7 +484,7 @@ def display_cache(
     return shown
 
 
-def _resolve_text(
+def resolve_text(
     prompt_json: dict[str, Any],
     ref: Any,
     _seen: set[str] | None = None,
@@ -520,13 +520,13 @@ def _resolve_text(
     if key in shown:
         return shown[key]
     if isinstance(text, list):  # text itself is a link
-        return _resolve_text(prompt_json, text, seen, shown)
+        return resolve_text(prompt_json, text, seen, shown)
 
     def value(v: Any) -> str | None:
         if isinstance(v, str):
             return v
         if isinstance(v, list):
-            return _resolve_text(prompt_json, v, seen, shown)
+            return resolve_text(prompt_json, v, seen, shown)
         return None
 
     sdxl = [value(inp.get(k)) for k in ("text_g", "text_l")]
@@ -760,8 +760,8 @@ def parse_comfyui(
         if isinstance(sn, str):
             g["sampler"] = sn
         shown = display_cache(prompt_json, workflow_json)
-        g["prompt"] = _resolve_text(prompt_json, inp.get("positive"), shown=shown)
-        g["negative"] = _resolve_text(prompt_json, inp.get("negative"), shown=shown)
+        g["prompt"] = resolve_text(prompt_json, inp.get("positive"), shown=shown)
+        g["negative"] = resolve_text(prompt_json, inp.get("negative"), shown=shown)
         g["model"] = _resolve_ckpt(prompt_json, inp.get("model"))
     g["loras"] = comfy_loras(prompt_json)
 

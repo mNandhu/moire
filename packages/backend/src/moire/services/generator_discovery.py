@@ -19,20 +19,19 @@ from typing import Any
 from . import gen_metadata
 from .generator_graph import (
     SAMPLING,
+    SAMPLING_INPUTS,
+    STOCK_LORA_LOADERS,
     Graph,
-    _is_link,
     has_save_image,
+    is_link,
     is_save_image,
     lora_insertion,
+    node_inputs,
+    node_title,
+    stock_lora_nodes,
+    upstream,
 )
 
-# Inputs a sampling slot maps to on a KSampler-like node.
-_SAMPLING_INPUTS = {
-    "sampler": "sampler_name",
-    "scheduler": "scheduler",
-    "steps": "steps",
-    "cfg": "cfg",
-}
 _SEED_INPUTS = ("seed", "noise_seed")
 # Where a seed / primitive node keeps its number when a seed input links to it.
 _NUMBER_INPUTS = ("seed", "noise_seed", "value", "int", "number")
@@ -53,35 +52,9 @@ _MODEL_LOADER = re.compile(
 )
 
 
-def _title(graph: Graph, node_id: str) -> str:
-    node = graph.get(node_id) or {}
-    meta = node.get("_meta")
-    title = meta.get("title") if isinstance(meta, dict) else None
-    return str(title or node.get("class_type") or node_id)
-
-
-def _inputs(graph: Graph, node_id: str) -> dict[str, Any]:
-    node = graph.get(str(node_id))
-    inp = node.get("inputs") if isinstance(node, dict) else None
-    return inp if isinstance(inp, dict) else {}
-
-
-def _upstream(graph: Graph, start: Any) -> set[str]:
-    """Every node a link (or node id) depends on, itself included."""
-    todo = [str(start[0]) if _is_link(start) else str(start)]
-    seen: set[str] = set()
-    while todo:
-        nid = todo.pop()
-        if nid in seen or nid not in graph:
-            continue
-        seen.add(nid)
-        todo.extend(str(v[0]) for v in _inputs(graph, nid).values() if _is_link(v))
-    return seen
-
-
 def _is_sampler(graph: Graph, node_id: str) -> bool:
     ct = str((graph.get(node_id) or {}).get("class_type", "")).lower()
-    inp = _inputs(graph, node_id)
+    inp = node_inputs(graph, node_id)
     return "sampler" in ct and ("positive" in inp or "latent_image" in inp)
 
 
@@ -91,8 +64,8 @@ def base_sampler(graph: Graph) -> str | None:
     remote or post-processing workflow)."""
     samplers = [nid for nid in graph if _is_sampler(graph, nid)]
     for nid in samplers:
-        latent = _inputs(graph, nid).get("latent_image")
-        before = _upstream(graph, latent) if _is_link(latent) else set()
+        latent = node_inputs(graph, nid).get("latent_image")
+        before = upstream(graph, latent) if is_link(latent) else set()
         if not any(s in before for s in samplers if s != nid):
             return nid
     return samplers[0] if samplers else None
@@ -108,14 +81,14 @@ def _text_source(
     if nid in seen:
         return None
     seen.add(nid)
-    inp = _inputs(graph, nid)
+    inp = node_inputs(graph, nid)
     texts = [(k, inp[k]) for k in _TEXT_INPUTS if k in inp]
     if len(texts) != 1:
         return None
     key, value = texts[0]
     if isinstance(value, str):
         return [nid, key]
-    if _is_link(value):
+    if is_link(value):
         return _text_source(graph, value, seen)
     return None
 
@@ -124,17 +97,15 @@ def _cond_inputs(graph: Graph, ref: Any) -> list[Any]:
     """The conditioning links a conditioning output comes from. A node with
     both a positive and a negative input (ControlNet Apply Advanced) passes
     them through as outputs 0 and 1: only the matching one counts."""
-    inp = _inputs(graph, ref[0])
-    if _is_link(inp.get("positive")) and _is_link(inp.get("negative")):
+    inp = node_inputs(graph, ref[0])
+    if is_link(inp.get("positive")) and is_link(inp.get("negative")):
         return [inp["negative"] if int(ref[1]) == 1 else inp["positive"]]
-    return [
-        v for k, v in sorted(inp.items()) if _CONDITIONING.search(k) and _is_link(v)
-    ]
+    return [v for k, v in sorted(inp.items()) if _CONDITIONING.search(k) and is_link(v)]
 
 
 def _prompt_upstream(graph: Graph, ref: Any) -> set[str]:
     """Every node one side of the sampler's conditioning depends on: like
-    :func:`_upstream`, but through a positive / negative pass-through node
+    :func:`upstream`, but through a positive / negative pass-through node
     only along its own side."""
     seen: set[str] = set()
     todo = [ref]
@@ -143,17 +114,17 @@ def _prompt_upstream(graph: Graph, ref: Any) -> set[str]:
         nid = str(r[0])
         if nid in seen or nid not in graph:
             continue
-        inp = _inputs(graph, nid)
-        if _is_link(inp.get("positive")) and _is_link(inp.get("negative")):
+        inp = node_inputs(graph, nid)
+        if is_link(inp.get("positive")) and is_link(inp.get("negative")):
             seen.add(nid)
             others = [
                 v
                 for k, v in inp.items()
-                if _is_link(v) and k not in ("positive", "negative")
+                if is_link(v) and k not in ("positive", "negative")
             ]
             todo.extend([*_cond_inputs(graph, r), *others])
         else:
-            seen |= _upstream(graph, r)
+            seen |= upstream(graph, r)
     return seen
 
 
@@ -161,12 +132,12 @@ def _encoder(graph: Graph, ref: Any) -> str | None:
     """The text encoder a conditioning link starts from, through combine /
     ControlNet nodes (first conditioning input each time)."""
     seen: set[str] = set()
-    while _is_link(ref):
+    while is_link(ref):
         nid = str(ref[0])
         if nid in seen or nid not in graph:
             return None
         seen.add(nid)
-        inp = _inputs(graph, nid)
+        inp = node_inputs(graph, nid)
         if any(k in inp for k in ("text", "text_g", "text_l")):
             return nid
         ref = next(iter(_cond_inputs(graph, ref)), None)
@@ -179,24 +150,24 @@ def prompt_slot(graph: Graph, sampler: str, side: str) -> dict[str, Any] | None:
     else the one text node it reads from. A text built at run time (a concat)
     gives the encoder's own input with ``replaces_link``: writing there drops
     the join, so it is offered but not chosen for the user."""
-    enc = _encoder(graph, _inputs(graph, sampler).get(side))
+    enc = _encoder(graph, node_inputs(graph, sampler).get(side))
     if enc is None:
         return None
-    inp = _inputs(graph, enc)
+    inp = node_inputs(graph, enc)
     key = next((k for k in ("text", "text_g") if k in inp), None)
     if key is None:
         return None
     value = inp[key]
-    text = gen_metadata._resolve_text(graph, [enc, 0])
+    text = gen_metadata.resolve_text(graph, [enc, 0])
     if isinstance(value, str):
         return {"path": [enc, key], "replaces_link": False, "text": value}
-    if _is_link(value):
+    if is_link(value):
         src = _text_source(graph, value)
         if src is not None:
             return {
                 "path": src,
                 "replaces_link": False,
-                "text": _inputs(graph, src[0])[src[1]],
+                "text": node_inputs(graph, src[0])[src[1]],
             }
         return {"path": [enc, key], "replaces_link": True, "text": text}
     return None
@@ -209,20 +180,20 @@ def text_inputs(graph: Graph, sampler: str | None) -> list[dict[str, Any]]:
     or None: used elsewhere, a detailer's own prompt, a file name)."""
     pos = neg = set()
     if sampler is not None:
-        s_inp = _inputs(graph, sampler)
+        s_inp = node_inputs(graph, sampler)
         pos = (
             _prompt_upstream(graph, s_inp.get("positive"))
-            if _is_link(s_inp.get("positive"))
+            if is_link(s_inp.get("positive"))
             else set()
         )
         neg = (
             _prompt_upstream(graph, s_inp.get("negative"))
-            if _is_link(s_inp.get("negative"))
+            if is_link(s_inp.get("negative"))
             else set()
         )
     out = []
     for nid in graph:
-        inp = _inputs(graph, nid)
+        inp = node_inputs(graph, nid)
         for key, value in inp.items():
             literal = (
                 isinstance(value, str)
@@ -234,7 +205,7 @@ def text_inputs(graph: Graph, sampler: str | None) -> list[dict[str, Any]]:
                 and not value.strip().replace(".", "", 1).isdigit()
             )
             joined = (
-                key in ("text", "text_g") and _is_link(value) and _encodes(graph, nid)
+                key in ("text", "text_g") and is_link(value) and _encodes(graph, nid)
             )
             if not (literal or joined):
                 continue
@@ -251,10 +222,10 @@ def text_inputs(graph: Graph, sampler: str | None) -> list[dict[str, Any]]:
                 {
                     "path": [nid, key],
                     "class_type": (graph[nid] or {}).get("class_type"),
-                    "title": _title(graph, nid),
+                    "title": node_title(graph, nid),
                     "text": value
                     if literal
-                    else gen_metadata._resolve_text(graph, [nid, 0]),
+                    else gen_metadata.resolve_text(graph, [nid, 0]),
                     "replaces_link": joined,
                     "reaches": reaches,
                 }
@@ -264,7 +235,7 @@ def text_inputs(graph: Graph, sampler: str | None) -> list[dict[str, Any]]:
 
 def _encodes(graph: Graph, node_id: str) -> bool:
     """A text encoder: turns text into conditioning (has a clip input)."""
-    return "clip" in _inputs(graph, node_id)
+    return "clip" in node_inputs(graph, node_id)
 
 
 def seed_groups(graph: Graph) -> list[dict[str, Any]]:
@@ -274,17 +245,17 @@ def seed_groups(graph: Graph) -> list[dict[str, Any]]:
     by_path: dict[tuple[str, str], dict[str, Any]] = {}
     for nid in graph:
         for key in _SEED_INPUTS:
-            value = _inputs(graph, nid).get(key)
+            value = node_inputs(graph, nid).get(key)
             path: list[Any] | None = None
             if isinstance(value, int) and not isinstance(value, bool):
                 path = [nid, key]
-            elif _is_link(value):
+            elif is_link(value):
                 src = str(value[0])
                 skey = next(
                     (
                         k
                         for k in _NUMBER_INPUTS
-                        if isinstance(_inputs(graph, src).get(k), int)
+                        if isinstance(node_inputs(graph, src).get(k), int)
                     ),
                     None,
                 )
@@ -295,11 +266,11 @@ def seed_groups(graph: Graph) -> list[dict[str, Any]]:
                 (path[0], path[1]),
                 {
                     "path": path,
-                    "value": _inputs(graph, path[0])[path[1]],
+                    "value": node_inputs(graph, path[0])[path[1]],
                     "used_by": [],
                 },
             )
-            entry["used_by"].append({"node": nid, "title": _title(graph, nid)})
+            entry["used_by"].append({"node": nid, "title": node_title(graph, nid)})
     groups: dict[int, dict[str, Any]] = {}
     for entry in by_path.values():
         # A seed node read by samplers lists them, not itself.
@@ -316,21 +287,21 @@ def seed_groups(graph: Graph) -> list[dict[str, Any]]:
 def _latent(graph: Graph, sampler: str) -> str | None:
     """The node that sizes the sampler's latent: the latent link, followed
     through latent-only nodes (upscale, repeat) to one with a size or batch."""
-    ref = _inputs(graph, sampler).get("latent_image")
+    ref = node_inputs(graph, sampler).get("latent_image")
     seen: set[str] = set()
-    while _is_link(ref):
+    while is_link(ref):
         nid = str(ref[0])
         if nid in seen or nid not in graph:
             return None
         seen.add(nid)
-        inp = _inputs(graph, nid)
+        inp = node_inputs(graph, nid)
         if any(k in inp for k in ("width", "height", "batch_size")):
             return nid
         ref = next(
             (
                 inp[k]
                 for k in ("samples", "latent", "latent_image")
-                if _is_link(inp.get(k))
+                if is_link(inp.get(k))
             ),
             None,
         )
@@ -342,7 +313,7 @@ def _literal_path(
 ) -> list[Any] | None:
     if node_id is None:
         return None
-    value = _inputs(graph, node_id).get(key)
+    value = node_inputs(graph, node_id).get(key)
     if isinstance(value, kind) and not isinstance(value, bool):
         return [node_id, key]
     return None
@@ -350,16 +321,16 @@ def _literal_path(
 
 def model_loader(graph: Graph, sampler: str) -> str | None:
     """The checkpoint / UNET loader the sampler's model comes from."""
-    ref = _inputs(graph, sampler).get("model")
+    ref = node_inputs(graph, sampler).get("model")
     seen: set[str] = set()
-    while _is_link(ref):
+    while is_link(ref):
         nid = str(ref[0])
         if nid in seen or nid not in graph:
             return None
         seen.add(nid)
         if _MODEL_LOADER.search(str(graph[nid].get("class_type", ""))):
             return nid
-        ref = _inputs(graph, nid).get("model")
+        ref = node_inputs(graph, nid).get("model")
     return None
 
 
@@ -367,9 +338,11 @@ def _consumers(graph: Graph, ref: list[Any] | None) -> list[dict[str, Any]]:
     if not ref:
         return []
     return [
-        {"node": nid, "title": _title(graph, nid)}
+        {"node": nid, "title": node_title(graph, nid)}
         for nid in graph
-        if any(v == [str(ref[0]), int(ref[1])] for v in _inputs(graph, nid).values())
+        if any(
+            v == [str(ref[0]), int(ref[1])] for v in node_inputs(graph, nid).values()
+        )
     ]
 
 
@@ -380,7 +353,7 @@ def discover(graph: Graph) -> dict[str, Any]:
     slots: dict[str, Any] = {}
     found: dict[str, Any] = {"sampler": None}
     if sampler is not None:
-        found["sampler"] = {"node": sampler, "title": _title(graph, sampler)}
+        found["sampler"] = {"node": sampler, "title": node_title(graph, sampler)}
         for side in ("positive", "negative"):
             pick = prompt_slot(graph, sampler, side)
             found[side] = pick
@@ -393,10 +366,10 @@ def discover(graph: Graph) -> dict[str, Any]:
             if path:
                 slots[key] = path
         if latent is not None and slots.get("batch_size"):
-            slots["per_request"] = _inputs(graph, latent)["batch_size"]
+            slots["per_request"] = node_inputs(graph, latent)["batch_size"]
         for key in SAMPLING:
             kind = (int, float) if key == "cfg" else int if key == "steps" else str
-            path = _literal_path(graph, sampler, _SAMPLING_INPUTS[key], kind)
+            path = _literal_path(graph, sampler, SAMPLING_INPUTS[key], kind)
             if path:
                 slots[key] = path
         loader = model_loader(graph, sampler)
@@ -405,21 +378,21 @@ def discover(graph: Graph) -> dict[str, Any]:
             # Checkpoints only: a UNET's file isn't in ComfyUI's checkpoint list.
             ckpt = (
                 "ckpt_name"
-                if isinstance(_inputs(graph, loader).get("ckpt_name"), str)
+                if isinstance(node_inputs(graph, loader).get("ckpt_name"), str)
                 else None
             )
             if ckpt:
                 found["checkpoint"] = {
                     "path": [loader, ckpt],
-                    "value": _inputs(graph, loader)[ckpt],
+                    "value": node_inputs(graph, loader)[ckpt],
                 }
             model, clip = lora_insertion(graph, loader)
             slots["lora_model"] = model
             slots["lora_clip"] = clip
             found["lora"] = {
-                "loader": {"node": loader, "title": _title(graph, loader)},
-                "model": {"ref": model, "title": _title(graph, str(model[0]))},
-                "clip": {"ref": clip, "title": _title(graph, str(clip[0]))}
+                "loader": {"node": loader, "title": node_title(graph, loader)},
+                "model": {"ref": model, "title": node_title(graph, str(model[0]))},
+                "clip": {"ref": clip, "title": node_title(graph, str(clip[0]))}
                 if clip
                 else None,
                 "existing": [
@@ -427,9 +400,8 @@ def discover(graph: Graph) -> dict[str, Any]:
                         "name": n["inputs"].get("lora_name"),
                         "strength": n["inputs"].get("strength_model"),
                     }
-                    for n in graph.values()
-                    if n.get("class_type") in ("LoraLoader", "LoraLoaderModelOnly")
-                    and isinstance(n["inputs"].get("lora_name"), str)
+                    for _, n in stock_lora_nodes(graph)
+                    if isinstance(n["inputs"].get("lora_name"), str)
                 ],
                 "consumers": _consumers(graph, model),
             }
@@ -440,9 +412,8 @@ def discover(graph: Graph) -> dict[str, Any]:
             "name": n["inputs"]["lora_name"],
             "strength": n["inputs"].get("strength_model"),
         }
-        for nid, n in graph.items()
-        if n.get("class_type") in ("LoraLoader", "LoraLoaderModelOnly")
-        and isinstance(n["inputs"].get("lora_name"), str)
+        for nid, n in stock_lora_nodes(graph)
+        if isinstance(n["inputs"].get("lora_name"), str)
     ]
     seeds = seed_groups(graph)
     slots["seeds"] = [e["path"] for g in seeds for e in g["inputs"]]
@@ -455,8 +426,8 @@ def discover(graph: Graph) -> dict[str, Any]:
         "input_images": [
             {
                 "node": nid,
-                "title": _title(graph, nid),
-                "image": _inputs(graph, nid).get("image"),
+                "title": node_title(graph, nid),
+                "image": node_inputs(graph, nid).get("image"),
             }
             for nid in graph
             if "loadimage" in str(graph[nid].get("class_type", "")).lower()
@@ -464,30 +435,47 @@ def discover(graph: Graph) -> dict[str, Any]:
     }
 
 
-def fixed_values(graph: Graph, slots: dict[str, Any]) -> dict[str, Any]:
-    """What the workflow sets itself where Moiré has no slot: the checkpoint
-    it loads and its image size (``WxH``, or a ratio node's choice), for the
-    run bar to show read-only. None where unknown or where a slot exists."""
+def base_settings(graph: Graph) -> dict[str, Any]:
+    """What the base sampler ran with, from the graph's literal inputs: the
+    checkpoint it loads, the latent's size (``WxH``, or a ratio node's choice)
+    and the sampling values (a link is made at run time, so it is left out).
+    Nothing is known (None, {}) for a graph without a sampler."""
+    out: dict[str, Any] = {"checkpoint": None, "size": None, "sampling": {}}
     sampler = base_sampler(graph)
-    out: dict[str, Any] = {"checkpoint": None, "size": None}
     if sampler is None:
         return out
     loader = model_loader(graph, sampler)
-    if loader is not None and not slots.get("checkpoint"):
-        inp = _inputs(graph, loader)
+    if loader is not None:
+        inp = node_inputs(graph, loader)
         out["checkpoint"] = next(
             (inp[k] for k in ("ckpt_name", "unet_name") if isinstance(inp.get(k), str)),
             None,
         )
     latent = _latent(graph, sampler)
-    if latent is not None and not (slots.get("width") and slots.get("height")):
-        inp = _inputs(graph, latent)
+    if latent is not None:
+        inp = node_inputs(graph, latent)
         w, h = inp.get("width"), inp.get("height")
         if isinstance(w, int) and isinstance(h, int):
             out["size"] = f"{w}x{h}"
         elif isinstance(inp.get("ratio_selected"), str):
             out["size"] = inp["ratio_selected"]
+    inputs = node_inputs(graph, sampler)
+    for key in SAMPLING:
+        v = inputs.get(SAMPLING_INPUTS[key])
+        if v is not None and not isinstance(v, (bool, list)):
+            out["sampling"][key] = v
     return out
+
+
+def fixed_values(graph: Graph, slots: dict[str, Any]) -> dict[str, Any]:
+    """What the workflow sets itself where Moiré has no slot: the checkpoint
+    it loads and its image size, for the run bar to show read-only. None
+    where unknown or where a slot exists."""
+    base = base_settings(graph)
+    return {
+        "checkpoint": None if slots.get("checkpoint") else base["checkpoint"],
+        "size": None if slots.get("width") and slots.get("height") else base["size"],
+    }
 
 
 def outputs(graph: Graph) -> list[dict[str, Any]]:
@@ -499,13 +487,13 @@ def outputs(graph: Graph) -> list[dict[str, Any]]:
         saves = is_save_image(ct)
         if not saves and "preview" not in ct.lower():
             continue
-        prefix = _inputs(graph, nid).get("filename_prefix")
-        if _is_link(prefix):
-            prefix = gen_metadata._resolve_text(graph, prefix)
+        prefix = node_inputs(graph, nid).get("filename_prefix")
+        if is_link(prefix):
+            prefix = gen_metadata.resolve_text(graph, prefix)
         out.append(
             {
                 "node": nid,
-                "title": _title(graph, nid),
+                "title": node_title(graph, nid),
                 "saves": saves,
                 "prefix": prefix if isinstance(prefix, str) else None,
             }
@@ -524,10 +512,10 @@ def check_slots(graph: Graph, slots: dict[str, Any]) -> list[str]:
         if not path:
             problems.append(f"Choose the {key} prompt's node")
             continue
-        value = _inputs(graph, str(path[0])).get(path[1], ...)
+        value = node_inputs(graph, str(path[0])).get(path[1], ...)
         if value is ...:
             problems.append(f"The {key} prompt's node isn't in this workflow")
-        elif _is_link(value) and key not in replaces:
+        elif is_link(value) and key not in replaces:
             problems.append(f"The {key} prompt's input is a link")
     if slots.get("positive") and slots.get("positive") == slots.get("negative"):
         problems.append("Positive and negative can't be the same input")
@@ -545,10 +533,7 @@ def check_slots(graph: Graph, slots: dict[str, Any]) -> list[str]:
         if ref and str(ref[0]) not in graph:
             problems.append("The LoRA insertion point isn't in this workflow")
     for nid in slots.get("drop_loras") or []:
-        if (graph.get(str(nid)) or {}).get("class_type") not in (
-            "LoraLoader",
-            "LoraLoaderModelOnly",
-        ):
+        if (graph.get(str(nid)) or {}).get("class_type") not in STOCK_LORA_LOADERS:
             problems.append(f"Node {nid} isn't a LoRA loader")
     if not has_save_image(graph):
         problems.append("Add a Save Image node: previews never reach the library")
@@ -556,5 +541,5 @@ def check_slots(graph: Graph, slots: dict[str, Any]) -> list[str]:
 
 
 def _literal_input(graph: Graph, path: list[Any]) -> bool:
-    value = _inputs(graph, str(path[0])).get(path[1], ...)
-    return value is not ... and not _is_link(value)
+    value = node_inputs(graph, str(path[0])).get(path[1], ...)
+    return value is not ... and not is_link(value)

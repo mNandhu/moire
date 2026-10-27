@@ -21,8 +21,8 @@ from ..database.db import async_conn
 from . import comfy_models, generator_setup, recipes, tag_categories
 from .prompt_parse import without_terms
 from .image_tags import find_image
-from .generator_discovery import _SAMPLING_INPUTS, base_sampler, fixed_values
-from .generator_graph import SAMPLING, lora_stem
+from .generator_discovery import base_settings
+from .generator_graph import lora_stem
 from .prompt_parse import parse_prompt
 from .tag_names import canonical_name
 
@@ -71,22 +71,13 @@ def a1111_size(parameters: object) -> tuple[int, int] | None:
 def graph_settings(graph: dict[str, Any]) -> dict[str, Any]:
     """The latent size and sampling the base sampler ran with, from the
     graph's literal inputs (an upscaled output's own size is not it). Pure."""
-    sampler = base_sampler(graph)
-    if sampler is None:
-        return {"size": None, "sampling": {}}
+    base = base_settings(graph)
     # The latent's literal size, or a ratio node's choice ("2:3 [832x1216
     # portrait]").
-    m = _WXH.search(fixed_values(graph, {})["size"] or "")
-    inputs = (graph.get(sampler) or {}).get("inputs") or {}
-    sampling = {}
-    for key in SAMPLING:
-        v = inputs.get(_SAMPLING_INPUTS[key])
-        # A list is a link: the value is made at run time.
-        if v is not None and not isinstance(v, (bool, list)):
-            sampling[key] = v
+    m = _WXH.search(base["size"] or "")
     return {
         "size": (int(m.group(1)), int(m.group(2))) if m else None,
-        "sampling": sampling,
+        "sampling": base["sampling"],
     }
 
 
