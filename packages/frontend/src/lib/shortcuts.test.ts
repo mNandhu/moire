@@ -12,5 +12,6 @@ describe("shortcutGroups", () => {
   it("leads with everywhere's keys on a page with none of its own", () => {
     expect(shortcutGroups("/settings")[0].page).toBe("everywhere");
     expect(shortcutGroups("/")[0].page).toBe("gallery");
+    expect(shortcutGroups("/generate")[0].page).toBe("generate");
   });
 });

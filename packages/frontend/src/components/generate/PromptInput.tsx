@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { cn } from "../../lib/cn";
+import { WEIGHT_STEP, bumpWeight } from "../../lib/promptEdit";
 import { TagSuggestList } from "../TagSuggestList";
 import type { TagSuggestion } from "../../lib/tagSuggest";
 import { usePromptMarks, type PromptFlash, type PromptMark } from "./PromptOverlay";
@@ -13,7 +14,8 @@ const NO_MARKS: readonly PromptMark[] = [];
  * Free-text prompt with tag and embedding suggestions for the term at the
  * caret, opened right under the word being typed, with each tag's cover. Tab takes the highlighted one; Enter only once the list has been
  * moved into with the arrow keys, so a typed word (a LoRA trigger) is never
- * swapped for a near match.
+ * swapped for a near match. Ctrl+Up / Ctrl+Down (Cmd on a Mac) weigh the
+ * term at the caret or the selection, as in ComfyUI.
  */
 export function PromptInput({
   value,
@@ -58,8 +60,33 @@ export function PromptInput({
     suggestOpen: suggest.open,
   });
 
+  // The edit goes in as typing would (`insertText`), so Ctrl+Z undoes it.
+  const bump = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const el = e.currentTarget;
+    const next = bumpWeight(el.value, el.selectionStart, el.selectionEnd, e.key === "ArrowUp" ? WEIGHT_STEP : -WEIGHT_STEP);
+    if (!next) return;
+    e.preventDefault();
+    suggest.close();
+    const old = el.value;
+    let from = 0;
+    while (from < old.length && from < next.text.length && old[from] === next.text[from]) from++;
+    let back = 0;
+    while (back < old.length - from && back < next.text.length - from && old[old.length - 1 - back] === next.text[next.text.length - 1 - back]) back++;
+    el.setSelectionRange(from, old.length - back);
+    const typed = document.execCommand?.("insertText", false, next.text.slice(from, next.text.length - back));
+    if (typed && el.value === next.text) el.setSelectionRange(next.start, next.end);
+    else {
+      onChange(next.text);
+      requestAnimationFrame(() => ref.current?.setSelectionRange(next.start, next.end));
+    }
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (overlay.onEscape(e)) return;
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      bump(e);
+      return;
+    }
     suggest.onKeyDown(e);
   };
 

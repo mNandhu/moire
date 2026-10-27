@@ -6,7 +6,7 @@
 
 import { SEARCH_KEYS } from "./platform";
 
-export type ShortcutPage = "everywhere" | "gallery" | "image" | "generations";
+export type ShortcutPage = "everywhere" | "gallery" | "image" | "generate" | "generations";
 
 export type ShortcutGroup = {
   title: string;
@@ -66,6 +66,14 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
+    title: "Generate",
+    page: "generate",
+    keys: [
+      ["Ctrl + ↑ / ↓", "Raise / lower the weight of the term at the cursor"],
+      ["Tab", "Take the suggested tag"],
+    ],
+  },
+  {
     title: "Batch results",
     page: "generations",
     keys: [
@@ -80,6 +88,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
 export function shortcutPage(pathname: string): ShortcutPage {
   if (pathname === "/") return "gallery";
   if (pathname.startsWith("/image/")) return "image";
+  if (pathname === "/generate") return "generate";
   if (pathname.startsWith("/generations/")) return "generations";
   return "everywhere";
 }
