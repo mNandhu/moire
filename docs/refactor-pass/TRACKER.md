@@ -168,27 +168,32 @@ P2 done 2026-10-24 (51a86c7..4f8dd84). Review fixes: wave 1 1a32926, 6fe6bd0, b0
 
 ## P4. Big-file splits (pure moves, check in the app)
 
+P4 status (2026-10-27, stopped at 5h limit): backend wave = 3 worktree lanes. Lane J merged on local main (54256b0..e219719, NOT pushed, full suite not yet rerun on main). Lanes H and I were stopped mid-work; branches + locked worktrees kept:
+- H `worktree-agent-a26ccb254626faddc`: committed S5.1, S8.4, S8.5, S11.1, S13.9, S5.10 (2cda3e4..4f2f424); uncommitted edits in api/generate/comfyui.py, services/comfy_connection.py (was finishing up; inspect, commit or drop).
+- I `worktree-agent-a47c4fb5b5b34f51e`: committed S7.6, S4.1, S9.10, S5.3 (541d4ab..8cd044e); S1.6 half done uncommitted (api/images.py, new api/image_facets.py, api/image_media.py).
+Resume: finish S1.6, cherry-pick H then I (lane J edited a lora_suggestions call in old api/generate.py: expect conflict with H's package split), full suites, route diff vs scratchpad routes_before.json (regenerate at 2e3ca49 with scratchpad/routes.py if lost), CONTEXT.md renames (J: tag_views, lora_words, character_look, characters.named, attire tag_key/entries/groups_of/facet_of_entry; H, I: see their commit messages), tick, push. Then frontend wave (2 lanes: generate side S10.2 S10.8 S11.3 S11.7 S12.5 S12.6; gallery/tags/rules/setup S1.2 S4.4 S4.5 S9.6) + check pages in the app. Code review deferred until asked.
+
 - [ ] **S8.4** api/generate.py is eight routers in one file, with service logic in put_comfyui and quadruplicated error mapping (boundary, M, L4)
-- [ ] **S1.3** feed_where (radon F48) and _drive_by_rarest each re-derive the same tag groups and prompt-term list (dedupe, M, L4)
+- [x] **S1.3** (f1cf306) feed_where (radon F48) and _drive_by_rarest each re-derive the same tag groups and prompt-term list (dedupe, M, L4)
 - [ ] **S5.1** Library lifecycle lives in api/libraries.py and is reused by calling route handlers from another router (boundary, M, L4)
 - [ ] **S4.1** api/rules.py is a service layer inside a router: 170-line list_signatures, route calling route, no rulesets/workflow-names module (boundary, M, L4)
 - [ ] **S10.2** Pure form logic and board-layer building live inside the 680-line GeneratePage component (boundary, M, L4)
 - [ ] **S1.2** AllImagesPage (1338 lines) fuses polling, shortcuts, triage, bulk actions, filter option queries and the whole filter panel (split, L, L4)
 - [ ] **S8.5** Route handlers call each other and build the full batch view just to 404; list/status do repeated queue_plan work (simplify, S, L3)
 - [ ] **S7.6** gen_metadata.py (1073 lines) fuses four jobs; callers reach into a private function (split, M, L3)
-- [ ] **S3.6** api/tags.py builds service-level caches and repeats a library-bases query (boundary, M, L3)
+- [x] **S3.6** (54256b0) api/tags.py builds service-level caches and repeats a library-bases query (boundary, M, L3)
 - [ ] **S1.6** api/images.py is four routers in one file and its route order is load-bearing; original-file GET/HEAD repeat path resolution (split, M, L3)
 - [ ] **S5.3** scanner.py (898 lines) fuses thumbnail rendering, scan stamp, reconcile policy, watcher entry points and the scan thread (split, M, L3)
 - [ ] **S12.5** CharacterBlock.tsx (795 lines) mixes the picker, the recipe editor and the composer rows; the editor is imported across layers (split, M, L3)
 - [ ] **S12.6** SaveOutfitDialog fuses four modes and its seed and save-plan logic is untestable inside the component (split, M, L3)
 - [ ] **S4.4** RulesPage is one 760-line component doing picker, import, rename, collapse, rule editor, preview and graph search (split, M, L3)
 - [ ] **S4.5** TagsPage (844 lines) mixes rule/rename mutations with toast copy, five card components and a sheet layout (split, M, L3)
-- [ ] **S10.6** lora_presets.py mixes CRUD with library analytics SQL and keeps its own ad-hoc TTL cache beside tag_index (split, M, L3)
-- [ ] **S10.7** prompt_board._section is a 39-complexity if-ladder that reaches into attire's private functions (simplify, M, L3)
+- [x] **S10.6** (52c9588) lora_presets.py mixes CRUD with library analytics SQL and keeps its own ad-hoc TTL cache beside tag_index (split, M, L3)
+- [x] **S10.7** (fbafe43) prompt_board._section is a 39-complexity if-ladder that reaches into attire's private functions (simplify, M, L3)
 - [ ] **S11.1** Split remix_view (E35) into light and full reads; move the image-to-batch lookup and settings readers out (split, M, L3)
 - [ ] **S11.3** RunControls.tsx is a form-widget grab bag; stemOf (LoRA/checkpoint name rule) lives in it and 5 modules import it (boundary, M, L3)
 - [ ] **S5.10** library_watch.py mixes a child-process supervisor with per-library event routing; _write_loop is radon D21 (split, M, L2)
-- [ ] **S12.9** characters.py (811 lines) fuses pure look statistics, character IO, the listing and the settings CRUD (split, M, L2)
+- [x] **S12.9** (726c424+e219719) characters.py (811 lines) fuses pure look statistics, character IO, the listing and the settings CRUD (split, M, L2)
 - [ ] **S10.8** generateForm.ts (548 lines) fuses form model, stored-draft validation, remix conversion and sampling display labels (split, M, L2)
 - [ ] **S11.7** BatchPage mixes the prompt-inputs formatter, a rename editor and the stats strip; stats are re-derived beside OutputFeed's panel header (deepen, M, L2)
 - [ ] **S9.6** WorkflowSetupPage is a 769-line file with a 270-line SetupForm and shared UI parked in the wrong modules (split, M, L2)
