@@ -1,447 +1,131 @@
 # Moiré
 
-**AI-generated image management made simple.**
+**A local gallery for your AI art: browse it, tag it, find it, and make more of it.**
 
-Moiré is purpose-built for organizing and exploring large collections of AI-generated images from ComfyUI and other AI art tools. Use powerful tag-based organization with optional AI autotagging to keep your diffusion models and generated artwork easily discoverable.
+Point Moiré at the folders your ComfyUI or Automatic1111 output lands in. It reads every image's prompt and settings, tags it with a local AI tagger, works out which characters and outfits are in it, and gives you a fast gallery to sort through thousands of generations. Hook it up to ComfyUI and you can generate straight from your library.
 
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
+Everything runs on your machine: one process, one port, an embedded database. Nothing is uploaded anywhere.
+
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Python](https://img.shields.io/badge/python-3.12-blue)
-![TypeScript](https://img.shields.io/badge/typescript-5.x-blue)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+
+![The gallery, sorted by your own star ratings](docs/images/gallery.webp)
+
+## What it does
+
+- **Reads your generations.** Prompt, negative prompt, seed, sampler, checkpoint and LoRAs come straight out of ComfyUI and A1111 PNGs. Prompt weights like `(foreshortening:1.2)` are kept, and every prompt term becomes a searchable tag.
+- **Tags them for you.** A built-in WD tagger (ONNX, CPU or NVIDIA GPU) adds AI tags and a content rating. No cloud service, no API key.
+- **Knows your characters.** Moiré spots characters from the tagger's list, gives each one a page with their face, look, best images and the outfits they wear, and remembers a recipe for generating them again.
+- **Finds anything.** Filter by tags with AND/OR, characters, outfits, LoRAs, embeddings, rating, stars or library. `Ctrl+K` searches everything.
+- **Lets you curate.** Rate 1 to 5 stars, quarantine without deleting, tag by hand, select in bulk.
+- **Generates.** Connect a ComfyUI, pick characters and outfits, write the scene, and queue. Use the built-in workflow or set up your own from an exported workflow file or any image it made. Remix any image from the viewer.
+- **Stays fast.** A virtualized masonry grid and keyset paging keep scrolling smooth in libraries of tens of thousands of images. Libraries are watched, so new images show up on their own.
+- **Works on your phone.** Run it on your LAN and browse from the couch.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Image viewer](docs/images/viewer.webp) | ![Character page](docs/images/character.webp) |
+| **The viewer**: characters, outfit, rating, the full generation data, Remix | **A character page**: look, best of, outfits, generation recipe |
+| ![Generate](docs/images/generate.webp) | ![Tags](docs/images/tags.webp) |
+| **Generate**: characters and outfits as layers, then your scene | **Tags**: characters first, every tag with a cover |
+| ![Outfits](docs/images/outfits.webp) | ![Generations](docs/images/generations.webp) |
+| **Outfits** saved per character, reusable in Generate | **Generations**: every batch you queued |
+
+![Moiré on a phone](docs/images/phone.webp)
+
+The images in these screenshots were made with Moiré's own Generate page.
+
+## Install
+
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/). It brings its own Python.
+
+```bash
+uv tool install "moire-studio[cpu]"   # or "moire-studio[gpu]" for tagging on an NVIDIA GPU
+moire run --open                       # opens http://localhost:8000
+```
 
 > [!NOTE]
-> This is a work in progress and not all features are implemented yet.
-> See the [ROADMAP](ROADMAP.md) for planned features.
-> I'm pretty much working on this in my spare time, so don't expect rapid progress.
+> Moiré isn't on PyPI yet. Until the first release, run it from a source checkout: see [CONTRIBUTING.md](CONTRIBUTING.md#setup), or use Docker below.
 
-## ✨ Features
+That's the whole app: the API and the UI on one port. To reach it from other devices on your network, use `moire run --host 0.0.0.0`.
 
-- **🎨 AI Art Focused**: Optimized for AI-generated image workflows; extracts generation metadata (prompts, model, workflow) from ComfyUI/A1111 PNGs
-- **🤖 Built-in Autotagger**: Local WD ONNX tagger (`SmilingWolf/wd-vit-tagger-v3` by default) with a queued, cancellable batch job system; no external service required
-- **🏷️ Smart Tagging**: Manual tags, AI tags, and prompt tags (derived from generation prompts)
-- **⭐ Rate & Curate**: 0–5 star quality scores, danbooru-style content ratings, and quarantine to hide images from the feed without deleting them
-- **📁 Library Management**: Organize images into libraries with automatic background scanning and progress tracking
-- **🔍 Powerful Search**: Filter by tags, libraries, untagged, or no-AI-tags with AND/OR logic
-- **⚡ Fast Performance**: Cursor-based pagination, virtualized masonry grid, and pre-signed URL delivery
-- **🖼️ Gallery Views**: Responsive masonry grid with full-screen image viewer
-- **🐳 Docker Ready**: Complete Docker Compose setup for easy deployment
+The GPU build (Linux and Windows) pulls the CUDA and cuDNN runtime from pip, about 2 GB, and needs only the NVIDIA driver. Tagging is roughly 9x faster than on the CPU.
 
-## 📸 Screenshots
-
-### All Images Gallery
-
-![Gallery View](docs/images/AllImagesPage.jpeg)
-
-### Libraries Management
-
-![Libraries Page](docs/images/LibrariesPage.jpeg)
-
-### Image Detail View
-
-![Image Detail](docs/images/ImageDetailView.jpeg)
-
-## 🚀 Quick Start
-
-### Docker Compose (Recommended)
-
-The fastest way to get Moiré running:
+### Docker
 
 ```bash
-# Clone the repository
 git clone https://github.com/mNandhu/moire.git
 cd moire
-
-# Copy environment configuration
-cp .env.example .env
-
-# Start all services
-docker compose up --build
+docker compose up --build              # UI on http://localhost:5173
 ```
 
-> [!WARNING]
->
-> The backend can only index folders mounted into it. Add your image directories in `docker-compose.override.yml`, then add libraries in the UI by their in-container path:
->
-> ```yaml
-> services:
->   backend:
->     volumes:
->       - /absolute/path/to/your/images:/mnt/images:ro
-> ```
->
-> See [docs/docker-guide.md](docs/docker-guide.md) for data volumes, logs and configuration.
+Moiré can only see folders mounted into the container. Add yours in `docker-compose.override.yml`, then add the library in the UI by its path inside the container:
 
-**Access Points:**
+```yaml
+services:
+  backend:
+    volumes:
+      - /absolute/path/to/your/images:/mnt/images:ro
+```
 
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:8000/api/v1
-- **Health Check**: http://localhost:8000/health
+[docs/docker-guide.md](docs/docker-guide.md) covers the data volume, logs and settings.
 
-### Native Development (Recommended for Development)
+## First run
 
-Moiré has no external services (embedded SQLite, filesystem thumbnails), so for
-fast iteration just run both apps locally with hot reload:
+The welcome screen walks you through three steps, and you can skip any of them:
+
+1. **Folders.** Add the folders your images are in. Tick "each subfolder becomes its own library" to split a big output folder. Moiré previews what it will add, then scans in the background.
+2. **AI tagging.** Download the tagger model (about 380 MB, from Hugging Face, once) and tag what you have. Later, the AI Tagging page tags whatever is still untagged in one click.
+3. **ComfyUI.** Give it your ComfyUI address (`127.0.0.1:8188`). Generate shows up in the sidebar once it connects.
+
+Change any of it later in Settings.
+
+## Generating with ComfyUI
+
+Moiré talks to ComfyUI over its normal API, so any ComfyUI works: on this machine, on another box, or behind a reverse proxy.
+
+- **Address**, plus a certificate path for a self-signed HTTPS setup and extra headers (for example an `Authorization` token) if your ComfyUI needs them.
+- **Output folder**: where ComfyUI saves. If Moiré can read that folder, new images are linked where they are. If it can't (a remote ComfyUI), turn on "Download images from ComfyUI" and they are downloaded into a library instead.
+- **Workflows**: the built-in one is ComfyUI's default text-to-image graph with your checkpoint. To use your own, pick an image it made or upload an *Export (API)* file; Moiré finds the prompt, seed, size and sampler inputs, and you run a test image before it's ready.
+
+Characters you pick in Generate bring their recipe (the tags that make them look right) and the outfit you choose. Prefixes, negative prompts and style LoRAs can be saved as presets.
+
+## Where your data lives
 
 ```bash
-pnpm install
-uv --directory packages/backend sync
-pnpm dev
+moire paths
 ```
 
-## 📦 Installation & Setup
+prints the database, thumbnails, tagger models and logs. An installed Moiré keeps them in your app-data folder:
 
-### Prerequisites
+| OS | Folder |
+|---|---|
+| Windows | `%LOCALAPPDATA%\Moire` |
+| macOS | `~/Library/Application Support/Moire` |
+| Linux | `~/.local/share/moire` |
 
-- **Node.js** 18+ and **pnpm** ([installation guide](https://pnpm.io/installation))
-- **Python** 3.12+ and **uv** ([installation guide](https://docs.astral.sh/uv/getting-started/installation/))
+Set `MOIRE_HOME` to put them somewhere else. A `.env` file in that folder holds optional settings (see [`.env.example`](packages/backend/.env.example)).
 
-### Local Development Setup
+Your images are never moved or changed. Moiré only reads them and writes thumbnails next to its database. Deleting an image from disk takes an explicit confirmation. Back up the database (`moire.db`); thumbnails can always be rebuilt by a rescan.
 
-1. **Clone and install dependencies:**
-
-   ```bash
-   git clone https://github.com/mNandhu/moire.git
-   cd moire
-   pnpm install
-   ```
-
-2. **Install backend dependencies:**
-
-   ```bash
-   uv --directory packages/backend sync
-   ```
-
-3. **Configure (optional):** defaults work out of the box. The database lands in `data/moire.db`, thumbnails in `data/thumbs/`, logs in `data/logs/`. To override, copy `packages/backend/.env.example` to `packages/backend/.env` and edit.
-
-4. **Start the application:**
-   ```bash
-   pnpm dev
-   ```
-
-### Running without the dev server
-
-`pnpm build` writes the UI into `packages/backend/src/moire/web`, and the backend then serves it itself. Moiré runs as one process on one port:
+## Upgrading
 
 ```bash
-pnpm build
-uv --directory packages/backend run moire run --open   # http://localhost:8000
+uv tool upgrade moire-studio
 ```
 
-### Installing as an app
+The database updates itself on the next start; no migration step is needed. With Docker, `git pull` and `docker compose up --build`; the data volume carries over.
 
-The wheel is the whole app (backend with the built UI inside). Once a release is published to PyPI, install it with [uv](https://docs.astral.sh/uv/) and run it:
+## Custom workflows and the Rules page
 
-```bash
-uv tool install "moire-studio[cpu]"   # or [gpu] for AI tagging on an NVIDIA GPU
-moire run --open                       # http://localhost:8000
-moire paths                            # where the database, thumbnails and models live
-```
+Moiré parses standard ComfyUI graphs on its own. A workflow with unusual nodes can leave the prompt or model empty. On the **Rules** page, pick that workflow, point each field at the node it comes from, check the preview, and save. Every image from that workflow, in every library, is re-read at once.
 
-An installed Moiré keeps its data in the OS app-data folder (`%LOCALAPPDATA%\Moire`, `~/Library/Application Support/Moire`, or `~/.local/share/moire`), and reads a `.env` there. Set `MOIRE_HOME` to put it elsewhere. A source checkout keeps using `<repo>/data`. `moire run --host 0.0.0.0` serves your LAN. Before the first PyPI release, install a wheel you built (`pnpm build`, then `uv --directory packages/backend build`) with `uv tool install "moire-studio[cpu] @ file:///path/to/moire_studio-X.Y.Z-py3-none-any.whl"`.
+## Contributing
 
-`pnpm dev` is unaffected: Vite still serves the UI on :5173 with hot reload. A stale build in `src/moire/web` is harmless in dev; delete it or rebuild after frontend changes if you use the single-port mode.
+Setup, tests and the project layout are in [CONTRIBUTING.md](CONTRIBUTING.md). See [CHANGELOG.md](CHANGELOG.md) for what changed and [ROADMAP.md](ROADMAP.md) for what's next.
 
-### Adding Your First Library
+## License
 
-1. Navigate to http://localhost:5173/libraries and click **Add libraries**
-2. Enter one or more folder paths (e.g., `/path/to/your/images`), one per line. Optionally tick "each subfolder becomes its own library"
-3. Click **Preview** to see exactly which libraries will be created, with image counts; untick any you don't want
-4. Click **Add**; scanning runs in the background
-5. Browse your images at http://localhost:5173
-
-## 🏗 Architecture
-
-- **Backend**: FastAPI app with embedded SQLite for metadata; thumbnails and originals both live on the local filesystem
-- **Frontend**: Vite + React + TypeScript with TailwindCSS
-- **Storage**:
-  - SQLite (`SQLITE_PATH`, default `data/moire.db`): image metadata, tags, library information
-  - Original images: served directly from the host filesystem (the library paths you mount)
-  - Thumbnails: generated WebP files under `THUMB_ROOT`, served through the API (`/api/v1/images/{id}/thumb`)
-
-## 🤖 AI Autotagger
-
-Moiré ships with a **built-in** autotagger, a WD ONNX model that runs locally via `onnxruntime`. No external service is required. The default model is `SmilingWolf/wd-vit-tagger-v3`, downloaded from HuggingFace on first use and cached locally.
-
-**How it works:**
-
-1. Configure the model and thresholds on the Settings page (or via `POST /api/v1/ai/settings`).
-2. Load the model (`POST /api/v1/ai/model/load`). Download and load are tracked, cancellable, and the model idle-unloads to free memory.
-3. Tag a single image, or queue a batch (e.g. all untagged images) via the AI job system (`POST /api/v1/ai/tag`, `POST /api/v1/ai/tag-untagged`). Jobs are listed, polled, and cancellable (`GET /api/v1/ai/jobs`, `POST /api/v1/ai/jobs/{id}/cancel`).
-4. AI tags are stored alongside manual and prompt tags and become searchable.
-
-**Tag kinds** (all share one `tags` array, see [CONTEXT.md](CONTEXT.md)):
-
-- **AI tags**: produced by the tagger, stored unprefixed (`1girl`).
-- **Manual tags**: user-applied, `manual:` prefix.
-- **Prompt tags**: extracted from generation prompts by reprojection, `prompt:` prefix.
-
-Tuning knobs (model repo, general/character thresholds, idle-unload timeout, prompt-tag reprojection) live in AI Settings.
-
-### GPU tagging (optional, NVIDIA)
-
-Tagging runs on the CPU by default (~0.9 s an image). With an NVIDIA GPU it is about 9x faster (~0.1 s an image, measured on a GTX 1650). The GPU build is an optional uv dependency group, `gpu`, which swaps `onnxruntime` for `onnxruntime-gpu` and pulls the CUDA 12 and cuDNN 9 runtime libraries from pip (about 2 GB). No system CUDA toolkit is needed, and a different system CUDA version (13, say) doesn't get in the way. Linux and Windows only.
-
-```bash
-# Tell uv to leave the CPU build out; keep this set in the shell you run Moiré
-# from, or a later `uv run` / `pnpm dev` reinstalls the CPU build.
-export UV_NO_GROUP=cpu
-uv --directory packages/backend sync --group gpu
-```
-
-Put the `export` in your shell profile (`~/.zshrc`, `~/.bashrc`) so every shell has it, including the ones git hooks and editors start. On Windows PowerShell, use `$env:UV_NO_GROUP = "cpu"` (or set it as a user environment variable).
-
-If a `uv run` without it slips through, it installs the CPU build over the GPU one, both being the same `onnxruntime` package on disk. The backend log then warns that both are installed. Repair with `UV_NO_GROUP=cpu uv --directory packages/backend sync --group gpu --reinstall-package onnxruntime-gpu`. The NVIDIA driver must be installed; under WSL2 that's the Windows driver.
-
-When the model loads, the backend log says which device it got: `Tagger session providers: ['CUDAExecutionProvider', 'CPUExecutionProvider']`. If it shows only `CPUExecutionProvider`, the GPU wasn't usable and tagging carries on, on the CPU. To go back to the CPU build, unset `UV_NO_GROUP` and run `uv --directory packages/backend sync`. A warning about `/sys/class/drm/card0/device/vendor` under WSL2 is harmless.
-
-## 🧬 Generation Metadata & Extraction Rules
-
-Moiré reads the generation data embedded in AI-art images (ComfyUI `prompt` node graphs, Automatic1111 `parameters` text) during scanning and stores it **verbatim**. From that stored raw it derives structured `gen.*` fields (positive/negative prompt, seed, model, sampler, steps, CFG) plus searchable prompt tags. Because derivation works off the stored raw, fields can be re-derived any time without touching disk again.
-
-**Workflow signatures.** Each ComfyUI image is fingerprinted by a `workflow_sig`, a hash of its node *kinds* (sorted `class_type` multiset), ignoring node ids and widget values. Images from the same workflow share a signature, so they can be grouped and mapped together.
-
-**Why rules exist.** Standard graphs are parsed structurally (walk the sampler's `positive`/`negative` links back to text nodes, the `model` link to the checkpoint loader). Custom and non-standard workflows (exotic samplers, custom text nodes, pass-through wrappers) break those heuristics, leaving prompt/model/seed empty even though the data is present in the raw.
-
-**Extraction rules (rulesets)** fix that. Per `workflow_sig`, you pin **dot-paths** into the raw doc for specific fields (e.g. `prompt.32.inputs.text0` → `prompt`). A resolving pin overrides the structural baseline; the fallback chain is *pinned → structural → class*, so a pin only ever fills or corrects, never erases a working parse.
-
-Author rules on the **Rules page**: pick a signature (the picker surfaces which still need mapping and a sample image), pin paths, and preview resolution live against that sample before saving (`POST /rules/preview`). Rulesets are **sig-global**: saving one **reprojects every image of that signature across all libraries** from their stored raw (`PUT /rules/{sig}` → background reproject), so one mapping retroactively fixes the whole batch. You can also reproject a single library on demand (`POST /libraries/{id}/reproject`).
-
-## ⚙️ Environment Configuration
-
-Key environment variables (see `.env.example`):
-
-### Storage
-
-- `SQLITE_PATH`: SQLite database file (default: `./data/moire.db`; `/data/moire.db` volume in Docker)
-- `THUMB_ROOT`: Filesystem directory for generated WebP thumbnails (default: `./data/thumbs`; `/data/thumbs` volume in Docker). Originals are read from the host library paths, so there is no separate originals store.
-
-Both thumbnails and originals are served straight through the API, so a single exposed port (8000) is enough for remote access; front it with a reverse proxy (e.g. nginx) for TLS and static offload.
-
-### Performance
-
-- `THUMB_MAX_SIZE`: Maximum thumbnail size in pixels (default: 768)
-- `SCANNER_MAX_WORKERS`: Scanner thread count (0 = auto-detect CPU cores)
-- `SCANNER_MAX_CONCURRENT_SCANS`: Libraries scanning at once; the rest queue (default: 2)
-
-### Logging
-
-- `LOG_LEVEL` (default `INFO`), `LOG_TO_FILE` (default `true`), `LOG_DIR` (default `./data/logs`): console logging plus a rotating `moire.log`
-
-## 📁 Project Structure
-
-```
-moire/
-├── packages/
-│   ├── backend/          # FastAPI application
-│   │   ├── src/
-│   │   │   ├── api/      # REST API endpoints
-│   │   │   ├── services/ # Business logic (scanner, storage)
-│   │   │   └── database/ # SQLite schema and engines
-│   │   └── .env          # Backend environment variables
-│   └── frontend/         # React application
-│       ├── src/
-│       │   ├── components/ # React components
-│       │   ├── pages/      # Page components
-│       │   └── lib/        # Utilities and API client
-│       └── vite.config.ts  # Vite configuration with /api proxy
-├── test_images/          # Sample images for testing
-├── docs/                 # Documentation
-├── scripts/              # Utility scripts
-├── docker-compose.yml    # Docker setup (backend + frontend)
-├── docker-compose.ci.yml # CI stack (backend + test_images)
-└── README.md            # This file
-```
-
-## 🔌 API Overview
-
-See [.github/prompts/tech_guide.md](.github/prompts/tech_guide.md) for detailed architecture documentation.
-
-**Key Endpoints** (all under `/api/v1`, e.g. `GET /api/v1/images`; `GET /health` is also served at the root for container probes):
-
-- `GET /health` - Health check
-- `POST /libraries/discover` - Dry run for adding libraries (optionally one per subfolder): candidates, image counts, conflicts
-- `GET /images` - List images with filtering and pagination
-- `GET /images/{id}/file` - Original image from host filesystem (supports Range requests)
-- `GET /images/{id}/thumb` - WebP thumbnail
-- `POST /images/{id}/rating` - Set content rating (`general`/`sensitive`/`questionable`/`explicit`/`-`)
-- `POST /images/{id}/score` - Set 0–5 star quality score (distinct from content rating)
-- `POST /images/{id}/quarantine` - Toggle quarantine flag (DB-only; hides from feed, file untouched)
-- `POST /images/{id}/purge` - Permanently delete original from disk + records (`confirm=true` required)
-- `GET /tags` - Available tags with counts (30s TTL cache)
-- `POST /tags/apply/{id}` / `POST /tags/remove/{id}` - Mutate tags on an image
-- `POST /libraries` - Create/scan a library; `POST /libraries/{id}/rescan`, `POST /libraries/{id}/reproject`
-- `GET /ai/status`, `POST /ai/model/load`, `POST /ai/tag`, `GET /ai/jobs` - Built-in autotagger + job queue
-- `GET /rules`, `GET /rules/signatures`, `PUT /rules/{sig}` - Generation-metadata extraction rules, keyed by workflow signature
-
-**Image Filtering:**
-
-- `tags[]=tag1&tags[]=tag2` - Filter by tags
-- `logic=and|or` - Tag filter logic
-- `library_id=...` - Filter by library
-- `no_tags=1` - Show only untagged images
-- `no_ai_tags=1` - Show only images without AI tags
-- `pterms[]=term&plogic=and|or` - Filter by prompt tags (generation-prompt terms)
-- `quarantined=1` - Show quarantined images (hidden from the default feed)
-- `cursor=...` - Cursor-based pagination for stable results
-
-## 📚 Documentation & Links
-
-- **[CHANGELOG.md](CHANGELOG.md)** - Version history and release notes
-- **[ROADMAP.md](ROADMAP.md)** - Future features and development plan
-- **[TODO.md](TODO.md)** - Current development tasks and priorities
-- **[Backend README](packages/backend/README.md)** - Backend-specific documentation
-- **[Frontend README](packages/frontend/README.md)** - Frontend-specific documentation
-- **[Docker Guide](docs/docker-guide.md)** - Detailed Docker configuration guide
-- **[Tech Guide](.github/prompts/tech_guide.md)** - Architecture and technical details
-
-## 🐳 Data Persistence
-
-In Docker, everything the backend writes lives in the `moire_data` volume at `/data`: the SQLite database (`moire.db`), thumbnails (`thumbs/`) and downloaded tagger models (`models/`). Natively, the same files live under `<repo>/data/` (models under `<repo>/.cache/moire/models`).
-
-To back up your data:
-
-```bash
-# Stop the backend so the SQLite file is consistent, then copy /data out
-docker compose stop backend
-docker compose cp backend:/data ./backup
-docker compose start backend
-```
-
-> Original images live in the host directories you mounted as libraries. Back those up with your normal file-backup tooling. Thumbnails can always be regenerated by rescanning, so only the database and your source images are essential.
-
-## 🔧 Development
-
-### Running Tests
-
-```bash
-# Backend tests (when available)
-cd packages/backend
-uv run pytest
-
-# Frontend tests (when available)
-cd packages/frontend
-pnpm test
-```
-
-### Code Style
-
-- **Backend**: Code formatted with `ruff` (when configured)
-- **Frontend**: Code formatted with `prettier` + `eslint` (when configured)
-
-### Performance Testing
-
-```bash
-# Run performance benchmark
-pnpm perf
-```
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Docker build fails with SSL errors:**
-
-Run natively instead (no external services needed):
-
-```bash
-pnpm install && uv --directory packages/backend sync && pnpm dev
-```
-
-**Services not starting:**
-
-```bash
-# Check logs
-docker compose logs -f
-
-# Restart services
-docker compose restart
-```
-
-**Port conflicts:**
-
-- Backend: 8000
-- Frontend: 5173
-
-Change ports in `docker-compose.yml` if needed.
-
-**Health check failures:**
-
-- Wait longer for the backend to start (first start creates the database)
-- Check container logs: `docker compose logs [service-name]`
-
-### Testing Setup
-
-Validate your installation:
-
-```bash
-./scripts/test-docker.sh
-```
-
-## 🤝 Contributing
-
-We welcome contributions! Here's how to get started:
-
-### Development Setup
-
-1. **Fork and clone:**
-
-   ```bash
-   git clone https://github.com/your-username/moire.git
-   cd moire
-   ```
-
-2. **Set up development environment:**
-
-   ```bash
-   # Install dependencies
-   pnpm install
-
-   uv --directory packages/backend sync
-
-   # Start development servers
-   pnpm dev
-   ```
-
-3. **Make your changes and test:**
-
-   ```bash
-   # Test your changes work end-to-end
-   # Add a library, scan images, verify functionality
-   ```
-
-4. **Submit a pull request:**
-   - Create a feature branch
-   - Make focused, minimal changes
-   - Include tests if adding new features
-   - Update documentation as needed
-
-### Code Guidelines
-
-- **Backend**: Follow FastAPI patterns, use type hints, keep endpoints focused
-- **Frontend**: Use TypeScript, follow React best practices, maintain component isolation
-- **Commits**: Use conventional commit format when possible
-- **Testing**: Ensure your changes don't break existing functionality
-
-### Reporting Issues
-
-When reporting bugs, please include:
-
-- Steps to reproduce
-- Expected vs actual behavior
-- Environment details (OS, Docker version, etc.)
-- Relevant logs from `docker compose logs`
-
-## 📄 License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **FastAPI** - Modern, fast web framework for Python
-- **React** + **Vite** - Frontend framework and build tool
-- **SQLite** + **SQLAlchemy** - Embedded metadata store
-- **TailwindCSS** - Utility-first CSS framework
-
----
-
-**Made for AI artists and diffusion model enthusiasts** 🎨✨
+MIT. See [LICENSE](LICENSE).
