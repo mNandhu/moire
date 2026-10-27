@@ -1,0 +1,19 @@
+{
+  "about": "The colour word of a hair / eye tag: character_look.colour_of and tagColour.ts colourWord must both return `colour` for `tag` (last two words, then last word, neutrals included; null when none).",
+  "cases": [
+    { "tag": "blue_eyes", "colour": "blue" },
+    { "tag": "red_hair", "colour": "red" },
+    { "tag": "light_blue_hair", "colour": "light_blue" },
+    { "tag": "dark_blue_hair", "colour": "dark_blue" },
+    { "tag": "large_innocent_green_eyes", "colour": "green" },
+    { "tag": "black_hair", "colour": "black" },
+    { "tag": "white_hair", "colour": "white" },
+    { "tag": "grey_eyes", "colour": "grey" },
+    { "tag": "constructor_hair", "colour": null },
+    { "tag": "to_string_eyes", "colour": null },
+    { "tag": "streaked_hair", "colour": null },
+    { "tag": "very_long_hair", "colour": null },
+    { "tag": "hair", "colour": null },
+    { "tag": "blue_shirt", "colour": null }
+  ]
+}

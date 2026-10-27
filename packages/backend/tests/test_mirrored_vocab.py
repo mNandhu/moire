@@ -4,8 +4,11 @@ Each test reads the frontend source table and compares it to the backend one,
 so adding a colour, kaomoji, facet or merge kind on one side fails here until
 the other side follows."""
 
+import json
 import re
 from pathlib import Path
+
+import pytest
 
 from moire.services import attire, character_look, tag_canon
 from moire.services.tag_names import KAOMOJIS, canonical_name
@@ -47,6 +50,19 @@ def test_multicolour_tags_match():
     block = _block(_src("tagColour.ts"), "const MULTICOLOUR")
     py = set().union(*character_look.MULTICOLOUR.values())
     assert set(_quoted(block)) == py
+
+
+COLOUR_WORD = json.loads(
+    (Path(__file__).parent / "fixtures" / "mirrored" / "colour_word.json").read_text(
+        encoding="utf-8"
+    )
+)
+
+
+@pytest.mark.parametrize("case", COLOUR_WORD["cases"], ids=lambda c: c["tag"])
+def test_colour_word_reads_the_shared_cases(case):
+    # tagColour.test.ts reads the same file through colourWord.
+    assert character_look.colour_of(case["tag"]) == case["colour"]
 
 
 def test_kaomojis_match():

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { chipBorderStyle, colourWord, isMulticolour, tagColour, tagMarkStyle } from "./tagColour";
+import colourCases from "../../../backend/tests/fixtures/mirrored/colour_word.json";
 
 describe("colourWord", () => {
   it("reads the colour from hair and eye tags", () => {
@@ -10,6 +11,10 @@ describe("colourWord", () => {
     expect(colourWord("light_blue_hair")).toBe("light_blue");
     expect(colourWord("large_innocent_green_eyes")).toBe("green");
     expect(colourWord("black_hair")).toBe("black");
+  });
+
+  it.each(colourCases.cases)("reads the shared case $tag", ({ tag, colour }) => {
+    expect(colourWord(tag)).toBe(colour);
   });
 
   it("reads through the kind prefix", () => {
