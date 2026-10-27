@@ -24,6 +24,7 @@ from . import attire, comfy_models, gen_metadata, tag_categories, workflow_famil
 from .model_names import model_stem
 from .prompt_parse import without_terms
 from .generator_discovery import check_slots, discover
+from .generation_limits import clamp_per_request
 from .generator_graph import SAMPLING, STOCK_LORA_LOADERS
 from .prompt_parse import parse_prompt
 from .tag_names import canonical_name
@@ -301,7 +302,7 @@ def clean_slots(raw: Any) -> dict[str, Any]:
         n = raw["per_request"]
         if not isinstance(n, int) or isinstance(n, bool):
             raise SetupError("Images per request must be a whole number")
-        out["per_request"] = max(1, min(64, n))
+        out["per_request"] = clamp_per_request(n)
     for key in ("lora_model", "lora_clip"):
         if raw.get(key) is None:
             continue

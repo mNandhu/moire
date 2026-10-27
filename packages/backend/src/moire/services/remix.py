@@ -21,13 +21,12 @@ from ..database.db import async_conn
 from . import comfy_models, generator_setup, recipes, tag_categories
 from .prompt_parse import without_terms
 from .image_tags import find_image
+from .generation_limits import CFG_RANGE, MAX_CHARACTERS, STEPS_RANGE
 from .generator_discovery import base_settings
 from .model_names import model_stem
 from .prompt_parse import parse_prompt
 from .tag_names import canonical_name
 
-# As many characters as one prompt takes (the composer's MAX_CHARACTERS).
-MAX_CHARACTERS = 8
 
 # A1111 extra networks written into the prompt (`<lora:name:0.7>`): ComfyUI
 # would read them as words.
@@ -93,10 +92,10 @@ def checked_sampling(
         if isinstance(v, str) and (not have.get(key) or v in have[key]):
             out[key] = v
     steps = sampling.get("steps")
-    if isinstance(steps, int) and 1 <= steps <= 200:
+    if isinstance(steps, int) and STEPS_RANGE[0] <= steps <= STEPS_RANGE[1]:
         out["steps"] = steps
     cfg = sampling.get("cfg")
-    if isinstance(cfg, (int, float)) and 0 <= cfg <= 30:
+    if isinstance(cfg, (int, float)) and CFG_RANGE[0] <= cfg <= CFG_RANGE[1]:
         out["cfg"] = float(cfg)
     return out
 

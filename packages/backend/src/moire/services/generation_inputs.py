@@ -8,6 +8,7 @@ import json
 from typing import Any, NamedTuple
 
 from .generation_compose import compose, compose_parts, prompt_terms
+from .generation_limits import MAX_CHARACTERS, clamp_per_request
 from .generator_graph import SAMPLING, seeds_for, split_requests
 from .outfits import clean_tags
 
@@ -28,7 +29,7 @@ def batch_shape(
     has_batch = bool(gen["slots"].get("batch_size"))
     builtin = gen["kind"] == "builtin"
     asked = (
-        max(1, min(64, int(body["per_request"])))
+        clamp_per_request(int(body["per_request"]))
         if has_batch and body.get("per_request")
         else None
     )
@@ -98,9 +99,6 @@ def _resolve(
         elif p["name"]:
             items.append(f"embedding:{p['name']}")
     return items
-
-
-MAX_CHARACTERS = 8
 
 
 def outfit_tags(c: dict[str, Any]) -> list[str]:

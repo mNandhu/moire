@@ -22,6 +22,7 @@ import {
   type LoraMatch,
 } from "../../../lib/generate";
 import { useToast } from "../../../components/Toasts";
+import { PER_REQUEST_MAX } from "../../../lib/generationLimits";
 
 type HeaderRow = { name: string; value: string };
 
@@ -331,7 +332,7 @@ export function ComfySection() {
           <Input
             type="number"
             min={1}
-            max={64}
+            max={PER_REQUEST_MAX}
             value={perRequest}
             onChange={(e) => setPerRequest(Number(e.target.value) || 1)}
             onBlur={() => perRequest !== settings?.builtin_per_request && save.mutate({ builtin_per_request: perRequest })}

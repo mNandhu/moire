@@ -40,6 +40,7 @@ import {
 import { cn } from "../lib/cn";
 import { errorText } from "../lib/api";
 import { canRunTest, testState } from "../lib/generatorRunBar";
+import { PER_REQUEST_MAX } from "../lib/generationLimits";
 import { stemOf } from "../lib/modelNames";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -303,7 +304,7 @@ function SetupForm({
                 <button
                   type="button"
                   aria-label="More"
-                  onClick={() => setSlots({ ...slots, per_request: Math.min(64, (slots.per_request ?? 1) + 1) })}
+                  onClick={() => setSlots({ ...slots, per_request: Math.min(PER_REQUEST_MAX, (slots.per_request ?? 1) + 1) })}
                   className="rounded-md border border-line p-1.5 text-muted hover:text-neutral-100"
                 >
                   <Plus size={14} />

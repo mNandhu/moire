@@ -23,6 +23,7 @@ import type {
   Sampling,
   StyleLora,
 } from "./generate";
+import { CFG_RANGE, MAX_CHARACTERS, PER_REQUEST_MAX, STEPS_RANGE } from "./generationLimits";
 import { keepPicked, pickFromInput, validOutfits, type OutfitPick, type Outfits } from "./outfit";
 
 export type PresetRef = { id: string; text: string } | null;
@@ -100,9 +101,6 @@ export const DEFAULT_FORM: GenerateForm = {
   name: null,
   remix: null,
 };
-
-/** As many characters as one prompt takes (the backend keeps this many). */
-export const MAX_CHARACTERS = 8;
 
 /** The characters with row `i` changed to `tag` (null removes it); a tag
  * already picked elsewhere moves here instead of showing twice. Pure. */
@@ -448,7 +446,7 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     if (isStr(d.name) || d.name === null) out.name = d.name;
     if (isStr(d.workflow) && d.workflow) out.workflow = d.workflow;
     for (const k of ["width", "height", "count"] as const) if (typeof d[k] === "number") out[k] = d[k];
-    if (Number.isInteger(d.perRequest) && d.perRequest >= 1 && d.perRequest <= 64) out.perRequest = d.perRequest;
+    if (Number.isInteger(d.perRequest) && d.perRequest >= 1 && d.perRequest <= PER_REQUEST_MAX) out.perRequest = d.perRequest;
     if (Array.isArray(d.loras)) {
       out.loras = d.loras
         .filter(
@@ -495,8 +493,8 @@ export function samplingOf(v: unknown): Sampling {
   if (isStr(d.sampler)) out.sampler = d.sampler;
   if (isStr(d.scheduler)) out.scheduler = d.scheduler;
   // The backend's limits; anything else is left to the Generator.
-  if (Number.isInteger(d.steps) && (d.steps as number) >= 1 && (d.steps as number) <= 200) out.steps = d.steps as number;
-  if (typeof d.cfg === "number" && d.cfg >= 0 && d.cfg <= 30) out.cfg = d.cfg;
+  if (Number.isInteger(d.steps) && (d.steps as number) >= STEPS_RANGE[0] && (d.steps as number) <= STEPS_RANGE[1]) out.steps = d.steps as number;
+  if (typeof d.cfg === "number" && d.cfg >= CFG_RANGE[0] && d.cfg <= CFG_RANGE[1]) out.cfg = d.cfg;
   return out;
 }
 

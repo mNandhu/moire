@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from . import app_settings
+from .generation_limits import clamp_per_request
 
 
 ROW_ID = "comfyui"
@@ -51,8 +52,8 @@ def clean_patch(patch: dict[str, Any], current: dict[str, Any]) -> dict[str, Any
         clean["headers"] = headers
     if "builtin_per_request" in patch:
         try:
-            clean["builtin_per_request"] = max(
-                1, min(64, int(patch["builtin_per_request"]))
+            clean["builtin_per_request"] = clamp_per_request(
+                int(patch["builtin_per_request"])
             )
         except (TypeError, ValueError):
             pass

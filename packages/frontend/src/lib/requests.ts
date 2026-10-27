@@ -1,3 +1,5 @@
+import { SEED_MAX } from "./generationLimits";
+
 /**
  * How a count becomes ComfyUI requests (mirrors `generator_graph.split_requests`).
  *
@@ -56,5 +58,5 @@ export function fixedSeeds(seed: number, requests: number): number[] {
 
 /** A random seed for the dice button (within ComfyUI's range). */
 export function randomSeed(): number {
-  return Math.floor(Math.random() * 2 ** 50);
+  return Math.floor(Math.random() * SEED_MAX);
 }

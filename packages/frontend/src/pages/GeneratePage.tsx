@@ -13,6 +13,7 @@ import {
   SeedControl,
   SizePicker,
 } from "../components/generate/RunControls";
+import { MAX_CHARACTERS } from "../lib/generationLimits";
 import { stemOf } from "../lib/modelNames";
 import { CharacterLayer } from "../components/generate/CharacterBlock";
 import { StyleLayer } from "../components/generate/StyleLayer";
@@ -50,7 +51,6 @@ import {
 import {
   insertBlock,
   keepOff,
-  MAX_CHARACTERS,
   loadDraft,
   nameWords,
   presetText,

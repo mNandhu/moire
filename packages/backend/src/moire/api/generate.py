@@ -37,6 +37,7 @@ from ..services.generation_jobs import (
     get_generation_manager,
     load_generator,
 )
+from ..services.generation_limits import CFG_RANGE, PER_REQUEST_MAX, STEPS_RANGE
 from ..services.generator_setup import SetupError
 
 router = APIRouter()
@@ -105,8 +106,8 @@ class SamplingIn(BaseModel):
 
     sampler: str | None = Field(None, max_length=200)
     scheduler: str | None = Field(None, max_length=200)
-    steps: int | None = Field(None, ge=1, le=200)
-    cfg: float | None = Field(None, ge=0, le=30)
+    steps: int | None = Field(None, ge=STEPS_RANGE[0], le=STEPS_RANGE[1])
+    cfg: float | None = Field(None, ge=CFG_RANGE[0], le=CFG_RANGE[1])
 
 
 class BatchIn(BaseModel):
@@ -130,7 +131,7 @@ class BatchIn(BaseModel):
     seed: SeedIn = Field(default_factory=SeedIn)
     count: int = Field(1, ge=1, le=500)
     #: Images per request; left out, the Generator's.
-    per_request: int | None = Field(None, ge=1, le=64)
+    per_request: int | None = Field(None, ge=1, le=PER_REQUEST_MAX)
     name: str | None = None
 
 

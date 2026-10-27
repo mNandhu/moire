@@ -7,6 +7,7 @@ import { countHint, countLabel, randomSeed, type CountMode } from "../../lib/req
 import { ShapeIcon, SIZE_GROUP, useSizePresets } from "../SizeFilter";
 import { Input, Picker, Tooltip, type PickerOption } from "../ui";
 import type { Sampling } from "../../lib/generate";
+import { CFG_RANGE, PER_REQUEST_MAX, STEPS_RANGE } from "../../lib/generationLimits";
 import { stemOf } from "../../lib/modelNames";
 import { samplerLabel, samplingLabel } from "../../lib/generateForm";
 
@@ -259,10 +260,10 @@ export function SamplingControl({
           )}
           <div className="grid grid-cols-2 gap-3">
             {"steps" in defaults && (
-              <NumberStepper label="Steps" value={shown.steps} onChange={(n) => patch({ steps: n })} step={1} min={1} max={200} />
+              <NumberStepper label="Steps" value={shown.steps} onChange={(n) => patch({ steps: n })} step={1} min={STEPS_RANGE[0]} max={STEPS_RANGE[1]} />
             )}
             {"cfg" in defaults && (
-              <NumberStepper label="CFG" value={shown.cfg} onChange={(n) => patch({ cfg: n })} step={0.5} min={0} max={30} />
+              <NumberStepper label="CFG" value={shown.cfg} onChange={(n) => patch({ cfg: n })} step={0.5} min={CFG_RANGE[0]} max={CFG_RANGE[1]} />
             )}
           </div>
           {changed && (
@@ -440,7 +441,7 @@ export function CountStepper({
               onChange={(n) => batchSize.onChange(n === batchSize.default ? null : n)}
               step={1}
               min={1}
-              max={64}
+              max={PER_REQUEST_MAX}
             />
           </div>
         )}

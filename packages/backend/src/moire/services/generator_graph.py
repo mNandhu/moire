@@ -32,6 +32,7 @@ import random
 from dataclasses import dataclass
 from typing import Any
 
+from .generation_limits import SEED_MAX
 from .model_names import model_stem
 
 Graph = dict[str, dict[str, Any]]
@@ -42,9 +43,6 @@ lora_stem = model_stem
 LORA_LOADER = "LoraLoader"
 LORA_LOADER_MODEL_ONLY = "LoraLoaderModelOnly"
 STOCK_LORA_LOADERS = (LORA_LOADER, LORA_LOADER_MODEL_ONLY)
-
-# ComfyUI's seed widgets take an unsigned 64-bit value; stay well inside it.
-SEED_MAX = 2**50
 
 
 class GraphError(ValueError):
