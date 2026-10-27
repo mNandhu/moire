@@ -78,15 +78,12 @@ async def test_down_raises_unreachable():
         await c.system_stats()
 
 
-async def test_events_skip_binary_and_report_state():
+async def test_events_skip_binary():
     fake = FakeComfy()
-    states = []
     c = ComfyClient("http://fake", transport=fake.transport())
     fake.ws_queue.put_nowait(b"\x00preview")  # type: ignore[arg-type]
     fake.push("status", {"status": {"exec_info": {"queue_remaining": 2}}})
-    gen = c.events(connect=fake.connect, on_state=states.append)
+    gen = c.events(connect=fake.connect)
     msg = await gen.__anext__()
     assert msg["type"] == "status"
-    assert states == [True]
     await gen.aclose()
-    assert states == [True, False]

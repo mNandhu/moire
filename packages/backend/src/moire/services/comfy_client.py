@@ -240,11 +240,9 @@ class ComfyClient:
         self,
         *,
         connect: Callable[..., Any] | None = None,
-        on_state: Callable[[bool], Any] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         """Websocket JSON events (``{"type", "data"}``) forever, reconnecting
-        with backoff. ``on_state(True/False)`` is called on connect / drop.
-        Binary frames (previews) are skipped."""
+        with backoff. Binary frames (previews) are skipped."""
         if connect is None:
             from websockets.asyncio.client import connect as ws_connect
 
@@ -255,8 +253,6 @@ class ComfyClient:
         async for ws in connect(
             ws_url(self.base_url), additional_headers=self.headers or None, **extra
         ):
-            if on_state:
-                on_state(True)
             try:
                 async for raw in ws:
                     if isinstance(raw, (bytes, bytearray)):
@@ -269,6 +265,3 @@ class ComfyClient:
                         yield msg
             except ConnectionClosed:
                 pass
-            finally:
-                if on_state:
-                    on_state(False)

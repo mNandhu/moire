@@ -100,6 +100,9 @@ class _Memo:
         return self._warm[job]
 
     def load(self, checkpoint: str | None) -> float | None:
+        """Seconds a checkpoint switch adds: the median of what cold runs took
+        beyond their warm estimate, for ``checkpoint`` when it has cold runs,
+        else for any. ``None`` with no cold run to go on."""
         if self._extras is None:
             # What each cold run took beyond its warm estimate (cold runs are
             # left out of that already).
@@ -119,6 +122,8 @@ class _Memo:
 
 
 def _warm(runs: list[Run], job: Job) -> Estimate | None:
+    """The warm (model already loaded) seconds for ``job`` from ``runs``
+    (newest first), by the ladder in the module docstring. Pure."""
     warm = [r for r in runs if r.cold is not True and r.job.generator == job.generator]
     exact = [r.seconds for r in warm if r.job == job][:EXACT_RUNS]
     if exact:
@@ -134,19 +139,6 @@ def _warm(runs: list[Run], job: Job) -> Estimate | None:
         if rates:
             return Estimate(statistics.median(rates) * work, basis, len(rates))
     return None
-
-
-def warm_estimate(runs: list[Run], job: Job) -> Estimate | None:
-    """The warm (model already loaded) seconds for ``job`` from ``runs``
-    (newest first), by the ladder in the module docstring. Pure."""
-    return _warm(runs, job)
-
-
-def load_cost(runs: list[Run], checkpoint: str | None) -> float | None:
-    """Seconds a checkpoint switch adds: the median of what cold runs took
-    beyond their warm estimate, for ``checkpoint`` when it has cold runs,
-    else for any. ``None`` with no cold run to go on. Pure."""
-    return _Memo(runs).load(checkpoint)
 
 
 def plan(runs: list[Run], jobs: list[Job], loaded: str | None) -> list[float | None]:

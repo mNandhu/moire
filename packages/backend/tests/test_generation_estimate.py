@@ -8,14 +8,8 @@ import sys
 
 import pytest
 
-from moire.services.generation_estimate import (
-    Job,
-    Run,
-    load_cost,
-    plan,
-    warm_estimate,
-)
-from moire.services.generation_estimate import _job, _run_order
+from moire.services.generation_estimate import Job, Run, plan
+from moire.services.generation_estimate import _job, _Memo, _run_order, _warm
 from moire.services.comfy_history import model_loaded
 from moire.services.generation_inputs import batch_shape
 
@@ -32,32 +26,32 @@ def job(*, ckpt="a", pixels=PX, steps=28, images=1, gen="g"):
 
 def test_exact_matches_take_the_median_and_skip_cold_starts():
     runs = [run(10), run(12), run(40, cold=True), run(11), run(99, steps=50)]
-    e = warm_estimate(runs, job())
+    e = _warm(runs, job())
     assert (e.seconds, e.basis, e.samples) == (11, "exact", 3)
 
 
 def test_only_the_latest_exact_runs_count():
     runs = [run(20)] * 10 + [run(5)] * 10
-    assert warm_estimate(runs, job()).seconds == 20
+    assert _warm(runs, job()).seconds == 20
 
 
 def test_other_sizes_scale_by_work_on_the_same_checkpoint():
     # 28 steps took 10s; 56 steps on twice the pixels is four times the work.
     runs = [run(10), run(30, ckpt="b")]
-    e = warm_estimate(runs, job(steps=56, pixels=PX * 2))
+    e = _warm(runs, job(steps=56, pixels=PX * 2))
     assert e.basis == "checkpoint" and e.seconds == pytest.approx(40)
 
 
 def test_a_new_checkpoint_falls_back_to_the_generator():
     runs = [run(10), run(20, ckpt="b"), run(30, ckpt="c"), run(1, gen="other")]
-    e = warm_estimate(runs, job(ckpt="d", images=2))
+    e = _warm(runs, job(ckpt="d", images=2))
     assert e.basis == "generator" and e.seconds == pytest.approx(40)
 
 
 def test_no_history_or_no_size_is_no_estimate():
-    assert warm_estimate([], job()) is None
-    assert warm_estimate([run(10, gen="other")], job()) is None
-    assert warm_estimate([run(10)], job(pixels=None)) is None
+    assert _warm([], job()) is None
+    assert _warm([run(10, gen="other")], job()) is None
+    assert _warm([run(10)], job(pixels=None)) is None
 
 
 def test_load_cost_is_what_cold_runs_took_beyond_warm():
@@ -68,11 +62,11 @@ def test_load_cost_is_what_cold_runs_took_beyond_warm():
         run(30, ckpt="b"),
         run(45, ckpt="b", cold=True),
     ]
-    assert load_cost(runs, "a") == 15
-    assert load_cost(runs, "b") == 15
+    assert _Memo(runs).load("a") == 15
+    assert _Memo(runs).load("b") == 15
     # A checkpoint never loaded: any checkpoint's cold starts.
-    assert load_cost(runs, "c") == 15
-    assert load_cost([run(10)], "a") is None
+    assert _Memo(runs).load("c") == 15
+    assert _Memo([run(10)]).load("a") is None
 
 
 def test_plan_adds_a_load_only_when_the_checkpoint_changes():
