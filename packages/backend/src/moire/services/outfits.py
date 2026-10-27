@@ -28,6 +28,7 @@ from .image_tags import find_image
 from .outfit_wear import WearRule, wears, wears_most
 from .tag_names import canonical_name
 
+# Mirrored by the frontend's MAX_OUTFIT_TAGS (lib/outfit.ts; a test checks).
 MAX_TAGS = 40
 DEFAULT_ID = "default"
 # Never an outfit's cover: an image of nobody wearing anything.
@@ -117,6 +118,8 @@ async def wear_rule(outfit_id: str) -> WearRule | None:
     return None if o is None else rule_of(o)
 
 
+# The people tagged in one image the viewer asks about: a read-path guard, not
+# the composer's MAX_CHARACTERS (8 per prompt), which caps what is generated.
 WORN_MAX_CHARACTERS = 10
 
 
