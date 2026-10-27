@@ -43,7 +43,48 @@ export type ImageDoc = {
   ai?: import("./tags").AiTagMeta & {
     rating?: Record<string, number>;
   };
+  // Detail only, unused by the UI; typed so the field list matches the wire.
+  ctime?: number | null;
+  thumb_key?: string | null;
+  has_tags?: boolean;
+  has_prompt_tags?: boolean;
 };
+
+/** `keys` as given, when they name every key of `T`: tsc rejects a list that
+ * misses one, so a runtime list can stand in for the type in tests. */
+const keysOf =
+  <T>() =>
+  <const K extends readonly (keyof T)[]>(
+    keys: K & (Exclude<keyof T, K[number]> extends never ? unknown : { missing: Exclude<keyof T, K[number]> }),
+  ): K =>
+    keys;
+
+// ImageDoc's fields, checked against the backend's payload key snapshot
+// (backend tests/fixtures/mirrored/image_payloads.json) in imageFilter.test.ts.
+export const IMAGE_DOC_KEYS = keysOf<ImageDoc>()([
+  "_id",
+  "library_id",
+  "path",
+  "width",
+  "height",
+  "size",
+  "thumb_url",
+  "blurhash",
+  "tags",
+  "rating",
+  "score",
+  "group_id",
+  "group_count",
+  "quarantined",
+  "mtime",
+  "has_ai_tags",
+  "gen",
+  "ai",
+  "ctime",
+  "thumb_key",
+  "has_tags",
+  "has_prompt_tags",
+]);
 
 type TagLogic = "and" | "or";
 

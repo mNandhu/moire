@@ -1,0 +1,52 @@
+{
+  "feed": [
+    "_id",
+    "blurhash",
+    "has_ai_tags",
+    "height",
+    "mtime",
+    "path",
+    "quarantined",
+    "rating",
+    "score",
+    "thumb_url",
+    "width"
+  ],
+  "group": [
+    "_id",
+    "blurhash",
+    "group_count",
+    "group_id",
+    "has_ai_tags",
+    "height",
+    "mtime",
+    "path",
+    "quarantined",
+    "rating",
+    "score",
+    "thumb_url",
+    "width"
+  ],
+  "detail": [
+    "_id",
+    "ai",
+    "blurhash",
+    "ctime",
+    "gen",
+    "has_ai_tags",
+    "has_prompt_tags",
+    "has_tags",
+    "height",
+    "library_id",
+    "mtime",
+    "path",
+    "quarantined",
+    "rating",
+    "score",
+    "size",
+    "tags",
+    "thumb_key",
+    "thumb_url",
+    "width"
+  ]
+}

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import payloads from "../../../backend/tests/fixtures/mirrored/image_payloads.json";
 import {
   DEFAULT_FILTERS,
   activeFilterChips,
@@ -11,6 +12,7 @@ import {
   galleryHref,
   imageHref,
   normalizeFilters,
+  IMAGE_DOC_KEYS,
 } from "./imageFilter";
 
 const roundTrip = (f: Filters): Filters =>
@@ -344,5 +346,14 @@ describe("every Filters key", () => {
       const f: Filters = { ...DEFAULT_FILTERS, ...SAMPLES[key] };
       expect([key, hasActiveFilter(f)]).toEqual([key, !view.has(key)]);
     }
+  });
+});
+
+describe("image payload types", () => {
+  // The backend pins each payload's keys in this snapshot
+  // (test_image_payload_keys_integration.py); the type must name every one.
+  it("ImageDoc names exactly the keys of the feed, grouped and detail payloads", () => {
+    const wire = new Set([...payloads.feed, ...payloads.group, ...payloads.detail]);
+    expect([...IMAGE_DOC_KEYS].sort()).toEqual([...wire].sort());
   });
 });
