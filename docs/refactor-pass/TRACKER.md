@@ -199,7 +199,7 @@ P4 status (2026-10-27): backend wave done (3 worktree lanes H, I, J; 16 items, 5
 
 ## P5. Contracts, naming, dead code, housekeeping
 
-- [ ] **L4.6** SORT_KEY / SCORE_KEY are defined twice (image_feed.py and schema.py); CLAUDE.md names a deleted nextCursorOf (drift, S, L3)
+- [x] **L4.6** (ec8a50b) SORT_KEY / SCORE_KEY are defined twice (image_feed.py and schema.py); CLAUDE.md names a deleted nextCursorOf (drift, S, L3)
 - [ ] **S3.5** PUT /tags/focus runs the full 8-query detail aggregate just to learn the pin and existence (simplify, S, L3)
 - [ ] **S10.4** ChipInput component is dead; the file survives only as the home of bareTagPool (dead, S, L3)
 - [ ] **S11.4** 'Which batch is in front / waiting' is derived three different ways (dedupe, S, L3)
