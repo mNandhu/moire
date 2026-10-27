@@ -394,14 +394,3 @@ async def delete_rule(from_name: str):
     if res is None:
         raise HTTPException(status_code=404, detail="No such merge rule")
     return res
-
-
-@router.post("/ai/{image_id:path}")
-async def ai_tag(image_id: str):
-    # Deprecated route retained for convenience.
-    # Internal AI tagging is implemented under /ai/*.
-    from ..services.ai_jobs import get_ai_job_manager
-
-    jm = get_ai_job_manager()
-    job = await jm.enqueue(ids=[image_id])
-    return {"job_id": job.id}
