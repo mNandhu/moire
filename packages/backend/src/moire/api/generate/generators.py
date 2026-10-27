@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from ...services import generation_batches, generator_setup, remix
+from ...services import generation_batches, generator_setup, generator_test, remix
 from ...services.generation_jobs import get_generation_manager
 from ...services.generator_setup import SetupError
 from ...services.generators_store import load_generator
@@ -164,7 +164,7 @@ async def get_generator(generator_id: str):
 async def test_generator(generator_id: str, body: TestIn):
     m = get_generation_manager()
     try:
-        batch_id = await generation_batches.start_test(m, generator_id, body.checkpoint)
+        batch_id = await generator_test.start_test(m, generator_id, body.checkpoint)
     except QUEUE_ERRORS as e:
         return queue_error(e)
     return {"batch_id": batch_id}

@@ -1,0 +1,105 @@
+"""The Generator test gate: a Generator is ready to queue only after its test
+run's image reached the library. :func:`start_test` queues the run;
+:func:`settle_tests` flips ``ready`` once the image is there (the manager's
+tick calls it, and queueing settles its own Generator first)."""
+
+from __future__ import annotations
+
+import time
+from typing import TYPE_CHECKING
+
+import sqlalchemy as sa
+
+from ..database.db import async_conn, async_tx
+from ..database import schema as t
+from . import comfy_models
+from .generation_errors import Invalid, Unavailable
+from .generation_states import REPLACED
+from .generators_store import load_generator
+
+if TYPE_CHECKING:
+    from .generation_jobs import GenerationManager
+
+
+async def start_test(
+    manager: GenerationManager, generator_id: str, checkpoint: str | None
+) -> int:
+    """Queue the Generator's test run: one image, with one installed LoRA
+    chained at strength 0 so a bad insertion point fails here."""
+    gen = await load_generator(generator_id)
+    if gen is None:
+        raise Invalid("Unknown workflow")
+    # Connecting loads the model index the first time; read it after.
+    if not await manager.check():
+        raise Unavailable("Can't reach ComfyUI")
+    installed = await comfy_models.installed()
+    # Only where Moiré can splice one in: a graph without an insertion point
+    # takes no LoRAs at all.
+    loras = (
+        [{"name": installed["lora"][0], "strength": 0.0}]
+        if installed["lora"] and gen["slots"].get("lora_model")
+        else []
+    )
+    defaults = (gen.get("source") or {}).get("defaults") or {}
+    batch_id = await manager.queue_batch(
+        {
+            "generator_id": generator_id,
+            # A custom Generator's own prompt: the test runs what it will run.
+            "base": defaults.get("base") or "1girl, solo, simple background",
+            "negative_base": defaults.get("negative") or "",
+            "checkpoint": checkpoint
+            or (installed["checkpoint"][0] if installed["checkpoint"] else None),
+            "loras": loras,
+            "count": 1,
+            "name": "Test run",
+        },
+        test=True,
+    )
+    async with async_tx() as conn:
+        await conn.execute(
+            sa.update(t.generators)
+            .where(t.generators.c._id == generator_id)
+            .values(
+                test={"batch_id": batch_id, "started_at": time.time()},
+                ready=False,
+                updated_at=time.time(),
+            )
+        )
+    return batch_id
+
+
+def _arrived(batch_id: int):
+    """Some output of the test batch is in the library."""
+    o, r, i = t.generation_outputs, t.generation_requests, t.images
+    return (
+        sa.select(1)
+        .select_from(
+            o.join(r, r.c._id == o.c.request_id).join(i, i.c._id == o.c.image_id)
+        )
+        .where(r.c.batch_id == batch_id, r.c.state != REPLACED)
+        .exists()
+    )
+
+
+async def settle_tests(generator_id: str | None = None) -> None:
+    """Mark ready each Generator (or just ``generator_id``) whose test run's
+    image has reached the library."""
+    g = t.generators
+    where = [sa.not_(g.c.ready), g.c.test.isnot(None)]
+    if generator_id is not None:
+        where.append(g.c._id == generator_id)
+    async with async_conn() as conn:
+        waiting = (
+            await conn.execute(sa.select(g.c._id, g.c.test).where(*where))
+        ).fetchall()
+        done = [
+            row._id
+            for row in waiting
+            if (row.test or {}).get("batch_id") is not None
+            and (
+                await conn.execute(sa.select(_arrived(int(row.test["batch_id"]))))
+            ).scalar()
+        ]
+    if done:
+        async with async_tx() as conn:
+            await conn.execute(sa.update(g).where(g.c._id.in_(done)).values(ready=True))

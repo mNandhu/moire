@@ -995,3 +995,19 @@ async def test_unbuildable_request_fails_as_invalid_not_rejected(
     assert reqs[1]["state"] == "failed"
     assert reqs[1]["error"]["type"] == "invalid"
     assert reqs[1]["error"]["message"] == "Its workflow was deleted"
+
+
+async def test_reading_a_generator_never_flips_ready(client, comfy, seed):
+    # The gate settles on the manager's tick (or when queueing), not on GET.
+    await client.post("/generate/generators/builtin/test", json={})
+    paths = comfy.finish(comfy.order[-1], images=1)
+    await tick()
+    view = (await client.get("/generate/generators/builtin")).json()
+    assert view["ready"] is False and view["test"]["image_id"] is None
+
+    # The scan brings the image in; a GET only reads it.
+    await asyncio.to_thread(scanned, seed, paths)
+    view = (await client.get("/generate/generators/builtin")).json()
+    assert view["ready"] is False and view["test"]["image_id"]
+    await tick()
+    assert (await client.get("/generate/generators/builtin")).json()["ready"] is True

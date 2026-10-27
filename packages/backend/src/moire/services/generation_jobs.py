@@ -37,6 +37,7 @@ from . import (
     comfy_settings,
     gen_metadata,
     generation_estimate,
+    generator_test,
 )
 from .comfy_client import ComfyClient, ComfyError, ComfyRejected, ComfyUnreachable
 from .comfy_history import (
@@ -263,29 +264,37 @@ class GenerationManager:
 
     async def tick(self) -> bool:
         """One pass: sync request states with ComfyUI, submit the next
-        request of idle batches. Returns whether anything is in flight."""
+        request of idle batches, then settle the Generator test gate (it
+        follows the library, so it settles even with ComfyUI down). Returns
+        whether anything is in flight."""
         async with self._tick_lock:
-            if (
-                self.client is None
-                and self._setup_failed
-                and time.monotonic() >= self._setup_retry_at
-            ):
-                await self._set_up()
-            if self.client is None:
-                return False
-            if not self.connected or not self._models_loaded:
-                if not await self.check():
-                    return await self._has_unfinished()
             try:
-                running, pending = await self.client.queue()
-            except (ComfyUnreachable, ComfyError) as e:
-                self._down(str(e))
+                return await self._step()
+            finally:
+                await generator_test.settle_tests()
+
+    async def _step(self) -> bool:
+        if (
+            self.client is None
+            and self._setup_failed
+            and time.monotonic() >= self._setup_retry_at
+        ):
+            await self._set_up()
+        if self.client is None:
+            return False
+        if not self.connected or not self._models_loaded:
+            if not await self.check():
                 return await self._has_unfinished()
-            self._up()
-            self.queue_remaining = len(running) + len(pending)
-            await self._sync(set(running), set(pending))
-            await self._submit_next()
+        try:
+            running, pending = await self.client.queue()
+        except (ComfyUnreachable, ComfyError) as e:
+            self._down(str(e))
             return await self._has_unfinished()
+        self._up()
+        self.queue_remaining = len(running) + len(pending)
+        await self._sync(set(running), set(pending))
+        await self._submit_next()
+        return await self._has_unfinished()
 
     async def _has_unfinished(self, besides: int | None = None) -> bool:
         """Some request is still to finish (in a batch other than `besides`)."""
@@ -600,9 +609,10 @@ class GenerationManager:
         """Create a batch and submit its first request. Raises Unavailable,
         Invalid or Rejected (then nothing is kept)."""
         s = await self._require_connection()
-        gen = await load_generator(
-            body.get("generator_id") or builtin_generator.BUILTIN_ID
-        )
+        gen_id = body.get("generator_id") or builtin_generator.BUILTIN_ID
+        # A test image scanned since the last tick counts already.
+        await generator_test.settle_tests(gen_id)
+        gen = await load_generator(gen_id)
         if gen is None:
             raise Invalid("Unknown workflow")
         if not gen["ready"] and not test:

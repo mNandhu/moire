@@ -1,5 +1,5 @@
-"""Read side of generation: batch list, batch detail, and the Generator test
-gate. Outputs are joined to ``images`` here, so "waiting for scan" is simply an
+"""Read side of generation: batch list, batch detail, and a Generator's view
+with its test run's status (the gate itself is :mod:`generator_test`). Outputs are joined to ``images`` here, so "waiting for scan" is simply an
 output whose image row doesn't exist yet.
 """
 
@@ -12,8 +12,7 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import comfy_models, generation_estimate, generator_setup, thumb_version
-from .generation_errors import Invalid, Unavailable
+from . import generation_estimate, generator_setup, thumb_version
 from .generator_discovery import fixed_values
 from .generator_graph import sampling_defaults, slot_value
 from .generation_states import FAILED, REPLACED, UNFINISHED
@@ -292,53 +291,6 @@ async def rename(batch_id: int, name: str) -> bool:
 # -- Generator test gate ----------------------------------------------------------
 
 
-async def start_test(
-    manager: GenerationManager, generator_id: str, checkpoint: str | None
-) -> int:
-    """Queue the Generator's test run: one image, with one installed LoRA
-    chained at strength 0 so a bad insertion point fails here."""
-    gen = await load_generator(generator_id)
-    if gen is None:
-        raise Invalid("Unknown workflow")
-    # Connecting loads the model index the first time; read it after.
-    if not await manager.check():
-        raise Unavailable("Can't reach ComfyUI")
-    installed = await comfy_models.installed()
-    # Only where Moiré can splice one in: a graph without an insertion point
-    # takes no LoRAs at all.
-    loras = (
-        [{"name": installed["lora"][0], "strength": 0.0}]
-        if installed["lora"] and gen["slots"].get("lora_model")
-        else []
-    )
-    defaults = (gen.get("source") or {}).get("defaults") or {}
-    batch_id = await manager.queue_batch(
-        {
-            "generator_id": generator_id,
-            # A custom Generator's own prompt: the test runs what it will run.
-            "base": defaults.get("base") or "1girl, solo, simple background",
-            "negative_base": defaults.get("negative") or "",
-            "checkpoint": checkpoint
-            or (installed["checkpoint"][0] if installed["checkpoint"] else None),
-            "loras": loras,
-            "count": 1,
-            "name": "Test run",
-        },
-        test=True,
-    )
-    async with async_tx() as conn:
-        await conn.execute(
-            sa.update(t.generators)
-            .where(t.generators.c._id == generator_id)
-            .values(
-                test={"batch_id": batch_id, "started_at": time.time()},
-                ready=False,
-                updated_at=time.time(),
-            )
-        )
-    return batch_id
-
-
 def _checkpoint_default(gen: dict[str, Any]) -> str | None:
     value = slot_value(gen["graph"], gen["slots"].get("checkpoint"))
     return value if isinstance(value, str) else None
@@ -392,22 +344,14 @@ async def test_status(
 async def generator_view(
     manager: GenerationManager, generator_id: str
 ) -> dict[str, Any] | None:
-    """The Generator plus its test status; flips ``ready`` once the test's
-    image is in the library."""
+    """The Generator plus its test status. Read only: ``ready`` flips in
+    :func:`generator_test.settle_tests`."""
     gen = await load_generator(generator_id)
     if gen is None:
         return None
     test = None
     if gen.get("test") and gen["test"].get("batch_id"):
         test = await test_status(int(gen["test"]["batch_id"]), manager)
-        if test is not None and test["image_id"] and not gen["ready"]:
-            async with async_tx() as conn:
-                await conn.execute(
-                    sa.update(t.generators)
-                    .where(t.generators.c._id == generator_id)
-                    .values(ready=True)
-                )
-            gen["ready"] = True
     source = gen.get("source") or {}
     return {
         "_id": gen["_id"],
