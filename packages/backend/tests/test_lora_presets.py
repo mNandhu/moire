@@ -8,7 +8,7 @@ import json
 
 import pytest
 
-from moire.services import lora_presets
+from moire.services import lora_presets, lora_words
 from tests.test_recipes import _loras
 
 
@@ -37,17 +37,17 @@ def test_file_words_puts_the_trigger_phrase_first():
             }
         ),
     }
-    assert lora_presets.file_words(meta, limit=3) == ["0__11Xx_illu", "1girl", "glitch"]
-    assert lora_presets.file_words({"ss_tag_frequency": "not json"}) == []
-    assert lora_presets.file_words(None) == []
+    assert lora_words.file_words(meta, limit=3) == ["0__11Xx_illu", "1girl", "glitch"]
+    assert lora_words.file_words({"ss_tag_frequency": "not json"}) == []
+    assert lora_words.file_words(None) == []
 
 
 def test_library_words_need_share_and_lift():
     here = {"niji_style": 9, "1girl": 9, "glitch": 4, "rare": 1}
     everywhere = {"niji_style": 9, "1girl": 80, "glitch": 5, "rare": 1}
     # 1girl is everywhere (no lift); glitch and rare are in too few of its images.
-    assert lora_presets.library_words(here, 10, everywhere, 100) == [("niji_style", 9)]
-    assert lora_presets.library_words(here, 1, everywhere, 100) == []
+    assert lora_words.library_words(here, 10, everywhere, 100) == [("niji_style", 9)]
+    assert lora_words.library_words(here, 1, everywhere, 100) == []
 
 
 def _library(seed):
@@ -72,7 +72,6 @@ def _library(seed):
 
 
 async def test_presets_crud_and_suggestions(client, seed):
-    lora_presets._total = None
     await asyncio.to_thread(_library, seed)
     made = (
         await client.post(
@@ -130,9 +129,8 @@ class _FakeClient:
 
 
 async def test_file_words_skip_tags_common_in_the_library(client, seed):
-    lora_presets._total = None
     await asyncio.to_thread(_library, seed)
-    words = await lora_presets.suggestions("niji.safetensors", _FakeClient())
+    words = await lora_words.suggestions("niji.safetensors", _FakeClient())
     # 1girl is in every prompt without the LoRA; the trigger is in every
     # prompt with it, which doesn't make it common. "background" is in too few
     # captions.
@@ -164,9 +162,8 @@ class _SpacedClient:
 
 
 async def test_one_word_in_two_spellings_is_offered_once(client, seed):
-    lora_presets._total = None
     await asyncio.to_thread(_library, seed)
-    words = await lora_presets.suggestions("niji.safetensors", _SpacedClient())
+    words = await lora_words.suggestions("niji.safetensors", _SpacedClient())
     # 1girl leads the captions but is common: dropped though it comes first.
     assert [(w["word"], w["sources"]) for w in words] == [
         ("0__11Xx illu", ["file", "library"])
@@ -174,9 +171,8 @@ async def test_one_word_in_two_spellings_is_offered_once(client, seed):
 
 
 async def test_describe_keeps_common_training_tags(client, seed):
-    lora_presets._total = None
     await asyncio.to_thread(_library, seed)
-    words = await lora_presets.suggestions(
+    words = await lora_words.suggestions(
         "niji.safetensors", _FakeClient(), describe=True
     )
     assert [w["word"] for w in words][:3] == ["0_11xx_b", "1girl", "looking at viewer"]

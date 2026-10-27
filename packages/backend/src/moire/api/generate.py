@@ -39,6 +39,7 @@ from ..services.generation_jobs import (
 )
 from ..services.generation_limits import CFG_RANGE, PER_REQUEST_MAX, STEPS_RANGE
 from ..services.generator_setup import SetupError
+from ..services.lora_words import suggestions as lora_suggestions
 
 router = APIRouter()
 
@@ -630,7 +631,7 @@ async def lora_words(name: str, describe: bool = False):
     """Suggested activation words for the installed LoRA file ``name``;
     ``describe`` keeps training tags common in the library (a character
     LoRA's hair and eyes)."""
-    return await lora_presets.suggestions(
+    return await lora_suggestions(
         name, get_generation_manager().client, describe=describe
     )
 
