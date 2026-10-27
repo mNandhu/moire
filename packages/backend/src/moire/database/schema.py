@@ -16,7 +16,7 @@ Design notes:
   workflow endpoint and reprojection.
 - ``_id`` columns are ``COLLATE BINARY`` (SQLite's default, made explicit): cursor
   pagination is ``_id < :cursor`` over ``{library_id}:{relpath}`` strings and must
-  match Mongo's byte-order sort. ``NOCASE`` would silently diverge pagination.
+  stay in SQLite's byte order. ``NOCASE`` would silently diverge pagination.
 """
 
 from __future__ import annotations
@@ -98,7 +98,7 @@ libraries = sa.Table(
     sa.Column("path", sa.Text),
     sa.Column("name", sa.Text),
     sa.Column("indexed_count", sa.Integer, server_default="0"),
-    # ISO-8601 string (preserves the shape the API returned under Mongo).
+    # ISO-8601 string (the shape the API has always returned).
     sa.Column("last_scanned", sa.Text),
     sa.Column("scanning", sa.Boolean, server_default=sa.text("0")),
     sa.Column("scan_total", sa.Integer, server_default="0"),
@@ -261,7 +261,8 @@ workflow_files = sa.Table(
     sa.Column("imported_at", sa.Float),
 )
 
-# Singleton key/value store for app settings (currently only the "ai" row).
+# Key/value store for app settings: one JSON row per named section ("ai",
+# onboarding, migrations, tag and ComfyUI settings, prompt presets, ...).
 app_settings = sa.Table(
     "app_settings",
     metadata,

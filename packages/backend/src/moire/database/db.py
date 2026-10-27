@@ -1,13 +1,12 @@
 """SQLite engine lifecycle + connection helpers (async app + sync scanner).
 
-Replaces the old Mongo ``motor.py`` / ``mongo.py`` wrappers. One SQLite file backs
-both engines; WAL mode lets readers proceed during a write.
+One SQLite file backs both engines; WAL mode lets readers proceed during a write.
 
 **Writer discipline (invariant).** SQLite is single-writer. The *actual* serializer
 across the async app and the sync scanner threads is SQLite's own file lock +
-``busy_timeout``, not the Python locks here. The :func:`write_lock` /
-:func:`sync_write_lock` helpers only prevent self-contention *within* each side; the
-real rule is **keep scanner write-transactions small and commit often** so no
+``busy_timeout``, not the Python locks here. The per-side locks taken by
+:func:`async_tx` / :func:`sync_tx` only prevent self-contention *within* each side;
+the real rule is **keep scanner write-transactions small and commit often** so no
 transaction holds the file lock long enough to exhaust ``busy_timeout`` and surface
 ``database is locked`` to an app write.
 """
@@ -102,14 +101,6 @@ def sync_tx() -> Iterator[Connection]:
             yield conn
 
 
-def write_lock() -> asyncio.Lock:
-    return _async_write_lock
-
-
-def sync_write_lock() -> threading.Lock:
-    return _sync_write_lock
-
-
 def _create_all(conn) -> None:
     metadata.create_all(conn)
     # create_all skips tables that already exist, and their indexes with them,
@@ -158,8 +149,6 @@ __all__ = [
     "async_tx",
     "sync_conn",
     "sync_tx",
-    "write_lock",
-    "sync_write_lock",
     "ensure_schema",
     "ensure_schema_sync",
     "reset_engines",

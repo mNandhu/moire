@@ -48,8 +48,6 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    ai_tagging_url: str = ""
-
     # SQLite database file. Relative values resolve against MOIRE_HOME (NOT the
     # process cwd), mirroring `thumb_root`, so the DB lands at `<MOIRE_HOME>/data/moire.db`
     # regardless of where uvicorn is started.
