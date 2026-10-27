@@ -68,8 +68,9 @@ async def start_test(
     return batch_id
 
 
-def _arrived(batch_id: int):
-    """Some output of the test batch is in the library."""
+def _arrived(batch_id):
+    """Some output of the test batch is in the library (what
+    ``generation_batches.test_status`` reports as its ``image_id``)."""
     o, r, i = t.generation_outputs, t.generation_requests, t.images
     return (
         sa.select(1)
@@ -85,21 +86,14 @@ async def settle_tests(generator_id: str | None = None) -> None:
     """Mark ready each Generator (or just ``generator_id``) whose test run's
     image has reached the library."""
     g = t.generators
-    where = [sa.not_(g.c.ready), g.c.test.isnot(None)]
+    batch = g.c.test["batch_id"].as_integer()
+    where = [sa.not_(g.c.ready), batch.isnot(None), _arrived(batch)]
     if generator_id is not None:
         where.append(g.c._id == generator_id)
+    # Read first so an idle tick takes no write lock. The update checks it
+    # all again: a save or a new test since the read leaves it not ready.
     async with async_conn() as conn:
-        waiting = (
-            await conn.execute(sa.select(g.c._id, g.c.test).where(*where))
-        ).fetchall()
-        done = [
-            row._id
-            for row in waiting
-            if (row.test or {}).get("batch_id") is not None
-            and (
-                await conn.execute(sa.select(_arrived(int(row.test["batch_id"]))))
-            ).scalar()
-        ]
-    if done:
+        due = (await conn.execute(sa.select(g.c._id).where(*where).limit(1))).first()
+    if due is not None:
         async with async_tx() as conn:
-            await conn.execute(sa.update(g).where(g.c._id.in_(done)).values(ready=True))
+            await conn.execute(sa.update(g).where(*where).values(ready=True))

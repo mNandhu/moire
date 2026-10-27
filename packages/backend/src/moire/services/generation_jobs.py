@@ -271,7 +271,11 @@ class GenerationManager:
             try:
                 return await self._step()
             finally:
-                await generator_test.settle_tests()
+                try:
+                    await generator_test.settle_tests()
+                except Exception:
+                    # Not this tick's result: the next one tries again.
+                    log.exception("Settling Generator tests failed")
 
     async def _step(self) -> bool:
         if (

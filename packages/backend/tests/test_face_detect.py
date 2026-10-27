@@ -125,6 +125,22 @@ async def test_reading_the_face_status_queues_nothing(client, seed, monkeypatch)
     assert not face_worker.get_face_worker()._pending
 
 
+async def test_switching_detection_on_queues_every_avatar(
+    client, seed, monkeypatch, tmp_path
+):
+    monkeypatch.setattr(tag_categories, "load", _chars("frieren"))
+    seed("L1:a", tags=("frieren",), thumb_key="k/a")
+    monkeypatch.setattr(face_detect, "downloaded", lambda cache_dir: True)
+    monkeypatch.setattr(face_detect, "detect", lambda *a: (0.4, 0.3, 0.2, 0.2, 0.9))
+    monkeypatch.setattr(
+        face_detect.storage_fs, "thumb_path", lambda key: Path(tmp_path / key)
+    )
+    await client.post("/ai/settings", json={"face_detect": False})
+    await client.post("/ai/settings", json={"face_detect": True})
+    await face_worker.get_face_worker().idle()
+    assert await face_detect.faces_for(["L1:a"]) == {"L1:a": (0.4, 0.3, 0.2, 0.2)}
+
+
 async def test_a_finished_download_queues_every_avatar(
     client, seed, monkeypatch, tmp_path
 ):
@@ -139,7 +155,7 @@ async def test_a_finished_download_queues_every_avatar(
 
     async def fake_start(**kw):
         started.update(kw)
-        await kw["on_done"]()  # as the download task does once complete
+        kw["on_done"]()  # as the download task does once complete
         return face_detect.get_download_manager().get_state(
             model_repo=kw["model_repo"], cache_dir=kw["cache_dir"]
         )

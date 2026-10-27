@@ -5,6 +5,7 @@ thumbnail URL. Mounted inside :mod:`api.images` (its catch-all route order)."""
 import logging
 import mimetypes
 import os
+import stat
 from pathlib import Path
 from typing import Literal
 
@@ -21,20 +22,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def _original_path(image_id: str) -> str:
-    """The original file of ``image_id`` on disk, or the 404 that says why
-    it can't be served (unknown image, no path, file gone)."""
+async def _original(image_id: str) -> tuple[str, os.stat_result]:
+    """The original file of ``image_id`` on disk and its stat, or the 404
+    that says why it can't be served (unknown image, no path, file gone)."""
     img = await _find_image_doc(image_id, ("path",))
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
     path = img.get("path")
     if not path:
         raise HTTPException(status_code=404, detail="File path not available")
-
-    # Verify the file still exists on disk
-    if not await anyio.to_thread.run_sync(lambda: os.path.isfile(path)):  # type: ignore[attr-defined]
+    try:
+        st = await anyio.to_thread.run_sync(lambda: os.stat(path))  # type: ignore[attr-defined]
+    except OSError:
+        st = None
+    if st is None or not stat.S_ISREG(st.st_mode):
         raise HTTPException(status_code=404, detail="Original file not found on disk")
-    return path
+    return path, st
 
 
 # A URL without a version (an original, or a thumbnail URL built before they
@@ -50,24 +53,12 @@ def _etag_matches(if_none_match: str | None, etag: str) -> bool:
     return "*" in tags or etag.removeprefix("W/") in tags
 
 
-@router.get("/{image_id:path}/file")
-async def get_image_file(
-    image_id: str,
-    request: Request,
-    range: str | None = Header(default=None, alias="Range"),
-):
-    """Serve the original image file directly from the local filesystem.
-    Its URL has no version and the file can change under it (edited, or
-    replaced at the same path), so the browser asks again on every use and
-    gets a 304 while the file's ETag still matches."""
-    path = await _original_path(image_id)
-
+async def _original_response(image_id: str, request: Request) -> Response:
+    """The original as a FileResponse (Range, ETag and Content-Length; a HEAD
+    gets the same headers without the body), or a 304 when the browser's
+    copy is still current."""
+    path, st = await _original(image_id)
     media_type, _ = mimetypes.guess_type(path)
-    try:
-        st = await anyio.to_thread.run_sync(lambda: os.stat(path))  # type: ignore[attr-defined]
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Original file not found on disk")
-    # FileResponse handles Range headers, ETag, Content-Length natively
     resp = FileResponse(
         path,
         media_type=media_type or "application/octet-stream",
@@ -80,22 +71,23 @@ async def get_image_file(
     return resp
 
 
-@router.head("/{image_id:path}/file")
-async def head_image_file(image_id: str):
-    """HEAD for the original image file: stat from the local filesystem."""
-    path = await _original_path(image_id)
+@router.get("/{image_id:path}/file")
+async def get_image_file(
+    image_id: str,
+    request: Request,
+    range: str | None = Header(default=None, alias="Range"),
+):
+    """Serve the original image file directly from the local filesystem.
+    Its URL has no version and the file can change under it (edited, or
+    replaced at the same path), so the browser asks again on every use and
+    gets a 304 while the file's ETag still matches."""
+    return await _original_response(image_id, request)
 
-    media_type, _ = mimetypes.guess_type(path)
-    st = await anyio.to_thread.run_sync(lambda: os.stat(path))  # type: ignore[attr-defined]
-    headers: dict[str, str] = {
-        "Accept-Ranges": "bytes",
-        "Content-Length": str(st.st_size),
-    }
-    return Response(
-        status_code=200,
-        headers=headers,
-        media_type=media_type or "application/octet-stream",
-    )
+
+@router.head("/{image_id:path}/file")
+async def head_image_file(image_id: str, request: Request):
+    """HEAD for the original image file: the GET's headers, no body."""
+    return await _original_response(image_id, request)
 
 
 ThumbSize = Literal["small"]

@@ -13,8 +13,10 @@ from moire.services import (
     comfy_settings,
     generation_errors,
     generation_jobs,
+    generator_test,
 )
 from moire.services.generation_jobs import get_generation_manager
+from moire.services.generators_store import load_generator
 from tests.fake_comfy import FakeComfy
 
 OUT = "OUT"
@@ -1005,9 +1007,40 @@ async def test_reading_a_generator_never_flips_ready(client, comfy, seed):
     view = (await client.get("/generate/generators/builtin")).json()
     assert view["ready"] is False and view["test"]["image_id"] is None
 
-    # The scan brings the image in; a GET only reads it.
+    # The scan brings the image in: a GET reports it ready but writes nothing.
     await asyncio.to_thread(scanned, seed, paths)
     view = (await client.get("/generate/generators/builtin")).json()
-    assert view["ready"] is False and view["test"]["image_id"]
+    assert view["ready"] is True and view["test"]["image_id"]
+    assert (await load_generator("builtin"))["ready"] is False
     await tick()
-    assert (await client.get("/generate/generators/builtin")).json()["ready"] is True
+    assert (await load_generator("builtin"))["ready"] is True
+
+
+async def test_a_save_while_settling_keeps_the_generator_unready(
+    client, comfy, seed, monkeypatch
+):
+    # settle_tests reads which tests arrived, then writes: a save landing in
+    # between (it clears the test) must not be marked ready.
+    import sqlalchemy as sa
+    from contextlib import asynccontextmanager
+
+    from moire.database import schema as t
+
+    await client.post("/generate/generators/builtin/test", json={})
+    paths = comfy.finish(comfy.order[-1], images=1)
+    await asyncio.to_thread(scanned, seed, paths)
+    real_tx = generator_test.async_tx
+
+    @asynccontextmanager
+    async def saved_first():
+        async with real_tx() as conn:
+            await conn.execute(
+                sa.update(t.generators)
+                .where(t.generators.c._id == "builtin")
+                .values(test=None)
+            )
+            yield conn
+
+    monkeypatch.setattr(generator_test, "async_tx", saved_first)
+    await tick()
+    assert (await load_generator("builtin"))["ready"] is False

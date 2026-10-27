@@ -17,6 +17,7 @@ from ..services.ai_tagger import (
     resolved_model_target,
 )
 from ..services.ai_tagger_download import get_download_manager
+from ..services.face_worker import get_face_worker
 
 router = APIRouter()
 
@@ -49,7 +50,15 @@ async def ai_get_settings():
 
 @router.post("/settings")
 async def ai_set_settings(patch: SettingsPatch):
-    return await update_ai_settings(patch.model_dump(exclude_none=True))
+    before = await face_detect.model_cache_dir()
+    s = await update_ai_settings(patch.model_dump(exclude_none=True))
+    # Face detection just switched on, or now looks in a folder that may
+    # hold the model: crop the avatars (a no-op unless it is ready).
+    if s.get("face_detect") and (
+        patch.face_detect or await face_detect.model_cache_dir() != before
+    ):
+        get_face_worker().start_avatars()
+    return s
 
 
 @router.get("/status")

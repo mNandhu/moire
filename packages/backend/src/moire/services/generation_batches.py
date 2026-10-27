@@ -357,7 +357,8 @@ async def generator_view(
         "_id": gen["_id"],
         "name": gen["name"],
         "kind": gen["kind"],
-        "ready": bool(gen["ready"]),
+        # A test image the manager hasn't settled yet already counts.
+        "ready": bool(gen["ready"]) or bool(test and test["image_id"]),
         "slots": gen["slots"],
         # Where a custom one came from, and its default Base / negative.
         "source": generator_setup.public_source(source) or None,

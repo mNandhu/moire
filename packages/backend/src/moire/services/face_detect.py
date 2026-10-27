@@ -78,7 +78,7 @@ async def start_download():
         cache_dir=folder,
         files=files(folder),
         kind="face_download",
-        on_done=get_face_worker().queue_avatars,
+        on_done=get_face_worker().start_avatars,
     )
     if st.status == "done":
         # Already on disk: no download ran to say so.

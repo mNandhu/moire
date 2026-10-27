@@ -152,3 +152,7 @@ async def test_an_original_is_revalidated_not_kept(client, temp_db, seed, tmp_pa
     os.utime(f, (1e9, 1e9))
     new = await client.get("/images/L1:a.png/file", headers={"If-None-Match": etag})
     assert new.status_code == 200 and new.content == b"two!"
+    head = await client.head("/images/L1:a.png/file")
+    assert head.headers["etag"] == new.headers["etag"]
+    assert head.headers["cache-control"] == "no-cache"
+    assert head.headers["content-length"] == "4" and head.content == b""
