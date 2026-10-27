@@ -199,6 +199,8 @@ _MIGRATIONS = (
     ("gen_prompt_loras", None, True),
     ("tag_rules", migrate_tag_rules, False),
     ("gen_term_weights", migrate_gen_term_weights, True),
+    # [a|b] is alternation; a weight showing as 1 is 1.
+    ("prompt_weights_v2", None, True),
 )
 
 
