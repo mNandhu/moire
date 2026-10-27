@@ -38,7 +38,7 @@ from . import (
     tag_index,
     tag_kinds,
 )
-from .generator_graph import lora_stem
+from .model_names import model_stem
 from .tag_kinds import canonical_tag
 
 # A LoRA counts as this character's when at least this share of the images it
@@ -395,7 +395,7 @@ def clean(patch: dict) -> dict:
         lo = patch["lora"]
         if lo is not None and not isinstance(lo, str):
             raise RecipeError('lora must be a name, "" or null')
-        out["lora"] = None if lo is None else (lora_stem(lo) if lo.strip() else "")
+        out["lora"] = None if lo is None else (model_stem(lo) if lo.strip() else "")
     if "strength" in patch:
         s = patch["strength"]
         if s is not None and (

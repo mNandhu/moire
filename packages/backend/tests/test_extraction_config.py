@@ -7,7 +7,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import extraction_settings, image_tags, reproject
+from moire.services import extraction_settings, reproject, tag_kinds
 
 pytestmark = pytest.mark.asyncio
 
@@ -65,7 +65,7 @@ async def test_preview_derives_what_reprojection_writes(
     resp = await client.post("/rules/preview", json={"sample_image_id": "L1:a"})
     assert resp.status_code == 200, resp.text
     assert resp.json()["gen"]["prompt_terms"] == terms
-    assert tags == [image_tags.to_prompt(x) for x in terms]
+    assert tags == [tag_kinds.to_prompt(x) for x in terms]
 
 
 async def test_config_reads_positive_only_default_and_rules(temp_db):

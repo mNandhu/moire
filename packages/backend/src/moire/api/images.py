@@ -17,7 +17,7 @@ from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ..services.storage_fs import small_thumb_path, thumb_path
 from ..services import gen_metadata, image_shapes, image_tags, image_feed, tag_index
-from ..services import image_delete, thumb_version
+from ..services import image_delete, image_visibility, thumb_version
 from ..services.image_feed import FeedFilter, FeedFilterError
 from ..services.image_tags import find_image as _find_image_doc  # type: ignore
 
@@ -324,7 +324,7 @@ async def list_models(library_id: str | None = Query(default=None)):
     dropdown. Sorted by frequency."""
     stmt = (
         sa.select(t.images.c.gen_model, sa.func.count().label("count"))
-        .where(t.images.c.gen_model.isnot(None), image_tags.not_quarantined())
+        .where(t.images.c.gen_model.isnot(None), image_visibility.not_quarantined())
         .group_by(t.images.c.gen_model)
         .order_by(sa.func.count().desc())
     )
@@ -342,7 +342,7 @@ async def list_loras(library_id: str | None = Query(default=None)):
     stmt = (
         sa.select(t.image_loras.c.name, sa.func.count().label("count"))
         .join(t.images, t.images.c._id == t.image_loras.c.image_id)
-        .where(image_tags.not_quarantined())
+        .where(image_visibility.not_quarantined())
         .group_by(t.image_loras.c.name)
         .order_by(sa.func.count().desc(), t.image_loras.c.name)
     )
@@ -362,7 +362,7 @@ async def list_embeddings(library_id: str | None = Query(default=None)):
     stmt = (
         sa.select(e.c.name, count.label("count"))
         .join(t.images, t.images.c._id == e.c.image_id)
-        .where(image_tags.not_quarantined())
+        .where(image_visibility.not_quarantined())
         .group_by(e.c.name)
         .order_by(count.desc(), e.c.name)
     )
@@ -379,7 +379,7 @@ async def list_sizes(library_id: str | None = Query(default=None)):
     filter. Presets come in order (portrait to landscape), empty ones too."""
     stmt = (
         sa.select(t.images.c.width, t.images.c.height, sa.func.count().label("count"))
-        .where(image_tags.not_quarantined())
+        .where(image_visibility.not_quarantined())
         .group_by(t.images.c.width, t.images.c.height)
     )
     if library_id:

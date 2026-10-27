@@ -24,7 +24,7 @@ from ..database import schema as t
 from . import activity, extraction_settings, gen_metadata
 from . import image_tags
 from . import tag_index
-from .image_tags import to_prompt
+from .tag_kinds import to_prompt
 
 logger = logging.getLogger("moire.reproject")
 

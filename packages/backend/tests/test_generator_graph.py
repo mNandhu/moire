@@ -11,7 +11,6 @@ from moire.services.generator_graph import (
     build_prompt,
     has_save_image,
     lora_insertion,
-    lora_stem,
     seeds_for,
     splice_loras,
     split_requests,
@@ -33,13 +32,6 @@ def _consumers(graph, ref):
         for name, v in n["inputs"].items()
         if v == ref
     )
-
-
-def test_lora_stem():
-    assert lora_stem("styles/flat_color_xl.safetensors") == "flat_color_xl"
-    assert lora_stem("a\\b\\x.pt") == "x"
-    assert lora_stem("v1.5_style") == "v1.5_style"
-    assert lora_stem("plain") == "plain"
 
 
 def test_lora_insertion_walks_past_existing_stock_loaders():

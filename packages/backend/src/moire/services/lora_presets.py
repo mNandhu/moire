@@ -19,7 +19,7 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn
 from ..database import schema as t
-from . import image_tags
+from . import image_tags, image_visibility, tag_kinds
 from .comfy_client import ComfyClient, ComfyError, ComfyUnreachable
 from .model_names import model_stem
 from .preset_store import PresetError, Store, clean_name, clean_text
@@ -155,8 +155,8 @@ async def _prompt_total() -> int:
                 )
                 .select_from(it.join(im, im.c._id == it.c.image_id))
                 .where(
-                    it.c.tag.like(f"{image_tags.PROMPT_PREFIX}%"),
-                    image_tags.not_quarantined(),
+                    it.c.tag.like(f"{tag_kinds.PROMPT_PREFIX}%"),
+                    image_visibility.not_quarantined(),
                 )
             )
         ).scalar_one()
@@ -172,14 +172,14 @@ def _key(word: str) -> str:
 
 async def _library(stem: str) -> list[tuple[str, int]]:
     il, it, im = t.image_loras, t.image_tags, t.images
-    prompt = it.c.tag.like(f"{image_tags.PROMPT_PREFIX}%")
+    prompt = it.c.tag.like(f"{tag_kinds.PROMPT_PREFIX}%")
     # One prompt, however many images it made, counts once.
     key = sa.func.coalesce(im.c.gen_prompt, im.c._id)
     tagged = it.join(im, im.c._id == it.c.image_id)
     ids = (
         sa.select(il.c.image_id)
         .select_from(il.join(im, im.c._id == il.c.image_id))
-        .where(il.c.name == stem, image_tags.not_quarantined())
+        .where(il.c.name == stem, image_visibility.not_quarantined())
         .scalar_subquery()
     )
     async with async_conn() as conn:
@@ -210,7 +210,11 @@ async def _library(stem: str) -> list[tuple[str, int]]:
                 await conn.execute(
                     sa.select(it.c.base, sa.func.count(sa.distinct(key)))
                     .select_from(tagged)
-                    .where(it.c.base.in_(common), prompt, image_tags.not_quarantined())
+                    .where(
+                        it.c.base.in_(common),
+                        prompt,
+                        image_visibility.not_quarantined(),
+                    )
                     .group_by(it.c.base)
                 )
             ).fetchall()
@@ -229,7 +233,7 @@ async def _common(words: list[str], stem: str) -> set[str]:
     without = ~it.c.image_id.in_(
         sa.select(il.c.image_id).where(il.c.name == stem).scalar_subquery()
     )
-    prompt = sa.and_(it.c.tag.like(f"{image_tags.PROMPT_PREFIX}%"), without)
+    prompt = sa.and_(it.c.tag.like(f"{tag_kinds.PROMPT_PREFIX}%"), without)
     key = sa.func.coalesce(im.c.gen_prompt, im.c._id)
     tagged = it.join(im, im.c._id == it.c.image_id)
     bases = {image_tags.canonical_tag(w): w for w in words}
@@ -241,7 +245,11 @@ async def _common(words: list[str], stem: str) -> set[str]:
             await conn.execute(
                 sa.select(it.c.base, sa.func.count(sa.distinct(key)))
                 .select_from(tagged)
-                .where(it.c.base.in_(list(bases)), prompt, image_tags.not_quarantined())
+                .where(
+                    it.c.base.in_(list(bases)),
+                    prompt,
+                    image_visibility.not_quarantined(),
+                )
                 .group_by(it.c.base)
             )
         ).fetchall()

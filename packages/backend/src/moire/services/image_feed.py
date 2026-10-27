@@ -21,7 +21,7 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn
 from ..database import schema as t
-from . import image_shapes, image_tags, workflow_family
+from . import image_shapes, image_tags, image_visibility, tag_kinds, workflow_family
 from .outfit_wear import WearRule, wear_condition
 from .tag_names import canonical_name
 
@@ -200,7 +200,7 @@ def feed_where(f: FeedFilter):
         # Either spelling finds a tag (`blue eyes` = `blue_eyes`), so a typed
         # tag or an old bookmarked URL still matches the canonical stored form.
         wanted = [image_tags.canonical_tag(tag) for tag in f.tags]
-        for group in image_tags.tag_match_groups(wanted, f.logic):
+        for group in tag_kinds.tag_match_groups(wanted, f.logic):
             conds.append(_tag_group_exists(group))
         if f.no_ai_tags == 1:
             conds.append(t.images.c.has_ai_tags.is_(False))
@@ -218,7 +218,7 @@ def feed_where(f: FeedFilter):
     if f.quarantined == 1:
         conds.append(t.images.c.quarantined.is_(True))
     else:
-        conds.append(image_tags.not_quarantined())
+        conds.append(image_visibility.not_quarantined())
     if f.needs_mapping == 1:
         conds.append(t.images.c.gen_workflow_sig.isnot(None))
         conds.append(t.images.c.gen_prompt.is_(None))
@@ -331,7 +331,7 @@ async def _drive_by_rarest(conn, f: FeedFilter) -> FeedFilter:
     groups = []  # (table, column, values)
     if f.tags:
         wanted = [image_tags.canonical_tag(tag) for tag in f.tags]
-        for grp in image_tags.tag_match_groups(wanted, f.logic):
+        for grp in tag_kinds.tag_match_groups(wanted, f.logic):
             groups.append((t.image_tags, t.image_tags.c.tag, grp))
     if f.pterms and f.plogic == "and":
         for term in [canonical_name(p.lower()) for p in f.pterms if p and p.strip()]:

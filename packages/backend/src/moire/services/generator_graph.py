@@ -37,9 +37,6 @@ from .model_names import model_stem
 
 Graph = dict[str, dict[str, Any]]
 
-# The older name of model_stem, still imported by recipes.
-lora_stem = model_stem
-
 LORA_LOADER = "LoraLoader"
 LORA_LOADER_MODEL_ONLY = "LoraLoaderModelOnly"
 STOCK_LORA_LOADERS = (LORA_LOADER, LORA_LOADER_MODEL_ONLY)

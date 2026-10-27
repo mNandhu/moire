@@ -41,21 +41,6 @@ from .tag_kinds import (
     to_manual,
 )
 
-# Re-exported for callers not yet moved to :mod:`tag_kinds` /
-# :mod:`image_visibility` (owned by other lanes this pass). New code imports
-# those modules directly; this module adds nothing to the vocabulary.
-from .tag_kinds import (  # noqa: F401
-    ANY_PREFIX,
-    MANUAL_PREFIX,
-    PROMPT_PREFIX,
-    any_variants,
-    excluded_prefixes,
-    expand_search_tag,
-    is_any,
-    tag_match_groups,
-    to_prompt,
-)
-from .image_visibility import not_quarantined  # noqa: F401
 
 # Canonical rating vocabulary used by the API, UI and AI tagger.
 RATINGS = ("-", "general", "sensitive", "questionable", "explicit")
