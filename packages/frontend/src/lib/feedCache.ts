@@ -17,7 +17,7 @@ import type { InfiniteData, Query, QueryClient } from "@tanstack/react-query";
 // which imports this module.
 import { IMAGE_STATS_KEY, imageEmbeddingsQuery, imageLorasQuery, imageModelsQuery } from "./queries/images";
 import { TAGS_KEY } from "./queries/tags";
-import type { ImageDoc } from "./imageFilter";
+import type { FeedItem, ImageDetail, ImageFields } from "./imageFilter";
 import { IMAGE_FEED_PREFIX, IMAGE_GROUPS_PREFIX, imageDocKey, type FeedPage } from "./imageApi";
 
 // The cache keys live with the fetchers (lib/imageApi.ts); re-exported for
@@ -36,7 +36,7 @@ function patchData<T>(query: Query, next: T): void {
 }
 
 type FeedData = InfiniteData<FeedPage>;
-type GroupsData = InfiniteData<ImageDoc[]>;
+type GroupsData = InfiniteData<FeedItem[]>;
 
 const feedQueries = (qc: QueryClient) =>
   qc.getQueryCache().findAll({ queryKey: IMAGE_FEED_PREFIX });
@@ -51,7 +51,7 @@ const groupQueries = (qc: QueryClient) =>
  */
 export function patchFeeds(
   qc: QueryClient,
-  mut: (pages: ImageDoc[][]) => ImageDoc[][],
+  mut: (pages: FeedItem[][]) => FeedItem[][],
 ): void {
   for (const q of feedQueries(qc)) {
     const old = q.state.data as FeedData | undefined;
@@ -68,7 +68,7 @@ export function patchFeeds(
   }
 }
 
-const hasImage = (page: ImageDoc[], id: string) => page.some((d) => d._id === id);
+const hasImage = (page: FeedItem[], id: string) => page.some((d) => d._id === id);
 
 /**
  * Replace one image wherever it appears in a cached feed or grouped view.
@@ -78,10 +78,10 @@ const hasImage = (page: ImageDoc[], id: string) => page.some((d) => d._id === id
 export function patchImageInFeeds(
   qc: QueryClient,
   id: string,
-  patch: (doc: ImageDoc) => ImageDoc,
+  patch: (doc: FeedItem) => FeedItem,
   when: (q: Query) => boolean = () => true,
 ): void {
-  const inPage = (page: ImageDoc[]) =>
+  const inPage = (page: FeedItem[]) =>
     hasImage(page, id) ? page.map((d) => (d._id === id ? patch(d) : d)) : page;
   for (const q of feedQueries(qc)) {
     const old = q.state.data as FeedData | undefined;
@@ -115,7 +115,7 @@ const TILE_FIELDS = ["score", "rating", "quarantined", "has_ai_tags"] as const;
  */
 export function syncFeedsFromDoc(
   qc: QueryClient,
-  doc: ImageDoc,
+  doc: ImageDetail,
   docUpdatedAt: number,
 ): void {
   patchImageInFeeds(
@@ -142,20 +142,20 @@ export function syncFeedsFromDoc(
 export function patchImageEverywhere(
   qc: QueryClient,
   id: string,
-  fields: Partial<ImageDoc>,
+  fields: Partial<ImageFields>,
   docId: string = id,
 ): () => void {
-  const keys = Object.keys(fields) as (keyof ImageDoc)[];
+  const keys = Object.keys(fields) as (keyof ImageFields)[];
   const docQuery = qc.getQueryCache().find({ queryKey: imageDocKey(docId), exact: true });
-  const prevDoc = docQuery?.state.data as ImageDoc | undefined;
-  let prevTile: ImageDoc | undefined;
+  const prevDoc = docQuery?.state.data as ImageDetail | undefined;
+  let prevTile: FeedItem | undefined;
   patchImageInFeeds(qc, id, (d) => {
     prevTile ??= d;
     return { ...d, ...fields };
   });
   if (docQuery && prevDoc) patchData(docQuery, { ...prevDoc, ...fields });
 
-  const revert = (cur: ImageDoc, prev: ImageDoc) => {
+  const revert = <T extends ImageFields>(cur: T, prev: T): T => {
     const back = keys.filter((k) => cur[k] === fields[k]);
     return back.length
       ? { ...cur, ...Object.fromEntries(back.map((k) => [k, prev[k]])) }
@@ -166,7 +166,7 @@ export function patchImageEverywhere(
       const prev = prevTile;
       patchImageInFeeds(qc, id, (d) => revert(d, prev));
     }
-    const cur = docQuery?.state.data as ImageDoc | undefined;
+    const cur = docQuery?.state.data as ImageDetail | undefined;
     if (docQuery && cur && prevDoc) patchData(docQuery, revert(cur, prevDoc));
   };
 }
@@ -190,7 +190,7 @@ function writesOf(qc: QueryClient): Map<string, FieldWrites> {
 }
 
 /** The image as the first cached feed or grouped view holding it has it. */
-function cachedTile(qc: QueryClient, id: string): ImageDoc | undefined {
+function cachedTile(qc: QueryClient, id: string): FeedItem | undefined {
   for (const q of feedQueries(qc)) {
     const hit = (q.state.data as FeedData | undefined)?.pages.flatMap((p) => p.items).find((d) => d._id === id);
     if (hit) return hit;
@@ -208,19 +208,19 @@ function setFields(
   qc: QueryClient,
   id: string,
   docId: string,
-  tile: Partial<ImageDoc>,
-  doc: Partial<ImageDoc>,
-  onlyWhile?: Partial<ImageDoc>,
+  tile: Partial<ImageFields>,
+  doc: Partial<ImageFields>,
+  onlyWhile?: Partial<ImageFields>,
 ): void {
-  const apply = (cur: ImageDoc, vals: Partial<ImageDoc>) => {
-    const ks = (Object.keys(vals) as (keyof ImageDoc)[]).filter(
+  const apply = <T extends ImageFields>(cur: T, vals: Partial<ImageFields>): T => {
+    const ks = (Object.keys(vals) as (keyof ImageFields)[]).filter(
       (k) => cur[k] !== vals[k] && (!onlyWhile || cur[k] === onlyWhile[k]),
     );
     return ks.length ? { ...cur, ...Object.fromEntries(ks.map((k) => [k, vals[k]])) } : cur;
   };
   if (Object.keys(tile).length) patchImageInFeeds(qc, id, (d) => apply(d, tile));
   const q = qc.getQueryCache().find({ queryKey: imageDocKey(docId), exact: true });
-  const cur = q?.state.data as ImageDoc | undefined;
+  const cur = q?.state.data as ImageDetail | undefined;
   if (q && cur && Object.keys(doc).length) patchData(q, apply(cur, doc));
 }
 
@@ -241,16 +241,16 @@ function setFields(
 export async function writeImageFields(
   qc: QueryClient,
   id: string,
-  fields: Partial<ImageDoc>,
+  fields: Partial<ImageFields>,
   write: () => Promise<unknown>,
   docId: string = id,
 ): Promise<void> {
   await qc.cancelQueries({ queryKey: imageDocKey(docId), exact: true });
   const seq = ++writeSeq;
-  const keys = Object.keys(fields) as (keyof ImageDoc)[];
+  const keys = Object.keys(fields) as (keyof ImageFields)[];
   const writes = writesOf(qc);
   const tile0 = cachedTile(qc, id);
-  const doc0 = qc.getQueryData<ImageDoc>(imageDocKey(docId));
+  const doc0 = qc.getQueryData<ImageDetail>(imageDocKey(docId));
   for (const k of keys) {
     const sk = `${id}\0${k}`;
     let w = writes.get(sk);
@@ -306,13 +306,13 @@ export function removeImagesFromFeeds(
 ): void {
   if (!ids.length) return;
   const drop = new Set(ids);
-  const keep = (page: ImageDoc[]) =>
+  const keep = (page: FeedItem[]) =>
     page.some((d) => drop.has(d._id)) ? page.filter((d) => !drop.has(d._id)) : page;
   patchFeeds(qc, (pages) => pages.map(keep));
   // The grouped view holds plain arrays of representatives. A batch tile stands
   // for its other members too, so only a single-image tile goes; the refetch
   // that follows picks a batch's new representative and count.
-  const keepGroup = (page: ImageDoc[]) =>
+  const keepGroup = (page: FeedItem[]) =>
     page.some((d) => drop.has(d._id) && (d.group_count ?? 1) <= 1)
       ? page.filter((d) => !drop.has(d._id) || (d.group_count ?? 1) > 1)
       : page;

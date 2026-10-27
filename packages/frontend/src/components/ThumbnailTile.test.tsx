@@ -1,16 +1,16 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ThumbnailTile } from "./ThumbnailTile";
-import type { ImageDoc } from "../lib/imageFilter";
+import type { FeedItem } from "../lib/imageFilter";
 
 beforeEach(() => {
   vi.unstubAllGlobals();
 });
 
-const doc = (d: Partial<ImageDoc>): ImageDoc =>
-  ({ _id: "L1:a.png", path: "a.png", ...d }) as ImageDoc;
+const doc = (d: Partial<FeedItem>): FeedItem =>
+  ({ _id: "L1:a.png", path: "a.png", ...d }) as FeedItem;
 
-function renderTile(item: ImageDoc, props: Partial<Parameters<typeof ThumbnailTile>[0]> = {}) {
+function renderTile(item: FeedItem, props: Partial<Parameters<typeof ThumbnailTile>[0]> = {}) {
   const onToggle = vi.fn();
   const onOpen = vi.fn();
   const utils = render(

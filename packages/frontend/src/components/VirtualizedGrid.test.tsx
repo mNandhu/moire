@@ -2,7 +2,7 @@ import { useCallback, useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import { VirtualizedGrid } from "./VirtualizedGrid";
-import type { ImageDoc } from "../lib/imageFilter";
+import type { FeedItem } from "../lib/imageFilter";
 
 vi.mock("./ThumbnailTile", () => ({
   ThumbnailTile: ({ item }: { item: { _id: string } }) => (
@@ -14,7 +14,7 @@ const items = Array.from({ length: 300 }, (_, i) => ({
   _id: `L1:img${i}.png`,
   width: 512,
   height: 512,
-})) as unknown as ImageDoc[];
+})) as unknown as FeedItem[];
 
 // The gallery's shape: the page finds the scroller through a ref on its own
 // root, an ancestor of the grid, so the getter is null until React attaches it.

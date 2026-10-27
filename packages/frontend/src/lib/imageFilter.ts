@@ -6,30 +6,28 @@
 //
 // See CONTEXT.md › Frontend › Image filter.
 
-export type ImageDoc = {
+// The three image payloads. The backend pins their key sets in
+// tests/fixtures/mirrored/image_payloads.json, and imageFilter.test.ts holds
+// the key lists below (which tsc holds to the types) to that file.
+
+/** The columns every image payload carries: the feed row
+ * (services/image_feed.FEED_KEYS, its thumb_key swapped for thumb_url). */
+export type ImageFields = {
   _id: string;
-  /** Only on the single-image fetch; the feed leaves it out. */
-  library_id?: string;
   path: string;
   width?: number;
   height?: number;
-  size?: number;
-  // Ready-to-use thumbnail URL from the list payload: the API streaming route
+  // Ready-to-use thumbnail URL: the API streaming route
   // (`/api/v1/images/{id}/thumb?v=`, versioned). Lets the grid render <img src> with no per-tile
-  // resolve request. See api/images.list_images.
+  // resolve request. See services/thumb_version.py.
   thumb_url?: string;
   // Compact blurred-preview hash; decoded to an instant placeholder so tiles
   // never show a grey loading skeleton. See services/blurhash.py.
   blurhash?: string;
-  tags?: string[];
   // Null, not undefined, when unset: these come straight from SQL columns.
   rating?: string | null;
   // 0-5 quality score (distinct from `rating`, the content-safety axis).
   score?: number | null;
-  // Batch grouping (grouped view only): the representative's group + member
-  // count. group_count > 1 means this tile stands for a batch of variations.
-  group_id?: string;
-  group_count?: number;
   // DB-only curation flag; quarantined images leave the default feed.
   quarantined?: boolean;
   // File modification time (epoch seconds): the feed's newest-first sort key
@@ -38,12 +36,28 @@ export type ImageDoc = {
   // Summary flag maintained by services/image_tags.py. The grid draws an
   // "untagged" marker from it so an un-AI-tagged image is visible at a glance.
   has_ai_tags?: boolean;
+};
+
+/** A gallery tile: a feed row (GET /images), or a grouped-view row
+ * (GET /images/groups) standing for its batch. */
+export type FeedItem = ImageFields & {
+  // Batch grouping (grouped view only): the representative's group + member
+  // count. group_count > 1 means this tile stands for a batch of variations.
+  group_id?: string;
+  group_count?: number;
+};
+
+/** The single-image document (GET /images/{id}): the whole row. */
+export type ImageDetail = ImageFields & {
+  library_id?: string;
+  size?: number;
+  tags?: string[];
   // Structured generation metadata (extracted from embedded AI-art data).
   gen?: import("./gen").GenMeta;
   ai?: import("./tags").AiTagMeta & {
     rating?: Record<string, number>;
   };
-  // Detail only, unused by the UI; typed so the field list matches the wire.
+  // Unused by the UI; typed so the field list matches the wire.
   ctime?: number | null;
   thumb_key?: string | null;
   has_tags?: boolean;
@@ -59,25 +73,27 @@ const keysOf =
   ): K =>
     keys;
 
-// ImageDoc's fields, checked against the backend's payload key snapshot
-// (backend tests/fixtures/mirrored/image_payloads.json) in imageFilter.test.ts.
-export const IMAGE_DOC_KEYS = keysOf<ImageDoc>()([
+export const IMAGE_FIELD_KEYS = keysOf<ImageFields>()([
   "_id",
-  "library_id",
   "path",
   "width",
   "height",
-  "size",
   "thumb_url",
   "blurhash",
-  "tags",
   "rating",
   "score",
-  "group_id",
-  "group_count",
   "quarantined",
   "mtime",
   "has_ai_tags",
+]);
+
+export const FEED_ITEM_KEYS = keysOf<FeedItem>()([...IMAGE_FIELD_KEYS, "group_id", "group_count"]);
+
+export const IMAGE_DETAIL_KEYS = keysOf<ImageDetail>()([
+  ...IMAGE_FIELD_KEYS,
+  "library_id",
+  "size",
+  "tags",
   "gen",
   "ai",
   "ctime",

@@ -4,7 +4,7 @@ import { useToast } from "../components/Toasts";
 import { errorText } from "../lib/api";
 import { patchFeeds, writeImageFields } from "../lib/feedCache";
 import { nextFocusIndex, isGridNavKey, type GridNavKey } from "../lib/gridNav";
-import type { ImageDoc } from "../lib/imageFilter";
+import type { FeedItem } from "../lib/imageFilter";
 import { setScore as apiSetScore, setQuarantine as apiSetQuarantine } from "../lib/imageMutations";
 import { useHotkeys } from "./useHotkeys";
 
@@ -25,7 +25,7 @@ export function useTriage({
   openTile,
   refetchFeed,
 }: {
-  items: ImageDoc[];
+  items: FeedItem[];
   focusedIndex: number;
   setFocusedIndex: Dispatch<SetStateAction<number>>;
   enabled: boolean;
@@ -44,7 +44,7 @@ export function useTriage({
   // Patches every cached feed, not just the current filter; the same image can
   // be cached under several.
   const patchFeed = useCallback(
-    (mut: (pages: ImageDoc[][]) => ImageDoc[][]) => patchFeeds(queryClient, mut),
+    (mut: (pages: FeedItem[][]) => FeedItem[][]) => patchFeeds(queryClient, mut),
     [queryClient],
   );
 

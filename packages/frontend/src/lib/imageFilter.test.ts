@@ -12,7 +12,9 @@ import {
   galleryHref,
   imageHref,
   normalizeFilters,
-  IMAGE_DOC_KEYS,
+  IMAGE_FIELD_KEYS,
+  FEED_ITEM_KEYS,
+  IMAGE_DETAIL_KEYS,
 } from "./imageFilter";
 
 const roundTrip = (f: Filters): Filters =>
@@ -351,9 +353,18 @@ describe("every Filters key", () => {
 
 describe("image payload types", () => {
   // The backend pins each payload's keys in this snapshot
-  // (test_image_payload_keys_integration.py); the type must name every one.
-  it("ImageDoc names exactly the keys of the feed, grouped and detail payloads", () => {
-    const wire = new Set([...payloads.feed, ...payloads.group, ...payloads.detail]);
-    expect([...IMAGE_DOC_KEYS].sort()).toEqual([...wire].sort());
+  // (test_image_payload_keys_integration.py); each type names exactly those.
+  const sorted = (keys: readonly string[]) => [...keys].sort();
+
+  it("ImageFields is the feed row", () => {
+    expect(sorted(IMAGE_FIELD_KEYS)).toEqual(sorted(payloads.feed));
+  });
+
+  it("FeedItem is the grouped row (the feed row plus its batch)", () => {
+    expect(sorted(FEED_ITEM_KEYS)).toEqual(sorted(payloads.group));
+  });
+
+  it("ImageDetail is the single-image row", () => {
+    expect(sorted(IMAGE_DETAIL_KEYS)).toEqual(sorted(payloads.detail));
   });
 });

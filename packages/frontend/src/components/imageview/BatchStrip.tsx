@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { BATCH_STRIP_KEY } from "../../lib/feedCache";
-import { imageHref, type ImageDoc } from "../../lib/imageFilter";
+import { imageHref, type FeedItem } from "../../lib/imageFilter";
 import { smallThumb } from "../../lib/media";
 
 const BATCH_STRIP_MAX = 40;
@@ -34,7 +34,7 @@ export function BatchStrip({
   const { data: fetched } = useQuery({
     queryKey: [...BATCH_STRIP_KEY, query],
     queryFn: ({ signal }) =>
-      api<ImageDoc[]>(`/api/v1/images?${query}&limit=${BATCH_STRIP_MAX}`, { signal }),
+      api<FeedItem[]>(`/api/v1/images?${query}&limit=${BATCH_STRIP_MAX}`, { signal }),
     staleTime: 60_000,
   });
   // The open image is always in it, even past the members fetched.
@@ -42,7 +42,7 @@ export function BatchStrip({
     () =>
       !fetched || fetched.some((m) => m._id === currentId)
         ? fetched
-        : [{ _id: currentId, thumb_url: currentThumb ?? undefined } as ImageDoc, ...fetched],
+        : [{ _id: currentId, thumb_url: currentThumb ?? undefined } as FeedItem, ...fetched],
     [fetched, currentId, currentThumb],
   );
   const current = useRef<HTMLAnchorElement>(null);

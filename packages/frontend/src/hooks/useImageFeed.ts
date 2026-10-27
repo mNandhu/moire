@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { PAGE_LIMIT, type Filters, type ImageDoc } from "../lib/imageFilter";
+import { PAGE_LIMIT, type Filters, type FeedItem } from "../lib/imageFilter";
 import { IMAGE_FEED_PREFIX, IMAGE_GROUPS_PREFIX, fetchImagesPage, fetchGroupsPage, type FeedPage } from "../lib/imageApi";
 
 /**
@@ -37,7 +37,7 @@ export function useImageFeed(
       lastPage.items.length >= limit ? (lastPage.next ?? undefined) : undefined,
   });
 
-  const items = useMemo<ImageDoc[]>(
+  const items = useMemo<FeedItem[]>(
     () => query.data?.pages.flatMap((p) => p.items) ?? [],
     [query.data],
   );
@@ -60,11 +60,11 @@ export function useImageGroups(
     queryFn: ({ pageParam, signal }) =>
       fetchGroupsPage(filters, { offset: pageParam, limit, signal }),
     initialPageParam: 0,
-    getNextPageParam: (lastPage: ImageDoc[], allPages) =>
+    getNextPageParam: (lastPage: FeedItem[], allPages) =>
       lastPage.length >= limit ? allPages.length * limit : undefined,
   });
 
-  const items = useMemo<ImageDoc[]>(
+  const items = useMemo<FeedItem[]>(
     () => query.data?.pages.flat() ?? [],
     [query.data],
   );

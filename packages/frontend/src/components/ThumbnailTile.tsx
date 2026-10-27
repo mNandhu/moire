@@ -6,9 +6,7 @@ import { ratingDotClass } from "../lib/rating";
 import { ScoreMark } from "./ui/ScoreMark";
 import { useBatchScrub } from "../hooks/useBatchScrub";
 import { useCrossfade } from "../hooks/useCrossfade";
-import type { ImageDoc } from "../lib/imageFilter";
-
-type ImageDocWithDims = ImageDoc & { width?: number; height?: number };
+import type { FeedItem } from "../lib/imageFilter";
 
 /**
  * One gallery tile: the thumbnail plus every piece of triage state the user
@@ -43,7 +41,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
   dimQuarantined = true,
   peekQuery = "",
 }: {
-  item: ImageDocWithDims;
+  item: FeedItem;
   index: number;
   selected: boolean;
   /** Selection mode is on: the checkbox is shown and clicks pick rather than open. */

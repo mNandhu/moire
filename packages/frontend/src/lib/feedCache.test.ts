@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import type { ImageDoc } from "./imageFilter";
+import type { FeedItem, ImageDetail } from "./imageFilter";
 import type { FeedPage } from "./imageApi";
 import {
   imageDocKey,
@@ -13,7 +13,7 @@ import {
   writeImageFields,
 } from "./feedCache";
 
-const doc = (id: string, score = 0) => ({ _id: id, score }) as ImageDoc;
+const doc = (id: string, score = 0) => ({ _id: id, score }) as FeedItem;
 
 /** Two feeds cached under different filters: the case exact-key patching missed. */
 function seededClient() {
@@ -139,7 +139,7 @@ describe("removeImagesFromFeeds", () => {
 
     removeImagesFromFeeds(qc, ["a", "b"]);
 
-    const groups = qc.getQueryData(["image-groups", 60, {}]) as { pages: ImageDoc[][] };
+    const groups = qc.getQueryData(["image-groups", 60, {}]) as { pages: FeedItem[][] };
     expect(groups.pages.map((p) => p.map((d) => d._id))).toEqual([["c"], []]);
   });
 
@@ -152,7 +152,7 @@ describe("removeImagesFromFeeds", () => {
 
     removeImagesFromFeeds(qc, ["a", "c"]);
 
-    const groups = qc.getQueryData(["image-groups", 60, {}]) as { pages: ImageDoc[][] };
+    const groups = qc.getQueryData(["image-groups", 60, {}]) as { pages: FeedItem[][] };
     expect(groups.pages.map((p) => p.map((d) => d._id))).toEqual([["a"]]);
   });
 });
@@ -166,13 +166,13 @@ describe("syncFeedsFromDoc", () => {
       rating: "explicit",
       has_ai_tags: true,
       tags: ["ignored"],
-    } as ImageDoc, Date.now() + 1000);
+    } as ImageDetail, Date.now() + 1000);
     for (const key of [["images", 60, { tags: [] }], ["images", 60, { tags: ["cat"] }]]) {
       expect(pagesOf(qc, key)[0][0]).toMatchObject({ score: 4, rating: "explicit", has_ai_tags: true });
       // Only tile fields travel; the full doc's tags stay out of the feed.
-      expect(pagesOf(qc, key)[0][0].tags).toBeUndefined();
+      expect("tags" in pagesOf(qc, key)[0][0]).toBe(false);
     }
-    const groups = qc.getQueryData(["image-groups", 60, {}]) as { pages: ImageDoc[][] };
+    const groups = qc.getQueryData(["image-groups", 60, {}]) as { pages: FeedItem[][] };
     expect(groups.pages[0][0].score).toBe(4);
   });
 
@@ -190,10 +190,10 @@ describe("patchImageEverywhere", () => {
     qc.setQueryData(imageDocKey("a"), { ...doc("a", 1), tags: ["x"] });
     const undo = patchImageEverywhere(qc, "a", { score: 5 });
     expect(pagesOf(qc, ["images", 60, { tags: [] }])[0][0].score).toBe(5);
-    expect((qc.getQueryData(imageDocKey("a")) as ImageDoc).score).toBe(5);
+    expect((qc.getQueryData(imageDocKey("a")) as ImageDetail).score).toBe(5);
     undo();
     expect(pagesOf(qc, ["images", 60, { tags: [] }])[0][0].score).toBe(0);
-    expect((qc.getQueryData(imageDocKey("a")) as ImageDoc).score).toBe(1);
+    expect((qc.getQueryData(imageDocKey("a")) as ImageDetail).score).toBe(1);
   });
 });
 
@@ -216,7 +216,7 @@ describe("writeImageFields", () => {
     const boom = new Error("boom");
     await expect(writeImageFields(qc, "a", { score: 5 }, () => Promise.reject(boom))).rejects.toBe(boom);
     expect(pagesOf(qc, key)[0][0].score).toBe(0);
-    expect((qc.getQueryData(imageDocKey("a")) as ImageDoc).score).toBe(1);
+    expect((qc.getQueryData(imageDocKey("a")) as ImageDetail).score).toBe(1);
   });
 
   it("cancels a doc fetch in flight first, under the route's id", async () => {
@@ -240,7 +240,7 @@ describe("writeImageFields with overlapping writes", () => {
   };
   const shown = (qc: QueryClient) => ({
     tile: pagesOf(qc, key)[0][0].score,
-    doc: (qc.getQueryData(imageDocKey("a")) as ImageDoc).score,
+    doc: (qc.getQueryData(imageDocKey("a")) as ImageDetail).score,
   });
   /** Score 3 then score 4, both still in flight. */
   async function twoWrites() {

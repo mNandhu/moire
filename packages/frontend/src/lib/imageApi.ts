@@ -3,7 +3,7 @@
 // lib/imageFilter.ts.
 
 import { api, apiRaw } from "./api";
-import { PAGE_LIMIT, serializeFilters, type Filters, type ImageDoc } from "./imageFilter";
+import { PAGE_LIMIT, serializeFilters, type Filters, type FeedItem, type ImageDetail } from "./imageFilter";
 
 /**
  * Every feed query key starts with this; TanStack matches by prefix, so it
@@ -38,7 +38,7 @@ export function buildImagesQuery(
  * it here from cached items went wrong as soon as a local edit (a new score
  * under "top") changed the last item's sort key.
  */
-export type FeedPage = { items: ImageDoc[]; next: string | null };
+export type FeedPage = { items: FeedItem[]; next: string | null };
 
 /** Fetch one page of the Image feed. Throws on non-OK response. */
 export async function fetchImagesPage(
@@ -48,7 +48,7 @@ export async function fetchImagesPage(
   const qs = buildImagesQuery(filters, opts);
   const r = await apiRaw(`/api/v1/images?${qs}`, { signal: opts.signal });
   return {
-    items: (await r.json()) as ImageDoc[],
+    items: (await r.json()) as FeedItem[],
     next: r.headers.get("X-Next-Cursor"),
   };
 }
@@ -58,19 +58,19 @@ export async function fetchImagesPage(
 export function fetchGroupsPage(
   filters: Filters,
   opts: { offset?: number; limit?: number; signal?: AbortSignal } = {},
-): Promise<ImageDoc[]> {
+): Promise<FeedItem[]> {
   const sp = serializeFilters(filters);
   sp.set("limit", String(opts.limit ?? PAGE_LIMIT));
   sp.set("offset", String(opts.offset ?? 0));
-  return api<ImageDoc[]>(`/api/v1/images/groups?${sp.toString()}`, { signal: opts.signal });
+  return api<FeedItem[]>(`/api/v1/images/groups?${sp.toString()}`, { signal: opts.signal });
 }
 
 /** Fetch a single Image document by id. Throws on non-OK response. */
 export function fetchImage(
   id: string,
   opts: { signal?: AbortSignal } = {},
-): Promise<ImageDoc> {
-  return api<ImageDoc>(`/api/v1/images/${encodeURIComponent(id)}`, { signal: opts.signal });
+): Promise<ImageDetail> {
+  return api<ImageDetail>(`/api/v1/images/${encodeURIComponent(id)}`, { signal: opts.signal });
 }
 
 /** Every image id the filter matches, not just the loaded pages (capped

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
-import type { ImageDoc } from "../lib/imageFilter";
+import type { FeedItem } from "../lib/imageFilter";
 
 /** Wait this long before fetching; hovering past a tile shouldn't hit the API. */
 const HOVER_INTENT_MS = 350;
@@ -57,7 +57,7 @@ export function useBatchScrub(
         const params = new URLSearchParams(peekQuery);
         params.set("group_id", groupId);
         params.set("limit", String(MAX_MEMBERS));
-        const docs = await api<ImageDoc[]>(`/api/v1/images?${params.toString()}`);
+        const docs = await api<FeedItem[]>(`/api/v1/images?${params.toString()}`);
         if (cancelled) return;
         const urls = docs
           .map((d) => d.thumb_url)

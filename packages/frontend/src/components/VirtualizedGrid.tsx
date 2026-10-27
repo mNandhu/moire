@@ -10,13 +10,11 @@ import {
   visibleSlice,
   DEFAULT_DENSITY,
 } from "../lib/masonryLayout";
-import type { ImageDoc } from "../lib/imageFilter";
+import type { FeedItem } from "../lib/imageFilter";
 import type { PendingRestore } from "../hooks/useScrollRestoration";
 
-type ImageDocWithDims = ImageDoc & { width?: number; height?: number };
-
 interface VirtualizedGridProps {
-  items: ImageDocWithDims[];
+  items: FeedItem[];
   selection: Set<string>;
   onToggle: (id: string) => void;
   onOpen: (id: string) => void;

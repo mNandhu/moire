@@ -1,4 +1,4 @@
-import type { ImageDoc } from "./imageFilter";
+import type { ImageDetail } from "./imageFilter";
 
 /** The ratings an image can have, mildest first; "-" is unrated. Mirrors the
  * backend's image_tags.RATINGS (tests/test_mirrored_vocab.py). */
@@ -20,7 +20,7 @@ export const RATING_OPTIONS = [
  * highest-scoring label from the AI rating map, else "-". Pure precedence logic
  * lifted out of ImageView so it has a test surface.
  */
-export function pickRating(doc: ImageDoc | null | undefined): string {
+export function pickRating(doc: ImageDetail | null | undefined): string {
   const r = (doc?.rating || "").trim();
   if (r) return r;
   const m = doc?.ai?.rating;
