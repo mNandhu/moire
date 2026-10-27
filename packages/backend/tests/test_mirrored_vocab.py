@@ -1,12 +1,13 @@
 """Vocabularies kept by hand in both Python and TypeScript must stay equal.
 
 Each test reads the frontend source table and compares it to the backend one,
-so adding a colour, kaomoji, facet or merge kind on one side fails here until
-the other side follows."""
+so adding a colour, kaomoji, facet, merge kind, board section, feed sort or
+thumbnail size on one side fails here until the other side follows."""
 
 import json
 import re
 from pathlib import Path
+from typing import get_args
 
 import pytest
 
@@ -115,3 +116,34 @@ def test_ratings_match():
 
     block = _block(_src("rating.ts"), "export const RATINGS")
     assert ("-", *_quoted(block)) == RATINGS
+
+
+def test_board_sections_match():
+    from moire.services.prompt_board import SECTIONS
+
+    union = re.search(r"export type BoardSection =([^;]+);", _src("queries/board.ts"))
+    assert union
+    assert tuple(_quoted(union.group(1))) == SECTIONS
+
+
+def test_feed_sorts_match():
+    from moire.services.image_feed import SORTS
+
+    src = _src("imageFilter.ts")
+    union = re.search(r"export type FeedSort = ([^;]+);", src)
+    assert union
+    assert tuple(_quoted(union.group(1))) == tuple(SORTS)
+    listed = re.search(r"const SORTS: readonly FeedSort\[\] = \[([^\]]*)\]", src)
+    assert listed
+    assert tuple(_quoted(listed.group(1))) == tuple(SORTS)
+    # The sort switch offers every order.
+    block = _block(_src("../components/SortControl.tsx"), "export const SORT_OPTIONS")
+    assert tuple(re.findall(r'value: "(\w+)"', block)) == tuple(SORTS)
+
+
+def test_thumb_sizes_match():
+    from moire.api.image_media import ThumbSize
+
+    # No TS union: each size is a helper in media.ts that adds its query.
+    src = _src("media.ts")
+    assert set(re.findall(r"size=(\w+)", src)) == set(get_args(ThumbSize))
