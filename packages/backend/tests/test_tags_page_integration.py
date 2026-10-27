@@ -278,3 +278,23 @@ async def test_a_tags_cover_can_be_centred(client, seed, monkeypatch):
     assert (await client.get("/tags/detail", params={"tag": "cat"})).json()[
         "focus"
     ] is None
+
+
+async def test_focus_lands_on_the_cover_the_panel_shows(client, seed, monkeypatch):
+    monkeypatch.setattr(tag_categories, "load", _chars())
+    focus = {"focus_x": 0.5, "focus_y": 0.1}
+    r = await client.put("/tags/focus", params={"tag": "nope"}, json=focus)
+    assert r.status_code == 404
+
+    seed("L1:a", tags=("cat",))
+    seed("L1:b", tags=("cat",))
+    await client.post("/tags/thumbnail/cat", json={"image_id": "L1:b"})
+    await client.put("/tags/focus", params={"tag": "cat"}, json=focus)
+    detail = (await client.get("/tags/detail", params={"tag": "cat"})).json()
+    assert detail["cover_image_id"] == "L1:b"
+    assert detail["focus"] == [0.5, 0.1]
+
+    # Only hidden images carry it: no cover to centre.
+    seed("L1:q", tags=("dog",), quarantined=True)
+    r = await client.put("/tags/focus", params={"tag": "dog"}, json=focus)
+    assert r.status_code == 404

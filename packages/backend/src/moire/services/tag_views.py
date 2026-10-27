@@ -20,9 +20,7 @@ from . import (
     danbooru_tags,
     prompt_board,
     tag_categories,
-    tag_covers,
     tag_index,
-    tag_kinds,
 )
 
 _maps_lock = asyncio.Lock()
@@ -107,11 +105,3 @@ async def board_offers() -> dict[str, list[list]]:
     )
     tag_index.store_derived("board-offers", gen, (tags, vocab, out))
     return out
-
-
-async def cover_of(base: str, pinned: str | None) -> str | None:
-    """A tag's cover: the pin, else what its mosaic leads with."""
-    if pinned:
-        return pinned
-    lead = await tag_covers.samples_for_tag(f"{tag_kinds.ANY_PREFIX}{base}", 1)
-    return lead[0]["_id"] if lead else None

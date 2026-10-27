@@ -331,6 +331,14 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
     return samples
 
 
+async def cover_of(base: str) -> str | None:
+    """A tag's cover: what its mosaic leads with (the pin when it is visible
+    and carries the tag, else the first of the shuffle). ``None`` when no
+    visible image carries ``base``."""
+    lead = await samples_for_tag(f"{tag_kinds.ANY_PREFIX}{base}", 1)
+    return lead[0]["_id"] if lead else None
+
+
 # --- Cover focus ----------------------------------------------------------------
 #
 # Where a plain tag's cover is centred: the tag page's counterpart of a

@@ -247,7 +247,7 @@ async def tag_detail(source: str = "all", base: str = Depends(_base)):
     got = await tag_panel.detail(base, _source(source))
     if got is None:
         raise HTTPException(status_code=404, detail="No image has this tag")
-    cover = await tag_views.cover_of(base, got["thumb_image_id"])
+    cover = await tag_covers.cover_of(base)
     thumbs = await thumb_version.urls([got["thumb_image_id"], cover])
     return {
         **got,
@@ -267,10 +267,9 @@ async def set_tag_focus(body: dict, base: str = Depends(_base)):
         point = tag_covers.clean(body.get("focus_x"), body.get("focus_y"))
     except tag_covers.FocusError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
-    got = await tag_panel.detail(base, "all")
-    if got is None:
+    cover = await tag_covers.cover_of(base)
+    if cover is None:
         raise HTTPException(status_code=404, detail="No image has this tag")
-    cover = await tag_views.cover_of(base, got["thumb_image_id"])
     return {"tag": base, "focus": await tag_covers.put_focus(base, point, cover)}
 
 
