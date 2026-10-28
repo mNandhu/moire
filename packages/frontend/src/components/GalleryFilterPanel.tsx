@@ -108,7 +108,7 @@ export function GalleryFilterPanel({
                 setFilters({ ...filters, noTags: !filters.noTags })
               }
               aria-label={filters.noTags ? "No tags on" : "No tags off"}
-              title="Images with no tags at all"
+              title="Images with no AI or manual tags"
             >
               Untagged
             </Button>

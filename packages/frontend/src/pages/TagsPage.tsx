@@ -275,8 +275,8 @@ export default function TagsPage({ group }: { group?: string } = {}) {
                 title="Untagged"
                 subtitle={
                   cov?.no_tags != null
-                    ? `${cov.no_tags.toLocaleString()} ${cov.no_tags === 1 ? "image" : "images"} with no tags`
-                    : "No tags at all"
+                    ? `${cov.no_tags.toLocaleString()} ${cov.no_tags === 1 ? "image" : "images"} with no AI or manual tags`
+                    : "No AI or manual tags"
                 }
                 to={galleryHref({ noTags: true })}
               />

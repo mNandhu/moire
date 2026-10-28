@@ -15,7 +15,7 @@ export function ToReview({ className }: { className?: string }) {
   const { data: stats } = useImageStats();
   const rows: Array<{ icon: LucideIcon; label: string; count?: number; to: string }> = [
     { icon: Sparkles, label: "Not AI-tagged", count: cov?.untagged, to: galleryHref({ noAiTags: true }) },
-    { icon: Tag, label: "No tags at all", count: cov?.no_tags, to: galleryHref({ noTags: true }) },
+    { icon: Tag, label: "No AI or manual tags", count: cov?.no_tags, to: galleryHref({ noTags: true }) },
     { icon: ShieldOff, label: "Quarantined", count: stats?.quarantined, to: galleryHref({ quarantined: true }) },
   ];
   return (
