@@ -14,6 +14,7 @@ Run from repo root unless noted.
 pnpm install                 # install frontend deps (backend uses uv, see below)
 pnpm dev                     # backend (uvicorn :8000, --reload) + frontend (vite :5173) together
 pnpm perf                    # backend perf benchmark
+pnpm e2e                     # build the UI, then Playwright e2e (packages/e2e; sandbox backend :8020, fake ComfyUI :8191)
 
 # Backend (Python via uv; never call `python` directly)
 uv --directory packages/backend sync                # install deps

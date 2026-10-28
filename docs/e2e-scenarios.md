@@ -1,8 +1,20 @@
 # E2E scenarios to cover
 
-No e2e suite exists yet. This file collects scenarios worth testing end to end once it does. Add one entry per scenario: where, steps, expected.
+Scenarios worth testing end to end, for the Playwright suite in `packages/e2e` (how it runs: CONTRIBUTING.md, "E2E"). Add one entry per scenario: where, steps, expected. Once a spec covers it, say which under the heading.
+
+## Covered
+
+- Onboarding: welcome flow adds a folder and connects the fake ComfyUI, the scan indexes every image (`onboarding.setup.ts`)
+- Gallery: scrolling pages in the rest of the feed; a searched tag filters the gallery and survives a reload from the URL (`gallery.spec.ts`)
+- Generate: every Clear and Undo scenario below (`generate-clear-undo.spec.ts`)
+
+## Still to cover
+
+From the release tracker (R3): image view tags and weights, tag panel, AI tagging a few images (needs the tagger model cached in CI), Generate prompt keys (Ctrl+Up/Down), a Generate run on the fake ComfyUI landing in the output library.
 
 ## Generate: Tags by part, Clear and Undo
+
+Covered by `generate-clear-undo.spec.ts`.
 
 ### Undo leaves text typed since untouched
 

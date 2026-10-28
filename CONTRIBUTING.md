@@ -49,6 +49,8 @@ uv --directory packages/backend run ruff check
 uv --directory packages/backend run ruff format --check
 pnpm -C packages/frontend test                                 # vitest
 pnpm -C packages/frontend build                                # tsc -b + vite build
+pnpm e2e                                                       # build the UI, then the Playwright e2e suite
+pnpm -C packages/e2e test tests/gallery.spec.ts               # one e2e spec (needs a built UI)
 pnpm perf                                                      # backend perf benchmark
 pnpm version:check                                             # one version across all manifests
 ./scripts/test-docker.sh                                       # Docker smoke test over ./test_images
@@ -57,6 +59,12 @@ pnpm version:check                                             # one version acr
 A husky pre-commit hook runs ruff and eslint on staged files. Generate-related tests use a fake ComfyUI (`packages/backend/tests/fake_comfy.py`); never point tests at a real server.
 
 `test_images/` holds a few small PNGs made with Moiré's Generate page, with their ComfyUI prompt metadata, in one subfolder per character. CI indexes them and checks thumbnails and originals are served.
+
+### E2E
+
+`packages/e2e` is a Playwright suite (Chromium) against a throwaway Moiré: `servers/start_backend.py` wipes `packages/e2e/.sandbox`, copies `test_images/` plus generated filler (more than one feed page) into it, and starts the backend on :8020 with every data path inside the sandbox, serving the built UI. A fake ComfyUI (`servers/fake_comfy_server.py`) runs on :8191. Neither port clashes with `pnpm dev`. First run: `pnpm -C packages/e2e exec playwright install chromium`.
+
+Specs share one app and run in order: `onboarding.setup.ts` walks the welcome flow (adds the library, connects the fake ComfyUI) and every other spec depends on it. Scenarios still to cover are listed in `docs/e2e-scenarios.md`.
 
 ## Layout
 

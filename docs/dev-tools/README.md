@@ -2,9 +2,9 @@
 
 Throwaway helpers used while building the ComfyUI integration. Not part of the app.
 
-- `fake_comfy_server.py`: a fake ComfyUI (FastAPI) that writes small real PNGs.
+- `packages/e2e/servers/fake_comfy_server.py`: a fake ComfyUI (FastAPI) that writes small real PNGs.
   Each prompt runs `FAKE_COMFY_RUN` seconds (0.5); `POST /fake/run?seconds=N` changes it live.
-  Run: `FAKE_COMFY_OUT=/tmp/x/out uv --directory packages/backend run uvicorn fake_comfy_server:app --port 8190 --app-dir docs/dev-tools`
+  Run: `FAKE_COMFY_OUT=/tmp/x/out uv --directory packages/backend run uvicorn fake_comfy_server:app --port 8190 --app-dir ../e2e/servers` (the e2e suite runs it too)
 - `cdp_shot.py`: screenshots a page through headless Chrome's DevTools protocol,
   after seeding the Generate draft in localStorage and running JS steps.
   Start Chrome: `google-chrome --headless=new --no-sandbox --remote-debugging-port=9333 --user-data-dir=/tmp/x/profile about:blank &`
