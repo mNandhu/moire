@@ -19,7 +19,8 @@ export default defineConfig({
     colorScheme: "dark",
   },
   projects: [
-    { name: "setup", testMatch: /.*\.setup\.ts/, use: { ...devices["Desktop Chrome"] } },
+    // No retry: a second attempt meets the library the first one added.
+    { name: "setup", testMatch: /.*\.setup\.ts/, retries: 0, use: { ...devices["Desktop Chrome"] } },
     { name: "chromium", dependencies: ["setup"], use: { ...devices["Desktop Chrome"] } },
   ],
   webServer: [
