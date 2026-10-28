@@ -8,8 +8,6 @@ from moire.database import db
 from moire.database import schema as t
 from moire.services import image_tags, tag_index
 
-pytestmark = pytest.mark.asyncio
-
 
 def _tags(image_id: str) -> list[str]:
     with db.sync_conn() as conn:

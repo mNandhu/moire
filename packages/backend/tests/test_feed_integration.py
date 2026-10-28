@@ -7,8 +7,6 @@ import sqlalchemy as sa
 from moire.database import db
 from moire.database import schema as t
 
-pytestmark = pytest.mark.asyncio
-
 
 async def _ids(client, **params):
     resp = await client.get("/images", params=params)

@@ -1,14 +1,11 @@
 """Loras end to end: extracted from the graph by reprojection, stored as
 derived rows, filterable in the feed and counted for the dropdown."""
 
-import pytest
 import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
 from moire.services import reproject
-
-pytestmark = pytest.mark.asyncio
 
 
 def _comfy(image_id, loras):

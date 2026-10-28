@@ -3,12 +3,9 @@
 import asyncio
 import time
 
-import pytest
 
 from moire.services import library_ops
 from moire.services import library_watch
-
-pytestmark = pytest.mark.asyncio
 
 
 async def test_delete_does_not_block_the_loop_on_thread_joins(client, monkeypatch):

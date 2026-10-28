@@ -22,8 +22,6 @@ from moire.models.responses import (
     TagCount,
 )
 
-pytestmark = pytest.mark.asyncio
-
 SNAPSHOT = json.loads(
     (Path(__file__).parent / "fixtures" / "mirrored" / "image_payloads.json").read_text(
         encoding="utf-8"

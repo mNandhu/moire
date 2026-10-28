@@ -1,10 +1,6 @@
 """Integration tests for the batch-collapsed grouped view, AI coverage counts,
 and the models filter list."""
 
-import pytest
-
-pytestmark = pytest.mark.asyncio
-
 
 async def test_groups_collapse_to_newest_representative(client, seed):
     # Three members of one batch + one standalone image.

@@ -1,11 +1,7 @@
 """image_tags.find_image reads only the columns asked for (the thumb and file
 routes fire once per grid tile), always with ``_id``."""
 
-import pytest
-
 from moire.services import image_tags
-
-pytestmark = pytest.mark.asyncio
 
 
 async def test_columns_limit_the_read_to_those_and_the_id(seed):

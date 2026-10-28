@@ -3,14 +3,11 @@ same key the add-library preview uses to call a folder registered."""
 
 import os
 
-import pytest
 import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
 from moire.services import library_nesting
-
-pytestmark = pytest.mark.asyncio
 
 
 def _case_folding(monkeypatch):

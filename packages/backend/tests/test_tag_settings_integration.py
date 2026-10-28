@@ -1,10 +1,6 @@
 """Boilerplate tag list: defaults until saved, cleaned on save."""
 
-import pytest
-
 from moire.services.tag_settings import DEFAULT_BOILERPLATE, clean_boilerplate
-
-pytestmark = pytest.mark.asyncio
 
 
 async def test_defaults_until_saved_then_the_saved_list(client):

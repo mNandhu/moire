@@ -1,13 +1,10 @@
 """Integration tests for workflow families: naming one, importing saved
 ComfyUI files, and matching each workflow version to its file."""
 
-import pytest
 import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-
-pytestmark = pytest.mark.asyncio
 
 WID = "c4852d87-9039-4215-95f6-880cdc42ee0d"
 BASE = ["KSampler", "VAEDecode", "CLIPTextEncode", "CLIPTextEncode", "SaveImage"]

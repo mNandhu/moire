@@ -15,8 +15,6 @@ from moire.database import db
 from moire.database import schema as t
 from moire.services import reproject, scanner, thumbnailer
 
-pytestmark = pytest.mark.asyncio
-
 
 def _write_png(path, **text_chunks):
     meta = PngInfo()

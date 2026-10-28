@@ -4,7 +4,6 @@ library's alone. Real disk scans, as in test_scan_reproject_integration."""
 import os
 from urllib.parse import quote
 
-import pytest
 import sqlalchemy as sa
 from PIL import Image
 
@@ -13,8 +12,6 @@ from moire.database import schema as t
 from moire.services import library_nesting
 
 from test_scan_reproject_integration import _wait_scan
-
-pytestmark = pytest.mark.asyncio
 
 
 def _png(path):

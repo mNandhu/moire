@@ -2,13 +2,10 @@
 quarantine), the writes that now pass through image_tags' scalar setters so the
 documented single-owner rule holds. Exercised through the real ASGI app."""
 
-import pytest
 import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _row(image_id):

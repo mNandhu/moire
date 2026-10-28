@@ -11,9 +11,6 @@ import json
 import os
 from pathlib import Path
 
-import pytest
-
-pytestmark = pytest.mark.asyncio
 
 SNAPSHOT = Path(__file__).parent / "fixtures" / "mirrored" / "image_payloads.json"
 

@@ -1,14 +1,11 @@
 """The one-off underscore migration: spaced tags become canonical, the ai
 subdoc follows, duplicate spellings collapse, and it runs once."""
 
-import pytest
 import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
 from moire.services import tag_migrations
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _row(image_id):

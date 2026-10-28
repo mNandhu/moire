@@ -2,14 +2,11 @@
 must refresh file metadata while leaving tag-state untouched (the old
 ``$setOnInsert`` behavior), and reproject must persist gen.* + prompt-term rows."""
 
-import pytest
 import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
 from moire.services import scanner
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _img(image_id):

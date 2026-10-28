@@ -9,8 +9,6 @@ from moire.database import db
 from moire.database import schema as t
 from moire.services import extraction_settings, reproject, tag_kinds
 
-pytestmark = pytest.mark.asyncio
-
 _PARAMS = "masterpiece, blue eyes\nNegative prompt: lowres, blurry\nSteps: 20"
 
 

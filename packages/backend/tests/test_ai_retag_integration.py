@@ -1,13 +1,10 @@
 """Re-tagging from the image view: POST /ai/tag with `retag` clears the image's
 AI tags, tagger metadata and rating before queueing it, and keeps the rest."""
 
-import pytest
 import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-
-pytestmark = pytest.mark.asyncio
 
 
 def _row(image_id: str):

@@ -1,10 +1,6 @@
 """Integration test for the assembled AI status view: confirms the route stitches
 the tagger + download managers into one object with the settings' target."""
 
-import pytest
-
-pytestmark = pytest.mark.asyncio
-
 
 async def test_ai_status_assembles_model_view(client):
     resp = await client.get("/ai/status")

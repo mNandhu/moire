@@ -2,14 +2,11 @@
 including the tag-state invariant (array + flags + derived join rows stay in sync).
 """
 
-import pytest
 import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
 from moire.services import attire, tag_index
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _row(image_id):

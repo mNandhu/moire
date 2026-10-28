@@ -7,15 +7,12 @@ The behavior worth locking down lives in the functions it calls: one file in
 gone -> exactly that row (and its thumb) removed.
 """
 
-import pytest
 import sqlalchemy as sa
 from PIL import Image
 
 from moire.database import db
 from moire.database import schema as t
 from moire.services import scan_incremental
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _img(image_id: str):

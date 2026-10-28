@@ -5,14 +5,11 @@ reprojection, AI tags are refused."""
 import threading
 import time
 
-import pytest
 import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
 from moire.services import reproject
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _tags(image_id):

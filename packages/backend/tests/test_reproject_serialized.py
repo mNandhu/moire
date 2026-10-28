@@ -3,14 +3,11 @@ write after a run started with newer ones, so the latest settings win."""
 
 import threading
 
-import pytest
 import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
 from moire.services import gen_metadata, reproject
-
-pytestmark = pytest.mark.asyncio
 
 
 def _tags(image_id: str) -> list[str]:
