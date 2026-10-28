@@ -492,27 +492,52 @@ export default function ImageView() {
     feed.fetchNextPage,
   ]);
 
+  // The images arrow keys stepped to that the route has not reached yet. A
+  // key pressed before the view re-renders steps from the last of them, not
+  // from the place the route still shows (Right then Left must come back).
+  // The route landing anywhere else (a batch strip click) drops them.
+  const stepsRef = useRef<string[]>([]);
+  useEffect(() => {
+    const steps = stepsRef.current;
+    const at = routeId ? steps.indexOf(routeId) : -1;
+    stepsRef.current = at >= 0 ? steps.slice(at + 1) : [];
+  }, [routeId]);
+  const stepFrom = useCallback(() => {
+    const last = stepsRef.current[stepsRef.current.length - 1];
+    const at = last ? list.findIndex((x) => x._id === last) : -1;
+    return at >= 0 ? at : index;
+  }, [index, list]);
+  const stepTo = useCallback(
+    (imgId: string) => {
+      stepsRef.current.push(imgId);
+      navigateToImage(imgId);
+    },
+    [navigateToImage],
+  );
+
   const goPrev = useCallback(() => {
-    if (index > 0) navigateToImage(list[index - 1]._id);
-  }, [index, list, navigateToImage]);
+    const at = stepFrom();
+    if (at > 0) stepTo(list[at - 1]._id);
+  }, [stepFrom, list, stepTo]);
 
   const goNext = useCallback(async () => {
-    if (index < 0) return;
-    if (index < list.length - 1) {
-      navigateToImage(list[index + 1]._id);
+    const at = stepFrom();
+    if (at < 0) return;
+    if (at < list.length - 1) {
+      stepTo(list[at + 1]._id);
       return;
     }
     // At the end of the loaded pages: fetch the next one, then advance.
     if (feed.hasNextPage && !feed.isFetchingNextPage) {
       const res = await feed.fetchNextPage();
       const all = res.data?.pages.flatMap((p) => p.items) ?? [];
-      const nextItem = all[index + 1];
-      if (nextItem) navigateToImage(nextItem._id);
+      const nextItem = all[at + 1];
+      if (nextItem) stepTo(nextItem._id);
     }
   }, [
-    index,
+    stepFrom,
     list,
-    navigateToImage,
+    stepTo,
     feed.hasNextPage,
     feed.isFetchingNextPage,
     feed.fetchNextPage,

@@ -68,13 +68,30 @@ test("arrow keys step through the feed", async ({ page, request }) => {
   await expect(page.getByText("furina_41.png", { exact: true })).toBeVisible();
 
   const here = viewerUrl(_id);
-  // Newest first, so the next image is the older furina_63. Wait for it to
-  // show before going back: a key pressed before the view has moved on
-  // steps from the old place.
+  // Newest first: furina_41, furina_63, shinobu_23.
   await page.keyboard.press("ArrowRight");
-  await expect.poll(() => page.url()).not.toContain(here);
   await expect(page.getByText("furina_63.png", { exact: true })).toBeVisible();
   await page.keyboard.press("ArrowLeft");
   await expect.poll(() => page.url()).toContain(here);
   await expect(page.getByText("furina_41.png", { exact: true })).toBeVisible();
+});
+
+test("arrow keys pressed back to back each take a step", async ({ page, request }) => {
+  const { _id } = await imageByPath(request, "furina/furina_41.png");
+  const { _id: twoOn } = await imageByPath(request, "shinobu/shinobu_23.png");
+  await page.goto(viewerUrl(_id));
+  await expect(page.getByText("furina_41.png", { exact: true })).toBeVisible();
+
+  // Both keys in one task, so the view cannot re-render between them: the
+  // second steps from where the first went.
+  const keys = (...names: string[]) =>
+    page.evaluate((ks) => {
+      for (const key of ks) document.body.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    }, names);
+  await keys("ArrowRight", "ArrowLeft");
+  await expect(page.getByText("furina_41.png", { exact: true })).toBeVisible();
+  await expect.poll(() => page.url()).toContain(viewerUrl(_id));
+  await keys("ArrowRight", "ArrowRight");
+  await expect(page.getByText("shinobu_23.png", { exact: true })).toBeVisible();
+  await expect.poll(() => page.url()).toContain(viewerUrl(twoOn));
 });
