@@ -12,6 +12,23 @@ test("the Tags tab shows prompt weights", async ({ page, request }) => {
   await expect(panel.getByRole("link", { name: "smile", exact: true })).toBeVisible();
 });
 
+test("a ComfyUI prompt escaped twice reads as ComfyUI reads it", async ({ page, request }) => {
+  // furina_63 keeps the prompt as it was queued: `furina \\(genshin impact\\)`
+  // and an escaped `\(shallow depth of field:1.4\)`. ComfyUI reads both as
+  // text, so one character tag and no weight.
+  const { _id } = await imageByPath(request, "furina/furina_63.png");
+  await page.goto(viewerUrl(_id));
+  await page.getByRole("tab", { name: /^Tags/ }).click();
+  const panel = page.getByRole("tabpanel");
+  await expect(panel.getByRole("link", { name: "furina (genshin impact)", exact: true })).toBeVisible();
+  await expect(panel.getByRole("link", { name: /^shallow depth of field1\.4$/ })).toHaveCount(0);
+  // Its twin furina_41 has the prompt written right: the weight shows.
+  const twin = await imageByPath(request, "furina/furina_41.png");
+  await page.goto(viewerUrl(twin._id));
+  await page.getByRole("tab", { name: /^Tags/ }).click();
+  await expect(panel.getByRole("link", { name: "shallow depth of field1.4" })).toBeVisible();
+});
+
 test("tags added in the viewer are saved as manual tags", async ({ page, request }) => {
   const { _id } = await imageByPath(request, "weighted/weighted.png");
   await page.goto(viewerUrl(_id));

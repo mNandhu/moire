@@ -38,7 +38,8 @@ WEIGHTED = (
 
 def lay_out_library() -> int:
     """The six generated SFW images (prompt metadata, one folder per
-    character) plus plain filler. Fixed mtimes: the feed is newest first, so
+    character; furina_63 keeps a prompt escaped twice, as an edge case) plus
+    plain filler. Fixed mtimes: the feed is newest first, so
     the real images lead and the filler pages after them."""
     base = time.time() - 86400
     real = sorted((REPO / "test_images").rglob("*.png"))
