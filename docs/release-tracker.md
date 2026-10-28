@@ -15,7 +15,7 @@ What has to happen before Moiré is published (PyPI `moire-studio`, first `vX.Y.
 
 ## CI
 
-- [x] **R6** Proper CI on every push and PR: today `ci.yml` is only a Docker compose smoke test. Add jobs for `uv run pytest`, `ruff check` + `ruff format --check`, frontend `pnpm test`, `tsc -b`, `eslint`, and `pnpm version:check`; cache uv and pnpm. E2E (R3) as its own job. (1ada532, COMMIT)
+- [x] **R6** Proper CI on every push and PR: today `ci.yml` is only a Docker compose smoke test. Add jobs for `uv run pytest`, `ruff check` + `ruff format --check`, frontend `pnpm test`, `tsc -b`, `eslint`, and `pnpm version:check`; cache uv and pnpm. E2E (R3) as its own job. (1ada532, dfd154b)
 - [ ] **R7** Release workflow end to end: `release.yml` builds the wheel and a GitHub Release but stays off until `RELEASE_ENABLED` is `true`. Dry-run it on a test tag; check the wheel carries the built UI and installs with `uv tool install "moire-studio[cpu]"` on Linux, Windows and macOS.
 
 ## Versioning and publishing
