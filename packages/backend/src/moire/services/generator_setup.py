@@ -123,7 +123,7 @@ def _offer(base: str, vocab: tag_categories.Vocab) -> list[str]:
     """Tags in the default Base that the Character and Outfit blocks add at
     queue time: character names, their body features (when a character is
     there), worn things. As written in the Base, in order."""
-    tags = [p.text for p in parse_prompt(base) if p.kind == "tag"]
+    tags = [p.text for p in parse_prompt(base, "comfyui") if p.kind == "tag"]
     canon = [canonical_name(x) for x in tags]
     has_character = any(c in vocab.names for c in canon)
     out = []

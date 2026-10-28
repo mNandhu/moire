@@ -670,6 +670,23 @@ def test_prompt_weights_keep_the_weight_farthest_from_1():
     assert gm.prompt_weights("(cat:0.8), (cat:1.2)", "comfyui") == {"cat": 0.8}
 
 
+def test_a_doubly_escaped_qualifier_reads_as_the_source_does():
+    # ComfyUI escapes only a paren: `\\(` is a stray backslash and a literal
+    # paren, so one tag at 1. A1111 reads an escaped backslash, then a group.
+    text = "furina \\\\(genshin impact\\\\), 1girl"
+    assert gm.tokenize_prompt(text, source="comfyui") == [
+        "1girl",
+        "furina_(genshin_impact)",
+    ]
+    assert gm.prompt_weights(text, "comfyui") == {}
+    assert gm.tokenize_prompt(text, source="a1111") == [
+        "1girl",
+        "furina",
+        "genshin_impact",
+    ]
+    assert gm.prompt_weights(text, "a1111") == {"genshin_impact": 1.1}
+
+
 def test_extract_weights_come_from_the_positive_prompt_only():
     params = "(neon:1.2), city\nNegative prompt: (blurry:1.4), (neon:0.5)\nSteps: 20, Seed: 1"
     g = gm.extract(

@@ -176,7 +176,7 @@ def test_lora_tokens_are_network_pieces_not_tags():
             r"cat\, dog, (x\, y)",
             [("cat", "tag"), ("dog", "tag"), ("x", "tag"), ("y", "tag")],
         ),
-        ("trailing\\", [("trailing\\", "tag")]),
+        ("trailing\\", [("trailing", "tag")]),
         # nested groups, all three bracket kinds
         (
             "(a, [b, {c}]), d",

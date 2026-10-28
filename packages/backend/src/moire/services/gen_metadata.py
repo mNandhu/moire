@@ -248,18 +248,19 @@ def _to_float(v: Any) -> float | None:
 # --- Tokenisation & grouping (pure) ------------------------------------------
 
 
-def tokenize_prompt(*texts: str | None) -> list[str]:
+def tokenize_prompt(*texts: str | None, source: str | None = None) -> list[str]:
     """Prompt text -> sorted, de-duplicated tag terms in canonical spelling.
 
     Parsing is best effort and lives in :mod:`services.prompt_parse`: emphasis
     and weights are stripped, groups missing a comma are split, Danbooru
     qualifiers (``hu tao (genshin impact)``) and lora tokens stay whole, and
-    prose fragments, leaked settings and stray weights are not terms. Sorted
-    for stable storage + ``$in`` matching.
+    prose fragments, leaked settings and stray weights are not terms.
+    Escapes are read as ``source`` writes them. Sorted for stable storage +
+    ``$in`` matching.
     """
     terms: set[str] = set()
     for text in texts:
-        for piece in parse_prompt(text):
+        for piece in parse_prompt(text, source):
             if piece.kind == "tag":
                 terms.add(canonical_name(piece.text))
     return sorted(terms)
@@ -272,7 +273,7 @@ def prompt_weights(text: str | None, source: str | None) -> dict[str, float]:
     tie. Only the positive prompt: a negative prompt's emphasis is not how
     strongly the image shows a tag."""
     out: dict[str, float] = {}
-    for piece in parse_prompt(text):
+    for piece in parse_prompt(text, source):
         if piece.kind != "tag":
             continue
         term = canonical_name(piece.text)
@@ -789,9 +790,11 @@ def extract(
         g["loras"] += _raw_prompt_loras(g.get("prompt"), g["loras"])
 
     if prompt_positive_only:
-        g["prompt_terms"] = tokenize_prompt(g.get("prompt"))
+        g["prompt_terms"] = tokenize_prompt(g.get("prompt"), source=source)
     else:
-        g["prompt_terms"] = tokenize_prompt(g.get("prompt"), g.get("negative"))
+        g["prompt_terms"] = tokenize_prompt(
+            g.get("prompt"), g.get("negative"), source=source
+        )
     g["prompt_weights"] = prompt_weights(g.get("prompt"), source)
     g["group_id"] = group_id(g.get("workflow_sig"), g.get("prompt"))
     return g

@@ -25,7 +25,7 @@ export function embeddingWord(name: string): string {
 function chipText(word: string): string {
   // Embedding names are file names, sent untouched; tag parentheses are
   // escaped so ComfyUI doesn't read them as weights.
-  return isEmbedding(word) ? word : word.replace(/([()])/g, "\\$1");
+  return isEmbedding(word) ? word : word.replace(/(?<!\\)([()])/g, "\\$1");
 }
 
 /** Layers in order, comma-joined: a string is free text written as is

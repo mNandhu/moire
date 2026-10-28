@@ -59,7 +59,7 @@ def strip_networks(text: str) -> str:
 def prompt_characters(text: str, names: Set[str]) -> list[str]:
     """Character names the prompt holds (canonical, first seen first). Pure."""
     out: list[str] = []
-    for p in parse_prompt(text):
+    for p in parse_prompt(text, "comfyui"):
         if p.kind != "tag":
             continue
         c = canonical_name(p.text)

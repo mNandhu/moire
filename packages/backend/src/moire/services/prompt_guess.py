@@ -95,7 +95,7 @@ def _hits(text: str, keywords: Keywords) -> tuple[int, int] | None:
 @lru_cache(maxsize=4096)
 def _piece_names(text: str) -> tuple[int, frozenset[str]]:
     """How many tag/prose pieces ``text`` has, and their keyword forms."""
-    pieces = [p for p in parse_prompt(text) if p.kind in ("tag", "prose")]
+    pieces = [p for p in parse_prompt(text, "comfyui") if p.kind in ("tag", "prose")]
     return len(pieces), frozenset(keyword_key(p.text) for p in pieces)
 
 

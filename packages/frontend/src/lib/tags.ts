@@ -120,7 +120,7 @@ export function toPromptText(tags: readonly string[], weights?: PromptWeights | 
   const prompted = new Set(tags.filter(isPrompt).map((t) => tagName(t).toLowerCase()));
   return names
     .map((n) => {
-      const word = n.replace(/([()])/g, "\\$1");
+      const word = n.replace(/(?<!\\)([()])/g, "\\$1");
       const w = prompted.has(n.toLowerCase()) ? weightOf(n, weights) : undefined;
       return w === undefined ? word : `(${word}:${formatWeight(w)})`;
     })

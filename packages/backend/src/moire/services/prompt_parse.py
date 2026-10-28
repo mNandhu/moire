@@ -261,6 +261,18 @@ def _is_edit_colon(text: str, i: int) -> bool:
     return not _WEIGHT_AHEAD.match(text, i + 1)
 
 
+def _escape_at(text: str, i: int, comfy: bool) -> int:
+    """Length of the escape at the backslash at ``i``; its last character is
+    the literal one. A1111 escapes any character, so ``\\\\(`` is a backslash
+    and then a group. ComfyUI (``escape_important``) only escapes a paren:
+    any other backslash is itself, so ``\\\\(`` is a backslash and a literal
+    paren. That stray backslash (a prompt escaped twice) is dropped by
+    :func:`_clean`."""
+    if not comfy or text[i + 1] in "()":
+        return 2
+    return 1
+
+
 @dataclass(frozen=True)
 class RawPiece:
     text: str
@@ -293,9 +305,10 @@ def _close(text: str, g: _Group, i: int) -> None:
         g.weight = float(m.group(1))
 
 
-def _scan(text: str) -> list[RawPiece]:
+def _scan(text: str, comfy: bool = False) -> list[RawPiece]:
     """Raw pieces of ``text``, cut at separators and emphasis-group edges,
-    each with the brackets it sat inside."""
+    each with the brackets it sat inside. ``comfy``: escapes as ComfyUI
+    reads them (see :func:`_escape_at`)."""
     pieces: list[RawPiece] = []
     buf: list[str] = []
     # Whether `buf` holds any non-space text (kept as a flag, not re-derived,
@@ -336,9 +349,10 @@ def _scan(text: str) -> list[RawPiece]:
             continue
         if ch == "\\" and i + 1 < n:
             # An escape is literal text (``\(``).
-            buf.append(text[i + 1])
+            step = _escape_at(text, i, comfy)
+            buf.append(text[i + step - 1])
             has_text = True
-            i += 2
+            i += step
             continue
         if ch in _SEPARATORS:
             if ch == "|" and stack and stack[-1].kind == "[":
@@ -387,6 +401,9 @@ def _clean(raw: str, in_group: bool) -> str:
     s = re.sub(r"\s+", " ", raw).strip().lower()
     if s.startswith("<") or s in _EMOTICONS:
         return s
+    # A backslash left as text is a slip (a prompt escaped twice), never
+    # part of a tag; emoticons that hold one (``\m/``) are kept above.
+    s = s.replace("\\", "")
     # "(denpa onna to seishun otoko )" and "(... otoko)" are one qualifier.
     s = re.sub(r"\(\s+", "(", re.sub(r"\s+\)", ")", s))
     s = _LEAD_JOINER.sub("", s)
@@ -436,20 +453,22 @@ def classify(text: str, raw: str | None = None) -> str:
     return "prose" if is_prose(raw if raw is not None else text) else "tag"
 
 
-def parse_prompt(text: str | None) -> list[Piece]:
-    """Every piece of ``text`` with its kind, in order. Never raises."""
+def parse_prompt(text: str | None, source: str | None = None) -> list[Piece]:
+    """Every piece of ``text`` with its kind, in order, read as ``source``
+    (``gen.source``) writes escapes; anything not ComfyUI reads as A1111.
+    Generate's own prompts are ComfyUI's. Never raises."""
     if not text:
         return []
-    return list(_parse_cached(text))
+    return list(_parse_cached(text, source == "comfyui"))
 
 
 # Reprojection parses the same texts many times over: prompt guessing scores
 # every candidate text in a workflow graph, and libraries reuse prompts. The
 # parse is pure and `Piece` is frozen, so the cached tuple is safe to share.
 @lru_cache(maxsize=4096)
-def _parse_cached(text: str) -> tuple[Piece, ...]:
+def _parse_cached(text: str, comfy: bool) -> tuple[Piece, ...]:
     out: list[Piece] = []
-    for raw in _scan(text):
+    for raw in _scan(text, comfy):
         s = _clean(raw.text, raw.in_group)
         if s or raw.text.strip():
             out.append(Piece(s, classify(s, raw.text), raw.groups))
@@ -476,11 +495,12 @@ def _top_level_pieces(text: str) -> list[tuple[str, str]]:
 def without_terms(text: str, drop: set[str], canon: Callable[[str], str]) -> str:
     """``text`` with every piece whose tags all canonicalize (``canon``) into
     ``drop`` taken out, separators and the rest kept as written. A weighted
-    group goes only when everything in it goes."""
+    group goes only when everything in it goes. Read as Generate's prompt
+    (ComfyUI's escapes)."""
     kept: list[str] = []
     dropped = False
     for piece, sep in _top_level_pieces(text):
-        tags = [p.text for p in parse_prompt(piece) if p.kind == "tag"]
+        tags = [p.text for p in parse_prompt(piece, "comfyui") if p.kind == "tag"]
         if tags and all(canon(t) in drop for t in tags):
             dropped = True
         else:

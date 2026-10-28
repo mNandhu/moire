@@ -13,6 +13,9 @@ describe("compose", () => {
       ),
     ).toBe("masterpiece, best quality, hu_tao_\\(genshin_impact\\), 1girl, embedding:easynegative");
   });
+  it("leaves a chip written escaped escaped once", () => {
+    expect(compose("", ["furina \\(genshin impact\\)"])).toBe("furina \\(genshin impact\\)");
+  });
   it("handles an empty base", () => {
     expect(compose("", ["a"], [])).toBe("a");
     expect(compose("  ")).toBe("");

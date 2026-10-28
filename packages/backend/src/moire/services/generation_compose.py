@@ -16,7 +16,8 @@ from .prompt_parse import parse_prompt
 from .tag_names import display_tag
 
 EMBEDDING_PREFIX = "embedding:"
-_PAREN = re.compile(r"([()])")
+# A paren not already escaped: a chip written escaped is sent as it is.
+_PAREN = re.compile(r"(?<!\\)([()])")
 
 
 def is_embedding(word: str) -> bool:
@@ -62,7 +63,7 @@ def prompt_terms(text: str, limit: int = 2) -> list[str]:
     tokens are handled as everywhere else. A prompt with no tag pieces (all
     natural language) gives its first prose pieces instead, so it still
     names the batch."""
-    pieces = parse_prompt(text)
+    pieces = parse_prompt(text, "comfyui")
     terms = [p.text for p in pieces if p.kind == "tag"] or [
         p.text for p in pieces if p.kind == "prose"
     ]

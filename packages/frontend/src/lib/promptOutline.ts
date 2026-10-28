@@ -203,10 +203,17 @@ function scan(text: string): Raw[] {
     if (c === "\\" && i + 1 < n) {
       // An escaped comma still separates: a tag never holds one.
       if (text[i + 1] === ",") flush();
+      else if (text[i + 1] === "(" || text[i + 1] === ")") add(text[i + 1], i, i + 2);
       else {
-        add(text[i + 1], i, i + 2);
+        // ComfyUI escapes only a paren: any other backslash is itself, and
+        // the next character reads as usual (`\\(` is a backslash and a
+        // literal paren). That backslash, a prompt escaped twice, is never
+        // part of a tag, so it is dropped (prompt_parse._clean).
         hasText = true;
+        i++;
+        continue;
       }
+      hasText = true;
       i += 2;
       continue;
     }
@@ -519,7 +526,7 @@ export function removeTerms(text: string, ranges: readonly { start: number; end:
 
 /** How a tag reads in a prompt: spaces, parens escaped. */
 function promptWord(name: string): string {
-  return name.replace(/_/g, " ").replace(/([()])/g, "\\$1");
+  return name.replace(/_/g, " ").replace(/(?<!\\)([()])/g, "\\$1");
 }
 
 /** `text` with a piece (as written) added at the end. */

@@ -108,3 +108,8 @@ def test_prompt_terms_keep_escaped_parens_and_kaomoji():
         auto_name(number=1, generator="G", extra=[">_<", "red_dress"])
         == "G, >_<, red dress"
     )
+
+
+def test_compose_leaves_an_escaped_chip_escaped_once():
+    # A chip already written escaped is sent as it is, not escaped twice.
+    assert compose("", ["furina \\(genshin impact\\)"]) == "furina \\(genshin impact\\)"
