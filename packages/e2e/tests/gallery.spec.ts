@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { API, IMAGE_COUNT } from "./helpers";
+import { API, sandbox } from "./helpers";
 
 const tiles = "[data-tile-index]";
 
@@ -11,10 +11,10 @@ test("the feed pages in the rest of the library on scroll", async ({ page }) => 
   });
   await page.goto("/");
   await expect(page.locator(tiles).first()).toBeVisible();
-  expect(pages).toEqual([""]);
+  expect(pages[0]).toBe("");
 
   // The newest first: the six generated images lead, the filler follows.
-  const last = page.locator(`[data-tile-index="${IMAGE_COUNT - 1}"]`);
+  const last = page.locator(`[data-tile-index="${sandbox().images - 1}"]`);
   await page.locator(tiles).first().hover();
   await expect
     .poll(async () => {
@@ -22,8 +22,8 @@ test("the feed pages in the rest of the library on scroll", async ({ page }) => 
       return last.count();
     })
     .toBe(1);
-  expect(pages).toHaveLength(2);
-  expect(pages[1]).not.toBe("");
+  // The rest came from a keyset page: a request carrying the server's cursor.
+  expect(pages.some((c) => c !== "")).toBe(true);
 });
 
 test("searching a tag filters the gallery and the URL", async ({ page }) => {

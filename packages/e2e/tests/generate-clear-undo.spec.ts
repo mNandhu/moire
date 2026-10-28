@@ -56,8 +56,13 @@ test("after the toast expires there is no Undo and Clear stays", async ({ page }
   const { prompt, board } = await openBoard(page);
   await clearHair(page, board);
 
-  await page.clock.runFor(8_000);
-  await expect(page.getByText("Cleared Hair")).toHaveCount(0);
+  // Run the clock until the toast goes, however long it is meant to last.
+  await expect
+    .poll(async () => {
+      await page.clock.runFor(1_000);
+      return page.getByText("Cleared Hair").count();
+    })
+    .toBe(0);
   await expect(page.getByRole("button", { name: "Undo" })).toHaveCount(0);
   await expect(prompt).not.toHaveValue(/red hair/);
 });

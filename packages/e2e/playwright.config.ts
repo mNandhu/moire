@@ -1,8 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-
-// Ports away from `pnpm dev` (8000/5173) and the dev-tools sandbox (8010/8190/5180).
-export const BACKEND_PORT = 8020;
-export const COMFY_PORT = 8191;
+import { BACKEND_PORT, COMFY_PORT } from "./tests/helpers";
 
 export default defineConfig({
   testDir: "tests",

@@ -26,6 +26,10 @@
             "uv --directory packages/backend run ruff check",
             "uv --directory packages/backend run ruff format --check"
         ],
+        "packages/e2e/servers/*.py": [
+            "uv --directory packages/backend run ruff check",
+            "uv --directory packages/backend run ruff format --check"
+        ],
         "packages/frontend/src/**/*.{ts,tsx}": [
             "pnpm -C packages/frontend exec eslint"
         ]

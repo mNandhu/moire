@@ -1,13 +1,23 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, type APIRequestContext } from "@playwright/test";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-/** The fixture library `servers/start_backend.py` lays out. */
-export const IMAGES_DIR = path.resolve(here, "../.sandbox/images");
-/** Six generated images plus filler; more than one feed page. */
-export const IMAGE_COUNT = 6 + 120;
+// Ports away from `pnpm dev` (8000/5173) and the dev-tools sandbox (8010/8190/5180).
+export const BACKEND_PORT = 8020;
+export const COMFY_PORT = 8191;
+
+type Manifest = { images: number; dir: string };
+let manifest: Manifest | undefined;
+
+/** What `servers/start_backend.py` laid out: test_images plus filler, more
+ * than one feed page. Read once the server has started. */
+export function sandbox(): Manifest {
+  manifest ??= JSON.parse(readFileSync(path.resolve(here, "../.sandbox/manifest.json"), "utf8")) as Manifest;
+  return manifest;
+}
 
 export const API = "/api/v1";
 
@@ -20,7 +30,7 @@ export async function libraries(request: APIRequestContext): Promise<Library[]> 
 }
 
 /** Wait until no library is scanning and every image is indexed. */
-export async function waitForScan(request: APIRequestContext, count = IMAGE_COUNT) {
+export async function waitForScan(request: APIRequestContext, count = sandbox().images) {
   await expect
     .poll(
       async () => {
