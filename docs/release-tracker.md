@@ -9,13 +9,13 @@ What has to happen before Moiré is published (PyPI `moire-studio`, first `vX.Y.
 
 ## Tests
 
-- [ ] **R3** E2E suite: pick a runner (Playwright, already used for screenshots), seed a small library of fixture images, and cover `docs/e2e-scenarios.md` plus the main paths: onboarding, add library and scan, gallery filter and paging, image view tags and weights, tag panel, AI tagging a few images, Generate prompt keys (Ctrl+Up/Down), against the fake ComfyUI (never the public one).
+- [ ] **R3** E2E suite: pick a runner (Playwright, already used for screenshots), seed a small library of fixture images, and cover `docs/e2e-scenarios.md` plus the main paths: onboarding, add library and scan, gallery filter and paging, image view tags and weights, tag panel, AI tagging a few images, Generate prompt keys (Ctrl+Up/Down), against the fake ComfyUI (never the public one). Started 08f412e: harness in `packages/e2e`, onboarding, gallery paging + search, Generate Clear/Undo; the rest listed in `docs/e2e-scenarios.md` "Still to cover".
 - [ ] **R4** Performance testing: a repeatable run of `tests/perf_benchmark.py` (`pnpm perf`) on a generated large library (e.g. 50k images) with budgets for feed paging, tag browse, tag detail and a full reprojection; record a baseline in `docs/perf-findings.md` and fail CI (or flag) on a big regression.
-- [ ] **R5** Fix flaky tests first so CI is trustworthy: F26 (LibrariesPage delete test under load), F27 (pytest asyncio marks), and the one-off backend failure seen 2026-10-27 under a slow run (not captured).
+- [ ] **R5** Fix flaky tests first so CI is trustworthy: F26 (LibrariesPage delete test under load), F27 (pytest asyncio marks, done f6b9dd2), and the one-off backend failure seen 2026-10-27 under a slow run (not captured).
 
 ## CI
 
-- [ ] **R6** Proper CI on every push and PR: today `ci.yml` is only a Docker compose smoke test. Add jobs for `uv run pytest`, `ruff check` + `ruff format --check`, frontend `pnpm test`, `tsc -b`, `eslint`, and `pnpm version:check`; cache uv and pnpm. E2E (R3) as its own job.
+- [x] **R6** Proper CI on every push and PR: today `ci.yml` is only a Docker compose smoke test. Add jobs for `uv run pytest`, `ruff check` + `ruff format --check`, frontend `pnpm test`, `tsc -b`, `eslint`, and `pnpm version:check`; cache uv and pnpm. E2E (R3) as its own job. (1ada532, COMMIT)
 - [ ] **R7** Release workflow end to end: `release.yml` builds the wheel and a GitHub Release but stays off until `RELEASE_ENABLED` is `true`. Dry-run it on a test tag; check the wheel carries the built UI and installs with `uv tool install "moire-studio[cpu]"` on Linux, Windows and macOS.
 
 ## Versioning and publishing
