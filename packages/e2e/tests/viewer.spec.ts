@@ -68,8 +68,12 @@ test("arrow keys step through the feed", async ({ page, request }) => {
   await expect(page.getByText("furina_41.png", { exact: true })).toBeVisible();
 
   const here = viewerUrl(_id);
+  // Newest first, so the next image is the older furina_63. Wait for it to
+  // show before going back: a key pressed before the view has moved on
+  // steps from the old place.
   await page.keyboard.press("ArrowRight");
   await expect.poll(() => page.url()).not.toContain(here);
+  await expect(page.getByText("furina_63.png", { exact: true })).toBeVisible();
   await page.keyboard.press("ArrowLeft");
   await expect.poll(() => page.url()).toContain(here);
   await expect(page.getByText("furina_41.png", { exact: true })).toBeVisible();
