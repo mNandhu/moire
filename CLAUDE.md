@@ -57,6 +57,7 @@ The backend's import package is `moire` (`packages/backend/src/moire`, PyPI name
 - Pure logic lives in `lib/` with colocated `*.test.ts` (fuzzy, gen, gridNav, masonryLayout, imageFilter, ai). Prefer adding pure functions there with tests over logic inside components.
 - `components/VirtualizedGrid.tsx` + `masonryLayout.ts` compute row spans from width/height for a stable, reflow-free grid.
 - **No native browser menus.** Never use `<select>`, `<datalist>` or other browser-drawn pickers and menus: use `components/ui/Picker.tsx` (fuzzy search on long lists, groups, custom trigger) or `DropdownMenu`, and `TagSuggestList` for autocomplete. Native controls only where nothing else can do the job (a file picker).
+- **Keep the e2e suite in step with the UI.** When adding or changing UI functionality, add or update the Playwright specs in `packages/e2e/tests` (and the Covered / Still to cover lists in `docs/e2e-scenarios.md`) in the same change; a renamed button or label breaks their role/label selectors. Run `pnpm e2e` before committing UI work.
 
 ## Gotchas
 
