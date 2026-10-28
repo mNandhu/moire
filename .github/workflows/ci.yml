@@ -6,7 +6,70 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Cancel a superseded run on the same branch or PR.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: packages/backend/uv.lock
+
+      - name: Install
+        run: uv sync --locked
+
+      - name: Ruff
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      - name: Pytest
+        run: uv run pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Versions agree
+        run: pnpm version:check
+
+      - name: Type check
+        run: pnpm -C packages/frontend exec tsc -b
+
+      - name: ESLint
+        run: pnpm -C packages/frontend lint
+
+      - name: Vitest
+        run: pnpm -C packages/frontend test
+
   test-images-scan:
     runs-on: ubuntu-latest
     steps:
