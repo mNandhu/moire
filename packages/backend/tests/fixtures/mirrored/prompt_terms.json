@@ -1,5 +1,5 @@
 {
-  "about": "Prompt text -> the terms both prompt splitters read from it, in order. The backend's services/prompt_parse.parse_prompt is the authority: each row of `terms` is [name, kind] for one of its pieces, name being the piece's text through canonical_name (lowercase, unescaped, no weight or edge punctuation, spaces as underscores) and kind one of tag, prose, noise, network. This is the level both sides agree on: before keyword filtering, aliases or the prompt: prefix. The frontend's lib/promptOutline.promptTerms must read the same rows, comparing a network term (its lora or embedding kind) by its text as written, lowercased. Rows with an empty name (a weight left over beside an emoticon) are pieces the frontend skips, since there is nothing to show. The last two items of a row are the piece's prompt weight as ComfyUI and as A1111 read its emphasis (prompt_parse.Piece.weight); the frontend reads Generate's prompt, which is always ComfyUI's, so it compares the first. A case whose pieces A1111 cuts differently (it reads `\\\\\\\\(` as an escaped backslash and a group, ComfyUI as a stray backslash and a literal paren) gives the A1111 reading apart as `a1111_terms`, rows of [name, kind, weight]; `terms` is then ComfyUI's. Checked by tests/test_prompt_terms_fixture.py and promptOutline.test.ts.",
+  "about": "Prompt text -> the terms both prompt splitters read from it, in order. The backend's services/prompt_parse.parse_prompt is the authority: each row of `terms` is [name, kind] for one of its pieces, name being the piece's text through canonical_name (lowercase, unescaped, no weight or edge punctuation, spaces as underscores) and kind one of tag, prose, noise, network. This is the level both sides agree on: before keyword filtering, aliases or the prompt: prefix. The frontend's lib/promptOutline.promptTerms must read the same rows, comparing a network term (its lora or embedding kind) by its text as written, lowercased. Rows with an empty name (a weight left over beside an emoticon) are pieces the frontend skips, since there is nothing to show. The last two items of a row are the piece's prompt weight as ComfyUI and as A1111 read its emphasis (prompt_parse.Piece.weight); the frontend reads Generate's prompt, which is always ComfyUI's, so it compares the first. A case whose pieces A1111 cuts differently (it reads `\\\\(` as an escaped backslash and a group, ComfyUI as a stray backslash and a literal paren) gives the A1111 reading apart as `a1111_terms`, rows of [name, kind, weight]; `terms` is then ComfyUI's. Checked by tests/test_prompt_terms_fixture.py and promptOutline.test.ts.",
   "cases": [
     {
       "text": "1girl, (white dress:1.2), ((blue eyes)), [smile], x_\\(cosplay\\), (red bow:0.8)",
@@ -809,6 +809,23 @@
         [
           "1girl",
           "tag",
+          1.0
+        ]
+      ]
+    },
+    {
+      "text": "smile, trailing\\",
+      "terms": [
+        [
+          "smile",
+          "tag",
+          1.0,
+          1.0
+        ],
+        [
+          "trailing",
+          "tag",
+          1.0,
           1.0
         ]
       ]

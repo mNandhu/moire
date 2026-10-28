@@ -200,7 +200,7 @@ function scan(text: string): Raw[] {
       i += kw;
       continue;
     }
-    if (c === "\\" && i + 1 < n) {
+    if (c === "\\") {
       // An escaped comma still separates: a tag never holds one.
       if (text[i + 1] === ",") flush();
       else if (text[i + 1] === "(" || text[i + 1] === ")") add(text[i + 1], i, i + 2);
