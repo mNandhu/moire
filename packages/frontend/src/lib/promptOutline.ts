@@ -10,7 +10,7 @@
  * authority: both are checked against
  * `packages/backend/tests/fixtures/mirrored/prompt_terms.json`.
  */
-import { KAOMOJIS, canonicalName } from "./tags";
+import { KAOMOJIS, canonicalName, escapeParens } from "./tags";
 
 export type PromptTerm = {
   /** Canonical tag name: underscores, lowercase, no weight, escapes or edge
@@ -161,15 +161,20 @@ function scan(text: string): Raw[] {
   let hasText = false;
   const stack: Group[] = [];
   const top = () => stack[stack.length - 1] ?? null;
+  // Where a dropped backslash before the piece's first character sits: the
+  // piece's range starts there, so removing the piece takes it too.
+  let dropped: number | null = null;
   const add = (c: string, from: number, to: number) => {
     buf.chars.push(c);
-    buf.from.push(from);
+    buf.from.push(dropped ?? from);
     buf.to.push(to);
+    dropped = null;
   };
   const flush = () => {
     if (buf.chars.length) pieces.push({ ...buf, group: top() });
     buf = { chars: [], from: [], to: [], group: null };
     hasText = false;
+    dropped = null;
   };
   const emit = (at: number, raw: string) => {
     flush();
@@ -208,8 +213,11 @@ function scan(text: string): Raw[] {
         // ComfyUI escapes only a paren: any other backslash is itself, and
         // the next character reads as usual (`\\(` is a backslash and a
         // literal paren). That backslash, a prompt escaped twice, is never
-        // part of a tag, so it is dropped (prompt_parse._clean).
-        hasText = true;
+        // part of a tag, so it is dropped (prompt_parse._scan), though it
+        // stays in the range of the piece it borders.
+        const last = buf.to.length - 1;
+        if (last >= 0) buf.to[last] = i + 1;
+        else dropped ??= i;
         i++;
         continue;
       }
@@ -526,7 +534,7 @@ export function removeTerms(text: string, ranges: readonly { start: number; end:
 
 /** How a tag reads in a prompt: spaces, parens escaped. */
 function promptWord(name: string): string {
-  return name.replace(/_/g, " ").replace(/(?<!\\)([()])/g, "\\$1");
+  return escapeParens(name.replace(/_/g, " "));
 }
 
 /** `text` with a piece (as written) added at the end. */

@@ -106,6 +106,12 @@ export function weightOf(raw: string, weights?: PromptWeights | null): number | 
   return weights?.[tagName(raw).toLowerCase()];
 }
 
+/** `word` with its parens escaped for ComfyUI, one already escaped left as
+ * it is. The backend's generation_compose `_PAREN` is its twin. */
+export function escapeParens(word: string): string {
+  return word.replace(/(?<!\\)([()])/g, "\\$1");
+}
+
 /**
  * Tags as prompt text for pasting into ComfyUI / A1111: stored (underscore)
  * names, comma separated, each once, with `(` and `)` escaped, since bare parentheses
@@ -120,7 +126,7 @@ export function toPromptText(tags: readonly string[], weights?: PromptWeights | 
   const prompted = new Set(tags.filter(isPrompt).map((t) => tagName(t).toLowerCase()));
   return names
     .map((n) => {
-      const word = n.replace(/(?<!\\)([()])/g, "\\$1");
+      const word = escapeParens(n);
       const w = prompted.has(n.toLowerCase()) ? weightOf(n, weights) : undefined;
       return w === undefined ? word : `(${word}:${formatWeight(w)})`;
     })

@@ -26,7 +26,10 @@ def test_parse_prompt_reads_the_shared_cases(case):
         ]
 
     assert read("comfyui") == [t[:3] for t in case["terms"]]
-    a1111 = case.get("a1111_terms") or [[*t[:2], t[3]] for t in case["terms"]]
+    if "a1111_terms" in case:
+        a1111 = case["a1111_terms"]
+    else:
+        a1111 = [[*t[:2], t[3]] for t in case["terms"]]
     assert read("a1111") == a1111
 
 

@@ -122,6 +122,12 @@ describe("removeTerms", () => {
     expect(without("x_(cosplay)")).toBe("1girl, (sunflower field, blue sky:1.1), smile,\nstanding");
   });
 
+  it("takes a stray backslash with the term it borders", () => {
+    expect(cut("smile, trailing\\", "trailing")).toBe("smile");
+    expect(cut("\\\\foo, b", "foo")).toBe("b");
+    expect(cut("a, furina \\\\(genshin impact\\\\)", "furina_(genshin_impact)")).toBe("a");
+  });
+
   it("takes a group member and keeps the group's weight", () => {
     expect(without("sunflower_field")).toBe("1girl, (blue sky:1.1), smile,\nstanding, x_\\(cosplay\\)");
     expect(without("blue_sky")).toBe("1girl, (sunflower field:1.1), smile,\nstanding, x_\\(cosplay\\)");

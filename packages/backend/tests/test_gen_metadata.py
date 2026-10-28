@@ -681,10 +681,10 @@ def test_a_doubly_escaped_qualifier_reads_as_the_source_does():
     assert gm.prompt_weights(text, "comfyui") == {}
     assert gm.tokenize_prompt(text, source="a1111") == [
         "1girl",
-        "furina",
-        "genshin_impact",
+        "furina_\\",
+        "genshin_impact\\",
     ]
-    assert gm.prompt_weights(text, "a1111") == {"genshin_impact": 1.1}
+    assert gm.prompt_weights(text, "a1111") == {"genshin_impact\\": 1.1}
 
 
 def test_extract_weights_come_from_the_positive_prompt_only():

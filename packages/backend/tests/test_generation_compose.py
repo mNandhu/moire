@@ -78,6 +78,11 @@ def test_without_terms_keeps_the_rest_as_written():
     # A group goes only when all of it goes.
     assert without_terms("(a, b:1.2), c", {"a"}, canonical_name) == "(a, b:1.2), c"
     assert without_terms("", {"a"}, canonical_name) == ""
+    # ComfyUI escapes only a paren: `\\[` still opens a bracket, so the
+    # comma inside it does not cut the group in half.
+    assert without_terms("a \\[b, c], d", {"a", "b"}, canonical_name) == (
+        "a \\[b, c], d"
+    )
 
 
 def test_without_terms_trims_both_ends():

@@ -797,12 +797,12 @@
       ],
       "a1111_terms": [
         [
-          "furina",
+          "furina_\\",
           "tag",
           1.0
         ],
         [
-          "genshin_impact",
+          "genshin_impact\\",
           "tag",
           1.1
         ],
@@ -826,6 +826,47 @@
           "trailing",
           "tag",
           1.0,
+          1.0
+        ]
+      ],
+      "a1111_terms": [
+        [
+          "smile",
+          "tag",
+          1.0
+        ],
+        [
+          "trailing\\",
+          "tag",
+          1.0
+        ]
+      ]
+    },
+    {
+      "text": "\\\\m/, embedding:neg\\easynegative",
+      "terms": [
+        [
+          "\\m/",
+          "tag",
+          1.0,
+          1.0
+        ],
+        [
+          "embedding:neg\\easynegative",
+          "network",
+          1.0,
+          1.0
+        ]
+      ],
+      "a1111_terms": [
+        [
+          "\\m/",
+          "tag",
+          1.0
+        ],
+        [
+          "embedding:neg\\easynegative",
+          "network",
           1.0
         ]
       ]

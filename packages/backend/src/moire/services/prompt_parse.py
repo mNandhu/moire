@@ -261,18 +261,6 @@ def _is_edit_colon(text: str, i: int) -> bool:
     return not _WEIGHT_AHEAD.match(text, i + 1)
 
 
-def _escape_at(text: str, i: int, comfy: bool) -> int:
-    """Length of the escape at the backslash at ``i``; its last character is
-    the literal one. A1111 escapes any character, so ``\\\\(`` is a backslash
-    and then a group. ComfyUI (``escape_important``) only escapes a paren:
-    any other backslash is itself, so ``\\\\(`` is a backslash and a literal
-    paren. That stray backslash (a prompt escaped twice) is dropped by
-    :func:`_clean`."""
-    if not comfy or text[i + 1] in "()":
-        return 2
-    return 1
-
-
 @dataclass(frozen=True)
 class RawPiece:
     text: str
@@ -308,7 +296,7 @@ def _close(text: str, g: _Group, i: int) -> None:
 def _scan(text: str, comfy: bool = False) -> list[RawPiece]:
     """Raw pieces of ``text``, cut at separators and emphasis-group edges,
     each with the brackets it sat inside. ``comfy``: escapes as ComfyUI
-    reads them (see :func:`_escape_at`)."""
+    reads them (``escape_important``: only a paren is escaped)."""
     pieces: list[RawPiece] = []
     buf: list[str] = []
     # Whether `buf` holds any non-space text (kept as a flag, not re-derived,
@@ -347,12 +335,20 @@ def _scan(text: str, comfy: bool = False) -> list[RawPiece]:
             flush()
             i += skip
             continue
+        if ch == "\\" and comfy and (i + 1 == n or text[i + 1] not in "()"):
+            # ComfyUI escapes only a paren: any other backslash is itself,
+            # and the next character reads as usual (``\\(`` is a backslash
+            # and a literal paren). That backslash, a prompt escaped twice,
+            # is never part of a tag, so it is dropped. Emoticons and
+            # embedding paths that hold one pass whole above.
+            i += 1
+            continue
         if ch == "\\" and i + 1 < n:
-            # An escape is literal text (``\(``).
-            step = _escape_at(text, i, comfy)
-            buf.append(text[i + step - 1])
+            # An escape is literal text (``\(``). A1111 escapes any
+            # character, so ``\\(`` is a backslash and then a group.
+            buf.append(text[i + 1])
             has_text = True
-            i += step
+            i += 2
             continue
         if ch in _SEPARATORS:
             if ch == "|" and stack and stack[-1].kind == "[":
@@ -401,9 +397,6 @@ def _clean(raw: str, in_group: bool) -> str:
     s = re.sub(r"\s+", " ", raw).strip().lower()
     if s.startswith("<") or s in _EMOTICONS:
         return s
-    # A backslash left as text is a slip (a prompt escaped twice), never
-    # part of a tag; emoticons that hold one (``\m/``) are kept above.
-    s = s.replace("\\", "")
     # "(denpa onna to seishun otoko )" and "(... otoko)" are one qualifier.
     s = re.sub(r"\(\s+", "(", re.sub(r"\s+\)", ")", s))
     s = _LEAD_JOINER.sub("", s)
@@ -477,13 +470,15 @@ def _parse_cached(text: str, comfy: bool) -> tuple[Piece, ...]:
 
 def _top_level_pieces(text: str) -> list[tuple[str, str]]:
     """``text`` cut at commas and newlines outside brackets, each piece with the
-    separator after it (``""`` for the last)."""
+    separator after it (``""`` for the last). Escapes as ComfyUI reads them:
+    only a paren is escaped."""
     out: list[tuple[str, str]] = []
     depth, start = 0, 0
     for i, ch in enumerate(text):
-        if ch in "([" and (i == 0 or text[i - 1] != "\\"):
+        escaped = ch in "()" and i > 0 and text[i - 1] == "\\"
+        if ch in "([" and not escaped:
             depth += 1
-        elif ch in ")]" and (i == 0 or text[i - 1] != "\\"):
+        elif ch in ")]" and not escaped:
             depth = max(0, depth - 1)
         elif ch in ",\n" and depth == 0:
             out.append((text[start:i], ch))
