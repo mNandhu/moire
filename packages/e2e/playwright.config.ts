@@ -14,6 +14,8 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     colorScheme: "dark",
+    // E2E_SLOWMO=300 with --headed: slow enough to watch.
+    launchOptions: { slowMo: Number(process.env.E2E_SLOWMO ?? 0) },
   },
   projects: [
     // No retry: a second attempt meets the library the first one added.

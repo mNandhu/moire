@@ -9,7 +9,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export const BACKEND_PORT = 8020;
 export const COMFY_PORT = 8191;
 
-type Manifest = { images: number; dir: string };
+type Manifest = { images: number; dir: string; comfy_out: string };
 let manifest: Manifest | undefined;
 
 /** What `servers/start_backend.py` laid out: test_images plus filler, more
@@ -42,3 +42,17 @@ export async function waitForScan(request: APIRequestContext, count = sandbox().
     )
     .toBe(count);
 }
+
+type Image = { _id: string; tags?: string[]; score?: number };
+
+/** A fixture image by a piece of its path, e.g. "weighted/weighted.png". */
+export async function imageByPath(request: APIRequestContext, part: string): Promise<Image> {
+  const res = await request.get(`${API}/images?limit=200`);
+  expect(res.ok()).toBeTruthy();
+  const body = await res.json();
+  const found = ((body.items ?? body) as Image[]).find((i) => i._id.includes(part));
+  if (!found) throw new Error(`no fixture image matching ${part}`);
+  return found;
+}
+
+export const viewerUrl = (id: string) => `/image/${encodeURIComponent(id)}`;

@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 from PIL import Image
+from PIL.PngImagePlugin import PngInfo
 
 E2E = Path(__file__).resolve().parent.parent
 REPO = E2E.parent.parent
@@ -26,6 +27,13 @@ PORT = os.environ.get("E2E_BACKEND_PORT", "8020")
 
 # More than one feed page (PAGE_LIMIT is 100), so paging is exercised.
 FILLER = 120
+
+# An A1111-style prompt with known weights, for the viewer specs.
+WEIGHTED = (
+    "1girl, solo, (red_scarf:1.3), [blurry], smile, snow\n"
+    "Negative prompt: lowres\n"
+    "Steps: 20, Sampler: Euler a, CFG scale: 7, Seed: 1234, Size: 96x128, Model: e2e_model"
+)
 
 
 def lay_out_library() -> int:
@@ -42,6 +50,13 @@ def lay_out_library() -> int:
         shutil.copyfile(src, dest)
         t = base - i * 60
         os.utime(dest, (t, t))
+    weighted = IMAGES / "weighted" / "weighted.png"
+    weighted.parent.mkdir(parents=True)
+    info = PngInfo()
+    info.add_text("parameters", WEIGHTED)
+    Image.new("RGB", (96, 128), (200, 60, 60)).save(weighted, pnginfo=info)
+    t = base - 1800
+    os.utime(weighted, (t, t))
     filler = IMAGES / "filler"
     filler.mkdir(parents=True)
     for i in range(FILLER):
@@ -50,7 +65,7 @@ def lay_out_library() -> int:
         Image.new("RGB", (96, 128), (shade, 90, 255 - shade)).save(dest)
         t = base - 3600 - i * 60
         os.utime(dest, (t, t))
-    return len(real) + FILLER
+    return len(real) + 1 + FILLER
 
 
 def main() -> None:
@@ -59,7 +74,13 @@ def main() -> None:
     shutil.rmtree(SANDBOX, ignore_errors=True)
     HOME.mkdir(parents=True)
     # The specs read what was laid out rather than counting it themselves.
-    manifest = {"images": lay_out_library(), "dir": str(IMAGES)}
+    # Where the fake ComfyUI saves (FAKE_COMFY_OUT): Generate's output folder.
+    (SANDBOX / "comfy-out").mkdir()
+    manifest = {
+        "images": lay_out_library(),
+        "dir": str(IMAGES),
+        "comfy_out": str(SANDBOX / "comfy-out"),
+    }
     (SANDBOX / "manifest.json").write_text(json.dumps(manifest))
     # An empty dotenv of its own: the checkout's packages/backend/.env would
     # otherwise apply on top (config.py reads it in a checkout).
@@ -70,9 +91,10 @@ def main() -> None:
         "MOIRE_ENV_FILE": str(HOME / ".env"),
         "SQLITE_PATH": str(HOME / "data/moire.db"),
         "THUMB_ROOT": str(HOME / "data/thumbs"),
-        # Models are big: reuse a cache across runs when one is given.
+        # The tagger model is big (~360 MB): share the checkout's model cache
+        # (or the one given) across runs instead of downloading it each time.
         "MODEL_CACHE_DIR": os.environ.get("E2E_MODEL_CACHE_DIR")
-        or str(HOME / "models"),
+        or str(REPO / ".cache/moire/models"),
         "WATCH_ENABLED_DEFAULT": "false",
         "LOG_TO_FILE": "false",
     }
