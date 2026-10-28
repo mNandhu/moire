@@ -517,7 +517,12 @@ export function removeTerms(text: string, ranges: readonly { start: number; end:
     const groups = chain(p.group).filter(isGone);
     const top = groups[groups.length - 1];
     if (top) spans.push({ start: top.open, end: top.close + 1 });
-    else if (hit.has(p)) spans.push(p.term);
+    else if (hit.has(p)) spans.push({ start: p.term.start, end: p.term.end });
+  }
+  // A backslash just before a span that does not escape a paren is one the
+  // scan dropped (`\\[smile]`): it goes with what it stood before.
+  for (const sp of spans) {
+    while (sp.start > 0 && text[sp.start - 1] === "\\" && text[sp.start] !== "(" && text[sp.start] !== ")") sp.start--;
   }
   // From the end, so the earlier offsets still hold; a span inside one
   // already cut is gone with it.

@@ -43,11 +43,12 @@ def compose_parts(items: Iterable[str | Iterable[str]]) -> str:
                 parts.append(text)
             continue
         for word in item:
-            word = word.strip()
-            if not word or word in seen:
+            # Keyed on the chip as written: `a_(b)` and `a_\(b\)` are one.
+            chip = _chip_text(word.strip())
+            if not chip or chip in seen:
                 continue
-            seen.add(word)
-            parts.append(_chip_text(word))
+            seen.add(chip)
+            parts.append(chip)
     return ", ".join(parts)
 
 

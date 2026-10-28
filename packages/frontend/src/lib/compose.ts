@@ -41,10 +41,11 @@ export function composeParts(items: readonly (string | readonly string[])[]): st
       continue;
     }
     for (const raw of item) {
-      const word = raw.trim();
-      if (!word || seen.has(word)) continue;
-      seen.add(word);
-      parts.push(chipText(word));
+      // Keyed on the chip as written: `a_(b)` and `a_\(b\)` are one.
+      const chip = chipText(raw.trim());
+      if (!chip || seen.has(chip)) continue;
+      seen.add(chip);
+      parts.push(chip);
     }
   }
   return parts.join(", ");

@@ -124,6 +124,7 @@ describe("removeTerms", () => {
 
   it("takes a stray backslash with the term it borders", () => {
     expect(cut("smile, trailing\\", "trailing")).toBe("smile");
+    expect(cut("a, \\[smile]", "smile")).toBe("a");
     expect(cut("\\\\foo, b", "foo")).toBe("b");
     expect(cut("a, furina \\\\(genshin impact\\\\)", "furina_(genshin_impact)")).toBe("a");
   });

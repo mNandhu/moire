@@ -118,3 +118,7 @@ def test_prompt_terms_keep_escaped_parens_and_kaomoji():
 def test_compose_leaves_an_escaped_chip_escaped_once():
     # A chip already written escaped is sent as it is, not escaped twice.
     assert compose("", ["furina \\(genshin impact\\)"]) == "furina \\(genshin impact\\)"
+
+
+def test_compose_writes_a_chip_once_however_it_was_escaped():
+    assert compose("", ["a_(b)"], ["a_\\(b\\)"]) == "a_\\(b\\)"

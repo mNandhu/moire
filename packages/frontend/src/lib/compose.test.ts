@@ -16,6 +16,9 @@ describe("compose", () => {
   it("leaves a chip written escaped escaped once", () => {
     expect(compose("", ["furina \\(genshin impact\\)"])).toBe("furina \\(genshin impact\\)");
   });
+  it("writes a chip once however it was escaped", () => {
+    expect(compose("", ["a_(b)"], ["a_\\(b\\)"])).toBe("a_\\(b\\)");
+  });
   it("handles an empty base", () => {
     expect(compose("", ["a"], [])).toBe("a");
     expect(compose("  ")).toBe("");
