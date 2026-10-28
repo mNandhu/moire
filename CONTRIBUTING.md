@@ -110,6 +110,7 @@ Settings come from environment variables or `.env` (see `packages/backend/.env.e
 - `THUMB_MAX_SIZE` (768), `SCANNER_MAX_WORKERS` (0 = CPU count), `SCANNER_MAX_CONCURRENT_SCANS` (2)
 - `LOG_LEVEL` (`INFO`), `LOG_TO_FILE` (`true`)
 - `WATCH_ENABLED_DEFAULT`, `WATCH_RECONCILE_INTERVAL_S`: folder watching and the periodic rescan
+- `MOIRE_ENV_FILE`: read only this `.env` instead of the usual ones (the e2e sandbox uses it)
 
 ## Pull requests
 

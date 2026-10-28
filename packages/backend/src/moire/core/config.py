@@ -38,15 +38,18 @@ MOIRE_HOME, IS_CHECKOUT = _home()
 API_PREFIX = "/api/v1"
 
 
+def _env_files() -> tuple[Path, ...]:
+    """`MOIRE_ENV_FILE` names the only dotenv file to read (the e2e sandbox
+    points it at its own, so a checkout's `packages/backend/.env` stays out)."""
+    if env := os.environ.get("MOIRE_ENV_FILE"):
+        return (Path(env),)
+    if IS_CHECKOUT:
+        return (MOIRE_HOME / ".env", _BACKEND_ROOT / ".env")
+    return (MOIRE_HOME / ".env",)
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=(
-            (MOIRE_HOME / ".env", _BACKEND_ROOT / ".env")
-            if IS_CHECKOUT
-            else (MOIRE_HOME / ".env",)
-        ),
-        extra="ignore",
-    )
+    model_config = SettingsConfigDict(env_file=_env_files(), extra="ignore")
 
     # SQLite database file. Relative values resolve against MOIRE_HOME (NOT the
     # process cwd), mirroring `thumb_root`, so the DB lands at `<MOIRE_HOME>/data/moire.db`

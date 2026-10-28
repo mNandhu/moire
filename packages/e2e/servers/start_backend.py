@@ -8,6 +8,7 @@ Run from the backend env (Playwright's webServer does this):
     uv --directory packages/backend run python ../e2e/servers/start_backend.py
 """
 
+import json
 import os
 import shutil
 import sys
@@ -27,7 +28,7 @@ PORT = os.environ.get("E2E_BACKEND_PORT", "8020")
 FILLER = 120
 
 
-def lay_out_library() -> None:
+def lay_out_library() -> int:
     """The six generated SFW images (prompt metadata, one folder per
     character) plus plain filler. Fixed mtimes: the feed is newest first, so
     the real images lead and the filler pages after them."""
@@ -49,6 +50,7 @@ def lay_out_library() -> None:
         Image.new("RGB", (96, 128), (shade, 90, 255 - shade)).save(dest)
         t = base - 3600 - i * 60
         os.utime(dest, (t, t))
+    return len(real) + FILLER
 
 
 def main() -> None:
@@ -56,10 +58,16 @@ def main() -> None:
         sys.exit("No built UI: run `pnpm build` first (the backend serves it).")
     shutil.rmtree(SANDBOX, ignore_errors=True)
     HOME.mkdir(parents=True)
-    lay_out_library()
+    # The specs read what was laid out rather than counting it themselves.
+    manifest = {"images": lay_out_library(), "dir": str(IMAGES)}
+    (SANDBOX / "manifest.json").write_text(json.dumps(manifest))
+    # An empty dotenv of its own: the checkout's packages/backend/.env would
+    # otherwise apply on top (config.py reads it in a checkout).
+    (HOME / ".env").touch()
     env = {
         **os.environ,
         "MOIRE_HOME": str(HOME),
+        "MOIRE_ENV_FILE": str(HOME / ".env"),
         "SQLITE_PATH": str(HOME / "data/moire.db"),
         "THUMB_ROOT": str(HOME / "data/thumbs"),
         # Models are big: reuse a cache across runs when one is given.
