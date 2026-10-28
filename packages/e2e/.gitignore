@@ -1,3 +1,4 @@
 .sandbox/
 test-results/
 playwright-report/
+.models/

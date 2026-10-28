@@ -68,19 +68,32 @@ def lay_out_library() -> int:
     return len(real) + 1 + FILLER
 
 
+def model_cache() -> Path:
+    """The tagger model is big (~360 MB): kept between runs, outside the
+    wiped sandbox. Never the checkout's own cache, which `pnpm dev` may be
+    using; a model already there is copied over once instead of downloaded."""
+    cache = Path(os.environ.get("E2E_MODEL_CACHE_DIR") or E2E / ".models")
+    cache.mkdir(parents=True, exist_ok=True)
+    dev = REPO / ".cache/moire/models"
+    for src in dev.glob("*_wd-*"):
+        dest = cache / src.name
+        if src.is_file() and not dest.exists():
+            part = dest.with_name(f".{dest.name}.part")
+            shutil.copyfile(src, part)
+            os.replace(part, dest)
+    return cache
+
+
 def main() -> None:
     if not (REPO / "packages/backend/src/moire/web/index.html").is_file():
         sys.exit("No built UI: run `pnpm build` first (the backend serves it).")
     shutil.rmtree(SANDBOX, ignore_errors=True)
     HOME.mkdir(parents=True)
     # The specs read what was laid out rather than counting it themselves.
-    # Where the fake ComfyUI saves (FAKE_COMFY_OUT): Generate's output folder.
-    (SANDBOX / "comfy-out").mkdir()
-    manifest = {
-        "images": lay_out_library(),
-        "dir": str(IMAGES),
-        "comfy_out": str(SANDBOX / "comfy-out"),
-    }
+    # Where the fake ComfyUI saves: Generate's output folder in the specs.
+    # The config passes the same path to both servers.
+    Path(os.environ.get("E2E_COMFY_OUT") or SANDBOX / "comfy-out").mkdir(parents=True)
+    manifest = {"images": lay_out_library(), "dir": str(IMAGES)}
     (SANDBOX / "manifest.json").write_text(json.dumps(manifest))
     # An empty dotenv of its own: the checkout's packages/backend/.env would
     # otherwise apply on top (config.py reads it in a checkout).
@@ -91,10 +104,7 @@ def main() -> None:
         "MOIRE_ENV_FILE": str(HOME / ".env"),
         "SQLITE_PATH": str(HOME / "data/moire.db"),
         "THUMB_ROOT": str(HOME / "data/thumbs"),
-        # The tagger model is big (~360 MB): share the checkout's model cache
-        # (or the one given) across runs instead of downloading it each time.
-        "MODEL_CACHE_DIR": os.environ.get("E2E_MODEL_CACHE_DIR")
-        or str(REPO / ".cache/moire/models"),
+        "MODEL_CACHE_DIR": str(model_cache()),
         "WATCH_ENABLED_DEFAULT": "false",
         "LOG_TO_FILE": "false",
     }

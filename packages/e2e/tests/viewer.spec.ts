@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { API, imageByPath, viewerUrl } from "./helpers";
+import { imageById, imageByPath, viewerUrl } from "./helpers";
 
 test("the Tags tab shows prompt weights", async ({ page, request }) => {
   const { _id } = await imageByPath(request, "weighted/weighted.png");
@@ -25,8 +25,7 @@ test("tags added in the viewer are saved as manual tags", async ({ page, request
   await expect(panel.getByRole("link", { name: "cozy", exact: true })).toBeVisible();
 
   // Stored canonical (underscores), as manual tags, next to the prompt ones.
-  const res = await request.get(`${API}/images/${encodeURIComponent(_id)}`);
-  const tags: string[] = (await res.json()).tags;
+  const { tags } = await imageById(request, _id);
   expect(tags).toEqual(expect.arrayContaining(["manual:e2e_manual", "manual:cozy", "prompt:smile"]));
 
   await page.reload();
@@ -43,7 +42,7 @@ test("a score set in the viewer sticks", async ({ page, request }) => {
 
   await page.reload();
   await expect(page.getByRole("radiogroup", { name: "Score" }).getByRole("radio", { name: "Set score 4" })).toBeChecked();
-  await expect.poll(async () => (await imageByPath(request, "frieren/frieren_31.png")).score).toBe(4);
+  await expect.poll(async () => (await imageById(request, _id)).score).toBe(4);
 });
 
 test("arrow keys step through the feed", async ({ page, request }) => {
@@ -51,8 +50,10 @@ test("arrow keys step through the feed", async ({ page, request }) => {
   await page.goto(viewerUrl(_id));
   await expect(page.getByText("furina_41.png", { exact: true })).toBeVisible();
 
+  const here = viewerUrl(_id);
   await page.keyboard.press("ArrowRight");
-  await expect(page).not.toHaveURL(new RegExp(encodeURIComponent(_id).replace(/[.%]/g, "\\$&")));
+  await expect.poll(() => page.url()).not.toContain(here);
   await page.keyboard.press("ArrowLeft");
+  await expect.poll(() => page.url()).toContain(here);
   await expect(page.getByText("furina_41.png", { exact: true })).toBeVisible();
 });

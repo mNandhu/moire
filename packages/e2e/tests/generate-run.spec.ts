@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { API, sandbox } from "./helpers";
+import { API, COMFY_OUT } from "./helpers";
 
 // A real run, end to end, on the fake ComfyUI: it saves small PNGs into the
 // sandbox folder set as Generate's output folder, and Moiré indexes them.
 test("a Generate run lands its images in the output library", async ({ page, request }) => {
   test.setTimeout(120_000);
-  const { comfy_out } = sandbox();
+  const comfy_out = COMFY_OUT;
 
   await page.goto("/settings?section=comfyui");
   // The fake runs on this machine and saves into comfy_out: that folder is
@@ -13,9 +13,11 @@ test("a Generate run lands its images in the output library", async ({ page, req
   // images are linked where they are.
   for (const name of ["Output folder", "ComfyUI saves to"]) {
     const box = page.getByRole("textbox", { name });
+    const save = box.locator("xpath=following-sibling::button[1]");
     await box.fill(comfy_out);
-    await box.locator("xpath=following-sibling::button[1]").click();
-    await expect(box.locator("xpath=following-sibling::button[1]")).toBeDisabled();
+    // Enabled only when the value changed.
+    if (await save.isEnabled()) await save.click();
+    await expect(save).toBeDisabled();
   }
   await expect
     .poll(async () => (await (await request.get(`${API}/generate/comfyui`)).json()).output_root)

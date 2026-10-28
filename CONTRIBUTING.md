@@ -64,7 +64,7 @@ A husky pre-commit hook runs ruff and eslint on staged files. Generate-related t
 
 `packages/e2e` is a Playwright suite (Chromium) against a throwaway Moiré: `servers/start_backend.py` wipes `packages/e2e/.sandbox`, copies `test_images/` plus generated filler (more than one feed page) into it, and starts the backend on :8020 with every data path inside the sandbox, serving the built UI. A fake ComfyUI (`servers/fake_comfy_server.py`) runs on :8191. Neither port clashes with `pnpm dev`. First run: `pnpm -C packages/e2e exec playwright install chromium`.
 
-The AI tagging spec runs the real WD tagger: it reads the checkout's model cache (`.cache/moire/models`, or `E2E_MODEL_CACHE_DIR`), so the first run downloads about 360 MB. To watch a run: `E2E_SLOWMO=300 pnpm -C packages/e2e test --headed`.
+The AI tagging spec runs the real WD tagger, last, on three images of the fixture library. Its model lives in `packages/e2e/.models` (or `E2E_MODEL_CACHE_DIR`), kept between runs; the first run copies it from the checkout's `.cache/moire/models` if it is there, else downloads about 360 MB. To watch a run: `E2E_SLOWMO=300 pnpm -C packages/e2e test --headed`.
 
 Specs share one app and run in order: `onboarding.setup.ts` walks the welcome flow (adds the library, connects the fake ComfyUI) and every other spec depends on it. Scenarios still to cover are listed in `docs/e2e-scenarios.md`.
 
