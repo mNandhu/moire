@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import partCases from "../../../backend/tests/fixtures/mirrored/character_parts.json";
+import { formatTag } from "./tags";
 import {
   fewImagesNote,
   mixColours,
@@ -21,6 +23,13 @@ describe("characterName", () => {
     expect(characterName("2b_(nier:automata)")).toEqual({ name: "2b", series: "nier:automata" });
     expect(characterName("holo")).toEqual({ name: "holo", series: null });
     expect(characterName("hu_tao_(genshin_impact)")).toEqual({ name: "hu tao", series: "genshin impact" });
+  });
+
+  it.each(partCases.cases)("splits $tag like the backend's character_parts", (c) => {
+    expect(characterName(c.tag)).toEqual({
+      name: formatTag(c.name),
+      series: c.series === null ? null : formatTag(c.series),
+    });
   });
 
   it("splits one trailing qualifier only, like the backend", () => {

@@ -75,7 +75,8 @@ export const tagHref = (tag: string) => `/tags/${encodeURIComponent(tag)}`;
 export const characterHref = (tag: string) => `/characters/${encodeURIComponent(tag)}`;
 
 /** "nahida (genshin impact)" as the name and the series it's from. One
- * trailing qualifier only, the backend's rule (tag_categories `_QUALIFIER`):
+ * trailing qualifier only, the backend's rule (tag_categories
+ * `character_parts`, shared cases in tests/fixtures/mirrored/character_parts.json):
  * "a (b) (c)" is a whole name, not "a" from "b) (c". */
 export function characterName(tag: string): { name: string; series: string | null } {
   const shown = formatTag(tag);

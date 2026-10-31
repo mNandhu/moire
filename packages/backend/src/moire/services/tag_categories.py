@@ -80,13 +80,22 @@ def _read(csv_path: str) -> Vocab:
     return vocab(names, others, general)
 
 
+def character_parts(tag: str) -> tuple[str, str] | None:
+    """A character tag's name and series (``hu_tao_(genshin_impact)`` ->
+    ``hu_tao``, ``genshin_impact``), or None when it has no single trailing
+    qualifier. character.ts ``characterName`` splits the same way (shared
+    cases: tests/fixtures/mirrored/character_parts.json). Pure."""
+    m = _QUALIFIER.match(tag)
+    return (m.group(1), m.group(2)) if m else None
+
+
 def vocab(names: set[str], others: set[str], general: set[str] = frozenset()) -> Vocab:
     """The character vocabulary from the listed character names, every other
     listed tag, and the general ones among those. Pure."""
     by_bare: dict[str, list[Candidate]] = {}
     for name in names:
-        if m := _QUALIFIER.match(name):
-            by_bare.setdefault(m.group(1), []).append(Candidate(m.group(2), name))
+        if parts := character_parts(name):
+            by_bare.setdefault(parts[0], []).append(Candidate(parts[1], name))
     candidates = {
         bare: found[0]
         for bare, found in by_bare.items()

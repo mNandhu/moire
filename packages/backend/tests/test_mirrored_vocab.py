@@ -11,7 +11,7 @@ from typing import get_args
 
 import pytest
 
-from moire.services import attire, character_look, tag_canon
+from moire.services import attire, character_look, tag_canon, tag_categories
 from moire.services.tag_names import KAOMOJIS, canonical_name
 
 LIB = Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib"
@@ -64,6 +64,21 @@ COLOUR_WORD = json.loads(
 def test_colour_word_reads_the_shared_cases(case):
     # tagColour.test.ts reads the same file through colourWord.
     assert character_look.colour_of(case["tag"]) == case["colour"]
+
+
+CHARACTER_PARTS = json.loads(
+    (
+        Path(__file__).parent / "fixtures" / "mirrored" / "character_parts.json"
+    ).read_text(encoding="utf-8")
+)
+
+
+@pytest.mark.parametrize("case", CHARACTER_PARTS["cases"], ids=lambda c: c["tag"])
+def test_character_parts_read_the_shared_cases(case):
+    # character.test.ts reads the same file through characterName.
+    parts = tag_categories.character_parts(case["tag"])
+    want = (case["name"], case["series"]) if case["series"] else None
+    assert parts == want
 
 
 def test_kaomojis_match():
