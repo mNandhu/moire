@@ -16,41 +16,41 @@ Gathered 2026-10-27 from the "left open" notes under each phase below, so they a
 
 Bugs and correctness:
 
-- [x] **F1** Dialog decides Escape by a selector of popup markers; TagSearchInput and other comboboxes inside a dialog still lose Escape to it. Fix: popups claim Escape, Dialog acts only on unclaimed ones [P0] (F1+F2 commit)
-- [x] **F2** DropdownMenu closes on Escape from both a wrapper handler and a document listener [P0] (F1+F2 commit)
-- [ ] **F3** Facet counts always leave quarantined images out, so the Quarantined view's filter dropdowns miss models used only there [P0]
-- [ ] **F4** Removing every member of an unclosed prompt group ("(smile, red eyes") leaves a lone "(" [P1]
-- [ ] **F5** A rule change computes its affected images before taking the reproject lock; a run in flight with the old config can leave a stale tag outside that set [P1]
-- [ ] **F6** bulk_manual over 2000 ids can fail with earlier chunks already applied (only the docstring says so) [P3]
-- [ ] **F7** scan_incremental's exact-id "existed" check misses backslash ids; a real fix upserts under the resolved id [P4]
-- [ ] **F8** TagEditDialog and CharacterEditDialog can leave a stuck `saving` flag; part of F10 [P2]
+- [x] **F1** Dialog decides Escape by a selector of popup markers; TagSearchInput and other comboboxes inside a dialog still lose Escape to it. Fix: popups claim Escape, Dialog acts only on unclaimed ones [P0] (c545ece)
+- [x] **F2** DropdownMenu closes on Escape from both a wrapper handler and a document listener [P0] (c545ece)
+- [x] **F3** Facet counts always leave quarantined images out, so the Quarantined view's filter dropdowns miss models used only there [P0] (12ff133)
+- [x] **F4** Removing every member of an unclosed prompt group ("(smile, red eyes") leaves a lone "(" [P1] (58b05d0)
+- [x] **F5** A rule change computes its affected images before taking the reproject lock; a run in flight with the old config can leave a stale tag outside that set [P1] (5afd70b)
+- [x] **F6** bulk_manual over 2000 ids can fail with earlier chunks already applied (only the docstring says so) [P3] (c896a0d)
+- [x] **F7** scan_incremental's exact-id "existed" check misses backslash ids; a real fix upserts under the resolved id [P4] (ac89062, b3e76aa)
+- [x] **F8** TagEditDialog and CharacterEditDialog can leave a stuck `saving` flag; part of F10 [P2] (ff1d826)
 
 Duplication and structure:
 
-- [ ] **F9** L2.5 fixtures not done: the frontend prompt splitter copies prompt_parse's emoticon list, PROSE_WORDS, ABBREV and JOINERS with no kaomojis/compose/split_requests fixture guarding them [P1]
-- [ ] **F10** L3.9 outside Generate: TagEditDialog, CharacterEditDialog, NewCharacterDialog, RenameTagDialog, BulkTagDialog and six settings sections hand-roll save flags; use `Button pending` + `DialogFooter` [P2]
-- [ ] **F11** S11.5: one backend `POST /batches/{id}/retry-failed` to replace the client retry loop [P2]
-- [ ] **F12** S2.7: a `loadImage` helper and a general `imageUrl(id, suffix)` for imageMutations' `forImage`; `useSizePresets` still lives in SizeFilter.tsx [P2]
-- [ ] **F13** Shortcut help table in lib/shortcuts.ts is still hand-kept beside the keyboard registry (L3.4) [P2]
-- [ ] **F14** OutfitMenu not split into its own file (S12.8) [P2]
+- [x] **F9** L2.5 fixtures not done: the frontend prompt splitter copies prompt_parse's emoticon list, PROSE_WORDS, ABBREV and JOINERS with no kaomojis/compose/split_requests fixture guarding them [P1] (fbaca39)
+- [x] **F10** L3.9 outside Generate: TagEditDialog, CharacterEditDialog, NewCharacterDialog, RenameTagDialog, BulkTagDialog and six settings sections hand-roll save flags; use `Button pending` + `DialogFooter` [P2] (ff1d826)
+- [x] **F11** S11.5: one backend `POST /batches/{id}/retry-failed` to replace the client retry loop [P2] (963dd57)
+- [x] **F12** S2.7: a `loadImage` helper and a general `imageUrl(id, suffix)` for imageMutations' `forImage`; `useSizePresets` still lives in SizeFilter.tsx [P2] (4c68887)
+- [ ] **F13** Shortcut help table in lib/shortcuts.ts is still hand-kept beside the keyboard registry (L3.4) [P2] Open: bindings live in six hooks with match functions and no labels; deriving the table is a rewrite, not a cleanup.
+- [x] **F14** OutfitMenu not split into its own file (S12.8) [P2] (4ba0449)
 - [ ] **F15** S2.1: ImageView's stepper and details-sheet hooks not extracted (ImageView.tsx is still ~1300 lines) [P1]
-- [ ] **F16** Generator test settle (`_arrived`) and `test_status` derive the same thing twice; only cross-referenced in comments [P5]
-- [ ] **F17** AI settings Save does not share the model card's busy flag [P5]
+- [x] **F16** Generator test settle (`_arrived`) and `test_status` derive the same thing twice; only cross-referenced in comments [P5] (2860276)
+- [x] **F17** AI settings Save does not share the model card's busy flag [P5] (ff1d826)
 - [ ] **F18** L2.8 rest: the character name/series split is still frontend-only (null name/series means "unset" on the wire, ~20 callers split bare tags) [P5]
 - [ ] **F19** Behaviour-changing dedupes skipped in P4: gallery desktop/phone Sort/Group/Select controls, CountStepper on NumberStepper, OutfitChip into TagPill, a shared InlineRename, workflowLine sharing workflowOrigin [P4]
 
 Dead code and small efficiency:
 
-- [ ] **F20** `GET /libraries/{id}/progress` is unused by the app; move scripts/test-docker.sh and tests/perf_benchmark.py to GET /libraries, then drop the route [P2]
-- [ ] **F21** `feedCache.patchImageEverywhere` is only used by tests [P2]
-- [ ] **F22** JsonTree re-walks each subtree per entry for `forced` (quadratic on big graphs) [P0]
-- [ ] **F23** image_delete re-SELECTs thumb_key that callers already hold [P3]
-- [ ] **F24** batchStats does extra work per BatchPanel render; SaveOutfitDialog keeps blank/isDefault aliases of mode; test_status repeats batch_exists; known_workflow_ids rebuilds family_sigs' per-signature sample subquery [P4]
+- [x] **F20** `GET /libraries/{id}/progress` is unused by the app; move scripts/test-docker.sh and tests/perf_benchmark.py to GET /libraries, then drop the route [P2] (21c1832)
+- [x] **F21** `feedCache.patchImageEverywhere` is only used by tests [P2] (7ba68a3)
+- [x] **F22** JsonTree re-walks each subtree per entry for `forced` (quadratic on big graphs) [P0] (a68d362)
+- [x] **F23** image_delete re-SELECTs thumb_key that callers already hold [P3] (cd6add4)
+- [x] **F24** batchStats does extra work per BatchPanel render; SaveOutfitDialog keeps blank/isDefault aliases of mode; test_status repeats batch_exists; known_workflow_ids rebuilds family_sigs' per-signature sample subquery [P4] (7eda073, 2860276, f78a9eb)
 
 Tooling and tests:
 
-- [ ] **F25** 8 eslint warnings in the frontend not triaged [P3]
-- [ ] **F26** LibrariesPage.test "drops both the flat feed and the grouped view on delete" flakes under full-suite load (passes alone) [P2]
+- [x] **F25** 8 eslint warnings in the frontend not triaged [P3] (47f6db0)
+- [x] **F26** LibrariesPage.test "drops both the flat feed and the grouped view on delete" flakes under full-suite load (passes alone) [P2] (a966aa1; not reproduced, waits widened)
 - [x] **F27** 44 pytest warnings: sync tests in modules with `pytestmark = pytest.mark.asyncio` (e.g. test_scan_reproject_integration.py, test_tag_settings_integration.py); `asyncio_mode = "auto"` makes the module mark unnecessary [new] (f6b9dd2)
 - [ ] **F28** L2.3 rest: TS image fields are all still optional (making the always-sent ones required ripples into test casts and BatchStrip's stub tile) [P5]
 
