@@ -77,28 +77,6 @@ async def reproject_library_endpoint(library_id: str):
     return {"reproject": library_id, "started": True}
 
 
-@router.get("/{library_id}/progress")
-async def library_progress(library_id: str):
-    async with async_conn() as conn:
-        lib = (
-            await conn.execute(
-                sa.select(t.libraries).where(t.libraries.c._id == library_id)
-            )
-        ).first()
-    if lib is None:
-        raise HTTPException(status_code=404, detail="Library not found")
-    m = lib._mapping
-    return {
-        "scanning": bool(m.get("scanning", False)),
-        "scan_total": m.get("scan_total", 0),
-        "scan_done": m.get("scan_done", 0),
-        "indexed_count": m.get("indexed_count", 0),
-        "last_scanned": m.get("last_scanned"),
-        "scan_error": m.get("scan_error"),
-        "scan_failed_count": m.get("scan_failed_count", 0),
-    }
-
-
 @router.patch("/{library_id}")
 async def update_library(library_id: str, body: LibraryUpdate):
     update_doc = {k: v for k, v in body.model_dump(exclude_unset=True).items()}

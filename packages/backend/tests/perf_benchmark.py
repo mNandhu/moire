@@ -109,6 +109,12 @@ async def add_library(client: httpx.AsyncClient, lib_path: str) -> str:
     return data.get("_id")
 
 
+async def library_progress(client: httpx.AsyncClient, lib_id: str) -> dict:
+    r = await client.get(f"{API_URL}/libraries", timeout=TIMEOUT)
+    r.raise_for_status()
+    return next((lib for lib in r.json() if lib["_id"] == lib_id), {})
+
+
 async def wait_for_scan(
     client: httpx.AsyncClient,
     lib_id: str,
@@ -117,9 +123,7 @@ async def wait_for_scan(
 ):
     start = time.time()
     while True:
-        r = await client.get(f"{API_URL}/libraries/{lib_id}/progress", timeout=TIMEOUT)
-        r.raise_for_status()
-        p = r.json()
+        p = await library_progress(client, lib_id)
         if not p.get("scanning"):
             return p
         if time.time() - start > max_wait:
@@ -132,9 +136,7 @@ async def wait_until_scanning(
 ) -> bool:
     start = time.time()
     while time.time() - start < timeout_s:
-        r = await client.get(f"{API_URL}/libraries/{lib_id}/progress", timeout=TIMEOUT)
-        r.raise_for_status()
-        p = r.json()
+        p = await library_progress(client, lib_id)
         if p.get("scanning"):
             return True
         await asyncio.sleep(0.25)

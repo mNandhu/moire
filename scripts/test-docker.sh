@@ -35,12 +35,12 @@ if [ -z "$LIB_ID" ]; then echo "❌ Adding the library returned no _id"; exit 1;
 
 scan_done=false
 for _ in {1..120}; do
-    SCANNING=$(curl -sf "$API/libraries/$LIB_ID/progress" | jq -r '.scanning')
+    SCANNING=$(curl -sf "$API/libraries" | jq -r --arg id "$LIB_ID" '.[] | select(._id == $id) | .scanning')
     if [ "$SCANNING" = "false" ]; then scan_done=true; break; fi
     sleep 2
 done
 if [ "$scan_done" != true ]; then echo "❌ Scan did not finish in time"; $COMPOSE logs backend; exit 1; fi
-INDEXED=$(curl -sf "$API/libraries/$LIB_ID/progress" | jq -r '.indexed_count')
+INDEXED=$(curl -sf "$API/libraries" | jq -r --arg id "$LIB_ID" '.[] | select(._id == $id) | .indexed_count')
 if [ "$INDEXED" = "0" ]; then echo "❌ Nothing indexed"; $COMPOSE logs backend; exit 1; fi
 echo "  ✅ Indexed $INDEXED images"
 
