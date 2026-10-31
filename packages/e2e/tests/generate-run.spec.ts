@@ -45,7 +45,9 @@ test("a Generate run lands its images in the output library", async ({ page, req
   await page.getByRole("button", { name: "Test run" }).click();
   const run = page.getByRole("button", { name: "Queue 2 images" });
   await expect(run).toBeEnabled({ timeout: 30_000 });
+  const queued = page.waitForResponse((r) => r.request().method() === "POST" && /\/batches$/.test(new URL(r.url()).pathname));
   await run.click();
+  const batch: { _id: number } = await (await queued).json();
 
   const output = page.getByRole("complementary", { name: "Output" });
   await expect(output).not.toContainText("Nothing in queue");
@@ -59,4 +61,16 @@ test("a Generate run lands its images in the output library", async ({ page, req
       { timeout: 60_000, intervals: [1000] },
     )
     .toBeGreaterThanOrEqual(2);
+
+  // The batch page renames on Enter and keeps the name on Escape.
+  await page.goto(`/generations/${batch._id}`);
+  await page.getByRole("button", { name: "Rename batch" }).click();
+  await page.getByRole("textbox", { name: "Batch name" }).fill("Garden, renamed");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: /Garden, renamed/ })).toBeVisible();
+  await page.getByRole("button", { name: "Rename batch" }).click();
+  await page.getByRole("textbox", { name: "Batch name" }).fill("Dropped");
+  await page.keyboard.press("Escape");
+  await page.reload();
+  await expect(page.getByRole("heading", { name: /Garden, renamed/ })).toBeVisible();
 });

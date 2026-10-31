@@ -6,14 +6,14 @@ Scenarios worth testing end to end, for the Playwright suite in `packages/e2e` (
 
 - Onboarding: welcome flow adds a folder and connects the fake ComfyUI, the scan indexes every image (`onboarding.setup.ts`)
 - Gallery: scrolling pages in the rest of the feed; a searched tag filters the gallery and survives a reload from the URL; selection mode from the toolbar and the phone View options menu (`gallery.spec.ts`)
-- Generate: every Clear and Undo scenario below (`generate-clear-undo.spec.ts`); Ctrl+Up/Down weigh the tag under the caret (`generate-prompt-keys.spec.ts`); a run on the fake ComfyUI lands its images in the output library, with the Images stepper and the batch name's rename, Escape and auto name on the way (`generate-run.spec.ts`)
+- Generate: every Clear and Undo scenario below (`generate-clear-undo.spec.ts`); Ctrl+Up/Down weigh the tag under the caret (`generate-prompt-keys.spec.ts`); a run on the fake ComfyUI lands its images in the output library, with the Images stepper and the batch name's rename, Escape and auto name on the way, then a rename on its batch page (`generate-run.spec.ts`)
 - Viewer: prompt weights on the Tags tab, a ComfyUI prompt escaped twice, adding manual tags, setting a score, arrow keys through the feed, also pressed back to back, the phone details sheet dragged up and off (`viewer.spec.ts`)
 - Tags page: a tag's panel and its Open in gallery link, closing the panel (`tag-panel.spec.ts`)
 - AI tagging: the real WD tagger on three images from the AI Tagging page (`tagging-ai.spec.ts`)
 
 ## Still to cover
 
-Removing and renaming tags, quarantine, rules, outfits page, the Generations page and batch view, Remix, the rest of phone width (swipes on the viewer stage, the gallery).
+Removing and renaming tags, quarantine, rules, outfits page, the Generations page and the rest of the batch view, Remix, the rest of phone width (swipes on the viewer stage, the gallery).
 
 ## Generate: Tags by part, Clear and Undo
 
