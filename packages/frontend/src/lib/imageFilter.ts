@@ -8,35 +8,36 @@
 
 // The three image payloads. The backend pins their key sets in
 // tests/fixtures/mirrored/image_payloads.json, and imageFilter.test.ts holds
-// the key lists below (which tsc holds to the types) to that file.
+// the key lists below (which tsc holds to the types) to that file. Which
+// keys can be null follows models/responses.py, held to real rows there.
 
 /** The columns every image payload carries: the feed row
  * (services/image_feed.FEED_KEYS, its thumb_key swapped for thumb_url). */
 export type ImageFields = {
   _id: string;
   path: string;
-  width?: number | null;
-  height?: number | null;
+  width: number | null;
+  height: number | null;
   // Ready-to-use thumbnail URL: the API streaming route
   // (`/api/v1/images/{id}/thumb?v=`, versioned). Lets the grid render <img src> with no per-tile
   // resolve request. See services/thumb_version.py.
-  thumb_url?: string;
+  thumb_url: string;
   // Compact blurred-preview hash; decoded to an instant placeholder so tiles
   // never show a grey loading skeleton. See services/blurhash.py.
-  blurhash?: string | null;
+  blurhash: string | null;
   // Null, not undefined, when unset: the nullable fields come straight from
   // SQL columns.
-  rating?: string | null;
+  rating: string | null;
   // 0-5 quality score (distinct from `rating`, the content-safety axis).
-  score?: number | null;
+  score: number | null;
   // DB-only curation flag; quarantined images leave the default feed.
-  quarantined?: boolean | null;
+  quarantined: boolean | null;
   // File modification time (epoch seconds): the feed's newest-first sort key
   // and half of its cursor. Null for rows scanned without one.
-  mtime?: number | null;
+  mtime: number | null;
   // Summary flag maintained by services/image_tags.py. The grid draws an
   // "untagged" marker from it so an un-AI-tagged image is visible at a glance.
-  has_ai_tags?: boolean | null;
+  has_ai_tags: boolean | null;
 };
 
 /** A gallery tile: a feed row (GET /images), or a grouped-view row
@@ -50,19 +51,21 @@ export type FeedItem = ImageFields & {
 
 /** The single-image document (GET /images/{id}): the whole row. */
 export type ImageDetail = ImageFields & {
-  library_id?: string;
-  size?: number;
-  tags?: string[];
+  library_id: string;
+  size: number | null;
+  tags: string[];
   // Structured generation metadata (extracted from embedded AI-art data).
-  gen?: import("./gen").GenMeta;
-  ai?: import("./tags").AiTagMeta & {
-    rating?: Record<string, number>;
-  };
+  gen: import("./gen").GenMeta | null;
+  ai:
+    | (import("./tags").AiTagMeta & {
+        rating?: Record<string, number>;
+      })
+    | null;
   // Unused by the UI; typed so the field list matches the wire.
-  ctime?: number | null;
-  thumb_key?: string | null;
-  has_tags?: boolean;
-  has_prompt_tags?: boolean;
+  ctime: number | null;
+  thumb_key: string | null;
+  has_tags: boolean | null;
+  has_prompt_tags: boolean | null;
 };
 
 /** `keys` as given, when they name every key of `T`: tsc rejects a list that

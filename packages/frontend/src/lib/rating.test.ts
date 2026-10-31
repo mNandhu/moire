@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { pickRating, ratingBadgeClass, ratingDotClass } from "./rating";
-import type { ImageDetail } from "./imageFilter";
-
-const doc = (d: Partial<ImageDetail>): ImageDetail => d as ImageDetail;
+import { imageDetail as doc } from "../test/images";
 
 describe("pickRating", () => {
   it("prefers the explicit rating when set", () => {

@@ -8,6 +8,9 @@ import { smallThumb } from "../../lib/media";
 
 const BATCH_STRIP_MAX = 40;
 
+/** A strip thumbnail: a feed row, or the open image before it loads. */
+type Member = Pick<FeedItem, "_id"> & Partial<Pick<FeedItem, "path" | "thumb_url">>;
+
 /**
  * The rest of the image's batch (same workflow, same prompt: its seeds and
  * reruns), as a strip of thumbnails. Picking one steps the viewer into the
@@ -38,11 +41,11 @@ export function BatchStrip({
     staleTime: 60_000,
   });
   // The open image is always in it, even past the members fetched.
-  const members = useMemo(
+  const members = useMemo<Member[] | undefined>(
     () =>
       !fetched || fetched.some((m) => m._id === currentId)
         ? fetched
-        : [{ _id: currentId, thumb_url: currentThumb ?? undefined } as FeedItem, ...fetched],
+        : [{ _id: currentId, thumb_url: currentThumb ?? undefined }, ...fetched],
     [fetched, currentId, currentThumb],
   );
   const current = useRef<HTMLAnchorElement>(null);

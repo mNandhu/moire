@@ -2,13 +2,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ThumbnailTile } from "./ThumbnailTile";
 import type { FeedItem } from "../lib/imageFilter";
+import { feedItem } from "../test/images";
 
 beforeEach(() => {
   vi.unstubAllGlobals();
 });
 
-const doc = (d: Partial<FeedItem>): FeedItem =>
-  ({ _id: "L1:a.png", path: "a.png", ...d }) as FeedItem;
+const doc = (d: Partial<FeedItem>): FeedItem => feedItem(d);
 
 function renderTile(item: FeedItem, props: Partial<Parameters<typeof ThumbnailTile>[0]> = {}) {
   const onToggle = vi.fn();
@@ -44,9 +44,8 @@ describe("ThumbnailTile triage state", () => {
     expect(screen.getByLabelText("Untagged")).toBeInTheDocument();
   });
 
-  it("does not claim an image is untagged when the feed omitted the flag", () => {
-    // An older payload without has_ai_tags must not paint every tile untagged.
-    renderTile(doc({}));
+  it("does not claim an image is untagged when the flag is unknown", () => {
+    renderTile(doc({ has_ai_tags: null }));
     expect(screen.queryByLabelText("Untagged")).not.toBeInTheDocument();
   });
 

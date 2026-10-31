@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import type { FeedItem, ImageDetail } from "./imageFilter";
+import { feedItem, imageDetail } from "../test/images";
 import type { FeedPage } from "./imageApi";
 import {
   imageDocKey,
@@ -12,7 +13,9 @@ import {
   writeImageFields,
 } from "./feedCache";
 
-const doc = (id: string, score = 0) => ({ _id: id, score }) as FeedItem;
+// Not yet AI tagged, so a doc that is shows as a change.
+const doc = (id: string, score = 0) => feedItem({ _id: id, score, has_ai_tags: false });
+const detail = (id: string, score = 0) => imageDetail({ _id: id, score, has_ai_tags: false });
 
 /** Two feeds cached under different filters: the case exact-key patching missed. */
 function seededClient() {
@@ -160,12 +163,11 @@ describe("syncFeedsFromDoc", () => {
   it("copies tile fields from the open image's doc into every feed and the grouped view", () => {
     const qc = seededClient();
     qc.setQueryData(["image-groups", 60, {}], { pages: [[doc("a")]], pageParams: [0] });
-    syncFeedsFromDoc(qc, {
-      ...doc("a", 4),
-      rating: "explicit",
-      has_ai_tags: true,
-      tags: ["ignored"],
-    } as ImageDetail, Date.now() + 1000);
+    syncFeedsFromDoc(
+      qc,
+      imageDetail({ _id: "a", score: 4, rating: "explicit", has_ai_tags: true, tags: ["ignored"] }),
+      Date.now() + 1000,
+    );
     for (const key of [["images", 60, { tags: [] }], ["images", 60, { tags: ["cat"] }]]) {
       expect(pagesOf(qc, key)[0][0]).toMatchObject({ score: 4, rating: "explicit", has_ai_tags: true });
       // Only tile fields travel; the full doc's tags stay out of the feed.
@@ -178,7 +180,7 @@ describe("syncFeedsFromDoc", () => {
   it("leaves pages untouched when nothing changed", () => {
     const qc = seededClient();
     const before = pagesOf(qc, ["images", 60, { tags: [] }])[0];
-    syncFeedsFromDoc(qc, before[0], Date.now() + 1000);
+    syncFeedsFromDoc(qc, detail("a"), Date.now() + 1000);
     expect(pagesOf(qc, ["images", 60, { tags: [] }])[0][0]).toBe(before[0]);
   });
 });
@@ -198,7 +200,7 @@ describe("writeImageFields", () => {
 
   it("undoes the patch and rethrows when the write fails", async () => {
     const qc = seededClient();
-    qc.setQueryData(imageDocKey("a"), doc("a", 1));
+    qc.setQueryData(imageDocKey("a"), detail("a", 1));
     const boom = new Error("boom");
     await expect(writeImageFields(qc, "a", { score: 5 }, () => Promise.reject(boom))).rejects.toBe(boom);
     expect(pagesOf(qc, key)[0][0].score).toBe(0);
@@ -231,7 +233,7 @@ describe("writeImageFields with overlapping writes", () => {
   /** Score 3 then score 4, both still in flight. */
   async function twoWrites() {
     const qc = seededClient();
-    qc.setQueryData(imageDocKey("a"), doc("a", 0));
+    qc.setQueryData(imageDocKey("a"), detail("a", 0));
     const w3 = deferred();
     const w4 = deferred();
     const p3 = writeImageFields(qc, "a", { score: 3 }, () => w3.promise);
@@ -307,7 +309,7 @@ describe("patches never fake freshness", () => {
     const key = ["images", 60, { tags: [] }];
     void qc.invalidateQueries({ queryKey: key, refetchType: "none" });
     const before = qc.getQueryState(key)!.dataUpdatedAt;
-    syncFeedsFromDoc(qc, doc("a", 3), Date.now() + 1000);
+    syncFeedsFromDoc(qc, detail("a", 3), Date.now() + 1000);
     expect(qc.getQueryState(key)!.isInvalidated).toBe(true);
     expect(qc.getQueryState(key)!.dataUpdatedAt).toBe(before);
     expect(pagesOf(qc, key)[0][0].score).toBe(3);
@@ -317,7 +319,7 @@ describe("patches never fake freshness", () => {
     const qc = seededClient();
     const key = ["images", 60, { tags: ["cat"] }];
     const data = qc.getQueryData(key);
-    syncFeedsFromDoc(qc, doc("b", 3), Date.now() + 1000);
+    syncFeedsFromDoc(qc, detail("b", 3), Date.now() + 1000);
     expect(qc.getQueryData(key)).toBe(data);
   });
 
@@ -325,7 +327,7 @@ describe("patches never fake freshness", () => {
     const qc = seededClient();
     const key = ["images", 60, { tags: [] }];
     const feedAt = qc.getQueryState(key)!.dataUpdatedAt;
-    syncFeedsFromDoc(qc, doc("a", 4), feedAt - 1);
+    syncFeedsFromDoc(qc, detail("a", 4), feedAt - 1);
     expect(pagesOf(qc, key)[0][0].score).toBe(0);
   });
 });

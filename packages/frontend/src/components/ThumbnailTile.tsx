@@ -86,8 +86,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
   const score = item.score ?? 0;
   const hasScore = score > 0;
   const quarantined = !!item.quarantined;
-  // has_ai_tags is only meaningful when the feed actually sent it; an older
-  // payload without the field must not paint every tile as untagged.
+  // Null (a row with no flag yet) must not paint the tile as untagged.
   const untagged = item.has_ai_tags === false;
   const ratingDot = ratingDotClass(item.rating);
 
