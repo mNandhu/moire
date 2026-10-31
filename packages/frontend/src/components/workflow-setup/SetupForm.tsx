@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, CircleAlert, Loader2, Minus, Plus } from "lucide-react";
+import { Check, CircleAlert, Loader2 } from "lucide-react";
 import { Badge, Button, Card, Checkbox, Input, Tooltip } from "../ui";
 import { cn } from "../../lib/cn";
 import type { GeneratorSetup, GeneratorSlots } from "../../lib/generate";
@@ -7,7 +7,6 @@ import {
   SAMPLING_KEYS,
   canSave,
   checklist,
-  clampPerRequest,
   finalSlots,
   groupTicked,
   leaveOut,
@@ -16,6 +15,8 @@ import {
 } from "../../lib/generatorSetup";
 import { stemOf } from "../../lib/modelNames";
 import { PromptSlot } from "./PromptSlot";
+import { NumberStepper } from "../generate/fields";
+import { PER_REQUEST_MAX } from "../../lib/generationLimits";
 import { NodeLine, SlotCard } from "./SlotCard";
 
 /** The setup form for a discovered graph: slots, name, checklist, Save. */
@@ -115,25 +116,16 @@ export function SetupForm({
             badge={slots.batch_size ? <Badge tone="success">Found</Badge> : <Badge>Set in the workflow</Badge>}
           >
             {slots.batch_size ? (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  aria-label="Fewer"
-                  onClick={() => setSlots({ ...slots, per_request: clampPerRequest((slots.per_request ?? 1) - 1) })}
-                  className="rounded-md border border-line p-1.5 text-muted hover:text-neutral-100"
-                >
-                  <Minus size={14} />
-                </button>
-                <span className="w-8 text-center tabular-nums">{slots.per_request ?? 1}</span>
-                <button
-                  type="button"
-                  aria-label="More"
-                  onClick={() => setSlots({ ...slots, per_request: clampPerRequest((slots.per_request ?? 1) + 1) })}
-                  className="rounded-md border border-line p-1.5 text-muted hover:text-neutral-100"
-                >
-                  <Plus size={14} />
-                </button>
-              </div>
+              <NumberStepper
+                label="Images per run"
+                hideLabel
+                compact
+                value={slots.per_request ?? 1}
+                onChange={(n) => setSlots({ ...slots, per_request: n })}
+                step={1}
+                min={1}
+                max={PER_REQUEST_MAX}
+              />
             ) : (
               <p className="text-xs text-muted">Count in Generate is in runs.</p>
             )}

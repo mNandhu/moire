@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { GeneratorSetup, SeedGroup, TextInput } from "./generate";
-import { PER_REQUEST_MAX } from "./generationLimits";
 import {
   canSave,
   checklist,
-  clampPerRequest,
   defaultName,
   finalSlots,
   groupTicked,
@@ -192,12 +190,6 @@ describe("finalSlots", () => {
     finalSlots(slots, false, lora);
     expect(slots.lora_model).toEqual(["1", 0]);
   });
-});
-
-it("clampPerRequest keeps 1 to PER_REQUEST_MAX", () => {
-  expect(clampPerRequest(0)).toBe(1);
-  expect(clampPerRequest(5)).toBe(5);
-  expect(clampPerRequest(PER_REQUEST_MAX + 1)).toBe(PER_REQUEST_MAX);
 });
 
 it("workflowOrigin names the family, the matched file or the upload", () => {

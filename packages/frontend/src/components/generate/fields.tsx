@@ -102,7 +102,9 @@ export function NumberStepper({
   min,
   max,
   compact,
+  hideLabel,
 }: {
+  /** The field's name; also shown above it unless `hideLabel` (a card titles it). */
   label: string;
   value: number | undefined;
   onChange: (n: number) => void;
@@ -110,6 +112,7 @@ export function NumberStepper({
   min: number;
   max: number;
   compact?: boolean;
+  hideLabel?: boolean;
 }) {
   const [typed, setTyped] = useState<string | null>(null);
   const fit = (n: number) => {
@@ -121,7 +124,7 @@ export function NumberStepper({
   const less = step >= 1 ? "Fewer" : "Less";
   return (
     <div>
-      <FieldLabel>{label}</FieldLabel>
+      {!hideLabel && <FieldLabel>{label}</FieldLabel>}
       <div className={cn("h-9 items-center rounded-lg border border-line", compact ? "inline-flex" : "flex")}>
         <button type="button" aria-label={`${less} ${label}`} onClick={() => set((value ?? min) - step)} className="px-1.5 py-2 text-muted hover:text-neutral-100">
           <Minus size={14} />
@@ -134,13 +137,14 @@ export function NumberStepper({
           min={min}
           max={max}
           onChange={(e) => {
-            // Kept as typed, taken at once when in range: the popover can close
-            // (and unmount this) before a blur would arrive.
+            // Kept as typed and taken at once, clamped into range: the
+            // popover can close (and unmount this) before a blur would
+            // arrive, and what's kept must never differ from what's sent.
+            // Leaving the field shows the kept value.
             const raw = e.target.value;
             setTyped(raw);
             const n = Number(raw);
-            // Only a value that needs no rounding, so what shows is what's kept.
-            if (raw.trim() !== "" && Number.isFinite(n) && fit(n) === n) set(n);
+            if (raw.trim() !== "" && Number.isFinite(n)) set(n);
           }}
           onBlur={() => setTyped(null)}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}

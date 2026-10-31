@@ -1,6 +1,5 @@
 import type { PickerOption } from "../components/ui";
 import type { GeneratorSetup, GeneratorSlots, SeedGroup, SlotPath, TextInput } from "./generate";
-import { PER_REQUEST_MAX } from "./generationLimits";
 
 export type Side = "positive" | "negative";
 
@@ -130,9 +129,6 @@ export function defaultName(setup: GeneratorSetup): string {
 /** The slots Generate's sampling settings can reach. */
 export const SAMPLING_KEYS = ["sampler", "scheduler", "steps", "cfg"] as const;
 
-/** Images per request, stepped by the setup form: 1 to PER_REQUEST_MAX. */
-export const clampPerRequest = (n: number) => Math.min(PER_REQUEST_MAX, Math.max(1, n));
-
 /**
  * The slots a setup saves: with LoRAs on and an insertion point found, its
  * model / CLIP refs (and no prompt-text LoRAs); otherwise no LoRA refs.
@@ -154,12 +150,15 @@ export function finalSlots(
   return out;
 }
 
+/** The origin line of an image-made workflow that matches no family or file. */
+export const FROM_AN_IMAGE = "From an image";
+
 /** The setup page's line under its title: where the workflow came from. */
 export function workflowOrigin(source: GeneratorSetup["source"] | undefined): string | undefined {
   return source?.kind === "image"
     ? source.family_name || source.file_name
       ? `From ${source.family_name || source.file_name}`
-      : "From an image"
+      : FROM_AN_IMAGE
     : source?.kind === "upload"
       ? (source.filename ?? "Uploaded file")
       : undefined;
