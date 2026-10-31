@@ -41,7 +41,7 @@ import { splitBoilerplate } from "../lib/boilerplate";
 import { libraryPageHref, useBoilerplate, useLibraries } from "../lib/queries";
 import { useHotkeys } from "../hooks/useHotkeys";
 import { snapSheet } from "../lib/sheetSnap";
-import { IMAGE } from "../lib/shortcuts";
+import { IMAGE, isPrevImage } from "../lib/shortcuts";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { ScorePicker } from "../components/ui/ScoreMark";
@@ -541,7 +541,7 @@ export default function ImageView() {
         ...IMAGE.step,
         run: (e) => {
           e.preventDefault();
-          if (e.key === "ArrowLeft") goPrev();
+          if (isPrevImage(e.key)) goPrev();
           else goNext();
         },
       },

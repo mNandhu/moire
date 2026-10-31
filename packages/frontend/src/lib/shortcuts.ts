@@ -1,7 +1,7 @@
 /**
  * Every keyboard shortcut, declared once: the keys a handler matches and the
  * row the `?` reference shows for them. Handlers bind a spec (`useHotkeys([
- * { ...GALLERY.search, run }])`, or `spec.keys.includes(e.key)` in an element's
+ * { ...<spec>, run }])`, or `spec.keys.includes(e.key)` in an element's
  * own onKeyDown), and the reference is built from the same specs, so a key
  * can't change in one place and not the other. A new shortcut gets a spec in
  * its page's group; shortcuts.test.ts checks every spec is bound somewhere.
@@ -27,6 +27,11 @@ export type ShortcutGroup = {
 };
 
 const DIGITS_0_5: readonly string[] = ["0", "1", "2", "3", "4", "5"];
+const QUARANTINE_KEYS: readonly string[] = ["x", "X", "Delete"];
+const ZOOM_IN_KEYS: readonly string[] = ["+", "="];
+const ZOOM_OUT_KEYS: readonly string[] = ["-", "_"];
+const PREV_IMAGE_KEYS: readonly string[] = ["ArrowLeft"];
+const NEXT_IMAGE_KEYS: readonly string[] = ["ArrowRight"];
 
 export const EVERYWHERE = {
   // Matched by App's layout-aware Ctrl/Cmd+K test.
@@ -44,15 +49,15 @@ export const GALLERY = {
   scrollPage: { keys: ["PageUp", "PageDown"], label: "PgUp / PgDn", desc: "Scroll a page" },
   scrollEnds: { keys: ["Home", "End"], label: "Home / End", desc: "Jump to start or end" },
   search: { keys: ["/", "f", "F"], label: "/ or F", desc: "Focus the tag search" },
-  zoom: { keys: ["+", "=", "-", "_"], label: "+ / -", desc: "Larger / smaller thumbnails" },
+  zoom: { keys: [...ZOOM_IN_KEYS, ...ZOOM_OUT_KEYS], label: "+ / -", desc: "Larger / smaller thumbnails" },
 } satisfies Record<string, ShortcutSpec>;
 
-/** Whether a `GALLERY.zoom` key zooms in (the rest zoom out). */
-export const isZoomIn = (key: string) => key === "+" || key === "=";
+/** Whether a zoom key zooms in (the rest zoom out). */
+export const isZoomIn = (key: string) => ZOOM_IN_KEYS.includes(key);
 
 export const TRIAGE = {
   score: { keys: DIGITS_0_5, label: "0 – 5", desc: "Score the focused image" },
-  quarantine: { keys: ["x", "X", "Delete"], label: "X / Del", desc: "Quarantine (or restore) it" },
+  quarantine: { keys: QUARANTINE_KEYS, label: "X / Del", desc: "Quarantine (or restore) it" },
 } satisfies Record<string, ShortcutSpec>;
 
 export const FILTER = {
@@ -63,11 +68,14 @@ export const FILTER = {
 } satisfies Record<string, ShortcutSpec>;
 
 export const IMAGE = {
-  step: { keys: ["ArrowLeft", "ArrowRight"], label: "← →", desc: "Previous / next image" },
+  step: { keys: [...PREV_IMAGE_KEYS, ...NEXT_IMAGE_KEYS], label: "← →", desc: "Previous / next image" },
   score: { keys: DIGITS_0_5, label: "0 – 5", desc: "Score it" },
-  quarantine: { keys: ["x", "X", "Delete"], label: "X / Del", desc: "Quarantine (or restore) it" },
+  quarantine: { keys: QUARANTINE_KEYS, label: "X / Del", desc: "Quarantine (or restore) it" },
   back: { keys: ["Escape"], label: "Esc", desc: "Back to the gallery" },
 } satisfies Record<string, ShortcutSpec>;
+
+/** Whether a step key goes back (the rest go forward). */
+export const isPrevImage = (key: string) => PREV_IMAGE_KEYS.includes(key);
 
 export const GENERATE = {
   // With Ctrl/Cmd, in PromptInput.

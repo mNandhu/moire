@@ -21,15 +21,18 @@ describe("shortcut specs", () => {
   // suggestion-list key (tagSuggest suggestKeyAction), not Generate's own.
   const BOUND_GENERICALLY = new Set(["GENERATE.suggest"]);
 
+  // A binding spreads the spec (`...GALLERY.search`) or reads its keys
+  // (`BATCH.keep.keys`); a mention in a comment doesn't count.
   it("are each bound by some handler", () => {
     const sources = import.meta.glob(["../**/*.{ts,tsx}", "!../**/*.test.{ts,tsx}", "!./shortcuts.ts"], {
       query: "?raw",
       import: "default",
       eager: true,
     }) as Record<string, string>;
+    expect(Object.keys(sources).some((p) => p.endsWith("/shortcuts.ts"))).toBe(false);
     const text = Object.values(sources).join("\n");
     const unbound = SHORTCUT_SPECS.flatMap(({ name, specs }) => Object.keys(specs).map((k) => `${name}.${k}`)).filter(
-      (ref) => !BOUND_GENERICALLY.has(ref) && !text.includes(ref),
+      (ref) => !BOUND_GENERICALLY.has(ref) && !text.includes(`...${ref},`) && !text.includes(`${ref}.keys`),
     );
     expect(unbound).toEqual([]);
   });
