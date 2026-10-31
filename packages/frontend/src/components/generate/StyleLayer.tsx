@@ -40,18 +40,23 @@ function LoraPresetDialog({
   lora,
   preset,
   initialText,
+  initialStrength,
   onSaved,
 }: {
   onClose: () => void;
   lora: string;
   preset: LoraPreset | null;
   initialText: string;
+  /** A new preset's strength to start from (the LoRA's own now). */
+  initialStrength?: number;
   onSaved: (p: LoraPreset | null) => void;
 }) {
   const [name, setName] = useState(preset?.name ?? "");
   const [text, setText] = useState(preset?.text ?? initialText);
-  const [strength, setStrength] = useState(preset?.strength != null ? String(preset.strength) : "");
-  const { data: words } = useLoraWords(lora);
+  const [strength, setStrength] = useState(
+    preset ? (preset.strength != null ? String(preset.strength) : "") : initialStrength != null ? String(initialStrength) : "",
+  );
+  const { data: words, isPending: wordsLoading } = useLoraWords(lora);
   const parsed = strength.trim() === "" ? null : Number(strength);
   const badStrength = parsed !== null && (!Number.isFinite(parsed) || parsed < -2 || parsed > 2);
   const offer = (words ?? []).filter((w) => !hasWord(text, toPromptText([w.word])));
@@ -84,7 +89,10 @@ function LoraPresetDialog({
           rows={3}
           className="w-full resize-y rounded-lg border border-neutral-800 bg-neutral-950/70 px-3 py-2 font-mono text-xs text-neutral-100 outline-none placeholder:text-faint focus:border-brand-600/60"
         />
-        <label className="flex items-center gap-2.5 text-xs text-muted">
+        <label
+          className="flex items-center gap-2.5 text-xs text-muted"
+          title="Picking the preset sets the LoRA to this strength; left empty, it stays as it is"
+        >
           Default strength
           <input
             type="number"
@@ -92,14 +100,25 @@ function LoraPresetDialog({
             min={-2}
             max={2}
             value={strength}
-            placeholder="Keep"
+            placeholder="Not set"
             onChange={(e) => setStrength(e.target.value)}
             className={cn(
-              "no-spin w-20 rounded-md border bg-raised px-2 py-1 text-right tabular-nums text-xs text-neutral-100 placeholder:text-faint",
+              "no-spin w-20 rounded-md border bg-raised px-2 py-1 text-center tabular-nums text-xs text-neutral-100 placeholder:text-faint",
               badStrength ? "border-red-700" : "border-line",
             )}
           />
         </label>
+        {wordsLoading && (
+          // The words are read from the LoRA file and the library: a moment.
+          <div aria-busy="true" aria-label="Loading suggestions">
+            <div className="mb-1.5 text-xs font-medium text-muted">Suggested</div>
+            <div className="flex flex-wrap gap-1.5">
+              {[64, 92, 52, 80].map((w) => (
+                <span key={w} style={{ width: w }} className="h-6 animate-pulse rounded-full border border-line bg-raised" />
+              ))}
+            </div>
+          </div>
+        )}
         {offer.length > 0 && (
           <div>
             <div className="mb-1.5 text-xs font-medium text-muted">Suggested</div>
@@ -223,6 +242,7 @@ function LoraRow({
           lora={lora.name}
           preset={dialog === "edit" ? current : null}
           initialText={dialog === "new" ? words : ""}
+          initialStrength={lora.strength}
           onSaved={(p) => {
             if (p) pick(p);
             else if (dialog === "edit") onChange({ ...lora, preset: null });
