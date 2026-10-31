@@ -60,6 +60,31 @@ async def test_ingest_single_file_refreshes_metadata_on_modify(temp_db, tmp_path
     assert row.width == 16 and row.height == 16
 
 
+async def test_ingest_updates_a_backslash_stored_row_in_place(temp_db, seed, tmp_path):
+    """A row an older scan stored as ``L1:sub\\a.png`` is the same image as
+    the watcher's ``L1:sub/a.png``: updated under its stored id, not joined
+    by a second row, and the library count left as it was."""
+    with db.sync_tx() as conn:
+        conn.execute(sa.insert(t.libraries).values(_id="L1", indexed_count=1))
+    seed("L1:sub\\a.png", tags=("manual:keep",), width=4, height=4)
+    lib_dir = tmp_path / "lib"
+    (lib_dir / "sub").mkdir(parents=True)
+    p = lib_dir / "sub" / "a.png"
+    Image.new("RGB", (16, 16)).save(p, "PNG")
+
+    assert scan_incremental.ingest_single_file("L1", lib_dir, p) is True
+
+    async with db.async_conn() as conn:
+        ids = (await conn.execute(sa.select(t.images.c._id))).scalars().all()
+        count = (
+            await conn.execute(sa.select(t.libraries.c.indexed_count))
+        ).scalar_one()
+    assert ids == ["L1:sub\\a.png"]
+    row = await _img("L1:sub\\a.png")
+    assert row.width == 16 and row.tags == ["manual:keep"]
+    assert count == 1
+
+
 async def test_remove_single_image_deletes_only_that_row(temp_db, seed):
     seed("L1:keep.jpg", tags=("cat",))
     seed("L1:gone.jpg", tags=("dog",), thumb_key=None)

@@ -47,29 +47,33 @@ def ingest_single_file(library_id: str, root_path: Path, path: Path) -> bool:
     res = scanner.process_image(library_id, root_path, path)
     if not res.ok or res.doc is None:
         return False
+    image_id = res.image_id
+    doc, gen_raw_doc = res.doc, res.gen_raw_doc
     with sync_tx() as conn:
-        existed = (
+        # The stored row may spell its separator otherwise (an older scan on
+        # another OS): update it under that id, not beside it.
+        stored = image_tags.resolve_image_id_sync(conn, image_id)
+        if stored is not None and stored != image_id:
+            image_id = stored
+            doc = {**doc, "_id": stored}
+            if gen_raw_doc is not None:
+                gen_raw_doc = {**gen_raw_doc, "_id": stored}
+        if gen_raw_doc is not None:
             conn.execute(
-                sa.select(t.images.c._id).where(t.images.c._id == res.image_id)
-            ).first()
-            is not None
-        )
-        if res.gen_raw_doc is not None:
-            conn.execute(
-                scanner.gen_raw_upsert_stmt(), scanner.gen_raw_values(res.gen_raw_doc)
+                scanner.gen_raw_upsert_stmt(), scanner.gen_raw_values(gen_raw_doc)
             )
-        conn.execute(scanner.image_upsert_stmt(), scanner.image_upsert_values(res.doc))
-        _touch_library(conn, library_id, indexed_delta=0 if existed else 1)
+        conn.execute(scanner.image_upsert_stmt(), scanner.image_upsert_values(doc))
+        _touch_library(conn, library_id, indexed_delta=0 if stored else 1)
     # A brand-new row carries no gen data to reproject over, but a modified
     # file may have replaced its embedded metadata, so re-deriving is always safe.
-    if res.gen_raw_doc is not None:
+    if gen_raw_doc is not None:
         try:
             from .reproject import reproject_image
 
-            reproject_image(res.image_id)
+            reproject_image(image_id)
         except Exception:
             # Re-runnable via the manual endpoint, as after a full scan.
-            logger.warning("Reprojection failed for %s", res.image_id, exc_info=True)
+            logger.warning("Reprojection failed for %s", image_id, exc_info=True)
     return True
 
 
