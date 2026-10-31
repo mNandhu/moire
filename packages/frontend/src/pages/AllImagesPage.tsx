@@ -6,7 +6,8 @@ import { DensityControl } from "../components/DensityControl";
 import { openShortcutHelp } from "../lib/shortcuts";
 import { useToast } from "../components/Toasts";
 import { BulkTagDialog } from "../components/BulkTagDialog";
-import { Keyboard, ImageOff, ArrowLeft, FolderSearch } from "lucide-react";
+import { Keyboard, ImageOff, ArrowLeft, FolderSearch, Plus, Wand2 } from "lucide-react";
+import { AddLibraryDialog } from "../components/AddLibraryDialog";
 import {
   DEFAULT_FILTERS,
   serializeFilters,
@@ -52,6 +53,7 @@ const withoutLibrary = (f: Filters): Filters => ({ ...f, libraryId: undefined })
 
 export default function AllImagesPage() {
   const { push } = useToast();
+  const [addOpen, setAddOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   // ImageView opens as an overlay on top of this page rather than routing in
@@ -441,10 +443,10 @@ export default function AllImagesPage() {
       {!activeFeed.isLoading && items.length === 0 && !emptyScan && (
         <EmptyState
           icon={ImageOff}
-          title="No images found"
+          title={hasActiveFilter(filters) ? "No images found" : "No images yet"}
           description={
             !hasActiveFilter(filters)
-              ? "You don't have any images yet. Add a library to start importing your images."
+              ? "Add a library to import your images, or generate some."
               : hasClearableFilter(filters)
                 ? filters.tags.length
                   ? "No images match your search with these filters. Clear the filters to search everything."
@@ -452,6 +454,16 @@ export default function AllImagesPage() {
                 : "No images match your search."
           }
           actions={
+            !hasActiveFilter(filters) ? (
+              <>
+                <Button variant="primary" onClick={() => setAddOpen(true)}>
+                  <Plus size={16} /> Add library
+                </Button>
+                <ButtonLink to="/generate">
+                  <Wand2 size={16} /> Generate
+                </ButtonLink>
+              </>
+            ) : (
             <>
               {/* Filters first, keeping the search; then the search itself. */}
               {hasClearableFilter(filters) ? (
@@ -470,9 +482,21 @@ export default function AllImagesPage() {
               ) : null}
               <ButtonLink to="/libraries">Go to Libraries</ButtonLink>
             </>
+            )
           }
         />
       )}
+
+      <AddLibraryDialog
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onAdded={({ added, failed }) => {
+          push(
+            `Added ${added} librar${added === 1 ? "y" : "ies"}${failed.length ? ` · ${failed.length} failed` : ""}, scanning in the background`,
+            failed.length ? "error" : "success",
+          );
+        }}
+      />
 
       {filters.groupId && (
         <Button

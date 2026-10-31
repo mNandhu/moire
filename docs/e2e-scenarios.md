@@ -13,7 +13,7 @@ Scenarios worth testing end to end, for the Playwright suite in `packages/e2e` (
 
 ## Still to cover
 
-Removing and renaming tags, quarantine, rules, outfits page, the Generations page and the rest of the batch view, Remix, the rest of phone width (swipes on the viewer stage, the gallery).
+Removing and renaming tags, quarantine, rules, outfits page, the Generations page and the rest of the batch view, Remix, the rest of phone width (swipes on the viewer stage, the gallery), the empty gallery (Add library and Generate; the sandbox always has a library, so only the unit test covers it).
 
 ## Generate: Tags by part, Clear and Undo
 

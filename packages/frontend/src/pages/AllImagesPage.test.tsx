@@ -119,10 +119,20 @@ describe("AllImagesPage", () => {
     expect(await screen.findByText("loaded")).toBeInTheDocument();
   });
 
-  it("shows an empty state once a filtered feed comes back empty", async () => {
+  it("offers Add library and Generate when there are no images at all", async () => {
     stubFetch([]);
     renderPage();
+    expect(await screen.findByText("No images yet")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Generate/ })).toHaveAttribute("href", "/generate");
+    fireEvent.click(screen.getByRole("button", { name: /Add library/ }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("shows an empty state once a filtered feed comes back empty", async () => {
+    stubFetch([]);
+    renderPage("/?no_tags=1");
     expect(await screen.findByText("No images found")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Add library/ })).not.toBeInTheDocument();
   });
 
   it("shows library scope as tabs, not as a chip", async () => {

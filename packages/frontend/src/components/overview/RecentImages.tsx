@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
-import { ArrowRight, Images } from "lucide-react";
+import { ArrowRight, Images, Wand2 } from "lucide-react";
+import { ButtonLink } from "../ui/Button";
 import { Section } from "../ui/Card";
 import { cn } from "../../lib/cn";
 import { Skeleton } from "../ui/Skeleton";
@@ -50,7 +51,12 @@ export function RecentImages() {
           compact
           icon={Images}
           title="No images yet"
-          description="Add a library and its newest images show up here."
+          description="Add a library or generate some, and the newest images show up here."
+          actions={
+            <ButtonLink size="sm" to="/generate">
+              <Wand2 size={14} /> Generate
+            </ButtonLink>
+          }
         />
       ) : (
         <div className={GRID}>
