@@ -1,7 +1,18 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
+import { API } from "./helpers";
 
 // docs/e2e-scenarios.md, "Generate: keys and Clear". Runs after
 // generate-run.spec.ts, which sets the output folder and passes the test run.
+
+/** Until no batch is still running (one queued by an earlier test). */
+async function settled(request: APIRequestContext) {
+  await expect
+    .poll(async () => {
+      const list: { state: string }[] = await (await request.get(`${API}/generate/batches?limit=20`)).json();
+      return list.filter((b) => b.state === "running").length;
+    }, { timeout: 60_000 })
+    .toBe(0);
+}
 
 test("Ctrl+Z brings back a tag taken out on the board, Ctrl+Shift+Z takes it out again", async ({ page }) => {
   await page.goto("/generate");
@@ -36,14 +47,14 @@ test("Ctrl+Enter in the prompt queues the batch", async ({ page }) => {
   await expect(prompt).toHaveValue("1girl, smile, garden");
 });
 
-test("Clear empties the output column, and a new batch shows again", async ({ page }) => {
+test("Clear empties the output column, and a new batch shows again", async ({ page, request }) => {
+  // A batch still running when Clear is pressed would stay (the next test).
+  await settled(request);
   await page.goto("/generate");
   const output = page.getByRole("complementary", { name: "Output" });
   const panels = output.getByRole("link", { name: "Batch page" });
   const clear = output.getByRole("button", { name: "Clear", exact: true });
   await expect(clear).toBeVisible({ timeout: 30_000 });
-  // Wait out a batch still running (that one would stay).
-  await expect(output.getByText(/ \/ \d+$/)).toHaveCount(0, { timeout: 60_000 });
   await clear.click();
   await expect(panels).toHaveCount(0);
   await page.reload();

@@ -69,7 +69,7 @@ function BatchPanel({ id }: { id: number }) {
 /**
  * The output column under the queue deck: the last few batches that have
  * started, newest on top, each with its images big as they're made. A batch
- * still waiting its turn is only in the deck. Clear empties it (here only,
+ * still waiting its turn is only in the deck. Clear, at its top, empties it (here only,
  * nothing is deleted) of all but a batch still running.
  */
 export function OutputFeed() {
@@ -94,10 +94,8 @@ export function OutputFeed() {
   if (!started?.length) return null;
   return (
     <>
-      {started.map((b) => (
-        <BatchPanel key={b._id} id={b._id} />
-      ))}
-      <div className="flex justify-center gap-4">
+      {/* Up top, where the batches start, not under the last of them. */}
+      <div className="-mb-2 flex justify-end px-2">
         <button
           type="button"
           onClick={() =>
@@ -113,6 +111,11 @@ export function OutputFeed() {
         >
           Clear
         </button>
+      </div>
+      {started.map((b) => (
+        <BatchPanel key={b._id} id={b._id} />
+      ))}
+      <div className="flex justify-center">
         <Link to="/generations" className="text-xs text-muted hover:text-neutral-100">
           All generations
         </Link>
