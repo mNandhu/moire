@@ -145,6 +145,18 @@ export function batchRunTime(
   return { total, perImage: images ? spent / images : null, images };
 }
 
+/** The part of a batch's numbers the output panel needs: runs still going
+ * and done, run time and time left. Pure. */
+export function batchProgress(requests: readonly GenRequest[]): {
+  unfinished: number;
+  done: number;
+  took: ReturnType<typeof batchRunTime>;
+  left: ReturnType<typeof batchLeft>;
+} {
+  const unfinished = requests.filter((q) => GOING.has(q.state)).length;
+  return { unfinished, done: requests.length - unfinished, took: batchRunTime(requests), left: batchLeft(requests) };
+}
+
 /** A batch's numbers as the batch page and the output panel show them, each
  * in its own words: images made and how many are in the library, runs and
  * images per run, run time, time left, the requests a retry picks up, and
@@ -161,17 +173,13 @@ export function batchStats(b: Pick<Batch, "requests" | "inputs">): {
   done: number;
 } {
   const outputs = b.requests.flatMap((q) => q.outputs);
-  const unfinished = b.requests.filter((q) => GOING.has(q.state)).length;
   return {
     images: outputs.length,
     inLibrary: outputs.filter((o) => o.in_library).length,
     runs: b.requests.length,
     perRun: b.inputs.per_request,
-    took: batchRunTime(b.requests),
-    left: batchLeft(b.requests),
     failed: retryable(b.requests),
-    unfinished,
-    done: b.requests.length - unfinished,
+    ...batchProgress(b.requests),
   };
 }
 

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { batchStats, isWaiting, turnLabel } from "../../lib/batches";
+import { batchProgress, isWaiting, turnLabel } from "../../lib/batches";
 import { durationWords } from "../../lib/format";
 import { useBatchChanged } from "../../hooks/useBatchActions";
 import { useBatch, useBatches, useComfyStatus } from "../../lib/generate";
@@ -15,7 +15,7 @@ function BatchPanel({ id }: { id: number }) {
   const changed = useBatchChanged(id);
   const { data: status } = useComfyStatus();
   if (!b) return null;
-  const { done, took, left } = batchStats(b);
+  const { done, took, left } = batchProgress(b.requests);
   // With others queued its own time left isn't when it's done: the queue's
   // word for it first.
   const turn = status?.active.find((a) => a._id === id);
