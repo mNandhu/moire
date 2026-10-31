@@ -31,7 +31,7 @@ Duplication and structure:
 - [x] **F10** L3.9 outside Generate: TagEditDialog, CharacterEditDialog, NewCharacterDialog, RenameTagDialog, BulkTagDialog and six settings sections hand-roll save flags; use `Button pending` + `DialogFooter` [P2] (ff1d826)
 - [x] **F11** S11.5: one backend `POST /batches/{id}/retry-failed` to replace the client retry loop [P2] (963dd57)
 - [x] **F12** S2.7: a `loadImage` helper and a general `imageUrl(id, suffix)` for imageMutations' `forImage`; `useSizePresets` still lives in SizeFilter.tsx [P2] (4c68887)
-- [ ] **F13** Shortcut help table in lib/shortcuts.ts is still hand-kept beside the keyboard registry (L3.4) [P2] Open: bindings live in six hooks with match functions and no labels; deriving the table is a rewrite, not a cleanup.
+- [x] **F13** Shortcut help table in lib/shortcuts.ts is still hand-kept beside the keyboard registry (L3.4) [P2] (b24272f: each shortcut is one spec that bindings spread and the help maps; a test checks every spec is bound)
 - [x] **F14** OutfitMenu not split into its own file (S12.8) [P2] (4ba0449)
 - [ ] **F15** S2.1: ImageView's stepper and details-sheet hooks not extracted (ImageView.tsx is still ~1300 lines) [P1]
 - [x] **F16** Generator test settle (`_arrived`) and `test_status` derive the same thing twice; only cross-referenced in comments [P5] (2860276)
@@ -116,7 +116,7 @@ P1 review fixes: frontend 8b15822, e193bb0, 76994ac (one `removeTerms` helper fo
 - [x] **S13.1** Gallery and image URLs are hand-built in a dozen places instead of through lib/imageFilter (dedupe, S, L4), done 9fad54d, d5f0fb6
 - [x] **L3.1** Library scan state is polled four independent ways, including a hand-rolled fetch loop that duplicates fields the list already carries (dedupe, M, L4), done 51a86c7
 - [x] **L3.3** api() has no JSON-body form: 21 hand-written Content-Type/JSON.stringify blocks and 5 private post/send helpers, plus 12 raw fetches with their own !ok handling (dedupe, M, L4), done 89b3797, 9ad6e39
-- [x] **L3.4** Global keyboard handling is re-implemented in 12 window/document listeners with inconsistent guards; help table is a separate hand-kept copy (simplify, M, L4), done ad7a4b1 (help table still hand-kept)
+- [x] **L3.4** Global keyboard handling is re-implemented in 12 window/document listeners with inconsistent guards; help table is a separate hand-kept copy (simplify, M, L4), done ad7a4b1 (help table derived in b24272f, F13)
 - [x] **S10.3** PromptBoard: raw API fetch in a component, placement logic untested in-component, duplicated tag-cover map (boundary, M, L4, TW), done a0f734d
 - [x] **S2.3** Character query hooks live in a component file imported by 10 modules (boundary, S, L3), done 97b910e
 - [x] **S7.8** Same signatures query inlined in 3 components plus 2 manual fetches; ruleset API sits in lib/gen.ts with raw fetch (boundary, S, L3), done e323af0
