@@ -47,6 +47,17 @@ describe("InlineRename", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
+  it("tabbing to the reset button keeps the edit open", () => {
+    const onReset = vi.fn();
+    const { onCommit, field } = open({ reset: { label: "Use auto name", onReset } });
+    const button = screen.getByRole("button", { name: "Use auto name" });
+    fireEvent.blur(field, { relatedTarget: button });
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Batch name" })).toBeTruthy();
+    fireEvent.blur(button, { relatedTarget: null });
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
   it("commits again on a second edit", () => {
     const { onCommit, field } = open();
     fireEvent.keyDown(field, { key: "Enter" });

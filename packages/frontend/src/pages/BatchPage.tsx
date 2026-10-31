@@ -16,7 +16,12 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
 
 function NameHeading({ b, onSaved }: { b: Batch; onSaved: (b: Batch) => void }) {
-  const save = useMutation({ mutationFn: (name: string) => renameBatch(b._id, name), onSuccess: onSaved });
+  const toast = useToast();
+  const save = useMutation({
+    mutationFn: (name: string) => renameBatch(b._id, name),
+    onSuccess: onSaved,
+    onError: (e) => toast.push(e.message, "error"),
+  });
   return (
     <InlineRename
       value={b.name}

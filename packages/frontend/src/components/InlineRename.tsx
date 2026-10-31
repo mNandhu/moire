@@ -47,13 +47,19 @@ export function InlineRename({
   };
   if (editing) {
     return (
-      <span className={cn("flex items-center gap-2", className)}>
+      <span
+        key="edit"
+        className={cn("flex items-center gap-2", className)}
+        // Leaving the field and its reset button, not moving between them.
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) commit();
+        }}
+      >
         <Input
           autoFocus
-          aria-label={`${label[0].toUpperCase()}${label.slice(1)} name`}
+          aria-label={`${label.charAt(0).toUpperCase()}${label.slice(1)} name`}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
           onKeyDown={(e) => {
             if (e.key === "Enter") commit();
             if (e.key === "Escape") close();
@@ -78,7 +84,7 @@ export function InlineRename({
     );
   }
   return (
-    <span className={cn("flex items-center gap-2", className)}>
+    <span key="view" className={cn("flex items-center gap-2", className)}>
       <span className={textClassName}>{value}</span>
       <button
         type="button"
