@@ -481,7 +481,7 @@ function cut(text: string, s: number, e: number): string {
  * `text` without the terms at `ranges` (spans from promptTerms; any other
  * span is cut as it stands) and the separators each owned, the rest as
  * written. A group goes whole once every member goes; while one is left it
- * keeps its weight. A prompt edit (`[from:to:0.5]`) goes whole when either
+ * keeps its weight; one never closed goes too, up to its last member. A prompt edit (`[from:to:0.5]`) goes whole when either
  * side does: one side alone would turn it into a weight. Pure.
  */
 export function removeTerms(text: string, ranges: readonly { start: number; end: number }[]): string {
@@ -508,15 +508,18 @@ export function removeTerms(text: string, ranges: readonly { start: number; end:
     let v = gone.get(g);
     if (v === undefined) {
       const members = placed.filter((p) => chain(p.group).includes(g));
-      v = g.close >= 0 && members.length > 0 && (g.edit ? members.some((p) => out(p, g)) : members.every((p) => out(p, g)));
+      v = (g.close >= 0 || !g.edit) && members.length > 0 && (g.edit ? members.some((p) => out(p, g)) : members.every((p) => out(p, g)));
       gone.set(g, v);
     }
     return v;
   }
+  // An unclosed group has no `)` to end at: it ends with its last member.
+  const lastEnd = (g: Group) =>
+    Math.max(...placed.filter((p) => chain(p.group).includes(g)).map((p) => p.term.end));
   for (const p of placed) {
     const groups = chain(p.group).filter(isGone);
     const top = groups[groups.length - 1];
-    if (top) spans.push({ start: top.open, end: top.close + 1 });
+    if (top) spans.push({ start: top.open, end: top.close >= 0 ? top.close + 1 : lastEnd(top) });
     else if (hit.has(p)) spans.push({ start: p.term.start, end: p.term.end });
   }
   // A backslash just before a span that does not escape a paren is one the

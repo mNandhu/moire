@@ -141,6 +141,12 @@ describe("removeTerms", () => {
     expect(cut("smile,\nstanding", "smile")).toBe("standing");
   });
 
+  it("takes an unclosed group whole once every member goes", () => {
+    expect(cut("a, (smile, red eyes", "smile", "red_eyes")).toBe("a");
+    expect(cut("(smile, red eyes", "smile", "red_eyes")).toBe("");
+    expect(cut("a, (smile, red eyes", "smile")).toBe("a, (red eyes");
+  });
+
   it("empties a prompt of one term", () => {
     expect(removeTerms("smile", [{ start: 0, end: 5 }])).toBe("");
   });
