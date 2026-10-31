@@ -44,7 +44,7 @@ export function removeTags(id: string, tags: string[]): Promise<unknown> {
   return post(`/api/v1/tags/remove/${encodeURIComponent(id)}`, tags);
 }
 
-/** Add/remove manual tags (bare names) on many images in one transaction. */
+/** Add/remove manual tags (bare names) on many images (applied in chunks). */
 export function bulkManualTags(
   ids: string[],
   edit: { add?: string[]; remove?: string[] },

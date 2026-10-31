@@ -1,5 +1,5 @@
-"""Bulk tag rewrites commit in chunks: a failure part-way keeps the earlier
-chunks whole, and the tag index is dirtied once after the run."""
+"""Bulk tag rewrites and edits commit in chunks: a failure part-way keeps the
+earlier chunks whole, and the tag index is dirtied once after the run."""
 
 import pytest
 import sqlalchemy as sa
@@ -125,22 +125,62 @@ async def test_chunked_rewrites_cover_every_image_and_dirty_the_index(
     assert all(_tags(f"L1:{i}.png") == ["manual:new"] for i in range(5))
 
 
-async def test_bulk_manual_is_all_or_nothing_at_any_size(temp_db, seed, monkeypatch):
-    """Unlike the rewrites above, a bulk manual edit is one transaction: a
-    failure part-way leaves every image as it was, and the index clean."""
-    ids = [f"L1:{i}.png" for i in range(5)]
+async def test_bulk_manual_failure_keeps_earlier_chunks(temp_db, seed, monkeypatch):
+    """A bulk edit commits per chunk, so it never holds SQLite's one writer
+    for a whole selection: a failure part-way keeps the chunks before it,
+    says how far it got, and dirties the index for them."""
+    monkeypatch.setattr(image_tags, "_CHUNK", 2)
+    ids = [f"L1:{i}.png" for i in range(4)]
     for i in ids:
         seed(i, tags=("manual:keep",))
     _fail_on_second_chunk(monkeypatch)
     gen = tag_index.current_generation()
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(image_tags.BulkEditStopped) as stopped:
         await image_tags.bulk_manual(ids, add=["fav"], remove=[])
 
-    for i in ids:
+    assert (stopped.value.matched, stopped.value.modified, stopped.value.total) == (
+        2,
+        2,
+        4,
+    )
+    for i in ids[:2]:
+        assert _tags(i) == ["manual:keep", "manual:fav"]
+        assert _join_tags(i) == {"manual:keep", "manual:fav"}
+    for i in ids[2:]:
         assert _tags(i) == ["manual:keep"]
         assert _join_tags(i) == {"manual:keep"}
+    assert tag_index.current_generation() == gen + 1
+
+
+async def test_bulk_manual_failure_in_first_chunk_raises_as_is(
+    temp_db, seed, monkeypatch
+):
+    seed("L1:0.png")
+    monkeypatch.setattr(image_tags, "_persist", _boom)
+    gen = tag_index.current_generation()
+    with pytest.raises(RuntimeError):
+        await image_tags.bulk_manual(["L1:0.png"], add=["fav"], remove=[])
     assert tag_index.current_generation() == gen
+
+
+async def _boom(*args, **kwargs):
+    raise RuntimeError("boom")
+
+
+async def test_bulk_manual_across_chunks_resolves_and_dedupes(
+    temp_db, seed, monkeypatch
+):
+    """Each chunk resolves its ids in one read: a backslash spelling finds the
+    stored id, an unknown id is skipped, and the same image named twice (in
+    different chunks) counts once."""
+    monkeypatch.setattr(image_tags, "_CHUNK", 2)
+    seed("L1:sub/a.png", tags=("manual:fav",))
+    seed("L1:b.png")
+    ids = ["L1:sub\\a.png", "L1:nope.png", "L1:b.png", "L1:sub/a.png"]
+    assert await image_tags.bulk_manual(ids, add=["fav"], remove=[]) == (2, 1)
+    assert _tags("L1:sub/a.png") == ["manual:fav"]
+    assert _tags("L1:b.png") == ["manual:fav"]
 
 
 async def test_bulk_manual_covers_every_image(temp_db, seed):

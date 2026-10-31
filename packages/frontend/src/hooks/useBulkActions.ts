@@ -81,26 +81,32 @@ export function useBulkActions({
     [push, setSelectionMode, confirm],
   );
 
-  // One request, one transaction (see image_tags.bulk_manual), so unlike
-  // quarantine there is no partial failure to keep the selection for. It stays
-  // anyway: tagging the keepers is usually followed by acting on the rest.
+  // One request, applied in chunks (see image_tags.bulk_manual): a failure
+  // part-way keeps the chunks before it and says how far it got, and running
+  // it again finishes it. The selection stays either way: tagging the keepers
+  // is usually followed by acting on the rest.
   const [bulkTagOpen, setBulkTagOpen] = useState(false);
   const runBulkManualTags = useCallback(
     async (edit: { add: string[]; remove: string[] }) => {
       const ids = Array.from(selection);
-      try {
-        const res = await bulkManualTags(ids, edit);
+      // Also after a failure: the chunks before it were applied.
+      const refresh = () => {
         invalidateFeeds(queryClient);
         // ImageView reads the full doc from its own cache entry.
         for (const id of ids) {
           queryClient.invalidateQueries({ queryKey: imageDocKey(id), exact: true });
         }
+      };
+      try {
+        const res = await bulkManualTags(ids, edit);
+        refresh();
         push(
           `Updated tags on ${res.modified} of ${ids.length} image${ids.length === 1 ? "" : "s"}`,
           "success",
         );
         return true;
       } catch (e) {
+        refresh();
         push(`Failed to update tags: ${errorText(e)}`, "error");
         return false;
       }

@@ -63,3 +63,36 @@ test("selection mode shows the tile checkboxes, from the toolbar and the phone m
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(checkboxes).toHaveCount(0);
 });
+
+test("Edit tags adds and removes a manual tag on a whole Select all", async ({ page, request }) => {
+  const n = sandbox().images;
+  const edit = async (box: string, verb: RegExp) => {
+    await page.getByRole("button", { name: `${n} selected` }).click();
+    await page.getByRole("menuitem", { name: "Edit tags" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText(`Edit tags on ${n} images`);
+    const input = dialog.getByPlaceholder(box);
+    await input.fill("e2e bulk");
+    await input.press("Enter");
+    await dialog.getByRole("button", { name: "Apply" }).click();
+    await expect(page.getByText(verb)).toBeVisible();
+    await expect(dialog).toBeHidden();
+  };
+  const tagged = async () => {
+    const r = await request.get(`${API}/images/ids`, { params: { tags: "manual:e2e_bulk" } });
+    return (await r.json()).ids.length;
+  };
+
+  await page.goto("/");
+  await expect(page.locator(tiles).first()).toBeVisible();
+  await page.getByRole("button", { name: "Select images" }).click();
+  await page.getByRole("button", { name: "Select all" }).click();
+  await expect(page.getByRole("button", { name: `${n} selected` })).toBeVisible();
+
+  await edit("Type a tag, Enter to add", new RegExp(`Updated tags on ${n} of ${n} images`));
+  expect(await tagged()).toBe(n);
+
+  // Taken off again, so the sandbox library is as the other specs expect it.
+  await edit("Tags to take off these images", new RegExp(`Updated tags on ${n} of ${n} images`));
+  expect(await tagged()).toBe(0);
+});

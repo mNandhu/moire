@@ -132,6 +132,35 @@ async def test_bulk_manual_never_touches_ai_or_prompt_tags(client, seed):
     assert (await _row("L1:a")).tags == ["cat", "prompt:cat"]
 
 
+async def test_bulk_manual_says_how_far_a_failed_edit_got(client, seed, monkeypatch):
+    from moire.services import image_tags
+
+    async def stopped(*args, **kwargs):
+        raise image_tags.BulkEditStopped(1200, 900, 3000)
+
+    monkeypatch.setattr(image_tags, "bulk_manual", stopped)
+    resp = await client.post("/tags/bulk", json={"image_ids": ["L1:a"], "add": ["x"]})
+    assert resp.status_code == 500
+    assert (
+        resp.json()["detail"]
+        == "Stopped after 1,200 of 3,000 images; run it again to finish"
+    )
+
+
+async def test_bulk_manual_takes_a_whole_select_all(client, seed):
+    """The cap is Select all's, so any selection it hands out can be edited."""
+    from moire.services.image_feed import SELECT_ALL_CAP
+
+    seed("L1:a", tags=())
+    ids = ["L1:a"] + [f"L1:missing{i}" for i in range(SELECT_ALL_CAP - 1)]
+    resp = await client.post("/tags/bulk", json={"image_ids": ids, "add": ["x"]})
+    assert resp.json() == {"matched": 1, "modified": 1}
+    resp = await client.post(
+        "/tags/bulk", json={"image_ids": ids + ["L1:one_more"], "add": ["x"]}
+    )
+    assert resp.status_code == 422
+
+
 async def test_bulk_manual_rejects_empty_edit(client, seed):
     seed("L1:a", tags=())
     resp = await client.post("/tags/bulk", json={"image_ids": ["L1:a"]})

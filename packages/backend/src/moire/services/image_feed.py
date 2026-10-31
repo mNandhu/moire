@@ -382,6 +382,11 @@ async def _drive_by_rarest(conn, f: FeedFilter) -> FeedFilter:
     return replace(f, driver_ids=tuple(best))
 
 
+# The most "Select all" picks at once (and so the most a bulk edit takes);
+# more is a sign of a mistake.
+SELECT_ALL_CAP = 20_000
+
+
 async def list_ids(f: FeedFilter, *, limit: int) -> list[str]:
     """Every image ``f`` matches (up to ``limit``), in feed order."""
     async with async_conn() as conn:

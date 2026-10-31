@@ -338,38 +338,67 @@ def _chunks(items: list[str], size: int) -> Iterator[list[str]]:
         yield items[i : i + size]
 
 
+class BulkEditStopped(Exception):
+    """A bulk edit failed after some chunks committed: they stay applied.
+    ``matched``/``modified`` count only those; the edit is idempotent, so
+    running it again on the same selection finishes it."""
+
+    def __init__(self, matched: int, modified: int, total: int):
+        super().__init__(f"stopped after {matched} of {total} images")
+        self.matched, self.modified, self.total = matched, modified, total
+
+
 async def bulk_manual(
     image_ids: list[str], *, add: list[str], remove: list[str]
 ) -> tuple[int, int]:
-    """Apply one manual-tag edit to many images in one transaction, all or
-    nothing at any size (the route caps a selection at 10000).
+    """Apply one manual-tag edit to many images, ``_CHUNK`` per transaction.
 
-    One transaction rather than one per image: a selection of a thousand is
-    one writer slot on single-writer SQLite instead of a thousand, and a
-    failure part-way leaves every image as it was, never half a selection
-    edited. Unknown ids are skipped. Returns ``(matched, modified)``.
+    Chunks, not one transaction: SQLite has one writer, and a selection of
+    thousands held in one would outlast ``busy_timeout`` and fail the
+    scanner's and AI tagger's writes meanwhile. A failure part-way keeps the
+    chunks before it (raised as :class:`BulkEditStopped` once any committed).
+    Each chunk resolves its ids and reads their tags in one query, inside
+    its transaction, so a concurrent edit isn't overwritten. Unknown ids
+    are skipped. Returns ``(matched, modified)``.
     """
     matched = modified = 0
     seen: set[str] = set()
-    async with async_tx() as conn:
-        for image_id in image_ids:
-            resolved = await resolve_image_id(conn, image_id)
-            if resolved is None or resolved in seen:
-                continue
-            seen.add(resolved)
-            matched += 1
-            current = (
-                await conn.execute(
-                    sa.select(t.images.c.tags).where(t.images.c._id == resolved)
-                )
-            ).scalar() or []
-            new = with_manual_edit(current, add=add, remove=remove)
-            if new != current:
-                modified += 1
-                await _persist(conn, resolved, new)
-    # After the commit; a failure rolled everything back, so nothing to dirty.
-    if modified:
-        _dirty_tag_index()
+    try:
+        for chunk in _chunks(image_ids, _CHUNK):
+            chunk_matched = chunk_modified = 0
+            async with async_tx() as conn:
+                candidates = {c for image_id in chunk for c in id_candidates(image_id)}
+                stored = {
+                    r._id: r.tags
+                    for r in await conn.execute(
+                        sa.select(t.images.c._id, t.images.c.tags).where(
+                            t.images.c._id.in_(candidates)
+                        )
+                    )
+                }
+                for image_id in chunk:
+                    resolved = next(
+                        (c for c in id_candidates(image_id) if c in stored), None
+                    )
+                    if resolved is None or resolved in seen:
+                        continue
+                    seen.add(resolved)
+                    chunk_matched += 1
+                    current = stored[resolved] or []
+                    new = with_manual_edit(current, add=add, remove=remove)
+                    if new != current:
+                        chunk_modified += 1
+                        await _persist(conn, resolved, new)
+            # Counted once the chunk committed.
+            matched += chunk_matched
+            modified += chunk_modified
+    except Exception as e:
+        if matched:
+            raise BulkEditStopped(matched, modified, len(image_ids)) from e
+        raise
+    finally:
+        if modified:
+            _dirty_tag_index()
     return matched, modified
 
 

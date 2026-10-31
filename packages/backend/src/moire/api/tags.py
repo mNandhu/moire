@@ -11,6 +11,7 @@ from ..services import (
     characters,
     danbooru_tags,
     face_detect,
+    image_feed,
     image_tags,
     tag_descriptions,
     tag_kinds,
@@ -325,18 +326,29 @@ class BulkManualTags(BaseModel):
 
 @router.post("/bulk")
 async def bulk_manual_tags(body: BulkManualTags):
-    """Add/remove manual tags (bare names) on a selection, in one transaction."""
+    """Add/remove manual tags (bare names) on a selection, in chunks: a
+    failure part-way keeps the chunks before it and says how far it got."""
     if not body.image_ids:
         raise HTTPException(status_code=422, detail="image_ids must not be empty")
-    if len(body.image_ids) > 10000:
-        raise HTTPException(status_code=422, detail="too many images (max 10000)")
+    if len(body.image_ids) > image_feed.SELECT_ALL_CAP:
+        raise HTTPException(
+            status_code=422,
+            detail=f"too many images (max {image_feed.SELECT_ALL_CAP})",
+        )
     add = validate_tags(body.add) if body.add else []
     remove = validate_tags(body.remove) if body.remove else []
     if not add and not remove:
         raise HTTPException(status_code=422, detail="nothing to add or remove")
-    matched, modified = await image_tags.bulk_manual(
-        body.image_ids, add=add, remove=remove
-    )
+    try:
+        matched, modified = await image_tags.bulk_manual(
+            body.image_ids, add=add, remove=remove
+        )
+    except image_tags.BulkEditStopped as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Stopped after {e.matched:,} of {e.total:,} images; "
+            "run it again to finish",
+        ) from e
     return {"matched": matched, "modified": modified}
 
 

@@ -5,7 +5,7 @@ Scenarios worth testing end to end, for the Playwright suite in `packages/e2e` (
 ## Covered
 
 - Onboarding: welcome flow adds a folder and connects the fake ComfyUI, the scan indexes every image (`onboarding.setup.ts`)
-- Gallery: scrolling pages in the rest of the feed; a searched tag filters the gallery and survives a reload from the URL; selection mode from the toolbar and the phone View options menu (`gallery.spec.ts`)
+- Gallery: scrolling pages in the rest of the feed; a searched tag filters the gallery and survives a reload from the URL; selection mode from the toolbar and the phone View options menu; Edit tags adding and removing a manual tag on a whole Select all (`gallery.spec.ts`)
 - Generate: every Clear and Undo scenario below (`generate-clear-undo.spec.ts`); Ctrl+Up/Down weigh the tag under the caret (`generate-prompt-keys.spec.ts`); a run on the fake ComfyUI lands its images in the output library, with the Images stepper and the batch name's rename, Escape and auto name on the way, then a rename on its batch page (`generate-run.spec.ts`)
 - Viewer: prompt weights on the Tags tab, a ComfyUI prompt escaped twice, adding manual tags, setting a score, arrow keys through the feed, also pressed back to back, the phone details sheet dragged up and off (`viewer.spec.ts`)
 - Tags page: a tag's panel and its Open in gallery link, closing the panel (`tag-panel.spec.ts`)

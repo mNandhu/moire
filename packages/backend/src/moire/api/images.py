@@ -128,8 +128,7 @@ async def list_images(
     return JSONResponse(items, headers=headers)
 
 
-# The most "Select all" picks at once; more is a sign of a mistake.
-SELECT_ALL_CAP = 20_000
+SELECT_ALL_CAP = image_feed.SELECT_ALL_CAP
 
 
 @router.get("/ids")
