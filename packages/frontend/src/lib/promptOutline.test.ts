@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import fixture from "../../../backend/tests/fixtures/mirrored/prompt_terms.json";
-import { appendTag, promptTerms, removeTerms, replaceName } from "./promptOutline";
+import vocab from "../../../backend/tests/fixtures/mirrored/prompt_vocab.json";
+import {
+  ABBREV,
+  EMOTICONS,
+  JOINERS,
+  PROSE_WORDS,
+  appendTag,
+  promptTerms,
+  removeTerms,
+  replaceName,
+} from "./promptOutline";
+import { KAOMOJIS } from "./tags";
 
 const names = (text: string) => promptTerms(text).map((t) => [t.name, t.weight ?? null, t.kind]);
 
@@ -205,4 +216,17 @@ describe("promptTerms agrees with the backend's prompt_parse", () => {
       expect(read(c.text)).toEqual(want);
     });
   }
+});
+
+// The splitter's word lists are copies of prompt_parse.py's; the backend
+// test_prompt_vocab_matches_fixture holds the same file against its side.
+describe("prompt vocabulary", () => {
+  const sorted = (s: Iterable<string>) => [...s].sort();
+  it("matches the shared fixture", () => {
+    expect(sorted(JOINERS)).toEqual(sorted(vocab.joiners));
+    expect(sorted(PROSE_WORDS)).toEqual(sorted(vocab.prose_words));
+    expect(sorted(ABBREV)).toEqual(sorted(vocab.abbrev));
+    expect(sorted(KAOMOJIS)).toEqual(sorted(vocab.kaomojis));
+    expect(sorted(EMOTICONS)).toEqual(sorted([...vocab.kaomojis, ...vocab.emoticons_extra]));
+  });
 });

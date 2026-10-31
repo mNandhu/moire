@@ -48,16 +48,16 @@ const EDGE_PUNCT = " \t.;:!?\"'`";
 const SETTINGS_KEY =
   /^(?:vae|steps|sampler|scheduler|cfg(?: scale)?|seed|size|model(?: hash)?|clip skip|denoising strength|hires (?:upscale|steps|upscaler)|lora hashes|version|ensd|width|height)\s*:/;
 const NEG_MARKER = /\bnegative prompt\s*:\s*/g;
-const JOINERS = new Set(["and", "or", "with", "a", "an", "the", "of", "in", "on", "by", "-"]);
-const PROSE_WORDS = new Set([
+export const JOINERS = new Set(["and", "or", "with", "a", "an", "the", "of", "in", "on", "by", "-"]);
+export const PROSE_WORDS = new Set([
   "a", "an", "the", "she", "he", "her", "his", "they", "their", "is", "are",
   "was", "has", "wears", "stands", "sits", "sitting", "standing",
 ]);
-const ABBREV = new Set(["st", "jr", "sr", "dr", "mr", "mrs", "ms", "vs", "ver", "vol", "no", "feat"]);
+export const ABBREV = new Set(["st", "jr", "sr", "dr", "mr", "mrs", "ms", "vs", "ver", "vol", "no", "feat"]);
 const SENTENCE_END = /\b([a-z]{2,})\.(?=\s|$)/g;
 // All punctuation, so matched whole before any bracket, colon or separator
 // rule can take them apart.
-const EMOTICONS = new Set([
+export const EMOTICONS = new Set([
   ...KAOMOJIS,
   ":d", ":o", ":3", ";d", ":<", ":p", ":q", ":t", ";)", ":>", ">:)", ":/",
   ";o", "d:", ":|", "3:", ";p", ">:(", ":>=", ";q", ":i", ";3", ":x", ";(",

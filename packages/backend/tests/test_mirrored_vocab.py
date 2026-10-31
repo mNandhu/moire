@@ -153,3 +153,19 @@ def test_thumb_sizes_match():
         if not line.lstrip().startswith(("//", "*", "/*"))
     )
     assert set(re.findall(r"size=(\w+)", code)) == set(get_args(ThumbSize))
+
+
+def test_prompt_vocab_matches_fixture():
+    """The splitter's word lists, shared with promptOutline.test.ts."""
+    from moire.services import prompt_parse as pp
+
+    fx = json.loads(
+        (
+            Path(__file__).parent / "fixtures" / "mirrored" / "prompt_vocab.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert pp._JOINERS == set(fx["joiners"])
+    assert pp._PROSE_WORDS == set(fx["prose_words"])
+    assert pp._ABBREV == set(fx["abbrev"])
+    assert KAOMOJIS == set(fx["kaomojis"])
+    assert pp._EMOTICONS == set(fx["kaomojis"]) | set(fx["emoticons_extra"])
