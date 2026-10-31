@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from "@playwright/test";
-import { imageById, imageByPath, viewerUrl } from "./helpers";
+import { API, imageById, imageByPath, viewerUrl } from "./helpers";
 
 test("the Tags tab shows prompt weights", async ({ page, request }) => {
   const { _id } = await imageByPath(request, "weighted/weighted.png");
@@ -94,6 +94,27 @@ test("arrow keys pressed back to back each take a step", async ({ page, request 
   await keys("ArrowRight", "ArrowRight");
   await expect(page.getByText("shinobu_23.png", { exact: true })).toBeVisible();
   await expect.poll(() => page.url()).toContain(viewerUrl(twoOn));
+});
+
+test("quarantining the open image leaves the arrows working", async ({ page, request }) => {
+  const { _id } = await imageByPath(request, "furina/furina_63.png");
+  try {
+    await page.goto(viewerUrl(_id));
+    await expect(page.getByText("furina_63.png", { exact: true })).toBeVisible();
+    await page.keyboard.press("x");
+    await expect(page.getByRole("button", { name: "Restore" })).toBeVisible();
+
+    // Newest first: furina_41, furina_63, shinobu_23. It keeps its place
+    // while the viewer is open.
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByText("shinobu_23.png", { exact: true })).toBeVisible();
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.getByText("furina_63.png", { exact: true })).toBeVisible();
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.getByText("furina_41.png", { exact: true })).toBeVisible();
+  } finally {
+    await request.post(`${API}/images/${encodeURIComponent(_id)}/quarantine`, { data: { quarantined: false } });
+  }
 });
 
 test.describe("at phone width", () => {

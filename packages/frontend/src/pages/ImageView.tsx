@@ -43,7 +43,7 @@ import { TagsSection } from "../components/imageview/TagsSection";
 // Round controls floating over the image stage (back, details, prev/next).
 const OVERLAY_BTN =
   "p-2 rounded-full bg-black/45 border border-white/10 text-white/80 hover:text-white hover:bg-black/65 disabled:opacity-30 disabled:pointer-events-none transition-colors duration-150";
-import { imageDocKey, invalidateFeeds, removeImageFromFeeds, syncFeedsFromDoc, writeImageFields } from "../lib/feedCache";
+import { imageDocKey, invalidateFeeds, syncFeedsFromDoc, writeImageFields } from "../lib/feedCache";
 
 export default function ImageView() {
   // `routeId` is where the URL points; `id` is the image actually on screen
@@ -136,15 +136,16 @@ export default function ImageView() {
     try {
       await apiSetQuarantine(id, next);
       push(next ? "Quarantined" : "Restored", "info");
+      // It stays in the feed this view steps through (dropping it would
+      // strand the arrows: the open image no longer has a place in the
+      // list); the tile takes the flag from the doc, and the feeds refetch
+      // when the view closes, as after a tag edit.
       refreshImage();
-      // Drop it from every cached feed so the gallery reflects the change
-      // without a refresh.
-      removeImageFromFeeds(queryClient, id);
-      invalidateFeeds(queryClient);
+      feedsDirty.current = true;
     } catch (e) {
       push(`Failed to update quarantine: ${errorText(e)}`, "error");
     }
-  }, [id, quarantined, push, refreshImage, queryClient]);
+  }, [id, quarantined, push, refreshImage]);
 
   const copyWorkflow = useCallback(async () => {
     if (!id) return;
