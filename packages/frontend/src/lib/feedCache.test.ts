@@ -13,9 +13,8 @@ import {
   writeImageFields,
 } from "./feedCache";
 
-// Not yet AI tagged, so a doc that is shows as a change.
-const doc = (id: string, score = 0) => feedItem({ _id: id, score, has_ai_tags: false });
-const detail = (id: string, score = 0) => imageDetail({ _id: id, score, has_ai_tags: false });
+const doc = (id: string, score = 0) => feedItem({ _id: id, score });
+const detail = (id: string, score = 0) => imageDetail({ _id: id, score });
 
 /** Two feeds cached under different filters: the case exact-key patching missed. */
 function seededClient() {

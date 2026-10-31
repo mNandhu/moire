@@ -60,7 +60,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
   peekQuery?: string;
 }) {
   // The versioned URL the feed carries (no per-tile resolve request).
-  const src = item.thumb_url ?? "";
+  const src = item.thumb_url;
 
   const groupCount = item.group_count ?? 1;
   const isBatch = groupCount > 1;

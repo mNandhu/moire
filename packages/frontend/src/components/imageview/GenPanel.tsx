@@ -217,7 +217,7 @@ export function GenPanel({
   thumbUrl,
 }: {
   imageId: string;
-  gen?: import("../../lib/gen").GenMeta | null;
+  gen: import("../../lib/gen").GenMeta | null;
   width?: number;
   height?: number;
   onCopyAll: () => void;

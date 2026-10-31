@@ -2,13 +2,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ThumbnailTile } from "./ThumbnailTile";
 import type { FeedItem } from "../lib/imageFilter";
-import { feedItem } from "../test/images";
+import { feedItem as doc } from "../test/images";
 
 beforeEach(() => {
   vi.unstubAllGlobals();
 });
 
-const doc = (d: Partial<FeedItem>): FeedItem => feedItem(d);
 
 function renderTile(item: FeedItem, props: Partial<Parameters<typeof ThumbnailTile>[0]> = {}) {
   const onToggle = vi.fn();

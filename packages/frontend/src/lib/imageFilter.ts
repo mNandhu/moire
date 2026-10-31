@@ -15,6 +15,8 @@
  * (services/image_feed.FEED_KEYS, its thumb_key swapped for thumb_url). */
 export type ImageFields = {
   _id: string;
+  // Never null in practice (the scanner writes every row with one), though
+  // the column and the model allow it.
   path: string;
   width: number | null;
   height: number | null;
