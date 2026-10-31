@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 import { useHotkeys } from "./useHotkeys";
 import { scrollDeltaForKey } from "../lib/dom";
+import { GALLERY } from "../lib/shortcuts";
 
 /**
  * Keyboard scrolling (PageDown/PageUp/Home/End/Space/arrows) for the app's
@@ -21,9 +22,9 @@ export function useShellKeyScroll(scrollRef: RefObject<HTMLElement | null>) {
     else scroller?.scrollBy({ top: delta, behavior: "auto" });
   };
   useHotkeys([
-    { keys: ["PageDown", "PageUp"], run: scroll },
+    { ...GALLERY.scrollPage, run: scroll },
     // Ctrl/Cmd+Home/End mean top/bottom too; other combos stay the browser's.
-    { keys: ["Home", "End"], mods: "ctrl", run: scroll },
+    { ...GALLERY.scrollEnds, mods: "ctrl", run: scroll },
     {
       keys: [" ", "Spacebar"],
       run: (e) => {

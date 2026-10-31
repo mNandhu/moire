@@ -9,15 +9,6 @@ export type GridNavKey =
   | "ArrowUp"
   | "ArrowDown";
 
-export function isGridNavKey(key: string): key is GridNavKey {
-  return (
-    key === "ArrowLeft" ||
-    key === "ArrowRight" ||
-    key === "ArrowUp" ||
-    key === "ArrowDown"
-  );
-}
-
 /**
  * Next focus index for an arrow key. `current` is -1 when nothing is focused.
  * `cols` is the current column count, `count` the number of tiles. Returns the

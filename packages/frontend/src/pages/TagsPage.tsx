@@ -8,6 +8,7 @@ import { Button, ButtonLink } from "../components/ui/Button";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { Input } from "../components/ui/Input";
 import { cn } from "../lib/cn";
+import { EVERYWHERE } from "../lib/shortcuts";
 import { galleryHref } from "../lib/imageFilter";
 import {
   useAiCoverage,
@@ -124,7 +125,7 @@ export default function TagsPage({ group }: { group?: string } = {}) {
 
   // Escape closes the panel (the rename dialog handles its own Escape first),
   // but not while an image is open over the page: that Escape is the viewer's.
-  useHotkeys([{ keys: ["Escape"], mods: "any", run: () => setSelected(null) }], {
+  useHotkeys([{ ...EVERYWHERE.close, mods: "any", run: () => setSelected(null) }], {
     enabled: !!selected,
     fields: true,
     skipHandled: true,

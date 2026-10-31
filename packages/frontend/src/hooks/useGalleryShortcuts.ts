@@ -3,6 +3,7 @@ import { useToast } from "../components/Toasts";
 import type { Filters } from "../lib/imageFilter";
 import { readLocalPref, writeLocalPref } from "../lib/localPref";
 import { SHORTCUT_HINT_KEY } from "../lib/onboarding";
+import { FILTER, GALLERY, isZoomIn } from "../lib/shortcuts";
 import type { useDensity } from "./useDensity";
 import { useHotkeys } from "./useHotkeys";
 
@@ -42,21 +43,15 @@ export function useGalleryShortcuts({
   // A no-AI-tags, Q quarantined, +/- zoom (? help is global: ShortcutHelp).
   useHotkeys([
     {
-      keys: ["+", "="],
+      ...GALLERY.zoom,
       run: (e) => {
         e.preventDefault();
-        density.zoomIn();
+        if (isZoomIn(e.key)) density.zoomIn();
+        else density.zoomOut();
       },
     },
     {
-      keys: ["-", "_"],
-      run: (e) => {
-        e.preventDefault();
-        density.zoomOut();
-      },
-    },
-    {
-      keys: ["/", "f", "F"],
+      ...GALLERY.search,
       run: (e) => {
         e.preventDefault();
         searchInputRef.current?.focus();
@@ -72,7 +67,7 @@ export function useGalleryShortcuts({
       },
     },
     {
-      keys: ["s", "S"],
+      ...FILTER.selection,
       run: (e) => {
         e.preventDefault();
         setSelectionMode((v) => {
@@ -83,7 +78,7 @@ export function useGalleryShortcuts({
       },
     },
     {
-      keys: ["n", "N"],
+      ...FILTER.noTags,
       run: (e) => {
         e.preventDefault();
         const next = !filters.noTags;
@@ -92,7 +87,7 @@ export function useGalleryShortcuts({
       },
     },
     {
-      keys: ["a", "A"],
+      ...FILTER.noAiTags,
       run: (e) => {
         e.preventDefault();
         const next = !filters.noAiTags;
@@ -101,7 +96,7 @@ export function useGalleryShortcuts({
       },
     },
     {
-      keys: ["q", "Q"],
+      ...FILTER.quarantined,
       run: (e) => {
         e.preventDefault();
         const next = !filters.quarantined;

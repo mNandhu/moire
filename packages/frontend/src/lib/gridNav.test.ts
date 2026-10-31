@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { nextFocusIndex, isGridNavKey } from "./gridNav";
+import { nextFocusIndex } from "./gridNav";
 
 describe("nextFocusIndex (cols=4, count=10)", () => {
   const C = 4;
@@ -24,13 +24,5 @@ describe("nextFocusIndex (cols=4, count=10)", () => {
   });
   it("empty grid yields -1", () => {
     expect(nextFocusIndex(3, "ArrowDown", C, 0)).toBe(-1);
-  });
-});
-
-describe("isGridNavKey", () => {
-  it("recognises arrows only", () => {
-    expect(isGridNavKey("ArrowUp")).toBe(true);
-    expect(isGridNavKey("x")).toBe(false);
-    expect(isGridNavKey("Enter")).toBe(false);
   });
 });

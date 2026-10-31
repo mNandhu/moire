@@ -41,6 +41,7 @@ import { splitBoilerplate } from "../lib/boilerplate";
 import { libraryPageHref, useBoilerplate, useLibraries } from "../lib/queries";
 import { useHotkeys } from "../hooks/useHotkeys";
 import { snapSheet } from "../lib/sheetSnap";
+import { IMAGE } from "../lib/shortcuts";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { ScorePicker } from "../components/ui/ScoreMark";
@@ -537,21 +538,15 @@ export default function ImageView() {
   useHotkeys(
     [
       {
-        keys: ["ArrowLeft"],
+        ...IMAGE.step,
         run: (e) => {
           e.preventDefault();
-          goPrev();
+          if (e.key === "ArrowLeft") goPrev();
+          else goNext();
         },
       },
       {
-        keys: ["ArrowRight"],
-        run: (e) => {
-          e.preventDefault();
-          goNext();
-        },
-      },
-      {
-        keys: ["Escape"],
+        ...IMAGE.back,
         run: (e) => {
           e.preventDefault();
           goBack();
@@ -563,7 +558,7 @@ export default function ImageView() {
       // already stepped past.
       // Curation: 1-5 set score, 0 clears, X quarantines/restores.
       {
-        match: (e) => e.key >= "0" && e.key <= "5",
+        ...IMAGE.score,
         run: (e) => {
           if (pending) return;
           e.preventDefault();
@@ -571,7 +566,7 @@ export default function ImageView() {
         },
       },
       {
-        keys: ["x", "X", "Delete"],
+        ...IMAGE.quarantine,
         run: (e) => {
           if (pending) return;
           e.preventDefault();

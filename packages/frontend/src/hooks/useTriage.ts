@@ -3,7 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "../components/Toasts";
 import { errorText } from "../lib/api";
 import { patchFeeds, writeImageFields } from "../lib/feedCache";
-import { nextFocusIndex, isGridNavKey, type GridNavKey } from "../lib/gridNav";
+import { nextFocusIndex, type GridNavKey } from "../lib/gridNav";
+import { GALLERY, TRIAGE } from "../lib/shortcuts";
 import type { FeedItem } from "../lib/imageFilter";
 import { setScore as apiSetScore, setQuarantine as apiSetQuarantine } from "../lib/imageMutations";
 import { useHotkeys } from "./useHotkeys";
@@ -87,7 +88,7 @@ export function useTriage({
   useHotkeys(
     [
       {
-        match: (e) => isGridNavKey(e.key),
+        ...GALLERY.move,
         run: (e) => {
           e.preventDefault();
           const key = e.key as GridNavKey;
@@ -96,7 +97,7 @@ export function useTriage({
         },
       },
       {
-        match: (e) => e.key >= "0" && e.key <= "5",
+        ...TRIAGE.score,
         run: (e) => {
           if (focusedIndex < 0) return;
           e.preventDefault();
@@ -104,7 +105,7 @@ export function useTriage({
         },
       },
       {
-        keys: ["x", "X", "Delete"],
+        ...TRIAGE.quarantine,
         run: (e) => {
           if (focusedIndex < 0) return;
           e.preventDefault();
@@ -116,7 +117,7 @@ export function useTriage({
         // tabIndex={-1}>, not the inner <button>, so there is no default
         // activation to fall back on, arrowing to a tile and pressing Enter
         // did nothing at all.
-        keys: ["Enter"],
+        ...GALLERY.open,
         run: (e) => {
           const it = focusedIndex >= 0 ? items[focusedIndex] : undefined;
           if (!it) return;

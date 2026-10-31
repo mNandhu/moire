@@ -10,6 +10,7 @@ import { SearchPalette } from "./components/SearchPalette";
 import { PageErrorBoundary } from "./components/ErrorScreen";
 import { MobileNavContext } from "./components/ui/PageHeader";
 import { cn } from "./lib/cn";
+import { EVERYWHERE } from "./lib/shortcuts";
 import { restoreAmbient } from "./lib/ambient";
 import { useQueueTitle } from "./hooks/useQueueTitle";
 import { usePrefetchCharacters } from "./lib/queries";
@@ -39,7 +40,7 @@ export default function App() {
 
   // So do Escape and growing past `md` (the drawer only exists below it; left
   // open, a desktop-collapsed rail would render the expanded nav clipped).
-  useHotkeys([{ keys: ["Escape"], mods: "any", run: () => setMobileNavOpen(false) }], {
+  useHotkeys([{ ...EVERYWHERE.close, mods: "any", run: () => setMobileNavOpen(false) }], {
     enabled: mobileNavOpen,
     overlay: "ignore",
     fields: true,
@@ -54,6 +55,7 @@ export default function App() {
   useHotkeys(
     [
       {
+        ...EVERYWHERE.search,
         mods: "any",
         match: (e) => {
           // The K the layout types (Dvorak's too); a non-Latin layout's key in

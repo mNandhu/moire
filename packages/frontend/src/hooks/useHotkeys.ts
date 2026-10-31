@@ -22,7 +22,7 @@ import { useOverlayOpen } from "../lib/backgroundLocation";
  * re-subscribing the listener.
  */
 export type Hotkey = {
-  keys?: string[];
+  keys?: readonly string[];
   match?: (e: KeyboardEvent) => boolean;
   mods?: "none" | "ctrl" | "any";
   run: (e: KeyboardEvent) => void;

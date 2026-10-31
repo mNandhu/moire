@@ -6,6 +6,7 @@ import { hasModifier } from "../../lib/dom";
 import { imageHref } from "../../lib/imageFilter";
 import type { Output } from "../../lib/generate";
 import { setQuarantine, setScore } from "../../lib/imageMutations";
+import { BATCH } from "../../lib/shortcuts";
 import { errorText } from "../../lib/api";
 import { useToast } from "../Toasts";
 import { ScorePicker } from "../ui/ScoreMark";
@@ -25,11 +26,11 @@ export function ResultTile({ out, ratio, onChanged }: { out: Output; ratio: numb
   const onKeyDown = (e: React.KeyboardEvent) => {
     // Ctrl+1 and Ctrl+X are the browser's.
     if (!out.in_library || hasModifier(e)) return;
-    const k = e.key.toLowerCase();
-    if (k === "k") void act(() => setQuarantine(out.image_id, false));
-    else if (k === "x") void act(() => setQuarantine(out.image_id, true));
+    const k = e.key;
+    if (BATCH.keep.keys.includes(k)) void act(() => setQuarantine(out.image_id, false));
+    else if (BATCH.reject.keys.includes(k)) void act(() => setQuarantine(out.image_id, true));
     // A rejected image is out; it takes a score once restored.
-    else if (/^[1-5]$/.test(k) && !out.quarantined) void act(() => setScore(out.image_id, Number(k)));
+    else if (BATCH.score.keys.includes(k) && !out.quarantined) void act(() => setScore(out.image_id, Number(k)));
   };
   if (!out.in_library) {
     return (

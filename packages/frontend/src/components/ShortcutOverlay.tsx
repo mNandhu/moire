@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Dialog } from "./ui/Dialog";
 import { useHotkeys } from "../hooks/useHotkeys";
-import { OPEN_SHORTCUTS_EVENT, shortcutGroups } from "../lib/shortcuts";
+import { EVERYWHERE, OPEN_SHORTCUTS_EVENT, shortcutGroups } from "../lib/shortcuts";
 
 /**
  * Keyboard reference, opened with `?` on any page (lib/shortcuts.ts holds the
@@ -16,7 +16,7 @@ export function ShortcutHelp() {
   useHotkeys(
     [
       {
-        keys: ["?"],
+        ...EVERYWHERE.help,
         run: (e) => {
           // Not over another dialog (a confirm, a rename): one modal at a time.
           // Its own `?` closes it (below).
@@ -33,7 +33,7 @@ export function ShortcutHelp() {
   useHotkeys(
     [
       {
-        keys: ["?"],
+        ...EVERYWHERE.help,
         mods: "any",
         run: (e) => {
           if (!document.querySelector('[role="dialog"][aria-label="Keyboard shortcuts"]')) return;
