@@ -52,6 +52,7 @@ def fresh_tag_index():
     minute-long prompt total."""
     tag_index.reset_for_tests()
     lora_words._last_total = None
+    lora_words._meta.clear()
     yield
     tag_index.reset_for_tests()
     lora_words._last_total = None

@@ -176,3 +176,32 @@ async def test_describe_keeps_common_training_tags(client, seed):
         "niji.safetensors", _FakeClient(), describe=True
     )
     assert [w["word"] for w in words][:3] == ["0_11xx_b", "1girl", "looking at viewer"]
+
+
+async def test_file_metadata_is_read_once_per_file(client, seed):
+    await asyncio.to_thread(_library, seed)
+    calls = []
+
+    class Counting(_FakeClient):
+        async def lora_metadata(self, name):
+            calls.append(name)
+            return await super().lora_metadata(name)
+
+    first = await lora_words.suggestions("niji.safetensors", Counting())
+    again = await lora_words.suggestions("niji.safetensors", Counting())
+    assert first == again and calls == ["niji.safetensors"]
+
+
+async def test_no_wait_on_comfyui_when_it_is_down(client, seed, monkeypatch):
+    from moire.services.generation_jobs import get_generation_manager
+
+    await asyncio.to_thread(_library, seed)
+    m = get_generation_manager()
+    monkeypatch.setattr(m, "client", _FakeClient())
+    monkeypatch.setattr(m, "connected", False)
+    words = (
+        await client.get(
+            "/generate/lora-words", params={"name": "styles/niji.safetensors"}
+        )
+    ).json()
+    assert all(w["sources"] == ["library"] for w in words)

@@ -9,6 +9,7 @@ prompt says nothing about which of its words belong to the LoRA.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Any
@@ -221,13 +222,24 @@ async def _common(words: list[str], stem: str) -> set[str]:
     return {bases[b] for b, c in rows if b in bases and c / total >= COMMON}
 
 
+# A LoRA file's metadata by name: its header doesn't change, and reading it
+# is a round trip to ComfyUI each time. Failures aren't kept.
+_meta: dict[str, dict[str, Any] | None] = {}
+
+
+async def _metadata(client: ComfyClient, name: str) -> dict[str, Any] | None:
+    if name not in _meta:
+        _meta[name] = await client.lora_metadata(name)
+    return _meta[name]
+
+
 async def _file(
     client: ComfyClient | None, name: str, describe: bool = False
 ) -> list[str]:
     if client is None or not name.lower().endswith(".safetensors"):
         return []
     try:
-        meta = await client.lora_metadata(name)
+        meta = await _metadata(client, name)
     except (ComfyError, ComfyUnreachable):
         return []
     words = file_words(meta, limit=4 * LIMIT)
@@ -252,9 +264,12 @@ async def suggestions(
 ) -> list[dict[str, Any]]:
     """Words to offer for the LoRA file ``name``: each with where it came
     from (``file``, ``library``) and, from the library, in how many prompts."""
-    lib = await _library(model_stem(name))
+    # The library's counts and ComfyUI's read of the file, side by side.
+    lib, file = await asyncio.gather(
+        _library(model_stem(name)), _file(client, name, describe)
+    )
     out: dict[str, dict[str, Any]] = {}
-    for w in await _file(client, name, describe):
+    for w in file:
         out[_key(w)] = {"word": w, "sources": ["file"], "prompts": 0}
     for w, c in lib:
         hit = out.get(_key(w))

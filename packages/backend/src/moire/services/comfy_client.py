@@ -155,8 +155,13 @@ class ComfyClient:
     async def lora_metadata(self, name: str) -> dict[str, Any] | None:
         """A LoRA file's safetensors metadata (``GET /view_metadata/loras``);
         ``None`` when the file has none."""
+        # A header read: quick when ComfyUI is there; don't hold a dialog
+        # up for the default timeout when it isn't.
         r = await self._request(
-            "GET", "/view_metadata/loras", params={"filename": name}
+            "GET",
+            "/view_metadata/loras",
+            params={"filename": name},
+            timeout=httpx.Timeout(15.0, connect=4.0),
         )
         if r.status_code == 404:
             return None
