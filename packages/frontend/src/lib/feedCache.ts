@@ -129,48 +129,6 @@ export function syncFeedsFromDoc(
   );
 }
 
-/**
- * Optimistically set fields on one image everywhere it is cached: every feed
- * that holds it, the grouped view, and its document (under `docId`, the id as
- * spelled in the route, which may differ from the canonical `_id` in slash
- * direction). Freshness is left alone, so a stale document still refetches.
- *
- * Returns an undo for a failed write. It reverts only fields that still hold
- * this patch's value, so a later edit or refetch that landed meanwhile (a
- * second score that succeeded) is never rolled back.
- */
-export function patchImageEverywhere(
-  qc: QueryClient,
-  id: string,
-  fields: Partial<ImageFields>,
-  docId: string = id,
-): () => void {
-  const keys = Object.keys(fields) as (keyof ImageFields)[];
-  const docQuery = qc.getQueryCache().find({ queryKey: imageDocKey(docId), exact: true });
-  const prevDoc = docQuery?.state.data as ImageDetail | undefined;
-  let prevTile: FeedItem | undefined;
-  patchImageInFeeds(qc, id, (d) => {
-    prevTile ??= d;
-    return { ...d, ...fields };
-  });
-  if (docQuery && prevDoc) patchData(docQuery, { ...prevDoc, ...fields });
-
-  const revert = <T extends ImageFields>(cur: T, prev: T): T => {
-    const back = keys.filter((k) => cur[k] === fields[k]);
-    return back.length
-      ? { ...cur, ...Object.fromEntries(back.map((k) => [k, prev[k]])) }
-      : cur;
-  };
-  return () => {
-    if (prevTile) {
-      const prev = prevTile;
-      patchImageInFeeds(qc, id, (d) => revert(d, prev));
-    }
-    const cur = docQuery?.state.data as ImageDetail | undefined;
-    if (docQuery && cur && prevDoc) patchData(docQuery, revert(cur, prevDoc));
-  };
-}
-
 /** One write in flight for one field of one image. */
 type FieldWrite = { seq: number; value: unknown };
 /** A field's writes in flight, and the last value the server confirmed (or the
@@ -230,7 +188,8 @@ function setFields(
  * started before the write may have brought the old value back meanwhile).
  * On failure the patch is undone and the error rethrown. A doc fetch already
  * in flight is cancelled first, or it would land after the patch and undo it.
- * `docId` as in patchImageEverywhere.
+ * `docId` is the id as spelled in the route, which may differ from the
+ * canonical `_id` in slash direction; it keys the image's document.
  *
  * Writes to the same field of the same image may overlap (score 3, then 4,
  * before the first returns): only the newest one still standing decides what
