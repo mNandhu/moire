@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { GitMerge, Pencil } from "lucide-react";
-import { Dialog } from "./ui/Dialog";
-import { Button } from "./ui/Button";
+import { Dialog, DialogFooter } from "./ui/Dialog";
 import { Input } from "./ui/Input";
 import { TagSuggestList } from "./TagSuggestList";
 import { useSuggestNav, useTagMatches } from "../hooks/useSuggestNav";
@@ -29,7 +29,6 @@ export function RenameTagDialog({
   onRename: (tag: string, to: string) => Promise<boolean>;
 }) {
   const [to, setTo] = useState("");
-  const [busy, setBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
 
   const raw = tag?._id ?? "";
@@ -55,21 +54,23 @@ export function RenameTagDialog({
     resetKey: to,
   });
 
-  const close = () => {
-    if (busy) return;
+  const reset = () => {
     setTo("");
     onClose();
   };
+  const rename = useMutation({
+    mutationFn: () => onRename(raw, to),
+    onSuccess: (ok) => {
+      if (ok) reset();
+    },
+  });
+  const close = () => {
+    if (!rename.isPending) reset();
+  };
 
-  const submit = async () => {
-    if (!tag || !plan.ok || busy) return;
-    setBusy(true);
-    const ok = await onRename(raw, to);
-    setBusy(false);
-    if (ok) {
-      setTo("");
-      onClose();
-    }
+  const submit = () => {
+    if (!tag || !plan.ok || rename.isPending) return;
+    rename.mutate();
   };
 
   const merge = plan.ok && !!plan.existing;
@@ -96,14 +97,13 @@ export function RenameTagDialog({
       }
       className="max-w-md"
       footer={
-        <>
-          <Button onClick={close} disabled={busy}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={() => void submit()} disabled={!plan.ok || busy}>
-            {busy ? "Saving…" : merge ? "Merge" : "Rename"}
-          </Button>
-        </>
+        <DialogFooter
+          onCancel={close}
+          onConfirm={submit}
+          confirmLabel={merge ? "Merge" : "Rename"}
+          disabled={!plan.ok}
+          pending={rename.isPending}
+        />
       }
     >
       <div className="space-y-2">
@@ -121,7 +121,7 @@ export function RenameTagDialog({
               // The first Enter takes the highlighted name; the next submits.
               if (e.key === "Enter") {
                 e.preventDefault();
-                void submit();
+                submit();
               }
             }}
             placeholder="New name, or an existing tag to merge into"

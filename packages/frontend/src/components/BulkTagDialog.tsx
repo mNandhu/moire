@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Tags } from "lucide-react";
-import { Dialog } from "./ui/Dialog";
-import { Button } from "./ui/Button";
+import { Dialog, DialogFooter } from "./ui/Dialog";
 import { TagSearchInput } from "./TagSearchInput";
 import { useTagAggregate } from "../lib/queries";
 import { bulkTagNames, isManual } from "../lib/tags";
@@ -26,7 +26,6 @@ export function BulkTagDialog({
 }) {
   const [add, setAdd] = useState<string[]>([]);
   const [remove, setRemove] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
   const { data: tags } = useTagAggregate();
   const manual = useMemo(() => (tags ?? []).filter((t) => isManual(t._id)), [tags]);
 
@@ -34,23 +33,19 @@ export function BulkTagDialog({
   const removeNames = bulkTagNames(remove);
   const empty = !addNames.length && !removeNames.length;
 
-  const close = () => {
-    if (busy) return;
+  const reset = () => {
     setAdd([]);
     setRemove([]);
     onClose();
   };
-
-  const apply = async () => {
-    if (empty || busy) return;
-    setBusy(true);
-    const ok = await onApply({ add: addNames, remove: removeNames });
-    setBusy(false);
-    if (ok) {
-      setAdd([]);
-      setRemove([]);
-      onClose();
-    }
+  const apply = useMutation({
+    mutationFn: () => onApply({ add: addNames, remove: removeNames }),
+    onSuccess: (ok) => {
+      if (ok) reset();
+    },
+  });
+  const close = () => {
+    if (!apply.isPending) reset();
   };
 
   const plural = count === 1 ? "" : "s";
@@ -66,14 +61,13 @@ export function BulkTagDialog({
       description="Manual tags only. AI and prompt tags stay as they are."
       className="max-w-lg"
       footer={
-        <>
-          <Button onClick={close} disabled={busy}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={() => void apply()} disabled={empty || busy}>
-            {busy ? "Applying…" : "Apply"}
-          </Button>
-        </>
+        <DialogFooter
+          onCancel={close}
+          onConfirm={() => apply.mutate()}
+          confirmLabel="Apply"
+          disabled={empty}
+          pending={apply.isPending}
+        />
       }
     >
       <div className="space-y-4">

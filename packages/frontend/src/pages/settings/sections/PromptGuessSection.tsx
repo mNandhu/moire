@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Section } from "../../../components/ui/Card";
 import { Skeleton } from "../../../components/ui/Skeleton";
 import { useToast } from "../../../components/Toasts";
@@ -33,7 +33,6 @@ export function PromptGuessSection() {
 
   const [positive, setPositive] = useState<string[] | null>(null);
   const [negative, setNegative] = useState<string[] | null>(null);
-  const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!settings) return;
     setPositive(settings.guess_positive);
@@ -55,19 +54,15 @@ export function PromptGuessSection() {
     sameList(positive, settings.default_positive) &&
     sameList(negative, settings.default_negative);
 
-  const save = async () => {
-    if (!positive || !negative) return;
-    setSaving(true);
-    try {
-      const saved = await saveGuessKeywords(positive, negative);
+  const save = useMutation({
+    mutationFn: (lists: { positive: string[]; negative: string[] }) =>
+      saveGuessKeywords(lists.positive, lists.negative),
+    onSuccess: (saved) => {
       qc.setQueryData(GUESS_KEYWORDS_KEY, saved);
       push("Keywords saved. Prompts are being re-read in the background.", "success");
-    } catch (e) {
-      push(`Failed to save: ${errorText(e)}`, "error");
-    } finally {
-      setSaving(false);
-    }
-  };
+    },
+    onError: (e) => push(`Failed to save: ${errorText(e)}`, "error"),
+  });
 
   return (
     <div className="space-y-5">
@@ -118,14 +113,16 @@ export function PromptGuessSection() {
 
       <SaveBar
         dirty={dirty}
-        saving={saving}
+        saving={save.isPending}
         resetDisabled={!settings || atDefaults}
         onReset={() => {
           if (!settings) return;
           setPositive(settings.default_positive);
           setNegative(settings.default_negative);
         }}
-        onSave={() => void save()}
+        onSave={() => {
+          if (positive && negative) save.mutate({ positive, negative });
+        }}
       />
     </div>
   );

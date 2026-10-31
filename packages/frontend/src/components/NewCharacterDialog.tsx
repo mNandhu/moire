@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
-import { Dialog } from "./ui/Dialog";
-import { Button } from "./ui/Button";
+import { Dialog, DialogFooter } from "./ui/Dialog";
 import { Field, Input } from "./ui/Input";
 import { Picker } from "./ui/Picker";
 import { useToast } from "./Toasts";
@@ -46,7 +45,6 @@ export function NewCharacterDialog({
   const [identity, setIdentity] = useState<string[]>([]);
   const [typed, setTyped] = useState("");
   const [suggest, setSuggest] = useState(!!initialTag);
-  const [saving, setSaving] = useState(false);
   const { data: names } = useCharacterNames();
   const { data: everyone } = useCharacters();
   const { data: models } = useComfyModels();
@@ -91,31 +89,28 @@ export function NewCharacterDialog({
     if (t && !identity.includes(t)) setIdentity((xs) => [...xs, t]);
   };
 
-  const create = async () => {
-    // A tag typed but not yet added with Enter still counts.
-    const tags = typed.trim() && !identity.includes(canonicalName(typed)) ? [...identity, canonicalName(typed)] : identity;
-    setSaving(true);
-    let made: { tag: string };
-    try {
-      made = await createCharacter({ tag: canonicalName(tag), ...(name.trim() ? { name: name.trim() } : {}) });
-    } catch (e) {
-      push(`Couldn't make the character: ${errorText(e)}`, "error");
-      setSaving(false);
-      return;
-    }
-    try {
-      if (tags.length || lora) {
-        await putRecipe(made.tag, { ...(tags.length ? { added: tags } : {}), ...(lora ? { lora } : {}) });
+  const create = useMutation({
+    mutationFn: async () => {
+      // A tag typed but not yet added with Enter still counts.
+      const tags = typed.trim() && !identity.includes(canonicalName(typed)) ? [...identity, canonicalName(typed)] : identity;
+      const made = await createCharacter({ tag: canonicalName(tag), ...(name.trim() ? { name: name.trim() } : {}) });
+      try {
+        if (tags.length || lora) {
+          await putRecipe(made.tag, { ...(tags.length ? { added: tags } : {}), ...(lora ? { lora } : {}) });
+        }
+      } catch (e) {
+        push(`Made the character, but couldn't save its tags and LoRA: ${errorText(e)}`, "error");
       }
-    } catch (e) {
-      push(`Made the character, but couldn't save its tags and LoRA: ${errorText(e)}`, "error");
-    }
-    await qc.invalidateQueries({ queryKey: TAGS_KEY });
-    setSaving(false);
-    onClose();
-    if (onCreated) onCreated(made.tag);
-    else navigate(characterHref(made.tag));
-  };
+      await qc.invalidateQueries({ queryKey: TAGS_KEY });
+      return made.tag;
+    },
+    onSuccess: (made) => {
+      onClose();
+      if (onCreated) onCreated(made);
+      else navigate(characterHref(made));
+    },
+    onError: (e) => push(`Couldn't make the character: ${errorText(e)}`, "error"),
+  });
 
   return (
     <Dialog
@@ -124,12 +119,13 @@ export function NewCharacterDialog({
       title="New character"
       className="max-w-lg"
       footer={
-        <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={() => void create()} disabled={!canonicalName(tag) || !!existing || saving}>
-            {saving ? "Making…" : "Make character"}
-          </Button>
-        </>
+        <DialogFooter
+          onCancel={onClose}
+          onConfirm={() => create.mutate()}
+          confirmLabel="Make character"
+          disabled={!canonicalName(tag) || !!existing}
+          pending={create.isPending}
+        />
       }
     >
       <div className="space-y-5">

@@ -1,3 +1,4 @@
+import { useMutation } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useToast } from "../../components/Toasts";
 import { fetchAiSettings, saveAiSettings, type AISettings } from "../../lib/ai";
@@ -7,13 +8,12 @@ type AiSettingsForm = {
   settings: AISettings | null;
   setSettings: React.Dispatch<React.SetStateAction<AISettings | null>>;
   saving: boolean;
-  save: () => Promise<void>;
+  save: () => void;
 };
 
 function useAiSettingsFormState(): AiSettingsForm {
   const { push } = useToast();
   const [settings, setSettings] = useState<AISettings | null>(null);
-  const [saving, setSaving] = useState(false);
 
   // Loaded once per visit, before the form shows, so it never overwrites an
   // edit.
@@ -23,20 +23,19 @@ function useAiSettingsFormState(): AiSettingsForm {
       .catch((e) => push(`Failed to load AI settings: ${errorText(e)}`, "error"));
   }, [push]);
 
-  const save = async () => {
-    if (!settings) return;
-    setSaving(true);
-    try {
-      setSettings(await saveAiSettings(settings));
+  const saving = useMutation({
+    mutationFn: saveAiSettings,
+    onSuccess: (saved) => {
+      setSettings(saved);
       push("Saved AI settings", "success");
-    } catch (e) {
-      push(`Failed to save: ${errorText(e)}`, "error");
-    } finally {
-      setSaving(false);
-    }
+    },
+    onError: (e) => push(`Failed to save: ${errorText(e)}`, "error"),
+  });
+  const save = () => {
+    if (settings) saving.mutate(settings);
   };
 
-  return { settings, setSettings, saving, save };
+  return { settings, setSettings, saving: saving.isPending, save };
 }
 
 const AiSettingsFormContext = createContext<AiSettingsForm | null>(null);

@@ -96,8 +96,8 @@ export function CharactersSection() {
 
       {faces?.downloaded && (
         <div className="flex justify-end">
-          <Button variant="primary" onClick={save} disabled={!settings || saving}>
-            {saving ? "Saving…" : "Save changes"}
+          <Button variant="primary" onClick={save} disabled={!settings} pending={saving}>
+            Save changes
           </Button>
         </div>
       )}

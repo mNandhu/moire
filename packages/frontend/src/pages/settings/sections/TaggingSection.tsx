@@ -4,10 +4,31 @@ import { AiControllerProvider } from "../../../hooks/useAiController";
 import { Button } from "../../../components/ui/Button";
 import { Input, Field } from "../../../components/ui/Input";
 import { Checkbox } from "../../../components/ui/Checkbox";
+import { useAiController } from "../../../hooks/useAiController";
 import { useAiSettingsForm } from "../useAiSettingsForm";
 
+/** Save changes: off while the model card is busy (a load would read the
+ * settings being replaced). */
+function SaveButton() {
+  const { settings, saving, save } = useAiSettingsForm();
+  const { running, isModelLoading } = useAiController();
+  return (
+    <Button variant="primary" onClick={save} disabled={!settings || running || isModelLoading} pending={saving}>
+      Save changes
+    </Button>
+  );
+}
+
 export function TaggingSection() {
-  const { settings, setSettings, saving, save } = useAiSettingsForm();
+  return (
+    <AiControllerProvider>
+      <TaggingForm />
+    </AiControllerProvider>
+  );
+}
+
+function TaggingForm() {
+  const { settings, setSettings } = useAiSettingsForm();
 
   return (
     <div className="space-y-5">
@@ -101,9 +122,7 @@ export function TaggingSection() {
 
           <Section title="Model">
             <div className="space-y-5">
-            <AiControllerProvider>
-              <ModelSection />
-            </AiControllerProvider>
+            <ModelSection />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-4 border-t border-line">
               <Field
                 label="Model (Hugging Face repo)"
@@ -169,9 +188,7 @@ export function TaggingSection() {
       )}
 
       <div className="flex justify-end">
-        <Button variant="primary" onClick={save} disabled={!settings || saving}>
-          {saving ? "Saving…" : "Save changes"}
-        </Button>
+        <SaveButton />
       </div>
     </div>
   );

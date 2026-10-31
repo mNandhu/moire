@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import { Dialog } from "./ui/Dialog";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Dialog, DialogFooter } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { Field } from "./ui/Input";
 import { Checkbox } from "./ui/Checkbox";
@@ -26,22 +26,18 @@ export function TagEditDialog({ open, onClose, c }: { open: boolean; onClose: ()
   // stored values each time.
   const [focus, setFocus] = useState<[number, number] | null>(c.focus);
   const [character, setCharacter] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const save = async () => {
-    setSaving(true);
-    try {
+  const save = useMutation({
+    mutationFn: async () => {
       if (focus?.[0] !== c.focus?.[0] || focus?.[1] !== c.focus?.[1]) await setTagFocus(c.tag, focus);
       if (character) await updateCharacter(c.tag, { kind: "character" });
       await qc.invalidateQueries({ queryKey: TAGS_KEY });
+    },
+    onSuccess: () => {
       onClose();
       if (character) navigate(characterHref(c.tag));
-    } catch (e) {
-      push(`Couldn't save: ${errorText(e)}`, "error");
-    } finally {
-      setSaving(false);
-    }
-  };
+    },
+    onError: (e) => push(`Couldn't save: ${errorText(e)}`, "error"),
+  });
 
   return (
     <Dialog
@@ -50,12 +46,7 @@ export function TagEditDialog({ open, onClose, c }: { open: boolean; onClose: ()
       title="Edit tag"
       className="max-w-lg"
       footer={
-        <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={() => void save()} disabled={saving}>
-            {saving ? "Saving…" : "Save"}
-          </Button>
-        </>
+        <DialogFooter onCancel={onClose} onConfirm={() => save.mutate()} pending={save.isPending} />
       }
     >
       <div className="space-y-5">

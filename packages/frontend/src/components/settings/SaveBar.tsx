@@ -21,8 +21,8 @@ export function SaveBar({
       <Button variant="ghost" onClick={onReset} disabled={resetDisabled}>
         <RotateCcw size={14} /> Reset to defaults
       </Button>
-      <Button variant="primary" onClick={onSave} disabled={!dirty || saving}>
-        {saving ? "Saving…" : "Save changes"}
+      <Button variant="primary" onClick={onSave} disabled={!dirty} pending={saving}>
+        Save changes
       </Button>
     </div>
   );

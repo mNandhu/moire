@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Section } from "../../../components/ui/Card";
 import { Skeleton } from "../../../components/ui/Skeleton";
 import { useToast } from "../../../components/Toasts";
@@ -42,7 +42,6 @@ export function BoilerplateSection() {
   const { data: tags } = useTagAggregate({ includePrompt: true });
 
   const [draft, setDraft] = useState<string[] | null>(null);
-  const [saving, setSaving] = useState(false);
   // Start (and restart after a save) from what the server holds.
   useEffect(() => {
     if (settings) setDraft(settings.boilerplate);
@@ -64,19 +63,14 @@ export function BoilerplateSection() {
     return [...byName.entries()].sort((a, b) => b[1] - a[1]);
   }, [draft, tags]);
 
-  const save = async () => {
-    if (!draft) return;
-    setSaving(true);
-    try {
-      const saved = await saveTagSettings(draft);
+  const save = useMutation({
+    mutationFn: (list: string[]) => saveTagSettings(list),
+    onSuccess: (saved) => {
       qc.setQueryData(TAG_SETTINGS_KEY, saved);
       push("Boilerplate list saved", "success");
-    } catch (e) {
-      push(`Failed to save: ${errorText(e)}`, "error");
-    } finally {
-      setSaving(false);
-    }
-  };
+    },
+    onError: (e) => push(`Failed to save: ${errorText(e)}`, "error"),
+  });
 
   const atDefaults =
     !!draft && !!settings && sameList(draft, settings.default_boilerplate);
@@ -144,10 +138,10 @@ export function BoilerplateSection() {
 
       <SaveBar
         dirty={dirty}
-        saving={saving}
+        saving={save.isPending}
         resetDisabled={!settings || atDefaults}
         onReset={() => settings && setDraft(settings.default_boilerplate)}
-        onSave={() => void save()}
+        onSave={() => draft && save.mutate(draft)}
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import { Button } from "../../../components/ui/Button";
 import { DownloadProgress } from "../../../components/ai/ModelStatus";
 import { useAiController } from "../../../hooks/useAiController";
+import { useAiSettingsForm } from "../useAiSettingsForm";
 
 /** Settings: model state with the manual preload/unload controls. */
 export function ModelSection() {
@@ -13,6 +14,9 @@ export function ModelSection() {
     cancelModelLoad,
     unloadModel,
   } = useAiController();
+  // Saving replaces the settings a load would read.
+  const { saving } = useAiSettingsForm();
+  const busy = running || saving;
   const idle = status?.model?.idle_unload_s;
 
   return (
@@ -32,15 +36,15 @@ export function ModelSection() {
         </div>
         <div className="flex gap-2 shrink-0">
           {isModelLoading ? (
-            <Button size="sm" onClick={cancelModelLoad} disabled={running}>
+            <Button size="sm" onClick={cancelModelLoad} disabled={busy}>
               Stop
             </Button>
           ) : isModelLoaded ? (
-            <Button size="sm" onClick={unloadModel} disabled={running}>
+            <Button size="sm" onClick={unloadModel} disabled={busy}>
               Unload now
             </Button>
           ) : (
-            <Button size="sm" onClick={loadModel} disabled={running}>
+            <Button size="sm" onClick={loadModel} disabled={busy}>
               Preload
             </Button>
           )}

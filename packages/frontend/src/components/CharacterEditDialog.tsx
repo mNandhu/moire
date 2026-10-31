@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
-import { Dialog } from "./ui/Dialog";
+import { Dialog, DialogFooter } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { Field, Input } from "./ui/Input";
 import { Checkbox } from "./ui/Checkbox";
@@ -53,13 +53,26 @@ export function CharacterEditDialog({
   const [color, setColor] = useState<string | null>(c.color);
   const [focus, setFocus] = useState<[number, number] | null>(c.focus);
   const [notCharacter, setNotCharacter] = useState(c.kind === "general");
-  const [saving, setSaving] = useState(false);
 
   const auto = characterColours({ ...c, color: null })[0];
   const { data: recipe } = useRecipe(c.tag);
   const { data: models } = useComfyModels();
 
   const confirm = useConfirm();
+  const removal = useMutation({
+    mutationFn: async () => {
+      await deleteCharacter(c.tag);
+      // Not left picked in the composer.
+      const draft = loadDraft();
+      if (draft.characters.includes(c.tag)) saveDraft({ ...draft, characters: draft.characters.filter((t) => t !== c.tag) });
+      await qc.invalidateQueries({ queryKey: TAGS_KEY });
+    },
+    onSuccess: () => {
+      onClose();
+      navigate("/tags");
+    },
+    onError: (e) => push(`Couldn't delete: ${errorText(e)}`, "error"),
+  });
   const remove = async () => {
     const ok = await confirm({
       title: `Delete ${name || fromTag.name}?`,
@@ -67,44 +80,30 @@ export function CharacterEditDialog({
       confirmLabel: "Delete",
       tone: "danger",
     });
-    if (!ok) return;
-    setSaving(true);
-    try {
-      await deleteCharacter(c.tag);
-      // Not left picked in the composer.
-      const draft = loadDraft();
-      if (draft.characters.includes(c.tag)) saveDraft({ ...draft, characters: draft.characters.filter((t) => t !== c.tag) });
-      await qc.invalidateQueries({ queryKey: TAGS_KEY });
-      onClose();
-      navigate("/tags");
-    } catch (e) {
-      push(`Couldn't delete: ${errorText(e)}`, "error");
-      setSaving(false);
-    }
+    if (ok) removal.mutate();
   };
 
-  const save = async () => {
-    const patch: CharacterPatch = {};
-    if (name !== (c.name ?? "")) patch.name = name;
-    if (series !== (c.series ?? "")) patch.series = series;
-    if (color !== c.color) patch.color = color ?? "";
-    if (focus?.[0] !== c.focus?.[0] || focus?.[1] !== c.focus?.[1]) {
-      patch.focus_x = focus ? focus[0] : "";
-      patch.focus_y = focus ? focus[1] : "";
-    }
-    if (notCharacter !== (c.kind === "general")) patch.kind = notCharacter ? "general" : "";
-    setSaving(true);
-    try {
+  const save = useMutation({
+    mutationFn: async () => {
+      const patch: CharacterPatch = {};
+      if (name !== (c.name ?? "")) patch.name = name;
+      if (series !== (c.series ?? "")) patch.series = series;
+      if (color !== c.color) patch.color = color ?? "";
+      if (focus?.[0] !== c.focus?.[0] || focus?.[1] !== c.focus?.[1]) {
+        patch.focus_x = focus ? focus[0] : "";
+        patch.focus_y = focus ? focus[1] : "";
+      }
+      if (notCharacter !== (c.kind === "general")) patch.kind = notCharacter ? "general" : "";
       if (Object.keys(patch).length) await updateCharacter(c.tag, patch);
       await qc.invalidateQueries({ queryKey: TAGS_KEY });
+      return patch;
+    },
+    onSuccess: (patch) => {
       onClose();
       if (patch.kind === "general") navigate(`/tags?${new URLSearchParams({ tag: c.tag })}`);
-    } catch (e) {
-      push(`Couldn't save: ${errorText(e)}`, "error");
-    } finally {
-      setSaving(false);
-    }
-  };
+    },
+    onError: (e) => push(`Couldn't save: ${errorText(e)}`, "error"),
+  });
 
   return (
     <Dialog
@@ -113,17 +112,25 @@ export function CharacterEditDialog({
       title="Edit character"
       className="max-w-lg"
       footer={
-        <>
-          {c.made && (
-            <Button variant="ghost" className="mr-auto text-red-300" onClick={() => void remove()} disabled={saving}>
-              Delete character
-            </Button>
-          )}
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={() => void save()} disabled={saving}>
-            {saving ? "Saving…" : "Save"}
-          </Button>
-        </>
+        <DialogFooter
+          onCancel={onClose}
+          onConfirm={() => save.mutate()}
+          pending={save.isPending}
+          disabled={removal.isPending}
+          start={
+            c.made && (
+              <Button
+                variant="ghost"
+                className="text-red-300"
+                onClick={() => void remove()}
+                pending={removal.isPending}
+                disabled={save.isPending}
+              >
+                Delete character
+              </Button>
+            )
+          }
+        />
       }
     >
       <div className="space-y-5">
