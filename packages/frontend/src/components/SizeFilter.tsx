@@ -77,7 +77,7 @@ function Bounds({
  * apply on top of any presets. Renders grid cells for the filter panel.
  */
 export function SizeFilter({ filters, setFilters }: { filters: Filters; setFilters: (f: Filters) => void }) {
-  const presets = useSizePresets();
+  const presets = useSizePresets(filters.quarantined);
   const hasBounds = filters.minW != null || filters.maxW != null || filters.minH != null || filters.maxH != null;
   // Custom stays open while its boxes are empty; bounds alone (an old link) open it too.
   const [customOpen, setCustomOpen] = useState(false);

@@ -26,21 +26,29 @@ export function useThumbUrl(imageId: string | null | undefined): string | null {
 
 type Used = { name: string; count: number }[];
 
+/** A facet list counted over one gallery view: the default feed, or with
+ * `quarantined` the Quarantined view (as the feed filters). Both keys sit
+ * under `[key]`, so invalidating that refreshes either. */
+const facetQuery =
+  <T,>(key: string, path: string) =>
+  (quarantined = false) => ({
+    queryKey: quarantined ? [key, "quarantined"] : [key],
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      api<T>(quarantined ? `${path}?quarantined=1` : path, { signal }),
+  });
+
 /** Checkpoints, embeddings and loras the library's images used, with counts
- * (the gallery's filters and the Ctrl/Cmd+K search). */
-export const imageModelsQuery = {
-  queryKey: ["image-models"],
-  queryFn: ({ signal }: { signal: AbortSignal }) =>
-    api<{ model: string; count: number }[]>(`/api/v1/images/models`, { signal }),
-};
-export const imageEmbeddingsQuery = {
-  queryKey: ["image-embeddings"],
-  queryFn: ({ signal }: { signal: AbortSignal }) => api<Used>(`/api/v1/images/embeddings`, { signal }),
-};
-export const imageLorasQuery = {
-  queryKey: ["image-loras"],
-  queryFn: ({ signal }: { signal: AbortSignal }) => api<Used>(`/api/v1/images/loras`, { signal }),
-};
+ * (the gallery's filters and the Ctrl/Cmd+K search). The `...In` forms take
+ * the gallery's quarantine filter. */
+export const imageModelsQueryIn = facetQuery<{ model: string; count: number }[]>(
+  "image-models",
+  "/api/v1/images/models",
+);
+export const imageEmbeddingsQueryIn = facetQuery<Used>("image-embeddings", "/api/v1/images/embeddings");
+export const imageLorasQueryIn = facetQuery<Used>("image-loras", "/api/v1/images/loras");
+export const imageModelsQuery = imageModelsQueryIn();
+export const imageEmbeddingsQuery = imageEmbeddingsQueryIn();
+export const imageLorasQuery = imageLorasQueryIn();
 
 export const AI_COVERAGE_KEY = ["aiCoverage"] as const;
 

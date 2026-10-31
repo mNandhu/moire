@@ -185,6 +185,45 @@ async def test_facet_counts_leave_quarantined_images_out(client, seed):
             assert {r[key]: r["count"] for r in rows} == {name: 2}, (path, params)
 
 
+async def test_facet_counts_follow_the_quarantined_view(client, seed):
+    """Asked for the Quarantined view (``quarantined=1``, the feed's own
+    param), facets count only quarantined images, so a model, LoRA, embedding
+    or size used only there still shows up in its dropdown."""
+    seed("L1:a", gen={"model": "sdxl", "workflow_sig": "s"}, width=832, height=1216)
+    seed(
+        "L1:q",
+        gen={"model": "pony", "workflow_sig": "s"},
+        width=1344,
+        height=768,
+        quarantined=True,
+    )
+    with db.sync_tx() as conn:
+        for iid, name in (("L1:a", "shown"), ("L1:q", "hidden")):
+            conn.execute(
+                sa.insert(t.image_loras).values(image_id=iid, name=name, strength=1)
+            )
+            conn.execute(
+                sa.insert(t.image_embeddings).values(
+                    image_id=iid, name=name, negative=False
+                )
+            )
+    q = {"quarantined": 1}
+    models = (await client.get("/images/models", params=q)).json()
+    assert models == [{"model": "pony", "count": 1}]
+    for path in ("/images/loras", "/images/embeddings"):
+        assert (await client.get(path, params=q)).json() == [
+            {"name": "hidden", "count": 1}
+        ], path
+    sizes = {
+        r["shape"]: r["count"]
+        for r in (await client.get("/images/sizes", params=q)).json()
+    }
+    assert sizes["16:9"] == 1 and sizes["2:3"] == 0
+    # The default view is unchanged.
+    models = (await client.get("/images/models")).json()
+    assert models == [{"model": "sdxl", "count": 1}]
+
+
 async def test_model_filter(client, seed):
     seed("L1:a", gen={"model": "sdxl", "workflow_sig": "s"})
     seed("L1:b", gen={"model": "pony", "workflow_sig": "s"})

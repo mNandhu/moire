@@ -224,12 +224,9 @@ def _tag_conds(f: FeedFilter) -> list:
         conds.append(t.images.c.has_ai_tags.is_(True))
     if f.library_id:
         conds.append(t.images.c.library_id == f.library_id)
-    # Quarantined images leave the default feed. Treat missing/NULL as not
-    # quarantined so legacy rows still appear.
-    if f.quarantined == 1:
-        conds.append(t.images.c.quarantined.is_(True))
-    else:
-        conds.append(image_visibility.not_quarantined())
+    # Quarantined images leave the default feed (missing/NULL reads as not
+    # quarantined so legacy rows still appear).
+    conds.append(image_visibility.in_view(f.quarantined))
     return conds
 
 

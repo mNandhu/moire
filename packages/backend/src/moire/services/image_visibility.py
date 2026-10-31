@@ -24,3 +24,12 @@ def visible_tag_rows(it=None):
     return sa.exists(
         sa.select(1).where(t.images.c._id == it.c.image_id, not_quarantined())
     )
+
+
+def in_view(quarantined: int | None):
+    """The images a gallery view shows: only quarantined ones in the
+    Quarantined view (``quarantined == 1``), else the default feed's. The feed
+    and its filter facets share it, so a dropdown lists what its view holds."""
+    if quarantined == 1:
+        return t.images.c.quarantined.is_(True)
+    return not_quarantined()

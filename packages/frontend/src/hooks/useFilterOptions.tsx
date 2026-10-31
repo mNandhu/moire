@@ -5,7 +5,7 @@ import { generatorFor } from "../components/generate/InGenerate";
 import type { TagSuggestion } from "../components/TagSearchInput";
 import type { Filters } from "../lib/imageFilter";
 import { useGenerators, useOutfits } from "../lib/generate";
-import { imageEmbeddingsQuery, imageLorasQuery, imageModelsQuery, mergedTagsQuery } from "../lib/queries";
+import { imageEmbeddingsQueryIn, imageLorasQueryIn, imageModelsQueryIn, mergedTagsQuery } from "../lib/queries";
 import { useSignatures } from "../lib/rules";
 import { RESOURCE_PREFIXES } from "../lib/searchTerms";
 import { workflowPickerOptions as buildWorkflowPickerOptions } from "../lib/workflowPicker";
@@ -48,12 +48,13 @@ export function useFilterOptions(filters: Filters, filtersOpen: boolean) {
   // Selecting it matches images tagged from any source (the backend expands
   // `any:`).
   const { data: tagOptions = NO_TAGS } = useQuery(mergedTagsQuery);
+  // Facets count over the view shown (default feed or Quarantined).
   // Distinct checkpoints (with counts) for the model filter dropdown.
-  const { data: modelOptions = NO_MODELS } = useQuery(imageModelsQuery);
+  const { data: modelOptions = NO_MODELS } = useQuery(imageModelsQueryIn(filters.quarantined));
   // Distinct embeddings (with counts) for the embedding filter dropdown.
-  const { data: embeddingOptions = NO_LORAS } = useQuery(imageEmbeddingsQuery);
+  const { data: embeddingOptions = NO_LORAS } = useQuery(imageEmbeddingsQueryIn(filters.quarantined));
   // Distinct loras (with counts) for the LoRA filter dropdown.
-  const { data: loraOptions = NO_LORAS } = useQuery(imageLorasQuery);
+  const { data: loraOptions = NO_LORAS } = useQuery(imageLorasQueryIn(filters.quarantined));
   // Loras and embeddings as search terms: suggested in the search box, and
   // typed names resolved to the library's spelling (matching is exact).
   // Saved outfits too: typing a name offers them, and a plain name that is

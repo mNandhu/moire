@@ -14,11 +14,13 @@ const NO_SIZES: SizePreset[] = [];
 
 export const IMAGE_SIZES_KEY = ["image-sizes"] as const;
 
-/** The size presets with library counts; shared with the Generate size picker. */
-export function useSizePresets(): SizePreset[] {
+/** The size presets with library counts; shared with the Generate size picker.
+ * `quarantined` counts the Quarantined view's images instead. */
+export function useSizePresets(quarantined = false): SizePreset[] {
   const { data = NO_SIZES } = useQuery({
-    queryKey: IMAGE_SIZES_KEY,
-    queryFn: ({ signal }) => api<SizePreset[]>(`/api/v1/images/sizes`, { signal }),
+    queryKey: quarantined ? [...IMAGE_SIZES_KEY, "quarantined"] : IMAGE_SIZES_KEY,
+    queryFn: ({ signal }) =>
+      api<SizePreset[]>(`/api/v1/images/sizes${quarantined ? "?quarantined=1" : ""}`, { signal }),
   });
   return data;
 }
