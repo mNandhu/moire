@@ -106,7 +106,29 @@ function addPreconnect(origin: string) {
 /** The original file of an image, streamed from its library (Range-capable).
  * Thumbnails are not built here: use the list's `thumb_url` or useThumbUrl. */
 export function imageFileUrl(id: string): string {
-  return `/api/v1/images/${encodeURIComponent(id)}/file`;
+  return imageUrl(id, "file");
+}
+
+/** An Image's endpoint `/api/v1/images/<id>/<suffix>`. */
+export function imageUrl(id: string, suffix: string): string {
+  return `/api/v1/images/${encodeURIComponent(id)}/${suffix}`;
+}
+
+/** Resolve an Image's original, point `img` (a new one by default) at it and
+ * wait for it to decode. A failed resolve falls back to the plain endpoint;
+ * a failed decode rejects. `img` can be passed in so the caller may keep and
+ * abort it while it loads. */
+export async function loadImage(
+  id: string,
+  opts: { priority?: "low" | "high"; img?: HTMLImageElement } = {},
+): Promise<{ src: string; img: HTMLImageElement }> {
+  const ep = imageFileUrl(id);
+  const img = opts.img ?? new Image();
+  if (opts.priority) img.fetchPriority = opts.priority;
+  const src = await resolveMediaUrl(ep).catch(() => ep);
+  img.src = src;
+  await img.decode();
+  return { src, img };
 }
 
 /** A thumbnail URL's small copy (~256px short side), for previews shown

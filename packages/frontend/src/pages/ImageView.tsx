@@ -17,7 +17,7 @@ import { getBackgroundLocation } from "../lib/backgroundLocation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { errorText } from "../lib/api";
 import { ArrowLeft, ChevronLeft, ChevronRight, Sparkles, RotateCcw, Loader2, Copy, Ban, Download, FolderOpen, PanelRight, Plus, X } from "lucide-react";
-import { imageFileUrl, resolveMediaUrl } from "../lib/media";
+import { imageFileUrl, loadImage, resolveMediaUrl } from "../lib/media";
 import { useToast } from "../components/Toasts";
 import { ImageCharacters } from "../components/ImageCharacters";
 import { imageHref, parseFilters, serializeFilters, serializeFiltersForPeek } from "../lib/imageFilter";
@@ -394,21 +394,14 @@ export default function ImageView() {
     const elapsed = Date.now() - holdStartRef.current;
     const timer = window.setTimeout(commit, Math.max(0, MAX_HOLD_MS - elapsed));
     const ep = imageFileUrl(routeId);
-    const img = new Image();
-    void resolveMediaUrl(ep)
-      .catch(() => ep)
-      .then((u) => {
-        img.src = u;
-        return img.decode().then(() => u);
-      })
-      .then((u) => {
-        // Hand the resolved URL to the render path, so the <img> points at the
-        // exact URL that was just decoded rather than re-resolving it.
-        if (u && u !== ep && !cancelled) {
-          setResolvedUrls((prev) => ({ ...prev, [routeId]: u }));
-        }
-        commit();
-      }, commit);
+    void loadImage(routeId).then(({ src: u }) => {
+      // Hand the resolved URL to the render path, so the <img> points at the
+      // exact URL that was just decoded rather than re-resolving it.
+      if (u && u !== ep && !cancelled) {
+        setResolvedUrls((prev) => ({ ...prev, [routeId]: u }));
+      }
+      commit();
+    }, commit);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
@@ -453,19 +446,11 @@ export default function ImageView() {
 
       if (preloadedRef.current.has(it._id)) continue;
       const img = new Image();
-      // Never let a neighbour compete with the image actually on screen.
-      img.fetchPriority = "low";
       preloadedRef.current.set(it._id, img);
-      const ep = imageFileUrl(it._id);
-      resolveMediaUrl(ep)
-        .catch(() => ep)
-        .then((u) => {
-          img.src = u;
-          // Decode off the main navigation path; without this the bitmap is
-          // only decoded when it is first painted, which is the stall we see.
-          return img.decode();
-        })
-        .catch(() => {});
+      // Low priority: never let a neighbour compete with the image actually on
+      // screen. loadImage decodes off the main navigation path; without that
+      // the bitmap is only decoded when first painted, which is the stall.
+      loadImage(it._id, { priority: "low", img }).catch(() => {});
     }
 
     // Keep the retained set small: holding every visited bitmap alive would

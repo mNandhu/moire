@@ -5,6 +5,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api, apiJson } from "./api";
 import type { GenMeta } from "./gen";
+import { imageUrl } from "./media";
 
 export type WorkflowPayload =
   | { source: "comfyui"; workflow: unknown; prompt: unknown }
@@ -130,7 +131,7 @@ export function previewRuleset(sampleImageId: string, fields: RuleFields): Promi
 }
 
 export function fetchWorkflow(id: string): Promise<WorkflowPayload> {
-  return api<WorkflowPayload>(`/api/v1/images/${encodeURIComponent(id)}/workflow`);
+  return api<WorkflowPayload>(imageUrl(id, "workflow"));
 }
 
 /** The clipboard string for copy-workflow / remix, format-aware:

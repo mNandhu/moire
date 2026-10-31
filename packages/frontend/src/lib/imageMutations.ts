@@ -6,32 +6,31 @@
  */
 
 import { apiJson } from "./api";
+import { imageUrl } from "./media";
 
 const post = <T>(url: string, body?: unknown) => apiJson<T>(url, "POST", body);
 
-const forImage = (id: string, suffix: string) =>
-  `/api/v1/images/${encodeURIComponent(id)}/${suffix}`;
 
 // --- Scalars ------------------------------------------------------------------
 
 export function setRating(id: string, rating: string): Promise<unknown> {
-  return post(forImage(id, "rating"), { rating });
+  return post(imageUrl(id, "rating"), { rating });
 }
 
 export function setScore(id: string, score: number): Promise<unknown> {
-  return post(forImage(id, "score"), { score });
+  return post(imageUrl(id, "score"), { score });
 }
 
 export function setQuarantine(
   id: string,
   quarantined: boolean,
 ): Promise<unknown> {
-  return post(forImage(id, "quarantine"), { quarantined });
+  return post(imageUrl(id, "quarantine"), { quarantined });
 }
 
 /** Irreversible: deletes the original file from disk as well as all records. */
 export function purgeImage(id: string): Promise<unknown> {
-  return post(forImage(id, "purge"), { confirm: true });
+  return post(imageUrl(id, "purge"), { confirm: true });
 }
 
 // --- Tags ---------------------------------------------------------------------

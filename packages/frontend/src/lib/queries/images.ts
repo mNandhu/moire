@@ -4,6 +4,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
+import { imageUrl } from "../media";
 import { viewerTimeZone } from "../activity";
 import { fetchAiCoverage } from "../ai";
 
@@ -16,7 +17,7 @@ export function useThumbUrl(imageId: string | null | undefined): string | null {
     // Not under ["images"]: that prefix is the feeds', which feedCache patches.
     queryKey: [...THUMB_URL_KEY, imageId],
     queryFn: ({ signal }) =>
-      api<{ thumb_url: string }>(`/api/v1/images/${encodeURIComponent(imageId!)}/thumb-url`, { signal }),
+      api<{ thumb_url: string }>(imageUrl(imageId!, "thumb-url"), { signal }),
     enabled: !!imageId,
     staleTime: 60_000,
   });
