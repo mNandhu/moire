@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, RotateCcw, Undo2, X } from "lucide-react";
+import { Ban, Check, RotateCcw } from "lucide-react";
 import { Badge } from "../ui";
 import { Picker, type PickerOption } from "../ui/Picker";
 import { cn } from "../../lib/cn";
@@ -12,6 +12,7 @@ import { toggleDropped } from "../../lib/recipe";
 import { FieldLabel } from "./fields";
 import { stemOf } from "../../lib/modelNames";
 import { TagAddInput } from "../TagAddInput";
+import { TagPill } from "./TagPill";
 
 const NO_LORA = "\u0000none";
 
@@ -249,57 +250,34 @@ export function RecipeEditor({
                 .map((c) => {
                   const struck = off.tags.includes(c.tag);
                   return (
-                    <span
+                    <TagPill
                       key={c.tag}
+                      tag={c.tag}
+                      struck={struck}
                       title={struck ? "Left out of this batch" : undefined}
-                      style={struck ? undefined : chipBorderStyle(c.tag)}
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-md border pl-2 pr-1 py-0.5 text-sm",
-                        struck ? "border-line/60 text-faint line-through" : "border-line bg-raised text-neutral-100",
-                      )}
-                    >
-                      {displayWord(c.tag)}
-                      <button
-                        type="button"
-                        onClick={() => off.toggle(c.tag)}
-                        aria-label={`${struck ? "Bring back" : "Leave out"} ${displayWord(c.tag)}`}
-                        title={struck ? "Bring back" : "Leave out of this batch"}
-                        className="rounded p-0.5 text-muted no-underline hover:bg-line hover:text-neutral-100"
-                      >
-                        {struck ? <Undo2 size={13} /> : <X size={13} />}
-                      </button>
-                    </span>
+                      style={chipBorderStyle(c.tag)}
+                      onToggle={() => off.toggle(c.tag)}
+                      actionLabel={`${struck ? "Bring back" : "Leave out"} ${displayWord(c.tag)}`}
+                      actionTitle={struck ? "Bring back" : "Leave out of this batch"}
+                    />
                   );
                 })
             : recipe.identity.map((c) => (
-            <span
-              key={c.tag}
-              title={c.dropped ? "Dropped from this recipe" : c.added ? "Added by you" : undefined}
-              style={c.dropped ? undefined : chipBorderStyle(c.tag)}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-md border pl-2 pr-1 py-0.5 text-sm",
-                c.dropped
-                  ? "border-line/60 text-faint line-through"
-                  : c.added
-                    ? "border-brand-800 bg-raised text-neutral-100"
-                    : "border-line bg-raised text-neutral-100",
-              )}
-            >
-              {displayWord(c.tag)}
-              <button
-                type="button"
-                onClick={() =>
-                  patch.mutate(
-                    c.added ? { added: added.filter((a) => a !== c.tag) } : { dropped: toggleDropped(recipe, c.tag) },
-                  )
-                }
-                aria-label={`${c.dropped ? "Restore" : c.added ? "Remove" : "Drop"} ${displayWord(c.tag)}`}
-                className="rounded p-0.5 text-muted no-underline hover:bg-line hover:text-neutral-100"
-              >
-                {c.dropped ? <Undo2 size={13} /> : <X size={13} />}
-              </button>
-            </span>
-          ))}
+                <TagPill
+                  key={c.tag}
+                  tag={c.tag}
+                  struck={c.dropped}
+                  title={c.dropped ? "Dropped from this recipe" : c.added ? "Added by you" : undefined}
+                  style={chipBorderStyle(c.tag)}
+                  className={c.added && !c.dropped ? "border-brand-800" : undefined}
+                  onToggle={() =>
+                    patch.mutate(
+                      c.added ? { added: added.filter((a) => a !== c.tag) } : { dropped: toggleDropped(recipe, c.tag) },
+                    )
+                  }
+                  actionLabel={`${c.dropped ? "Restore" : c.added ? "Remove" : "Drop"} ${displayWord(c.tag)}`}
+                />
+              ))}
           {!off && <TagAddInput ariaLabel="Add identity tag" taken={taken} onAdd={(tag) => !taken.has(tag) && patch.mutate({ added: [...added, tag] })} />}
         </div>
         {note && <p className="mt-1.5 text-xs text-faint">{note}</p>}

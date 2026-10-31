@@ -19,7 +19,8 @@ import {
   type Outfit,
 } from "../../lib/generate";
 import { useAttireGroups, useThumbUrl } from "../../lib/queries";
-import { AttireTagInput, OutfitChip, OutfitThumb } from "./Outfit";
+import { AttireTagInput, OutfitThumb } from "./Outfit";
+import { TagPill } from "./TagPill";
 import { CoverGrid } from "./OutfitCover";
 import { Image as ImageIcon } from "lucide-react";
 import {
@@ -245,7 +246,7 @@ export function SaveOutfitDialog({
             ) : (
               <div className="flex flex-wrap items-center gap-1.5">
                 {rows.map((r) => (
-                  <OutfitChip
+                  <TagPill
                     key={r.tag}
                     tag={r.tag}
                     group={r.group}

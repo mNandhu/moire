@@ -1,9 +1,8 @@
 import { useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, Shirt, Undo2, X } from "lucide-react";
+import { ChevronDown, Shirt } from "lucide-react";
 import { Picker, type PickerOption } from "../ui/Picker";
 import { cn } from "../../lib/cn";
-import { displayWord } from "../../lib/compose";
 import {
   DEFAULT_OUTFIT,
   type Outfit,
@@ -12,6 +11,7 @@ import { pickOf, toggleWorn, addWorn, outfitsHref, type OutfitPick } from "../..
 import { useCharacterOutfits } from "../../hooks/useOutfitData";
 import { useTagFacets } from "../../lib/queries";
 import { TagAddInput } from "../TagAddInput";
+import { TagPill } from "./TagPill";
 import type { TagSuggestion } from "../../lib/tagSuggest";
 
 const NO_OUTFIT = "\u0000none";
@@ -133,45 +133,6 @@ export function AttireTagInput({
   );
 }
 
-/** A tag chip with its attire group; struck ones restore with the arrow. */
-export function OutfitChip({
-  tag,
-  group,
-  struck,
-  onToggle,
-  title,
-  className,
-}: {
-  tag: string;
-  group?: string | null;
-  struck?: boolean;
-  onToggle: () => void;
-  title?: string;
-  className?: string;
-}) {
-  return (
-    <span
-      title={title}
-      className={cn(
-        "inline-flex items-center gap-1 rounded-md border py-0.5 pl-2 pr-1 text-sm",
-        struck ? "border-line/60 text-faint line-through" : "border-line bg-raised text-neutral-100",
-        className,
-      )}
-    >
-      {group && <span className="text-[11px] text-muted no-underline">{group.replace(/_/g, " ")}</span>}
-      {displayWord(tag)}
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-label={`${struck ? "Restore" : "Remove"} ${displayWord(tag)}`}
-        className="rounded p-0.5 text-muted hover:bg-line hover:text-neutral-100"
-      >
-        {struck ? <Undo2 size={13} /> : <X size={13} />}
-      </button>
-    </span>
-  );
-}
-
 /** The picked outfit's chips in the composer: edits apply to this batch. */
 export function OutfitChips({
   pick,
@@ -189,7 +150,7 @@ export function OutfitChips({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {pick.tags.map((tag) => (
-        <OutfitChip
+        <TagPill
           key={tag}
           tag={tag}
           group={groups.get(tag) ?? groups.get(tag.toLowerCase())}
