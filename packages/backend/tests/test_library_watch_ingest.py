@@ -60,7 +60,7 @@ async def test_ingest_single_file_refreshes_metadata_on_modify(temp_db, tmp_path
     assert row.width == 16 and row.height == 16
 
 
-async def test_ingest_updates_a_backslash_stored_row_in_place(temp_db, seed, tmp_path):
+async def test_ingest_updates_a_backslash_stored_row_in_place(client, seed, tmp_path):
     """A row an older scan stored as ``L1:sub\\a.png`` is the same image as
     the watcher's ``L1:sub/a.png``: updated under its stored id, not joined
     by a second row, and the library count left as it was."""
@@ -83,6 +83,9 @@ async def test_ingest_updates_a_backslash_stored_row_in_place(temp_db, seed, tmp
     row = await _img("L1:sub\\a.png")
     assert row.width == 16 and row.tags == ["manual:keep"]
     assert count == 1
+    # Its thumbnail is the one this ingest wrote.
+    resp = await client.get("/images/L1:sub%5Ca.png/thumb")
+    assert resp.status_code == 200, resp.text
 
 
 async def test_remove_single_image_deletes_only_that_row(temp_db, seed):
