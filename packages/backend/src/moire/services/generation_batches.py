@@ -296,17 +296,29 @@ def _checkpoint_default(gen: dict[str, Any]) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def arrived_outputs(batch_id: Any) -> sa.Select:
+    """The test batch's outputs whose image is in the library, first request
+    first. The one definition of "arrived": :func:`test_status` reports the
+    first as ``image_id`` and ``generator_test`` settles on any existing."""
+    return (
+        sa.select(_o.c.image_id)
+        .select_from(
+            _o.join(_r, _r.c._id == _o.c.request_id).join(_i, _i.c._id == _o.c.image_id)
+        )
+        .where(_r.c.batch_id == batch_id, _VISIBLE)
+        .order_by(_r.c.idx, _o.c.idx)
+    )
+
+
 async def test_status(
     batch_id: int, manager: GenerationManager
 ) -> dict[str, Any] | None:
     """A Generator test batch's state: its first request and its outputs,
     without the batch view's timings and queue estimate. None when the
     batch is gone."""
+    if not await batch_exists(batch_id):
+        return None
     async with async_conn() as conn:
-        if not (
-            await conn.execute(sa.select(_b.c._id).where(_b.c._id == batch_id))
-        ).first():
-            return None
         reqs = (
             await conn.execute(
                 sa.select(_r.c._id, _r.c.state, _r.c.error, _r.c.prompt_id)
@@ -314,20 +326,14 @@ async def test_status(
                 .order_by(_r.c.idx)
             )
         ).fetchall()
-        order = {q._id: n for n, q in enumerate(reqs)}
-        outs = (
-            (
-                await conn.execute(
-                    sa.select(_o.c.request_id, _o.c.image_id, _i.c._id.label("found"))
-                    .select_from(_o.outerjoin(_i, _i.c._id == _o.c.image_id))
-                    .where(_o.c.request_id.in_(list(order)))
-                    .order_by(_o.c.idx)
+        outputs = (
+            await conn.execute(
+                sa.select(sa.func.count()).where(
+                    _o.c.request_id.in_([q._id for q in reqs])
                 )
-            ).fetchall()
-            if reqs
-            else []
-        )
-    outs = sorted(outs, key=lambda o: order[o.request_id])
+            )
+        ).scalar()
+        image_id = (await conn.execute(arrived_outputs(batch_id).limit(1))).scalar()
     req = reqs[0] if reqs else None
     return {
         "batch_id": batch_id,
@@ -336,8 +342,8 @@ async def test_status(
         "progress": manager.progress.get(req.prompt_id)
         if req and req.prompt_id
         else None,
-        "outputs": len(outs),
-        "image_id": next((o.image_id for o in outs if o.found is not None), None),
+        "outputs": outputs,
+        "image_id": image_id,
     }
 
 

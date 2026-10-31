@@ -12,9 +12,8 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import comfy_models
+from . import comfy_models, generation_batches
 from .generation_errors import Invalid, Unavailable
-from .generation_states import REPLACED
 from .generators_store import load_generator
 
 if TYPE_CHECKING:
@@ -71,15 +70,7 @@ async def start_test(
 def _arrived(batch_id):
     """Some output of the test batch is in the library (what
     ``generation_batches.test_status`` reports as its ``image_id``)."""
-    o, r, i = t.generation_outputs, t.generation_requests, t.images
-    return (
-        sa.select(1)
-        .select_from(
-            o.join(r, r.c._id == o.c.request_id).join(i, i.c._id == o.c.image_id)
-        )
-        .where(r.c.batch_id == batch_id, r.c.state != REPLACED)
-        .exists()
-    )
+    return generation_batches.arrived_outputs(batch_id).exists()
 
 
 async def settle_tests(generator_id: str | None = None) -> None:

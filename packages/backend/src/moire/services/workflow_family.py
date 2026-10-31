@@ -30,18 +30,22 @@ WORKFLOW_ID = sa.func.coalesce(
 )
 
 
-async def family_sigs(conn: AsyncConnection, workflow_id: str) -> tuple[str, ...]:
-    """Every signature in the family ``workflow_id``. One GROUP BY over the
-    signature index plus a json_extract per signature's sample, not per image."""
-    samples = (
+def sample_ids() -> sa.Select:
+    """The sample image id of every signature (one GROUP BY over the index)."""
+    return (
         sa.select(SAMPLE_ID)
         .where(t.images.c.gen_workflow_sig.isnot(None))
         .group_by(t.images.c.gen_workflow_sig)
     )
+
+
+async def family_sigs(conn: AsyncConnection, workflow_id: str) -> tuple[str, ...]:
+    """Every signature in the family ``workflow_id``. One GROUP BY over the
+    signature index plus a json_extract per signature's sample, not per image."""
     stmt = (
         sa.select(t.images.c.gen_workflow_sig)
         .join(t.image_gen_raw, t.image_gen_raw.c._id == t.images.c._id)
-        .where(t.images.c._id.in_(samples), WORKFLOW_ID == workflow_id)
+        .where(t.images.c._id.in_(sample_ids()), WORKFLOW_ID == workflow_id)
     )
     return tuple(r[0] for r in (await conn.execute(stmt)).fetchall())
 

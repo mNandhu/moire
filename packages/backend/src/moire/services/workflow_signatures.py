@@ -170,17 +170,15 @@ async def known_workflow_ids(conn: AsyncConnection, ids: Iterable[str]) -> set[s
     wanted = set(ids)
     if not wanted:
         return set()
-    samples = (
-        sa.select(workflow_family.SAMPLE_ID)
-        .where(t.images.c.gen_workflow_sig.isnot(None))
-        .group_by(t.images.c.gen_workflow_sig)
-    )
     stmt = (
         sa.select(workflow_family.WORKFLOW_ID)
         .select_from(
             t.images.join(t.image_gen_raw, t.image_gen_raw.c._id == t.images.c._id)
         )
-        .where(t.images.c._id.in_(samples), workflow_family.WORKFLOW_ID.in_(wanted))
+        .where(
+            t.images.c._id.in_(workflow_family.sample_ids()),
+            workflow_family.WORKFLOW_ID.in_(wanted),
+        )
         .distinct()
     )
     return {r[0] for r in (await conn.execute(stmt)).fetchall()}
