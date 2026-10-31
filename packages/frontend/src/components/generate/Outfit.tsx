@@ -27,8 +27,9 @@ export function OutfitThumb({ url, className }: { url: string | null; className?
   );
 }
 
-function option(o: Outfit, group: string): PickerOption {
+function option(o: Outfit, group: string, searchOnly = false): PickerOption {
   return {
+    searchOnly,
     value: o._id,
     label: o.name,
     group,
@@ -38,8 +39,9 @@ function option(o: Outfit, group: string): PickerOption {
   };
 }
 
-/** What one character wears: Default, their own outfits, shared ones, or
- * nothing. The closed button shows the pick's thumbnail. */
+/** What one character wears: Default, their own outfits, the shared ones
+ * they have worn (any other shared one by searching), or nothing. The closed
+ * button shows the pick's thumbnail. */
 export function OutfitPicker({
   character,
   value,
@@ -49,13 +51,15 @@ export function OutfitPicker({
   value: OutfitPick | undefined;
   onChange: (pick: OutfitPick | null) => void;
 }) {
-  const { def, own, shared } = useCharacterOutfits(character);
-  const all = [...(def ? [def] : []), ...own, ...shared];
+  const { def, own, shared, unworn } = useCharacterOutfits(character);
+  const all = [...(def ? [def] : []), ...own, ...shared, ...unworn];
   const options: PickerOption[] = [
     { value: NO_OUTFIT, label: "Not set" },
     ...(def ? [option(def, "Usual clothes")] : []),
     ...own.map((o) => option(o, "Their outfits")),
     ...shared.map((o) => option(o, "Shared")),
+    // The one picked stays in the list either way.
+    ...unworn.map((o) => option(o, "Shared", o._id !== value?.id)),
   ];
   const thumb = value ? (all.find((o) => o._id === value.id)?.thumb_url ?? null) : null;
   return (
@@ -63,6 +67,7 @@ export function OutfitPicker({
       value={value?.id ?? NO_OUTFIT}
       options={options}
       aria-label="Outfit"
+      searchable={unworn.length > 0 || undefined}
       onChange={(v) => {
         if (v === NO_OUTFIT) return onChange(null);
         const o = all.find((x) => x._id === v);

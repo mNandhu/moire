@@ -22,6 +22,8 @@ export type PickerOption = {
   indent?: boolean;
   /** Extra words fuzzy search matches on besides the label. */
   keywords?: string;
+  /** Left out of the list until a search matches it. */
+  searchOnly?: boolean;
 };
 
 /** Lists longer than this get a search box. */
@@ -104,7 +106,7 @@ export function Picker({
     const q = query.trim();
     const ranked = q
       ? fuzzyRank(q, options, (o) => (o.keywords ? `${o.label} ${o.keywords}` : o.label), options.length)
-      : options;
+      : options.filter((o) => !o.searchOnly);
     return pinned ? [pinned(q), ...ranked] : ranked;
   }, [options, query, pinned]);
   const multiple = typeof value !== "string";

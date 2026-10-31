@@ -293,6 +293,8 @@ export type Outfit = {
   batches?: number;
   /** How many characters wore it in those batches. */
   used_by?: number;
+  /** A character's list only: the batches that character wore it in. */
+  worn?: number;
   /** Default only: the character's images it was read from. */
   images?: number;
   /** Default only: the cover was picked by the user (else computed). */

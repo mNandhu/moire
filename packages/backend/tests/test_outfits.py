@@ -231,6 +231,12 @@ async def test_outfits_end_to_end(client, comfy, seed, monkeypatch):  # noqa: F8
     listed = (await client.get("/generate/outfits")).json()
     mine = next(o for o in listed if o["_id"] == own["_id"])
     assert (mine["batches"], mine["used_by"]) == (1, 1)
+    # A character's list counts the batches it wore each in.
+    listed = (await client.get("/generate/outfits", params={"character": HU})).json()
+    assert {o["name"]: o["worn"] for o in listed} == {
+        "Funeral director": 1,
+        "Swimsuit": 0,
+    }
 
     assert (await client.delete(f"/generate/outfits/{own['_id']}")).status_code == 200
     assert (await client.delete(f"/generate/outfits/{own['_id']}")).status_code == 404

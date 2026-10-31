@@ -224,6 +224,27 @@ _USAGE = sa.text(
 ).bindparams(sa.bindparam("ids", expanding=True))
 
 
+_WORN = sa.text(
+    """
+    SELECT json_extract(c.value, '$.outfit.id') AS outfit_id,
+           COUNT(DISTINCT b._id) AS batches
+    FROM generation_batches AS b, json_each(b.inputs, '$.characters') AS c
+    WHERE json_extract(c.value, '$.outfit.id') IN :ids
+      AND json_extract(c.value, '$.tag') IN :names
+    GROUP BY outfit_id
+    """
+).bindparams(sa.bindparam("ids", expanding=True), sa.bindparam("names", expanding=True))
+
+
+async def _worn(ids: list[str], names: list[str]) -> dict[str, int]:
+    """Outfit id -> batches the character (any of ``names``) wore it in."""
+    if not ids or not names:
+        return {}
+    async with async_conn() as conn:
+        rows = (await conn.execute(_WORN, {"ids": ids, "names": names})).fetchall()
+    return {r.outfit_id: r.batches for r in rows}
+
+
 async def _usage(ids: list[str]) -> dict[str, dict[str, int]]:
     """Outfit id -> batches it was worn in, and by how many characters."""
     if not ids:
@@ -435,13 +456,16 @@ async def covers(
 
 async def listing(character: str | None = None) -> list[dict[str, Any]]:
     """Every saved outfit (the Outfits page), or a character's list: its own
-    and the shared ones (``hidden`` marks those it hides). Newest first."""
+    and the shared ones (``hidden`` marks those it hides, ``worn`` counts the
+    batches it wore each in). Newest first."""
     o = t.outfits
     key = None
+    names: list[str] = []
     if character is not None:
-        key = await _key(character)
-        if key is None:
+        found = await recipes.character_key(character)
+        if found is None:
             raise OutfitError("not a character")
+        key, names = found[0], found[1]
     q = sa.select(o).order_by(o.c.updated_at.desc())
     if key is not None:
         q = q.where(sa.or_(o.c.character == key, o.c.shared.is_(True)))
@@ -459,8 +483,15 @@ async def listing(character: str | None = None) -> list[dict[str, Any]]:
                 )
             }
     vocab = await tag_categories.load()
-    used = await _usage([r["_id"] for r in rows])
-    return [_view(r, vocab.general, images, used, hidden) for r in rows]
+    ids = [r["_id"] for r in rows]
+    used = await _usage(ids)
+    if key is None:
+        return [_view(r, vocab.general, images, used, hidden) for r in rows]
+    worn = await _worn(ids, list(dict.fromkeys([key, *names])))
+    return [
+        {**_view(r, vocab.general, images, used, hidden), "worn": worn.get(r["_id"], 0)}
+        for r in rows
+    ]
 
 
 async def get(outfit_id: str) -> dict[str, Any] | None:

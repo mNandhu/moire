@@ -68,11 +68,14 @@ export function useCharacterOutfits(character: string) {
     const visible = (list ?? []).filter((o) => !o.hidden);
     const d = def && def.tags.length ? def : null;
     const own = visible.filter((o) => o.character === character);
-    const shared = visible.filter((o) => o.character !== character);
+    const others = visible.filter((o) => o.character !== character);
+    // Shared ones they have worn; the rest only turn up in a search.
+    const shared = others.filter((o) => (o.worn ?? 0) > 0);
+    const unworn = others.filter((o) => !((o.worn ?? 0) > 0));
     // Attire group per tag, from every outfit in the list.
     const groups = new Map<string, string | null>();
-    for (const o of [...(d ? [d] : []), ...own, ...shared]) for (const t of o.tags) groups.set(t.tag, t.group);
-    return { def: d, own, shared, groups };
+    for (const o of [...(d ? [d] : []), ...own, ...others]) for (const t of o.tags) groups.set(t.tag, t.group);
+    return { def: d, own, shared, unworn, groups };
   }, [character, def, list]);
 }
 

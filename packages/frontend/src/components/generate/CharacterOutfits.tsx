@@ -68,7 +68,7 @@ function Mini({ o, character }: { o: Outfit; character: string }) {
 
 /**
  * The character page's Outfits strip: Default (their usual clothes, editable
- * and renamable) first, the character's own outfits, then shared ones. A
+ * and renamable) first, the character's own outfits, then the shared ones they have worn. A
  * click on a card opens its actions; "All outfits" goes to the Outfits page
  * filtered to them.
  */
@@ -79,7 +79,8 @@ export function CharacterOutfits({ character, name }: { character: string; name:
   const [creating, setCreating] = useState(false);
   const actions = useOutfitActions(character, name);
   const own = (list ?? []).filter((o) => o.character === character);
-  const shared = (list ?? []).filter((o) => o.character !== character);
+  // Shared ones only once they have worn them.
+  const shared = (list ?? []).filter((o) => o.character !== character && (o.worn ?? 0) > 0);
   // Default shows even with no tags (nothing worn often enough in their
   // images): it is where their usual clothes get written in by hand.
   const d = def ?? null;
