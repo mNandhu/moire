@@ -10,7 +10,7 @@ import { CharacterAvatar } from "./CharacterAvatar";
 import { Skeleton } from "./ui/Skeleton";
 import { usePinCover } from "../hooks/usePinCover";
 import { SaveOutfitDialog } from "./generate/SaveOutfitDialog";
-import { OutfitMenu } from "./generate/OutfitCover";
+import { OutfitMenu } from "./generate/OutfitMenu";
 import { WornOutfits } from "./generate/WornOutfits";
 
 /**
