@@ -120,14 +120,17 @@ def _images_with_stmt(tags: list[str], every: bool):
     return stmt
 
 
+def _images_with_stmts(queries: list[_Query]):
+    """One statement per query that asks anything."""
+    return [_images_with_stmt(tags, every) for tags, every in queries if tags]
+
+
 async def _images_with(queries: list[_Query]) -> set[str]:
     """The images any of ``queries`` finds."""
     found: set[str] = set()
     async with async_conn() as conn:
-        for tags, every in queries:
-            if tags:
-                stmt = _images_with_stmt(tags, every)
-                found.update((await conn.execute(stmt)).scalars())
+        for stmt in _images_with_stmts(queries):
+            found.update((await conn.execute(stmt)).scalars())
     return found
 
 
@@ -135,9 +138,8 @@ def _images_with_sync(queries: list[_Query]) -> set[str]:
     """:func:`_images_with` from a reprojection thread."""
     found: set[str] = set()
     with sync_conn() as conn:
-        for tags, every in queries:
-            if tags:
-                found.update(conn.execute(_images_with_stmt(tags, every)).scalars())
+        for stmt in _images_with_stmts(queries):
+            found.update(conn.execute(stmt).scalars())
     return found
 
 
@@ -275,6 +277,9 @@ async def _apply(affected: set[str], queries: list[_Query]) -> bool:
     (``recheck``) and those join in; that is also why an empty set still
     goes through the lock."""
     if not any(tags for tags, _ in queries):
+        # Nothing to reproject, but the rule write (moved cover pins,
+        # characters) is committed and moved what the tag index shows.
+        tag_index.invalidate()
         return False
     ids = sorted(affected)
     background = len(ids) > _SYNC_REPROJECT

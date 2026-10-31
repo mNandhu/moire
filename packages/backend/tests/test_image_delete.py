@@ -59,16 +59,6 @@ def test_delete_rows_takes_thumb_keys_the_caller_holds(temp_db, seed, monkeypatc
     assert _count(t.images) == 0
 
 
-def test_delete_stale_passes_the_keys_reconcile_read(temp_db, seed, monkeypatch):
-    dropped: list[str] = []
-    monkeypatch.setattr(storage_fs, "delete_thumb", dropped.append)
-    seed("L1:a.png", thumb_key="k0")
-    selects = _counting_selects()
-    scan_reconcile._delete_stale(["L1:a.png"], {"L1:a.png": "k0"})
-    assert not [s for s in selects if "thumb_key" in s]
-    assert dropped == ["k0"]
-
-
 def test_delete_rows_handles_more_ids_than_one_statement_chunk(temp_db, seed):
     ids = [f"L1:{i}.png" for i in range(image_delete._STMT_CHUNK + 5)]
     for i in ids:

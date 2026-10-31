@@ -546,3 +546,14 @@ async def test_a_rule_change_reaches_images_a_run_in_flight_writes_after_it(
             break
         await anyio.sleep(0.05)
     assert await _tags("L1:a") == ["prompt:blonde_hair"]
+
+
+async def test_a_rule_change_with_nothing_to_reproject_still_invalidates(
+    temp_db, monkeypatch
+):
+    from moire.services import tag_index, tag_rename
+
+    invalidated: list[bool] = []
+    monkeypatch.setattr(tag_index, "invalidate", lambda: invalidated.append(True))
+    assert await tag_rename._apply(set(), [([], False)]) is False
+    assert invalidated
