@@ -73,7 +73,7 @@ async def test_spawned_runs_are_joinable_and_tracked(seed, monkeypatch):
     monkeypatch.setattr(
         reproject,
         "reproject_ids",
-        lambda ids, *, task: calls.append(("ids", ids, task.kind)),
+        lambda ids, *, task, recheck=None: calls.append(("ids", ids, task.kind)),
     )
     monkeypatch.setattr(
         reproject,

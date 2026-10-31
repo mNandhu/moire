@@ -30,7 +30,7 @@ import time
 import anyio
 import sqlalchemy as sa
 
-from ..database.db import async_conn, async_tx
+from ..database.db import async_conn, async_tx, sync_conn
 from ..database import schema as t
 from . import (
     character_names,
@@ -105,16 +105,40 @@ async def _move_character(conn, old: str, new: str) -> None:
         await conn.execute(sa.delete(c).where(c.c.tag == old))
 
 
-async def _images_with(tags: list[str], *, every: bool = False) -> list[str]:
-    """Images carrying any of ``tags`` (with ``every``, all of them)."""
-    if not tags:
-        return []
+# Which images a rule change touches: ``(tags, every)`` pairs, each the
+# images carrying any of ``tags`` (with ``every``, all of them). Kept as a
+# question, not only its answer, so the reprojection can ask it again under
+# its lock (:func:`_apply`).
+_Query = tuple[list[str], bool]
+
+
+def _images_with_stmt(tags: list[str], every: bool):
     it = t.image_tags
     stmt = sa.select(it.c.image_id).where(it.c.tag.in_(tags)).group_by(it.c.image_id)
     if every:
         stmt = stmt.having(sa.func.count(sa.distinct(it.c.tag)) == len(set(tags)))
+    return stmt
+
+
+async def _images_with(queries: list[_Query]) -> set[str]:
+    """The images any of ``queries`` finds."""
+    found: set[str] = set()
     async with async_conn() as conn:
-        return list((await conn.execute(stmt)).scalars())
+        for tags, every in queries:
+            if tags:
+                stmt = _images_with_stmt(tags, every)
+                found.update((await conn.execute(stmt)).scalars())
+    return found
+
+
+def _images_with_sync(queries: list[_Query]) -> set[str]:
+    """:func:`_images_with` from a reprojection thread."""
+    found: set[str] = set()
+    with sync_conn() as conn:
+        for tags, every in queries:
+            if tags:
+                found.update(conn.execute(_images_with_stmt(tags, every)).scalars())
+    return found
 
 
 async def _put_rule(
@@ -217,8 +241,9 @@ async def rename_tag(tag: str, to: str) -> dict:
         resolved = await _write_rule(conn, old_name, [new_name], characters)
     _forget_suggestions()
 
-    affected = await _images_with([tag])
-    background = await _apply(affected)
+    queries = [([tag], False)]
+    affected = await _images_with(queries)
+    background = await _apply(affected, queries)
     return {
         "kind": "prompt",
         "from": tag,
@@ -235,30 +260,42 @@ async def rename_tag(tag: str, to: str) -> dict:
 _SYNC_REPROJECT = 500
 
 
-async def _apply(affected) -> bool:
-    """Reproject the images a rule change touched: up to
-    :data:`_SYNC_REPROJECT` before returning, more (or any, while another
-    reprojection runs and would make this one wait) in the background. Both
-    show as activity. The rule is committed by now, so an inline failure
-    hands the work to the background rather than failing the request.
-    Returns whether it went to the background (the response's
-    ``background``)."""
+async def _apply(affected: set[str], queries: list[_Query]) -> bool:
+    """Reproject the images a rule change touched (``affected``, what
+    ``queries`` found): up to :data:`_SYNC_REPROJECT` before returning, more
+    (or any, while another reprojection runs and would make this one wait)
+    in the background. Both show as activity. The rule is committed by now,
+    so an inline failure hands the work to the background rather than
+    failing the request. Returns whether it went to the background (the
+    response's ``background``).
+
+    ``affected`` was found before the run lock was ours: a run holding it
+    may have read the old rules and still be writing the old names onto
+    images outside it. So ``queries`` is asked again under the lock
+    (``recheck``) and those join in; that is also why an empty set still
+    goes through the lock."""
+    if not any(tags for tags, _ in queries):
+        return False
     ids = sorted(affected)
     background = len(ids) > _SYNC_REPROJECT
+
+    def recheck() -> set[str]:
+        return _images_with_sync(queries)
+
     try:
-        if ids and not background:
+        if not background:
             # Never waits: a run holding the lock sends this one to the
             # background, which runs after it.
             try:
                 done = await anyio.to_thread.run_sync(
-                    reproject.try_reproject_ids_tracked, ids
+                    lambda: reproject.try_reproject_ids_tracked(ids, recheck=recheck)
                 )
             except Exception:
                 logger.exception("Inline reprojection failed; retrying in background")
                 done = None
             background = done is None
-        if ids and background:
-            reproject.reproject_ids_async(ids)
+        if background:
+            reproject.reproject_ids_async(ids, recheck=recheck)
     finally:
         # The rule write itself (moved cover pins, characters) is committed
         # by now; a background run invalidates again per batch as it writes.
@@ -302,12 +339,11 @@ async def add_rules(rules: list[tuple[str, list[str]]]) -> dict:
             if before is not None:
                 replaced.append(before[0])
     _forget_suggestions()
-    affected = set(await _images_with([tag_kinds.to_prompt(n) for n in added]))
-    for old in replaced:
-        affected.update(
-            await _images_with([tag_kinds.to_prompt(x) for x in old], every=True)
-        )
-    background = await _apply(affected)
+    queries = [([tag_kinds.to_prompt(n) for n in added], False)] + [
+        ([tag_kinds.to_prompt(x) for x in old], True) for old in replaced
+    ]
+    affected = await _images_with(queries)
+    background = await _apply(affected, queries)
     return {
         "rules": len(added),
         "skipped": skipped,
@@ -407,8 +443,9 @@ async def delete_rule(from_name: str) -> dict | None:
     # Every image the rule touched carries all its targets; re-deriving those
     # gives each its own prompt's names back.
     targets = rule[0]
-    affected = await _images_with([tag_kinds.to_prompt(x) for x in targets], every=True)
-    background = await _apply(affected)
+    queries = [([tag_kinds.to_prompt(x) for x in targets], True)]
+    affected = await _images_with(queries)
+    background = await _apply(affected, queries)
     return {
         "from": from_name,
         "to": targets,

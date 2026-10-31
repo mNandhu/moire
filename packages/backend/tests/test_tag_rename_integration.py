@@ -424,7 +424,9 @@ async def test_every_rule_change_reprojects_big_sets_in_the_background(
 
     queued: list[list[str]] = []
     monkeypatch.setattr(tag_rename, "_SYNC_REPROJECT", 0)
-    monkeypatch.setattr(reproject, "reproject_ids_async", queued.append)
+    monkeypatch.setattr(
+        reproject, "reproject_ids_async", lambda ids, **kw: queued.append(ids)
+    )
     resp = await client.delete("/tags/rules/blonde")
     assert resp.json()["background"] is True
     resp = await client.post(
@@ -441,7 +443,9 @@ async def test_a_small_rule_change_does_not_wait_behind_a_running_reprojection(
     _raw("L1:a", "blonde")
     reproject.reproject_library("L1")
     queued: list[list[str]] = []
-    monkeypatch.setattr(reproject, "reproject_ids_async", queued.append)
+    monkeypatch.setattr(
+        reproject, "reproject_ids_async", lambda ids, **kw: queued.append(ids)
+    )
     # A run that takes the lock after any "is it busy?" look must not make
     # the request wait either: the busy hint says no, the lock is held.
     monkeypatch.setattr(reproject, "busy", lambda: False)
@@ -483,13 +487,15 @@ async def test_an_inline_reprojection_failure_finishes_in_the_background(
     _raw("L1:a", "blonde")
     reproject.reproject_library("L1")
 
-    def boom(ids):
+    def boom(ids, **kw):
         raise RuntimeError("disk on fire")
 
     queued: list[list[str]] = []
     invalidated: list[bool] = []
     monkeypatch.setattr(reproject, "try_reproject_ids_tracked", boom)
-    monkeypatch.setattr(reproject, "reproject_ids_async", queued.append)
+    monkeypatch.setattr(
+        reproject, "reproject_ids_async", lambda ids, **kw: queued.append(ids)
+    )
     monkeypatch.setattr(tag_index, "invalidate", lambda: invalidated.append(True))
     resp = await client.post(
         "/tags/rename", json={"tag": "prompt:blonde", "to": "blonde_hair"}
@@ -500,3 +506,43 @@ async def test_an_inline_reprojection_failure_finishes_in_the_background(
     assert invalidated
     aliases = (await client.get("/tags/rules")).json()
     assert [a["from"] for a in aliases] == ["blonde"]
+
+
+async def test_a_rule_change_reaches_images_a_run_in_flight_writes_after_it(
+    client, seed, monkeypatch
+):
+    """A run that read the rules before a change and writes the old name
+    after the change looked for images carrying it: the affected set is taken
+    again under the run lock, so the image still gets the new name."""
+    import anyio
+
+    seed("L1:a", tags=())
+    _raw("L1:a", "blonde")
+    # A run (the post-scan one, say) has read the old rules and holds the
+    # lock, its first write not made yet.
+    flush = reproject._flush_batch
+    read, release = threading.Event(), threading.Event()
+
+    def paused_flush(batch, **kw):
+        read.set()
+        release.wait(5)
+        flush(batch, **kw)
+
+    monkeypatch.setattr(reproject, "_flush_batch", paused_flush)
+    th = threading.Thread(target=reproject.reproject_library, args=("L1",))
+    th.start()
+    assert read.wait(5)
+    try:
+        resp = await client.post(
+            "/tags/rename", json={"tag": "prompt:blonde", "to": "blonde_hair"}
+        )
+        assert resp.status_code == 200, resp.text
+    finally:
+        release.set()
+        th.join(5)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if not reproject.busy() and "prompt:blonde_hair" in await _tags("L1:a"):
+            break
+        await anyio.sleep(0.05)
+    assert await _tags("L1:a") == ["prompt:blonde_hair"]

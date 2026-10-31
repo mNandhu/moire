@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+from collections.abc import Callable, Iterable
 
 import sqlalchemy as sa
 
@@ -250,11 +251,30 @@ def reproject_image(image_id: str) -> int:
         _run_lock.release()
 
 
-def reproject_ids(image_ids: list[str], *, task: activity.Task | None = None) -> int:
+def reproject_ids(
+    image_ids: list[str],
+    *,
+    task: activity.Task | None = None,
+    recheck: Callable[[], Iterable[str]] | None = None,
+) -> int:
     """Recompute ``gen.*`` for specific images (after a merge-rule change),
-    holding the run lock for the whole list."""
+    holding the run lock for the whole list. ``recheck``: see
+    :func:`_with_recheck`."""
     with _run_lock:
-        return _derive_ids(image_ids, task)
+        return _derive_ids(_with_recheck(image_ids, recheck), task)
+
+
+def _with_recheck(
+    image_ids: list[str], recheck: Callable[[], Iterable[str]] | None
+) -> list[str]:
+    """``image_ids`` plus what ``recheck`` finds now; the caller holds
+    :data:`_run_lock`. A rule change picks its images before it gets the
+    lock, while a run that read the old rules may still be writing the old
+    names onto others; by the time the lock is ours that run is done, so
+    asking again here catches them."""
+    if recheck is None:
+        return image_ids
+    return sorted(set(image_ids).union(recheck()))
 
 
 def _derive_ids(image_ids: list[str], task: activity.Task | None) -> int:
@@ -300,13 +320,19 @@ def _tracked(work, *args, library_id: str | None = None, **kwargs) -> None:
         logger.exception("Reprojection failed")
 
 
-def try_reproject_ids_tracked(image_ids: list[str]) -> int | None:
+def try_reproject_ids_tracked(
+    image_ids: list[str], *, recheck: Callable[[], Iterable[str]] | None = None
+) -> int | None:
     """:func:`reproject_ids` inline, shown as activity like the background
     runs, but only if no other run holds the lock: ``None`` (nothing done,
-    no activity) instead of waiting. A failure propagates to the caller."""
+    no activity) instead of waiting. A failure propagates to the caller.
+    Nothing to derive (after ``recheck``) shows no activity."""
     if not _run_lock.acquire(blocking=False):
         return None
     try:
+        image_ids = _with_recheck(image_ids, recheck)
+        if not image_ids:
+            return 0
         with activity.track("reproject") as task:
             return _derive_ids(image_ids, task)
     finally:
@@ -421,10 +447,13 @@ def _defer(image_ids: list[str]) -> None:
     threading.Thread(target=_drain, name="reproject-deferred", daemon=True).start()
 
 
-def reproject_ids_async(image_ids: list[str]) -> threading.Thread:
+def reproject_ids_async(
+    image_ids: list[str], *, recheck: Callable[[], Iterable[str]] | None = None
+) -> threading.Thread:
     """Fire-and-forget reprojection of specific images (a big rule change,
-    resuming a library a restart cut off)."""
-    return _spawn("reproject-ids", reproject_ids, image_ids)
+    resuming a library a restart cut off). ``recheck``: see
+    :func:`_with_recheck`."""
+    return _spawn("reproject-ids", reproject_ids, image_ids, recheck=recheck)
 
 
 def reproject_by_sig_async(workflow_sig: str) -> threading.Thread:
