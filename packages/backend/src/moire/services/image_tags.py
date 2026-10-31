@@ -340,12 +340,33 @@ def _chunks(items: list[str], size: int) -> Iterator[list[str]]:
 
 class BulkEditStopped(Exception):
     """A bulk edit failed after some chunks committed: they stay applied.
-    ``matched``/``modified`` count only those; the edit is idempotent, so
-    running it again on the same selection finishes it."""
+    ``done`` counts the ids those chunks covered, ``matched``/``modified``
+    the images in them; the edit is idempotent, so running it again on the
+    same selection finishes it."""
 
-    def __init__(self, matched: int, modified: int, total: int):
-        super().__init__(f"stopped after {matched} of {total} images")
-        self.matched, self.modified, self.total = matched, modified, total
+    def __init__(self, done: int, total: int, matched: int, modified: int):
+        super().__init__(f"stopped after {done} of {total} images")
+        self.done, self.total = done, total
+        self.matched, self.modified = matched, modified
+
+
+async def _stored_tags(conn: AsyncConnection, ids: list[str]) -> dict[str, list]:
+    """``{stored _id: tags}`` for ``ids`` as stored, then for the slash
+    variants of those that missed (bound parameters stay at one per id for
+    the usual case)."""
+    col = t.images.c
+
+    async def read(candidates: set[str]) -> dict[str, list]:
+        rows = await conn.execute(
+            sa.select(col._id, col.tags).where(col._id.in_(candidates))
+        )
+        return {r._id: r.tags for r in rows}
+
+    stored = await read(set(ids))
+    variants = {v for i in ids if i not in stored for v in id_variants(i)}
+    if variants:
+        stored |= await read(variants)
+    return stored
 
 
 async def bulk_manual(
@@ -357,25 +378,17 @@ async def bulk_manual(
     thousands held in one would outlast ``busy_timeout`` and fail the
     scanner's and AI tagger's writes meanwhile. A failure part-way keeps the
     chunks before it (raised as :class:`BulkEditStopped` once any committed).
-    Each chunk resolves its ids and reads their tags in one query, inside
-    its transaction, so a concurrent edit isn't overwritten. Unknown ids
-    are skipped. Returns ``(matched, modified)``.
+    Each chunk reads its images' tags in one query in its transaction, so a
+    concurrent edit isn't overwritten. Unknown ids are skipped. Returns
+    ``(matched, modified)``.
     """
-    matched = modified = 0
+    done = matched = modified = 0
     seen: set[str] = set()
     try:
         for chunk in _chunks(image_ids, _CHUNK):
             chunk_matched = chunk_modified = 0
             async with async_tx() as conn:
-                candidates = {c for image_id in chunk for c in id_candidates(image_id)}
-                stored = {
-                    r._id: r.tags
-                    for r in await conn.execute(
-                        sa.select(t.images.c._id, t.images.c.tags).where(
-                            t.images.c._id.in_(candidates)
-                        )
-                    )
-                }
+                stored = await _stored_tags(conn, chunk)
                 for image_id in chunk:
                     resolved = next(
                         (c for c in id_candidates(image_id) if c in stored), None
@@ -390,11 +403,12 @@ async def bulk_manual(
                         chunk_modified += 1
                         await _persist(conn, resolved, new)
             # Counted once the chunk committed.
+            done += len(chunk)
             matched += chunk_matched
             modified += chunk_modified
     except Exception as e:
-        if matched:
-            raise BulkEditStopped(matched, modified, len(image_ids)) from e
+        if done:
+            raise BulkEditStopped(done, len(image_ids), matched, modified) from e
         raise
     finally:
         if modified:

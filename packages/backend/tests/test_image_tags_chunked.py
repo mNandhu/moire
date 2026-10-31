@@ -139,11 +139,8 @@ async def test_bulk_manual_failure_keeps_earlier_chunks(temp_db, seed, monkeypat
     with pytest.raises(image_tags.BulkEditStopped) as stopped:
         await image_tags.bulk_manual(ids, add=["fav"], remove=[])
 
-    assert (stopped.value.matched, stopped.value.modified, stopped.value.total) == (
-        2,
-        2,
-        4,
-    )
+    e = stopped.value
+    assert (e.done, e.total, e.matched, e.modified) == (2, 4, 2, 2)
     for i in ids[:2]:
         assert _tags(i) == ["manual:keep", "manual:fav"]
         assert _join_tags(i) == {"manual:keep", "manual:fav"}
@@ -162,6 +159,19 @@ async def test_bulk_manual_failure_in_first_chunk_raises_as_is(
     with pytest.raises(RuntimeError):
         await image_tags.bulk_manual(["L1:0.png"], add=["fav"], remove=[])
     assert tag_index.current_generation() == gen
+
+
+async def test_bulk_manual_stopped_counts_ids_not_images(temp_db, seed, monkeypatch):
+    """A first chunk of only unknown ids still counts as done: the stop says
+    how far through the selection it got, and a retry is as safe."""
+    monkeypatch.setattr(image_tags, "_CHUNK", 2)
+    seed("L1:a.png")
+    monkeypatch.setattr(image_tags, "_persist", _boom)
+    ids = ["L1:gone1.png", "L1:gone2.png", "L1:a.png"]
+    with pytest.raises(image_tags.BulkEditStopped) as stopped:
+        await image_tags.bulk_manual(ids, add=["fav"], remove=[])
+    e = stopped.value
+    assert (e.done, e.total, e.matched, e.modified) == (2, 3, 0, 0)
 
 
 async def _boom(*args, **kwargs):

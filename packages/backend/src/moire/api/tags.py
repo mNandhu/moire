@@ -346,7 +346,7 @@ async def bulk_manual_tags(body: BulkManualTags):
     except image_tags.BulkEditStopped as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Stopped after {e.matched:,} of {e.total:,} images; "
+            detail=f"Stopped after {e.done:,} of {e.total:,} images; "
             "run it again to finish",
         ) from e
     return {"matched": matched, "modified": modified}

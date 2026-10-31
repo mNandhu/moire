@@ -3,9 +3,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toasts";
 import { postAiTag } from "../lib/ai";
-import { errorText } from "../lib/api";
+import { ApiError, errorText } from "../lib/api";
 import { runBulk } from "../lib/bulk";
-import { imageDocKey, invalidateFeeds, removeImagesFromFeeds } from "../lib/feedCache";
+import { IMAGE_DOC_PREFIX, invalidateFeeds, removeImagesFromFeeds } from "../lib/feedCache";
 import { setQuarantine as apiSetQuarantine, bulkManualTags } from "../lib/imageMutations";
 
 /**
@@ -89,13 +89,15 @@ export function useBulkActions({
   const runBulkManualTags = useCallback(
     async (edit: { add: string[]; remove: string[] }) => {
       const ids = Array.from(selection);
-      // Also after a failure: the chunks before it were applied.
       const refresh = () => {
         invalidateFeeds(queryClient);
-        // ImageView reads the full doc from its own cache entry.
-        for (const id of ids) {
-          queryClient.invalidateQueries({ queryKey: imageDocKey(id), exact: true });
-        }
+        // ImageView reads the full doc from its own cache entry; one pass
+        // over the cache, not one per selected image.
+        const picked = new Set(ids);
+        void queryClient.invalidateQueries({
+          queryKey: IMAGE_DOC_PREFIX,
+          predicate: (q) => q.queryKey.length === 2 && picked.has(q.queryKey[1] as string),
+        });
       };
       try {
         const res = await bulkManualTags(ids, edit);
@@ -106,7 +108,9 @@ export function useBulkActions({
         );
         return true;
       } catch (e) {
-        refresh();
+        // A refused request (4xx) wrote nothing; any other failure may have
+        // stopped after some chunks were applied.
+        if (!(e instanceof ApiError && e.status < 500)) refresh();
         push(`Failed to update tags: ${errorText(e)}`, "error");
         return false;
       }

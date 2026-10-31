@@ -136,7 +136,7 @@ async def test_bulk_manual_says_how_far_a_failed_edit_got(client, seed, monkeypa
     from moire.services import image_tags
 
     async def stopped(*args, **kwargs):
-        raise image_tags.BulkEditStopped(1200, 900, 3000)
+        raise image_tags.BulkEditStopped(1200, 3000, 1100, 900)
 
     monkeypatch.setattr(image_tags, "bulk_manual", stopped)
     resp = await client.post("/tags/bulk", json={"image_ids": ["L1:a"], "add": ["x"]})

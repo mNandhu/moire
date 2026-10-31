@@ -89,10 +89,16 @@ test("Edit tags adds and removes a manual tag on a whole Select all", async ({ p
   await page.getByRole("button", { name: "Select all" }).click();
   await expect(page.getByRole("button", { name: `${n} selected` })).toBeVisible();
 
-  await edit("Type a tag, Enter to add", new RegExp(`Updated tags on ${n} of ${n} images`));
-  expect(await tagged()).toBe(n);
+  try {
+    await edit("Type a tag, Enter to add", new RegExp(`Updated tags on ${n} of ${n} images`));
+    expect(await tagged()).toBe(n);
 
-  // Taken off again, so the sandbox library is as the other specs expect it.
-  await edit("Tags to take off these images", new RegExp(`Updated tags on ${n} of ${n} images`));
-  expect(await tagged()).toBe(0);
+    // Taken off again in the UI, so the sandbox library is as the other specs expect it.
+    await edit("Tags to take off these images", new RegExp(`Updated tags on ${n} of ${n} images`));
+    expect(await tagged()).toBe(0);
+  } finally {
+    // And through the API if a step above failed with the tag still on.
+    const ids = (await (await request.get(`${API}/images/ids`, { params: { tags: "manual:e2e_bulk" } })).json()).ids;
+    if (ids.length) await request.post(`${API}/tags/bulk`, { data: { image_ids: ids, remove: ["e2e_bulk"] } });
+  }
 });
