@@ -1,6 +1,6 @@
 import type { PickerOption } from "../components/ui";
 import type { Generator, QueueBody } from "./generate";
-import { workflowOrigin } from "./generatorSetup";
+import { FROM_AN_IMAGE, workflowOrigin } from "./generatorSetup";
 import type { CountMode } from "./requests";
 
 /** The picker's pinned row value: opens setup instead of choosing. */
@@ -61,11 +61,12 @@ export function testState(gen: Generator): TestState {
 export const canRunTest = (s: TestState) => s !== "running" && s !== "ready";
 
 /** The picker's line under a workflow: txt2img for the built-in, else the
- * setup page's origin line (workflowOrigin) unless it only repeats the name. */
+ * setup page's origin line (workflowOrigin), left out when it only repeats
+ * the name or says no more than "From an image". */
 export function workflowLine(gen: Generator): string | undefined {
   if (gen.kind === "builtin") return "txt2img";
   const origin = workflowOrigin(gen.source ?? undefined);
-  return origin === `From ${gen.name}` ? undefined : origin;
+  return origin === gen.name || origin === `From ${gen.name}` || origin === FROM_AN_IMAGE ? undefined : origin;
 }
 
 /** The picker's rows: "Set up a workflow" pinned first by the picker itself,

@@ -90,7 +90,10 @@ it("options put the chosen one first, with a line on where it came from", () => 
 it("workflowLine reads the setup page's origin line", () => {
   const img = { kind: "image" as const, image_id: "a", family: "f", family_name: null, workflow_sig: "s" };
   expect(workflowLine(gen({ source: { ...img, file_name: "my_flow.json" } }))).toBe("From my_flow.json");
-  expect(workflowLine(gen({ source: img }))).toBe("From an image");
+  expect(workflowLine(gen({ source: img }))).toBeUndefined();
+  const up = { kind: "upload" as const, filename: "my_flow.json" };
+  expect(workflowLine(gen({ name: "my_flow.json", source: up }))).toBeUndefined();
+  expect(workflowLine(gen({ name: "Flow", source: up }))).toBe("my_flow.json");
   expect(workflowLine(gen({ name: "my_flow.json", source: { ...img, file_name: "my_flow.json" } }))).toBeUndefined();
 });
 
