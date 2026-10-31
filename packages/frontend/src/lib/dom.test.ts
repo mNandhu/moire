@@ -1,9 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { hasModifier, isFormField, scrollDeltaForKey, scrollParent } from "./dom";
+import { hasModifier, isFormField, isTextEntry, scrollDeltaForKey, scrollParent } from "./dom";
 
 function el(tag: string): HTMLElement {
   return document.createElement(tag);
 }
+
+describe("isTextEntry", () => {
+  const input = (type: string) => Object.assign(el("input"), { type });
+  it("is true where text is typed, false for sliders, boxes and buttons", () => {
+    expect(isTextEntry(el("textarea"))).toBe(true);
+    expect(isTextEntry(input("text"))).toBe(true);
+    expect(isTextEntry(input("number"))).toBe(true);
+    expect(isTextEntry(input("range"))).toBe(false);
+    expect(isTextEntry(input("checkbox"))).toBe(false);
+    expect(isTextEntry(el("button"))).toBe(false);
+    expect(isTextEntry(null)).toBe(false);
+  });
+});
 
 describe("isFormField", () => {
   it("is true for input/textarea/select", () => {

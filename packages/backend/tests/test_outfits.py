@@ -9,6 +9,10 @@ import re
 from pathlib import Path
 
 import pytest
+import sqlalchemy as sa
+
+from moire.database import schema as t
+from moire.database.db import async_tx
 
 from moire.services import outfits, tag_categories
 from moire.services.outfits import OutfitError
@@ -231,12 +235,21 @@ async def test_outfits_end_to_end(client, comfy, seed, monkeypatch):  # noqa: F8
     listed = (await client.get("/generate/outfits")).json()
     mine = next(o for o in listed if o["_id"] == own["_id"])
     assert (mine["batches"], mine["used_by"]) == (1, 1)
-    # A character's list counts the batches it wore each in.
-    listed = (await client.get("/generate/outfits", params={"character": HU})).json()
-    assert {o["name"]: o["worn"] for o in listed} == {
-        "Funeral director": 1,
-        "Swimsuit": 0,
-    }
+
+    # A character's list counts the batches it wore each in, once one made
+    # an image (a batch cancelled before that doesn't count).
+    async def worn():
+        got = (await client.get("/generate/outfits", params={"character": HU})).json()
+        return {o["name"]: o["worn"] for o in got}
+
+    assert await worn() == {"Funeral director": 0, "Swimsuit": 0}
+    async with async_tx() as conn:
+        await conn.execute(
+            sa.update(t.generation_requests)
+            .where(t.generation_requests.c.batch_id == batch["_id"])
+            .values(state="done")
+        )
+    assert await worn() == {"Funeral director": 1, "Swimsuit": 0}
 
     assert (await client.delete(f"/generate/outfits/{own['_id']}")).status_code == 200
     assert (await client.delete(f"/generate/outfits/{own['_id']}")).status_code == 404

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, type Dispatch, type SetStateAction } from "react";
-import { isFormField } from "../lib/dom";
+import { isTextEntry } from "../lib/dom";
 import { emptyHistory, recordChange, redoStep, undoStep, type UndoHistory } from "../lib/undoHistory";
+
+/** A change this soon after a keystroke in a field is that typing. */
+const TYPED_MS = 100;
 
 /**
  * An undo history for a piece of state, kept by watching it change: every
@@ -21,6 +24,17 @@ export function useUndoHistory<T>(
   const quiet = useRef(false);
   const opts = useRef({ skip, restore });
   opts.current = { skip, restore };
+  // The field last typed in, and when: a change right after it is that
+  // typing (one step per burst); a tag picked from a list in the same
+  // field is not, nor is anything else made while it has focus.
+  const typed = useRef<{ el: EventTarget | null; at: number }>({ el: null, at: 0 });
+  useEffect(() => {
+    const onInput = (e: Event) => {
+      if (isTextEntry(e.target)) typed.current = { el: e.target, at: Date.now() };
+    };
+    document.addEventListener("input", onInput, true);
+    return () => document.removeEventListener("input", onInput, true);
+  }, []);
 
   useEffect(() => {
     if (value === prev.current) return;
@@ -32,8 +46,9 @@ export function useUndoHistory<T>(
     }
     const q = quiet.current || !!opts.current.skip?.(was, value);
     quiet.current = false;
-    const el = document.activeElement;
-    hist.current = recordChange(hist.current, was, { key: isFormField(el) ? el : null, now: Date.now(), quiet: q });
+    const now = Date.now();
+    const key = now - typed.current.at < TYPED_MS ? typed.current.el : null;
+    hist.current = recordChange(hist.current, was, { key, now, quiet: q });
   }, [value]);
 
   const go = useCallback(

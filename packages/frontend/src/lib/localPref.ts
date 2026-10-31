@@ -15,7 +15,7 @@
  *   imageView:tab                ImageView: "generation" | "tags"
  *   viewer:outfits-open          WornOutfits: panel open ("1"/"0")
  *   moire.generate.boardFolded   PromptBoard: board folded ("1"/"0")
- *   generate:output-cleared      OutputFeed: newest batch id when cleared, and the queued ones kept (JSON)
+ *   generate:output-cleared-at   OutputFeed: newest batch's created_at when cleared, and the queued ones kept (JSON)
  *   libraries:collapsedFolders   LibrariesPage: JSON array of folder keys
  *   rules:collapsedWorkflows     RulesPage: JSON array of workflow keys
  *   onboarding:shortcut-hint     one-shot flag set by first-run setup

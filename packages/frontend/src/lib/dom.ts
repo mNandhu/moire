@@ -15,6 +15,20 @@ export function isFormField(target: EventTarget | null): boolean {
   );
 }
 
+const NOT_TEXT = new Set(["range", "checkbox", "radio", "button", "submit", "reset", "color", "file", "image", "hidden"]);
+
+/**
+ * Whether an event target takes typed text, so has an undo of its own (a
+ * slider or a checkbox is a form field but not this).
+ */
+export function isTextEntry(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) return false;
+  const tag = el.tagName?.toLowerCase();
+  if (tag === "textarea" || el.isContentEditable === true) return true;
+  return tag === "input" && !NOT_TEXT.has((el as HTMLInputElement).type);
+}
+
 /**
  * Whether a keydown carries Ctrl, Cmd or Alt, so a bare-key shortcut can leave
  * it to the browser (Ctrl+1 switches tab, Alt+Left goes back, Ctrl+X cuts).

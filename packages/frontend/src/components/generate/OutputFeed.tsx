@@ -10,9 +10,16 @@ import { BatchResults } from "./BatchResults";
 
 /** Batches shown in the output column. */
 const SHOWN = 3;
-/** The newest batch id when the column was last cleared, and the ones
- * still in the queue then (they stay, finished or not). */
-const CLEARED_KEY = "generate:output-cleared";
+/** When the column was last cleared (the newest batch's created_at then:
+ * the server's clock, and ids can be reused), and the batches still in the
+ * queue then (they stay, finished or not). */
+const CLEARED_KEY = "generate:output-cleared-at";
+type Cleared = { at: number; keep: number[] };
+const NOT_CLEARED: Cleared = { at: 0, keep: [] };
+const parseCleared = (raw: string): Cleared | undefined => {
+  const v = JSON.parse(raw) as Partial<Cleared> | null;
+  return v && typeof v.at === "number" && Array.isArray(v.keep) ? { at: v.at, keep: v.keep.filter((n) => typeof n === "number") } : undefined;
+};
 
 function BatchPanel({ id }: { id: number }) {
   const { data: b } = useBatch(id);
@@ -74,13 +81,13 @@ export function OutputFeed() {
   const behind = new Set(active.filter((a) => isWaiting(a) && queued.has(a._id)).map((a) => a._id));
   // Enough to get past every one of them.
   const { data } = useBatches(SHOWN + behind.size);
-  const [cleared, setCleared] = useLocalPref<{ upTo: number; keep: number[] }>(CLEARED_KEY, { upTo: 0, keep: [] });
+  const [cleared, setCleared] = useLocalPref<Cleared>(CLEARED_KEY, NOT_CLEARED, { parse: parseCleared });
   const kept = new Set([...cleared.keep, ...active.map((a) => a._id)]);
   const started = data
     ?.filter((b) => {
       // Cancelled with nothing made: nothing to show (Generations lists it).
       if (b.state === "cancelled" && b.images === 0) return false;
-      if (b._id <= cleared.upTo && !kept.has(b._id)) return false;
+      if (b.created_at <= cleared.at && !kept.has(b._id)) return false;
       return !behind.has(b._id);
     })
     .slice(0, SHOWN);
@@ -95,7 +102,7 @@ export function OutputFeed() {
           type="button"
           onClick={() =>
             setCleared({
-              upTo: Math.max(cleared.upTo, ...(data ?? []).map((b) => b._id)),
+              at: Math.max(cleared.at, ...(data ?? []).map((b) => b.created_at)),
               keep: [
                 ...active.map((a) => a._id),
                 ...(data ?? []).filter((b) => b.state === "running" || b.state === "paused").map((b) => b._id),

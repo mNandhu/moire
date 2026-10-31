@@ -250,15 +250,7 @@ export async function writeImageFields(
   setFields(qc, id, docId, tile, doc);
 }
 
-/** Drop one image from every cached feed (quarantine, purge). */
-export function removeImageFromFeeds(qc: QueryClient, id: string): void {
-  removeImagesFromFeeds(qc, [id]);
-}
-
-/**
- * Drop several images from every cached feed in one pass: the batch-selection
- * counterpart to removeImageFromFeeds.
- */
+/** Drop images from every cached feed in one pass (a batch quarantine or purge). */
 export function removeImagesFromFeeds(
   qc: QueryClient,
   ids: readonly string[],

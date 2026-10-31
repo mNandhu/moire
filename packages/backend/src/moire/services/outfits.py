@@ -216,42 +216,35 @@ _USAGE = sa.text(
     """
     SELECT json_extract(c.value, '$.outfit.id') AS outfit_id,
            COUNT(DISTINCT b._id) AS batches,
-           COUNT(DISTINCT json_extract(c.value, '$.tag')) AS used_by
+           COUNT(DISTINCT json_extract(c.value, '$.tag')) AS used_by,
+           COUNT(DISTINCT CASE
+               WHEN json_extract(c.value, '$.tag') IN :names
+                AND EXISTS (SELECT 1 FROM generation_requests AS r
+                            WHERE r.batch_id = b._id AND r.state = 'done')
+               THEN b._id END) AS worn
     FROM generation_batches AS b, json_each(b.inputs, '$.characters') AS c
     WHERE json_extract(c.value, '$.outfit.id') IN :ids
-    GROUP BY outfit_id
-    """
-).bindparams(sa.bindparam("ids", expanding=True))
-
-
-_WORN = sa.text(
-    """
-    SELECT json_extract(c.value, '$.outfit.id') AS outfit_id,
-           COUNT(DISTINCT b._id) AS batches
-    FROM generation_batches AS b, json_each(b.inputs, '$.characters') AS c
-    WHERE json_extract(c.value, '$.outfit.id') IN :ids
-      AND json_extract(c.value, '$.tag') IN :names
     GROUP BY outfit_id
     """
 ).bindparams(sa.bindparam("ids", expanding=True), sa.bindparam("names", expanding=True))
 
 
-async def _worn(ids: list[str], names: list[str]) -> dict[str, int]:
-    """Outfit id -> batches the character (any of ``names``) wore it in."""
-    if not ids or not names:
-        return {}
-    async with async_conn() as conn:
-        rows = (await conn.execute(_WORN, {"ids": ids, "names": names})).fetchall()
-    return {r.outfit_id: r.batches for r in rows}
-
-
-async def _usage(ids: list[str]) -> dict[str, dict[str, int]]:
-    """Outfit id -> batches it was worn in, and by how many characters."""
+async def _usage(
+    ids: list[str], names: list[str] | None = None
+) -> dict[str, dict[str, int]]:
+    """Outfit id -> batches it was worn in, by how many characters, and
+    (``worn``) how many of them by the character called any of ``names``
+    that made an image."""
     if not ids:
         return {}
     async with async_conn() as conn:
-        rows = (await conn.execute(_USAGE, {"ids": ids})).fetchall()
-    return {r.outfit_id: {"batches": r.batches, "used_by": r.used_by} for r in rows}
+        rows = (
+            await conn.execute(_USAGE, {"ids": ids, "names": names or [""]})
+        ).fetchall()
+    return {
+        r.outfit_id: {"batches": r.batches, "used_by": r.used_by, "worn": r.worn}
+        for r in rows
+    }
 
 
 def _view(
@@ -457,7 +450,7 @@ async def covers(
 async def listing(character: str | None = None) -> list[dict[str, Any]]:
     """Every saved outfit (the Outfits page), or a character's list: its own
     and the shared ones (``hidden`` marks those it hides, ``worn`` counts the
-    batches it wore each in). Newest first."""
+    batches it wore each in that made an image). Newest first."""
     o = t.outfits
     key = None
     names: list[str] = []
@@ -484,12 +477,15 @@ async def listing(character: str | None = None) -> list[dict[str, Any]]:
             }
     vocab = await tag_categories.load()
     ids = [r["_id"] for r in rows]
-    used = await _usage(ids)
     if key is None:
+        used = await _usage(ids)
         return [_view(r, vocab.general, images, used, hidden) for r in rows]
-    worn = await _worn(ids, list(dict.fromkeys([key, *names])))
+    used = await _usage(ids, list(dict.fromkeys([key, *names])))
     return [
-        {**_view(r, vocab.general, images, used, hidden), "worn": worn.get(r["_id"], 0)}
+        {
+            **_view(r, vocab.general, images, used, hidden),
+            "worn": used.get(r["_id"], {}).get("worn", 0),
+        }
         for r in rows
     ]
 

@@ -54,6 +54,7 @@ import { useToast } from "../components/Toasts";
 import { useUndoHistory } from "../hooks/useUndoHistory";
 import { useHotkeys } from "../hooks/useHotkeys";
 import { undoKey } from "../lib/undoHistory";
+import { isTextEntry } from "../lib/dom";
 import { GENERATE } from "../lib/shortcuts";
 
 const NO_STRINGS: string[] = [];
@@ -83,10 +84,9 @@ export default function GeneratePage() {
   const set = <K extends keyof GenerateForm>(k: K, v: GenerateForm[K]) => setForm((f) => ({ ...f, [k]: v }));
   // Ctrl/Cmd+Z takes back a change to the form (a tag taken out, a layer
   // removed); a text field keeps its own. What the page fills in on its
-  // own (the first checkpoint, a new character's outfit) folds into the
-  // step before it.
+  // own (the first checkpoint, a new character's outfit) is marked quiet
+  // where it's made, and folds into the step before it.
   const history = useUndoHistory(form, setForm, {
-    skip: (was, next) => was.fresh.length > 0 || (!was.checkpoint && !!next.checkpoint),
     restore: (f) => (f.fresh.length ? { ...f, fresh: [] } : f),
   });
   // Characters just picked (here or from a character page) start wearing
@@ -95,7 +95,10 @@ export default function GeneratePage() {
   const startAs = settings?.new_character_outfit;
   useEffect(() => {
     if (!form.fresh.length || !startAs) return;
-    const settle = (tag: string, pick: OutfitPick | null) => setForm((f) => settleFresh(f, tag, pick));
+    const settle = (tag: string, pick: OutfitPick | null) => {
+      history.quietly();
+      setForm((f) => settleFresh(f, tag, pick));
+    };
     for (const tag of form.fresh) {
       if (startAs !== "default") {
         settle(tag, null);
@@ -107,7 +110,7 @@ export default function GeneratePage() {
         .then((o) => settle(tag, o.tags.length ? pickOf(o) : null))
         .catch(() => settle(tag, null));
     }
-  }, [form.fresh, startAs]);
+  }, [form.fresh, startAs, history]);
 
   useEffect(() => saveDraft(form), [form]);
   // A remix made from the viewer while this page sat under it: the page
@@ -139,8 +142,11 @@ export default function GeneratePage() {
   const checkpoints = models?.checkpoints ?? NO_STRINGS;
   // The first installed checkpoint until the user picks one.
   useEffect(() => {
-    if (!form.checkpoint && checkpoints.length) set("checkpoint", checkpoints[0]);
-  }, [checkpoints, form.checkpoint]);
+    if (!form.checkpoint && checkpoints.length) {
+      history.quietly();
+      set("checkpoint", checkpoints[0]);
+    }
+  }, [checkpoints, form.checkpoint, history]);
 
   useEffect(() => {
     if (!asked || !generators?.some((g) => g._id === asked)) return;
@@ -318,14 +324,15 @@ export default function GeneratePage() {
     {
       ...GENERATE.undo,
       mods: "any",
-      match: (e) => undoKey(e) != null && !inDialog(e),
+      // Sliders and checkboxes have no undo of their own; text fields do.
+      match: (e) => undoKey(e) != null && !inDialog(e) && !isTextEntry(e.target),
       run: (e) => {
         e.preventDefault();
         if (undoKey(e) === "undo") history.undo();
         else history.redo();
       },
     },
-  ]);
+  ], { fields: true });
 
   // How long the form's batch would take, for the next-batch card.
   const estimate = useNextEstimate(gen?.ready && connected ? toEstimateBody(form, gen._id) : null, {

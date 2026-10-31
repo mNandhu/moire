@@ -146,7 +146,8 @@ export function Picker({
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (!open) {
-      if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+      // Ctrl/Cmd+Enter is the page's (Generate queues on it).
+      if (e.key === "ArrowDown" || (e.key === "Enter" && !e.ctrlKey && !e.metaKey) || e.key === " ") {
         e.preventDefault();
         e.stopPropagation();
         setOpen(true);

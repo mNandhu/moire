@@ -8,7 +8,6 @@ import {
   invalidateFeeds,
   syncFeedsFromDoc,
   patchImageInFeeds,
-  removeImageFromFeeds,
   removeImagesFromFeeds,
   writeImageFields,
 } from "./feedCache";
@@ -33,11 +32,11 @@ function seededClient() {
 const pagesOf = (qc: QueryClient, key: unknown[]) =>
   (qc.getQueryData(key) as { pages: FeedPage[] }).pages.map((p) => p.items);
 
-describe("removeImageFromFeeds", () => {
+describe("removeImagesFromFeeds, one id", () => {
   it("drops the image from every cached feed, not just one", () => {
     const qc = seededClient();
 
-    removeImageFromFeeds(qc, "a");
+    removeImagesFromFeeds(qc, ["a"]);
 
     expect(pagesOf(qc, ["images", 60, { tags: [] }])[0].map((d) => d._id)).toEqual(["b"]);
     expect(pagesOf(qc, ["images", 60, { tags: ["cat"] }])[0]).toEqual([]);
@@ -45,13 +44,13 @@ describe("removeImageFromFeeds", () => {
 
   it("leaves other images alone", () => {
     const qc = seededClient();
-    removeImageFromFeeds(qc, "zzz");
+    removeImagesFromFeeds(qc, ["zzz"]);
     expect(pagesOf(qc, ["images", 60, { tags: [] }])[0]).toHaveLength(2);
   });
 
   it("is a no-op when nothing is cached", () => {
     const qc = new QueryClient();
-    expect(() => removeImageFromFeeds(qc, "a")).not.toThrow();
+    expect(() => removeImagesFromFeeds(qc, ["a"])).not.toThrow();
   });
 });
 
