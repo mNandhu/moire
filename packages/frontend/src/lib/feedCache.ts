@@ -15,7 +15,7 @@
 import type { InfiniteData, Query, QueryClient } from "@tanstack/react-query";
 // From the domain modules, not "./queries": that re-exports lib/libraries.ts,
 // which imports this module.
-import { IMAGE_STATS_KEY, imageEmbeddingsQuery, imageLorasQuery, imageModelsQuery } from "./queries/images";
+import { IMAGE_SIZES_KEY, IMAGE_STATS_KEY, imageEmbeddingsQuery, imageLorasQuery, imageModelsQuery } from "./queries/images";
 import { TAGS_KEY } from "./queries/tags";
 import type { FeedItem, ImageDetail, ImageFields } from "./imageFilter";
 import { IMAGE_FEED_PREFIX, IMAGE_GROUPS_PREFIX, imageDocKey, type FeedPage } from "./imageApi";
@@ -298,6 +298,9 @@ export function invalidateFeeds(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: IMAGE_GROUPS_PREFIX });
   qc.invalidateQueries({ queryKey: TAGS_KEY });
   qc.invalidateQueries({ queryKey: IMAGE_STATS_KEY });
-  // Facet counts leave quarantined images out, so quarantine moves them too.
-  for (const f of [imageModelsQuery, imageLorasQuery, imageEmbeddingsQuery]) qc.invalidateQueries({ queryKey: f.queryKey });
+  // Facet counts follow the view (quarantined or not), so quarantine moves
+  // them too; each prefix covers both views.
+  for (const key of [imageModelsQuery.queryKey, imageLorasQuery.queryKey, imageEmbeddingsQuery.queryKey, IMAGE_SIZES_KEY]) {
+    qc.invalidateQueries({ queryKey: key });
+  }
 }

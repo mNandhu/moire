@@ -50,6 +50,10 @@ export const imageModelsQuery = imageModelsQueryIn();
 export const imageEmbeddingsQuery = imageEmbeddingsQueryIn();
 export const imageLorasQuery = imageLorasQueryIn();
 
+/** `GET /images/sizes`, for `useSizePresets`; the Quarantined view's
+ * counts sit under `[...IMAGE_SIZES_KEY, "quarantined"]`. */
+export const IMAGE_SIZES_KEY = ["image-sizes"] as const;
+
 export const AI_COVERAGE_KEY = ["aiCoverage"] as const;
 
 /**

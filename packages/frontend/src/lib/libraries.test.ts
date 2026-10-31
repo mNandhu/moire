@@ -105,6 +105,7 @@ describe("useLibraryWrites", () => {
     ["image-models"],
     ["image-loras"],
     ["image-embeddings"],
+    ["image-sizes"],
   ].map((k) => JSON.stringify(k));
 
   it("refreshes the list and both gallery caches after any write", async () => {

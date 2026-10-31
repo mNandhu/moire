@@ -41,4 +41,17 @@ describe("TagEditDialog save", () => {
     fireEvent.click(save);
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
+
+  it("stays open on Escape or Cancel while a save is in flight", async () => {
+    let finish!: () => void;
+    updateCharacter.mockReturnValueOnce(new Promise<void>((r) => (finish = r)));
+    const onClose = open();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(updateCharacter).toHaveBeenCalled());
+    fireEvent.keyDown(screen.getByRole("button", { name: "Cancel" }), { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onClose).not.toHaveBeenCalled();
+    finish();
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
 });

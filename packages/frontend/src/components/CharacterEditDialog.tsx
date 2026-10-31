@@ -105,15 +105,20 @@ export function CharacterEditDialog({
     onError: (e) => push(`Couldn't save: ${errorText(e)}`, "error"),
   });
 
+  // Not closed mid-save: its onSuccess still closes and may navigate.
+  const close = () => {
+    if (!save.isPending && !removal.isPending) onClose();
+  };
+
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={close}
       title="Edit character"
       className="max-w-lg"
       footer={
         <DialogFooter
-          onCancel={onClose}
+          onCancel={close}
           onConfirm={() => save.mutate()}
           pending={save.isPending}
           disabled={removal.isPending}

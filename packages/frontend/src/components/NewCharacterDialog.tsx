@@ -112,15 +112,20 @@ export function NewCharacterDialog({
     onError: (e) => push(`Couldn't make the character: ${errorText(e)}`, "error"),
   });
 
+  // Not closed mid-save: its onSuccess still closes and navigates.
+  const close = () => {
+    if (!create.isPending) onClose();
+  };
+
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={close}
       title="New character"
       className="max-w-lg"
       footer={
         <DialogFooter
-          onCancel={onClose}
+          onCancel={close}
           onConfirm={() => create.mutate()}
           confirmLabel="Make character"
           disabled={!canonicalName(tag) || !!existing}

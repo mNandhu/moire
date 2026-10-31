@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
+import { IMAGE_SIZES_KEY } from "../lib/queries/images";
 
 /** A size preset and how many images have its shape (`GET /images/sizes`). */
 export type SizePreset = {
@@ -11,8 +12,6 @@ export type SizePreset = {
 };
 
 const NO_SIZES: SizePreset[] = [];
-
-export const IMAGE_SIZES_KEY = ["image-sizes"] as const;
 
 /** The size presets with library counts; shared with the Generate size picker.
  * `quarantined` counts the Quarantined view's images instead. */

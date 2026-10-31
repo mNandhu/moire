@@ -89,7 +89,7 @@ describe("patching keeps server cursors", () => {
 });
 
 describe("invalidateFeeds", () => {
-  it("invalidates the feed, the batch strip, the grouped view, the tag aggregates, the stats and the facet counts", () => {
+  it("invalidates the feed, the batch strip, the grouped view, the tag aggregates, the stats and the facet counts, sizes included", () => {
     const qc = new QueryClient();
     const seen: unknown[] = [];
     qc.invalidateQueries = ((args: { queryKey: unknown }) => {
@@ -99,7 +99,7 @@ describe("invalidateFeeds", () => {
 
     invalidateFeeds(qc);
 
-    expect(seen).toEqual([["images"], ["batch-strip"], ["image-groups"], ["tags"], ["image-stats"], ["image-models"], ["image-loras"], ["image-embeddings"]]);
+    expect(seen).toEqual([["images"], ["batch-strip"], ["image-groups"], ["tags"], ["image-stats"], ["image-models"], ["image-loras"], ["image-embeddings"], ["image-sizes"]]);
   });
 });
 
