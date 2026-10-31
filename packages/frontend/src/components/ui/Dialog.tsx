@@ -15,16 +15,17 @@ import { Button } from "./Button";
  * target is outside (focus fell to <body> when the focused button unmounted,
  * e.g. "Preview" swapping to "Add") are swallowed at the document.
  *
- * Escape and Tab are handled at the document (capture phase) so they work from
- * either place. Only the topmost open dialog reacts, so a confirm opened over a
- * dialog closes alone.
+ * Escape from inside the panel closes the dialog as it bubbles out, unless a
+ * control on the way claimed it (called `preventDefault` or stopped it): an
+ * open list, menu or inline editor closes itself and the next Escape closes the
+ * dialog. Escape from outside the panel, and Tab, are handled at the document
+ * (capture phase), where only the topmost open dialog reacts, so a confirm
+ * opened over a dialog closes alone.
  *
  * Rendered into <body>: a transformed ancestor (the image view's sliding side
  * panel) would otherwise make `fixed` mean "fixed to the panel".
  */
 const openStack: object[] = [];
-// The trigger of an open popup, or anything inside its popup.
-const POPUP = '[aria-haspopup][aria-expanded="true"], [data-popup], [role="menu"]';
 
 export function Dialog({
   open,
@@ -68,10 +69,8 @@ export function Dialog({
       const panel = panelRef.current;
       const inside = !!panel && panel.contains(e.target as Node);
       if (!inside) e.stopPropagation();
-      // An open Picker list or DropdownMenu owns this Escape (it closes
-      // itself); the next one closes the dialog.
-      if (e.key === "Escape" && (e.target as Element).closest?.(POPUP)) return;
-      if (e.key === "Escape") {
+      // From inside, Escape is decided as it leaves the panel (below).
+      if (e.key === "Escape" && !inside) {
         e.stopPropagation();
         e.preventDefault();
         onCloseRef.current();
@@ -118,7 +117,13 @@ export function Dialog({
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      onKeyDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Escape" && !e.isDefaultPrevented()) {
+          e.preventDefault();
+          onClose();
+        }
+      }}
     >
       <div
         ref={panelRef}

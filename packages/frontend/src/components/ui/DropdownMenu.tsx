@@ -64,17 +64,22 @@ export function DropdownMenu({
     setOpen((v) => !v);
   };
 
+  // The open menu has the keys: a page's own shortcuts (the viewer closes on
+  // Escape, steps on arrows) and a Dialog around it must not act behind it.
+  // Keys from inside the menu are claimed on the wrapper; the document
+  // listener only sees the rest (focus left on <body>), since the wrapper
+  // stops what it claims.
+  const claimKey = (e: Pick<KeyboardEvent, "key" | "preventDefault" | "stopPropagation">) => {
+    if (e.key !== "Escape" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === "Escape") setOpen(false);
+  };
+  const claimKeyRef = useRef(claimKey);
+  claimKeyRef.current = claimKey;
   useEffect(() => {
     if (!open) return;
-    function onKeyDown(e: KeyboardEvent) {
-      // The open menu has the keys: a page's own shortcuts (the viewer
-      // closes on Escape, steps on arrows) must not act behind it.
-      if (e.key === "Escape" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      if (e.key === "Escape") setOpen(false);
-    }
+    const onKeyDown = (e: KeyboardEvent) => claimKeyRef.current(e);
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open]);
@@ -85,14 +90,8 @@ export function DropdownMenu({
     <div
       ref={ref}
       className="relative"
-      // Inside a Dialog the document listener above never sees keys (the
-      // dialog stops them at its backdrop), so close from here too.
       onKeyDown={(e) => {
-        if (open && e.key === "Escape") {
-          e.preventDefault();
-          e.stopPropagation();
-          setOpen(false);
-        }
+        if (open) claimKey(e);
       }}
     >
       {trigger ? (

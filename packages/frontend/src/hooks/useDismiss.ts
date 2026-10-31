@@ -11,10 +11,8 @@ type Ref = RefObject<HTMLElement | null>;
  * Escape is listened for on the document and skipped when something already
  * handled it (`defaultPrevented`). A Dialog stops keys at its backdrop, so a
  * popover inside one never sees them there: put the returned `onKeyDown` on the
- * popover's wrapper element, and give its trigger `aria-haspopup` plus
- * `aria-expanded` and its panel `data-popup` (or `role="menu"`) so the Dialog
- * leaves that Escape to the popover (see
- * Dialog's POPUP selector).
+ * popover's wrapper element. It claims the Escape (`preventDefault`), so the
+ * Dialog leaves it to the popover.
  *
  * `escape: false` leaves Escape to the caller (a Picker or DropdownMenu that
  * owns its keys) and handles only the outside press.

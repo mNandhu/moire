@@ -14,7 +14,7 @@ function Popover({ open, onClose, escape }: { open: boolean; onClose: () => void
           trigger
         </button>
         {open && (
-          <div data-popup>
+          <div>
             <input aria-label="inside" />
           </div>
         )}

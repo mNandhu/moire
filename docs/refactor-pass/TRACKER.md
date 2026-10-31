@@ -16,8 +16,8 @@ Gathered 2026-10-27 from the "left open" notes under each phase below, so they a
 
 Bugs and correctness:
 
-- [ ] **F1** Dialog decides Escape by a selector of popup markers; TagSearchInput and other comboboxes inside a dialog still lose Escape to it. Fix: popups claim Escape, Dialog acts only on unclaimed ones [P0]
-- [ ] **F2** DropdownMenu closes on Escape from both a wrapper handler and a document listener [P0]
+- [x] **F1** Dialog decides Escape by a selector of popup markers; TagSearchInput and other comboboxes inside a dialog still lose Escape to it. Fix: popups claim Escape, Dialog acts only on unclaimed ones [P0] (F1+F2 commit)
+- [x] **F2** DropdownMenu closes on Escape from both a wrapper handler and a document listener [P0] (F1+F2 commit)
 - [ ] **F3** Facet counts always leave quarantined images out, so the Quarantined view's filter dropdowns miss models used only there [P0]
 - [ ] **F4** Removing every member of an unclosed prompt group ("(smile, red eyes") leaves a lone "(" [P1]
 - [ ] **F5** A rule change computes its affected images before taking the reproject lock; a run in flight with the old config can leave a stale tag outside that set [P1]
