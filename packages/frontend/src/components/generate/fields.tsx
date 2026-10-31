@@ -92,7 +92,7 @@ export function FixedValue({
   );
 }
 
-/** A number field with − / + either side. */
+/** A number field with - / + either side; `compact` fits about three digits. */
 export function NumberStepper({
   label,
   value,
@@ -100,6 +100,7 @@ export function NumberStepper({
   step,
   min,
   max,
+  compact,
 }: {
   label: string;
   value: number | undefined;
@@ -107,6 +108,7 @@ export function NumberStepper({
   step: number;
   min: number;
   max: number;
+  compact?: boolean;
 }) {
   const [typed, setTyped] = useState<string | null>(null);
   const fit = (n: number) => {
@@ -114,11 +116,13 @@ export function NumberStepper({
     return step >= 1 ? Math.round(v) : Math.round(v * 100) / 100;
   };
   const set = (n: number) => onChange(fit(n));
+  // Steps and counts are "fewer", a CFG scale "less".
+  const less = step >= 1 ? "Fewer" : "Less";
   return (
     <div>
       <FieldLabel>{label}</FieldLabel>
-      <div className="flex h-9 items-center rounded-lg border border-line">
-        <button type="button" aria-label={`Less ${label}`} onClick={() => set((value ?? min) - step)} className="px-1.5 py-2 text-muted hover:text-neutral-100">
+      <div className={cn("h-9 items-center rounded-lg border border-line", compact ? "inline-flex" : "flex")}>
+        <button type="button" aria-label={`${less} ${label}`} onClick={() => set((value ?? min) - step)} className="px-1.5 py-2 text-muted hover:text-neutral-100">
           <Minus size={14} />
         </button>
         <input
@@ -139,7 +143,7 @@ export function NumberStepper({
           }}
           onBlur={() => setTyped(null)}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-          className="no-spin w-full min-w-0 bg-transparent text-center tabular-nums text-sm outline-none"
+          className={cn("no-spin bg-transparent text-center tabular-nums text-sm outline-none", compact ? "w-8" : "w-full min-w-0")}
         />
         <button type="button" aria-label={`More ${label}`} onClick={() => set((value ?? min) + step)} className="px-1.5 py-2 text-muted hover:text-neutral-100">
           <Plus size={14} />
@@ -258,6 +262,9 @@ export function SeedControl({ value, onChange }: { value: SeedValue; onChange: (
   );
 }
 
+/** The most images or runs one batch queues. */
+const COUNT_MAX = 500;
+
 /** Images (batch size mapped), with the "2 runs of 2" split under it, or Runs. */
 export function CountStepper({
   value,
@@ -273,31 +280,11 @@ export function CountStepper({
   batchSize?: { value: number | null; default: number; onChange: (n: number | null) => void } | null;
   className?: string;
 }) {
-  const set = (n: number) => onChange(Math.max(1, Math.min(500, n)));
   const label = mode.kind === "images" ? "Images" : "Runs";
   return (
     <div className={className}>
       <div className="flex items-start gap-2">
-        <div>
-          <FieldLabel>{label}</FieldLabel>
-          <div className="inline-flex h-9 items-center rounded-lg border border-line">
-            <button type="button" aria-label="Fewer" onClick={() => set(value - 1)} className="px-1.5 py-2 text-muted hover:text-neutral-100">
-              <Minus size={14} />
-            </button>
-            <input
-              type="number"
-              aria-label={label}
-              value={value}
-              min={1}
-              max={500}
-              onChange={(e) => set(Number(e.target.value) || 1)}
-              className="no-spin w-8 bg-transparent text-center tabular-nums text-sm outline-none"
-            />
-            <button type="button" aria-label="More" onClick={() => set(value + 1)} className="px-1.5 py-2 text-muted hover:text-neutral-100">
-              <Plus size={14} />
-            </button>
-          </div>
-        </div>
+        <NumberStepper label={label} value={value} onChange={onChange} step={1} min={1} max={COUNT_MAX} compact />
         {batchSize && (
           <div className="w-[6.5rem] shrink-0">
             <NumberStepper
