@@ -170,6 +170,14 @@ async def retry_request(batch_id: int, request_id: int, body: RetryIn):
     return await _batch_or_404(batch_id)
 
 
+@router.post("/batches/{batch_id}/retry-failed")
+async def retry_failed(batch_id: int):
+    if not await generation_batches.batch_exists(batch_id):
+        raise HTTPException(status_code=404, detail="Batch not found")
+    await get_generation_manager().retry_failed(batch_id)
+    return await _batch_or_404(batch_id)
+
+
 @router.post("/batches/{batch_id}/cancel")
 async def cancel_batch(batch_id: int):
     if not await generation_batches.batch_exists(batch_id):

@@ -398,6 +398,27 @@ async def test_retry_refuses_a_request_that_returned_images(client, comfy, seed)
     assert r.status_code == 400
 
 
+async def test_retry_failed_requeues_every_failed_request(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x", "count": 3})).json()
+    comfy.fail(comfy.order[-1])
+    await tick()
+    comfy.fail(comfy.order[-1])
+    await tick()
+    scanned(seed, comfy.finish(comfy.order[-1]))
+    await tick()
+    states = lambda x: [q["state"] for q in x["requests"]]  # noqa: E731
+    before = (await client.get(f"/generate/batches/{b['_id']}")).json()
+    assert states(before) == ["failed", "failed", "done"]
+
+    r = await client.post(f"/generate/batches/{b['_id']}/retry-failed")
+    assert r.status_code == 200
+    assert states(r.json()) == ["pending", "pending", "done"]
+    assert r.json()["state"] in ("active", "running")
+
+    assert (await client.post("/generate/batches/9999/retry-failed")).status_code == 404
+
+
 async def test_cancel_one_request_leaves_the_rest(client, comfy, seed):
     await make_ready(client, comfy, seed)
     b = (await client.post("/generate/batches", json={"base": "x", "count": 3})).json()

@@ -77,7 +77,7 @@ describe("useCancelBatch", () => {
 });
 
 describe("useRetryFailed", () => {
-  it("retries each failed request in turn and reports the last state", async () => {
+  it("makes one retry-failed call and reports the batch", async () => {
     const calls: string[] = [];
     vi.stubGlobal(
       "fetch",
@@ -87,22 +87,17 @@ describe("useRetryFailed", () => {
       }),
     );
     const onChanged = vi.fn();
-    const b = batch([req(1, "failed"), req(2, "done"), req(3, "lost")]);
-    const { result } = renderHook(() => useRetryFailed(b, onChanged), { wrapper });
+    const { result } = renderHook(() => useRetryFailed(7, onChanged), { wrapper });
     await act(() => result.current.mutateAsync());
-    expect(calls.map((u) => u.match(/requests\/(\d+)\/retry/)?.[1])).toEqual(["1", "3"]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatch(/batches\/7\/retry-failed$/);
     expect(onChanged).toHaveBeenCalledWith(expect.objectContaining({ _id: 7 }));
   });
 
-  it("refetches when one throws part-way", async () => {
-    let n = 0;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => (n++ === 0 ? json(batch([])) : json({ detail: "boom" }, 500))),
-    );
+  it("refetches when it fails", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => json({ detail: "boom" }, 500)));
     const onChanged = vi.fn();
-    const b = batch([req(1, "failed"), req(3, "lost")]);
-    const { result } = renderHook(() => useRetryFailed(b, onChanged), { wrapper });
+    const { result } = renderHook(() => useRetryFailed(7, onChanged), { wrapper });
     await act(async () => {
       await result.current.mutateAsync().catch(() => undefined);
     });

@@ -61,7 +61,7 @@ from .generation_inputs import (
     replay_body,
 )
 from .generation_outputs import fetch_missing, place_outputs
-from .generation_states import IN_COMFY, REPLACED, RETRYABLE, UNFINISHED
+from .generation_states import FAILED, IN_COMFY, REPLACED, RETRYABLE, UNFINISHED
 from .generators_store import load_generator
 from .generator_graph import (
     GraphError,
@@ -756,6 +756,26 @@ class GenerationManager:
     ) -> None:
         async with self._tick_lock:
             await self._retry(batch_id, request_id, single=single)
+        self._wake.set()
+
+    async def retry_failed(self, batch_id: int) -> None:
+        """Retry every failed or lost request of a batch, whole."""
+        r = t.generation_requests
+        async with self._tick_lock:
+            async with async_conn() as conn:
+                ids = (
+                    (
+                        await conn.execute(
+                            sa.select(r.c._id)
+                            .where(r.c.batch_id == batch_id, r.c.state.in_(FAILED))
+                            .order_by(r.c.idx)
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+            for request_id in ids:
+                await self._retry(batch_id, request_id, single=False)
         self._wake.set()
 
     async def _retry(self, batch_id: int, request_id: int, *, single: bool) -> None:

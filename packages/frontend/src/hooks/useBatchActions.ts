@@ -5,10 +5,10 @@ import {
   cancelBatch,
   cancelRequest,
   invalidateQueue,
+  retryFailed,
   retryRequest,
   type Batch,
 } from "../lib/generate";
-import { retryable } from "../lib/batchActions";
 
 /**
  * A batch changed: with its new state, that is put straight in the cache,
@@ -61,18 +61,11 @@ export function useRetryRequest(batchId: number, requestId: number, onChanged: (
   return useRequestAction((single: boolean) => retryRequest(batchId, requestId, single), onChanged);
 }
 
-/**
- * Retries every failed or lost request, one after another. If one throws
- * part-way the earlier retries still happened, so the batch refetches.
- */
-export function useRetryFailed(batch: Batch | undefined, onChanged: (b?: Batch) => void) {
+/** Retries every failed or lost request of a batch in one call. */
+export function useRetryFailed(batchId: number, onChanged: (b?: Batch) => void) {
   const toast = useToast();
   return useMutation({
-    mutationFn: async () => {
-      let last: Batch | undefined;
-      for (const q of retryable(batch?.requests ?? [])) last = await retryRequest(batch!._id, q._id);
-      return last;
-    },
+    mutationFn: () => retryFailed(batchId),
     onSuccess: (nb) => onChanged(nb),
     onError: (e) => {
       toast.push(e.message, "error");

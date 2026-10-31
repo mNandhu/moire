@@ -594,6 +594,7 @@ export const cancelRequest = (batchId: number, requestId: number) =>
   send<Batch>(`/batches/${batchId}/requests/${requestId}/cancel`, "POST");
 export const retryRequest = (batchId: number, requestId: number, single = false) =>
   send<Batch>(`/batches/${batchId}/requests/${requestId}/retry`, "POST", { single });
+export const retryFailed = (batchId: number) => send<Batch>(`/batches/${batchId}/retry-failed`, "POST");
 
 /** Connection, global busy and the queue card; fast while anything runs. */
 export function useComfyStatus() {

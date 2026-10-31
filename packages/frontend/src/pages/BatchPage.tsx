@@ -81,7 +81,7 @@ export default function BatchPage() {
   });
   // A batch that never ran is gone: back to the list.
   const cancelAll = useCancelBatch(batchId, { onGone: () => navigate("/generations", { replace: true }) });
-  const retryAll = useRetryFailed(b, changed);
+  const retryAll = useRetryFailed(batchId, changed);
 
   if (isLoading) return <PageHeader title="Batch" />;
   if (error || !b) {
