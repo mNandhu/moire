@@ -109,6 +109,7 @@ export function useRulesetSession({
     () => canonical(fields) !== canonical(baseline.current),
     // baselineVersion is the dependency that makes a commit re-evaluate this;
     // baseline.current is a ref and cannot be one.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- baselineVersion only forces the re-read of the baseline ref
     [fields, baselineVersion],
   );
 

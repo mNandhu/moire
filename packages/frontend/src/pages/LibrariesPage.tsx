@@ -92,7 +92,7 @@ export default function LibrariesPage() {
     markDeleting([id], true);
     try {
       await writes.remove(id);
-    } catch (e: any) {
+    } catch (e) {
       markDeleting([id], false);
       push(errorText(e) || "Failed to delete library", "error");
     }
@@ -578,7 +578,7 @@ export default function LibrariesPage() {
                   await updateLibrary(editId, payload);
                   setEditId(null);
                   push("Library saved", "success");
-                } catch (e: any) {
+                } catch (e) {
                   push(errorText(e) || "Failed to save library", "error");
                 }
               }}

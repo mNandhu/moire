@@ -413,6 +413,7 @@ export default function ImageView() {
   useEffect(() => {
     if (!routeId || index !== -1) return;
     if (feed.hasNextPage && !feed.isFetchingNextPage) feed.fetchNextPage();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the query result is a new object every render; the listed fields are what the effect reads
   }, [
     routeId,
     index,
@@ -469,6 +470,7 @@ export default function ImageView() {
   useEffect(() => {
     if (index < 0 || !feed.hasNextPage || feed.isFetchingNextPage) return;
     if (index >= list.length - 3) void feed.fetchNextPage();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the query result is a new object every render; the listed fields are what the effect reads
   }, [
     index,
     list.length,
@@ -519,6 +521,7 @@ export default function ImageView() {
       const nextItem = all[at + 1];
       if (nextItem) stepTo(nextItem._id);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the query result is a new object every render; the listed fields are what the effect reads
   }, [
     stepFrom,
     list,

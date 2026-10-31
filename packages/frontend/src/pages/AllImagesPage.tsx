@@ -262,6 +262,7 @@ export default function AllImagesPage() {
     );
     obs.observe(el);
     return () => obs.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the query result is a new object every render; the listed fields are what the effect reads
   }, [
     activeFeed.hasNextPage,
     activeFeed.isFetchingNextPage,
