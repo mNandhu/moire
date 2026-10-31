@@ -161,7 +161,7 @@ function LoraRow({
       >
         {stemOf(lora.name)}
       </span>
-      {/* The preset and its own New / Edit side by side, the words it adds after. */}
+      {/* The preset and its Edit side by side, the words it adds after. */}
       <div className="flex w-48 shrink-0 items-center gap-1">
         <div className="min-w-0 flex-1">
           <PresetPicker
@@ -177,14 +177,12 @@ function LoraRow({
             showText
           />
         </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setDialog(current ? "edit" : "new")}
-          title={current ? "Edit this preset" : "Make a preset for this LoRA"}
-        >
-          {current ? "Edit" : "New"}
-        </Button>
+        {/* New is in the picker; Edit only once one is picked. */}
+        {current && (
+          <Button size="sm" variant="ghost" onClick={() => setDialog("edit")} title="Edit this preset">
+            Edit
+          </Button>
+        )}
       </div>
       <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted" title={words || undefined}>
         {words}
