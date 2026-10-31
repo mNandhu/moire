@@ -128,7 +128,19 @@ export function NumberStepper({
   return (
     <div>
       {!hideLabel && <FieldLabel>{label}</FieldLabel>}
-      <div className={cn("items-center rounded-lg border border-line", small ? "inline-flex h-7" : "h-9", !small && (compact ? "inline-flex" : "flex"))}>
+      <div
+        className={cn("items-center rounded-lg border border-line", small ? "inline-flex h-7" : "h-9", !small && (compact ? "inline-flex" : "flex"))}
+        // After a click on - or +, the arrows go on stepping (the field
+        // keeps its own: Up / Down step it, Left / Right move the caret).
+        onKeyDown={(e) => {
+          if (!(e.target instanceof HTMLButtonElement) || e.altKey || e.ctrlKey || e.metaKey) return;
+          const by = e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : 0;
+          if (!by) return;
+          e.preventDefault();
+          e.stopPropagation();
+          set((value ?? min) + by * step);
+        }}
+      >
         <button type="button" aria-label={`${less} ${label}`} onClick={() => set((value ?? min) - step)} className={cn("px-1.5 text-muted hover:text-neutral-100", small ? "py-1" : "py-2")}>
           <Minus size={14} />
         </button>

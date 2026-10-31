@@ -26,4 +26,17 @@ describe("NumberStepper", () => {
     expect(screen.getByRole("button", { name: "Less CFG" })).toBeTruthy();
     expect(screen.queryByText("CFG")).toBeNull();
   });
+
+  it("goes on stepping with the arrows once - or + has focus", () => {
+    const onChange = vi.fn();
+    render(<NumberStepper label="Strength" value={0.7} onChange={onChange} step={0.05} min={-2} max={2} small hideLabel />);
+    const more = screen.getByRole("button", { name: "More Strength" });
+    fireEvent.keyDown(more, { key: "ArrowRight" });
+    expect(onChange).toHaveBeenLastCalledWith(0.75);
+    fireEvent.keyDown(more, { key: "ArrowLeft" });
+    expect(onChange).toHaveBeenLastCalledWith(0.65);
+    onChange.mockClear();
+    fireEvent.keyDown(screen.getByRole("spinbutton", { name: "Strength" }), { key: "ArrowRight" });
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });
