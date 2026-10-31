@@ -282,7 +282,11 @@ def _adopt_plan(
                     continue
                 gone.append(outer_id)
             if gone:
-                thumbs.extend(image_delete.delete_rows(conn, gone))
+                thumbs.extend(
+                    image_delete.delete_rows(
+                        conn, gone, thumb_keys=[found[i].thumb_key for i in gone]
+                    )
+                )
                 dropped.extend(gone)
             task.advance(len(chunk))
     if dropped:

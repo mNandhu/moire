@@ -79,22 +79,28 @@ def reconcile_stale(
 _STALE_CHUNK = 500
 
 
-def _delete_stale(stale_ids: list[str]) -> None:
+def _delete_stale(
+    stale_ids: list[str], thumb_keys: dict[str, str | None] | None = None
+) -> None:
     """Remove stale images (their tag rows cascade) in small transactions.
 
     Chunks commit independently, so a failure part-way leaves the earlier
     chunks gone and the rest still indexed; both are consistent (each chunk
     removes an image's rows together), and the next scan finishes the job.
     The tag index is invalidated once after the last chunk, or on the way out
-    if one failed, since the chunks that did commit moved tag counts."""
+    if one failed, since the chunks that did commit moved tag counts.
+    ``thumb_keys`` (id to key, as the scan read them) spares re-reading them."""
     keys: list[str] = []
     try:
         for i in range(0, len(stale_ids), _STALE_CHUNK):
             chunk = stale_ids[i : i + _STALE_CHUNK]
+            held = None
+            if thumb_keys is not None:
+                held = [thumb_keys.get(image_id) for image_id in chunk]
 
-            def _do(chunk=chunk) -> list[str]:
+            def _do(chunk=chunk, held=held) -> list[str]:
                 with sync_tx() as conn:
-                    return image_delete.delete_rows(conn, chunk)
+                    return image_delete.delete_rows(conn, chunk, thumb_keys=held)
 
             # A busy database ("database is locked") retries like a batch write.
             chunk_keys = retry(_do, attempts=3, base_delay_s=0.2)
@@ -187,5 +193,5 @@ def reconcile(
         )
         scan_note = f"Kept {len(stale_image_ids)} images: {keep_reason}"
         stale_image_ids = []
-    _delete_stale(stale_image_ids)
+    _delete_stale(stale_image_ids, {r._id: r.thumb_key for r in existing})
     return scan_note

@@ -32,6 +32,43 @@ def test_delete_rows_removes_every_table_and_returns_thumb_keys(temp_db, seed):
     assert _count(t.image_tags) == 1  # cascaded, keep.png's row survives
 
 
+def _counting_selects() -> list[str]:
+    """SELECTs run on any sync connection from now on."""
+    selects: list[str] = []
+
+    @sa.event.listens_for(db.get_sync_engine(), "before_cursor_execute")
+    def _seen(conn, cursor, statement, *a):
+        if statement.lstrip().upper().startswith("SELECT"):
+            selects.append(statement)
+
+    return selects
+
+
+def test_delete_rows_takes_thumb_keys_the_caller_holds(temp_db, seed, monkeypatch):
+    """Keys passed in are returned as given (``None`` dropped) and the rows
+    are not read again for them."""
+    seed("L1:a.png", thumb_key="L1/L1_a.png.webp")
+    seed("L1:b.png")
+    selects = _counting_selects()
+    with db.sync_tx() as conn:
+        keys = image_delete.delete_rows(
+            conn, ["L1:a.png", "L1:b.png"], thumb_keys=["L1/L1_a.png.webp", None]
+        )
+    assert keys == ["L1/L1_a.png.webp"]
+    assert not [s for s in selects if "thumb_key" in s]
+    assert _count(t.images) == 0
+
+
+def test_delete_stale_passes_the_keys_reconcile_read(temp_db, seed, monkeypatch):
+    dropped: list[str] = []
+    monkeypatch.setattr(storage_fs, "delete_thumb", dropped.append)
+    seed("L1:a.png", thumb_key="k0")
+    selects = _counting_selects()
+    scan_reconcile._delete_stale(["L1:a.png"], {"L1:a.png": "k0"})
+    assert not [s for s in selects if "thumb_key" in s]
+    assert dropped == ["k0"]
+
+
 def test_delete_rows_handles_more_ids_than_one_statement_chunk(temp_db, seed):
     ids = [f"L1:{i}.png" for i in range(image_delete._STMT_CHUNK + 5)]
     for i in ids:
@@ -75,11 +112,11 @@ def test_delete_stale_failure_keeps_earlier_chunks_consistent(
     real = image_delete.delete_rows
     calls = []
 
-    def flaky(conn, chunk):
+    def flaky(conn, chunk, **kw):
         calls.append(1)
         if len(calls) >= 2:  # every retry of chunk 2 fails too
             raise RuntimeError("boom")
-        return real(conn, chunk)
+        return real(conn, chunk, **kw)
 
     monkeypatch.setattr(image_delete, "delete_rows", flaky)
     try:
@@ -100,11 +137,11 @@ def test_delete_stale_retries_a_locked_chunk(temp_db, seed, monkeypatch):
     real = image_delete.delete_rows
     calls = []
 
-    def locked_once(conn, chunk):
+    def locked_once(conn, chunk, **kw):
         calls.append(1)
         if len(calls) == 2:
             raise RuntimeError("database is locked")
-        return real(conn, chunk)
+        return real(conn, chunk, **kw)
 
     monkeypatch.setattr(image_delete, "delete_rows", locked_once)
     scan_reconcile._delete_stale(ids)

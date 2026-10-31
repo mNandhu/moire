@@ -263,7 +263,9 @@ async def purge_image(image_id: str, body: PurgeBody):
 
     async with async_tx() as conn:
         # image_tags / image_gen_terms rows cascade via the FK.
-        keys = await image_delete.delete_rows_async(conn, [rid])
+        keys = await image_delete.delete_rows_async(
+            conn, [rid], thumb_keys=[img.get("thumb_key")]
+        )
     # Cascaded away this image's join rows, so the tag counts moved.
     tag_index.invalidate()
     await anyio.to_thread.run_sync(image_delete.drop_thumbs, keys)  # type: ignore[attr-defined]
