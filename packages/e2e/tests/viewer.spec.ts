@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import { imageById, imageByPath, viewerUrl } from "./helpers";
 
 test("the Tags tab shows prompt weights", async ({ page, request }) => {
@@ -94,4 +94,57 @@ test("arrow keys pressed back to back each take a step", async ({ page, request 
   await keys("ArrowRight", "ArrowRight");
   await expect(page.getByText("shinobu_23.png", { exact: true })).toBeVisible();
   await expect.poll(() => page.url()).toContain(viewerUrl(twoOn));
+});
+
+test.describe("at phone width", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  // The sheet slides between stops: measure it once it has come to rest.
+  const settledBox = async (loc: Locator) => {
+    let last = "";
+    await expect
+      .poll(async () => {
+        const now = JSON.stringify(await loc.boundingBox());
+        const still = now === last;
+        last = now;
+        return still;
+      })
+      .toBe(true);
+    return (await loc.boundingBox())!;
+  };
+
+  test("the details sheet drags up to read and down to close", async ({ page, request }) => {
+    const { _id } = await imageByPath(request, "furina/furina_41.png");
+    await page.goto(viewerUrl(_id));
+    // A phone opens on the image; the sheet comes up to its peek.
+    await page.getByRole("button", { name: "Show details" }).click();
+    const details = page.getByRole("region", { name: "Image details" });
+    await expect(details.getByText("furina_41.png", { exact: true })).toBeInViewport();
+
+    // Dragging its grip up opens it fully.
+    const grip = page.getByRole("button", { name: "Raise details" });
+    const box = await settledBox(grip);
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y - 40, { steps: 4 });
+    await page.mouse.move(x, 40, { steps: 8 });
+    await page.mouse.up();
+    await expect(page.getByRole("button", { name: "Lower details" })).toBeVisible();
+
+    // A tap on the grip lowers it back to the peek: a drag's click doesn't.
+    await page.getByRole("button", { name: "Lower details" }).click();
+    await expect(page.getByRole("button", { name: "Raise details" })).toBeVisible();
+
+    // Dragged off the bottom, it closes and the stage offers it back.
+    const peek = await settledBox(page.getByRole("button", { name: "Raise details" }));
+    await page.mouse.move(x, peek.y + peek.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(x, peek.y + 40, { steps: 4 });
+    await page.mouse.move(x, 840, { steps: 8 });
+    await page.mouse.up();
+    await page.getByRole("button", { name: "Show details" }).click();
+    await expect(page.getByRole("button", { name: "Raise details" })).toBeVisible();
+  });
 });

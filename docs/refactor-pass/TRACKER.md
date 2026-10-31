@@ -33,7 +33,7 @@ Duplication and structure:
 - [x] **F12** S2.7: a `loadImage` helper and a general `imageUrl(id, suffix)` for imageMutations' `forImage`; `useSizePresets` still lives in SizeFilter.tsx [P2] (4c68887)
 - [x] **F13** Shortcut help table in lib/shortcuts.ts is still hand-kept beside the keyboard registry (L3.4) [P2] (b24272f: each shortcut is one spec that bindings spread and the help maps; a test checks every spec is bound)
 - [x] **F14** OutfitMenu not split into its own file (S12.8) [P2] (4ba0449)
-- [ ] **F15** S2.1: ImageView's stepper and details-sheet hooks not extracted (ImageView.tsx is still ~1300 lines) [P1]
+- [x] **F15** S2.1: ImageView's stepper and details-sheet hooks not extracted (ImageView.tsx is still ~1300 lines) [P1] (30880ad, 4295720, d214aa0; now 676 lines)
 - [x] **F16** Generator test settle (`_arrived`) and `test_status` derive the same thing twice; only cross-referenced in comments [P5] (2860276)
 - [x] **F17** AI settings Save does not share the model card's busy flag [P5] (ff1d826)
 - [ ] **F18** L2.8 rest: the character name/series split is still frontend-only (null name/series means "unset" on the wire, ~20 callers split bare tags) [P5]
@@ -99,7 +99,7 @@ P0 review fixes: 924e1e1 (UI batch), e86ea57 (data and library batch). Review fi
 - [x] **S7.4** Extraction inputs assembled by hand in two places; preview and reprojection can disagree; positive_only read by raw SQL (invariant, M, L4, TW), done 7036366
 - [x] **L1.2** Reproject has five entry points with different guarantees; only reproject_all is serialized (invariant, M, L4, TW), done bcee4ae
 - [x] **S3.7** Rule changes reproject synchronously in two of three paths while add_rules has a background threshold (invariant, S, L3), done c00be78 (frontend background note: aa26dd7)
-- [x] **S2.1** Split ImageView.tsx into stage hook, details sheet and panel files (split, M, L5, TW), done 6c15b42, 44f5c28 (steps 1-3; the stepper and details-sheet hooks not extracted)
+- [x] **S2.1** Split ImageView.tsx into stage hook, details sheet and panel files (split, M, L5, TW), done 6c15b42, 44f5c28 (steps 1-3; step 4 hooks in F15)
 - [x] **S4.8** tagFlow hides the prompt twin of an AI tag and toPromptText strips weights: both sit in the weights path (deepen, S, L4, TW), done cb6a9c9 (TagDetail.weights: 9e1a9cf)
 - [x] **S10.1** PromptInput fuses suggestions, marked-term overlay and flash overlay; Ctrl+Up/Down would be eaten by the suggestion list (split, M, L5, TW), done 29b6951
 - [x] **L2.5** Mirrored pure functions rely on comments and copy-pasted test cases instead of one fixture (drift, S, L3), done 7393a2c (auto-name cases: 146e2cb; kaomojis/compose/split_requests fixtures not done)
