@@ -85,7 +85,7 @@ def character_parts(tag: str) -> tuple[str, str] | None:
     ``hu_tao``, ``genshin_impact``), or None when it has no single trailing
     qualifier. character.ts ``characterName`` splits the same way (shared
     cases: tests/fixtures/mirrored/character_parts.json). Pure."""
-    m = _QUALIFIER.match(tag)
+    m = _QUALIFIER.fullmatch(tag)
     return (m.group(1), m.group(2)) if m else None
 
 

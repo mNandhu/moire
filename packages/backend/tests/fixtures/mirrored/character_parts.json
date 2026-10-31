@@ -1,5 +1,5 @@
 {
-  "about": "A character tag's name and series: tag_categories.character_parts and character.ts characterName must split `tag` the same way (one trailing `_(series)` only; series null when there is none). Names and series are in stored spelling; the frontend shows them through formatTag.",
+  "about": "A character tag's name and series: tag_categories.character_parts and character.ts characterName must split `tag` the same way (one trailing `_(series)` only; series null when there is none). Input is the tag as given (no prefix stripping, no spelling fixes); names and series are in stored spelling. The frontend's characterParts is the mirror; characterName shows each part through formatTag.",
   "cases": [
     { "tag": "hu_tao_(genshin_impact)", "name": "hu_tao", "series": "genshin_impact" },
     { "tag": "nahida_(genshin_impact)", "name": "nahida", "series": "genshin_impact" },
@@ -9,6 +9,10 @@
     { "tag": "x_(y_(z))", "name": "x_(y_(z))", "series": null },
     { "tag": "foo(bar)", "name": "foo(bar)", "series": null },
     { "tag": "(o)_(o)", "name": "(o)_(o)", "series": null },
-    { "tag": "_(series)", "name": "_(series)", "series": null }
+    { "tag": "_(series)", "name": "_(series)", "series": null },
+    { "tag": "^_^_(series)", "name": "^_^", "series": "series" },
+    { "tag": "a (b)", "name": "a (b)", "series": null },
+    { "tag": "manual:a_(b)", "name": "manual:a", "series": "b" },
+    { "tag": "a_(b)\n", "name": "a_(b)\n", "series": null }
   ]
 }

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import partCases from "../../../backend/tests/fixtures/mirrored/character_parts.json";
-import { formatTag } from "./tags";
 import {
   fewImagesNote,
   mixColours,
@@ -10,31 +9,21 @@ import {
   characterFilters,
   characterHref,
   characterName,
+  characterParts,
   displayName,
   focusPosition,
 } from "./character";
 
 describe("characterName", () => {
-  it("splits the series off", () => {
-    expect(characterName("nahida_(genshin_impact)")).toEqual({
-      name: "nahida",
-      series: "genshin impact",
-    });
-    expect(characterName("2b_(nier:automata)")).toEqual({ name: "2b", series: "nier:automata" });
-    expect(characterName("holo")).toEqual({ name: "holo", series: null });
-    expect(characterName("hu_tao_(genshin_impact)")).toEqual({ name: "hu tao", series: "genshin impact" });
-  });
-
   it.each(partCases.cases)("splits $tag like the backend's character_parts", (c) => {
-    expect(characterName(c.tag)).toEqual({
-      name: formatTag(c.name),
-      series: c.series === null ? null : formatTag(c.series),
-    });
+    expect(characterParts(c.tag)).toEqual(c.series === null ? null : { name: c.name, series: c.series });
   });
 
-  it("splits one trailing qualifier only, like the backend", () => {
+  it("shows each part with spaces", () => {
+    expect(characterName("hu_tao_(genshin_impact)")).toEqual({ name: "hu tao", series: "genshin impact" });
+    expect(characterName("manual:nahida_(genshin_impact)")).toEqual({ name: "nahida", series: "genshin impact" });
     expect(characterName("a_(b)_(c)")).toEqual({ name: "a (b) (c)", series: null });
-    expect(characterName("x_(y_(z))")).toEqual({ name: "x (y (z))", series: null });
+    expect(characterName("^_^_(x_y)")).toEqual({ name: "^_^", series: "x y" });
   });
 });
 

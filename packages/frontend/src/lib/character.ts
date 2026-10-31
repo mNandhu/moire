@@ -4,7 +4,7 @@
  */
 import { ambientPalette } from "./blurhash";
 import { DEFAULT_FILTERS, type Filters } from "./imageFilter";
-import { ANY_PREFIX, formatTag } from "./tags";
+import { ANY_PREFIX, formatTag, tagName } from "./tags";
 import type { TagDetail } from "./tagBrowse";
 
 /** `/tags/character`: a character page, under the name the page uses. */
@@ -74,14 +74,24 @@ export type CharacterPatch = Partial<{
 export const tagHref = (tag: string) => `/tags/${encodeURIComponent(tag)}`;
 export const characterHref = (tag: string) => `/characters/${encodeURIComponent(tag)}`;
 
-/** "nahida (genshin impact)" as the name and the series it's from. One
- * trailing qualifier only, the backend's rule (tag_categories
- * `character_parts`, shared cases in tests/fixtures/mirrored/character_parts.json):
- * "a (b) (c)" is a whole name, not "a" from "b) (c". */
+/**
+ * A character tag's name and series in stored spelling
+ * (`hu_tao_(genshin_impact)` -> `hu_tao`, `genshin_impact`), or null without
+ * a single trailing qualifier: "a_(b)_(c)" is a whole name. The backend's
+ * rule (tag_categories `character_parts`); both read the cases in
+ * tests/fixtures/mirrored/character_parts.json. Pure.
+ */
+export function characterParts(tag: string): { name: string; series: string } | null {
+  const m = /^([^()]+)_\(([^()]+)\)$/.exec(tag);
+  return m ? { name: m[1], series: m[2] } : null;
+}
+
+/** "nahida (genshin impact)": the name and the series it's from, as shown. */
 export function characterName(tag: string): { name: string; series: string | null } {
-  const shown = formatTag(tag);
-  const m = /^([^()]+) \(([^()]+)\)$/.exec(shown);
-  return m ? { name: m[1], series: m[2] } : { name: shown, series: null };
+  const parts = characterParts(tagName(tag));
+  return parts
+    ? { name: formatTag(parts.name), series: formatTag(parts.series) }
+    : { name: formatTag(tag), series: null };
 }
 
 /** The name and series a character shows, the user's over the tag's. */
