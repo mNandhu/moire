@@ -89,21 +89,19 @@ export function SaveOutfitDialog({
   const [cover, setCover] = useState<string | null>(null);
   const [changing, setChanging] = useState(false);
   const mode = outfitModeOf(outfit, imageId);
-  const isDefault = mode === "default";
   // A new outfit with no image (a character page's New outfit) starts from
   // their usual clothes and picks its thumbnail with Change.
-  const blank = mode === "blank";
-  const shown = outfit || blank ? cover : imageId;
+  const shown = outfit || mode === "blank" ? cover : imageId;
   // The outfit's own cover comes with it; only another one is looked up.
   const lookedUp = useThumbUrl(shown && shown === outfit?.image_id ? null : shown);
   const coverUrl = shown && shown === outfit?.image_id ? (outfit?.thumb_url ?? null) : lookedUp;
-  const { data: usual, isError: noUsual } = useDefaultOutfit(open && blank ? character : null);
+  const { data: usual, isError: noUsual } = useDefaultOutfit(open && mode === "blank" ? character : null);
   useEffect(() => {
     if (!open) return setSeeded(false);
     if (seeded) return;
     setTyped(!!outfit);
     // Without a prefill (the image or character is gone): start empty.
-    if (!outfit && (blank ? !usual && !noUsual : !prefill && !noPrefill)) return;
+    if (!outfit && (mode === "blank" ? !usual && !noUsual : !prefill && !noPrefill)) return;
     const seed = seedOutfit(mode, { outfit, prefill, usual });
     setName(seed.name);
     setShared(seed.shared);
@@ -113,7 +111,7 @@ export function SaveOutfitDialog({
       setChanging(false);
     }
     setSeeded(true);
-  }, [open, outfit, prefill, noPrefill, blank, usual, noUsual, seeded, mode]);
+  }, [open, outfit, prefill, noPrefill, usual, noUsual, seeded, mode]);
 
   const taken = useMemo(() => new Set(rows.map((r) => r.tag)), [rows]);
   const shownName = typed ? name : suggestOutfitName(rows);
@@ -131,7 +129,7 @@ export function SaveOutfitDialog({
           : createOutfit(plan.body);
     },
     onSuccess: (o) => {
-      if (isDefault) qc.setQueryData(defaultOutfitKey(character), o);
+      if (mode === "default") qc.setQueryData(defaultOutfitKey(character), o);
       toast.push(`Saved ${o.name}`, "success");
       done();
     },
@@ -153,7 +151,7 @@ export function SaveOutfitDialog({
   // Struck tags aren't sent, so they don't count.
   const kept = rows.filter((r) => !r.struck);
   const tooMany = kept.length > MAX_OUTFIT_TAGS;
-  const ready = (isDefault || (!!shownName.trim() && rows.length > 0)) && !tooMany;
+  const ready = (mode === "default" || (!!shownName.trim() && rows.length > 0)) && !tooMany;
 
   return (
     <Dialog
@@ -163,9 +161,9 @@ export function SaveOutfitDialog({
       className={changing ? "max-w-3xl" : "max-w-2xl"}
       title={
         <span className="flex items-baseline gap-3">
-          {isDefault ? "Default outfit" : outfit ? "Edit outfit" : blank ? "New outfit" : "Save outfit"}
+          {mode === "default" ? "Default outfit" : outfit ? "Edit outfit" : mode === "blank" ? "New outfit" : "Save outfit"}
           <span className="text-sm font-normal text-muted">
-            {isDefault ? `${characterName}, read from ${outfit!.images ?? 0} images` : `for ${characterName}`}
+            {mode === "default" ? `${characterName}, read from ${outfit!.images ?? 0} images` : `for ${characterName}`}
           </span>
         </span>
       }
@@ -173,11 +171,11 @@ export function SaveOutfitDialog({
         <DialogFooter
           onCancel={onClose}
           onConfirm={() => save.mutate()}
-          confirmLabel={outfit ? "Save changes" : blank ? "Create outfit" : "Save outfit"}
+          confirmLabel={outfit ? "Save changes" : mode === "blank" ? "Create outfit" : "Save outfit"}
           disabled={!ready}
           pending={save.isPending}
           start={
-            isDefault ? (
+            mode === "default" ? (
               outfit!.edited && (
                 <Button variant="ghost" onClick={() => reset.mutate()} title="Back to the name and tags read from their images">
                   Reset to computed
@@ -205,14 +203,14 @@ export function SaveOutfitDialog({
       <div className="flex flex-wrap gap-5">
         <div className="relative h-[140px] w-24 shrink-0">
           <OutfitThumb url={coverUrl} className="h-full w-full rounded-lg border border-line-strong" />
-          {(outfit || blank) && (
+          {(outfit || mode === "blank") && (
             <button
               type="button"
               onClick={() => setChanging((x) => !x)}
               aria-expanded={changing}
               className="absolute inset-x-1.5 bottom-1.5 inline-flex h-[26px] items-center justify-center gap-1.5 rounded-md border border-line-strong bg-surface/90 text-xs text-neutral-100 hover:bg-raised"
             >
-              <ImageIcon size={12} /> {(outfit || blank ? cover : imageId) ? "Change" : "Set"}
+              <ImageIcon size={12} /> {(outfit || mode === "blank" ? cover : imageId) ? "Change" : "Set"}
             </button>
           )}
         </div>
@@ -227,7 +225,7 @@ export function SaveOutfitDialog({
               }}
               onFocus={(e) => !typed && e.target.select()}
               maxLength={80}
-              placeholder={isDefault ? "Default" : undefined}
+              placeholder={mode === "default" ? "Default" : undefined}
               autoFocus={!outfit}
             />
           </label>
@@ -236,7 +234,7 @@ export function SaveOutfitDialog({
               <span className="text-xs font-medium text-muted">Attire tags</span>
               {!outfit && (
                 <>
-                  {!blank && <Key source="image">in this image</Key>}
+                  {mode !== "blank" && <Key source="image">in this image</Key>}
                   <Key source="usual">{characterName} usually wears</Key>
                 </>
               )}
@@ -257,7 +255,7 @@ export function SaveOutfitDialog({
                     onToggle={() =>
                       setRows((x) =>
                         // A Default's computed tag is struck, not removed: it stays restorable.
-                        isDefault && r.source !== "added"
+                        mode === "default" && r.source !== "added"
                           ? x.map((y) => (y.tag === r.tag ? { ...y, struck: !y.struck } : y))
                           : x.filter((y) => y.tag !== r.tag),
                       )
@@ -283,7 +281,7 @@ export function SaveOutfitDialog({
               </div>
             )}
           </div>
-          {!isDefault && (
+          {mode !== "default" && (
             <div className="rounded-lg border border-line bg-canvas px-3.5 py-3">
               <Checkbox
                 checked={shared}
@@ -294,7 +292,7 @@ export function SaveOutfitDialog({
           )}
         </div>
       </div>
-      {(outfit || blank) && changing && (
+      {(outfit || mode === "blank") && changing && (
         <div className="mt-5 flex flex-col gap-2 border-t border-line pt-4">
           <span className="text-xs font-medium text-muted">Thumbnail</span>
           <CoverGrid
