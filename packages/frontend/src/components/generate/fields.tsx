@@ -1,11 +1,12 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Dices, Minus, Pencil, Plus } from "lucide-react";
+import { Dices, Minus, Plus } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { countHint, countLabel, randomSeed, type CountMode } from "../../lib/requests";
 import { ShapeIcon, SIZE_GROUP } from "../SizeFilter";
+import { InlineRename } from "../InlineRename";
 import { useSizePresets } from "../../hooks/useSizePresets";
-import { Input, Picker, Tooltip, type PickerOption } from "../ui";
+import { Picker, Tooltip, type PickerOption } from "../ui";
 import { PER_REQUEST_MAX } from "../../lib/generationLimits";
 import { stemOf } from "../../lib/modelNames";
 
@@ -315,66 +316,18 @@ export function BatchName({
   custom: string | null;
   onChange: (name: string | null) => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const name = custom ?? auto;
-  if (editing) {
-    const commit = () => {
-      const t = draft.trim();
-      onChange(t && t !== auto ? t : null);
-      setEditing(false);
-    };
-    return (
-      <div>
-        <FieldLabel>Batch name</FieldLabel>
-        <div className="flex items-center gap-2">
-          <Input
-            autoFocus
-            aria-label="Batch name"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commit();
-              if (e.key === "Escape") setEditing(false);
-            }}
-          />
-          {custom && (
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                onChange(null);
-                setEditing(false);
-              }}
-              className="shrink-0 text-xs text-muted hover:text-neutral-100"
-            >
-              Use auto name
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
   return (
     <div>
       <FieldLabel>Batch name</FieldLabel>
       {/* As tall as the fields beside it, so the name lines up with their values. */}
-      <div className="flex h-9 items-center gap-2 text-sm">
-        <span className="truncate text-neutral-100">{name}</span>
-        <button
-          type="button"
-          aria-label="Rename batch"
-          title="Rename"
-          onClick={() => {
-            setDraft(name);
-            setEditing(true);
-          }}
-          className="rounded p-1 text-muted hover:bg-raised hover:text-neutral-100"
-        >
-          <Pencil size={13} />
-        </button>
-      </div>
+      <InlineRename
+        value={custom ?? auto}
+        label="batch"
+        onCommit={(t) => onChange(t && t !== auto ? t : null)}
+        reset={custom ? { label: "Use auto name", onReset: () => onChange(null) } : null}
+        className="h-9 text-sm text-neutral-100"
+        iconSize={13}
+      />
     </div>
   );
 }

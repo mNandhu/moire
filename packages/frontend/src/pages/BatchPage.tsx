@@ -1,8 +1,8 @@
-import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Check, Pencil } from "lucide-react";
-import { Badge, Button, ButtonLink, Input, PageBody, PageHeader } from "../components/ui";
+import { ArrowLeft } from "lucide-react";
+import { Badge, Button, ButtonLink, PageBody, PageHeader } from "../components/ui";
+import { InlineRename } from "../components/InlineRename";
 import { batchStats, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
 import { durationWords } from "../lib/format";
 import { leftLabel } from "../lib/eta";
@@ -16,49 +16,17 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
 
 function NameHeading({ b, onSaved }: { b: Batch; onSaved: (b: Batch) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(b.name);
   const save = useMutation({ mutationFn: (name: string) => renameBatch(b._id, name), onSuccess: onSaved });
-  if (editing) {
-    const commit = () => {
-      if (draft.trim() && draft.trim() !== b.name) save.mutate(draft.trim());
-      setEditing(false);
-    };
-    return (
-      <span className="inline-flex items-center gap-2">
-        <Input
-          autoFocus
-          aria-label="Batch name"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commit();
-            if (e.key === "Escape") setEditing(false);
-          }}
-          className="w-72"
-        />
-        <Button size="iconSm" variant="ghost" aria-label="Save" onClick={commit}>
-          <Check size={15} />
-        </Button>
-      </span>
-    );
-  }
   return (
-    <span className="inline-flex items-center gap-2">
-      {b.name}
-      <button
-        type="button"
-        aria-label="Rename batch"
-        title="Rename"
-        onClick={() => {
-          setDraft(b.name);
-          setEditing(true);
-        }}
-        className="rounded p-1 text-muted hover:bg-raised hover:text-neutral-100"
-      >
-        <Pencil size={14} />
-      </button>
-    </span>
+    <InlineRename
+      value={b.name}
+      label="batch"
+      onCommit={(name) => {
+        if (name && name !== b.name) save.mutate(name);
+      }}
+      className="inline-flex"
+      inputClassName="w-72"
+    />
   );
 }
 
