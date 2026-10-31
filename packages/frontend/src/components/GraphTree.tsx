@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 // Does a key or any descendant value contain the (lowercased) search term?
 // Drives both the highlight and the auto-expand: a node matches when its own key
@@ -47,6 +47,45 @@ export function collectMatches(
   );
 }
 
+const childEntries = (value: object) =>
+  Array.isArray(value)
+    ? value.map((v, i) => [String(i), v] as const)
+    : Object.entries(value as Record<string, unknown>);
+
+// The paths of the branches under `value` that a search or a mark holds open,
+// found in one walk of the tree (a branch is open when its key or anything in
+// it matches, or a mark sits below it). Paths are rooted at `path`.
+export function forcedBranches(
+  value: unknown,
+  path: string,
+  query: string,
+  marks?: ReadonlyMap<string, string>,
+): Set<string> {
+  const q = query.trim().toLowerCase();
+  const marked = new Set<string>();
+  for (const m of marks?.keys() ?? []) {
+    for (let i = m.indexOf("."); i >= 0; i = m.indexOf(".", i + 1)) marked.add(m.slice(0, i));
+  }
+  const out = new Set<string>();
+  // Whether the node's key or anything inside it matches the search.
+  const walk = (v: unknown, key: string, at: string): boolean => {
+    let hit = !!q && key.toLowerCase().includes(q);
+    if (v && typeof v === "object") {
+      for (const [k, c] of childEntries(v)) {
+        if (walk(c, k, at ? `${at}.${k}` : k)) hit = true;
+      }
+      if (hit || marked.has(at)) out.add(at);
+    } else if (q && v != null && String(v).toLowerCase().includes(q)) {
+      hit = true;
+    }
+    return hit;
+  };
+  if (value && typeof value === "object") {
+    for (const [k, c] of childEntries(value)) walk(c, k, path ? `${path}.${k}` : k);
+  }
+  return out;
+}
+
 const HIT = "bg-yellow-500/25 text-yellow-100 rounded px-0.5";
 
 // A clickable JSON tree: leaves pin their dot-path into the active field.
@@ -64,6 +103,7 @@ export function JsonTree({
   depth = 0,
   query = "",
   marks,
+  forcedSet,
 }: {
   value: unknown;
   path: string;
@@ -71,7 +111,14 @@ export function JsonTree({
   depth?: number;
   query?: string;
   marks?: ReadonlyMap<string, string>;
+  /** Internal: the root works out which branches are held open, once. */
+  forcedSet?: ReadonlySet<string>;
 }) {
+  const rootForced = useMemo(
+    () => (forcedSet ? null : forcedBranches(value, path, query, marks)),
+    [forcedSet, value, path, query, marks],
+  );
+  const forcedIn = forcedSet ?? rootForced!;
   const isObj = value && typeof value === "object";
   const hasQuery = query.trim().length > 0;
 
@@ -102,9 +149,7 @@ export function JsonTree({
     );
   }
 
-  const entries = Array.isArray(value)
-    ? value.map((v, i) => [String(i), v] as const)
-    : Object.entries(value as Record<string, unknown>);
+  const entries = childEntries(value);
 
   return (
     <div className={depth === 0 ? "" : "pl-3 border-l border-neutral-800"}>
@@ -114,9 +159,7 @@ export function JsonTree({
         const keyHit = hasQuery && k.toLowerCase().includes(query.trim().toLowerCase());
         const keyCls = keyHit ? HIT : "text-sky-300";
         // Force a branch open when it (or a descendant) matches the search.
-        const forced =
-          (hasQuery && matchesQuery(v, query, k)) ||
-          (!!marks && [...marks.keys()].some((p) => p.startsWith(`${childPath}.`)));
+        const forced = forcedIn.has(childPath);
         return (
           <div key={k} className="py-0.5">
             {leaf ? (
@@ -129,6 +172,7 @@ export function JsonTree({
                   depth={depth + 1}
                   query={query}
                   marks={marks}
+                  forcedSet={forcedIn}
                 />
               </div>
             ) : (
@@ -140,6 +184,7 @@ export function JsonTree({
                   depth={depth + 1}
                   query={query}
                   marks={marks}
+                  forcedSet={forcedIn}
                 />
               </Branch>
             )}
