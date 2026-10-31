@@ -52,7 +52,7 @@ Tooling and tests:
 - [x] **F25** 8 eslint warnings in the frontend not triaged [P3] (47f6db0)
 - [x] **F26** LibrariesPage.test "drops both the flat feed and the grouped view on delete" flakes under full-suite load (passes alone) [P2] (a966aa1; not reproduced, waits widened)
 - [x] **F27** 44 pytest warnings: sync tests in modules with `pytestmark = pytest.mark.asyncio` (e.g. test_scan_reproject_integration.py, test_tag_settings_integration.py); `asyncio_mode = "auto"` makes the module mark unnecessary [new] (f6b9dd2)
-- [ ] **F28** L2.3 rest: TS image fields are all still optional (making the always-sent ones required ripples into test casts and BatchStrip's stub tile) [P5]
+- [x] **F28** L2.3 rest: TS image fields are all still optional (making the always-sent ones required ripples into test casts and BatchStrip's stub tile) [P5], done c4888cf (types follow models/responses.py; test factories in src/test/images.ts)
 
 ## P0. Bugs (verify with a failing test first)
 
