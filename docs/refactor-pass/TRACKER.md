@@ -37,7 +37,7 @@ Duplication and structure:
 - [x] **F16** Generator test settle (`_arrived`) and `test_status` derive the same thing twice; only cross-referenced in comments [P5] (2860276)
 - [x] **F17** AI settings Save does not share the model card's busy flag [P5] (ff1d826)
 - [x] **F18** L2.8 rest: the character name/series split is still frontend-only (null name/series means "unset" on the wire, ~20 callers split bare tags) [P5] (769b542, review fixes 62eaab5; closed by a mirrored parity fixture on stored spelling, payload move rejected: null means unset and bare-tag callers split anyway)
-- [ ] **F19** Behaviour-changing dedupes skipped in P4: gallery desktop/phone Sort/Group/Select controls, CountStepper on NumberStepper, OutfitChip into TagPill, a shared InlineRename, workflowLine sharing workflowOrigin [P4]
+- [x] **F19** Behaviour-changing dedupes skipped in P4: gallery desktop/phone Sort/Group/Select controls, CountStepper on NumberStepper, OutfitChip into TagPill, a shared InlineRename, workflowLine sharing workflowOrigin [P4] (8d47378, 86378f7, ecc60fd, b6a4820, 06bd3d6)
 
 Dead code and small efficiency:
 
