@@ -87,6 +87,13 @@ it("options put the chosen one first, with a line on where it came from", () => 
   expect(workflowLine(gen({ name: "Portraits" }))).toBeUndefined();
 });
 
+it("workflowLine reads the setup page's origin line", () => {
+  const img = { kind: "image" as const, image_id: "a", family: "f", family_name: null, workflow_sig: "s" };
+  expect(workflowLine(gen({ source: { ...img, file_name: "my_flow.json" } }))).toBe("From my_flow.json");
+  expect(workflowLine(gen({ source: img }))).toBe("From an image");
+  expect(workflowLine(gen({ name: "my_flow.json", source: { ...img, file_name: "my_flow.json" } }))).toBeUndefined();
+});
+
 it("a test that made images but none reached the library waits, one that made none failed", () => {
   const t = { batch_id: 1, error: null, progress: null, image_id: null };
   expect(testState(gen({ ready: false, test: { ...t, state: "done", outputs: 2 } }))).toBe("waiting");

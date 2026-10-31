@@ -1,5 +1,6 @@
 import type { PickerOption } from "../components/ui";
 import type { Generator, QueueBody } from "./generate";
+import { workflowOrigin } from "./generatorSetup";
 import type { CountMode } from "./requests";
 
 /** The picker's pinned row value: opens setup instead of choosing. */
@@ -59,13 +60,12 @@ export function testState(gen: Generator): TestState {
 /** A test can be (re)started unless one is in ComfyUI right now. */
 export const canRunTest = (s: TestState) => s !== "running" && s !== "ready";
 
-/** What a workflow is, in a few words, from what its graph has. */
+/** The picker's line under a workflow: txt2img for the built-in, else the
+ * setup page's origin line (workflowOrigin) unless it only repeats the name. */
 export function workflowLine(gen: Generator): string | undefined {
   if (gen.kind === "builtin") return "txt2img";
-  if (gen.source?.kind === "upload") return gen.source.filename ?? "Uploaded file";
-  return gen.source?.kind === "image" && gen.source.family_name && gen.source.family_name !== gen.name
-    ? `From ${gen.source.family_name}`
-    : undefined;
+  const origin = workflowOrigin(gen.source ?? undefined);
+  return origin === `From ${gen.name}` ? undefined : origin;
 }
 
 /** The picker's rows: "Set up a workflow" pinned first by the picker itself,
