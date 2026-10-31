@@ -10,7 +10,8 @@ import { BatchResults } from "./BatchResults";
 
 /** Batches shown in the output column. */
 const SHOWN = 3;
-/** The newest batch id when the column was last cleared. */
+/** The newest batch id when the column was last cleared, and the ones
+ * still in the queue then (they stay, finished or not). */
 const CLEARED_KEY = "generate:output-cleared";
 
 function BatchPanel({ id }: { id: number }) {
@@ -73,13 +74,13 @@ export function OutputFeed() {
   const behind = new Set(active.filter((a) => isWaiting(a) && queued.has(a._id)).map((a) => a._id));
   // Enough to get past every one of them.
   const { data } = useBatches(SHOWN + behind.size);
-  const [cleared, setCleared] = useLocalPref(CLEARED_KEY, 0);
-  const running = new Set(active.map((a) => a._id));
+  const [cleared, setCleared] = useLocalPref<{ upTo: number; keep: number[] }>(CLEARED_KEY, { upTo: 0, keep: [] });
+  const kept = new Set([...cleared.keep, ...active.map((a) => a._id)]);
   const started = data
     ?.filter((b) => {
       // Cancelled with nothing made: nothing to show (Generations lists it).
       if (b.state === "cancelled" && b.images === 0) return false;
-      if (b._id <= cleared && !running.has(b._id)) return false;
+      if (b._id <= cleared.upTo && !kept.has(b._id)) return false;
       return !behind.has(b._id);
     })
     .slice(0, SHOWN);
@@ -92,7 +93,15 @@ export function OutputFeed() {
       <div className="flex justify-center gap-4">
         <button
           type="button"
-          onClick={() => setCleared(Math.max(cleared, ...(data ?? []).map((b) => b._id)))}
+          onClick={() =>
+            setCleared({
+              upTo: Math.max(cleared.upTo, ...(data ?? []).map((b) => b._id)),
+              keep: [
+                ...active.map((a) => a._id),
+                ...(data ?? []).filter((b) => b.state === "running" || b.state === "paused").map((b) => b._id),
+              ],
+            })
+          }
           className="text-xs text-muted hover:text-neutral-100"
         >
           Clear

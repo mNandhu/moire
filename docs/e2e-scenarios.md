@@ -6,7 +6,7 @@ Scenarios worth testing end to end, for the Playwright suite in `packages/e2e` (
 
 - Onboarding: welcome flow adds a folder and connects the fake ComfyUI, the scan indexes every image (`onboarding.setup.ts`)
 - Gallery: scrolling pages in the rest of the feed; a searched tag filters the gallery and survives a reload from the URL; selection mode from the toolbar and the phone View options menu; Edit tags adding and removing a manual tag on a whole Select all (`gallery.spec.ts`)
-- Generate: every Clear and Undo scenario below (`generate-clear-undo.spec.ts`); Ctrl+Up/Down weigh the tag under the caret (`generate-prompt-keys.spec.ts`); a run on the fake ComfyUI lands its images in the output library, with the Images stepper and the batch name's rename, Escape and auto name on the way, then a rename on its batch page (`generate-run.spec.ts`); Ctrl+Z / Ctrl+Shift+Z on a board removal, Ctrl+Enter queueing from the prompt, Clear on the output column (`generate-shortcuts.spec.ts`)
+- Generate: every Clear and Undo scenario below (`generate-clear-undo.spec.ts`); Ctrl+Up/Down weigh the tag under the caret (`generate-prompt-keys.spec.ts`); a run on the fake ComfyUI lands its images in the output library, with the Images stepper and the batch name's rename, Escape and auto name on the way, then a rename on its batch page (`generate-run.spec.ts`); Ctrl+Z / Ctrl+Shift+Z on a board removal, Ctrl+Enter queueing from the prompt, Clear on the output column, keeping a batch still running (`generate-shortcuts.spec.ts`)
 - Viewer: prompt weights on the Tags tab, a ComfyUI prompt escaped twice, adding manual tags, setting a score, arrow keys through the feed, also pressed back to back, the phone details sheet dragged up and off, quarantining the open image and stepping on past it and back (`viewer.spec.ts`)
 - Tags page: a tag's panel and its Open in gallery link, closing the panel (`tag-panel.spec.ts`)
 - AI tagging: the real WD tagger on three images from the AI Tagging page (`tagging-ai.spec.ts`)
@@ -58,4 +58,4 @@ With Queue enabled, press Ctrl/Cmd+Enter in the Prompt. Expected: the batch is q
 
 ### Clear the output column
 
-Click Clear under the output batches. Expected: they leave the column (Generations still lists them), it stays empty after a reload, and the next batch queued shows there. A batch still running stays.
+Click Clear under the output batches. Expected: they leave the column (Generations still lists them), it stays empty after a reload, and the next batch queued shows there. A batch still running or queued when Clear is pressed stays, also once it's done.

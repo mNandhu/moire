@@ -298,12 +298,14 @@ export default function GeneratePage() {
   // Ctrl/Cmd+Enter queues from anywhere on the page, the prompt included;
   // set below, once it's known whether Queue can run.
   const queueKey = useRef<() => void>(() => {});
+  // A dialog over the page has the keys to itself.
+  const inDialog = (e: KeyboardEvent) => !!(e.target as Element | null)?.closest?.('[role="dialog"]');
   useHotkeys(
     [
       {
         ...GENERATE.queue,
         mods: "ctrl",
-        match: (e) => e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.shiftKey,
+        match: (e) => e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.shiftKey && !inDialog(e),
         run: (e) => {
           e.preventDefault();
           queueKey.current();
@@ -316,7 +318,7 @@ export default function GeneratePage() {
     {
       ...GENERATE.undo,
       mods: "any",
-      match: (e) => undoKey(e) != null,
+      match: (e) => undoKey(e) != null && !inDialog(e),
       run: (e) => {
         e.preventDefault();
         if (undoKey(e) === "undo") history.undo();
