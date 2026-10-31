@@ -125,8 +125,25 @@ async def test_chunked_rewrites_cover_every_image_and_dirty_the_index(
     assert all(_tags(f"L1:{i}.png") == ["manual:new"] for i in range(5))
 
 
-async def test_bulk_manual_splits_above_the_atomic_cap(temp_db, seed, monkeypatch):
-    monkeypatch.setattr(image_tags, "_BULK_ATOMIC", 2)
+async def test_bulk_manual_is_all_or_nothing_at_any_size(temp_db, seed, monkeypatch):
+    """Unlike the rewrites above, a bulk manual edit is one transaction: a
+    failure part-way leaves every image as it was, and the index clean."""
+    ids = [f"L1:{i}.png" for i in range(5)]
+    for i in ids:
+        seed(i, tags=("manual:keep",))
+    _fail_on_second_chunk(monkeypatch)
+    gen = tag_index.current_generation()
+
+    with pytest.raises(RuntimeError):
+        await image_tags.bulk_manual(ids, add=["fav"], remove=[])
+
+    for i in ids:
+        assert _tags(i) == ["manual:keep"]
+        assert _join_tags(i) == {"manual:keep"}
+    assert tag_index.current_generation() == gen
+
+
+async def test_bulk_manual_covers_every_image(temp_db, seed):
     ids = [f"L1:{i}.png" for i in range(5)]
     for i in ids:
         seed(i)

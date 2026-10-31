@@ -331,8 +331,6 @@ def with_manual_edit(
 # How many images a bulk rewrite holds the writer slot for at once: each chunk
 # is its own transaction, so the scanner and AI worker get turns between them.
 _CHUNK = 500
-# A bulk manual edit stays one atomic transaction up to this many images.
-_BULK_ATOMIC = 2000
 
 
 def _chunks(items: list[str], size: int) -> Iterator[list[str]]:
@@ -343,41 +341,35 @@ def _chunks(items: list[str], size: int) -> Iterator[list[str]]:
 async def bulk_manual(
     image_ids: list[str], *, add: list[str], remove: list[str]
 ) -> tuple[int, int]:
-    """Apply one manual-tag edit to many images, one transaction per
-    ``_BULK_ATOMIC`` images.
+    """Apply one manual-tag edit to many images in one transaction, all or
+    nothing at any size (the route caps a selection at 10000).
 
-    One transaction rather than one per image: a selection of a thousand is one
-    writer slot on single-writer SQLite instead of a thousand, and up to
-    ``_BULK_ATOMIC`` images the edit lands all or nothing. Past that it is split so no single
-    transaction holds the writer for long; a failure then leaves earlier
-    chunks applied (each is consistent). Unknown ids are skipped. Returns
-    ``(matched, modified)``.
+    One transaction rather than one per image: a selection of a thousand is
+    one writer slot on single-writer SQLite instead of a thousand, and a
+    failure part-way leaves every image as it was, never half a selection
+    edited. Unknown ids are skipped. Returns ``(matched, modified)``.
     """
     matched = modified = 0
     seen: set[str] = set()
-    try:
-        for chunk in _chunks(image_ids, _BULK_ATOMIC):
-            async with async_tx() as conn:
-                for image_id in chunk:
-                    resolved = await resolve_image_id(conn, image_id)
-                    if resolved is None or resolved in seen:
-                        continue
-                    seen.add(resolved)
-                    matched += 1
-                    current = (
-                        await conn.execute(
-                            sa.select(t.images.c.tags).where(t.images.c._id == resolved)
-                        )
-                    ).scalar() or []
-                    new = with_manual_edit(current, add=add, remove=remove)
-                    if new != current:
-                        modified += 1
-                        await _persist(conn, resolved, new)
-    finally:
-        # After the last commit, and still when a later chunk failed: the
-        # earlier ones are visible.
-        if modified:
-            _dirty_tag_index()
+    async with async_tx() as conn:
+        for image_id in image_ids:
+            resolved = await resolve_image_id(conn, image_id)
+            if resolved is None or resolved in seen:
+                continue
+            seen.add(resolved)
+            matched += 1
+            current = (
+                await conn.execute(
+                    sa.select(t.images.c.tags).where(t.images.c._id == resolved)
+                )
+            ).scalar() or []
+            new = with_manual_edit(current, add=add, remove=remove)
+            if new != current:
+                modified += 1
+                await _persist(conn, resolved, new)
+    # After the commit; a failure rolled everything back, so nothing to dirty.
+    if modified:
+        _dirty_tag_index()
     return matched, modified
 
 
