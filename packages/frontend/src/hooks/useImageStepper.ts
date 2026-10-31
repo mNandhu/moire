@@ -229,8 +229,12 @@ export function useImageStepper(filters: Filters, routeId: string | undefined) {
     const at = last ? list.findIndex((x) => x._id === last) : -1;
     return at >= 0 ? at : index;
   }, [index, list]);
+  // A Right pressed on the last loaded image, waiting for the next page:
+  // the id it was pressed on. Any other step drops it.
+  const wantNextRef = useRef<string | null>(null);
   const stepTo = useCallback(
     (imgId: string) => {
+      wantNextRef.current = null;
       stepsRef.current.push(imgId);
       navigateToImage(imgId);
     },
@@ -242,29 +246,34 @@ export function useImageStepper(filters: Filters, routeId: string | undefined) {
     if (at > 0) stepTo(list[at - 1]._id);
   }, [stepFrom, list, stepTo]);
 
-  const goNext = useCallback(async () => {
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = feed;
+  const goNext = useCallback(() => {
     const at = stepFrom();
     if (at < 0) return;
     if (at < list.length - 1) {
       stepTo(list[at + 1]._id);
       return;
     }
-    // At the end of the loaded pages: fetch the next one, then advance.
-    if (feed.hasNextPage && !feed.isFetchingNextPage) {
-      const res = await feed.fetchNextPage();
-      const all = res.data?.pages.flatMap((p) => p.items) ?? [];
-      const nextItem = all[at + 1];
-      if (nextItem) stepTo(nextItem._id);
+    // At the end of the loaded pages: wait for the next one (the page-ahead
+    // effect has usually started it already), then advance; see below.
+    if (!hasNextPage) return;
+    wantNextRef.current = list[at]._id;
+    if (!isFetchingNextPage) void fetchNextPage();
+  }, [stepFrom, list, stepTo, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // The page a waiting Right asked for has landed: take the step, unless the
+  // view has moved off that image since.
+  useEffect(() => {
+    const want = wantNextRef.current;
+    if (!want) return;
+    const at = stepFrom();
+    if (list[at]?._id !== want) {
+      wantNextRef.current = null;
+      return;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- the query result is a new object every render; the listed fields are what the effect reads
-  }, [
-    stepFrom,
-    list,
-    stepTo,
-    feed.hasNextPage,
-    feed.isFetchingNextPage,
-    feed.fetchNextPage,
-  ]);
+    if (at < list.length - 1) stepTo(list[at + 1]._id);
+    else if (!hasNextPage) wantNextRef.current = null;
+  }, [list, stepFrom, stepTo, hasNextPage]);
 
   const hasMore = feed.hasNextPage;
 
