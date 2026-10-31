@@ -326,6 +326,7 @@ export function BatchName({
         onCommit={(t) => onChange(t && t !== auto ? t : null)}
         reset={custom ? { label: "Use auto name", onReset: () => onChange(null) } : null}
         className="h-9 text-sm text-neutral-100"
+        textClassName="truncate"
         iconSize={13}
       />
     </div>

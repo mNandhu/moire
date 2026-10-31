@@ -17,6 +17,7 @@ export function InlineRename({
   reset,
   className,
   inputClassName,
+  textClassName,
   iconSize = 14,
 }: {
   value: string;
@@ -26,6 +27,8 @@ export function InlineRename({
   reset?: { label: string; onReset: () => void } | null;
   className?: string;
   inputClassName?: string;
+  /** The name's own text, `truncate` in a narrow row. */
+  textClassName?: string;
   iconSize?: number;
 }) {
   const [editing, setEditing] = useState(false);
@@ -76,7 +79,7 @@ export function InlineRename({
   }
   return (
     <span className={cn("flex items-center gap-2", className)}>
-      <span className="truncate">{value}</span>
+      <span className={textClassName}>{value}</span>
       <button
         type="button"
         aria-label={`Rename ${label}`}
