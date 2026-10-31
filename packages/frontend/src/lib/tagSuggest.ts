@@ -60,7 +60,7 @@ export type SuggestKeyAction = "down" | "up" | "accept" | "close" | "none";
  * highlighted row always, or only once the user has arrowed to it (`moved`),
  * so free text can still be committed as typed; `tab` whether Tab takes it.
  * A closed list takes no key. Ctrl/Cmd+Arrow is never the list's (the prompt
- * field keeps it for tag weights) and nothing happens mid IME composition.
+ * field keeps it for tag weights), nor Ctrl/Cmd+Enter (Generate's queue key), and nothing happens mid IME composition.
  * Pure.
  */
 export function suggestKeyAction(
@@ -76,6 +76,8 @@ export function suggestKeyAction(
     case "Tab":
       return s.tab ? "accept" : "none";
     case "Enter":
+      // Ctrl/Cmd+Enter is the page's (Generate queues on it).
+      if (e.ctrlKey || e.metaKey) return "none";
       return s.enter === "highlight" || s.moved ? "accept" : "none";
     case "Escape":
       return "close";

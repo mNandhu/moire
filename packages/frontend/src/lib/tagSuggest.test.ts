@@ -56,6 +56,11 @@ describe("suggestKeyAction", () => {
     expect(act("Enter", { enter: "moved", moved: true })).toBe("accept");
   });
 
+  it("leaves Ctrl/Cmd+Enter to the page", () => {
+    expect(act("Enter", {}, { ctrlKey: true })).toBe("none");
+    expect(act("Enter", { moved: true }, { metaKey: true })).toBe("none");
+  });
+
   it("takes Tab only when asked to", () => {
     expect(act("Tab")).toBe("none");
     expect(act("Tab", { tab: true })).toBe("accept");

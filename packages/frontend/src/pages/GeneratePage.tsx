@@ -18,6 +18,7 @@ import { RunBar } from "../components/generate/RunBar";
 import { autoBatchName } from "../lib/batchName";
 import {
   MODELS_KEY,
+  OUTFITS_KEY,
   RejectedError,
   invalidateQueue,
   queueBatch,
@@ -50,6 +51,10 @@ import { characterInput, characterTags } from "../lib/recipe";
 import { outfitInput, pickOf, wornTags, type OutfitPick } from "../lib/outfit";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useToast } from "../components/Toasts";
+import { useUndoHistory } from "../hooks/useUndoHistory";
+import { useHotkeys } from "../hooks/useHotkeys";
+import { undoKey } from "../lib/undoHistory";
+import { GENERATE } from "../lib/shortcuts";
 
 const NO_STRINGS: string[] = [];
 
@@ -76,6 +81,14 @@ export default function GeneratePage() {
   // shows a row with its picker open.
   const [addingCharacter, setAddingCharacter] = useState(false);
   const set = <K extends keyof GenerateForm>(k: K, v: GenerateForm[K]) => setForm((f) => ({ ...f, [k]: v }));
+  // Ctrl/Cmd+Z takes back a change to the form (a tag taken out, a layer
+  // removed); a text field keeps its own. What the page fills in on its
+  // own (the first checkpoint, a new character's outfit) folds into the
+  // step before it.
+  const history = useUndoHistory(form, setForm, {
+    skip: (was, next) => was.fresh.length > 0 || (!was.checkpoint && !!next.checkpoint),
+    restore: (f) => (f.fresh.length ? { ...f, fresh: [] } : f),
+  });
   // Characters just picked (here or from a character page) start wearing
   // what Settings says: none unless set to their usual clothes. A remix
   // or a replayed batch brings its own and marks none.
@@ -103,9 +116,12 @@ export default function GeneratePage() {
   const remixed = (location.state as RemixState | null)?.remixForm;
   useEffect(() => {
     if (!remixed) return;
+    // A new start: nothing before it to undo to.
+    history.quietly();
+    history.reset();
     setForm(remixed);
     navigate(".", { replace: true, state: null });
-  }, [remixed, navigate]);
+  }, [remixed, navigate, history]);
 
   // The chosen workflow; one that is gone falls back to the built-in.
   const gen = generators?.find((g) => g._id === form.workflow) ?? generators?.[0];
@@ -197,8 +213,11 @@ export default function GeneratePage() {
     // No toast: the button says so and the batch glows where it lands in the deck.
     onSuccess: () => {
       setQueuedTick((n) => n + 1);
+      history.quietly();
       set("name", null);
       invalidateQueue(qc);
+      // A shared outfit just worn joins that character's list.
+      if (Object.keys(form.outfits).length) void qc.invalidateQueries({ queryKey: [...OUTFITS_KEY, "list"] });
     },
     onError: (e) => {
       if (e instanceof RejectedError) setRejected(e.nodeErrors);
@@ -245,6 +264,8 @@ export default function GeneratePage() {
     const was = form.prompt;
     const next = followCast(was, before, after);
     if (next == null) return;
+    // It has its own Undo, on the note.
+    history.quietly();
     set("prompt", next);
     const undo = () => set("prompt", was);
     // The words lit with a note to undo them, and the Subject box if it's open.
@@ -273,6 +294,36 @@ export default function GeneratePage() {
     // Only a change of cast moves the tags; typing in the prompt doesn't.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [castKey]);
+
+  // Ctrl/Cmd+Enter queues from anywhere on the page, the prompt included;
+  // set below, once it's known whether Queue can run.
+  const queueKey = useRef<() => void>(() => {});
+  useHotkeys(
+    [
+      {
+        ...GENERATE.queue,
+        mods: "ctrl",
+        match: (e) => e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.shiftKey,
+        run: (e) => {
+          e.preventDefault();
+          queueKey.current();
+        },
+      },
+    ],
+    { fields: true },
+  );
+  useHotkeys([
+    {
+      ...GENERATE.undo,
+      mods: "any",
+      match: (e) => undoKey(e) != null,
+      run: (e) => {
+        e.preventDefault();
+        if (undoKey(e) === "undo") history.undo();
+        else history.redo();
+      },
+    },
+  ]);
 
   // How long the form's batch would take, for the next-batch card.
   const estimate = useNextEstimate(gen?.ready && connected ? toEstimateBody(form, gen._id) : null, {
@@ -335,6 +386,9 @@ export default function GeneratePage() {
     picked: form.characters.length,
     loaded: !!characters,
   });
+  queueKey.current = () => {
+    if (!blocked && !queue.isPending) queue.mutate();
+  };
 
   return (
     <>

@@ -5,10 +5,13 @@ import { useBatchChanged } from "../../hooks/useBatchActions";
 import { useBatch, useBatches, useComfyStatus } from "../../lib/generate";
 import { leftLabel } from "../../lib/eta";
 import { queueRoles } from "../../lib/queueClock";
+import { useLocalPref } from "../../hooks/useLocalPref";
 import { BatchResults } from "./BatchResults";
 
 /** Batches shown in the output column. */
 const SHOWN = 3;
+/** The newest batch id when the column was last cleared. */
+const CLEARED_KEY = "generate:output-cleared";
 
 function BatchPanel({ id }: { id: number }) {
   const { data: b } = useBatch(id);
@@ -58,7 +61,8 @@ function BatchPanel({ id }: { id: number }) {
 /**
  * The output column under the queue deck: the last few batches that have
  * started, newest on top, each with its images big as they're made. A batch
- * still waiting its turn is only in the deck.
+ * still waiting its turn is only in the deck. Clear empties it (here only,
+ * nothing is deleted) of all but a batch still running.
  */
 export function OutputFeed() {
   const { data: status } = useComfyStatus();
@@ -69,10 +73,13 @@ export function OutputFeed() {
   const behind = new Set(active.filter((a) => isWaiting(a) && queued.has(a._id)).map((a) => a._id));
   // Enough to get past every one of them.
   const { data } = useBatches(SHOWN + behind.size);
+  const [cleared, setCleared] = useLocalPref(CLEARED_KEY, 0);
+  const running = new Set(active.map((a) => a._id));
   const started = data
     ?.filter((b) => {
       // Cancelled with nothing made: nothing to show (Generations lists it).
       if (b.state === "cancelled" && b.images === 0) return false;
+      if (b._id <= cleared && !running.has(b._id)) return false;
       return !behind.has(b._id);
     })
     .slice(0, SHOWN);
@@ -82,7 +89,14 @@ export function OutputFeed() {
       {started.map((b) => (
         <BatchPanel key={b._id} id={b._id} />
       ))}
-      <div className="flex justify-center">
+      <div className="flex justify-center gap-4">
+        <button
+          type="button"
+          onClick={() => setCleared(Math.max(cleared, ...(data ?? []).map((b) => b._id)))}
+          className="text-xs text-muted hover:text-neutral-100"
+        >
+          Clear
+        </button>
         <Link to="/generations" className="text-xs text-muted hover:text-neutral-100">
           All generations
         </Link>

@@ -10,7 +10,7 @@
  * Pure.
  */
 
-import { SEARCH_KEYS, WEIGHT_KEYS } from "./platform";
+import { QUEUE_KEYS, SEARCH_KEYS, UNDO_KEYS, WEIGHT_KEYS } from "./platform";
 
 export type ShortcutPage = "everywhere" | "gallery" | "image" | "generate" | "generations";
 
@@ -82,6 +82,10 @@ export const GENERATE = {
   weight: { keys: ["ArrowUp", "ArrowDown"], label: WEIGHT_KEYS, desc: "Raise / lower the weight of the term at the cursor" },
   // Taken by the shared suggestion-list keys (tagSuggest suggestKeyAction).
   suggest: { keys: ["Tab"], label: "Tab", desc: "Take the suggested tag" },
+  // Matched with Ctrl/Cmd in GeneratePage, from any field.
+  queue: { label: QUEUE_KEYS, desc: "Queue the batch" },
+  // Matched by undoKey in GeneratePage; a text field keeps its own.
+  undo: { label: UNDO_KEYS, desc: "Undo / redo a change to the form" },
 } satisfies Record<string, ShortcutSpec>;
 
 export const BATCH = {

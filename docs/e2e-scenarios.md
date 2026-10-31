@@ -6,14 +6,14 @@ Scenarios worth testing end to end, for the Playwright suite in `packages/e2e` (
 
 - Onboarding: welcome flow adds a folder and connects the fake ComfyUI, the scan indexes every image (`onboarding.setup.ts`)
 - Gallery: scrolling pages in the rest of the feed; a searched tag filters the gallery and survives a reload from the URL; selection mode from the toolbar and the phone View options menu; Edit tags adding and removing a manual tag on a whole Select all (`gallery.spec.ts`)
-- Generate: every Clear and Undo scenario below (`generate-clear-undo.spec.ts`); Ctrl+Up/Down weigh the tag under the caret (`generate-prompt-keys.spec.ts`); a run on the fake ComfyUI lands its images in the output library, with the Images stepper and the batch name's rename, Escape and auto name on the way, then a rename on its batch page (`generate-run.spec.ts`)
-- Viewer: prompt weights on the Tags tab, a ComfyUI prompt escaped twice, adding manual tags, setting a score, arrow keys through the feed, also pressed back to back, the phone details sheet dragged up and off (`viewer.spec.ts`)
+- Generate: every Clear and Undo scenario below (`generate-clear-undo.spec.ts`); Ctrl+Up/Down weigh the tag under the caret (`generate-prompt-keys.spec.ts`); a run on the fake ComfyUI lands its images in the output library, with the Images stepper and the batch name's rename, Escape and auto name on the way, then a rename on its batch page (`generate-run.spec.ts`); Ctrl+Z / Ctrl+Shift+Z on a board removal, Ctrl+Enter queueing from the prompt, Clear on the output column (`generate-shortcuts.spec.ts`)
+- Viewer: prompt weights on the Tags tab, a ComfyUI prompt escaped twice, adding manual tags, setting a score, arrow keys through the feed, also pressed back to back, the phone details sheet dragged up and off, quarantining the open image and stepping on past it and back (`viewer.spec.ts`)
 - Tags page: a tag's panel and its Open in gallery link, closing the panel (`tag-panel.spec.ts`)
 - AI tagging: the real WD tagger on three images from the AI Tagging page (`tagging-ai.spec.ts`)
 
 ## Still to cover
 
-Removing and renaming tags, quarantine, rules, outfits page, the Generations page and the rest of the batch view, Remix, the rest of phone width (swipes on the viewer stage, the gallery), the empty gallery (Add library and Generate; the sandbox always has a library, so only the unit test covers it).
+Removing and renaming tags, quarantine from the gallery, rules, outfits page, the Generations page and the rest of the batch view, Remix, the rest of phone width (swipes on the viewer stage, the gallery), the empty gallery (Add library and Generate; the sandbox always has a library, so only the unit test covers it).
 
 ## Generate: Tags by part, Clear and Undo
 
@@ -43,3 +43,19 @@ Same setup, press Undo straight away. Expected: the Prompt text is back byte for
 ### Undo after the toast expires
 
 Expected: no Undo available, no error; Clear stays applied.
+
+## Generate: keys and Clear
+
+Covered by `generate-shortcuts.spec.ts`.
+
+### Ctrl+Z after a board removal
+
+Remove a tag on the Prompt board, click off the text field, press Ctrl/Cmd+Z. Expected: the tag is back in the Prompt and on the board; Ctrl/Cmd+Shift+Z takes it out again. In a text field, Ctrl+Z is the field's own.
+
+### Ctrl+Enter queues
+
+With Queue enabled, press Ctrl/Cmd+Enter in the Prompt. Expected: the batch is queued; the Prompt is unchanged.
+
+### Clear the output column
+
+Click Clear under the output batches. Expected: they leave the column (Generations still lists them), it stays empty after a reload, and the next batch queued shows there. A batch still running stays.
