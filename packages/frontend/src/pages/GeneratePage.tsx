@@ -95,10 +95,8 @@ export default function GeneratePage() {
   const startAs = settings?.new_character_outfit;
   useEffect(() => {
     if (!form.fresh.length || !startAs) return;
-    const settle = (tag: string, pick: OutfitPick | null) => {
-      history.quietly();
-      setForm((f) => settleFresh(f, tag, pick));
-    };
+    // A late answer for a tag no longer fresh changes nothing.
+    const settle = (tag: string, pick: OutfitPick | null) => history.setQuietly((f) => settleFresh(f, tag, pick));
     for (const tag of form.fresh) {
       if (startAs !== "default") {
         settle(tag, null);
@@ -142,10 +140,7 @@ export default function GeneratePage() {
   const checkpoints = models?.checkpoints ?? NO_STRINGS;
   // The first installed checkpoint until the user picks one.
   useEffect(() => {
-    if (!form.checkpoint && checkpoints.length) {
-      history.quietly();
-      set("checkpoint", checkpoints[0]);
-    }
+    if (!form.checkpoint && checkpoints.length) history.setQuietly((f) => ({ ...f, checkpoint: checkpoints[0] }));
   }, [checkpoints, form.checkpoint, history]);
 
   useEffect(() => {

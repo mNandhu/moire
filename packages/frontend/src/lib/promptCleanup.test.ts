@@ -24,6 +24,21 @@ describe("cleanPrompt", () => {
     expect(cleanPrompt("1girl, smile,\nsky, cloud\n\nBREAK\nsea").text).toBe("1girl, smile,\nsky, cloud\n\nBREAK\nsea");
   });
 
+  it("leaves a repeat across BREAK or AND alone", () => {
+    expect(cleanPrompt("eula, smile AND furina, smile").text).toBe("eula, smile AND furina, smile");
+    expect(cleanPrompt("1girl, red hair BREAK 1girl, sky").text).toBe("1girl, red hair BREAK 1girl, sky");
+    expect(cleanPrompt("1girl, smile BREAK sky, sky").text).toBe("1girl, smile BREAK sky");
+  });
+
+  it("keeps a line's leading comma when it is the only one between two lines", () => {
+    expect(cleanPrompt("1girl, smile\n, garden").text).toBe("1girl, smile\n, garden");
+    expect(cleanPrompt("1girl, smile,\n, garden").text).toBe("1girl, smile,\ngarden");
+  });
+
+  it("leaves trailing space alone with no comma there", () => {
+    expect(cleanPrompt("1girl, smile  \n").text).toBe("1girl, smile  \n");
+  });
+
   it("drops a line that was only commas", () => {
     expect(cleanPrompt("1girl,\n, ,\nsmile").text).toBe("1girl,\nsmile");
   });

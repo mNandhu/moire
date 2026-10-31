@@ -4,12 +4,13 @@ import { API } from "./helpers";
 // docs/e2e-scenarios.md, "Generate: keys and Clear". Runs after
 // generate-run.spec.ts, which sets the output folder and passes the test run.
 
-/** Until no batch is still running (one queued by an earlier test). */
+/** Until no batch is still running or paused (one queued by an earlier
+ * test): Clear keeps those. */
 async function settled(request: APIRequestContext) {
   await expect
     .poll(async () => {
       const list: { state: string }[] = await (await request.get(`${API}/generate/batches?limit=20`)).json();
-      return list.filter((b) => b.state === "running").length;
+      return list.filter((b) => b.state === "running" || b.state === "paused").length;
     }, { timeout: 60_000 })
     .toBe(0);
 }

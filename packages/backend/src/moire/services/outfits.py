@@ -212,39 +212,49 @@ async def _existing(conn, ids: Iterable[str | None]) -> set[str]:
     return {r[0] for r in rows}
 
 
-_USAGE = sa.text(
-    """
-    SELECT json_extract(c.value, '$.outfit.id') AS outfit_id,
-           COUNT(DISTINCT b._id) AS batches,
-           COUNT(DISTINCT json_extract(c.value, '$.tag')) AS used_by,
+_WORN_BY = """,
            COUNT(DISTINCT CASE
                WHEN json_extract(c.value, '$.tag') IN :names
                 AND EXISTS (SELECT 1 FROM generation_requests AS r
                             WHERE r.batch_id = b._id AND r.state = 'done')
-               THEN b._id END) AS worn
-    FROM generation_batches AS b, json_each(b.inputs, '$.characters') AS c
-    WHERE json_extract(c.value, '$.outfit.id') IN :ids
-    GROUP BY outfit_id
-    """
-).bindparams(sa.bindparam("ids", expanding=True), sa.bindparam("names", expanding=True))
+               THEN b._id END) AS worn"""
+
+
+def _usage_query(worn: bool) -> sa.TextClause:
+    """Batches per outfit and by how many characters; with ``worn``, also
+    how many the characters called ``:names`` wore it in that made an image."""
+    q = sa.text(
+        f"""
+        SELECT json_extract(c.value, '$.outfit.id') AS outfit_id,
+               COUNT(DISTINCT b._id) AS batches,
+               COUNT(DISTINCT json_extract(c.value, '$.tag')) AS used_by{_WORN_BY if worn else ""}
+        FROM generation_batches AS b, json_each(b.inputs, '$.characters') AS c
+        WHERE json_extract(c.value, '$.outfit.id') IN :ids
+        GROUP BY outfit_id
+        """
+    ).bindparams(sa.bindparam("ids", expanding=True))
+    return q.bindparams(sa.bindparam("names", expanding=True)) if worn else q
+
+
+_USAGE = _usage_query(worn=False)
+_USAGE_WORN = _usage_query(worn=True)
 
 
 async def _usage(
     ids: list[str], names: list[str] | None = None
 ) -> dict[str, dict[str, int]]:
-    """Outfit id -> batches it was worn in, by how many characters, and
-    (``worn``) how many of them by the character called any of ``names``
+    """Outfit id -> batches it was worn in, by how many characters, and with
+    ``names`` (``worn``) how many of them by the character called any of them
     that made an image."""
     if not ids:
         return {}
     async with async_conn() as conn:
-        rows = (
-            await conn.execute(_USAGE, {"ids": ids, "names": names or [""]})
-        ).fetchall()
-    return {
-        r.outfit_id: {"batches": r.batches, "used_by": r.used_by, "worn": r.worn}
-        for r in rows
-    }
+        if names:
+            q, params = _USAGE_WORN, {"ids": ids, "names": names}
+        else:
+            q, params = _USAGE, {"ids": ids}
+        rows = (await conn.execute(q, params)).mappings().fetchall()
+    return {r["outfit_id"]: dict(r) for r in rows}
 
 
 def _view(

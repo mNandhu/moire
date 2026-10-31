@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, type Dispatch, type SetStateAction } from "react";
-import { isTextEntry } from "../lib/dom";
+import { isFormField } from "../lib/dom";
 import { emptyHistory, recordChange, redoStep, undoStep, type UndoHistory } from "../lib/undoHistory";
-
-/** A change this soon after a keystroke in a field is that typing. */
-const TYPED_MS = 100;
 
 /**
  * An undo history for a piece of state, kept by watching it change: every
@@ -24,16 +21,26 @@ export function useUndoHistory<T>(
   const quiet = useRef(false);
   const opts = useRef({ skip, restore });
   opts.current = { skip, restore };
-  // The field last typed in, and when: a change right after it is that
-  // typing (one step per burst); a tag picked from a list in the same
-  // field is not, nor is anything else made while it has focus.
-  const typed = useRef<{ el: EventTarget | null; at: number }>({ el: null, at: 0 });
+  // The field an input event came from since the last change: that change
+  // is typing in it, or a slider dragged (one step per burst). A change with
+  // no input before it (a tag picked from a list, a click) is a step of its
+  // own, however it is timed.
+  const typed = useRef<EventTarget | null>(null);
   useEffect(() => {
     const onInput = (e: Event) => {
-      if (isTextEntry(e.target)) typed.current = { el: e.target, at: Date.now() };
+      if (isFormField(e.target)) typed.current = e.target;
+    };
+    // A click starts something else (a picker's search typed in, then an
+    // option clicked, is not that typing).
+    const onPointer = () => {
+      typed.current = null;
     };
     document.addEventListener("input", onInput, true);
-    return () => document.removeEventListener("input", onInput, true);
+    document.addEventListener("pointerdown", onPointer, true);
+    return () => {
+      document.removeEventListener("input", onInput, true);
+      document.removeEventListener("pointerdown", onPointer, true);
+    };
   }, []);
 
   useEffect(() => {
@@ -46,9 +53,9 @@ export function useUndoHistory<T>(
     }
     const q = quiet.current || !!opts.current.skip?.(was, value);
     quiet.current = false;
-    const now = Date.now();
-    const key = now - typed.current.at < TYPED_MS ? typed.current.el : null;
-    hist.current = recordChange(hist.current, was, { key, now, quiet: q });
+    const key = typed.current;
+    typed.current = null;
+    hist.current = recordChange(hist.current, was, { key, now: Date.now(), quiet: q });
   }, [value]);
 
   const go = useCallback(
@@ -67,12 +74,23 @@ export function useUndoHistory<T>(
   );
   const undo = useCallback(() => go(undoStep), [go]);
   const redo = useCallback(() => go(redoStep), [go]);
-  /** The next change is the app's, folded into the step before it. */
+  /** The next change is the app's, folded into the step before it (only
+   * for a change sure to come: `setQuietly` for one that may not). */
   const quietly = useCallback(() => {
     quiet.current = true;
   }, []);
+  /** An update the app makes on its own; marked quiet only if it changes something. */
+  const setQuietly = useCallback(
+    (update: (v: T) => T) =>
+      setValue((v) => {
+        const next = update(v);
+        if (next !== v) quiet.current = true;
+        return next;
+      }),
+    [setValue],
+  );
   const reset = useCallback(() => {
     hist.current = emptyHistory();
   }, []);
-  return useMemo(() => ({ undo, redo, quietly, reset }), [undo, redo, quietly, reset]);
+  return useMemo(() => ({ undo, redo, quietly, setQuietly, reset }), [undo, redo, quietly, setQuietly, reset]);
 }
