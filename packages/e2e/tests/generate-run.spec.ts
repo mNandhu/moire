@@ -26,6 +26,22 @@ test("a Generate run lands its images in the output library", async ({ page, req
   await page.goto("/generate");
   await page.getByLabel("Prompt", { exact: true }).fill("1girl, smile, garden");
   await page.getByRole("spinbutton", { name: "Images", exact: true }).fill("2");
+  await page.getByRole("button", { name: "Fewer Images" }).click();
+  await page.getByRole("button", { name: "More Images" }).click();
+  await expect(page.getByRole("spinbutton", { name: "Images", exact: true })).toHaveValue("2");
+
+  // The batch name: renamed on Enter, Escape keeps it, the auto name comes back.
+  await page.getByRole("button", { name: "Rename batch" }).click();
+  await page.getByRole("textbox", { name: "Batch name" }).fill("Garden test");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Garden test", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Rename batch" }).click();
+  await page.getByRole("textbox", { name: "Batch name" }).fill("Dropped");
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("Garden test", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Rename batch" }).click();
+  await page.getByRole("button", { name: "Use auto name" }).click();
+  await expect(page.getByText("Garden test", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Test run" }).click();
   const run = page.getByRole("button", { name: "Queue 2 images" });
   await expect(run).toBeEnabled({ timeout: 30_000 });

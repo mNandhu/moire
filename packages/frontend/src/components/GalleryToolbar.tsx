@@ -68,6 +68,31 @@ export function GalleryToolbar({
   runBulkQuarantine: (ids: string[], next: boolean) => Promise<void>;
 }) {
   const { tagOptions, resourceSuggestions, knownOutfits, knownResources, tagNames } = options;
+  // Grouping and selection, one definition for the phone menu and the
+  // desktop buttons: the same name, icon and on/off state in both.
+  const toggles = [
+    {
+      key: "group",
+      label: "Group batches",
+      short: "Group",
+      title: "Group batches (same prompt + workflow)",
+      Icon: Layers,
+      on: grouped,
+      // Its name stays put, so it says on/off as a press; Select's name changes.
+      pressed: grouped as boolean | undefined,
+      toggle: onToggleGroup,
+    },
+    {
+      key: "select",
+      label: selectionMode ? "Done selecting" : "Select images",
+      short: selectionMode ? "Done" : "Select",
+      title: selectionMode ? "Done selecting" : "Select (S)",
+      Icon: selectionMode ? CheckSquare : Square,
+      on: selectionMode,
+      pressed: undefined,
+      toggle: () => setSelectionMode((v) => !v),
+    },
+  ];
   return (
     <div className="flex flex-wrap md:flex-nowrap items-center gap-2">
       <Button
@@ -113,19 +138,13 @@ export function GalleryToolbar({
               hint: filters.sort === o.value ? <Check size={15} /> : undefined,
               onClick: () => setFilters({ ...filters, sort: o.value }),
             })),
-            {
+            ...toggles.map((t) => ({
               group: "View",
-              label: "Group batches",
-              icon: <Layers size={15} />,
-              hint: grouped ? <Check size={15} /> : undefined,
-              onClick: onToggleGroup,
-            },
-            {
-              group: "View",
-              label: selectionMode ? "Done selecting" : "Select",
-              icon: selectionMode ? <CheckSquare size={15} /> : <Square size={15} />,
-              onClick: () => setSelectionMode((v) => !v),
-            },
+              label: t.label,
+              icon: <t.Icon size={15} />,
+              hint: t.pressed ? <Check size={15} /> : undefined,
+              onClick: t.toggle,
+            })),
           ]}
         />
       </div>
@@ -134,32 +153,22 @@ export function GalleryToolbar({
         value={filters.sort}
         onChange={(sort) => setFilters({ ...filters, sort })}
       />
-      <Button
-        size="icon"
-        variant="secondary"
-        active={grouped}
-        onClick={onToggleGroup}
-        aria-label={grouped ? "Ungroup batches" : "Group batches"}
-        title="Group batches (same prompt + workflow)"
-        className="xl:w-auto xl:px-3 xl:gap-2"
-      >
-        <Layers size={18} />
-        <span className="hidden xl:inline">Group</span>
-      </Button>
-      <Button
-        size="icon"
-        variant="secondary"
-        active={selectionMode}
-        onClick={() => setSelectionMode((v) => !v)}
-        aria-label={
-          selectionMode ? "Exit selection mode" : "Enter selection mode"
-        }
-        title={selectionMode ? "Done selecting" : "Select (S)"}
-        className="xl:w-auto xl:px-3 xl:gap-2"
-      >
-        {selectionMode ? <CheckSquare size={18} /> : <Square size={18} />}
-        <span className="hidden xl:inline">{selectionMode ? "Done" : "Select"}</span>
-      </Button>
+      {toggles.map((t) => (
+        <Button
+          key={t.key}
+          size="icon"
+          variant="secondary"
+          active={t.on}
+          aria-pressed={t.pressed}
+          onClick={t.toggle}
+          aria-label={t.label}
+          title={t.title}
+          className="xl:w-auto xl:px-3 xl:gap-2"
+        >
+          <t.Icon size={18} />
+          <span className="hidden xl:inline">{t.short}</span>
+        </Button>
+      ))}
       </div>
       {selectionMode && (
       <div className="w-full md:w-auto flex items-center gap-2">
