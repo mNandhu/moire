@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ToastProvider } from "../components/Toasts";
 import LibrariesPage from "./LibrariesPage";
 
+const SLOW = { timeout: 10_000 };
+
 // Regression guard: removing a library must invalidate BOTH gallery caches:
 // the flat feed (`["images"]`) and the batch-collapsed grouped view
 // (`["image-groups"]`). The grouped view was added later; an invalidation that
@@ -32,6 +34,9 @@ describe("LibrariesPage › delete invalidates the gallery", () => {
     vi.unstubAllGlobals();
   });
 
+  // Mounting the page, opening the menu and the mutation each wait on a
+  // role query over the whole page; under a loaded full-suite run they pass
+  // the 1 s default of findBy/waitFor, hence the roomier limits.
   it("drops both the flat feed and the grouped view on delete", async () => {
     const qc = new QueryClient();
     const spy = vi.spyOn(qc, "invalidateQueries");
@@ -48,16 +53,16 @@ describe("LibrariesPage › delete invalidates the gallery", () => {
 
     // Delete lives in the row's overflow menu.
     fireEvent.click(
-      await screen.findByRole("button", { name: "More actions for Lib One" }),
+      await screen.findByRole("button", { name: "More actions for Lib One" }, SLOW),
     );
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }, SLOW));
 
     await waitFor(() => {
       const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
       expect(keys).toContain(JSON.stringify(["images"]));
       expect(keys).toContain(JSON.stringify(["image-groups"]));
-    });
-  });
+    }, SLOW);
+  }, 20_000);
 });
 
 describe("LibrariesPage › deleting several", () => {
