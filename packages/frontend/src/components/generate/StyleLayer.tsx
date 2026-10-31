@@ -17,6 +17,7 @@ import { toPromptText } from "../../lib/tags";
 import { PresetDialogShell } from "./PresetDialogShell";
 import { PresetPicker } from "./PresetPicker";
 import { ExpandButton } from "./Layers";
+import { NumberStepper } from "./fields";
 import { stemOf } from "../../lib/modelNames";
 
 const DEFAULT_STRENGTH = 0.7;
@@ -160,18 +161,30 @@ function LoraRow({
       >
         {stemOf(lora.name)}
       </span>
-      <div className="w-36 shrink-0">
-        <PresetPicker
-          aria-label={`${stemOf(lora.name)} preset`}
-          presets={mine}
-          loaded={!!presets}
-          value={lora.preset?.id}
-          onPick={(p) => (p ? pick(p) : onChange({ ...lora, preset: null }))}
-          onNew={() => setDialog("new")}
-          placeholder={mine.length ? "None" : "No preset yet"}
-          noneDetail="LoRA only"
-          showText
-        />
+      {/* The preset and its own New / Edit side by side, the words it adds after. */}
+      <div className="flex w-48 shrink-0 items-center gap-1">
+        <div className="min-w-0 flex-1">
+          <PresetPicker
+            aria-label={`${stemOf(lora.name)} preset`}
+            presets={mine}
+            loaded={!!presets}
+            value={lora.preset?.id}
+            onPick={(p) => (p ? pick(p) : onChange({ ...lora, preset: null }))}
+            onNew={() => setDialog("new")}
+            placeholder={mine.length ? "No preset" : "No preset yet"}
+            noneLabel="No preset"
+            noneDetail="LoRA only"
+            showText
+          />
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setDialog(current ? "edit" : "new")}
+          title={current ? "Edit this preset" : "Make a preset for this LoRA"}
+        >
+          {current ? "Edit" : "New"}
+        </Button>
       </div>
       <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted" title={words || undefined}>
         {words}
@@ -186,24 +199,18 @@ function LoraRow({
         aria-label={`${stemOf(lora.name)} strength`}
         className="w-24 shrink-0 accent-brand-500"
       />
-      <input
-        type="number"
-        step={0.05}
-        min={-2}
-        max={2}
-        value={lora.strength}
-        aria-label={`${stemOf(lora.name)} strength value`}
-        onChange={(e) => onChange({ ...lora, strength: Number(e.target.value) })}
-        className="no-spin w-14 shrink-0 rounded-md border border-line bg-raised px-1.5 py-0.5 text-right tabular-nums text-xs"
-      />
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={() => setDialog(current ? "edit" : "new")}
-        title={current ? "Edit this preset" : "Make a preset for this LoRA"}
-      >
-        {current ? "Edit" : "New"}
-      </Button>
+      <div className="shrink-0">
+        <NumberStepper
+          label={`${stemOf(lora.name)} strength value`}
+          value={lora.strength}
+          onChange={(n) => onChange({ ...lora, strength: n })}
+          step={0.05}
+          min={-2}
+          max={2}
+          small
+          hideLabel
+        />
+      </div>
       <button
         type="button"
         onClick={onRemove}

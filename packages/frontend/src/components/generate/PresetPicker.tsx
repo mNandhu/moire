@@ -14,6 +14,7 @@ export function PresetPicker<P extends PresetLike>({
   onNew,
   "aria-label": ariaLabel,
   placeholder,
+  noneLabel,
   noneDetail,
   showText,
 }: {
@@ -26,6 +27,8 @@ export function PresetPicker<P extends PresetLike>({
   onNew: () => void;
   "aria-label": string;
   placeholder?: string;
+  /** None's own name ("None" by default). */
+  noneLabel?: string;
   /** What None means, beside it. */
   noneDetail?: string;
   /** Each preset's text beside its name. */
@@ -35,7 +38,7 @@ export function PresetPicker<P extends PresetLike>({
     <Picker
       aria-label={ariaLabel}
       value={value ?? NONE}
-      options={presetOptions(presets, value, loaded, { noneDetail, showText })}
+      options={presetOptions(presets, value, loaded, { noneLabel, noneDetail, showText })}
       placeholder={placeholder}
       onChange={(v) => {
         const choice = presetChoice(presets, v);

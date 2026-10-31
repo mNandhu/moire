@@ -19,10 +19,10 @@ export function presetOptions(
   presets: readonly PresetLike[],
   selected: string | undefined,
   loaded: boolean,
-  { noneDetail, showText }: { noneDetail?: string; showText?: boolean } = {},
+  { noneLabel = "None", noneDetail, showText }: { noneLabel?: string; noneDetail?: string; showText?: boolean } = {},
 ): PickerOption[] {
   return [
-    { value: NONE, label: "None", detail: noneDetail },
+    { value: NONE, label: noneLabel, detail: noneDetail },
     ...presets.map((p) => ({ value: p._id, label: p.name, detail: showText ? p.text : undefined, keywords: p.text })),
     ...(isDeletedPreset(presets, selected, loaded) ? [{ value: selected!, label: "Deleted preset", dim: true }] : []),
     { value: NEW, label: "New preset" },

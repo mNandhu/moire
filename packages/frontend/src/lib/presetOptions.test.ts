@@ -11,9 +11,9 @@ describe("presetOptions", () => {
     expect(o[1]).toMatchObject({ label: "Soft", keywords: "soft light", detail: undefined });
   });
 
-  it("can show each preset's text and what None means", () => {
-    const o = presetOptions([a], undefined, true, { noneDetail: "LoRA only", showText: true });
-    expect(o[0].detail).toBe("LoRA only");
+  it("can show each preset's text and what None means, under its own name", () => {
+    const o = presetOptions([a], undefined, true, { noneLabel: "No preset", noneDetail: "LoRA only", showText: true });
+    expect(o[0]).toMatchObject({ label: "No preset", detail: "LoRA only" });
     expect(o[1].detail).toBe("soft light");
   });
 

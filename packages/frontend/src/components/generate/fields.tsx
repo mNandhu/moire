@@ -93,7 +93,8 @@ export function FixedValue({
   );
 }
 
-/** A number field with - / + either side; `compact` fits about three digits. */
+/** A number field with - / + either side; `compact` fits about three digits,
+ * `small` (a row's own: a LoRA's strength) is shorter and fits five. */
 export function NumberStepper({
   label,
   value,
@@ -102,6 +103,7 @@ export function NumberStepper({
   min,
   max,
   compact,
+  small,
   hideLabel,
 }: {
   /** The field's name; also shown above it unless `hideLabel` (a card titles it). */
@@ -112,6 +114,7 @@ export function NumberStepper({
   min: number;
   max: number;
   compact?: boolean;
+  small?: boolean;
   hideLabel?: boolean;
 }) {
   const [typed, setTyped] = useState<string | null>(null);
@@ -125,8 +128,8 @@ export function NumberStepper({
   return (
     <div>
       {!hideLabel && <FieldLabel>{label}</FieldLabel>}
-      <div className={cn("h-9 items-center rounded-lg border border-line", compact ? "inline-flex" : "flex")}>
-        <button type="button" aria-label={`${less} ${label}`} onClick={() => set((value ?? min) - step)} className="px-1.5 py-2 text-muted hover:text-neutral-100">
+      <div className={cn("items-center rounded-lg border border-line", small ? "inline-flex h-7" : "h-9", !small && (compact ? "inline-flex" : "flex"))}>
+        <button type="button" aria-label={`${less} ${label}`} onClick={() => set((value ?? min) - step)} className={cn("px-1.5 text-muted hover:text-neutral-100", small ? "py-1" : "py-2")}>
           <Minus size={14} />
         </button>
         <input
@@ -148,9 +151,13 @@ export function NumberStepper({
           }}
           onBlur={() => setTyped(null)}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-          className={cn("no-spin bg-transparent text-center tabular-nums text-sm outline-none", compact ? "w-8" : "w-full min-w-0")}
+          className={cn(
+            "no-spin bg-transparent text-center tabular-nums outline-none",
+            small ? "w-10 text-xs" : "text-sm",
+            !small && (compact ? "w-8" : "w-full min-w-0"),
+          )}
         />
-        <button type="button" aria-label={`More ${label}`} onClick={() => set((value ?? min) + step)} className="px-1.5 py-2 text-muted hover:text-neutral-100">
+        <button type="button" aria-label={`More ${label}`} onClick={() => set((value ?? min) + step)} className={cn("px-1.5 text-muted hover:text-neutral-100", small ? "py-1" : "py-2")}>
           <Plus size={14} />
         </button>
       </div>
