@@ -1,4 +1,6 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
+import { Eraser } from "lucide-react";
 import { Badge, Button, Card, Tooltip } from "../ui";
 import { CharacterLayer } from "./CharacterBlock";
 import { StyleLayer } from "./StyleLayer";
@@ -10,6 +12,7 @@ import { MAX_CHARACTERS } from "../../lib/generationLimits";
 import { insertBlock, presetText, removeBlock, updateBlock, type GenerateForm } from "../../lib/generateForm";
 import { setCharacters, setOutfitPick, toggleIdentityOff } from "../../lib/composerEdits";
 import { prefixRepeats } from "../../lib/promptRepeats";
+import { cleanPrompt, cleanupWords } from "../../lib/promptCleanup";
 import { cn } from "../../lib/cn";
 import type { ComfyModels, Generator, LoraPreset, NodeError, Preset } from "../../lib/generate";
 import type { RunBar } from "../../lib/generatorRunBar";
@@ -60,6 +63,9 @@ export function PositiveLayers({
 }) {
   const set = <K extends keyof GenerateForm>(k: K, v: GenerateForm[K]) => setForm((f) => ({ ...f, [k]: v }));
   const addCharacter = form.characters.length < MAX_CHARACTERS ? () => setAddingCharacter(true) : undefined;
+  // Repeated tags and stray commas, taken out in one click (Ctrl+Z brings them back).
+  const cleanup = useMemo(() => cleanPrompt(form.prompt), [form.prompt]);
+  const cleanupTitle = cleanupWords(cleanup, cleanup.text !== form.prompt);
   return (
     <div className="flex flex-col" aria-label="Positive prompt">
       {form.blocks.map((blk, i) => (
@@ -104,11 +110,16 @@ export function PositiveLayers({
             >
               <div className="mb-1.5 flex items-center gap-2">
                 <span className="text-sm font-semibold text-neutral-50">Prompt</span>
+                <span className="flex-1" />
+                {cleanupTitle && (
+                  <Button size="sm" variant="ghost" title={cleanupTitle} onClick={() => set("prompt", cleanup.text)}>
+                    <Eraser size={13} /> Clean up
+                  </Button>
+                )}
                 {gen?.defaults?.base && form.prompt.trim() !== gen.defaults.base.trim() && (
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="ml-auto"
                     onClick={() => setForm((f) => ({ ...f, prompt: gen.defaults!.base, negative: gen.defaults!.negative }))}
                   >
                     Use {gen.name}'s prompt

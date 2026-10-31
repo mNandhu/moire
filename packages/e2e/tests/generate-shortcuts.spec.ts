@@ -76,3 +76,29 @@ test("a batch still in the queue when Clear is pressed stays once done", async (
   await page.reload();
   await expect(panels.first()).toBeVisible();
 });
+
+test("Clean up takes out repeated tags and stray commas, and Ctrl+Z brings them back", async ({ page }) => {
+  await page.goto("/generate");
+  const prompt = page.getByLabel("Prompt", { exact: true });
+  const messy = "1girl,, smile, red hair, smile ,";
+  await prompt.fill(messy);
+  const clean = page.getByRole("button", { name: "Clean up" });
+  await clean.click();
+  await expect(prompt).toHaveValue("1girl, smile, red hair");
+  await expect(clean).toHaveCount(0);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(prompt).toHaveValue(messy);
+});
+
+test("after a click on + the arrow keys go on stepping", async ({ page }) => {
+  await page.goto("/generate");
+  const images = page.getByRole("spinbutton", { name: "Images", exact: true });
+  await images.fill("4");
+  await page.getByRole("button", { name: "More Images" }).click();
+  await expect(images).toHaveValue("5");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowUp");
+  await expect(images).toHaveValue("7");
+  await page.keyboard.press("ArrowLeft");
+  await expect(images).toHaveValue("6");
+});
