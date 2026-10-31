@@ -743,7 +743,9 @@ export function useLoraWords(name: string | null, { describe = false } = {}) {
     queryFn: ({ signal }) =>
       api<LoraWord[]>(`${BASE}/lora-words?name=${encodeURIComponent(name!)}${describe ? "&describe=1" : ""}`, { signal }),
     enabled: !!name,
-    staleTime: 5 * 60_000,
+    // Short: an answer given while ComfyUI was down lacks the file's words.
+    // The server keeps the slow parts itself.
+    staleTime: 30_000,
   });
 }
 

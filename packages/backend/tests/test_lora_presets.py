@@ -187,9 +187,36 @@ async def test_file_metadata_is_read_once_per_file(client, seed):
             calls.append(name)
             return await super().lora_metadata(name)
 
-    first = await lora_words.suggestions("niji.safetensors", Counting())
-    again = await lora_words.suggestions("niji.safetensors", Counting())
-    assert first == again and calls == ["niji.safetensors"]
+    c = Counting()
+    first, twin = await asyncio.gather(
+        lora_words.suggestions("niji.safetensors", c),
+        lora_words.suggestions("niji.safetensors", c),
+    )
+    again = await lora_words.suggestions("niji.safetensors", c)
+    # Two asks at once share one read; a later one reads from memory.
+    assert first == twin == again and calls == ["niji.safetensors"]
+    # Another ComfyUI (a new client) reads its own.
+    await lora_words.suggestions("niji.safetensors", Counting())
+    assert calls == ["niji.safetensors"] * 2
+
+
+async def test_a_failed_or_empty_read_is_not_kept(client, seed):
+    await asyncio.to_thread(_library, seed)
+    answers = [None, json.dumps({"a": {"0_11xx_b": 40}})]
+
+    class Flaky:
+        async def lora_metadata(self, name):
+            a = answers.pop(0)
+            return {"ss_tag_frequency": a} if a else None
+
+    c = Flaky()
+    assert not [
+        w
+        for w in await lora_words.suggestions("niji.safetensors", c)
+        if "file" in w["sources"]
+    ]
+    words = await lora_words.suggestions("niji.safetensors", c)
+    assert ("0_11xx_b", ["file"]) in [(w["word"], w["sources"]) for w in words]
 
 
 async def test_no_wait_on_comfyui_when_it_is_down(client, seed, monkeypatch):
@@ -199,6 +226,7 @@ async def test_no_wait_on_comfyui_when_it_is_down(client, seed, monkeypatch):
     m = get_generation_manager()
     monkeypatch.setattr(m, "client", _FakeClient())
     monkeypatch.setattr(m, "connected", False)
+    monkeypatch.setattr(m, "error", "ConnectTimeout")
     words = (
         await client.get(
             "/generate/lora-words", params={"name": "styles/niji.safetensors"}

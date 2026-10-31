@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+import weakref
 from typing import Any
 
 import sqlalchemy as sa
@@ -222,15 +223,33 @@ async def _common(words: list[str], stem: str) -> set[str]:
     return {bases[b] for b, c in rows if b in bases and c / total >= COMMON}
 
 
-# A LoRA file's metadata by name: its header doesn't change, and reading it
-# is a round trip to ComfyUI each time. Failures aren't kept.
-_meta: dict[str, dict[str, Any] | None] = {}
+# A LoRA file's metadata by name, per ComfyUI client (a new address in
+# Settings is a new client, so a new cache): reading it is a round trip to
+# ComfyUI each time. An entry is the read itself, so two asks at once share
+# it; it lasts a while (a file can be replaced under its name), and a read
+# that failed or found nothing isn't kept.
+_META_TTL = 600.0
+_meta: weakref.WeakKeyDictionary[Any, dict[str, tuple[float, asyncio.Task]]] = (
+    weakref.WeakKeyDictionary()
+)
 
 
 async def _metadata(client: ComfyClient, name: str) -> dict[str, Any] | None:
-    if name not in _meta:
-        _meta[name] = await client.lora_metadata(name)
-    return _meta[name]
+    cache = _meta.setdefault(client, {})
+    hit = cache.get(name)
+    if hit is None or time.monotonic() - hit[0] > _META_TTL:
+        hit = (time.monotonic(), asyncio.ensure_future(client.lora_metadata(name)))
+        cache[name] = hit
+    task = hit[1]
+    try:
+        meta = await asyncio.shield(task)
+    except BaseException:
+        if task.done() and cache.get(name) is hit:
+            cache.pop(name, None)
+        raise
+    if meta is None and cache.get(name) is hit:
+        cache.pop(name, None)
+    return meta
 
 
 async def _file(
@@ -264,6 +283,8 @@ async def suggestions(
 ) -> list[dict[str, Any]]:
     """Words to offer for the LoRA file ``name``: each with where it came
     from (``file``, ``library``) and, from the library, in how many prompts."""
+    # Counted once up front: both halves below measure against it.
+    await _prompt_total()
     # The library's counts and ComfyUI's read of the file, side by side.
     lib, file = await asyncio.gather(
         _library(model_stem(name)), _file(client, name, describe)

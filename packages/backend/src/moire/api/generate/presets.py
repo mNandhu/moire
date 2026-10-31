@@ -55,9 +55,9 @@ preset_routes("/lora-presets", lora_presets.store)
 async def lora_words(name: str, describe: bool = False):
     """Suggested activation words for the installed LoRA file ``name``;
     ``describe`` keeps training tags common in the library (a character
-    LoRA's hair and eyes). With ComfyUI down, the library's words alone: no
-    wait on its connect timeout for the file's."""
+    LoRA's hair and eyes). With ComfyUI known to be down, the library's
+    words alone: no wait on its connect timeout for the file's. Not checked
+    yet (just started) counts as up."""
     m = get_generation_manager()
-    return await lora_suggestions(
-        name, m.client if m.connected else None, describe=describe
-    )
+    up = m.connected or m.error is None
+    return await lora_suggestions(name, m.client if up else None, describe=describe)

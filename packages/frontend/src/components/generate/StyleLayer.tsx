@@ -40,22 +40,17 @@ function LoraPresetDialog({
   lora,
   preset,
   initialText,
-  initialStrength,
   onSaved,
 }: {
   onClose: () => void;
   lora: string;
   preset: LoraPreset | null;
   initialText: string;
-  /** A new preset's strength to start from (the LoRA's own now). */
-  initialStrength?: number;
   onSaved: (p: LoraPreset | null) => void;
 }) {
   const [name, setName] = useState(preset?.name ?? "");
   const [text, setText] = useState(preset?.text ?? initialText);
-  const [strength, setStrength] = useState(
-    preset ? (preset.strength != null ? String(preset.strength) : "") : initialStrength != null ? String(initialStrength) : "",
-  );
+  const [strength, setStrength] = useState(preset?.strength != null ? String(preset.strength) : "");
   const { data: words, isPending: wordsLoading } = useLoraWords(lora);
   const parsed = strength.trim() === "" ? null : Number(strength);
   const badStrength = parsed !== null && (!Number.isFinite(parsed) || parsed < -2 || parsed > 2);
@@ -166,7 +161,9 @@ function LoraRow({
   presets: readonly LoraPreset[] | undefined;
   invalid: boolean;
 }) {
-  const [dialog, setDialog] = useState<"edit" | "new" | null>(null);
+  // Edit holds the preset it opened on: the list refetching without it
+  // must not turn the dialog into a New one.
+  const [dialog, setDialog] = useState<{ edit: LoraPreset } | "new" | null>(null);
   const mine = presetsOf(lora.name, presets);
   const current = lora.preset ? (mine.find((p) => p._id === lora.preset!.id) ?? null) : null;
   const words = loraWords(lora, presets);
@@ -198,7 +195,7 @@ function LoraRow({
         </div>
         {/* New is in the picker; Edit only once one is picked. */}
         {current && (
-          <Button size="sm" variant="ghost" onClick={() => setDialog("edit")} title="Edit this preset">
+          <Button size="sm" variant="ghost" onClick={() => current && setDialog({ edit: current })} title="Edit this preset">
             Edit
           </Button>
         )}
@@ -240,12 +237,11 @@ function LoraRow({
         <LoraPresetDialog
           onClose={() => setDialog(null)}
           lora={lora.name}
-          preset={dialog === "edit" ? current : null}
+          preset={dialog === "new" ? null : dialog.edit}
           initialText={dialog === "new" ? words : ""}
-          initialStrength={lora.strength}
           onSaved={(p) => {
             if (p) pick(p);
-            else if (dialog === "edit") onChange({ ...lora, preset: null });
+            else if (dialog !== "new") onChange({ ...lora, preset: null });
           }}
         />
       )}
