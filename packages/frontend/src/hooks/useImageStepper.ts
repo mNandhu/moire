@@ -5,6 +5,7 @@ import { useImageFeed } from "./useImageFeed";
 import { imageHref, serializeFilters, type Filters } from "../lib/imageFilter";
 import { fetchImage } from "../lib/imageApi";
 import { imageDocKey } from "../lib/feedCache";
+import { getBackgroundLocation } from "../lib/backgroundLocation";
 import { imageFileUrl, loadImage, resolveMediaUrl } from "../lib/media";
 
 // How long a fetched image doc stays fresh. Shared by the current-image query
@@ -20,8 +21,9 @@ const MAX_HOLD_MS = 2000;
  * ImageView's walk through the shared Image feed. `routeId` is where the URL
  * points; the returned `id` is the image actually on screen. They diverge
  * only while a not-yet-decoded image is being waited on (`pending`); see the
- * commit-on-decode effect below. `index` tracks `routeId`, not `id`.
- * Owns the neighbour preload, paging the feed ahead, and stepping.
+ * commit-on-decode effect below. `index` tracks `routeId`, not `id`; `shown`
+ * is the feed item on screen. Owns the neighbour preload, paging the feed
+ * ahead, stepping, and leaving the view.
  */
 export function useImageStepper(filters: Filters, routeId: string | undefined) {
   const navigate = useNavigate();
@@ -64,6 +66,19 @@ export function useImageStepper(filters: Filters, routeId: string | undefined) {
       navigate(toImage(imgId), { replace: true, state: location.state }),
     [navigate, toImage, location.state],
   );
+  // Set when opened over the gallery (see RootRoutes); absent on a direct
+  // link or refresh, where this view is the only thing on the page.
+  const backgroundLocation = getBackgroundLocation(location);
+  // Closing the view: if it was opened over the gallery, go back to that exact
+  // history entry (cheap, the gallery never unmounted) instead of pushing a
+  // fresh navigation to it.
+  const goBack = useCallback(() => {
+    if (backgroundLocation) {
+      navigate(-1);
+    } else {
+      navigate(`/${filterQuery ? `?${filterQuery}` : ""}`);
+    }
+  }, [backgroundLocation, navigate, filterQuery]);
 
   const feed = useImageFeed(filters);
   const list = feed.items;
@@ -71,6 +86,10 @@ export function useImageStepper(filters: Filters, routeId: string | undefined) {
     () => (routeId ? list.findIndex((x) => x._id === routeId) : -1),
     [routeId, list],
   );
+  // The feed item for the image on screen (by `id`, not `index`: those
+  // diverge while a step is held pending). A deep link's image may not be in
+  // the feed at all.
+  const shown = useMemo(() => list.find((x) => x._id === id), [id, list]);
 
   // The file URL is derived synchronously from the id, so the very first render
   // after an arrow-key navigation already points at the right image. The async
@@ -277,5 +296,5 @@ export function useImageStepper(filters: Filters, routeId: string | undefined) {
 
   const hasMore = feed.hasNextPage;
 
-  return { id, pending, index, list, fileUrl, goPrev, goNext, hasMore, filterQuery };
+  return { id, shown, pending, index, list, fileUrl, goPrev, goNext, goBack, hasMore };
 }

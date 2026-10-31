@@ -104,8 +104,9 @@ test.describe("at phone width", () => {
     let last = "";
     await expect
       .poll(async () => {
-        const now = JSON.stringify(await loc.boundingBox());
-        const still = now === last;
+        const box = await loc.boundingBox();
+        const now = JSON.stringify(box);
+        const still = box !== null && now === last;
         last = now;
         return still;
       })

@@ -1,16 +1,17 @@
 import type React from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { snapSheet } from "../lib/sheetSnap";
 
 // The phone's details sheet: how much of it shows at rest, below the image.
-export const SHEET_PEEK = "45dvh";
-const SHEET_PEEK_FRACTION = 0.45;
+const SHEET_PEEK_PERCENT = 45;
+export const SHEET_PEEK = `${SHEET_PEEK_PERCENT}dvh`;
 
 /**
  * ImageView's details panel: open or collapsed, and on a phone a sheet over
  * the image's lower part, resting at a peek, under the image, or pulled up to
  * read; dragged by its top. `sheetDrag` goes on whatever drags the sheet
- * (empty off a phone); `asideRef` on the sheet itself, which sizes the stops.
+ * (empty off a phone); `asideRef` and `sheetStyle` on the sheet itself (the
+ * ref sizes the stops, the style places it at one or under the finger).
  */
 export function useDetailsSheet(phone: boolean) {
   // Docked beside the image from lg up; below that the panel is a drawer over
@@ -26,7 +27,7 @@ export function useDetailsSheet(phone: boolean) {
   // Down from fully open, px: open, peek, closed.
   const sheetStops = () => {
     const h = asideRef.current?.offsetHeight ?? window.innerHeight;
-    return [0, h - window.innerHeight * SHEET_PEEK_FRACTION, h];
+    return [0, h - (window.innerHeight * SHEET_PEEK_PERCENT) / 100, h];
   };
   const sheetDrag: React.HTMLAttributes<HTMLDivElement> = phone
     ? {
@@ -87,5 +88,30 @@ export function useDetailsSheet(phone: boolean) {
         },
       }
     : {};
-  return { infoOpen, setInfoOpen, sheet, setSheet, dragY, sheetDrag, asideRef };
+  // Leaving phone width mid-drag (a rotation) takes the handlers that would
+  // end it; drop the drag so the sheet isn't left where the finger was.
+  useEffect(() => {
+    if (phone) return;
+    dragRef.current = null;
+    setDragY(null);
+  }, [phone]);
+  // Opens the panel; on a phone, at the peek.
+  const open = () => {
+    setSheet("peek");
+    setInfoOpen(true);
+  };
+  const sheetStyle: React.CSSProperties | undefined = phone
+    ? {
+        transform:
+          dragY != null
+            ? `translateY(${dragY}px)`
+            : !infoOpen
+              ? "translateY(100%)"
+              : sheet === "peek"
+                ? `translateY(calc(100% - ${SHEET_PEEK}))`
+                : "none",
+        transition: dragY != null ? "none" : undefined,
+      }
+    : undefined;
+  return { infoOpen, setInfoOpen, open, sheet, setSheet, dragging: dragY != null, sheetDrag, sheetStyle, asideRef };
 }

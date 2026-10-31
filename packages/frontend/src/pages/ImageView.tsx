@@ -7,12 +7,9 @@ import React, {
 } from "react";
 import {
   Link,
-  useLocation,
-  useNavigate,
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import { getBackgroundLocation } from "../lib/backgroundLocation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { errorText } from "../lib/api";
 import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Ban, Download, FolderOpen, PanelRight } from "lucide-react";
@@ -52,17 +49,12 @@ export default function ImageView() {
   // `routeId` is where the URL points; `id` is the image actually on screen
   // (see useImageStepper).
   const { id: routeId } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const location = useLocation();
-  // Set when opened over the gallery (see RootRoutes); absent on a direct
-  // link or refresh, where this view is the only thing on the page.
-  const backgroundLocation = getBackgroundLocation(location);
   const [searchParams] = useSearchParams();
   const { push } = useToast();
   const queryClient = useQueryClient();
   // On a phone the panel is a sheet over the image's lower part (see useDetailsSheet).
   const phone = useMediaQuery("(max-width: 639px)");
-  const { infoOpen, setInfoOpen, sheet, setSheet, dragY, sheetDrag, asideRef } = useDetailsSheet(phone);
+  const { infoOpen, setInfoOpen, open, sheet, setSheet, dragging, sheetDrag, sheetStyle, asideRef } = useDetailsSheet(phone);
   // The details panel's scroller and its content, for PromptBlock to fit the
   // prompt into the room left over (see PanelFit).
   const [panelScroller, setPanelScroller] = useState<HTMLDivElement | null>(null);
@@ -81,19 +73,8 @@ export default function ImageView() {
   // Image filter carried in the URL, drives the shared Image feed so the
   // pages the gallery already fetched are reused here (no separate paging code).
   const filters = useMemo(() => parseFilters(searchParams), [searchParams]);
-  const { id, pending, index, list, fileUrl, goPrev, goNext, hasMore, filterQuery } =
+  const { id, shown, pending, index, list, fileUrl, goPrev, goNext, goBack, hasMore } =
     useImageStepper(filters, routeId);
-  // Closing the view: if it was opened over the gallery, go back to that exact
-  // history entry (cheap, the gallery never unmounted) instead of pushing a
-  // fresh navigation to it.
-  const goBack = useCallback(() => {
-    if (backgroundLocation) {
-      navigate(-1);
-    } else {
-      navigate(`/${filterQuery ? `?${filterQuery}` : ""}`);
-    }
-  }, [backgroundLocation, navigate, filterQuery]);
-
   // Current image document (full doc with tags/rating); refetched after edits.
   const { data, refetch, dataUpdatedAt } = useQuery({
     queryKey: imageDocKey(id!),
@@ -181,28 +162,18 @@ export default function ImageView() {
     }
   }, [id, push]);
 
-
-
   // Blur-up placeholder shown under the original while it loads. Reuses the
   // exact thumb URL the gallery tile rendered (when the feed item is known)
   // so the browser serves it from cache instead of refetching; the thumb is
-  // almost always already decoded from scrolling past it in the grid. Looked
-  // up by `id` (the image on screen), not `index` (which tracks `routeId`);
-  // those diverge while a navigation is held pending, and keying off the
-  // route target would show the *next* image's thumb under the current one.
-  const thumbUrl = useMemo(() => {
-    if (!id) return null;
-    const item = list.find((x) => x._id === id);
-    // A deep link's image isn't in the feed: its doc carries the URL.
-    return item?.thumb_url ?? data?.thumb_url ?? null;
-  }, [id, list, data]);
-  const listItem = useMemo(() => list.find((x) => x._id === id), [id, list]);
+  // almost always already decoded from scrolling past it in the grid. Read
+  // off `shown` (the image on screen), not the route target, which would show
+  // the *next* image's thumb under the current one while a step is held.
+  // A deep link's image isn't in the feed: its doc carries the URL.
+  const thumbUrl = (id && (shown?.thumb_url ?? data?.thumb_url)) || null;
   const [thumbFailed, setThumbFailed] = useState(false);
   useEffect(() => {
     setThumbFailed(false);
   }, [thumbUrl]);
-
-
 
   // This view IS the overlay, so it keeps listening while one is open.
   useHotkeys(
@@ -339,8 +310,8 @@ export default function ImageView() {
   // image the URL points at: either holding the previous frame while the next
   // one decodes (`pending`), or a fresh mount with nothing painted yet.
   const busy = pending || !imgLoaded;
-  const stageW = listItem?.width ?? data?.width;
-  const stageH = listItem?.height ?? data?.height;
+  const stageW = shown?.width ?? data?.width;
+  const stageH = shown?.height ?? data?.height;
 
   return (
     <div
@@ -371,10 +342,7 @@ export default function ImageView() {
         {/* Reopen details panel (overlay when collapsed) */}
         {!infoOpen && (
           <button
-            onClick={() => {
-              setSheet("peek");
-              setInfoOpen(true);
-            }}
+            onClick={open}
             className={`absolute top-4 right-4 z-50 ${OVERLAY_BTN}`}
             title="Show details"
             aria-label="Show details"
@@ -436,8 +404,8 @@ export default function ImageView() {
               src={thumbUrl}
               alt=""
               aria-hidden="true"
-              width={listItem?.width ?? data?.width ?? undefined}
-              height={listItem?.height ?? data?.height ?? undefined}
+              width={shown?.width ?? data?.width ?? undefined}
+              height={shown?.height ?? data?.height ?? undefined}
               onError={() => setThumbFailed(true)}
               className={`${stageW && stageH ? "w-full h-full" : "max-w-full max-h-dvh w-auto h-auto"} object-contain blur-xl scale-105 transition-opacity duration-300 ${
                 imgLoaded || thumbFailed ? "opacity-0" : "opacity-100"
@@ -502,27 +470,13 @@ export default function ImageView() {
           phone
             ? `fixed inset-x-0 bottom-0 z-[60] h-[92dvh] flex flex-col rounded-t-2xl border-t border-line-strong bg-surface transition-transform duration-300 ease-out ${
                 // Closed, it sits just below the screen: no shadow up over the image.
-                infoOpen || dragY != null ? "shadow-xl shadow-black/50" : ""
+                infoOpen || dragging ? "shadow-xl shadow-black/50" : ""
               }`
             : `fixed lg:static inset-y-0 right-0 z-[60] h-dvh lg:h-full w-full sm:w-[380px] lg:w-[400px] lg:shrink-0 flex flex-col border-l border-line bg-surface shadow-xl shadow-black/30 lg:shadow-none transition-transform duration-300 ease-out lg:transition-none ${
                 infoOpen ? "translate-x-0 lg:flex" : "translate-x-full lg:hidden"
               }`
         }
-        style={
-          phone
-            ? {
-                transform:
-                  dragY != null
-                    ? `translateY(${dragY}px)`
-                    : !infoOpen
-                      ? "translateY(100%)"
-                      : sheet === "peek"
-                        ? `translateY(calc(100% - ${SHEET_PEEK}))`
-                        : "none",
-                transition: dragY != null ? "none" : undefined,
-              }
-            : undefined
-        }
+        style={sheetStyle}
       >
         {phone && (
           <div {...sheetDrag} className="flex shrink-0 justify-center pt-1.5">
