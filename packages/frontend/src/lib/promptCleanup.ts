@@ -1,11 +1,15 @@
 /**
- * Tidying a prompt in one go: a plain tag written twice keeps its first
- * place, and commas with nothing between them, or before the first term,
- * or after the last, go. Weighted, bracketed or grouped terms are left
- * alone (a repeat there is on purpose), as are escaped commas (`\,`).
- * Terms are read by promptOutline, the board's own splitter. Pure.
+ * Tidying a prompt in one go: a tag written twice keeps its first place,
+ * however either copy is weighted or grouped (`(masterpiece:1.1), masterpiece`),
+ * with the heaviest copy's weight (`smile, (smile:1.3)` is `(smile:1.3)`),
+ * and commas with nothing between them, or before the first term, or after
+ * the last, go. What promptRepeats leaves alone stays (a LoRA, a side of a
+ * prompt edit, a group in an `AND` prompt), as do escaped commas (`\,`).
+ * Pure.
  */
-import { promptTerms, removeTerms } from "./promptOutline";
+import { removeTerms } from "./promptOutline";
+import { topTerms } from "./promptRepeats";
+import { formatWeight } from "./tags";
 
 export type PromptCleanup = { text: string; repeats: number; commas: number };
 
@@ -13,21 +17,35 @@ export type PromptCleanup = { text: string; repeats: number; commas: number };
  * (each chunk or region is read on its own). */
 const SPLITS = /\b(?:BREAK|AND)\b/g;
 
-/** The prompt's plain top-level tags written again after their first
- * place in the same chunk. */
-function repeatedTerms(text: string): { start: number; end: number }[] {
+type Span = { start: number; end: number };
+
+/** The prompt's tags written again in the same chunk: the copies to drop,
+ * and where the kept one is rewritten to carry a heavier copy's weight. The
+ * first place stays; when it sits in a group (whose weight it shares) the
+ * heaviest copy stays instead. */
+function repeatedTerms(text: string): { drop: Span[]; reweigh: (Span & { text: string })[] } {
   const splits = [...text.matchAll(SPLITS)].map((m) => m.index);
-  let next = 0;
-  let seen = new Set<string>();
-  const out: { start: number; end: number }[] = [];
-  for (const t of promptTerms(text)) {
-    for (; next < splits.length && splits[next] < t.start; next++) seen = new Set();
-    const plain = !t.grouped && t.kind === "tag" && t.start === t.nameStart && t.end === t.nameEnd;
-    if (!plain) continue;
-    if (seen.has(t.name)) out.push({ start: t.start, end: t.end });
-    else seen.add(t.name);
+  const chunk = (at: number) => splits.filter((s) => s < at).length;
+  const copies = new Map<string, ReturnType<typeof topTerms>>();
+  for (const t of topTerms(text)) {
+    if (!t.key || t.kind !== "tag") continue;
+    const k = `${chunk(t.start)}:${t.key}`;
+    copies.set(k, [...(copies.get(k) ?? []), t]);
   }
-  return out;
+  const drop: Span[] = [];
+  const reweigh: (Span & { text: string })[] = [];
+  for (const [first, ...rest] of copies.values()) {
+    if (!rest.length) continue;
+    const heaviest = rest.reduce((a, b) => (b.weight > a.weight ? b : a));
+    if (heaviest.weight <= first.weight) drop.push(...rest);
+    else if (first.grouped) drop.push(first, ...rest.filter((t) => t !== heaviest));
+    else {
+      drop.push(...rest);
+      const name = text.slice(first.nameStart, first.nameEnd);
+      reweigh.push({ start: first.start, end: first.end, text: `(${name}:${formatWeight(heaviest.weight)})` });
+    }
+  }
+  return { drop, reweigh };
 }
 
 // A comma that isn't escaped.
@@ -63,8 +81,14 @@ function tidyCommas(text: string): { text: string; commas: number } {
 
 /** `text` tidied, with what changed; the same text when nothing would. */
 export function cleanPrompt(text: string): PromptCleanup {
-  const repeats = repeatedTerms(text);
-  const deduped = repeats.length ? removeTerms(text, repeats) : text;
+  // The kept copies take their weight first (from the end, so the earlier
+  // offsets hold); read again, nothing is heavier than its first place.
+  let weighed = text;
+  for (const r of repeatedTerms(text).reweigh.sort((a, b) => b.start - a.start)) {
+    weighed = weighed.slice(0, r.start) + r.text + weighed.slice(r.end);
+  }
+  const repeats = repeatedTerms(weighed).drop;
+  const deduped = repeats.length ? removeTerms(weighed, repeats) : weighed;
   // removeTerms takes each term's own separator, so what's left over is
   // the writer's own strays.
   const { text: tidied, commas } = tidyCommas(deduped);

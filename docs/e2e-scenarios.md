@@ -62,7 +62,7 @@ Click Clear under the output batches. Expected: they leave the column (Generatio
 
 ### Clean up the Prompt
 
-Write a Prompt with a tag twice and doubled or trailing commas; click Clean up in the Prompt card's header. Expected: the second copy and the stray commas go (weighted or grouped repeats stay), the button goes away, and Ctrl/Cmd+Z brings the text back.
+Write a Prompt with a tag twice and doubled or trailing commas; click Clean up in the Prompt card's header. Expected: the second copy and the stray commas go (weighted or grouped copies count too and the kept one takes the heaviest weight; a group in a chunk split by AND stays), the button goes away, and Ctrl/Cmd+Z brings the text back.
 
 ### Arrow keys after a stepper's + or -
 

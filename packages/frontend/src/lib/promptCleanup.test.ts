@@ -8,9 +8,27 @@ describe("cleanPrompt", () => {
     expect(c.repeats).toBe(2);
   });
 
-  it("leaves weighted, bracketed and grouped repeats alone", () => {
-    const text = "smile, (smile:1.2), (eula, smile) AND (furina, smile)";
+  it("counts weighted and grouped copies, keeping the first place", () => {
+    const remixed = "(xxx667_illu, masterpiece,best quality, source_anime,:1.1), model_style, 1girl, masterpiece, best_quality";
+    const c = cleanPrompt(remixed);
+    expect(c.text).toBe("(xxx667_illu, masterpiece,best quality, source_anime,:1.1), model_style, 1girl");
+    expect(c.repeats).toBe(2);
+  });
+
+  it("gives the kept copy the heaviest copy's weight", () => {
+    expect(cleanPrompt("smile, (smile:1.3), 1girl").text).toBe("(smile:1.3), 1girl");
+    expect(cleanPrompt("(smile:1.3), smile, (smile:0.8)").text).toBe("(smile:1.3)");
+    expect(cleanPrompt("1girl, (smile, 1girl:1.1)").text).toBe("(1girl:1.1), (smile:1.1)");
+    // Several at once, the offsets still right.
+    expect(cleanPrompt("cat, dog, (dog:1.2), (cat:1.4)").text).toBe("(cat:1.4), (dog:1.2)");
+    // A first place in a group shares its weight: the heaviest copy stays.
+    expect(cleanPrompt("(smile, sky:1.1), (smile:1.3)").text).toBe("(sky:1.1), (smile:1.3)");
+  });
+
+  it("leaves grouped repeats in an AND prompt and prompt edits alone", () => {
+    const text = "smile, (eula, smile) AND (furina, smile)";
     expect(cleanPrompt(text).text).toBe(text);
+    expect(cleanPrompt("sketch, [masterpiece:sketch:0.5]").text).toBe("sketch, [masterpiece:sketch:0.5]");
   });
 
   it("drops doubled, leading and trailing commas and spaces before one", () => {

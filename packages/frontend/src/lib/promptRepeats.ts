@@ -1,24 +1,45 @@
 /**
  * Tags written in the Prompt that a layer already sends: the Prefix, or a
- * character with what they wear. Only plain top-level terms
- * count: anything weighted, bracketed or inside a group (`(1girl, eula) AND
- * (1girl, furina)`) is left alone, since a repeat there is on purpose.
- * Terms are read by promptOutline, the board's own splitter.
+ * character with what they wear. A tag counts however it is written: bare,
+ * weighted, or inside a weighted group (`(masterpiece, best quality:1.1)`,
+ * as a remixed prompt often has it). Left alone: LoRAs and embeddings, a
+ * side of a prompt edit (`[a:b:0.5]`, which goes whole), and anything
+ * grouped in a chunk split by `AND` (`(1girl, eula) AND (1girl, furina)`),
+ * where a repeat is on purpose. Terms are read by promptOutline, the
+ * board's own splitter.
  */
-import { promptTerms, removeTerms } from "./promptOutline";
+import { promptTerms, removeTerms, type PromptTerm } from "./promptOutline";
 import { canonicalName } from "./tags";
 
-type Term = { start: number; end: number; key: string | null };
+type Term = {
+  start: number;
+  end: number;
+  nameStart: number;
+  nameEnd: number;
+  key: string | null;
+  kind: PromptTerm["kind"];
+  /** As ComfyUI reads it, group and nesting included. */
+  weight: number;
+  grouped: boolean;
+};
 
-/** The prompt's terms outside groups, with where each sits; `key` is its
- * tag name, null for anything not a plain tag (weighted, bracketed, a LoRA
- * or embedding). */
-function topTerms(text: string): Term[] {
+const BREAKS = /\bBREAK\b/g;
+const REGIONS = /\bAND\b/;
+
+/** The prompt's terms that count, with where each sits; `key` is its tag
+ * name, null for a LoRA, an embedding or a side of a prompt edit. A grouped
+ * term in a chunk (between `BREAK`s) split by `AND` is left out. Pure. */
+export function topTerms(text: string): Term[] {
+  // Where each chunk ends, and whether `AND` splits it into regions.
+  const ends = [...[...text.matchAll(BREAKS)].map((m) => m.index), text.length];
+  const regions = ends.map((end, i) => REGIONS.test(text.slice(i ? ends[i - 1] : 0, end)));
+  const regional = (at: number) => regions[ends.findIndex((end) => at < end)] ?? false;
   return promptTerms(text)
-    .filter((t) => !t.grouped)
+    .filter((t) => !t.grouped || !regional(t.start))
     .map((t) => {
-      const plain = t.kind !== "lora" && t.kind !== "embedding" && t.start === t.nameStart && t.end === t.nameEnd;
-      return { start: t.start, end: t.end, key: plain ? t.name : null };
+      const tag = t.kind !== "lora" && t.kind !== "embedding" && !t.inEdit;
+      const { start, end, nameStart, nameEnd, kind, grouped } = t;
+      return { start, end, nameStart, nameEnd, key: tag ? t.name : null, kind, weight: t.weight ?? 1, grouped };
     });
 }
 

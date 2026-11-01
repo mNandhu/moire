@@ -32,6 +32,8 @@ export type PromptTerm = {
   /** Shares a group with other terms (`(a, b:1.2)`), or sits in one left
    * open. A group around this term alone is part of its piece instead. */
   grouped: boolean;
+  /** One side of a prompt edit (`[from:to:0.5]`), which goes whole. */
+  inEdit?: boolean;
 };
 
 /** What separates terms, besides `BREAK` / `AND` and an escaped comma. */
@@ -394,6 +396,8 @@ function placeTerms(text: string): Placed[] {
     placed.push({ term, group: p.group });
   }
   return placed.map(({ term, group }) => {
+    let inEdit = false;
+    for (let e = group; e; e = e.parent) inEdit ||= !!e.edit;
     let g = group;
     let { start, end } = term;
     while (g && g.close >= 0 && g.terms === 1) {
@@ -401,7 +405,7 @@ function placeTerms(text: string): Placed[] {
       end = g.close + 1;
       g = g.parent;
     }
-    return { term: { ...term, start, end, grouped: g !== null }, group: g };
+    return { term: { ...term, start, end, grouped: g !== null, ...(inEdit && { inEdit }) }, group: g };
   });
 }
 
