@@ -3,6 +3,7 @@ name = "moire-studio"
 version = "0.1.0"
 description = "Organize, tag and generate AI images: a local gallery for your ComfyUI outputs"
 readme = "README.md"
+license = "AGPL-3.0-or-later"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi[standard]",

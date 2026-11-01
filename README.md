@@ -10,7 +10,7 @@ Everything runs on your machine as a single process with an embedded database, a
 
 <p align="center">
   <a href="https://github.com/mNandhu/moire/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/mNandhu/moire/ci.yml?branch=main&label=CI" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="AGPL-3.0 license"></a>
   <img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Windows, macOS, Linux">
   <a href="https://github.com/mNandhu/moire/stargazers"><img src="https://img.shields.io/github/stars/mNandhu/moire?style=flat" alt="GitHub stars"></a>
@@ -172,4 +172,6 @@ Setup, tests and the project layout are in [CONTRIBUTING.md](CONTRIBUTING.md). S
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Moiré is licensed under the GNU Affero General Public License, version 3 or later (AGPL-3.0-or-later). If you change Moiré and let other people use your version, over a network or otherwise, you have to give them its source under the same license. The full text is in [LICENSE](LICENSE).
+
+Copyright (C) 2025-2026 Moiré Contributors.
