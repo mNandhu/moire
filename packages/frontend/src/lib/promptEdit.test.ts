@@ -76,6 +76,28 @@ describe("prompt weight keys", () => {
     expect(press("1girl ([smile]:1.05)", -0.05)).toBe("1girl ([smile]:1)");
   });
 
+  it("weighs the group when the caret is on its own brackets, separators or weight", () => {
+    const g = "(xxx_illu, masterpiece, source_anime,:1.1), model_style";
+    for (const at of [0, g.indexOf(",:") + 1, g.indexOf("1.1") + 2, g.indexOf(")"), g.indexOf(")") + 1]) {
+      const marked = g.slice(0, at) + "|" + g.slice(at);
+      expect(press(marked, 0.05)).toBe("([xxx_illu, masterpiece, source_anime,]:1.15), model_style");
+      expect(press(marked, -0.05)).toBe("([xxx_illu, masterpiece, source_anime,]:1.05), model_style");
+    }
+    // Back at 1 it goes bare, without doubling its trailing comma.
+    expect(press("(xxx_illu, source_anime,:1.0|5), model_style", -0.05)).toBe("[xxx_illu, source_anime], model_style");
+    // The innermost group, and a member still weighs alone.
+    expect(press("(a, (b, c,|:1.2):1.1)", 0.05)).toBe("(a, ([b, c,]:1.25):1.1)");
+    expect(press("(a|a, bb,:1.1)", 0.05)).toBe("(([aa]:1.15), bb,:1.1)");
+  });
+
+  it("steps a group from its own weight, whatever its members weigh", () => {
+    expect(press("((a:1.5), b,| c:1.1)", 0.05)).toBe("([(a:1.5), b, c]:1.15)");
+    expect(press("((a), b,| c)", 0.05)).toBe("([(a), b, c]:1.15)");
+    expect(press("(<lora:x:1>, a,| b:1.1)", 0.05)).toBe("([<lora:x:1>, a, b]:1.15)");
+    // Its trailing comma goes on the way back to 1, an escaped one stays.
+    expect(press("(a, b\\,:1.0|5), c", -0.05)).toBe("[a, b\\,], c");
+  });
+
   it("leaves LoRAs and separators alone", () => {
     expect(press("<lora:x:0.8|>", 0.05)).toBeNull();
     expect(press("cat,|  dog", 0.05)).toBeNull();

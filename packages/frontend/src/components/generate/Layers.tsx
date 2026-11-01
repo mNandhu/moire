@@ -14,6 +14,7 @@ import {
 import { presetText, type AddedKind, type PresetRef } from "../../lib/generateForm";
 import { PresetDialogShell } from "./PresetDialogShell";
 import { PresetPicker } from "./PresetPicker";
+import { onWeightKey } from "./weightKeys";
 
 /** A one-line layer: label, controls, and an optional remove button. */
 export function LayerRow({
@@ -151,6 +152,7 @@ function PresetDialog({
         aria-label="Preset text"
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => onWeightKey(e, setText)}
         rows={4}
         className="w-full resize-y rounded-lg border border-neutral-800 bg-neutral-950/70 px-3 py-2 font-mono text-xs text-neutral-100 outline-none focus:border-brand-600/60"
       />

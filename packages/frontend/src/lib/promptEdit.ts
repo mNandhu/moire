@@ -6,7 +6,7 @@
  * isn't finished (`hu_tao_(gen` is a qualifier not closed yet, not a group).
  * And Ctrl+Up / Ctrl+Down: a term's weight raised or lowered. Pure.
  */
-import { SEPARATORS, promptTerms, type PromptTerm } from "./promptOutline";
+import { SEPARATORS, promptTerms } from "./promptOutline";
 import { isEmbedding } from "./compose";
 import { formatWeight } from "./tags";
 
@@ -75,9 +75,31 @@ function selectionSpans(text: string, start: number, end: number): { inner: Span
   return { inner: { start: s, end: e }, outer: { start: s, end: e } };
 }
 
-/** The first term inside `span` of `terms`. */
-const firstIn = (terms: PromptTerm[], span: Span) =>
-  terms.find((t) => t.nameStart >= span.start && t.nameEnd <= span.end);
+/** The innermost `( … )` holding `caret` (on or between its brackets),
+ * escapes skipped; null when none. */
+function groupAround(text: string, caret: number): Span | null {
+  const open: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === "\\") i++;
+    else if (text[i] === "(") open.push(i);
+    else if (text[i] === ")" && open.length) {
+      const s = open.pop()!;
+      if (s <= caret && caret <= i + 1) {
+        // The first to close around the caret is the innermost.
+        return { start: s, end: i + 1 };
+      }
+    }
+  }
+  return null;
+}
+
+/** The weight ComfyUI gives what sits at `span` from its surroundings
+ * (wrapper, group, nesting), read off a one-word stand-in, so a group's own
+ * weight is not taken from a member weighted on its own. */
+function weightAt(text: string, span: Span): number {
+  const probe = text.slice(0, span.start) + "x" + text.slice(span.end);
+  return promptTerms(probe).find((t) => t.nameStart <= span.start && span.start < t.nameEnd)?.weight ?? 1;
+}
 
 /**
  * Ctrl+Up / Ctrl+Down in Generate's prompt: the weight of the term at the
@@ -105,21 +127,31 @@ export function bumpWeight(
     outer = { start: term.start, end: term.end };
   } else if (start !== end) {
     ({ inner, outer } = selectionSpans(text, start, end));
-  } else return null;
-  const first = firstIn(terms, inner);
-  if (!first || first.kind === "lora") return null;
-  const target = Math.max(0, Number(((first.weight ?? 1) + delta).toFixed(2)));
+  } else {
+    // On a group's own syntax (its brackets, a separator, its `:1.1`): the
+    // group is weighed.
+    const group = groupAround(text, start);
+    if (!group) return null;
+    ({ inner, outer } = selectionSpans(text, group.start, group.end));
+  }
+  // Something to weigh: the term itself, or a non-LoRA term in the span.
+  if (term ? term.kind === "lora" : !terms.some((t) => t.kind !== "lora" && t.nameStart >= inner.start && t.nameEnd <= inner.end)) {
+    return null;
+  }
+  const target = Math.max(0, Number((weightAt(text, inner) + delta).toFixed(2)));
   const body = text.slice(inner.start, inner.end);
   const head = text.slice(0, outer.start);
   const tail = text.slice(outer.end);
   // Bare when that already reads as the target (back to 1, or to the weight
   // of the group it sits in) and still splits the same: without its
   // brackets, `1girl (smile)` would run into one term.
-  const bare = head + body + tail;
-  const bareTerms = promptTerms(bare);
-  const there = firstIn(bareTerms, { start: outer.start, end: outer.start + body.length });
-  if (there && bareTerms.length === terms.length && Number((there.weight ?? 1).toFixed(2)) === target) {
-    return { text: bare, start: outer.start, end: outer.start + body.length };
+  // A group's trailing separator (`(a, b,:1.1)`) would double the one after
+  // it; an escaped comma (`b\,`) is text and stays.
+  const bareBody = body.replace(/(?<!\\)[,\s]+$/, "");
+  const bare = head + bareBody + tail;
+  const bareSpan = { start: outer.start, end: outer.start + bareBody.length };
+  if (promptTerms(bare).length === terms.length && Number(weightAt(bare, bareSpan).toFixed(2)) === target) {
+    return { text: bare, ...bareSpan };
   }
   return {
     text: `${head}(${body}:${formatWeight(target)})${tail}`,
