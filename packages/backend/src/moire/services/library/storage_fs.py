@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import stat
 import uuid
 from io import BytesIO
 from pathlib import Path
@@ -105,18 +106,53 @@ def thumb_path(key: str) -> Path | None:
 _unreadable: dict[str, int] = {}
 
 
-def thumb_stat(key: str) -> os.stat_result | None:
-    """The thumbnail file's stat, or None if it isn't on disk. Run for every
-    thumbnail URL in a list, so the traversal guard is lexical: `resolve()`
-    walks each path component and costs ~15x the stat."""
+def _lexical_path(key: str) -> str:
+    """The file path of a thumb key, refusing any that leave the root."""
     root = os.path.abspath(_root())
     p = os.path.normpath(os.path.join(root, key))
     if not key.strip("/") or not p.startswith(root + os.sep):
         raise ValueError(f"thumb key escapes root: {key!r}")
+    return p
+
+
+def thumb_stat(key: str) -> os.stat_result | None:
+    """The thumbnail file's stat, or None if it isn't on disk. Run for every
+    thumbnail URL in a list, so the traversal guard is lexical: `resolve()`
+    walks each path component and costs ~15x the stat."""
     try:
-        return os.stat(p)
+        return os.stat(_lexical_path(key))
     except FileNotFoundError:
         return None
+
+
+def read_thumb(
+    key: str, limit: int, need_body=None
+) -> tuple[os.stat_result, bytes | None] | None:
+    """Stat a thumbnail and read its bytes in one go, for a caller that runs
+    this in a single worker thread. The bytes are None when the file is over
+    `limit` (stream it instead) or `need_body(stat)` says they aren't wanted
+    (a 304). None when nothing servable is there: missing, not a regular
+    file, or a key that is not a plain path under the root. The key may come
+    from a URL's id, so a `..` part is refused as well as an escape, and no
+    such key is ever an error: the caller falls back to the DB's key."""
+    if ".." in key.split("/"):
+        return None
+    try:
+        fd = os.open(_lexical_path(key), os.O_RDONLY)
+    except (OSError, ValueError):
+        return None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            return None
+        if st.st_size > limit or (need_body is not None and not need_body(st)):
+            return st, None
+        chunks = []
+        while chunk := os.read(fd, 1 << 20):
+            chunks.append(chunk)
+        return st, b"".join(chunks)
+    finally:
+        os.close(fd)
 
 
 def small_thumb_path(key: str) -> Path | None:
