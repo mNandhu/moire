@@ -34,6 +34,12 @@ Effort: S (hours) · M (a day or so) · L (more)
 | D3 | API / DB | `image_tags` indexes not covering `(tag, image_id)` / `(base, image_id)` | Cold tag list 1.8s -> 0.24s @30k; +11-22% DB size | S | done (`aa9a4e6`, no `ix_images_cover`) |
 | D4 | API / DB | Tags `browse` covers via window fn sorting every image_tags row | ~10% alone; browse cold 9.8 -> 4.7s with D3 | S | done (`aa9a4e6`) |
 | D5 | API / DB | Characters listing uncached; `jsonable_encoder` on big lists; gzip on media | JSONResponse 3-5x on big lists; characters cache buggy | S | done (`aa9a4e6`; avatars live, gzip level 6) |
+| T1 | Thumbnails | `/thumb` does a DB lookup, a `resolve()` and several thread hops per tile, and gets slower with concurrency | Server 185 -> 847 req/s at 6 connections; browser TTFB 31 -> 7 ms | S-M | in progress (branch `perf/thumbnails`, `d11f1dd`, `683d70a`; reviewed and fixed; backend suite, e2e and benchmark not run) |
+| T2 | Thumbnails | A tile whose image already loaded this session still queues for a slot, decodes its BlurHash and fades for 500 ms | Scroll-back to fully visible 909 -> 31 ms (with T1) | S | in progress (branch `perf/thumbnails`, `dd1d305`, `621c1a2`, `38c2c44`; reviewed and fixed; e2e and benchmark not run) |
+| T3 | Thumbnails | The slot queue is FIFO, so tiles already scrolled past load before the visible ones | With T2: blank tiles during a flick 32 -> 17%, settle 151 -> 87 ms; split between T2 and T3 unresolved | S | in progress (branch `perf/thumbnails`, `a7b8eac`, `621c1a2`, `38c2c44`; reviewed and fixed; e2e and benchmark not run) |
+| T4 | Thumbnails | Other levers: event-loop reads, ASGI bypass, HTTP/2, 24 slots, `setswitchinterval`, `RWF_NOWAIT` | None worth taking | - | dropped (measured), see section |
+| T5 | Thumbnails | First tile takes ~730 ms in every variant, and the feed is only 7-20 ms | First thumbnail request -44 to -62% (prototype, box under load) | S-M | open (prototype measured, see section; re-measure on a quiet box) |
+| T6 | Thumbnails | WebP `method=6` instead of the default 4 | 3.2% smaller, encode ~2.3x slower | S + rebuild | dropped (measured), see section |
 
 ## Next steps (agreed order)
 
@@ -235,3 +241,181 @@ Prototype: WIP commit `3586e3c` (branch deleted after the port in `aa9a4e6`; sti
   - Result: stale for up to 30 s. 3 failing tests.
   - Fix: invalidate on every `update()` and after face-detector writes.
 - **`find_image` projection:** saves under 0.25 ms per call. Harmless, negligible.
+
+## Thumbnails (Nov 2026)
+
+Question: how long do gallery thumbnails take to load, and what helps other than making them smaller? The numbers below come from prototypes in a throwaway worktree, not the real versions (see Progress). Scripts and the frontend prototype diff are in `local-setup/thumb-bench/` (gitignored, its README has the setup).
+
+Setup: commit `073ab8f`, snapshot of a 4,103-image DB on disk, ~52 KB median WebP at 768px, server started with `--lifespan off` (no watchers, migrations, AI or ComfyUI workers). Thumbnails were read from the real `data/thumbs`, GET of the full size only, which writes nothing: a scratch copy on `/tmp` would have been tmpfs and hidden disk costs. Load test: raw keep-alive sockets, 2,500-3,000 requests. Browser: headless Chromium, 1920x1080, 30 tiles on screen, empty HTTP cache per run, medians of 5 runs (3 on WAN). "WAN" is Chromium's emulation: 40 ms latency, 50 Mbit/s.
+
+### Progress
+
+Tracked here; the summary table has the status of each finding.
+
+Done (2026-11-02):
+- T1, T2 and T3 implemented on branch `perf/thumbnails`, based on `073ab8f`: `d11f1dd` (T1), `dd1d305` (T2), `a7b8eac` (T3), `621c1a2` (fixes from reading the merge). Not on `main`, not pushed.
+- T6 measured and dropped, see its section below.
+- T5 investigated, nothing committed, see its section below.
+- High code review of `073ab8f..perf/thumbnails`: 10 findings, static only, none applied yet. Listed below, awaiting decisions.
+
+Next:
+1. Full backend suite and `pnpm e2e` on the branch. Both skipped on request for now (the backend run was stopped before finishing, so it has no result). So far: full vitest passed (1092) before the last two tests were added, then the hook and `ImageThumbnail` tests passed (35), `tsc` and eslint clean, 47 targeted backend tests passed, and T1's wider image and thumbnail tests passed before the fixes. Two commits skipped the pre-commit hook (`--no-verify`, no `node_modules` links); eslint was run by hand on the frontend files afterwards.
+2. Rerun `local-setup/thumb-bench` on the real versions and replace the prototype numbers. Check in a real browser: `img.complete` on an instant tile after memory-cache eviction, a reused tile changing `src`, and that nearest-first picks well in a very fast flick (the viewport it uses is the stepped `scrollTop`).
+3. Merge to `main`, once decided.
+4. Re-measure T5 on a quiet box, then decide which parts to do.
+
+Review findings (R1-R10). Decided 2026-11-02: fix R1-R6 and R8-R10 (R5: only send `Range` requests down the old path, leave HEAD as is); accept R7 for now (versioned URLs are `immutable`, so most come from cache; a real fix needs a slot unless already `complete`). Fixed in `683d70a` (backend) and `38c2c44` (frontend), on the branch, static review not repeated:
+- R1: `read_thumb` opens without `O_BINARY`, which corrupts bytes on Windows.
+- R2: the fast path serves any file at the derived key before asking the DB: a stale file after a failed rethumb, or a leftover after purging a row with a NULL key.
+- R3: an instant tile drops its BlurHash at `img.complete`, but with `decoding="async"` the image may not be decoded, so a tile could paint bare on scroll-back.
+- R4: the `..` guard splits on `/` only, so on Windows a backslash traversal reaches another library's thumbnail.
+- R5: GET and HEAD disagree on orphans, and the inline `Response` ignores `Range` for files under 1 MiB.
+- R6: the over-1 MiB branch re-resolves and reopens the file: a second hop and a stale-stat race.
+- R7 (accepted): a seen URL bypasses the slot cap and nearest-first, which matters if the cache was evicted on a slow link.
+- R8: `spanTop`/`spanBottom` props defeat `ThumbnailTile`'s memo on reflow.
+- R9: `_thumb_headers` builds a throwaway `FileResponse` twice per request.
+- R10: the late-grant hand-back branches are dead now that waiters are cancelled.
+
+How the real versions differ from the prototypes:
+- T1: `read_thumb` refuses a key with a `..` part or one that escapes the root, then falls back to the DB's key, as does a missing file. Files over 1 MiB go through `FileResponse`. `?size=small` and HEAD keep the old path.
+- T1 orphans: thumbnail files are removed right after the DB commit on delete, scan, reconcile, nesting and library removal. After R2, deletes also drop the derived key and a failed rethumb removes the old file. A crash or failed unlink between commit and removal can still leave a file, reachable only by its exact id. If a row's stored key differs and both files exist, the derived one is served; `put_thumb` always writes the derived key.
+- T1 also sends files over 1 MiB and `Range` requests down the old path.
+- T2: seen tiles decode with `decoding="sync"`, which needs a jank check in the browser. The BlurHash stays underneath. An instant tile counts as loaded only when the `<img>` holds this src and is `complete`, or its load event fires. The decode is skipped if the image is already complete at mount. The set holds 5,000 URLs, oldest out first; failed URLs never enter it.
+- T3 reads positions through a stable getter, not props. The plan to read distance from the existing IntersectionObserver was wrong, because the grid passes `eager`, which skips that observer. Distance is plain arithmetic on the grid's tile positions and the stepped `scrollTop`, with no DOM reads. Tiles with no position count as distance 0, ties and no known viewport fall back to FIFO. Tiles that unmount or change src leave the queue.
+
+### Where a request goes
+
+| Stage, called one at a time | p50 |
+|---|---|
+| `find_image(id, ("thumb_key",))` | 1,165 us |
+| anyio open + read chunks + close (what `FileResponse` does) | 701 us |
+| thread hop, no work | 131 us |
+| `thumb_path` (`resolve()` + `is_file`) | 90 us |
+| `thumb_stat` (lexical + stat) | 9 us |
+| open + read + close, plain | 36 us |
+| `thumb_key(id)`, derived | 1 us |
+
+The stored `thumb_key` equals `thumb_key(_id)` on all 4,103 rows, so the lookup only produces something the id already gives.
+
+### T1. Server route
+
+| Variant, warm page cache | 1 conn req/s | 6 conn req/s | 6 conn p50 | 12 conn req/s |
+|---|---|---|---|---|
+| Current route | 270 | 185 | 31.2 ms | 179 |
+| No DB, one stat, still `FileResponse` | 673 | 456 | 12.6 ms | 543 |
+| **No DB, one thread hop reads the bytes, `Response`** | 1,206 | 847 | 6.6 ms | 922 |
+| Same + `setswitchinterval(0.5 ms)` | 1,004 | 933 | 6.1 ms | 976 |
+| Same as bold, as ASGI middleware ahead of routing | 1,676 | 1,086 | 5.3 ms | 1,129 |
+| No DB, read on the event loop | 1,802 | 3,485 | 1.5 ms | 3,781 |
+| ASGI middleware + event-loop read | 1,908 | 7,156 | 0.8 ms | 7,294 |
+
+The current route loses throughput as connections rise (270 -> 185), and the browser runs at 6. Thread handoff under contention is the likely cause, since only the variants without thread hops scale with connections; that is an inference, not separately isolated, and the switch-interval run barely moved it.
+
+Cold page cache (`posix_fadvise` eviction, guest only: the Windows host may still cache, so a truly cold disk is worse), 6 connections: current 174 req/s, thread hop 810, event loop 950. The event-loop read stalled `/health` for up to 85 ms against 11 ms for the thread hop. Only those maxima compare: the probe outlasted the shorter load runs, so their percentiles include idle time. On a slow disk every API request would wait out those stalls.
+
+Past one thread hop the browser sees no clear gain (all visible at 898 ms thread hop, 973 event loop, 960 middleware + event loop, within run-to-run noise), so the bold row is the pick.
+
+The prototype is not shippable as is. A real change must:
+- apply the traversal guard, because the URL's id now feeds the path (`thumb_stat`'s lexical check);
+- fall back to `find_image` when the file is missing, which keeps slash/backslash id variants and any row whose key differs from the derived one working;
+- keep `If-None-Match`/304, the `no-cache` header for unversioned URLs, `?size=small` and the HEAD route, and keep the tests that pin them passing;
+- bound the in-memory read (largest thumbnail today ~370 KB), using `FileResponse` above a limit;
+- decide whether a thumbnail file left behind by a deleted image may still be served, since nothing asks the DB any more.
+
+### T2, T3. Frontend
+
+T2: keep a session set of URLs that fired `onLoad`. A tile mounting with a URL in the set renders the `<img>` at once, without slot, BlurHash or fade. URLs are versioned, so a stale entry cannot show an old image. T3: on each free slot, grant the queued tile nearest the viewport rather than the oldest.
+
+| Local, HTTP/1.1 | Current | T1 only | T2+T3 only | **T1+T2+T3** | + 24 slots |
+|---|---|---|---|---|---|
+| Open: all visible loaded | 1,239 ms | 898 | 1,064 | **880** | 917 |
+| ...of which after the first tile appears | ~510 ms | ~165 | ~335 | **~110** | ~130 |
+| Blank visible tiles during flick | 47% | 32% | 45% | **17%** | 5.5% |
+| Settle after flick | 556 ms | 151 | 252 | **87** | 13 |
+| Scroll back: loaded | 340 ms | 342 | 127 | **40** | 44 |
+| Scroll back: fully visible, fade included | 909 ms | 884 | 125 | **31** | 37 |
+| Thumb TTFB in browser | 31 ms | 7.4 | 31.6 | **7.2** | 7.7 |
+
+Flick: 700 px every 100 ms, 25 times. Blank %: unloaded share of visible tiles, sampled per frame. It is the noisiest number here: T1+T2+T3 also gave 1.5% in a 3-run pass, so read it as a direction. 
+
+T2 and T3 were only run together in this table. The one pass that separated them (3 runs, with T1) does not show which helps the flick:
+
+| With T1, 3 runs | Neither | T3 only | T2 only | Both |
+|---|---|---|---|---|
+| Blank during flick | 30.6% | 31.6% | 15.6% | 1.5% |
+| Settle after flick | 222 ms | 131 ms | 112 ms | 27.5 ms |
+
+A seen-set should do nothing on a forward-only flick, yet T2 alone measured better, and this remains unexplained. A count of newly inserted tile nodes found no remounts (0 of 368), but it would miss a node reused with a new `src`. Rerun the separate toggles at 5 runs before shipping the two apart.
+
+Costs the prototype does not show:
+- T2's scroll-back number is best case: it scrolls back right after loading, with the browser's memory cache warm. The prototype also drops the BlurHash for these tiles, so a revisit late in a long session could show a bare dark tile for a moment. A real version should keep the BlurHash underneath and skip only the slot and the fade.
+- T3's prototype calls `getBoundingClientRect` on every queued tile each time a slot frees, a layout read not measured here. A real version should get distance from the existing IntersectionObserver instead.
+
+The first tile takes ~730 ms in every column and is not thumbnail work: the feed answers in 7-20 ms (100 items), which leaves app start-up. Not investigated further. It is now the largest part of opening the gallery.
+
+Not measured: image decode and paint. "Loaded" is `img.complete`, and frame timing under WSL software rendering is unreliable.
+
+### T4. Measured and dropped
+
+- **Event-loop reads and ASGI bypass:** much higher load-test numbers, no clear browser gain, and event-loop reads stall the API on a cold disk.
+- **`RWF_NOWAIT` (read on the loop only if cached):** `preadv2` flags raise `NotImplementedError` on the uv-managed Python, the supported install path.
+- **`setswitchinterval`:** within noise, and it would affect the whole process.
+- **24 slots:** best local flick (5.5%), worse on WAN (all visible 1,299 -> 1,458 ms, stall 47 -> 130 ms). Requests pile up in the browser's own queue, where nearest-first can't reorder them. Keep 12.
+- **HTTP/2 (WAN, hypercorn + TLS, T1-T3 on):** stall 47 -> 3 ms as expected, but all visible no better (1,393 vs 1,299 ms) and settle about the same (373 vs 397 ms): with connection limits gone, the 50 Mbit/s link looks like the limit. A different server and TLS were also in play, so this does not rule out a benefit on a faster link. One scroll-back median of 945 ms looks like an artifact (the other h2 run gave 32 ms); possibly Chromium not caching over the self-signed cert, not checked.
+
+WAN, current vs T1+T2+T3 (3 runs): all visible 1,719 -> 1,299 ms, settle 926 -> 397 ms, scroll back loaded 395 -> 111 ms, blank during flick unchanged at ~55%. T1 alone gave almost nothing there (1,654 ms): the link limits first, so the frontend changes do the work on slow connections.
+
+Not tried: multiple uvicorn workers (one process owns watchers and workers).
+
+### T5. Start-up before the first thumbnail
+
+Setup: `073ab8f`, prod build, same DB snapshot and browser as above, `--lifespan off`, no `?size=small`. Variants ran interleaved in one run, medians of 7, chosen by `localStorage` flags in one build. Prototypes were not kept. "First thumbnail" here is the request start, not pixels on screen.
+
+**Read the absolute numbers and the stage split with care.** Other agents and benchmarks were running, and the box was ~1.7x slower than the runs above. One earlier quiet run gave ~710 ms, with tiles in the DOM at 598 ms and the first `src` ~115 ms later. Under load that last gap was 690-720 ms. So the BlurHash decode's share may be inflated by load, and in a quiet run most of the time came before the tiles rendered. The ranking below needs a quiet re-measure.
+
+| Stage, ms from navigation start | Empty cache | Reload | Warm (new tab) |
+|---|---|---|---|
+| Entry JS, vendor and CSS downloaded | 106-147 | ~53 | ~28 |
+| Module eval done, before `createRoot` | 163 | 76 | 109 |
+| Onboarding fetch ends; root renders `null` until then | 219 | 147 | 169 |
+| Feed request starts | 368 | 196 | 323 |
+| Feed response ends | 537 | 368 | 561 |
+| Grid renders tiles (75 mounted, 30 visible) | 635 | 406 | 591 |
+| First thumbnail request starts | 1,326 | 1,107 | 1,299 |
+| Long tasks, total | 1.1 s | 0.87 s | 1.04 s |
+
+| Prototype, first thumbnail request | Warm | Cold | Reload |
+|---|---|---|---|
+| Baseline | 1,299 | 1,326 | 1,107 |
+| P1: start onboarding and feed fetches before `createRoot` | 1,210 | 1,198 | 950 |
+| P2a: BlurHash decode with precomputed cosine tables | 1,033 | - | - |
+| P2b: first commit mounts the viewport only, overscan after 300 ms | 927 | - | - |
+| P2c: `shouldLoad` starts true for eager or priority tiles | 1,227 | - | - |
+| P2a + P2b + P2c | 794 | 798 | 558 |
+| All | 574 | 600 | 423 |
+
+Findings, biggest measured first:
+1. **Cheaper tile mount (P2), S-M.** 75 tiles mount before any gets a `src`, through three React passes, and the first pass decodes one BlurHash per tile: 365-404 ms in total here, 61 ms with cosine tables, whose output matched the library exactly on 200 real hashes. Where: `ImageThumbnail.tsx`, `VirtualizedGrid.tsx` (`visibleSlice`), `useImageLoadSlot.ts`. Costs: tables tied to size and component counts (cache by those); tiles below the fold mount 300 ms later, and a flick right after opening was not tested; P2c changes slot order slightly. T2's changes touch the same code, so this should be built on `perf/thumbnails`.
+2. **Fetch before React renders (P1), S.** The app renders `null` until `/onboarding` returns, and that request starts only after the first render. The feed then shares a burst of about a dozen requests and takes 170-240 ms, against 26-30 ms alone. Small alone (-90 to -160 ms), a further -135 to -220 ms on top of P2. Costs: filter parsing shared with `useFilters`, must match `imageFeedKey` exactly or the fetch is wasted, and it fires before the welcome redirect on a fresh install.
+3. **Defer the non-gallery requests, S-M, not prototyped.** Models, embeddings, LoRAs, outfits, generators and tags with `merge_sources` (178 KB JSON) fire from the gallery shell. Covers much the same ground as P1 for the feed.
+4. **Pre-compress assets at build, S, inferred.** The server gzips JS per request, ~65 ms CPU over entry and vendor. Cold load only.
+
+Ruled out: fonts (non-blocking), lazy chunks (the gallery loads none), feed endpoint alone, slot wait at open, thumbnail server work (~40 ms), and headless rendering as the cause of the decode and effect costs, which are pure CPU.
+
+Not measured: pixels on screen including the fade and entrance animation, a real network, a per-module breakdown of the 362 KB entry chunk, and what the remaining 574 ms consists of beyond react-dom work.
+
+### T6. WebP encoder settings
+
+120 originals sampled across the library, 768px, one thread. Encode times are rough, since load rose during the run; sizes and quality are not affected. SSIM and PSNR are on luma against the resized source.
+
+| Variant | Median size | Total vs now | Encode | Decode | SSIM | PSNR |
+|---|---|---|---|---|---|---|
+| m4 q85 (now) | 48.9 KB | - | 113 ms | 16.1 ms | 0.9870 | 42.36 dB |
+| m5 q85 | 48.1 KB | -1.6% | 127 ms | 15.5 ms | 0.9865 | 42.16 dB |
+| m6 q85 | 47.3 KB | -3.2% | 255 ms | 16.4 ms | 0.9866 | 42.17 dB |
+| m6 q83 | 43.2 KB | -11.2% | 259 ms | 15.2 ms | 0.9850 | 41.50 dB |
+| m6 q80 | 38.6 KB | -20.8% | 242 ms | 14.3 ms | 0.9824 | 40.56 dB |
+
+- m6 at the same quality saves ~50 KB over 30 visible tiles, about 8 ms at 50 Mbit (calculated, not a browser run), and adds ~140 ms of encoding per image on top of ~220 ms open, decode and resize. Every first scan pays that, after release too.
+- Rebuild cost is not the objection: the app is unreleased, and bumping `_THUMB_RECIPE` rebuilds on the next scan.
+- The q83 and q80 savings come mostly from lowering quality, not from the method. Lower quality was out of scope for this work. m4 q80 was not measured.
