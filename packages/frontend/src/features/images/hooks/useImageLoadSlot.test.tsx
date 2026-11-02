@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render } from "@testing-library/react";
 import {
   ImageLoadQueue,
+  resetSeenThumbnails,
   useImageLoadSlot,
   type UseImageLoadSlot,
 } from "./useImageLoadSlot";
@@ -9,6 +10,7 @@ import {
 let observers: Array<{ cb: IntersectionObserverCallback }> = [];
 
 beforeEach(() => {
+  resetSeenThumbnails();
   observers = [];
   vi.stubGlobal(
     "IntersectionObserver",
@@ -224,6 +226,149 @@ describe("useImageLoadSlot", () => {
     });
 
     expect(h.slot.assignedSrc).toBe("a.jpg");
+    expect(h.queue.active).toBe(1);
+  });
+});
+
+describe("useImageLoadSlot, seen thumbnails", () => {
+  /** Load a url once in its own tile, then unmount it, as a scrolled-away tile does. */
+  function loadOnce(src: string) {
+    const first = setup({ src });
+    act(() => first.slot.onLoad());
+    act(() => first.unmount());
+  }
+
+  it("lets a seen url render at once with no slot", () => {
+    loadOnce("a.jpg");
+
+    const h = setup({ src: "a.jpg" });
+
+    expect(h.slot.instant).toBe(true);
+    expect(h.slot.assignedSrc).toBe("a.jpg");
+    expect(h.queue.active).toBe(0);
+    expect(h.queue.waiting).toBe(0);
+  });
+
+  it("does not release a slot it never took", () => {
+    loadOnce("a.jpg");
+    const q = new ImageLoadQueue(1);
+    q.enqueue(() => {}); // another tile holds the only slot
+    const h = setup({ src: "a.jpg", queue: q });
+
+    act(() => h.slot.onLoad());
+    act(() => h.unmount());
+
+    expect(q.active).toBe(1);
+  });
+
+  it("still queues an unseen url", () => {
+    loadOnce("a.jpg");
+
+    const h = setup({ src: "b.jpg" });
+
+    expect(h.slot.instant).toBe(false);
+    expect(h.queue.active).toBe(1);
+  });
+
+  it("keeps the placeholder until the image can paint", () => {
+    loadOnce("a.jpg");
+
+    const h = setup({ src: "a.jpg" });
+
+    // Seen is not loaded: the image may still need a cache or network read.
+    expect(h.slot.loaded).toBe(false);
+    act(() => h.slot.onLoad());
+    expect(h.slot.loaded).toBe(true);
+    expect(h.slot.instant).toBe(true);
+  });
+
+  it("is loaded from the first paint when the browser already has the image", () => {
+    loadOnce("a.jpg");
+    const complete = vi
+      .spyOn(HTMLImageElement.prototype, "complete", "get")
+      .mockReturnValue(true);
+    const width = vi
+      .spyOn(HTMLImageElement.prototype, "naturalWidth", "get")
+      .mockReturnValue(64);
+
+    const h = setup({ src: "a.jpg" });
+
+    expect(h.slot.loaded).toBe(true);
+    expect(h.slot.holdPlaceholder).toBe(false);
+    complete.mockRestore();
+    width.mockRestore();
+  });
+
+  it("does not mark a failed load as seen", () => {
+    const first = setup({ src: "bad.jpg" });
+    act(() => first.slot.onError());
+    act(() => first.unmount());
+
+    const h = setup({ src: "bad.jpg" });
+
+    expect(h.slot.instant).toBe(false);
+    expect(h.queue.active).toBe(1);
+  });
+
+  it("shows the error state when an instant tile fails, and forgets the url", () => {
+    loadOnce("a.jpg");
+    const h = setup({ src: "a.jpg" });
+
+    act(() => h.slot.onError());
+    expect(h.slot.error).toBe(true);
+    expect(h.queue.active).toBe(0);
+    act(() => h.unmount());
+
+    const again = setup({ src: "a.jpg" });
+    expect(again.slot.instant).toBe(false);
+    expect(again.queue.active).toBe(1);
+  });
+
+  it("a first load does not turn the tile instant", () => {
+    const h = setup({ src: "a.jpg" });
+    act(() => h.slot.onLoad());
+
+    expect(h.slot.instant).toBe(false);
+  });
+
+  it("moving from an unseen url to a seen one frees its slot and takes none", () => {
+    loadOnce("seen.jpg");
+    const h = setup({ src: "fresh.jpg" });
+    expect(h.queue.active).toBe(1);
+
+    act(() => h.setSrc("seen.jpg"));
+
+    expect(h.slot.instant).toBe(true);
+    expect(h.slot.assignedSrc).toBe("seen.jpg");
+    expect(h.queue.active).toBe(0);
+    expect(h.queue.waiting).toBe(0);
+  });
+
+  it("moving from an unseen url still waiting for a slot to a seen one leaves the queue alone", () => {
+    loadOnce("seen.jpg");
+    const q = new ImageLoadQueue(1);
+    q.enqueue(() => {});
+    const h = setup({ src: "fresh.jpg", queue: q });
+    expect(q.waiting).toBe(1);
+
+    act(() => h.setSrc("seen.jpg"));
+    expect(h.slot.assignedSrc).toBe("seen.jpg");
+    act(() => q.dequeue()); // the blocker finishes; the stale waiter is handed back
+
+    expect(q.active).toBe(0);
+    expect(q.waiting).toBe(0);
+  });
+
+  it("moving from a seen url to an unseen one takes a slot", () => {
+    loadOnce("seen.jpg");
+    const h = setup({ src: "seen.jpg" });
+    expect(h.queue.active).toBe(0);
+
+    act(() => h.setSrc("fresh.jpg"));
+
+    expect(h.slot.instant).toBe(false);
+    expect(h.slot.loaded).toBe(false);
+    expect(h.slot.assignedSrc).toBe("fresh.jpg");
     expect(h.queue.active).toBe(1);
   });
 });

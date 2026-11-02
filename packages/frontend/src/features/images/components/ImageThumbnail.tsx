@@ -13,14 +13,20 @@ const BLUR_PX = 32;
 const BlurhashCanvas = React.memo(function BlurhashCanvas({
   hash,
   loaded,
+  hold,
+  instant,
 }: {
   hash: string;
   loaded: boolean;
+  /** Skip the decode for now: the image may turn out to be ready already. */
+  hold: boolean;
+  /** Seen before: drop out without the cross-fade. */
+  instant: boolean;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current;
-    if (!canvas) return;
+    if (!canvas || hold) return;
     try {
       const pixels = decode(hash, BLUR_PX, BLUR_PX);
       const ctx = canvas.getContext("2d");
@@ -31,7 +37,7 @@ const BlurhashCanvas = React.memo(function BlurhashCanvas({
     } catch {
       // Invalid hash: leave the canvas transparent; the bg shows through.
     }
-  }, [hash]);
+  }, [hash, hold]);
   return (
     <canvas
       ref={ref}
@@ -39,7 +45,8 @@ const BlurhashCanvas = React.memo(function BlurhashCanvas({
       height={BLUR_PX}
       aria-hidden="true"
       className={cn(
-        "absolute inset-0 h-full w-full rounded-xl transition-opacity duration-500 ease-out",
+        "absolute inset-0 h-full w-full rounded-xl",
+        !instant && "transition-opacity duration-500 ease-out",
         loaded ? "opacity-0" : "opacity-100"
       )}
     />
@@ -79,8 +86,16 @@ export function ImageThumbnail({
   // future non-virtualized caller can still opt into observer-gated loading.
   eager?: boolean;
 }) {
-  const { assignedSrc, loaded, error, imgRef, onLoad, onError } =
-    useImageLoadSlot({
+  const {
+    instant,
+    holdPlaceholder,
+    assignedSrc,
+    loaded,
+    error,
+    imgRef,
+    onLoad,
+    onError,
+  } = useImageLoadSlot({
       src,
       priority,
       eager,
@@ -105,7 +120,14 @@ export function ImageThumbnail({
           "loading" state), else a shimmer skeleton. The BlurHash stays mounted
           across load so it can cross-fade out as the image fades in, instead of
           popping. */}
-      {!error && blurhash && <BlurhashCanvas hash={blurhash} loaded={loaded} />}
+      {!error && blurhash && !(instant && loaded) && (
+        <BlurhashCanvas
+          hash={blurhash}
+          loaded={loaded}
+          hold={holdPlaceholder}
+          instant={instant}
+        />
+      )}
       {!loaded && !error && !blurhash && (
         <div
           className={cn(
@@ -144,7 +166,10 @@ export function ImageThumbnail({
           // lag. They shared one `transition-[opacity,transform] duration-500`
           // before, which made every hover feel like the UI was thinking.
           "[transition-property:transform,opacity]",
-          "[transition-duration:150ms,500ms]",
+          // A seen image has no load-in to dissolve, only the hover zoom.
+          instant
+            ? "[transition-duration:150ms,0ms]"
+            : "[transition-duration:150ms,500ms]",
           "motion-safe:group-hover:scale-[1.03]",
           "motion-reduce:transition-none",
           // One opacity decision, not two competing classes: an unloaded image
