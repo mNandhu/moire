@@ -66,7 +66,7 @@ export function ImageThumbnail({
   blurhash,
   getRoot,
   eager = false,
-  span,
+  getSpan,
 }: {
   src: string;
   selected?: boolean;
@@ -87,9 +87,9 @@ export function ImageThumbnail({
   // IO gate is redundant work per tile. Left as a prop rather than assumed so a
   // future non-virtualized caller can still opt into observer-gated loading.
   eager?: boolean;
-  // Vertical extent in scroll-content px, so the load queue can serve the tile
-  // nearest the viewport first. Only the virtualized grid knows it.
-  span?: Span;
+  // Reads the vertical extent in scroll-content px, so the load queue can serve
+  // the tile nearest the viewport first. Only the virtualized grid knows it.
+  getSpan?: () => Span | undefined;
 }) {
   const {
     instant,
@@ -104,7 +104,7 @@ export function ImageThumbnail({
       src,
       priority,
       eager,
-      span,
+      getSpan,
       getRoot,
       // Start loading ~1.5 screens early so thumbs are decoded by the time they
       // scroll into view. Shares one constant with the virtualized grid's
@@ -155,7 +155,10 @@ export function ImageThumbnail({
         ref={imgRef}
         src={assignedSrc ?? undefined}
         alt={alt}
-        decoding="async"
+        // A seen tile drops its placeholder once the image is `complete`, which
+        // says nothing about decoding: async could paint an empty tile for a
+        // frame, the black gaps a scroll-back must not show.
+        decoding={instant ? "sync" : "async"}
         // React 18 only knows the lowercase DOM attribute; the camelCase
         // prop warns on every tile. (React 19 accepts fetchPriority.)
         {...{ fetchpriority: priority ? "high" : "low" }}

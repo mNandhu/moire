@@ -7,6 +7,7 @@ import { ScoreMark } from "@/components/ui/ScoreMark";
 import { useBatchScrub } from "@/features/images/hooks/useBatchScrub";
 import { useCrossfade } from "@/features/images/hooks/useCrossfade";
 import type { FeedItem } from "@/features/images/lib/imageFilter";
+import type { Span } from "@/features/images/lib/loadOrder";
 
 /**
  * One gallery tile: the thumbnail plus every piece of triage state the user
@@ -37,8 +38,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
   onOpen,
   getRoot,
   eager = false,
-  spanTop,
-  spanBottom,
+  getSpan,
   focused = false,
   dimQuarantined = true,
   peekQuery = "",
@@ -52,10 +52,9 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
   onOpen: (id: string) => void;
   getRoot?: () => HTMLElement | null;
   eager?: boolean;
-  /** Vertical extent in scroll-content px, for load ordering. Two numbers, not
-   * an object, so the memo still holds when the grid re-renders. */
-  spanTop?: number;
-  spanBottom?: number;
+  /** Reads a tile's vertical extent in scroll-content px, for load ordering.
+   * A stable getter, so the memo still holds when a reflow moves the tile. */
+  getSpan?: (index: number) => Span | undefined;
   focused?: boolean;
   /** Hold a quarantined tile back visually. Off in the quarantined view, where
    * every tile is quarantined and the badge alone carries the meaning. */
@@ -125,11 +124,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
         priority={index < 12} // First 12 items get high priority
         getRoot={getRoot}
         eager={eager}
-        span={
-          spanTop !== undefined && spanBottom !== undefined
-            ? { top: spanTop, bottom: spanBottom }
-            : undefined
-        }
+        getSpan={getSpan && (() => getSpan(index))}
       />
 
       {/* Batch peek: while the pointer rests on a collapsed batch, its other

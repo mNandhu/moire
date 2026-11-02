@@ -186,6 +186,18 @@ export function VirtualizedGrid({
   }, [scrollTop, viewportHeight]);
   useEffect(() => () => imageLoadQueue.setView(null), []);
 
+  // Only the queue reads a tile's position, when it grants a slot. A stable
+  // getter over the latest layout keeps a reflow from re-rendering every tile.
+  const layoutRef = useRef({ tiles, wrapperTop });
+  layoutRef.current = { tiles, wrapperTop };
+  const getSpan = useCallback((index: number) => {
+    const { tiles, wrapperTop } = layoutRef.current;
+    const tile = tiles[index];
+    if (!tile) return undefined;
+    const top = wrapperTop + tile.y;
+    return { top, bottom: top + tile.h };
+  }, []);
+
   // Restore a saved scroll offset, once, in the first commit that has a real
   // height to scroll within.
   //
@@ -319,8 +331,7 @@ export function VirtualizedGrid({
                   onToggle={onToggle}
                   getRoot={resolveScroller}
                   eager
-                  spanTop={wrapperTop + tile.y}
-                  spanBottom={wrapperTop + tile.y + tile.h}
+                  getSpan={getSpan}
                   peekQuery={peekQuery}
                   focused={tile.index === focusedIndex}
                 />

@@ -14,8 +14,10 @@ import { pickNearest, type Span } from "@/features/images/lib/loadOrder";
  *    URL-resolve gap must not take a second slot);
  *  - every acquired slot is released exactly once, on load, on error, on
  *    unmount, or when src changes mid-flight;
- *  - a slot granted after the tile unmounted, or after its src moved on, is
- *    handed straight back.
+ *  - a tile that unmounts or moves to another src leaves the queue, so a slot
+ *    only reaches a waiter whose tile still wants it. One granted in the commit
+ *    that moves it on (a sibling's release runs first) is released by the same
+ *    effect that would have cancelled it.
  *
  * A URL that already loaded this session is "seen" and skips the queue (see
  * `seenSrc` below); such a tile never holds a slot, so it never releases one.
@@ -134,8 +136,9 @@ export type UseImageLoadSlot = {
   instant: boolean;
   /**
    * An instant tile has not yet checked whether the browser already has the
-   * image decoded. The placeholder should not spend a BlurHash decode until
-   * that check is done; if the image is ready the placeholder is never needed.
+   * image (`complete`). The placeholder should not spend a BlurHash decode until
+   * that check is done; if the image is there the placeholder is never needed.
+   * The tile decodes such an image synchronously, so it paints in that frame.
    */
   holdPlaceholder: boolean;
   /** The URL to put on the <img>, or null while the tile has no slot yet. */
@@ -153,7 +156,7 @@ export function useImageLoadSlot({
   eager = false,
   getRoot,
   rootMargin,
-  span,
+  getSpan,
   queue = imageLoadQueue,
 }: {
   src: string;
@@ -161,9 +164,10 @@ export function useImageLoadSlot({
   eager?: boolean;
   getRoot?: () => HTMLElement | null;
   rootMargin: string;
-  /** The tile's vertical extent in scroll-content px, when the caller knows it
-   * (the virtualized grid). Lets the queue serve the nearest tile first. */
-  span?: Span;
+  /** Reads the tile's vertical extent in scroll-content px, when the caller
+   * knows it (the virtualized grid). Lets the queue serve the nearest tile
+   * first. A getter because only the queue reads it, at grant time. */
+  getSpan?: () => Span | undefined;
   queue?: ImageLoadQueue;
 }): UseImageLoadSlot {
   // Decided per src, during render, so the slot-acquire effect below sees the
@@ -199,14 +203,8 @@ export function useImageLoadSlot({
   const currentSlotTokenRef = useRef<symbol | null>(null);
   const enqueuedRef = useRef(false);
   const cancelQueuedRef = useRef<(() => void) | null>(null);
-  const spanRef = useRef(span);
-  spanRef.current = span;
-  const latestRef = useRef<{ src: string; shouldLoad: boolean }>({
-    src,
-    shouldLoad,
-  });
-  latestRef.current.src = src;
-  latestRef.current.shouldLoad = shouldLoad;
+  const getSpanRef = useRef(getSpan);
+  getSpanRef.current = getSpan;
 
   const releaseSlot = (token: symbol | null) => {
     if (token && token === currentSlotTokenRef.current) {
@@ -285,25 +283,12 @@ export function useImageLoadSlot({
     enqueuedRef.current = true;
     const srcAtEnqueue = src;
     cancelQueuedRef.current = queue.enqueue(() => {
-      // Granted late: the tile may have gone away or moved on. Hand it back.
-      if (!mountedRef.current) {
-        queue.dequeue();
-        return;
-      }
-      if (
-        !latestRef.current.shouldLoad ||
-        latestRef.current.src !== srcAtEnqueue
-      ) {
-        queue.dequeue();
-        return;
-      }
-
       const token = Symbol("loadToken");
       currentSlotTokenRef.current = token;
 
       // src is the list payload's versioned thumbnail URL: assign directly.
       setAssignedSrc(srcAtEnqueue);
-    }, () => spanRef.current);
+    }, () => getSpanRef.current?.());
   }, [instant, shouldLoad, loaded, error, assignedSrc, src, queue]);
 
   return {

@@ -289,6 +289,27 @@ describe("useImageLoadSlot", () => {
     expect(h.slot.assignedSrc).not.toBe("old.jpg");
   });
 
+  it("a freed slot reaches the waiting tile nearest the viewport", () => {
+    const q = new ImageLoadQueue(1);
+    q.setView({ top: 0, bottom: 100 });
+    q.enqueue(() => {});
+    const far = setup({
+      queue: q,
+      src: "far.jpg",
+      getSpan: () => ({ top: 5000, bottom: 5100 }),
+    });
+    const near = setup({
+      queue: q,
+      src: "near.jpg",
+      getSpan: () => ({ top: 200, bottom: 300 }),
+    });
+
+    act(() => q.dequeue());
+
+    expect(near.slot.assignedSrc).toBe("near.jpg");
+    expect(far.slot.assignedSrc).toBeNull();
+  });
+
   it("shows an error and takes no slot when there is no src", () => {
     const h = setup({ src: "" });
 
