@@ -101,6 +101,89 @@ describe("ImageLoadQueue", () => {
     q.enqueue(() => ran.push(1));
     expect(ran).toEqual([0]); // still limited to 1
   });
+
+  describe("nearest-first", () => {
+    const view = { top: 1000, bottom: 1600 };
+    const at = (top: number) => () => ({ top, bottom: top + 100 });
+
+    function fill(q: ImageLoadQueue, tops: Array<number | null>) {
+      const ran: number[] = [];
+      q.enqueue(() => {}); // holds the only slot
+      tops.forEach((t, i) =>
+        q.enqueue(() => ran.push(i), t === null ? undefined : at(t)),
+      );
+      return ran;
+    }
+
+    it("grants the waiter nearest the viewport, not the oldest", () => {
+      const q = new ImageLoadQueue(1);
+      q.setView(view);
+      const ran = fill(q, [0, 5000, 1700]);
+      q.dequeue();
+      expect(ran).toEqual([2]);
+      expect(q.active).toBe(1);
+      expect(q.waiting).toBe(2);
+    });
+
+    it("keeps FIFO order among equally near waiters", () => {
+      const q = new ImageLoadQueue(1);
+      q.setView(view);
+      const ran = fill(q, [1100, 1200, 1300]);
+      for (let i = 0; i < 3; i++) q.dequeue();
+      expect(ran).toEqual([0, 1, 2]);
+    });
+
+    it("serves a waiter with no position instead of starving it", () => {
+      const q = new ImageLoadQueue(1);
+      q.setView(view);
+      const ran = fill(q, [1700, null, 1100]);
+      q.dequeue();
+      q.dequeue();
+      q.dequeue();
+      expect(ran).toEqual([1, 2, 0]);
+    });
+
+    it("is plain FIFO when no viewport is known", () => {
+      const q = new ImageLoadQueue(1);
+      const ran = fill(q, [5000, 1000, 3000]);
+      for (let i = 0; i < 3; i++) q.dequeue();
+      expect(ran).toEqual([0, 1, 2]);
+    });
+
+    it("grants each waiter once and keeps the slot count right", () => {
+      const q = new ImageLoadQueue(2);
+      q.setView(view);
+      const ran: number[] = [];
+      for (let i = 0; i < 6; i++) q.enqueue(() => ran.push(i), at(i * 800));
+      expect(q.active).toBe(2);
+      expect(q.waiting).toBe(4);
+      for (let i = 0; i < 6; i++) q.dequeue();
+      expect(ran.length).toBe(6);
+      expect(new Set(ran).size).toBe(6);
+      expect(q.active).toBe(0);
+      expect(q.waiting).toBe(0);
+    });
+
+    it("drops a cancelled waiter without touching the slot count", () => {
+      const q = new ImageLoadQueue(1);
+      q.enqueue(() => {});
+      const ran: number[] = [];
+      const cancel = q.enqueue(() => ran.push(1));
+      q.enqueue(() => ran.push(2));
+      cancel();
+      expect(q.waiting).toBe(1);
+      expect(q.active).toBe(1);
+      q.dequeue();
+      expect(ran).toEqual([2]);
+    });
+
+    it("cancel is a no-op once the waiter was granted", () => {
+      const q = new ImageLoadQueue(1);
+      const cancel = q.enqueue(() => {});
+      cancel();
+      expect(q.active).toBe(1);
+    });
+  });
 });
 
 describe("useImageLoadSlot", () => {
@@ -183,9 +266,11 @@ describe("useImageLoadSlot", () => {
     expect(q.waiting).toBe(1);
 
     act(() => h.unmount());
-    act(() => q.dequeue()); // blocking tile finishes; ours is admitted
+    // Unmounting drops it from the queue, so it is never scanned or granted.
+    expect(q.waiting).toBe(0);
+    act(() => q.dequeue()); // blocking tile finishes
 
-    // It must hand the slot straight back rather than hold it forever.
+    // No slot is left held.
     expect(q.active).toBe(0);
   });
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import { ThumbnailTile } from "./ThumbnailTile";
 import { scrollParent } from "@/lib/dom";
+import { imageLoadQueue } from "@/features/images/hooks/useImageLoadSlot";
 import {
   columnWidth,
   gapForDensity,
@@ -177,6 +178,14 @@ export function VirtualizedGrid({
     [columns, scrollTop, viewportHeight, wrapperTop]
   );
 
+  // Tell the load queue where the viewport is, so a freed slot goes to the
+  // queued tile nearest it rather than the oldest. scrollTop is already
+  // stepped, so this runs per step, not per frame.
+  useEffect(() => {
+    imageLoadQueue.setView({ top: scrollTop, bottom: scrollTop + viewportHeight });
+  }, [scrollTop, viewportHeight]);
+  useEffect(() => () => imageLoadQueue.setView(null), []);
+
   // Restore a saved scroll offset, once, in the first commit that has a real
   // height to scroll within.
   //
@@ -310,6 +319,8 @@ export function VirtualizedGrid({
                   onToggle={onToggle}
                   getRoot={resolveScroller}
                   eager
+                  spanTop={wrapperTop + tile.y}
+                  spanBottom={wrapperTop + tile.y + tile.h}
                   peekQuery={peekQuery}
                   focused={tile.index === focusedIndex}
                 />

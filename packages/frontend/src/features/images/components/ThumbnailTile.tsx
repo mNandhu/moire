@@ -37,6 +37,8 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
   onOpen,
   getRoot,
   eager = false,
+  spanTop,
+  spanBottom,
   focused = false,
   dimQuarantined = true,
   peekQuery = "",
@@ -50,6 +52,10 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
   onOpen: (id: string) => void;
   getRoot?: () => HTMLElement | null;
   eager?: boolean;
+  /** Vertical extent in scroll-content px, for load ordering. Two numbers, not
+   * an object, so the memo still holds when the grid re-renders. */
+  spanTop?: number;
+  spanBottom?: number;
   focused?: boolean;
   /** Hold a quarantined tile back visually. Off in the quarantined view, where
    * every tile is quarantined and the badge alone carries the meaning. */
@@ -119,6 +125,11 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
         priority={index < 12} // First 12 items get high priority
         getRoot={getRoot}
         eager={eager}
+        span={
+          spanTop !== undefined && spanBottom !== undefined
+            ? { top: spanTop, bottom: spanBottom }
+            : undefined
+        }
       />
 
       {/* Batch peek: while the pointer rests on a collapsed batch, its other

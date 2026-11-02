@@ -1,5 +1,6 @@
 import { cn } from "@/lib/cn";
 import { LOAD_AHEAD_PX } from "@/features/images/lib/masonryLayout";
+import type { Span } from "@/features/images/lib/loadOrder";
 import { useImageLoadSlot } from "@/features/images/hooks/useImageLoadSlot";
 import { decode } from "blurhash";
 import React, { useEffect, useRef } from "react";
@@ -65,6 +66,7 @@ export function ImageThumbnail({
   blurhash,
   getRoot,
   eager = false,
+  span,
 }: {
   src: string;
   selected?: boolean;
@@ -85,6 +87,9 @@ export function ImageThumbnail({
   // IO gate is redundant work per tile. Left as a prop rather than assumed so a
   // future non-virtualized caller can still opt into observer-gated loading.
   eager?: boolean;
+  // Vertical extent in scroll-content px, so the load queue can serve the tile
+  // nearest the viewport first. Only the virtualized grid knows it.
+  span?: Span;
 }) {
   const {
     instant,
@@ -99,6 +104,7 @@ export function ImageThumbnail({
       src,
       priority,
       eager,
+      span,
       getRoot,
       // Start loading ~1.5 screens early so thumbs are decoded by the time they
       // scroll into view. Shares one constant with the virtualized grid's

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { pickNearest, type Span } from "@/features/images/lib/loadOrder";
 
 /**
  * The thumbnail load-slot module: a global concurrency limit plus the per-tile
@@ -25,19 +26,45 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const MAX_CONCURRENT = 12;
 
+type Waiter = { load: () => void; span?: () => Span | null | undefined };
+
 export class ImageLoadQueue {
-  private queue: Array<() => void> = [];
+  private queue: Waiter[] = [];
   private loading = 0;
+  private view: Span | null = null;
 
   constructor(private readonly maxConcurrent = MAX_CONCURRENT) {}
 
-  enqueue(loadFn: () => void) {
+  /**
+   * Where the viewport is, in the same scroll-content coordinates as the spans
+   * waiters report. With it, a free slot goes to the waiter nearest the
+   * viewport instead of the oldest, so a fast scroll does not spend its slots
+   * on tiles already scrolled past. Null (no grid mounted) means plain FIFO.
+   */
+  setView(view: Span | null) {
+    this.view = view;
+  }
+
+  /**
+   * Returns a cancel function that drops the waiter if it is still queued, so
+   * a tile that unmounted while waiting stops being scanned. It does nothing
+   * once the slot was granted; the holder releases it as before.
+   */
+  enqueue(
+    loadFn: () => void,
+    span?: () => Span | null | undefined,
+  ): () => void {
     if (this.loading < this.maxConcurrent) {
       this.loading++;
       loadFn();
-    } else {
-      this.queue.push(loadFn);
+      return () => {};
     }
+    const waiter: Waiter = { load: loadFn, span };
+    this.queue.push(waiter);
+    return () => {
+      const i = this.queue.indexOf(waiter);
+      if (i >= 0) this.queue.splice(i, 1);
+    };
   }
 
   dequeue() {
@@ -48,8 +75,12 @@ export class ImageLoadQueue {
     this.loading--;
     if (this.queue.length > 0 && this.loading < this.maxConcurrent) {
       this.loading++;
-      const next = this.queue.shift();
-      if (next) next();
+      const at = pickNearest(
+        this.queue.map((w) => w.span?.()),
+        this.view,
+      );
+      const [next] = this.queue.splice(at, 1);
+      if (next) next.load();
     }
   }
 
@@ -64,7 +95,8 @@ export class ImageLoadQueue {
   }
 }
 
-const imageLoadQueue = new ImageLoadQueue();
+/** The app-wide queue; the virtualized grid reports its viewport to it. */
+export const imageLoadQueue = new ImageLoadQueue();
 
 /**
  * Thumbnail URLs that fired `onLoad` this session. Thumbnail URLs are versioned
@@ -121,6 +153,7 @@ export function useImageLoadSlot({
   eager = false,
   getRoot,
   rootMargin,
+  span,
   queue = imageLoadQueue,
 }: {
   src: string;
@@ -128,6 +161,9 @@ export function useImageLoadSlot({
   eager?: boolean;
   getRoot?: () => HTMLElement | null;
   rootMargin: string;
+  /** The tile's vertical extent in scroll-content px, when the caller knows it
+   * (the virtualized grid). Lets the queue serve the nearest tile first. */
+  span?: Span;
   queue?: ImageLoadQueue;
 }): UseImageLoadSlot {
   // Decided per src, during render, so the slot-acquire effect below sees the
@@ -162,6 +198,9 @@ export function useImageLoadSlot({
   const mountedRef = useRef(true);
   const currentSlotTokenRef = useRef<symbol | null>(null);
   const enqueuedRef = useRef(false);
+  const cancelQueuedRef = useRef<(() => void) | null>(null);
+  const spanRef = useRef(span);
+  spanRef.current = span;
   const latestRef = useRef<{ src: string; shouldLoad: boolean }>({
     src,
     shouldLoad,
@@ -180,6 +219,7 @@ export function useImageLoadSlot({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      cancelQueuedRef.current?.();
       releaseSlot(currentSlotTokenRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -237,7 +277,7 @@ export function useImageLoadSlot({
 
     enqueuedRef.current = true;
     const srcAtEnqueue = src;
-    queue.enqueue(() => {
+    cancelQueuedRef.current = queue.enqueue(() => {
       // Granted late: the tile may have gone away or moved on. Hand it back.
       if (!mountedRef.current) {
         queue.dequeue();
@@ -256,7 +296,7 @@ export function useImageLoadSlot({
 
       // src is the list payload's versioned thumbnail URL: assign directly.
       setAssignedSrc(srcAtEnqueue);
-    });
+    }, () => spanRef.current);
   }, [instant, shouldLoad, loaded, error, assignedSrc, src, queue]);
 
   return {
