@@ -232,8 +232,15 @@ export function useImageLoadSlot({
     releaseSlot(currentSlotTokenRef.current);
     currentSlotTokenRef.current = null;
     enqueuedRef.current = false;
+    // A waiter for the old src would only be granted to be handed back.
+    cancelQueuedRef.current?.();
+    cancelQueuedRef.current = null;
     const img = imgRef.current;
-    setLoaded(instant && !!img?.complete && img.naturalWidth > 0);
+    // On a src change the <img> still holds the old URL here, and `complete`
+    // would describe the old image. Its load event reports the new one.
+    setLoaded(
+      instant && assignedSrc === src && !!img?.complete && img.naturalWidth > 0
+    );
     setError(false);
     setAssignedSrc(instant ? src : null);
     if (instant) setProbedSrc(src);

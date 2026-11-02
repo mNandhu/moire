@@ -438,10 +438,30 @@ describe("useImageLoadSlot, seen thumbnails", () => {
 
     act(() => h.setSrc("seen.jpg"));
     expect(h.slot.assignedSrc).toBe("seen.jpg");
-    act(() => q.dequeue()); // the blocker finishes; the stale waiter is handed back
+    expect(q.waiting).toBe(0); // the stale waiter left the queue
+    act(() => q.dequeue()); // the blocker finishes
 
     expect(q.active).toBe(0);
     expect(q.waiting).toBe(0);
+  });
+
+  it("moving to a seen url is not loaded by the old image's complete flag", () => {
+    loadOnce("seen.jpg");
+    const h = setup({ src: "fresh.jpg" });
+    act(() => h.slot.onLoad());
+    const complete = vi
+      .spyOn(HTMLImageElement.prototype, "complete", "get")
+      .mockReturnValue(true);
+    const width = vi
+      .spyOn(HTMLImageElement.prototype, "naturalWidth", "get")
+      .mockReturnValue(64);
+
+    act(() => h.setSrc("seen.jpg"));
+
+    expect(h.slot.assignedSrc).toBe("seen.jpg");
+    expect(h.slot.loaded).toBe(false);
+    complete.mockRestore();
+    width.mockRestore();
   });
 
   it("moving from a seen url to an unseen one takes a slot", () => {
