@@ -27,7 +27,8 @@ def test_delete_rows_removes_every_table_and_returns_thumb_keys(temp_db, seed):
     _add_raw("L1:a.png")
     with db.sync_tx() as conn:
         keys = image_delete.delete_rows(conn, ["L1:a.png", "L1:b.png"])
-    assert keys == ["L1/L1_a.png.webp"]
+    # b.png has no stored key, but a file at its derived key must still go.
+    assert keys == ["L1/L1_a.png.webp", "L1/L1_b.png.webp"]
     assert _count(t.images) == 1
     assert _count(t.image_gen_raw) == 0
     assert _count(t.image_tags) == 1  # cascaded, keep.png's row survives
@@ -46,8 +47,8 @@ def _counting_selects() -> list[str]:
 
 
 def test_delete_rows_takes_thumb_keys_the_caller_holds(temp_db, seed, monkeypatch):
-    """Keys passed in are returned as given (``None`` dropped) and the rows
-    are not read again for them."""
+    """Keys passed in are returned (``None`` dropped), with each id's derived
+    key, and the rows are not read again for them."""
     seed("L1:a.png", thumb_key="L1/L1_a.png.webp")
     seed("L1:b.png")
     selects = _counting_selects()
@@ -55,7 +56,7 @@ def test_delete_rows_takes_thumb_keys_the_caller_holds(temp_db, seed, monkeypatc
         keys = image_delete.delete_rows(
             conn, ["L1:a.png", "L1:b.png"], thumb_keys=["L1/L1_a.png.webp", None]
         )
-    assert keys == ["L1/L1_a.png.webp"]
+    assert keys == ["L1/L1_a.png.webp", "L1/L1_b.png.webp"]
     assert not [s for s in selects if "thumb_key" in s]
     assert _count(t.images) == 0
 
@@ -74,8 +75,8 @@ def test_delete_stale_commits_in_chunks_and_drops_thumbs(temp_db, seed, monkeypa
     dropped: list[str] = []
     monkeypatch.setattr(storage_fs, "delete_thumb", dropped.append)
     ids = [f"L1:{i}.png" for i in range(5)]
-    for n, i in enumerate(ids):
-        seed(i, thumb_key=f"k{n}")
+    for i in ids:
+        seed(i, thumb_key=storage_fs.thumb_key(i))
     commits = []
     real_tx = scan_reconcile.sync_tx
 
@@ -87,7 +88,7 @@ def test_delete_stale_commits_in_chunks_and_drops_thumbs(temp_db, seed, monkeypa
     scan_reconcile._delete_stale(ids)
     assert len(commits) == 3
     assert _count(t.images) == 0
-    assert sorted(dropped) == [f"k{n}" for n in range(5)]
+    assert sorted(dropped) == sorted(storage_fs.thumb_key(i) for i in ids)
 
 
 def test_delete_stale_failure_keeps_earlier_chunks_consistent(
@@ -98,8 +99,8 @@ def test_delete_stale_failure_keeps_earlier_chunks_consistent(
     monkeypatch.setattr(storage_fs, "delete_thumb", dropped.append)
     monkeypatch.setattr(scan_writer.time, "sleep", lambda s: None)
     ids = [f"L1:{i}.png" for i in range(4)]
-    for n, i in enumerate(ids):
-        seed(i, thumb_key=f"k{n}")
+    for i in ids:
+        seed(i, thumb_key=storage_fs.thumb_key(i))
     real = image_delete.delete_rows
     calls = []
 
@@ -115,7 +116,8 @@ def test_delete_stale_failure_keeps_earlier_chunks_consistent(
     except RuntimeError:
         pass
     assert _count(t.images) == 2  # first chunk gone, second rolled back
-    assert sorted(dropped) == ["k0", "k1"]  # only committed rows lose thumbs
+    # only committed rows lose thumbs
+    assert sorted(dropped) == sorted(storage_fs.thumb_key(i) for i in ids[:2])
 
 
 def test_delete_stale_retries_a_locked_chunk(temp_db, seed, monkeypatch):

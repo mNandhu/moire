@@ -129,23 +129,26 @@ def read_thumb(
     key: str, limit: int, need_body=None
 ) -> tuple[os.stat_result, bytes | None] | None:
     """Stat a thumbnail and read its bytes in one go, for a caller that runs
-    this in a single worker thread. The bytes are None when the file is over
-    `limit` (stream it instead) or `need_body(stat)` says they aren't wanted
-    (a 304). None when nothing servable is there: missing, not a regular
-    file, or a key that is not a plain path under the root. The key may come
-    from a URL's id, so a `..` part is refused as well as an escape, and no
-    such key is ever an error: the caller falls back to the DB's key."""
-    if ".." in key.split("/"):
+    this in a single worker thread. The bytes are None when `need_body(stat)`
+    says they aren't wanted (a 304). None when this can't serve it: missing,
+    not a regular file, over `limit`, or a key that is not a plain path under
+    the root. The key may come from a URL's id, so a `..` part is refused as
+    well as an escape, in either slash (Windows treats both as separators),
+    and no such key is ever an error: the caller falls back to the DB's key."""
+    if ".." in key.replace("\\", "/").split("/"):
         return None
     try:
-        fd = os.open(_lexical_path(key), os.O_RDONLY)
+        # O_BINARY: without it Windows reads in text mode and mangles the bytes.
+        fd = os.open(_lexical_path(key), os.O_RDONLY | getattr(os, "O_BINARY", 0))
     except (OSError, ValueError):
         return None
     try:
         st = os.fstat(fd)
         if not stat.S_ISREG(st.st_mode):
             return None
-        if st.st_size > limit or (need_body is not None and not need_body(st)):
+        if st.st_size > limit:
+            return None
+        if need_body is not None and not need_body(st):
             return st, None
         chunks = []
         while chunk := os.read(fd, 1 << 20):

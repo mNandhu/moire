@@ -13,7 +13,12 @@ from . import batch_pool
 from . import nesting as library_nesting
 from . import scan_reconcile, thumbnailer
 from .scan_writer import ScanWriter, retry
-from .storage_fs import put_thumb, thumb_path
+from .storage_fs import (
+    delete_thumb,
+    put_thumb,
+    thumb_key as derived_thumb_key,
+    thumb_path,
+)
 import logging
 from dataclasses import dataclass
 from datetime import datetime
@@ -217,6 +222,14 @@ def process_image(
             except Exception:
                 # Best-effort: keep image indexed even if thumb failed.
                 thumb_key = None
+        if thumb_key is None:
+            # The row will say there is no thumbnail, but the route serves what
+            # is at the derived key without asking the DB: an earlier scan's
+            # picture must not stay there.
+            try:
+                delete_thumb(derived_thumb_key(image_id))
+            except (OSError, ValueError):
+                logger.debug("Could not delete stale thumb of %s", image_id)
 
         doc = {
             "_id": image_id,

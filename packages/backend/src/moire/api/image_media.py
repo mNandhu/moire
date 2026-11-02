@@ -129,7 +129,7 @@ async def _thumb_file(key: str, size: ThumbSize | None) -> tuple[Path | None, bo
 
 # Thumbnails up to this size are read whole in one worker thread and sent as a
 # plain Response, which is much cheaper under load than FileResponse's chunked
-# reads. The largest today is ~370 KB; bigger ones stream from disk.
+# reads. The largest today is ~370 KB; bigger ones take the route's other path.
 _INLINE_LIMIT = 1 << 20
 
 
@@ -145,33 +145,26 @@ async def _fast_thumb(
 ) -> Response | None:
     """The full-size thumbnail with no DB lookup: the id gives the key (the
     one formula `put_thumb` stores it under), and one thread hop stats and
-    reads the file. None when nothing is at the derived key; the caller then
-    asks the DB."""
+    reads the file. None when it can't serve this one (nothing at the derived
+    key, or too big to hold in memory); the caller then asks the DB."""
     key = thumb_key(image_id)
     inm = request.headers.get("if-none-match")
+    h: dict[str, str] = {}
 
-    def read():
-        return read_thumb(
-            key,
-            _INLINE_LIMIT,
-            lambda st: not _etag_matches(inm, _thumb_headers(st)["etag"]),
-        )
+    def need_body(st: os.stat_result) -> bool:
+        h.update(_thumb_headers(st))
+        return not _etag_matches(inm, h["etag"])
 
-    got = await anyio.to_thread.run_sync(read)
+    got = await anyio.to_thread.run_sync(
+        lambda: read_thumb(key, _INLINE_LIMIT, need_body)
+    )
     if got is None:
         return None
-    st, body = got
+    body = got[1]
     cache = _IMMUTABLE if v else _REVALIDATE
-    h = _thumb_headers(st)
-    if _etag_matches(inm, h["etag"]):
-        return Response(status_code=304, headers={"ETag": h["etag"], **cache})
-    media_type = _media_type(key)
     if body is None:
-        path = await anyio.to_thread.run_sync(lambda: thumb_path(key))
-        if path is None:
-            return None
-        return FileResponse(path, media_type=media_type, headers=cache, stat_result=st)
-    return Response(body, media_type=media_type, headers={**cache, **h})
+        return Response(status_code=304, headers={"ETag": h["etag"], **cache})
+    return Response(body, media_type=_media_type(key), headers={**cache, **h})
 
 
 async def _stored_key(image_id: str) -> str:
@@ -196,12 +189,14 @@ async def get_image_thumb(
     (made on first ask), for previews shown postage-stamp size. `v` is the
     URL's version (`thumb_version`): with it the response is kept for a year,
     without it the browser asks again (a 304 while the file is unchanged)."""
-    if size is None:
+    # A Range request needs FileResponse, which is what answers it.
+    if size is None and "range" not in request.headers:
         resp = await _fast_thumb(image_id, request, v)
         if resp is not None:
             return resp
-    # Small copies, and any id whose thumbnail is not at the derived key
-    # (a slash/backslash spelling, a row with another stored key).
+    # Small copies, Range requests, a thumbnail too big to read into memory, and
+    # any id whose thumbnail is not at the derived key (a slash/backslash
+    # spelling, a row with another stored key).
     key = await _stored_key(image_id)
     path, cacheable = await _thumb_file(key, size)
     if path is None:

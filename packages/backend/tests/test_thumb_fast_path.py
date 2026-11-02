@@ -77,12 +77,67 @@ async def test_missing_thumbnail_is_still_404(client, temp_db, seed):
 
 
 @pytest.mark.asyncio
-async def test_large_thumbnail_streams(client, thumbed, monkeypatch):
+async def test_large_thumbnail_takes_the_db_path(client, thumbed, monkeypatch):
     monkeypatch.setattr(image_media, "_INLINE_LIMIT", 10)
     r = await client.get("/images/L1:dir%2Fa.png/thumb")
     assert r.status_code == 200
     assert r.content == _webp()
     assert r.headers["etag"]
+
+
+@pytest.mark.asyncio
+async def test_range_request_is_honoured(client, thumbed):
+    r = await client.get("/images/L1:dir%2Fa.png/thumb", headers={"Range": "bytes=0-9"})
+    assert r.status_code == 206
+    assert r.content == _webp()[:10]
+
+
+def test_read_thumb_reads_binary_mode(temp_db, monkeypatch):
+    # Windows opens in text mode unless told otherwise, which mangles the bytes.
+    # Linux has no such flag, so hand it one and check it reaches os.open.
+    key = storage_fs.put_thumb("L1", "L1:a.png", _webp())
+    monkeypatch.setattr(storage_fs.os, "O_BINARY", 0x8000, raising=False)
+    flags = []
+    real = storage_fs.os.open
+
+    def spy(path, f, *a, **k):
+        flags.append(f)
+        return real(path, f & ~0x8000, *a, **k)
+
+    monkeypatch.setattr(storage_fs.os, "open", spy)
+    assert storage_fs.read_thumb(key, 1 << 20)[1] == _webp()
+    assert flags[0] & 0x8000
+
+
+@pytest.mark.asyncio
+async def test_purged_row_with_no_stored_key_loses_its_file(client, temp_db, seed):
+    from moire.database.db import sync_tx
+    from moire.services import image_delete
+
+    storage_fs.put_thumb("L1", "L1:a.png", _webp())
+    seed("L1:a.png")  # thumb_key NULL, as after a failed rethumb
+    with sync_tx() as conn:
+        keys = image_delete.delete_rows(conn, ["L1:a.png"])
+    image_delete.drop_thumbs(keys)
+    assert (await client.get("/images/L1:a.png/thumb")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_failed_rethumb_removes_the_old_picture(
+    client, temp_db, tmp_path, monkeypatch
+):
+    from moire.services import scanner, thumbnailer
+
+    src = tmp_path / "a.png"
+    src.write_bytes(b"not an image")
+    image_id = scanner.image_id_for("L1", tmp_path, src)
+    storage_fs.put_thumb("L1", image_id, _webp())
+    monkeypatch.setattr(
+        thumbnailer, "make_thumb_bytes", lambda p: (None, None, 0, 0, None)
+    )
+    result = scanner.process_image("L1", tmp_path, src)
+    assert result.doc["thumb_key"] is None
+    assert storage_fs.thumb_stat(storage_fs.thumb_key(image_id)) is None
 
 
 HOSTILE = [
@@ -108,7 +163,16 @@ async def test_hostile_ids_never_reach_the_filesystem(client, thumbed, hostile):
 
 
 @pytest.mark.parametrize(
-    "key", ["../x.webp", "a/../../x.webp", "/etc/passwd", "a\x00.webp", ""]
+    "key",
+    [
+        "../x.webp",
+        "a/../../x.webp",
+        "a\\..\\..\\x.webp",
+        "L1/L1_..\\..\\L2\\L2_b.png.webp",
+        "/etc/passwd",
+        "a\x00.webp",
+        "",
+    ],
 )
 def test_read_thumb_refuses_hostile_keys(temp_db, key):
     assert storage_fs.read_thumb(key, 1 << 20) is None
@@ -118,6 +182,6 @@ def test_read_thumb_bounds_and_skips(temp_db):
     key = storage_fs.put_thumb("L1", "L1:a.png", _webp())
     st, body = storage_fs.read_thumb(key, 1 << 20)
     assert body == _webp() and st.st_size == len(_webp())
-    assert storage_fs.read_thumb(key, 10)[1] is None
+    assert storage_fs.read_thumb(key, 10) is None
     assert storage_fs.read_thumb(key, 1 << 20, lambda st: False)[1] is None
     assert storage_fs.read_thumb("L1", 1 << 20) is None  # a directory

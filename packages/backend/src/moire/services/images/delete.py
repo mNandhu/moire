@@ -46,33 +46,44 @@ def _stmts(where_images, where_raw):
     )
 
 
+def _keys_to_drop(ids: list[str], stored: Iterable[str | None]) -> list[str]:
+    """The stored keys plus each id's derived one. The thumbnail route serves
+    whatever is at the derived key without asking the DB, so a file there has
+    to go even when the row's own key is NULL or says otherwise."""
+    return list(
+        dict.fromkeys([k for k in stored if k] + [storage_fs.thumb_key(i) for i in ids])
+    )
+
+
 def delete_rows(
     conn, ids: Iterable[str], *, thumb_keys: Iterable[str | None] | None = None
 ) -> list[str]:
     """Delete these images' rows inside the caller's sync transaction.
     Returns the thumbnail keys to pass to :func:`drop_thumbs` after commit:
     ``thumb_keys`` when the caller already read them with the rows (they are
-    not read again), else read here."""
+    not read again), else read here, plus each id's derived key."""
+    ids = list(ids)
     keys: list[str] = []
     for keys_stmt, deletes in _plan(ids, read_keys=thumb_keys is None):
         if keys_stmt is not None:
             keys += [k for k in conn.execute(keys_stmt).scalars() if k]
         for stmt in deletes:
             conn.execute(stmt)
-    return keys if thumb_keys is None else [k for k in thumb_keys if k]
+    return _keys_to_drop(ids, keys if thumb_keys is None else thumb_keys)
 
 
 async def delete_rows_async(
     conn, ids: Iterable[str], *, thumb_keys: Iterable[str | None] | None = None
 ) -> list[str]:
     """`delete_rows` on an async connection."""
+    ids = list(ids)
     keys: list[str] = []
     for keys_stmt, deletes in _plan(ids, read_keys=thumb_keys is None):
         if keys_stmt is not None:
             keys += [k for k in (await conn.execute(keys_stmt)).scalars() if k]
         for stmt in deletes:
             await conn.execute(stmt)
-    return keys if thumb_keys is None else [k for k in thumb_keys if k]
+    return _keys_to_drop(ids, keys if thumb_keys is None else thumb_keys)
 
 
 async def delete_library_rows_async(conn, library_id: str) -> None:
@@ -85,7 +96,8 @@ async def delete_library_rows_async(conn, library_id: str) -> None:
 
 
 def drop_thumbs(keys: Iterable[str]) -> None:
-    """Remove thumbnail files, best effort: a leftover only wastes space."""
+    """Remove thumbnail files, best effort. A leftover wastes space and stays
+    reachable by its image's exact id: the thumbnail route doesn't ask the DB."""
     for key in keys:
         try:
             storage_fs.delete_thumb(key)
