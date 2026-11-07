@@ -35,7 +35,11 @@ describe("rankSuggestions", () => {
     ];
     const aliases: Record<string, string[]> = { anime_screenshot: ["anime screencap"], closed_eyes: ["eyes closed"] };
     const of = (t: string) => aliases[t];
-    expect(rankSuggestions("anime screencap", pool, [], none, of).map((s) => s._id)).toEqual(["any:anime_screenshot"]);
+    expect(rankSuggestions("anime screencap", pool, [], none, of)).toEqual([
+      { _id: "any:anime_screenshot", count: 5, via: "anime screencap" },
+    ]);
+    // Matched on its own name: no alias shown.
+    expect(rankSuggestions("anime scr", pool, [], none, of)[0]).toEqual({ _id: "any:anime_screenshot", count: 5 });
     expect(rankSuggestions("eyes_clos", pool, [], none, of).map((s) => s._id)).toEqual(["prompt:closed_eyes"]);
     // Without the list, an alias finds nothing.
     expect(rankSuggestions("anime screencap", pool, [], none)).toEqual([]);

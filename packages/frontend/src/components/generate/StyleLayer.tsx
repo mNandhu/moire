@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
-import { Button, Card, Checkbox } from "../ui";
+import { Button, Card } from "../ui";
 import { Picker, type PickerOption } from "../ui/Picker";
 import { cn } from "../../lib/cn";
 import {
@@ -164,21 +164,36 @@ function LoraRow({
   const pick = (p: LoraPreset) =>
     onChange({ ...lora, preset: { id: p._id, text: p.text }, strength: p.strength ?? lora.strength });
   const on = !lora.off;
+  const stem = stemOf(lora.name);
+  const toggle = () => onChange({ ...lora, off: on || undefined });
+  const name = (
+    <Tooltip content={invalid ? "Not installed in ComfyUI" : undefined} bubble className="w-40 shrink-0">
+      <span className={cn("w-full truncate font-mono text-xs", invalid ? "text-red-300" : "text-neutral-100")}>{stem}</span>
+    </Tooltip>
+  );
   return (
     <div className="flex items-center gap-2.5 border-t border-line py-1.5 first:border-t-0">
-      <Checkbox
-        checked={on}
-        onChange={(v) => onChange({ ...lora, off: !v })}
-        aria-label={`Use ${stemOf(lora.name)}`}
-        className="shrink-0"
-      />
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label={`Use ${stem}`}
+        onClick={toggle}
+        className={cn(
+          "relative h-4 w-7 shrink-0 rounded-full transition-colors",
+          on ? "bg-brand-500" : "bg-neutral-700 hover:bg-neutral-600",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute left-0 top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform",
+            on ? "translate-x-3.5" : "translate-x-0.5",
+          )}
+        />
+      </button>
       {/* Off, it stays as set but isn't sent: dimmed, still editable. */}
-      <div className={cn("flex min-w-0 flex-1 items-center gap-2.5", !on && "opacity-50")}>
-      <Tooltip content={invalid ? "Not installed in ComfyUI" : undefined} bubble className="w-40 shrink-0">
-        <span className={cn("w-full truncate font-mono text-xs", invalid ? "text-red-300" : "text-neutral-100", !on && "line-through")}>
-          {stemOf(lora.name)}
-        </span>
-      </Tooltip>
+      <div className={cn("flex min-w-0 flex-1 items-center gap-2.5 transition-opacity", !on && "opacity-40")}>
+      {name}
       {/* The preset and its Edit side by side, the words it adds after. */}
       <div className="flex w-48 shrink-0 items-center gap-1">
         <div className="min-w-0 flex-1">

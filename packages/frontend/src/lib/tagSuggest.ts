@@ -1,9 +1,15 @@
-import { fuzzyRank } from "./fuzzy";
+import { fuzzyRank, fuzzyScore } from "./fuzzy";
 import { splitBoilerplate } from "./boilerplate";
 import { ANY_PREFIX, formatSearchTag, tagName, tagQueryText } from "./tags";
 import { resourceOf } from "./searchTerms";
 
-export type TagSuggestion = { _id: string; count: number };
+export type TagSuggestion = {
+  _id: string;
+  count: number;
+  /** The Danbooru alias the typed text matched, when the tag's own name
+   * doesn't: the row shows it led here. */
+  via?: string;
+};
 
 /** A tag's Danbooru aliases in display form (`anime_screenshot` ->
  * `anime screencap`), by its bare name. */
@@ -52,12 +58,29 @@ export function rankSuggestions(
     const aliases = aliasesOf?.(bareName(s._id));
     return aliases?.length ? [shown, ...aliases] : shown;
   };
-  const ranked = fuzzyRank(tagQueryText(q), [...pool], textOf, pool.length);
+  const query = tagQueryText(q);
+  const ranked = fuzzyRank(query, [...pool], textOf, pool.length).map((s) => withVia(s, query, aliasesOf));
   const { kept, boilerplate } = splitBoilerplate(ranked, (s) => s._id, isBoilerplate);
   const tags = [...kept, ...boilerplate];
   const res = fuzzyRank(q, resources, nameOf, MAX_SUGGESTIONS);
   const head = tags.slice(0, MAX_SUGGESTIONS - Math.min(RESOURCE_ROWS, res.length));
   return [...head, ...res.slice(0, MAX_SUGGESTIONS - head.length)];
+}
+
+/** `s` marked with the alias that matched `query`, when its own name doesn't. */
+function withVia(s: TagSuggestion, query: string, aliasesOf: AliasesOf | undefined): TagSuggestion {
+  const aliases = aliasesOf?.(bareName(s._id));
+  if (!aliases?.length || fuzzyScore(query, formatSearchTag(s._id)) !== null) return s;
+  let via: string | undefined;
+  let best = -Infinity;
+  for (const a of aliases) {
+    const score = fuzzyScore(query, a);
+    if (score !== null && score > best) {
+      best = score;
+      via = a;
+    }
+  }
+  return via ? { ...s, via } : s;
 }
 
 /** A lora or embedding search term's kind and name, or null for a tag. */

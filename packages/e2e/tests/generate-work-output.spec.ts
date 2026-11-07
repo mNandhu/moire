@@ -120,11 +120,9 @@ test("a switched-off LoRA stays in the composer but isn't sent", async ({ page, 
   await page.goto("/generate");
   await page.getByRole("button", { name: "Add LoRA" }).click();
   await page.getByRole("option", { name: /flat_color_xl/ }).click();
-  const use = page.getByRole("checkbox", { name: "Use flat_color_xl" });
+  const use = page.getByRole("switch", { name: "Use flat_color_xl" });
   await expect(use).toBeChecked();
-  // The box is drawn over its input: toggle it from the keyboard.
-  await use.focus();
-  await use.press("Space");
+  await use.click();
   await expect(use).not.toBeChecked();
 
   const sent = page.waitForRequest((r) => r.method() === "POST" && /\/batches$/.test(new URL(r.url()).pathname));
@@ -132,7 +130,7 @@ test("a switched-off LoRA stays in the composer but isn't sent", async ({ page, 
   expect((await sent).postDataJSON().loras).toEqual([]);
   // Still there after a reload, still off.
   await page.reload();
-  await expect(page.getByRole("checkbox", { name: "Use flat_color_xl" })).not.toBeChecked();
+  await expect(page.getByRole("switch", { name: "Use flat_color_xl" })).not.toBeChecked();
   const remove = page.getByRole("button", { name: "Remove flat_color_xl" });
   await remove.focus();
   await remove.press("Enter");
@@ -169,7 +167,11 @@ test("typing a Danbooru alias suggests its tag", async ({ page }) => {
   await prompt.fill("");
   // `smiling` is Danbooru's alias of `smile`, a tag the library has.
   await prompt.pressSequentially("smiling");
-  await expect(page.getByRole("listbox").getByRole("option").first()).toContainText("smile");
+  // The row says what was typed led to it: `smiling -> smile`.
+  const first = page.getByRole("listbox").getByRole("option").first();
+  await expect(first).toContainText("smiling");
+  await expect(first).toContainText("is an alias of");
+  await expect(first).toContainText("smile");
   await prompt.press("Tab");
   await expect(prompt).toHaveValue(/^smile/);
 });

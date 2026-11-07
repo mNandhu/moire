@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { ArrowRight } from "lucide-react";
 import { Badge } from "./ui/Badge";
 import { cn } from "../lib/cn";
 import { formatSearchTag, isManual, isPrompt } from "../lib/tags";
@@ -87,6 +88,14 @@ export function TagSuggestList({
                 {thumbOf && <Thumb url={thumbOf(s._id)} />}
                 <span className="min-w-0">
                   <span className="flex items-center gap-2 min-w-0">
+                    {/* Typed an alias: what was typed, then the tag it stands for. */}
+                    {s.via && (
+                      <span className="flex shrink-0 items-center gap-1.5 text-faint">
+                        <span className="max-w-[10rem] truncate">{s.via}</span>
+                        <ArrowRight size={12} aria-hidden />
+                        <span className="sr-only">is an alias of</span>
+                      </span>
+                    )}
                     <span className="truncate text-neutral-100">
                       {resourceLabel(s._id)?.name ?? formatSearchTag(s._id)}
                     </span>
