@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useImageFeed } from "./useImageFeed";
 import { imageHref, PAGE_LIMIT, serializeFilters, type Filters } from "../lib/imageFilter";
-import { getSteps } from "../lib/stepList";
+import { useSteps } from "../lib/stepList";
 import { fetchImage } from "../lib/imageApi";
 import { imageDocKey } from "../lib/feedCache";
 import { getBackgroundLocation } from "../lib/backgroundLocation";
@@ -17,6 +17,9 @@ export const IMAGE_DOC_STALE_MS = 30_000;
 // Longest the view will hold the previous image while waiting on the next one
 // to decode. Past this we show it regardless rather than appear stuck.
 const MAX_HOLD_MS = 2000;
+
+// A page's own step list: one page, nothing more to fetch.
+const NO_PAGES = { hasNextPage: false, isFetchingNextPage: false, fetchNextPage: () => Promise.resolve() };
 
 /**
  * ImageView's walk through the shared Image feed. `routeId` is where the URL
@@ -84,9 +87,12 @@ export function useImageStepper(filters: Filters, routeId: string | undefined) {
 
   // A page's own list replaces the feed, which then stays idle: paging it
   // looking for an image that is not there would walk the whole library.
-  const steps = getSteps(location);
-  const feed = useImageFeed(filters, PAGE_LIMIT, !steps);
-  const list = steps ?? feed.items;
+  // Every paging path below reads `feed`, so with a list none can fetch
+  // (`enabled` only stops the automatic fetches, not `fetchNextPage`).
+  const steps = useSteps(location);
+  const query = useImageFeed(filters, PAGE_LIMIT, !steps);
+  const feed = steps ? { ...NO_PAGES, items: steps } : query;
+  const list = feed.items;
   const index = useMemo(
     () => (routeId ? list.findIndex((x) => x._id === routeId) : -1),
     [routeId, list],

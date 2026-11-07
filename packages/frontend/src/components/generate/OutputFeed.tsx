@@ -3,7 +3,7 @@ import { batchProgress, isWaiting, shownImages, turnLabel } from "../../lib/batc
 import { durationWords } from "../../lib/format";
 import { useBatchChanged } from "../../hooks/useBatchActions";
 import { useBatch, useBatchList, useBatches, useComfyStatus } from "../../lib/generate";
-import { StepListContext } from "../../lib/stepList";
+import { StepListContext, useStepList } from "../../lib/stepList";
 import { leftLabel } from "../../lib/eta";
 import { queueRoles } from "../../lib/queueClock";
 import { useLocalPref } from "../../hooks/useLocalPref";
@@ -93,7 +93,7 @@ export function OutputFeed() {
     .slice(0, SHOWN);
   // What an image opened from here steps through: the images on show, in
   // the order they were made (the column puts the newest batch on top).
-  const steps = shownImages(useBatchList((started ?? []).map((b) => b._id).reverse()));
+  const steps = useStepList("generate", shownImages(useBatchList((started ?? []).map((b) => b._id).reverse())));
   if (!started?.length) return null;
   return (
     <StepListContext.Provider value={steps}>

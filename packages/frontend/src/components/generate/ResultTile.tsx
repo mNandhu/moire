@@ -5,7 +5,7 @@ import { withBackgroundLocation } from "../../lib/backgroundLocation";
 import { cn } from "../../lib/cn";
 import { hasModifier } from "../../lib/dom";
 import { imageHref } from "../../lib/imageFilter";
-import { StepListContext } from "../../lib/stepList";
+import { StepListContext, stepsState } from "../../lib/stepList";
 import type { Output } from "../../lib/generate";
 import { setQuarantine, setScore } from "../../lib/imageMutations";
 import { BATCH } from "../../lib/shortcuts";
@@ -64,7 +64,7 @@ export function ResultTile({ out, ratio, onChanged }: { out: Output; ratio: numb
     >
       <Link
         to={imageHref(out.image_id)}
-        state={steps ? { ...withBackgroundLocation(location), steps } : withBackgroundLocation(location)}
+        state={steps ? { ...withBackgroundLocation(location), ...stepsState(steps) } : withBackgroundLocation(location)}
         tabIndex={-1}
       >
         {out.thumb_url && (

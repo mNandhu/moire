@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { Badge, Button, ButtonLink, PageBody, PageHeader } from "../components/ui";
 import { InlineRename } from "../components/InlineRename";
 import { batchStats, shownImages, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
-import { StepListContext } from "../lib/stepList";
+import { StepListContext, useStepList } from "../lib/stepList";
 import { durationWords } from "../lib/format";
 import { leftLabel } from "../lib/eta";
 import { renameBatch, requeueBatch, useBatch, type Batch } from "../lib/generate";
@@ -42,6 +42,8 @@ export default function BatchPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const { data: b, isLoading, error } = useBatch(batchId);
+  // What an image opened here steps through: this batch's images.
+  const steps = useStepList(`batch:${batchId}`, shownImages(b ? [b] : []));
   useDocumentTitle(b?.name);
 
   const changed = useBatchChanged(batchId);
@@ -140,7 +142,7 @@ export default function BatchPage() {
         </div>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="min-w-0">
-            <StepListContext.Provider value={shownImages([b])}>
+            <StepListContext.Provider value={steps}>
               <BatchResults batch={b} onChanged={changed} />
             </StepListContext.Provider>
           </div>

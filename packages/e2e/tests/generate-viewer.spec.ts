@@ -42,23 +42,36 @@ const openId = (page: Page) => decodeURIComponent(new URL(page.url()).pathname.r
 
 test("the viewer steps through only the images Generate shows", async ({ page, request }) => {
   await settled(request);
-  await page.goto("/generate");
+  // The gallery first, so its feed is cached with pages to come: the viewer
+  // must not walk on into it.
+  await page.goto("/");
+  await expect(page.locator("[data-tile-index]").first()).toBeVisible();
+  await page.getByRole("link", { name: "Generate", exact: true }).click();
+  await expect(page).toHaveURL(/\/generate$/);
   const output = page.getByRole("complementary", { name: "Output" });
   const clear = output.getByRole("button", { name: "Clear", exact: true });
-  if (await clear.isVisible()) await clear.click();
+  // Earlier specs leave batches in the column.
+  await expect(clear).toBeVisible({ timeout: 30_000 });
+  await clear.click();
   await expect(output.getByRole("link", { name: "Batch page" })).toHaveCount(0);
 
   // One image on show: nothing to step to, though the library has many.
   const [only] = await queue(page, request, 1);
   const tiles = output.locator('a[href^="/image/"]');
   await expect(tiles).toHaveCount(1, { timeout: 30_000 });
+  const feedPages: string[] = [];
+  page.on("request", (r) => {
+    if (new URL(r.url()).pathname === `${API}/images`) feedPages.push(r.url());
+  });
   await tiles.first().click();
   await expect.poll(() => openId(page)).toBe(only);
+  await expect(page.getByRole("region", { name: "Image details" })).toBeAttached();
   await expect(page.getByRole("button", { name: "Previous", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Next", exact: true })).toBeDisabled();
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowLeft");
   await expect.poll(() => openId(page)).toBe(only);
+  expect(feedPages).toEqual([]);
   await page.keyboard.press("Escape");
   await expect(page).toHaveURL(/\/generate$/);
 
@@ -67,8 +80,12 @@ test("the viewer steps through only the images Generate shows", async ({ page, r
   await settled(request);
   // The newest batch is on top; the first one made is at the bottom.
   await expect(tiles).toHaveCount(2, { timeout: 30_000 });
+  // Both of the new batch's images in the column, not still arriving.
+  await expect(output.getByRole("tablist", { name: "Images in this batch" }).locator("img")).toHaveCount(2, { timeout: 30_000 });
   await tiles.last().click();
   await expect.poll(() => openId(page)).toBe(only);
+  // The viewer is up (and knows of the new batch) before a key goes in.
+  await expect(page.getByRole("button", { name: "Next", exact: true })).toBeEnabled();
   await page.keyboard.press("ArrowRight");
   await expect.poll(() => openId(page)).toBe(later[0]);
   await page.keyboard.press("ArrowRight");
