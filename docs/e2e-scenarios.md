@@ -6,7 +6,7 @@ Scenarios worth testing end to end, for the Playwright suite in `packages/e2e` (
 
 - Onboarding: welcome flow adds a folder and connects the fake ComfyUI, the scan indexes every image (`onboarding.setup.ts`)
 - Gallery: scrolling pages in the rest of the feed; a searched tag filters the gallery and survives a reload from the URL; selection mode from the toolbar and the phone View options menu; Edit tags adding and removing a manual tag on a whole Select all (`gallery.spec.ts`)
-- Generate: every Clear and Undo scenario below (`generate-clear-undo.spec.ts`); Ctrl+Up/Down weigh the tag under the caret, a group with the caret on its own weight, and in a preset's text (`generate-prompt-keys.spec.ts`); a run on the fake ComfyUI lands its images in the output library, with the Images stepper and the batch name's rename, Escape and auto name on the way, then a rename on its batch page (`generate-run.spec.ts`); Ctrl+Z / Ctrl+Shift+Z on a board removal, Ctrl+Enter queueing from the prompt, Clear on the output column, keeping a batch still running, Clean up and Use canonical tags on the Prompt, arrow keys after a stepper's + (`generate-shortcuts.spec.ts`)
+- Generate: every Clear and Undo scenario below (`generate-clear-undo.spec.ts`); Ctrl+Up/Down weigh the tag under the caret, a group with the caret on its own weight, and in a preset's text (`generate-prompt-keys.spec.ts`); a run on the fake ComfyUI lands its images in the output library, with the Images stepper and the batch name's rename, Escape and auto name on the way, then a rename on its batch page (`generate-run.spec.ts`); Ctrl+Z / Ctrl+Shift+Z on a board removal, Ctrl+Enter queueing from the prompt, Clear on the output column, keeping a batch still running, Clean up and Use canonical tags on the Prompt, arrow keys after a stepper's + (`generate-shortcuts.spec.ts`); an image made while the tab is hidden, Clear rejected, Clear failed, a switched-off style LoRA, a Danbooru alias suggesting its tag (`generate-work-output.spec.ts`)
 - Viewer: prompt weights on the Tags tab, a ComfyUI prompt escaped twice, adding manual tags, setting a score, arrow keys through the feed, also pressed back to back, the phone details sheet dragged up and off, quarantining the open image and stepping on past it and back (`viewer.spec.ts`)
 - Outfits: New outfit on the Outfits page for a picked character, shared; Generate's Outfit picker listing another character's outfit (`outfits.spec.ts`)
 - Tags page: a tag's panel and its Open in gallery link, closing the panel (`tag-panel.spec.ts`)
@@ -77,3 +77,27 @@ Covered by `generate-viewer.spec.ts`.
 ### Arrow keys walk only what Generate shows
 
 Clear the output column, generate one image and open it. Expected: Previous and Next are off and Left / Right stay on it. Generate two more and open the first one: Right goes on to the two new ones in the order they were made, then Next is off; Left comes back.
+
+## Generate: output column and LoRA switches
+
+Covered by `generate-work-output.spec.ts`.
+
+### An image made while the tab is hidden
+
+Queue one image, then hide the page (another window over it). Expected: the image shows in the output column while the page is still hidden, without coming back to it first.
+
+### Clear rejected
+
+Queue two images and reject one. Expected: Clear rejected appears; clicked, the rejected image leaves the column (the strip goes) and stays gone on reload, while the batch still has both. Restored, it shows again.
+
+### Clear failed
+
+Have the fake ComfyUI fail the next prompt and queue one image. Expected: the failure shows; Clear failed removes it, and a batch with nothing else is deleted.
+
+### A switched-off LoRA
+
+Add a style LoRA and untick it. Expected: queueing sends no LoRA; after a reload it is still there, still off.
+
+### A Danbooru alias suggests its tag
+
+Type `smiling` in the Prompt. Expected: `smile` is offered first, and Tab puts it in.

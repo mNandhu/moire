@@ -83,14 +83,31 @@ export function resultSlots(b: Pick<Batch, "requests">): ResultSlot[] {
   return out;
 }
 
+/** A rejected image cleared from view (`hidden`); restored, it shows again. */
+export const isHiddenSlot = (s: ResultSlot, hidden: ReadonlySet<string>): boolean =>
+  s.kind === "image" && s.out.quarantined && hidden.has(s.out.image_id);
+
+/** A cell for a request that failed (failed, lost, or done with no images),
+ * as Clear failed removes; a cancelled one isn't. */
+export const isFailedSlot = (s: ResultSlot): boolean => s.kind === "failed" && s.req.state !== "cancelled";
+
+/** The rejected images of `batches` (those loaded). */
+export function rejectedIds(batches: readonly (Pick<Batch, "requests"> | undefined)[]): string[] {
+  return batches.flatMap((b) => (b ? resultSlots(b).flatMap((s) => (s.kind === "image" && s.out.quarantined ? [s.out.image_id] : [])) : []));
+}
+
 /** The images a run of batches shows that can be opened (in the library,
- * rejected ones too), in the order they were made: `batches` oldest first,
- * each in its own order. A batch still loading adds nothing. */
-export function shownImages(batches: readonly (Pick<Batch, "requests"> | undefined)[]): StepItem[] {
+ * rejected ones too, unless cleared from view: `hidden`), in the order they
+ * were made: `batches` oldest first, each in its own order. A batch still
+ * loading adds nothing. */
+export function shownImages(
+  batches: readonly (Pick<Batch, "requests"> | undefined)[],
+  hidden: ReadonlySet<string> = new Set(),
+): StepItem[] {
   return batches.flatMap((b) =>
     b
       ? resultSlots(b).flatMap((s) =>
-          s.kind === "image" && s.out.in_library
+          s.kind === "image" && s.out.in_library && !isHiddenSlot(s, hidden)
             ? [{ _id: s.out.image_id, thumb_url: s.out.thumb_url, width: s.out.width, height: s.out.height }]
             : [],
         )

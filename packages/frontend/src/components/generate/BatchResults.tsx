@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ImageOff, Loader2, RotateCcw, TriangleAlert } from "lucide-react";
-import { cellTitle, failureLabel, resultGrid, resultSlots, shownSlot, slotKey, slotWhy, stepIndex, type ResultSlot } from "../../lib/batches";
+import { cellTitle, failureLabel, isHiddenSlot, resultGrid, resultSlots, shownSlot, slotKey, slotWhy, stepIndex, type ResultSlot } from "../../lib/batches";
 import { useRetryRequest } from "../../hooks/useBatchActions";
 import type { Batch, GenRequest } from "../../lib/generate";
 import { cn } from "../../lib/cn";
@@ -89,16 +89,19 @@ export function BatchResults({
   batch,
   onChanged,
   variant = "page",
+  hidden,
 }: {
   batch: Batch;
   onChanged: (b?: Batch) => void;
   variant?: "page" | "panel";
+  /** Rejected images cleared from the output column. */
+  hidden?: ReadonlySet<string>;
 }) {
   const ratio = batch.inputs.width && batch.inputs.height ? batch.inputs.width / batch.inputs.height : 2 / 3;
   const slots = resultSlots(batch);
   if (variant === "panel") {
     // Cells still waiting their turn are the queue deck's to show.
-    const made = slots.filter((s) => s.kind !== "waiting" || s.req.state === "running");
+    const made = slots.filter((s) => (s.kind !== "waiting" || s.req.state === "running") && !(hidden && isHiddenSlot(s, hidden)));
     return <PanelResults batch={batch} slots={made} ratio={ratio} onChanged={onChanged} />;
   }
   const { cols, rows } = resultGrid(slots.length);

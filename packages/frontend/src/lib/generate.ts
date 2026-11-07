@@ -601,6 +601,9 @@ export const cancelRequest = (batchId: number, requestId: number) =>
 export const retryRequest = (batchId: number, requestId: number, single = false) =>
   send<Batch>(`/batches/${batchId}/requests/${requestId}/retry`, "POST", { single });
 export const retryFailed = (batchId: number) => send<Batch>(`/batches/${batchId}/retry-failed`, "POST");
+/** Removes a batch's failed requests for good; null when that emptied it,
+ * so it was deleted. */
+export const clearFailed = (batchId: number) => send<Batch | null>(`/batches/${batchId}/clear-failed`, "POST");
 
 /** Connection, global busy and the queue card; fast while anything runs. */
 export function useComfyStatus() {

@@ -778,6 +778,27 @@ class GenerationManager:
                 await self._retry(batch_id, request_id, single=False)
         self._wake.set()
 
+    async def clear_failed(self, batch_id: int) -> bool:
+        """Remove a batch's failed requests (failed, lost, or done with no
+        images: what shows as failed) for good. A batch left with nothing
+        else is deleted; returns whether it was."""
+        r, o = t.generation_requests, t.generation_outputs
+        made = sa.select(o.c.request_id).where(o.c.request_id == r.c._id).exists()
+        failed = sa.or_(r.c.state.in_(FAILED), sa.and_(r.c.state == "done", ~made))
+        async with self._tick_lock:
+            async with async_tx() as conn:
+                await conn.execute(sa.delete(r).where(r.c.batch_id == batch_id, failed))
+                left = (
+                    await conn.execute(
+                        sa.select(r.c._id)
+                        .where(r.c.batch_id == batch_id, r.c.state != REPLACED)
+                        .limit(1)
+                    )
+                ).first()
+            if left is None:
+                await self._delete_batch(batch_id)
+        return left is None
+
     async def _retry(self, batch_id: int, request_id: int, *, single: bool) -> None:
         r = t.generation_requests
         async with async_conn() as conn:

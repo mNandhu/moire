@@ -419,6 +419,40 @@ async def test_retry_failed_requeues_every_failed_request(client, comfy, seed):
     assert (await client.post("/generate/batches/9999/retry-failed")).status_code == 404
 
 
+async def test_clear_failed_removes_only_the_failed_requests(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x", "count": 3})).json()
+    comfy.fail(comfy.order[-1])
+    await tick()
+    comfy.fail(comfy.order[-1])
+    await tick()
+    scanned(seed, comfy.finish(comfy.order[-1]))
+    await tick()
+
+    r = await client.post(f"/generate/batches/{b['_id']}/clear-failed")
+    assert r.status_code == 200
+    reqs = r.json()["requests"]
+    assert [q["state"] for q in reqs] == ["done"]
+    assert reqs[0]["outputs"]
+    assert (await client.get(f"/generate/batches/{b['_id']}")).json()[
+        "requests"
+    ] == reqs
+
+    assert (await client.post("/generate/batches/9999/clear-failed")).status_code == 404
+
+
+async def test_clear_failed_deletes_a_batch_with_nothing_else(client, comfy, seed):
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x", "count": 1})).json()
+    comfy.fail(comfy.order[-1])
+    await tick()
+
+    r = await client.post(f"/generate/batches/{b['_id']}/clear-failed")
+    assert r.status_code == 200
+    assert r.json() is None
+    assert (await client.get(f"/generate/batches/{b['_id']}")).status_code == 404
+
+
 async def test_cancel_one_request_leaves_the_rest(client, comfy, seed):
     await make_ready(client, comfy, seed)
     b = (await client.post("/generate/batches", json={"base": "x", "count": 3})).json()

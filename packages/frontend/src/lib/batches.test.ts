@@ -8,7 +8,9 @@ import {
   batchStats,
   coverAspect,
   dayLabel,
+  isFailedSlot,
   isWaiting,
+  rejectedIds,
   partRows,
   resultGrid,
   resultSlots,
@@ -175,5 +177,22 @@ describe("shown images", () => {
 
   it("is empty when nothing has been made", () => {
     expect(shownImages([])).toEqual([]);
+  });
+
+  it("leaves out rejected images cleared from view, until restored", () => {
+    const b = batch({ state: "done", outs: [out("a"), out("b", true, true)] });
+    expect(shownImages([b], new Set(["a", "b"])).map((x) => x._id)).toEqual(["a"]);
+    expect(rejectedIds([b, undefined])).toEqual(["b"]);
+  });
+
+  it("counts failed, lost and empty requests as failed, not cancelled ones", () => {
+    const b = batch(
+      { state: "failed", outs: [] },
+      { state: "lost", outs: [] },
+      { state: "done", outs: [] },
+      { state: "cancelled", outs: [] },
+      { state: "done", outs: [out("a")] },
+    );
+    expect(resultSlots(b).map(isFailedSlot)).toEqual([true, true, true, false, false]);
   });
 });

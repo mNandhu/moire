@@ -15,6 +15,16 @@ n = itertools.count(1)
 RUN = {"seconds": float(os.environ.get("FAKE_COMFY_RUN", "0.5"))}
 
 
+# Prompts still to fail; POST /fake/fail?count=N makes the next N fail.
+FAIL = {"count": 0}
+
+
+@app.post("/fake/fail")
+def set_fail(count: int):
+    FAIL["count"] = count
+    return FAIL
+
+
 @app.post("/fake/run")
 def set_run(seconds: float):
     RUN["seconds"] = seconds
@@ -48,12 +58,34 @@ def emb():
     return ["easynegative"]
 
 
-async def run(pid, graph):
+async def run(pid, graph, fail=False):
     await asyncio.sleep(0.5)
     pending.remove(pid)
     running.append(pid)
     began = time.time() * 1000
     await asyncio.sleep(RUN["seconds"])
+    if fail:
+        running.remove(pid)
+        hist[pid] = {
+            "outputs": {},
+            "status": {
+                "status_str": "error",
+                "completed": False,
+                "messages": [
+                    [
+                        "execution_error",
+                        {
+                            "prompt_id": pid,
+                            "node_id": "3",
+                            "node_type": "KSampler",
+                            "exception_type": "RuntimeError",
+                            "exception_message": "fake failure",
+                        },
+                    ]
+                ],
+            },
+        }
+        return
     # Any graph: the first node with a literal size, else a small square; any saver.
     lat = next(
         (
@@ -108,7 +140,10 @@ async def prompt(req: Request):
     body = await req.json()
     pid = f"p{next(n)}"
     pending.append(pid)
-    task = asyncio.create_task(run(pid, body["prompt"]))
+    fail = FAIL["count"] > 0
+    if fail:
+        FAIL["count"] -= 1
+    task = asyncio.create_task(run(pid, body["prompt"], fail))
     tasks.add(task)
     task.add_done_callback(tasks.discard)
     return {"prompt_id": pid, "number": 1, "node_errors": {}}
