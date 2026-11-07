@@ -61,7 +61,15 @@ from .generation_inputs import (
     replay_body,
 )
 from .generation_outputs import fetch_missing, place_outputs
-from .generation_states import FAILED, IN_COMFY, REPLACED, RETRYABLE, UNFINISHED
+from .generation_states import (
+    CLEARED,
+    FAILED,
+    HIDDEN,
+    IN_COMFY,
+    REPLACED,
+    RETRYABLE,
+    UNFINISHED,
+)
 from .generators_store import load_generator
 from .generator_graph import (
     GraphError,
@@ -779,19 +787,24 @@ class GenerationManager:
         self._wake.set()
 
     async def clear_failed(self, batch_id: int) -> bool:
-        """Remove a batch's failed requests (failed, lost, or done with no
-        images: what shows as failed) for good. A batch left with nothing
+        """Take a batch's failed requests (failed, lost, or done, with no
+        images: what shows as failed) away for good. They are hidden, not
+        deleted, so nothing hangs on a cascade. A batch left with nothing
         else is deleted; returns whether it was."""
         r, o = t.generation_requests, t.generation_outputs
         made = sa.select(o.c.request_id).where(o.c.request_id == r.c._id).exists()
-        failed = sa.or_(r.c.state.in_(FAILED), sa.and_(r.c.state == "done", ~made))
+        failed = sa.and_(r.c.state.in_((*FAILED, "done")), ~made)
         async with self._tick_lock:
             async with async_tx() as conn:
-                await conn.execute(sa.delete(r).where(r.c.batch_id == batch_id, failed))
+                await conn.execute(
+                    sa.update(r)
+                    .where(r.c.batch_id == batch_id, failed)
+                    .values(state=CLEARED)
+                )
                 left = (
                     await conn.execute(
                         sa.select(r.c._id)
-                        .where(r.c.batch_id == batch_id, r.c.state != REPLACED)
+                        .where(r.c.batch_id == batch_id, r.c.state.not_in(HIDDEN))
                         .limit(1)
                     )
                 ).first()

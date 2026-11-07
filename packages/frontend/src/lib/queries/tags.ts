@@ -95,6 +95,9 @@ export function useDanbooruAliases() {
     queryFn: ({ signal }) => api<Record<string, string[]>>("/api/v1/tags/danbooru-aliases", { signal }),
     staleTime: TAG_MAP_STALE_MS,
     gcTime: TAG_MAP_STALE_MS,
+    // Empty while Danbooru's list is still downloading: look again until
+    // it is in (a library with no aliased tag just asks now and then).
+    refetchInterval: (q) => (q.state.data && Object.keys(q.state.data).length === 0 ? 60_000 : false),
   });
 }
 

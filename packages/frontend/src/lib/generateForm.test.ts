@@ -120,10 +120,11 @@ describe("style LoRAs", () => {
   it("brings switched-off LoRAs back with the batch and the draft, still off", () => {
     const sent = toQueueBody(switched, "builtin", [{ tag: "a", label: "A", tags: ["a"], lora: null }], presets, loraPresets);
     const f = formFromBatch({ ...({} as BatchInputs), ...sent, seed: sent.seed, composer: sent.composer } as BatchInputs, null);
+    // Back in its place, first.
     expect(f.loras.map((l) => [l.name, !!l.off, l.preset?.id ?? null])).toEqual([
+      ["niji.safetensors", true, "g"],
       ["detail.safetensors", false, null],
       ["gone.safetensors", false, "x"],
-      ["niji.safetensors", true, "g"],
     ]);
     expect(f.loraOff).toEqual(["a"]);
     const d = draft({ loras: switched.loras, characters: ["a", "b"], loraOff: ["a", "z"] });

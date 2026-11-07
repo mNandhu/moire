@@ -140,6 +140,29 @@ test("a switched-off LoRA stays in the composer but isn't sent", async ({ page, 
   await settled(request);
 });
 
+test("a character's LoRA switched off is sent without it", async ({ page, request }) => {
+  await settled(request);
+  const made = await request.post(`${API}/tags/characters`, { data: { tag: "e2e_lora_girl", name: "Lora girl" } });
+  expect([200, 409]).toContain(made.status());
+  expect((await request.put(`${API}/generate/recipes/e2e_lora_girl`, { data: { lora: "flat_color_xl" } })).ok()).toBeTruthy();
+  await page.addInitScript((draft) => localStorage.setItem("moire.generate.draft", JSON.stringify(draft)), {
+    characters: ["e2e_lora_girl"],
+    prompt: "1girl",
+  });
+  await page.goto("/generate");
+  const use = page.getByRole("button", { name: "Use flat_color_xl" });
+  await expect(use).toHaveAttribute("aria-pressed", "true");
+  await use.click();
+  await expect(use).toHaveAttribute("aria-pressed", "false");
+
+  const sent = page.waitForRequest((r) => r.method() === "POST" && /\/batches$/.test(new URL(r.url()).pathname));
+  await queue(page, 1, "1girl");
+  const body = (await sent).postDataJSON();
+  expect(body.characters[0].tag).toBe("e2e_lora_girl");
+  expect(body.characters[0].lora).toBeNull();
+  await settled(request);
+});
+
 test("typing a Danbooru alias suggests its tag", async ({ page }) => {
   await page.goto("/generate");
   const prompt = page.getByLabel("Prompt", { exact: true });

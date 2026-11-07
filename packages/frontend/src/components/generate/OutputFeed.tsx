@@ -12,7 +12,7 @@ import {
 } from "../../lib/batches";
 import { durationWords } from "../../lib/format";
 import { useBatchChanged } from "../../hooks/useBatchActions";
-import { clearFailed, invalidateQueue, useBatch, useBatchList, useBatches, useComfyStatus } from "../../lib/generate";
+import { BATCHES_KEY, STATUS_KEY, batchKey, clearFailed, useBatch, useBatchList, useBatches, useComfyStatus, type Batch, type BatchSummary } from "../../lib/generate";
 import { useToast } from "../Toasts";
 import { StepListContext, useStepList } from "../../lib/stepList";
 import { leftLabel } from "../../lib/eta";
@@ -102,36 +102,62 @@ export function OutputFeed() {
   const active = (status?.active ?? []).filter((a) => !a.test);
   const queued = queueRoles(active).behind;
   const behind = new Set(active.filter((a) => isWaiting(a) && queued.has(a._id)).map((a) => a._id));
-  // Enough to get past every one of them.
-  const { data } = useBatches(SHOWN + behind.size);
+  // Enough to get past every one of them, and past batches whose every
+  // image was cleared away.
+  const { data } = useBatches(2 * SHOWN + behind.size);
   const [cleared, setCleared] = useLocalPref<Cleared>(CLEARED_KEY, NOT_CLEARED, { parse: parseCleared });
+  const [hiddenList, setHidden] = useLocalPref<string[]>(HIDDEN_KEY, NONE_HIDDEN, { parse: parseHidden });
+  const hidden = new Set(hiddenList);
   const kept = new Set([...cleared.keep, ...active.map((a) => a._id)]);
-  const started = data
-    ?.filter((b) => {
+  const candidates = (data ?? [])
+    .filter((b) => {
       // Cancelled with nothing made: nothing to show (Generations lists it).
       if (b.state === "cancelled" && b.images === 0) return false;
       if (b.created_at <= cleared.at && !kept.has(b._id)) return false;
       return !behind.has(b._id);
     })
-    .slice(0, SHOWN);
+    .slice(0, 2 * SHOWN);
+  const details = useBatchList(candidates.map((b) => b._id));
+  const detailOf = (id: number) => details.find((d) => d?._id === id);
+  // A batch with every image cleared away gives its place to an older one.
+  const started = data
+    ? candidates
+        .filter((b) => {
+          const d = detailOf(b._id);
+          return !d || !resultSlots(d).every((s) => isHiddenSlot(s, hidden));
+        })
+        .slice(0, SHOWN)
+    : undefined;
   // What an image opened from here steps through: the images on show, in
   // the order they were made (the column puts the newest batch on top).
-  const [hiddenList, setHidden] = useLocalPref<string[]>(HIDDEN_KEY, NONE_HIDDEN, { parse: parseHidden });
-  const hidden = new Set(hiddenList);
-  const shown = useBatchList((started ?? []).map((b) => b._id).reverse());
+  const shown = (started ?? []).map((b) => detailOf(b._id)).reverse();
   const steps = useStepList("generate", shownImages(shown, hidden));
-  const rejected = rejectedIds(shown);
-  const toHide = rejected.filter((id) => !hidden.has(id));
+  const toHide = rejectedIds(shown).filter((id) => !hidden.has(id));
+  // Kept while their batch is still among the last few; older ones go.
+  const stillRejected = new Set(rejectedIds(details));
   const failedIds = (started ?? []).filter((b) => {
-    const full = shown.find((x) => x?._id === b._id);
+    const full = detailOf(b._id);
     return full && resultSlots(full).some(isFailedSlot);
   }).map((b) => b._id);
   const qc = useQueryClient();
   const toast = useToast();
   const dropFailed = useMutation({
-    mutationFn: (ids: number[]) => Promise.all(ids.map(clearFailed)),
+    mutationFn: (ids: number[]) => Promise.all(ids.map(async (id) => [id, await clearFailed(id)] as const)),
+    onSuccess: (done) => {
+      // A batch with nothing left was deleted: out of the lists at once,
+      // its own query dropped rather than refetched into a 404.
+      const gone = new Set(done.filter(([, b]) => !b).map(([id]) => id));
+      qc.setQueriesData<BatchSummary[]>({ queryKey: BATCHES_KEY }, (old) => old?.filter((b) => !gone.has(b._id)));
+      for (const [id, b] of done) {
+        if (b) qc.setQueryData<Batch>(batchKey(id), b);
+        else qc.removeQueries({ queryKey: batchKey(id), exact: true });
+      }
+    },
     onError: (e) => toast.push(e.message, "error"),
-    onSettled: (_d, _e, ids) => ids.forEach((id) => invalidateQueue(qc, id)),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: STATUS_KEY });
+      void qc.invalidateQueries({ queryKey: BATCHES_KEY });
+    },
   });
   if (!started?.length) return null;
   return (
@@ -151,8 +177,8 @@ export function OutputFeed() {
         {toHide.length > 0 && (
           <button
             type="button"
-            // Only the batches on show: older ids would pile up.
-            onClick={() => setHidden([...new Set([...hiddenList.filter((id) => rejected.includes(id)), ...toHide])])}
+            // Only the last few batches': older ids would pile up.
+            onClick={() => setHidden([...new Set([...hiddenList.filter((id) => stillRejected.has(id)), ...toHide])])}
             className="text-xs text-muted hover:text-neutral-100"
           >
             Clear rejected

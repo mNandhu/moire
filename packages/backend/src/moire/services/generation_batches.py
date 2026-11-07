@@ -15,7 +15,7 @@ from ..database import schema as t
 from . import generation_estimate, generator_setup, thumb_version
 from .generator_discovery import fixed_values
 from .generator_graph import sampling_defaults, slot_value
-from .generation_states import FAILED, REPLACED, UNFINISHED
+from .generation_states import FAILED, HIDDEN, UNFINISHED
 from .generators_store import load_generator
 
 if TYPE_CHECKING:
@@ -30,7 +30,7 @@ _b, _r, _o, _i = (
 
 # Requests the UI shows: a request split by "Retry one at a time" is replaced
 # by its singles.
-_VISIBLE = _r.c.state != REPLACED
+_VISIBLE = _r.c.state.not_in(HIDDEN)
 # How long a finished request's missing output counts as still arriving.
 ARRIVING_SECONDS = 300
 

@@ -248,9 +248,9 @@ function composerState(f: GenerateForm): Record<string, unknown> {
     loraPresets: Object.fromEntries(f.loras.filter((l) => l.preset).map((l) => [l.name, l.preset])),
     // Batch-only strikes, so Edit and queue strikes the same tags again.
     identityOff: f.identityOff,
-    // Switched-off LoRAs aren't in the batch's inputs: kept here so Edit
-    // and queue brings them back, still off.
-    lorasOff: f.loras.filter((l) => l.off).map(({ name, strength }) => ({ name, strength })),
+    // Switched-off LoRAs aren't in the batch's inputs: kept here, with
+    // their place among the rest, so Edit and queue brings them back off.
+    lorasOff: f.loras.flatMap(({ name, strength, off }, at) => (off ? [{ name, strength, at }] : [])),
     loraOff: f.loraOff,
   };
 }

@@ -441,6 +441,42 @@ async def test_clear_failed_removes_only_the_failed_requests(client, comfy, seed
     assert (await client.post("/generate/batches/9999/clear-failed")).status_code == 404
 
 
+async def test_clear_failed_keeps_a_failed_request_with_images(client, comfy, seed):
+    """Failed in ComfyUI after its images were saved: shown as images, not
+    as a failed cell, so Clear failed leaves it."""
+    import sqlalchemy as sa
+    from moire.database import db
+    from moire.database import schema as t
+
+    await make_ready(client, comfy, seed)
+    b = (await client.post("/generate/batches", json={"base": "x", "count": 2})).json()
+    scanned(seed, comfy.finish(comfy.order[-1]))
+    await tick()
+    comfy.fail(comfy.order[-1])
+    await tick()
+    made = b["requests"][0]["_id"]
+    async with db.async_tx() as conn:
+        await conn.execute(
+            sa.update(t.generation_requests)
+            .where(t.generation_requests.c._id == made)
+            .values(state="failed")
+        )
+
+    r = (await client.post(f"/generate/batches/{b['_id']}/clear-failed")).json()
+    assert [q["_id"] for q in r["requests"]] == [made]
+    assert r["requests"][0]["outputs"]
+    # Hidden, not deleted.
+    async with db.async_conn() as conn:
+        state = (
+            await conn.execute(
+                sa.select(t.generation_requests.c.state).where(
+                    t.generation_requests.c._id == b["requests"][1]["_id"]
+                )
+            )
+        ).scalar()
+    assert state == "cleared"
+
+
 async def test_clear_failed_deletes_a_batch_with_nothing_else(client, comfy, seed):
     await make_ready(client, comfy, seed)
     b = (await client.post("/generate/batches", json={"base": "x", "count": 1})).json()

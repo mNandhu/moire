@@ -3,8 +3,9 @@ manager, the read side and the estimate.
 
 A request is ``pending`` (waiting here), ``queued`` / ``running`` (in
 ComfyUI), then ``done``, ``failed``, ``cancelled`` or ``lost`` (ComfyUI
-forgot it). ``replaced`` is one split by "Retry one at a time" into singles:
-kept for the record, never shown."""
+forgot it). ``replaced`` is one split by "Retry one at a time" into singles,
+``cleared`` a failed one taken away by Clear failed: both kept for the
+record, never shown."""
 
 from __future__ import annotations
 
@@ -18,3 +19,7 @@ FAILED = ("failed", "lost")
 RETRYABLE = ("done", "cancelled", *FAILED)
 # Split into singles by a retry; hidden from views.
 REPLACED = "replaced"
+# A failed request cleared away; hidden from views.
+CLEARED = "cleared"
+# Never shown.
+HIDDEN = (REPLACED, CLEARED)

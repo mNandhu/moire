@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { useBoilerplate, useDanbooruAliases } from "../lib/queries";
 import { rankSuggestions, suggestKeyAction, type TagSuggestion } from "../lib/tagSuggest";
+import { formatTag } from "../lib/tags";
 
 const NONE: TagSuggestion[] = [];
 
@@ -13,7 +14,12 @@ export function useTagMatches(
 ): TagSuggestion[] {
   const isBoilerplate = useBoilerplate();
   const { data: aliases } = useDanbooruAliases();
-  const aliasesOf = useMemo(() => (aliases ? (tag: string) => aliases[tag] : undefined), [aliases]);
+  // In display form once per list, not per keystroke.
+  const aliasesOf = useMemo(() => {
+    if (!aliases) return undefined;
+    const shown = new Map(Object.entries(aliases).map(([tag, names]) => [tag, names.map(formatTag)]));
+    return (tag: string) => shown.get(tag);
+  }, [aliases]);
   return useMemo(
     () => rankSuggestions(text, pool, resources, isBoilerplate, aliasesOf),
     [text, pool, resources, isBoilerplate, aliasesOf],

@@ -33,7 +33,7 @@ describe("rankSuggestions", () => {
       { _id: "prompt:closed_eyes", count: 3 },
       { _id: "any:screen", count: 9 },
     ];
-    const aliases: Record<string, string[]> = { anime_screenshot: ["anime_screencap"], closed_eyes: ["eyes_closed"] };
+    const aliases: Record<string, string[]> = { anime_screenshot: ["anime screencap"], closed_eyes: ["eyes closed"] };
     const of = (t: string) => aliases[t];
     expect(rankSuggestions("anime screencap", pool, [], none, of).map((s) => s._id)).toEqual(["any:anime_screenshot"]);
     expect(rankSuggestions("eyes_clos", pool, [], none, of).map((s) => s._id)).toEqual(["prompt:closed_eyes"]);

@@ -4,7 +4,7 @@
  */
 import { batchCast } from "./batches";
 import { compose } from "./compose";
-import type { BatchInputs, Generator, RemixDoc, Sampling } from "./generate";
+import type { BatchInputs, Generator, RemixDoc, Sampling, StyleLora } from "./generate";
 import { DEFAULT_FORM, type GenerateForm, type PresetRef } from "./generateForm";
 import { composerFrom, keepLoraOff, keepOff, presetRef, validLoras } from "./generateDraft";
 import { MAX_CHARACTERS } from "./generationLimits";
@@ -14,6 +14,20 @@ function loraPresetOf(composer: Record<string, unknown> | null | undefined, name
   const all = composer?.loraPresets;
   if (!all || typeof all !== "object") return null;
   return presetRef((all as Record<string, unknown>)[name]) ?? null;
+}
+
+/** The LoRAs sent, with the switched-off ones put back in their places. */
+function withLorasOff(sent: StyleLora[], off: unknown, composer: Record<string, unknown> | null | undefined): StyleLora[] {
+  const out = [...sent];
+  // In order of place (as recorded), so each lands where it was.
+  for (const o of Array.isArray(off) ? off : []) {
+    const [l] = validLoras([o]);
+    if (!l) continue;
+    const at = (o as { at?: unknown }).at;
+    const lora = { ...l, preset: loraPresetOf(composer, l.name), off: true };
+    out.splice(typeof at === "number" && Number.isInteger(at) ? Math.min(Math.max(at, 0), out.length) : out.length, 0, lora);
+  }
+  return out;
 }
 
 /** A batch's inputs back in the composer ("Edit and queue"). A typed name
@@ -29,10 +43,11 @@ export function formFromBatch(i: BatchInputs, name: string | null, workflow = "b
     }),
     checkpoint: i.checkpoint,
     sampling: { ...i.sampling },
-    loras: [
-      ...i.loras.map((l) => ({ ...l, preset: loraPresetOf(i.composer, l.name) })),
-      ...validLoras(i.composer?.lorasOff).map((l) => ({ ...l, preset: loraPresetOf(i.composer, l.name), off: true })),
-    ],
+    loras: withLorasOff(
+      i.loras.map((l) => ({ ...l, preset: loraPresetOf(i.composer, l.name) })),
+      i.composer?.lorasOff,
+      i.composer,
+    ),
     characters: chars.map((c) => c.tag),
     outfits: Object.fromEntries(chars.flatMap((c) => {
       const p = pickFromInput(c.outfit);
