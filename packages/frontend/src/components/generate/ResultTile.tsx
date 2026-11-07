@@ -1,7 +1,7 @@
-import { useContext } from "react";
+import { useContext, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { UndoActionContext } from "../../lib/undoActions";
-import { BATCHES_KEY, GEN_KEY, type Output } from "../../lib/generate";
+import { GEN_KEY, invalidateQueue, type Output } from "../../lib/generate";
 import { Link, useLocation } from "react-router-dom";
 import { ImageOff, Loader2, Undo2, X } from "lucide-react";
 import { withBackgroundLocation } from "../../lib/backgroundLocation";
@@ -32,27 +32,37 @@ export function ResultTile({ out, ratio, onChanged }: { out: Output; ratio: numb
       return false;
     }
   };
-  // Rejecting is undoable (the page's Ctrl+Z): the tile may be gone by
-  // then (cleared from the column), so the undo refreshes the batches itself.
-  const setRejected = async (id: string, on: boolean) => {
+  // Undo and redo run after the tile may be gone (cleared from the
+  // column), so they refresh every batch themselves.
+  const replay = async (id: string, on: boolean) => {
     try {
       await setQuarantine(id, on);
     } catch (e) {
       toast.push(errorText(e), "error");
     }
+    invalidateQueue(qc);
     void qc.invalidateQueries({ queryKey: [...GEN_KEY, "batch"] });
-    void qc.invalidateQueries({ queryKey: BATCHES_KEY });
   };
-  const reject = async () => {
+  // One change at a time: a second X before the first lands is not a step.
+  const busy = useRef(false);
+  /** Reject (or keep) the image, a step of the page's Ctrl+Z; nothing when
+   * it is that already. */
+  const setRejected = async (on: boolean) => {
+    if (busy.current || !!out.quarantined === on) return;
+    busy.current = true;
     const id = out.image_id;
-    if (await act(() => setQuarantine(id, true))) pushUndo?.({ undo: () => setRejected(id, false), redo: () => setRejected(id, true) });
+    try {
+      if (await act(() => setQuarantine(id, on))) pushUndo?.({ undo: () => replay(id, !on), redo: () => replay(id, on) });
+    } finally {
+      busy.current = false;
+    }
   };
   const onKeyDown = (e: React.KeyboardEvent) => {
     // Ctrl+1 and Ctrl+X are the browser's.
     if (!out.in_library || hasModifier(e)) return;
     const k = e.key;
-    if (BATCH.keep.keys.includes(k)) void act(() => setQuarantine(out.image_id, false));
-    else if (BATCH.reject.keys.includes(k)) void reject();
+    if (BATCH.keep.keys.includes(k)) void setRejected(false);
+    else if (BATCH.reject.keys.includes(k)) void setRejected(true);
     // A rejected image is out; it takes a score once restored.
     else if (BATCH.score.keys.includes(k) && !out.quarantined) void act(() => setScore(out.image_id, Number(k)));
   };
@@ -117,7 +127,7 @@ export function ResultTile({ out, ratio, onChanged }: { out: Output; ratio: numb
         {rejected ? (
           <button
             type="button"
-            onClick={() => act(() => setQuarantine(out.image_id, false))}
+            onClick={() => void setRejected(false)}
             className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs text-neutral-100 hover:text-white"
           >
             <Undo2 size={13} /> Restore
@@ -129,7 +139,7 @@ export function ResultTile({ out, ratio, onChanged }: { out: Output; ratio: numb
             <button
               type="button"
               aria-label="Reject"
-              onClick={() => void reject()}
+              onClick={() => void setRejected(true)}
               className="rounded p-0.5 text-neutral-300 opacity-0 hover:text-red-300 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100"
             >
               <X size={15} />

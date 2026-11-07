@@ -59,11 +59,12 @@ export function rankSuggestions(
     return aliases?.length ? [shown, ...aliases] : shown;
   };
   const query = tagQueryText(q);
-  const ranked = fuzzyRank(query, [...pool], textOf, pool.length).map((s) => withVia(s, query, aliasesOf));
+  const ranked = fuzzyRank(query, [...pool], textOf, pool.length);
   const { kept, boilerplate } = splitBoilerplate(ranked, (s) => s._id, isBoilerplate);
   const tags = [...kept, ...boilerplate];
   const res = fuzzyRank(q, resources, nameOf, MAX_SUGGESTIONS);
-  const head = tags.slice(0, MAX_SUGGESTIONS - Math.min(RESOURCE_ROWS, res.length));
+  // Only the rows shown say which alias led to them.
+  const head = tags.slice(0, MAX_SUGGESTIONS - Math.min(RESOURCE_ROWS, res.length)).map((s) => withVia(s, query, aliasesOf));
   return [...head, ...res.slice(0, MAX_SUGGESTIONS - head.length)];
 }
 

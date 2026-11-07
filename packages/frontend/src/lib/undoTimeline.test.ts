@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emptyTimeline, pushStep, takeRedo, takeUndo, type TimelineStep } from "./undoTimeline";
+import { dropFuture, emptyTimeline, pushStep, takeRedo, takeUndo, type TimelineStep } from "./undoTimeline";
 
 const form: TimelineStep = { kind: "form" };
 const act: TimelineStep = { kind: "action", action: { undo: () => {}, redo: () => {} } };
@@ -19,6 +19,12 @@ describe("undo timeline", () => {
   it("forgets what was undone once a new step comes", () => {
     const t = takeUndo(pushStep(emptyTimeline(), act))!.t;
     expect(takeRedo(pushStep(t, form))).toBeNull();
+  });
+
+  it("forgets what was undone when an edit joins the last step", () => {
+    const t = takeUndo(pushStep(pushStep(emptyTimeline(), form), act))!.t;
+    expect(takeRedo(dropFuture(t))).toBeNull();
+    expect(dropFuture(t).past).toEqual([form]);
   });
 
   it("has nothing to undo or redo when empty", () => {

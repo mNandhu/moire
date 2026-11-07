@@ -54,7 +54,7 @@ import { useToast } from "../components/Toasts";
 import { useUndoHistory } from "../hooks/useUndoHistory";
 import { useHotkeys } from "../hooks/useHotkeys";
 import { undoKey } from "../lib/undoHistory";
-import { emptyTimeline, pushStep, takeRedo, takeUndo, type Timeline, type UndoAction } from "../lib/undoTimeline";
+import { dropFuture, emptyTimeline, pushStep, takeRedo, takeUndo, type Timeline, type UndoAction } from "../lib/undoTimeline";
 import { UndoActionContext } from "../lib/undoActions";
 import { isTextEntry } from "../lib/dom";
 import { GENERATE } from "../lib/shortcuts";
@@ -93,8 +93,8 @@ export default function GeneratePage() {
   const timeline = useRef<Timeline>(emptyTimeline());
   const history = useUndoHistory(form, setForm, {
     restore: (f) => (f.fresh.length ? { ...f, fresh: [] } : f),
-    onStep: () => {
-      timeline.current = pushStep(timeline.current, { kind: "form" });
+    onChange: (newStep) => {
+      timeline.current = newStep ? pushStep(timeline.current, { kind: "form" }) : dropFuture(timeline.current);
     },
   });
   const pushAction = useCallback((action: UndoAction) => {
@@ -143,9 +143,10 @@ export default function GeneratePage() {
   const remixed = (location.state as RemixState | null)?.remixForm;
   useEffect(() => {
     if (!remixed) return;
-    // A new start: nothing before it to undo to.
+    // A new start: nothing before it to undo to, the column's steps included.
     history.quietly();
     history.reset();
+    timeline.current = emptyTimeline();
     setForm(remixed);
     navigate(".", { replace: true, state: null });
   }, [remixed, navigate, history]);

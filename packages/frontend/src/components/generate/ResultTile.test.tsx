@@ -48,10 +48,20 @@ describe("ResultTile keys", () => {
     const el = tile();
     fireEvent.keyDown(el, { key: "x" });
     expect(setQuarantine).toHaveBeenLastCalledWith("lib:a.png", true);
-    fireEvent.keyDown(el, { key: "k" });
-    expect(setQuarantine).toHaveBeenLastCalledWith("lib:a.png", false);
     fireEvent.keyDown(el, { key: "4" });
     expect(setScore).toHaveBeenLastCalledWith("lib:a.png", 4);
+    fireEvent.keyDown(tile({ ...out, quarantined: true } as Output), { key: "k" });
+    expect(setQuarantine).toHaveBeenLastCalledWith("lib:a.png", false);
+  });
+
+  it("records nothing for a reject that changes nothing, or a second X in flight", async () => {
+    const recorded: UndoAction[] = [];
+    fireEvent.keyDown(tile({ ...out, quarantined: true } as Output, (a) => recorded.push(a)), { key: "x" });
+    const el = tile(out, (a) => recorded.push(a));
+    fireEvent.keyDown(el, { key: "x" });
+    fireEvent.keyDown(el, { key: "x" });
+    await vi.waitFor(() => expect(recorded).toHaveLength(1));
+    expect(setQuarantine).toHaveBeenCalledTimes(1);
   });
 
   it("leaves Ctrl, Cmd and Alt combinations to the browser", () => {

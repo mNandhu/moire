@@ -1,5 +1,6 @@
 import React from "react";
 import { cn } from "../../lib/cn";
+import { SwitchTrack } from "../ui/Switch";
 
 // The small pieces every setup step is built from: a step heading, a ruled
 // group of fields, a switch row and a status line. Plain on purpose; the
@@ -55,20 +56,7 @@ export function SwitchRow({
       onClick={() => onChange(!checked)}
       className="flex w-full items-start gap-3 text-left disabled:cursor-default"
     >
-      <span
-        className={cn(
-          "relative mt-px h-5 w-[34px] shrink-0 rounded-full transition-colors",
-          checked ? "bg-brand-600" : "bg-line-strong",
-          disabled && "opacity-50",
-        )}
-      >
-        <span
-          className={cn(
-            "absolute left-[3px] top-[3px] h-3.5 w-3.5 rounded-full bg-neutral-100 transition-transform",
-            checked && "translate-x-3.5",
-          )}
-        />
-      </span>
+      <SwitchTrack on={checked} disabled={disabled} className="mt-px" />
       <span>
         <b className={cn("block font-medium", disabled && "text-muted")}>{title}</b>
         {detail && <small className="mt-0.5 block text-[13px] leading-normal text-faint">{detail}</small>}

@@ -7,8 +7,9 @@ import { emptyHistory, recordChange, redoStep, undoStep, type UndoHistory } from
  * change is a step (typing in one field, one step per burst), unless
  * `quietly` marked it or `skip(prev, next)` says the app made it on its own.
  * `undo` / `redo` set the state back or forward, through `restore` (to
- * clean a value before it returns); `reset` forgets the steps. `onStep` is
- * told each time a new step is recorded (not a burst joining one).
+ * clean a value before it returns); `reset` forgets the steps. `onChange`
+ * is told of each change it records: `true` for a new step, `false` for one
+ * joining the last (typing on); either way nothing is left to redo.
  */
 export function useUndoHistory<T>(
   value: T,
@@ -16,16 +17,16 @@ export function useUndoHistory<T>(
   {
     skip,
     restore,
-    onStep,
-  }: { skip?: (prev: T, next: T) => boolean; restore?: (v: T) => T; onStep?: () => void } = {},
+    onChange,
+  }: { skip?: (prev: T, next: T) => boolean; restore?: (v: T) => T; onChange?: (newStep: boolean) => void } = {},
 ) {
   const hist = useRef<UndoHistory<T>>(emptyHistory());
   const prev = useRef(value);
   // The change in flight is undo/redo's own, or one to fold in quietly.
   const applying = useRef(false);
   const quiet = useRef(false);
-  const opts = useRef({ skip, restore, onStep });
-  opts.current = { skip, restore, onStep };
+  const opts = useRef({ skip, restore, onChange });
+  opts.current = { skip, restore, onChange };
   // The field an input event came from since the last change: that change
   // is typing in it, or a slider dragged (one step per burst). A change with
   // no input before it (a tag picked from a list, a click) is a step of its
@@ -63,7 +64,7 @@ export function useUndoHistory<T>(
     const next = recordChange(hist.current, was, { key, now: Date.now(), quiet: q });
     const stepped = next.past !== hist.current.past;
     hist.current = next;
-    if (stepped) opts.current.onStep?.();
+    if (!q) opts.current.onChange?.(stepped);
   }, [value]);
 
   const go = useCallback(

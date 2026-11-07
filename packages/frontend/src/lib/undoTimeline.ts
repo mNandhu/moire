@@ -20,6 +20,9 @@ export function pushStep(t: Timeline, step: TimelineStep): Timeline {
   return { past: [...t.past, step].slice(-TIMELINE_LIMIT), future: [] };
 }
 
+/** `t` after an edit that joined the last step: nothing left to redo. */
+export const dropFuture = (t: Timeline): Timeline => (t.future.length ? { past: t.past, future: [] } : t);
+
 /** The step to undo, and the timeline after; null with nothing to undo. */
 export function takeUndo(t: Timeline): { step: TimelineStep; t: Timeline } | null {
   const step = t.past[t.past.length - 1];

@@ -115,6 +115,9 @@ function BatchPanel({ id, hidden, clears }: { id: number; hidden: ReadonlySet<st
   // word for it first.
   const turn = status?.active.find((a) => a._id === id);
   const leftText = turn ? turnLabel(turn) : left && leftLabel(left);
+  // What its pills clear.
+  const rejected = rejectedIds([b]).filter((x) => !hidden.has(x));
+  const failed = resultSlots(b).filter(isFailedSlot).length;
   return (
     // No card: a frame sized to the column sat wider than a portrait batch.
     <section aria-label={b.name}>
@@ -140,20 +143,12 @@ function BatchPanel({ id, hidden, clears }: { id: number; hidden: ReadonlySet<st
           )
         )}
         <span className="flex-1" />
-        {(() => {
-            const rejected = rejectedIds([b]).filter((x) => !hidden.has(x));
-            const failed = resultSlots(b).filter(isFailedSlot).length;
-            return (
-              <>
-                {rejected.length > 0 && (
-                  <ClearChip kind="rejected" n={rejected.length} label={`Clear ${rejected.length} rejected`} onClick={() => clears.onHide(rejected)} />
-                )}
-                {failed > 0 && (
-                  <ClearChip kind="failed" n={failed} label={`Clear ${failed} failed`} onClick={() => clears.onDropFailed(b._id)} disabled={clears.busy} />
-                )}
-              </>
-            );
-          })()}
+        {rejected.length > 0 && (
+          <ClearChip kind="rejected" n={rejected.length} label={`Clear ${rejected.length} rejected`} onClick={() => clears.onHide(rejected)} />
+        )}
+        {failed > 0 && (
+          <ClearChip kind="failed" n={failed} label={`Clear ${failed} failed`} onClick={() => clears.onDropFailed(b._id)} disabled={clears.busy} />
+        )}
         <Link to={`/generations/${b._id}`} className="shrink-0 text-xs text-muted hover:text-neutral-100">
           Batch page
         </Link>
@@ -232,9 +227,15 @@ export function OutputFeed() {
   });
   // Both undoable with the page's Ctrl+Z: each puts back what was there.
   const pushUndo = useContext(UndoActionContext);
-  const undoable = <T,>(set: (v: T) => void, was: T, now: T) => {
+  // Each goes back only from what it set: a change since (another tab, a
+  // later Clear) is left alone.
+  const undoable = <T,>(set: (v: T | ((prev: T) => T)) => void, was: T, now: T) => {
+    const same = (a: T, b: T) => JSON.stringify(a) === JSON.stringify(b);
     set(now);
-    pushUndo?.({ undo: () => set(was), redo: () => set(now) });
+    pushUndo?.({
+      undo: () => set((cur) => (same(cur, now) ? was : cur)),
+      redo: () => set((cur) => (same(cur, was) ? now : cur)),
+    });
   };
   // Only the last few batches': older ids would pile up.
   const hideRejected = (ids: string[]) =>
