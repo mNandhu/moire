@@ -837,11 +837,21 @@ function waitingForScan(b: Batch): boolean {
   return b.requests.some((q) => q.outputs.some((o) => o.arriving));
 }
 
+const batchQuery = (id: number) => ({
+  queryKey: batchKey(id),
+  queryFn: ({ signal }: { signal: AbortSignal }) => api<Batch>(`${BASE}/batches/${id}`, { signal }),
+});
+
+/** Several batches, in order (undefined while one loads). Reads the cache
+ * `useBatch` keeps polled; on its own it does not poll. */
+export function useBatchList(ids: readonly number[]): (Batch | undefined)[] {
+  return useQueries({ queries: ids.map(batchQuery) }).map((q) => q.data);
+}
+
 /** One batch; polls while it runs or its images are still being scanned. */
 export function useBatch(id: number) {
   return useQuery({
-    queryKey: batchKey(id),
-    queryFn: ({ signal }) => api<Batch>(`${BASE}/batches/${id}`, { signal }),
+    ...batchQuery(id),
     refetchInterval: (q) => {
       const b = q.state.data;
       if (!b) return false;

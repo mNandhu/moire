@@ -14,6 +14,7 @@ import type {
   Output,
   PromptPart,
 } from "./generate";
+import type { StepItem } from "./stepList";
 
 export const STATE_LABEL: Record<BatchState, string> = {
   running: "Running",
@@ -80,6 +81,21 @@ export function resultSlots(b: Pick<Batch, "requests">): ResultSlot[] {
     }
   });
   return out;
+}
+
+/** The images a run of batches shows that can be opened (in the library,
+ * rejected ones too), in the order they were made: `batches` oldest first,
+ * each in its own order. A batch still loading adds nothing. */
+export function shownImages(batches: readonly (Pick<Batch, "requests"> | undefined)[]): StepItem[] {
+  return batches.flatMap((b) =>
+    b
+      ? resultSlots(b).flatMap((s) =>
+          s.kind === "image" && s.out.in_library
+            ? [{ _id: s.out.image_id, thumb_url: s.out.thumb_url, width: s.out.width, height: s.out.height }]
+            : [],
+        )
+      : [],
+  );
 }
 
 /** A cell's identity across renders: cells come and go as requests finish. */

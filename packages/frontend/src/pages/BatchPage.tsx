@@ -3,7 +3,8 @@ import { useMutation } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { Badge, Button, ButtonLink, PageBody, PageHeader } from "../components/ui";
 import { InlineRename } from "../components/InlineRename";
-import { batchStats, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
+import { batchStats, shownImages, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
+import { StepListContext } from "../lib/stepList";
 import { durationWords } from "../lib/format";
 import { leftLabel } from "../lib/eta";
 import { renameBatch, requeueBatch, useBatch, type Batch } from "../lib/generate";
@@ -139,7 +140,9 @@ export default function BatchPage() {
         </div>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="min-w-0">
-            <BatchResults batch={b} onChanged={changed} />
+            <StepListContext.Provider value={shownImages([b])}>
+              <BatchResults batch={b} onChanged={changed} />
+            </StepListContext.Provider>
           </div>
           <aside>
             <BatchInputs b={b} />

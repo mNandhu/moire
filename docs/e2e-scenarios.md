@@ -68,3 +68,11 @@ Write a Prompt with a tag twice and doubled or trailing commas; click Clean up i
 ### Arrow keys after a stepper's + or -
 
 Click + on Images (or a LoRA's strength), then press Right / Up and Left / Down. Expected: each press steps the value on.
+
+## Generate: the viewer steps through the output column
+
+Covered by `generate-viewer.spec.ts`.
+
+### Arrow keys walk only what Generate shows
+
+Clear the output column, generate one image and open it. Expected: Previous and Next are off and Left / Right stay on it. Generate two more and open the first one: Right goes on to the two new ones in the order they were made, then Next is off; Left comes back.

@@ -1,9 +1,11 @@
+import { useContext } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ImageOff, Loader2, Undo2, X } from "lucide-react";
 import { withBackgroundLocation } from "../../lib/backgroundLocation";
 import { cn } from "../../lib/cn";
 import { hasModifier } from "../../lib/dom";
 import { imageHref } from "../../lib/imageFilter";
+import { StepListContext } from "../../lib/stepList";
 import type { Output } from "../../lib/generate";
 import { setQuarantine, setScore } from "../../lib/imageMutations";
 import { BATCH } from "../../lib/shortcuts";
@@ -14,6 +16,7 @@ import { ScorePicker } from "../ui/ScoreMark";
 /** One output of a batch: the image with its triage (K keep, X reject, 1 to 5 score), or why it isn't there. */
 export function ResultTile({ out, ratio, onChanged }: { out: Output; ratio: number; onChanged: () => void }) {
   const location = useLocation();
+  const steps = useContext(StepListContext);
   const toast = useToast();
   const act = async (fn: () => Promise<unknown>) => {
     try {
@@ -59,7 +62,11 @@ export function ResultTile({ out, ratio, onChanged }: { out: Output; ratio: numb
       className="group relative overflow-hidden rounded-lg bg-raised outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
       style={{ aspectRatio: ratio }}
     >
-      <Link to={imageHref(out.image_id)} state={withBackgroundLocation(location)} tabIndex={-1}>
+      <Link
+        to={imageHref(out.image_id)}
+        state={steps ? { ...withBackgroundLocation(location), steps } : withBackgroundLocation(location)}
+        tabIndex={-1}
+      >
         {out.thumb_url && (
           <img
             src={out.thumb_url}

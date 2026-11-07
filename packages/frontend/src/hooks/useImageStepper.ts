@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useImageFeed } from "./useImageFeed";
-import { imageHref, serializeFilters, type Filters } from "../lib/imageFilter";
+import { imageHref, PAGE_LIMIT, serializeFilters, type Filters } from "../lib/imageFilter";
+import { getSteps } from "../lib/stepList";
 import { fetchImage } from "../lib/imageApi";
 import { imageDocKey } from "../lib/feedCache";
 import { getBackgroundLocation } from "../lib/backgroundLocation";
@@ -23,7 +24,8 @@ const MAX_HOLD_MS = 2000;
  * only while a not-yet-decoded image is being waited on (`pending`); see the
  * commit-on-decode effect below. `index` tracks `routeId`, not `id`; `shown`
  * is the feed item on screen. Owns the neighbour preload, paging the feed
- * ahead, stepping, and leaving the view.
+ * ahead, stepping, and leaving the view. Opened with a list of its own (see
+ * `StepListContext`, e.g. from Generate), it steps through just that list.
  */
 export function useImageStepper(filters: Filters, routeId: string | undefined) {
   const navigate = useNavigate();
@@ -80,8 +82,11 @@ export function useImageStepper(filters: Filters, routeId: string | undefined) {
     }
   }, [backgroundLocation, navigate, filterQuery]);
 
-  const feed = useImageFeed(filters);
-  const list = feed.items;
+  // A page's own list replaces the feed, which then stays idle: paging it
+  // looking for an image that is not there would walk the whole library.
+  const steps = getSteps(location);
+  const feed = useImageFeed(filters, PAGE_LIMIT, !steps);
+  const list = steps ?? feed.items;
   const index = useMemo(
     () => (routeId ? list.findIndex((x) => x._id === routeId) : -1),
     [routeId, list],
