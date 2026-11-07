@@ -11,7 +11,7 @@ import { useCharacters } from "../../lib/queries";
 import { cn } from "../../lib/cn";
 import { characterHref, displayName } from "../../lib/character";
 import { displayWord } from "../../lib/compose";
-import { useRecipe } from "../../lib/generate";
+import { recipeStuck, useRecipe } from "../../lib/generate";
 import { isNotFound } from "../../lib/api";
 import { characterTags } from "../../lib/recipe";
 import { tagRepeats } from "../../lib/promptRepeats";
@@ -25,6 +25,10 @@ import { OutfitChips, OutfitPicker } from "./Outfit";
 import { useCharacterOutfits } from "../../hooks/useOutfitData";
 import { toggleWorn, wornTags, type OutfitPick, type Outfits } from "../../lib/outfit";
 import { useAttireGroups } from "../../lib/queries";
+
+/** An amber dashed badge on the Character line: something left out or wrong. */
+const WARN_BADGE =
+  "inline-flex items-center gap-1.5 rounded-md border border-dashed border-amber-700/70 bg-amber-950/20 px-1.5 py-0.5 text-xs text-amber-200";
 
 /**
  * The Character layer: one line (avatar, name, the identity tags it adds, its
@@ -70,7 +74,8 @@ function CharacterRow({
   const [editing, setEditing] = useState(false);
   const { data: everyone } = useCharacters();
   const entry = useMemo(() => everyone?.find((c) => c.tag === value) ?? null, [everyone, value]);
-  const { data: recipe, error } = useRecipe(value);
+  const recipeState = useRecipe(value);
+  const { data: recipe, error } = recipeState;
   const genderPatch = useRecipePatch(value ?? "");
   const label = <span className="w-[4.5rem] shrink-0 text-xs font-medium text-muted">Character</span>;
 
@@ -125,11 +130,11 @@ function CharacterRow({
         />
         {recipe && recipe.gender == null && <GenderPick recipe={recipe} onPick={(gender) => genderPatch.mutate({ gender })} small />}
         {/* Folded, each tag strikes on a click, as the outfit's do; open, the Identity row below has them (and the x). */}
-        {!recipe && error ? (
+        {recipeStuck(recipeState) ? (
           // Never loads: no such character (a name saved before it changed,
           // or one since deleted), or the request failed. Switch or remove it.
           <span className="min-w-0 flex-1">
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-amber-700/70 bg-amber-950/20 px-1.5 py-0.5 text-xs text-amber-200">
+            <span className={WARN_BADGE}>
               <CircleAlert size={12} />
               {isNotFound(error) ? "Not found" : "Didn't load"}
             </span>
@@ -171,7 +176,7 @@ function CharacterRow({
             )
           ) : (
             <Tooltip content="This ComfyUI doesn't have this LoRA, so it is left out of the prompt" bubble className="shrink-0">
-              <span className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-amber-700/70 bg-amber-950/20 px-1.5 py-0.5 text-xs text-amber-200">
+              <span className={WARN_BADGE}>
                 <Ban size={12} />
                 <span className="font-mono line-through">{lora.stem}</span>
                 not used

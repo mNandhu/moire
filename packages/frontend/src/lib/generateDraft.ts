@@ -110,12 +110,15 @@ export function keepLoraOff(v: unknown, characters: readonly string[]): string[]
 
 /** `f` with each picked character renamed by `rename`, taking along what it
  * wears, its struck tags, LoRA switch and fresh mark. Two that become one
- * keep the first. Pure. */
+ * take the first one's place and the state of the one already under that
+ * name (picked as it is now, so likely the later pick). Pure. */
 export function rekeyCast(f: GenerateForm, rename: (tag: string) => string): GenerateForm {
   const from = new Map<string, string>();
   for (const c of f.characters) {
     const to = rename(c);
-    if (!from.has(to)) from.set(to, c);
+    const had = from.get(to);
+    // Set again keeps the Map's order: the first one's place.
+    if (had === undefined || (c === to && had !== to)) from.set(to, c);
   }
   if ([...from].every(([to, c]) => to === c) && from.size === f.characters.length) return f;
   const characters = [...from.keys()];
@@ -133,6 +136,21 @@ export function rekeyCast(f: GenerateForm, rename: (tag: string) => string): Gen
  * way before making one unescaped it) under the name it has now, `a_(b)`. */
 export const unescapeCast = (f: GenerateForm) => rekeyCast(f, unescapeParens);
 
+/** `f` with only its first `n` characters, and the state of those. Pure. */
+function firstCast(f: GenerateForm, n: number): GenerateForm {
+  if (f.characters.length <= n) return f;
+  const characters = f.characters.slice(0, n);
+  const keep = (list: readonly string[]) => list.filter((t) => characters.includes(t));
+  return {
+    ...f,
+    characters,
+    outfits: keepPicked(f.outfits, characters),
+    identityOff: keepOff(f.identityOff, characters),
+    loraOff: keep(f.loraOff),
+    fresh: keep(f.fresh),
+  };
+}
+
 const DRAFT_KEY = "moire.generate.draft";
 
 /** The saved draft merged over defaults; defaults when storage is empty,
@@ -148,8 +166,9 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     if (!("prompt" in d) && ("base" in d || "extra" in d)) Object.assign(out, migrated(d));
     if (isStr(d.checkpoint) || d.checkpoint === null) out.checkpoint = d.checkpoint;
     out.sampling = samplingOf(d.sampling);
-    // Drafts from before several characters keep their one.
-    if (Array.isArray(d.characters)) out.characters = [...new Set<string>(d.characters.filter(isStr))].slice(0, MAX_CHARACTERS);
+    // Drafts from before several characters keep their one. Cut to the
+    // limit after unescaping (below), so two spellings take one place.
+    if (Array.isArray(d.characters)) out.characters = [...new Set<string>(d.characters.filter(isStr))];
     else if (isStr(d.character)) out.characters = [d.character];
     out.outfits = keepPicked(validOutfits(d.outfits), out.characters);
     out.identityOff = keepOff(d.identityOff, out.characters);
@@ -168,7 +187,7 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     if (seed && (seed.mode === "random" || seed.mode === "fixed") && (seed.value === null || typeof seed.value === "number")) {
       out.seed = { mode: seed.mode, value: seed.value };
     }
-    return unescapeCast(out);
+    return firstCast(unescapeCast(out), MAX_CHARACTERS);
   } catch {
     return DEFAULT_FORM;
   }

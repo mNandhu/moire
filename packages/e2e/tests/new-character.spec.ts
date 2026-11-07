@@ -106,7 +106,7 @@ test("Generate: a character's Edit tags dialog opens their page", async ({ page,
   await expect(dialog).toHaveCount(0);
 });
 
-test("Generate: a picked character that isn't one says so, not Loading for good", async ({ page }) => {
+test("Generate: a picked character that isn't one says so, not Loading for good", async ({ page, request }) => {
   // A name no character has (one saved before it changed, or since deleted).
   await page.addInitScript((draft) => localStorage.setItem("moire.generate.draft", JSON.stringify(draft)), {
     characters: ["nobody_(nowhere)"],
@@ -115,8 +115,20 @@ test("Generate: a picked character that isn't one says so, not Loading for good"
   await page.goto("/generate");
   const notFound = page.getByText("Not found", { exact: true });
   await expect(notFound).toBeVisible();
-  // ComfyUI is ready by now (generate-run ran first): the character is what's in the way.
-  await expect(page.getByRole("button", { name: "Character not found" })).toBeDisabled();
+  // Queue settles on a reason, never Loading character. Which one depends
+  // on whether ComfyUI is ready yet (a run test, an output folder), so the
+  // spec holds run alone or after the others.
+  const run = page.getByRole("button", {
+    name: /^(Character not found|Waiting for ComfyUI|Run the test first|Set the output folder)$/,
+  });
+  await expect(run).toBeDisabled();
+  const json = async (path: string) => (await request.get(`${API}/generate/${path}`)).json();
+  const [status, generators, settings] = await Promise.all([json("status"), json("generators"), json("comfyui")]);
+  const builtin = generators.find((g: { _id: string }) => g._id === "builtin");
+  if (status.connected && builtin?.ready && settings.output_library_id) {
+    // Nothing else in the way: the character is.
+    await expect(page.getByRole("button", { name: "Character not found" })).toBeDisabled();
+  }
   await expect(page.getByRole("button", { name: "Loading character" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Remove character" }).click();

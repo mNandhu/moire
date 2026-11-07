@@ -22,6 +22,7 @@ import {
   RejectedError,
   invalidateQueue,
   queueBatch,
+  recipeKey,
   refreshModels,
   useComfyModels,
   useComfySettings,
@@ -35,6 +36,7 @@ import {
   useRecipes,
   type CharacterInput,
   type NodeError,
+  type Recipe,
 } from "../lib/generate";
 import { nameWords, onLoras, previewText, toParts, toEstimateBody, toQueueBody, type GenerateForm } from "../lib/generateForm";
 import { loadDraft, rekeyCast, saveDraft } from "../lib/generateDraft";
@@ -91,8 +93,12 @@ export default function GeneratePage() {
   // Ctrl+Z's order: the form's steps and actions outside it (rejecting an
   // image in the output column), whichever came last first.
   const timeline = useRef<Timeline>(emptyTimeline());
+  // Characters picked under another of their names, and the page key their
+  // recipe answered with (see the rename below). Undo and redo go through
+  // it too, so a step back never brings the old name back.
+  const aliases = useRef(new Map<string, string>());
   const history = useUndoHistory(form, setForm, {
-    restore: (f) => (f.fresh.length ? { ...f, fresh: [] } : f),
+    restore: (f) => rekeyCast(f.fresh.length ? { ...f, fresh: [] } : f, (tag) => aliases.current.get(tag) ?? tag),
     onChange: (newStep) => {
       timeline.current = newStep ? pushStep(timeline.current, { kind: "form" }) : dropFuture(timeline.current);
     },
@@ -119,15 +125,25 @@ export default function GeneratePage() {
   // what Settings says: none unless set to their usual clothes. A remix
   // or a replayed batch brings its own and marks none.
   const startAs = settings?.new_character_outfit;
+  // Fresh characters whose Default is being asked for: asked once, though
+  // the effect runs again on every change to the fresh list.
+  const asking = useRef(new Set<string>());
   useEffect(() => {
     if (!form.fresh.length || !startAs) return;
-    // A late answer for a tag no longer fresh changes nothing.
-    const settle = (tag: string, pick: OutfitPick | null) => history.setQuietly((f) => settleFresh(f, tag, pick));
+    // A late answer for a tag no longer fresh changes nothing; one renamed
+    // meanwhile settles under its new name.
+    const settle = (tag: string, pick: OutfitPick | null) => {
+      asking.current.delete(tag);
+      history.setQuietly((f) => settleFresh(f, aliases.current.get(tag) ?? tag, pick));
+    };
     for (const tag of form.fresh) {
       if (startAs !== "default") {
         settle(tag, null);
         continue;
       }
+      // Already asked, under this name or the one it was renamed from.
+      if (asking.current.has(tag) || [...asking.current].some((t) => aliases.current.get(t) === tag)) continue;
+      asking.current.add(tag);
       // Its own request, not the picker's query: that one's observer
       // unmounting cancels a fetch shared through the query cache.
       void fetchDefaultOutfit(tag)
@@ -192,9 +208,16 @@ export default function GeneratePage() {
     form.characters.flatMap((tag, i) => (recipes[i] && recipes[i].tag !== tag ? [[tag, recipes[i].tag]] : [])),
   );
   useEffect(() => {
-    const pairs = new Map(JSON.parse(renamed) as [string, string][]);
-    if (pairs.size) history.setQuietly((f) => rekeyCast(f, (tag) => pairs.get(tag) ?? tag));
-  }, [renamed, history]);
+    const pairs = JSON.parse(renamed) as [string, string][];
+    if (!pairs.length) return;
+    for (const [from, to] of pairs) {
+      aliases.current.set(from, to);
+      // The answer is the page key's recipe too: no second request for it.
+      const r = qc.getQueryData<Recipe>(recipeKey(from));
+      if (r && qc.getQueryData(recipeKey(to)) === undefined) qc.setQueryData(recipeKey(to), r);
+    }
+    history.setQuietly((f) => rekeyCast(f, (tag) => aliases.current.get(tag) ?? tag));
+  }, [renamed, history, qc]);
   const labels = form.characters.map(
     (tag) => displayName(everyone?.find((c) => c.tag === tag) ?? { tag }).name,
   );

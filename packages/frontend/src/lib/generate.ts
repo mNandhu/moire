@@ -767,6 +767,11 @@ export const recipeQuery = (tag: string) => ({
   retry: retryUnlessNotFound,
 });
 
+/** A recipe query that has given up: no recipe, an error, and not asking
+ * again right now. Pure. */
+export const recipeStuck = (q: { data: unknown; isError: boolean; fetchStatus: string }): boolean =>
+  q.data === undefined && q.isError && q.fetchStatus === "idle";
+
 export function useRecipe(tag: string | null) {
   return useQuery({ ...recipeQuery(tag ?? ""), enabled: !!tag });
 }
@@ -835,8 +840,9 @@ export function useRecipes(tags: readonly string[]): {
   failed: string[];
 } {
   const qs = useQueries({ queries: tags.map(recipeQuery) });
+  // Asked again after an error (a refetch) is loading, not stuck.
   const stuck = (notFound: boolean) =>
-    tags.filter((_, i) => qs[i].data === undefined && qs[i].isError && isNotFound(qs[i].error) === notFound);
+    tags.filter((_, i) => recipeStuck(qs[i]) && isNotFound(qs[i].error) === notFound);
   return { recipes: qs.map((q) => q.data), missing: stuck(true), failed: stuck(false) };
 }
 

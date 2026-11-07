@@ -9,6 +9,7 @@ import { DEFAULT_FORM, type GenerateForm, type PresetRef } from "./generateForm"
 import { composerFrom, keepLoraOff, keepOff, presetRef, unescapeCast, validLoras } from "./generateDraft";
 import { MAX_CHARACTERS } from "./generationLimits";
 import { pickFromInput, type OutfitPick } from "./outfit";
+import { unescapeParens } from "./tags";
 
 function loraPresetOf(composer: Record<string, unknown> | null | undefined, name: string): PresetRef {
   const all = composer?.loraPresets;
@@ -109,7 +110,8 @@ export function formFromRemix(
     workflow: target._id,
     prompt: doc.prompt,
     negative: doc.negative,
-    characters: doc.characters.slice(0, MAX_CHARACTERS),
+    // The server answers page keys; unescaped all the same, as a replay is.
+    characters: [...new Set(doc.characters.map(unescapeParens))].slice(0, MAX_CHARACTERS),
     checkpoint:
       builtin || (slots.checkpoint && own)
         ? (doc.checkpoint ?? current.checkpoint)

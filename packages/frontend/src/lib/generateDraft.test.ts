@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_BLOCKS, DEFAULT_FORM, type GenerateForm } from "./generateForm";
 import { loadDraft, rekeyCast, unescapeCast, validBlocks } from "./generateDraft";
+import { MAX_CHARACTERS } from "./generationLimits";
 
 const draft = (d: unknown) => loadDraft({ getItem: () => JSON.stringify(d) });
 
@@ -75,6 +76,14 @@ describe("loadDraft: prompt-escaped character keys", () => {
     expect(Object.keys(form.outfits)).toEqual(["yuzuriha_(jigokuraku)"]);
   });
 
+  it("counts two spellings of one character as one toward the limit", () => {
+    const many = Array.from({ length: MAX_CHARACTERS - 1 }, (_, i) => `c${i}`);
+    const store = { getItem: () => JSON.stringify({ characters: ["a_\\(b\\)", "a_(b)", ...many, "last"] }) };
+    const form = loadDraft(store);
+    expect(form.characters).toEqual(["a_(b)", ...many]);
+    expect(form.characters).toHaveLength(MAX_CHARACTERS);
+  });
+
   it("takes the LoRA switch along too", () => {
     const store = { getItem: () => JSON.stringify({ characters: ["a_\\(b\\)"], loraOff: ["a_\\(b\\)"] }) };
     expect(loadDraft(store).loraOff).toEqual(["a_(b)"]);
@@ -101,11 +110,20 @@ describe("rekeyCast", () => {
     expect(g.fresh).toEqual(["b"]);
   });
 
-  it("keeps the first of two that become one, in its place", () => {
+  it("two that become one keep the state of the one already under that name", () => {
+    // "b" is another name of "old": old's own state stays.
     const g = rekeyCast(f, (t) => (t === "b" ? "old" : t));
     expect(g.characters).toEqual(["old"]);
     expect(g.outfits).toEqual({ old: pick("o1") });
+    expect(g.loraOff).toEqual(["old"]);
     expect(g.fresh).toEqual([]);
+    // "old" is another name of "b": b's state, in old's place.
+    const h = rekeyCast({ ...f, characters: ["old", "c", "b"] }, (t) => (t === "old" ? "b" : t));
+    expect(h.characters).toEqual(["b", "c"]);
+    expect(h.outfits).toEqual({ b: pick("o2") });
+    expect(h.identityOff).toEqual({});
+    expect(h.loraOff).toEqual([]);
+    expect(h.fresh).toEqual(["b"]);
   });
 
   it("is the same form when nothing moves", () => {

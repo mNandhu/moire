@@ -135,3 +135,19 @@ async def test_made_character_from_an_escaped_prompt_name_matches_images(client,
     tag_index.invalidate()
     listed = {c["tag"]: c for c in (await client.get("/tags/characters")).json()}
     assert listed["yuzuriha_(jigokuraku)"]["count"] == 1
+
+
+async def test_a_prompt_escaped_name_finds_the_character(client):
+    """A batch queued before New character unescaped the name still says
+    `yuzuriha_\\(jigokuraku\\)`: its recipe and outfits are the character's."""
+    r = await client.post("/tags/characters", json={"tag": "yuzuriha_(jigokuraku)"})
+    assert r.status_code == 200
+    escaped = r"yuzuriha_\(jigokuraku\)"
+
+    r = await client.get(f"/generate/recipes/{escaped}")
+    assert r.status_code == 200 and r.json()["tag"] == "yuzuriha_(jigokuraku)"
+    r = await client.get("/generate/outfits", params={"character": escaped})
+    assert r.status_code == 200
+    # Not a character under any spelling: still not found.
+    r = await client.get(r"/generate/recipes/nobody_\(nowhere\)")
+    assert r.status_code == 404

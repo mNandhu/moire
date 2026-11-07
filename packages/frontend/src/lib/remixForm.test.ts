@@ -180,6 +180,11 @@ describe("formFromBatch", () => {
     expect(f.remix).toEqual({ image: doc.image_id, seed: 5 });
   });
 
+  it("an image remixed from its own values unescapes its characters too", () => {
+    const f = formFromRemix({ ...doc, characters: [esc, "yuzuriha_(jigokuraku)", "furina"] }, builtin, "new", current);
+    expect(f.characters).toEqual(["yuzuriha_(jigokuraku)", "furina"]);
+  });
+
   it("restores a layered batch's composer", () => {
     const sent = toQueueBody({ ...DEFAULT_FORM, prompt: "swing", prefix: { id: "q", text: "t" } }, "builtin", [], presets);
     const f = formFromBatch({ ...base, composer: sent.composer }, "Mine");

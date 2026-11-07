@@ -40,6 +40,7 @@ from . import (
     tag_kinds,
 )
 from .model_names import model_stem
+from .tag_names import unescape_parens
 from .tag_kinds import canonical_tag
 
 # A LoRA counts as this character's when at least this share of the images it
@@ -249,8 +250,10 @@ async def _uses(names: list[str]) -> list[LoraUse]:
 
 async def character_key(tag: str) -> tuple[str, list[str], dict, list] | None:
     """``characters.named`` for a character in the library (or made by
-    hand); None when ``tag`` isn't one."""
-    key, names, key_of, rows = await characters.named(tag)
+    hand); None when ``tag`` isn't one. A name copied out of a prompt, or
+    queued before New character unescaped it, keeps ComfyUI's paren escapes
+    (``yuzuriha_\\(jigokuraku\\)``), which no character's tag has."""
+    key, names, key_of, rows = await characters.named(unescape_parens(tag))
     if key not in key_of and not await characters.is_made(key, rows):
         return None
     return key, names, key_of, rows
@@ -262,7 +265,7 @@ async def character_keys(tags: list[str]) -> list[str]:
     many, reading the library's characters once."""
     _, key_of, rows = await characters.grouped()
     keys = []
-    for tag in tags:
+    for tag in map(unescape_parens, tags):
         key = key_of.get(tag, tag)
         if key in key_of or await characters.is_made(key, rows):
             keys.append(key)
