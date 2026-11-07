@@ -54,7 +54,7 @@ test("Clear empties the output column, and a new batch shows again", async ({ pa
   await page.goto("/generate");
   const output = page.getByRole("complementary", { name: "Output" });
   const panels = output.getByRole("link", { name: "Batch page" });
-  const clear = output.getByRole("button", { name: "Clear", exact: true });
+  const clear = output.getByRole("button", { name: "Clear output", exact: true });
   await expect(clear).toBeVisible({ timeout: 30_000 });
   await clear.click();
   await expect(panels).toHaveCount(0);
@@ -80,7 +80,7 @@ test("a batch still in the queue when Clear is pressed stays once done", async (
   const mine = output.locator(`a[href="/generations/${batch._id}"]`).first();
   await expect(mine).toBeVisible({ timeout: 30_000 });
   await expect(output.getByText(/ \/ 12$/)).toBeVisible();
-  await output.getByRole("button", { name: "Clear", exact: true }).click();
+  await output.getByRole("button", { name: "Clear output", exact: true }).click();
 
   // Done, and still there.
   await expect(output.getByText(/ \/ \d+$/)).toHaveCount(0, { timeout: 60_000 });

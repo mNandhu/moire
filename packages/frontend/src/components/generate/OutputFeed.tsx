@@ -1,4 +1,6 @@
+import { useContext } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { UndoActionContext } from "../../lib/undoActions";
 import { Link } from "react-router-dom";
 import {
   batchProgress,
@@ -14,6 +16,64 @@ import { durationWords } from "../../lib/format";
 import { useBatchChanged } from "../../hooks/useBatchActions";
 import { BATCHES_KEY, STATUS_KEY, batchKey, clearFailed, useBatch, useBatchList, useBatches, useComfyStatus, type Batch, type BatchSummary } from "../../lib/generate";
 import { useToast } from "../Toasts";
+import { BrushCleaning, TriangleAlert, X } from "lucide-react";
+import { Tooltip } from "../ui/Tooltip";
+import { cn } from "../../lib/cn";
+
+/** A batch's count pill (rejected or failed images) that clears them. */
+function ClearChip({
+  kind,
+  n,
+  label,
+  onClick,
+  disabled,
+}: {
+  kind: "rejected" | "failed";
+  n: number;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Tooltip content={kind === "failed" ? "Removed from the batch for good" : "Hidden here only"} bubble>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={label}
+        className="inline-flex h-6 items-center gap-1.5 rounded-full border border-line bg-raised/60 pl-1 pr-2 text-xs text-muted transition-colors hover:border-line-strong hover:text-neutral-100 disabled:opacity-50"
+      >
+        <span
+          className={cn(
+            "grid h-4 w-4 place-items-center rounded-full",
+            kind === "failed" ? "bg-amber-500/15 text-amber-300" : "bg-red-500/15 text-red-300",
+          )}
+        >
+          {kind === "failed" ? <TriangleAlert size={10} strokeWidth={2.5} /> : <X size={10} strokeWidth={3} />}
+        </span>
+        <span className="tabular-nums">
+          {n} {kind}
+        </span>
+      </button>
+    </Tooltip>
+  );
+}
+
+/** The column's Clear: a sweep, as it only tidies the view. */
+function ClearIcon({ onClick }: { onClick: () => void }) {
+  return (
+    <Tooltip content="Clear the column (batches still running stay)" bubble>
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label="Clear output"
+        className="grid h-6 w-6 place-items-center rounded-full text-muted transition-colors hover:bg-line hover:text-neutral-100"
+      >
+        <BrushCleaning size={14} />
+      </button>
+    </Tooltip>
+  );
+}
 import { StepListContext, useStepList } from "../../lib/stepList";
 import { leftLabel } from "../../lib/eta";
 import { queueRoles } from "../../lib/queueClock";
@@ -41,7 +101,9 @@ const parseHidden = (raw: string): string[] | undefined => {
 };
 const NONE_HIDDEN: string[] = [];
 
-function BatchPanel({ id, hidden }: { id: number; hidden: ReadonlySet<string> }) {
+type PanelClears = { onHide: (ids: string[]) => void; onDropFailed: (id: number) => void; busy: boolean };
+
+function BatchPanel({ id, hidden, clears }: { id: number; hidden: ReadonlySet<string>; clears: PanelClears }) {
   const { data: b } = useBatch(id);
   const changed = useBatchChanged(id);
   const { data: status } = useComfyStatus();
@@ -78,6 +140,20 @@ function BatchPanel({ id, hidden }: { id: number; hidden: ReadonlySet<string> })
           )
         )}
         <span className="flex-1" />
+        {(() => {
+            const rejected = rejectedIds([b]).filter((x) => !hidden.has(x));
+            const failed = resultSlots(b).filter(isFailedSlot).length;
+            return (
+              <>
+                {rejected.length > 0 && (
+                  <ClearChip kind="rejected" n={rejected.length} label={`Clear ${rejected.length} rejected`} onClick={() => clears.onHide(rejected)} />
+                )}
+                {failed > 0 && (
+                  <ClearChip kind="failed" n={failed} label={`Clear ${failed} failed`} onClick={() => clears.onDropFailed(b._id)} disabled={clears.busy} />
+                )}
+              </>
+            );
+          })()}
         <Link to={`/generations/${b._id}`} className="shrink-0 text-xs text-muted hover:text-neutral-100">
           Batch page
         </Link>
@@ -91,9 +167,9 @@ function BatchPanel({ id, hidden }: { id: number; hidden: ReadonlySet<string> })
  * The output column under the queue deck: the last few batches that have
  * started, newest on top, each with its images big as they're made. A batch
  * still waiting its turn is only in the deck. Clear, at its top, empties it (here only,
- * nothing is deleted) of all but a batch still running; Clear rejected takes
- * its rejected images out of it (here only too); Clear failed removes its
- * batches' failed requests for good.
+ * nothing is deleted) of all but a batch still running. Each batch's count
+ * pills clear its rejected images (here only too) and remove its failed
+ * requests for good.
  */
 export function OutputFeed() {
   const { data: status } = useComfyStatus();
@@ -132,13 +208,8 @@ export function OutputFeed() {
   // the order they were made (the column puts the newest batch on top).
   const shown = (started ?? []).map((b) => detailOf(b._id)).reverse();
   const steps = useStepList("generate", shownImages(shown, hidden));
-  const toHide = rejectedIds(shown).filter((id) => !hidden.has(id));
   // Kept while their batch is still among the last few; older ones go.
   const stillRejected = new Set(rejectedIds(details));
-  const failedIds = (started ?? []).filter((b) => {
-    const full = detailOf(b._id);
-    return full && resultSlots(full).some(isFailedSlot);
-  }).map((b) => b._id);
   const qc = useQueryClient();
   const toast = useToast();
   const dropFailed = useMutation({
@@ -159,49 +230,38 @@ export function OutputFeed() {
       void qc.invalidateQueries({ queryKey: BATCHES_KEY });
     },
   });
+  // Both undoable with the page's Ctrl+Z: each puts back what was there.
+  const pushUndo = useContext(UndoActionContext);
+  const undoable = <T,>(set: (v: T) => void, was: T, now: T) => {
+    set(now);
+    pushUndo?.({ undo: () => set(was), redo: () => set(now) });
+  };
+  // Only the last few batches': older ids would pile up.
+  const hideRejected = (ids: string[]) =>
+    undoable(setHidden, hiddenList, [...new Set([...hiddenList.filter((id) => stillRejected.has(id)), ...ids])]);
+  const clearAll = () =>
+    undoable(setCleared, cleared, {
+      at: Math.max(cleared.at, ...(data ?? []).map((b) => b.created_at)),
+      keep: [
+        ...active.map((a) => a._id),
+        ...(data ?? []).filter((b) => b.state === "running" || b.state === "paused").map((b) => b._id),
+      ],
+    });
   if (!started?.length) return null;
   return (
     <StepListContext.Provider value={steps}>
-      {/* Up top, where the batches start, not under the last of them. */}
-      <div className="-mb-2 flex justify-end gap-3 px-2">
-        {failedIds.length > 0 && (
-          <button
-            type="button"
-            onClick={() => dropFailed.mutate(failedIds)}
-            disabled={dropFailed.isPending}
-            className="text-xs text-muted hover:text-neutral-100 disabled:opacity-50"
-          >
-            Clear failed
-          </button>
-        )}
-        {toHide.length > 0 && (
-          <button
-            type="button"
-            // Only the last few batches': older ids would pile up.
-            onClick={() => setHidden([...new Set([...hiddenList.filter((id) => stillRejected.has(id)), ...toHide])])}
-            className="text-xs text-muted hover:text-neutral-100"
-          >
-            Clear rejected
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() =>
-            setCleared({
-              at: Math.max(cleared.at, ...(data ?? []).map((b) => b.created_at)),
-              keep: [
-                ...active.map((a) => a._id),
-                ...(data ?? []).filter((b) => b.state === "running" || b.state === "paused").map((b) => b._id),
-              ],
-            })
-          }
-          className="text-xs text-muted hover:text-neutral-100"
-        >
-          Clear
-        </button>
+      {/* Up top, where the batches start: the whole column; each batch
+          clears its own rejected and failed images. */}
+      <div className="-mb-2 flex justify-end px-2">
+        <ClearIcon onClick={clearAll} />
       </div>
       {started.map((b) => (
-        <BatchPanel key={b._id} id={b._id} hidden={hidden} />
+        <BatchPanel
+          key={b._id}
+          id={b._id}
+          hidden={hidden}
+          clears={{ onHide: hideRejected, onDropFailed: (id) => dropFailed.mutate([id]), busy: dropFailed.isPending }}
+        />
       ))}
       <div className="flex justify-center">
         <Link to="/generations" className="text-xs text-muted hover:text-neutral-100">

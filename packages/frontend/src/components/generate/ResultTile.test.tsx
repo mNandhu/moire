@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { UndoActionContext } from "../../lib/undoActions";
+import type { UndoAction } from "../../lib/undoTimeline";
 import { ToastProvider } from "../Toasts";
 import type { Output } from "../../lib/generate";
 import { setQuarantine, setScore } from "../../lib/imageMutations";
@@ -13,19 +16,33 @@ vi.mock("../../lib/imageMutations", () => ({
 
 const out = { image_id: "lib:a.png", in_library: true, thumb_url: "/t/a", quarantined: false, score: 0 } as unknown as Output;
 
-function tile(o: Output = out) {
+function tile(o: Output = out, onUndo?: (a: UndoAction) => void) {
   const { container } = render(
-    <MemoryRouter>
-      <ToastProvider>
-        <ResultTile out={o} ratio={1} onChanged={() => undefined} />
-      </ToastProvider>
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter>
+        <ToastProvider>
+          <UndoActionContext.Provider value={onUndo ?? null}>
+            <ResultTile out={o} ratio={1} onChanged={() => undefined} />
+          </UndoActionContext.Provider>
+        </ToastProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
   return container.querySelector<HTMLElement>("[aria-keyshortcuts]")!;
 }
 
 describe("ResultTile keys", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("records a rejection for the page's undo, which restores it", async () => {
+    const recorded: UndoAction[] = [];
+    fireEvent.keyDown(tile(out, (a) => recorded.push(a)), { key: "x" });
+    await vi.waitFor(() => expect(recorded).toHaveLength(1));
+    await recorded[0].undo();
+    expect(setQuarantine).toHaveBeenLastCalledWith("lib:a.png", false);
+    await recorded[0].redo();
+    expect(setQuarantine).toHaveBeenLastCalledWith("lib:a.png", true);
+  });
 
   it("keeps, rejects and scores with bare keys", () => {
     const el = tile();

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sparkles, Wand2 } from "lucide-react";
@@ -54,6 +54,8 @@ import { useToast } from "../components/Toasts";
 import { useUndoHistory } from "../hooks/useUndoHistory";
 import { useHotkeys } from "../hooks/useHotkeys";
 import { undoKey } from "../lib/undoHistory";
+import { emptyTimeline, pushStep, takeRedo, takeUndo, type Timeline, type UndoAction } from "../lib/undoTimeline";
+import { UndoActionContext } from "../lib/undoActions";
 import { isTextEntry } from "../lib/dom";
 import { GENERATE } from "../lib/shortcuts";
 
@@ -86,9 +88,33 @@ export default function GeneratePage() {
   // removed); a text field keeps its own. What the page fills in on its
   // own (the first checkpoint, a new character's outfit) is marked quiet
   // where it's made, and folds into the step before it.
+  // Ctrl+Z's order: the form's steps and actions outside it (rejecting an
+  // image in the output column), whichever came last first.
+  const timeline = useRef<Timeline>(emptyTimeline());
   const history = useUndoHistory(form, setForm, {
     restore: (f) => (f.fresh.length ? { ...f, fresh: [] } : f),
+    onStep: () => {
+      timeline.current = pushStep(timeline.current, { kind: "form" });
+    },
   });
+  const pushAction = useCallback((action: UndoAction) => {
+    timeline.current = pushStep(timeline.current, { kind: "action", action });
+  }, []);
+  const step = (dir: "undo" | "redo") => {
+    for (;;) {
+      const r = (dir === "undo" ? takeUndo : takeRedo)(timeline.current);
+      if (!r) return;
+      timeline.current = r.t;
+      if (r.step.kind === "action") {
+        void (dir === "undo" ? r.step.action.undo() : r.step.action.redo());
+        return;
+      }
+      if (dir === "undo" ? history.undo() : history.redo()) return;
+      // The form forgot that step (reset, or past its limit): drop it, go on.
+      const { past, future } = timeline.current;
+      timeline.current = dir === "undo" ? { past, future: future.slice(0, -1) } : { past: past.slice(0, -1), future };
+    }
+  };
   // Characters just picked (here or from a character page) start wearing
   // what Settings says: none unless set to their usual clothes. A remix
   // or a replayed batch brings its own and marks none.
@@ -326,8 +352,7 @@ export default function GeneratePage() {
       match: (e) => undoKey(e) != null && !inDialog(e) && !isTextEntry(e.target),
       run: (e) => {
         e.preventDefault();
-        if (undoKey(e) === "undo") history.undo();
-        else history.redo();
+        step(undoKey(e) === "undo" ? "undo" : "redo");
       },
     },
   ], { fields: true });
@@ -486,11 +511,14 @@ export default function GeneratePage() {
           </div>
 
           <aside
-            className="space-y-4 pb-6 lg:sticky lg:top-[5.5rem] lg:max-h-[calc(100dvh-5.5rem)] lg:overflow-y-auto"
+            // Scrolls without a bar: it sat over the batches' edge.
+            className="space-y-4 pb-6 [scrollbar-width:none] lg:sticky lg:top-[5.5rem] lg:max-h-[calc(100dvh-5.5rem)] lg:overflow-y-auto [&::-webkit-scrollbar]:hidden"
             aria-label="Output"
           >
             <QueueDeck />
-            <OutputFeed />
+            <UndoActionContext.Provider value={pushAction}>
+              <OutputFeed />
+            </UndoActionContext.Provider>
           </aside>
         </div>
       </PageBody>

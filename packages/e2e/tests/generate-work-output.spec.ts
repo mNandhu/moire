@@ -34,7 +34,7 @@ const getBatch = async (request: APIRequestContext, id: number): Promise<Batch> 
 
 async function emptyColumn(page: Page) {
   const output = page.getByRole("complementary", { name: "Output" });
-  const clear = output.getByRole("button", { name: "Clear", exact: true });
+  const clear = output.getByRole("button", { name: "Clear output", exact: true });
   // Earlier specs leave batches in the column; wait for them to load.
   await clear.waitFor({ timeout: 30_000 }).catch(() => {});
   if (await clear.isVisible()) await clear.click();
@@ -76,16 +76,21 @@ test("Clear rejected takes rejected images out of the column only", async ({ pag
     .toBe(2);
   const strip = output.getByRole("tablist", { name: "Images in this batch" });
   await expect(strip.getByRole("tab")).toHaveCount(2, { timeout: 15_000 });
-  await expect(output.getByRole("button", { name: "Clear rejected" })).toHaveCount(0);
+  const pill = output.getByRole("button", { name: "Clear 1 rejected" });
+  await expect(pill).toHaveCount(0);
 
-  // Reject the one on show (X on the tile), as the column does.
+  // Reject the one on show (X on the tile); Ctrl+Z takes it back, Ctrl+Shift+Z rejects it again.
   const tile = output.locator('[aria-keyshortcuts="K X 1 2 3 4 5"]');
   await tile.focus();
   await tile.press("x");
-  await output.getByRole("button", { name: "Clear rejected" }).click({ timeout: 15_000 });
+  await expect(pill).toBeVisible({ timeout: 15_000 });
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(pill).toHaveCount(0, { timeout: 15_000 });
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await pill.click({ timeout: 15_000 });
   // One image left: no strip to pick from.
   await expect(strip).toHaveCount(0);
-  await expect(output.getByRole("button", { name: "Clear rejected" })).toHaveCount(0);
+  await expect(pill).toHaveCount(0);
   // Kept everywhere else: the batch still has both, one of them rejected.
   const left = (await getBatch(request, id)).requests.flatMap((q) => q.outputs);
   expect(left).toHaveLength(2);
@@ -100,6 +105,21 @@ test("Clear rejected takes rejected images out of the column only", async ({ pag
   await expect(output.getByRole("tablist", { name: "Images in this batch" }).getByRole("tab")).toHaveCount(2, { timeout: 15_000 });
 });
 
+test("Ctrl+Z brings back a cleared column", async ({ page, request }) => {
+  await settled(request);
+  await page.goto("/generate");
+  const output = page.getByRole("complementary", { name: "Output" });
+  const batches = output.getByRole("link", { name: "Batch page" });
+  await expect(batches.first()).toBeVisible({ timeout: 30_000 });
+  const before = await batches.count();
+  await output.getByRole("button", { name: "Clear output", exact: true }).click();
+  await expect(batches).toHaveCount(0);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(batches).toHaveCount(before);
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect(batches).toHaveCount(0);
+});
+
 test("Clear failed removes failed requests from their batch", async ({ page, request }) => {
   await settled(request);
   await page.goto("/generate");
@@ -108,7 +128,7 @@ test("Clear failed removes failed requests from their batch", async ({ page, req
   const id = await queue(page, 1);
   await expect(output.getByText("fake failure")).toBeVisible({ timeout: 60_000 });
 
-  await output.getByRole("button", { name: "Clear failed" }).click();
+  await output.getByRole("button", { name: "Clear 1 failed" }).click();
   // Nothing else in it: the batch is gone.
   await expect(output.getByRole("link", { name: "Batch page" })).toHaveCount(0);
   expect((await request.get(`${API}/generate/batches/${id}`)).status()).toBe(404);

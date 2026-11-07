@@ -7,20 +7,25 @@ import { emptyHistory, recordChange, redoStep, undoStep, type UndoHistory } from
  * change is a step (typing in one field, one step per burst), unless
  * `quietly` marked it or `skip(prev, next)` says the app made it on its own.
  * `undo` / `redo` set the state back or forward, through `restore` (to
- * clean a value before it returns); `reset` forgets the steps.
+ * clean a value before it returns); `reset` forgets the steps. `onStep` is
+ * told each time a new step is recorded (not a burst joining one).
  */
 export function useUndoHistory<T>(
   value: T,
   setValue: Dispatch<SetStateAction<T>>,
-  { skip, restore }: { skip?: (prev: T, next: T) => boolean; restore?: (v: T) => T } = {},
+  {
+    skip,
+    restore,
+    onStep,
+  }: { skip?: (prev: T, next: T) => boolean; restore?: (v: T) => T; onStep?: () => void } = {},
 ) {
   const hist = useRef<UndoHistory<T>>(emptyHistory());
   const prev = useRef(value);
   // The change in flight is undo/redo's own, or one to fold in quietly.
   const applying = useRef(false);
   const quiet = useRef(false);
-  const opts = useRef({ skip, restore });
-  opts.current = { skip, restore };
+  const opts = useRef({ skip, restore, onStep });
+  opts.current = { skip, restore, onStep };
   // The field an input event came from since the last change: that change
   // is typing in it, or a slider dragged (one step per burst). A change with
   // no input before it (a tag picked from a list, a click) is a step of its
@@ -55,7 +60,10 @@ export function useUndoHistory<T>(
     quiet.current = false;
     const key = typed.current;
     typed.current = null;
-    hist.current = recordChange(hist.current, was, { key, now: Date.now(), quiet: q });
+    const next = recordChange(hist.current, was, { key, now: Date.now(), quiet: q });
+    const stepped = next.past !== hist.current.past;
+    hist.current = next;
+    if (stepped) opts.current.onStep?.();
   }, [value]);
 
   const go = useCallback(

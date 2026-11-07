@@ -49,7 +49,7 @@ test("the viewer steps through only the images Generate shows", async ({ page, r
   await page.getByRole("link", { name: "Generate", exact: true }).click();
   await expect(page).toHaveURL(/\/generate$/);
   const output = page.getByRole("complementary", { name: "Output" });
-  const clear = output.getByRole("button", { name: "Clear", exact: true });
+  const clear = output.getByRole("button", { name: "Clear output", exact: true });
   // Earlier specs leave batches in the column.
   await expect(clear).toBeVisible({ timeout: 30_000 });
   await clear.click();
