@@ -102,6 +102,31 @@ test("Clean up takes out repeated tags and stray commas, and Ctrl+Z brings them 
   await expect(prompt).toHaveValue(messy);
 });
 
+test("Use canonical tags swaps every alias in the Prompt, and Ctrl+Z brings them back", async ({ page }) => {
+  // Danbooru's list is a download: answer for the board instead.
+  await page.route("**/api/v1/tags/place", async (route) => {
+    const { names } = route.request().postDataJSON() as { names: string[] };
+    const aliases: Record<string, string> = { blowjob: "fellatio", sideboob: "breasts_apart" };
+    await route.fulfill({
+      json: {
+        list: true,
+        fetching: false,
+        names: Object.fromEntries(names.map((n) => [n, { section: "other", ...(aliases[n] ? { alias_of: aliases[n] } : {}) }])),
+      },
+    });
+  });
+  await page.goto("/generate");
+  const prompt = page.getByLabel("Prompt", { exact: true });
+  const written = "1girl, (blowjob:1.2), sideboob";
+  await prompt.fill(written);
+  const swap = page.getByRole("button", { name: "Use canonical tags" });
+  await swap.click();
+  await expect(prompt).toHaveValue("1girl, (fellatio:1.2), breasts apart");
+  await expect(swap).toHaveCount(0);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(prompt).toHaveValue(written);
+});
+
 test("after a click on + the arrow keys go on stepping", async ({ page }) => {
   await page.goto("/generate");
   const images = page.getByRole("spinbutton", { name: "Images", exact: true });

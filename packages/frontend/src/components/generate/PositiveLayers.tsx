@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Eraser } from "lucide-react";
+import { BookA, Eraser } from "lucide-react";
 import { Badge, Button, Card, Tooltip } from "../ui";
 import { CharacterLayer } from "./CharacterBlock";
 import { StyleLayer } from "./StyleLayer";
@@ -13,6 +13,9 @@ import { insertBlock, presetText, removeBlock, updateBlock, type GenerateForm } 
 import { setCharacters, setOutfitPick, toggleIdentityOff } from "../../lib/composerEdits";
 import { prefixRepeats } from "../../lib/promptRepeats";
 import { cleanPrompt, cleanupWords } from "../../lib/promptCleanup";
+import { aliasSwapWords, swapAliases } from "../../lib/promptAliases";
+import { promptTerms } from "../../lib/promptOutline";
+import { useTagPlaces } from "../../lib/queries";
 import { cn } from "../../lib/cn";
 import type { ComfyModels, Generator, LoraPreset, NodeError, Preset } from "../../lib/generate";
 import type { RunBar } from "../../lib/generatorRunBar";
@@ -66,6 +69,11 @@ export function PositiveLayers({
   // Repeated tags and stray commas, taken out in one click (Ctrl+Z brings them back).
   const cleanup = useMemo(() => cleanPrompt(form.prompt), [form.prompt]);
   const cleanupTitle = cleanupWords(cleanup, cleanup.text !== form.prompt);
+  // Danbooru aliases written in the Prompt, each swapped for its tag.
+  const promptNames = useMemo(() => promptTerms(form.prompt).filter((t) => t.kind === "tag").map((t) => t.name), [form.prompt]);
+  const { data: places } = useTagPlaces(promptNames);
+  const aliases = useMemo(() => swapAliases(form.prompt, places?.names), [form.prompt, places]);
+  const aliasTitle = aliasSwapWords(aliases);
   return (
     <div className="flex flex-col" aria-label="Positive prompt">
       {form.blocks.map((blk, i) => (
@@ -111,6 +119,13 @@ export function PositiveLayers({
               <div className="mb-1.5 flex items-center gap-2">
                 <span className="text-sm font-semibold text-neutral-50">Prompt</span>
                 <span className="flex-1" />
+                {aliasTitle && (
+                  <Tooltip content={aliasTitle} bubble>
+                    <Button size="sm" variant="ghost" onClick={() => set("prompt", aliases.text)}>
+                      <BookA size={13} /> Use canonical tags
+                    </Button>
+                  </Tooltip>
+                )}
                 {cleanupTitle && (
                   <Tooltip content={cleanupTitle} bubble>
                     <Button size="sm" variant="ghost" onClick={() => set("prompt", cleanup.text)}>
