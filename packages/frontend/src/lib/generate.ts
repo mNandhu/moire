@@ -874,9 +874,10 @@ export function useBatchList(ids: readonly number[]): (Batch | undefined)[] {
 }
 
 /** One batch; polls while it runs or its images are still being scanned. */
-export function useBatch(id: number) {
+export function useBatch(id: number, enabled = true) {
   return useQuery({
     ...batchQuery(id),
+    enabled,
     refetchInterval: (q) => {
       const b = q.state.data;
       if (!b) return false;

@@ -175,6 +175,21 @@ async def get_batch(batch_id: int, manager: GenerationManager) -> dict[str, Any]
     }
 
 
+async def batch_id_of_image(conn, image_id: str) -> int | None:
+    """The id of the Generation batch a Moiré output came from, else None:
+    the batch its viewer strip shows (one press of Queue, not every run of
+    the same prompt)."""
+    return (
+        await conn.execute(
+            sa.select(_r.c.batch_id)
+            .select_from(_o.join(_r, _r.c._id == _o.c.request_id))
+            .where(_o.c.image_id == image_id)
+            .order_by(_r.c._id.desc())
+            .limit(1)
+        )
+    ).scalar()
+
+
 async def batch_of_image(conn, image_id: str) -> dict[str, Any] | None:
     """The batch and request a Moiré output came from, else None."""
     row = (

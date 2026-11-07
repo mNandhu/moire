@@ -40,6 +40,7 @@ export function imageDetail(over: Partial<ImageDetail> = {}): ImageDetail {
     size: null,
     tags: [],
     gen: null,
+    gen_batch: null,
     ai: null,
     ctime: null,
     thumb_key: null,

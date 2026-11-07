@@ -5,6 +5,7 @@ import { api } from "../../lib/api";
 import { BATCH_STRIP_KEY } from "../../lib/feedCache";
 import { imageHref, type FeedItem } from "../../lib/imageFilter";
 import { smallThumb } from "../../lib/media";
+import { batchStripQuery, type BatchOf } from "../../lib/batchStrip";
 
 const BATCH_STRIP_MAX = 40;
 
@@ -12,28 +13,24 @@ const BATCH_STRIP_MAX = 40;
 type Member = Pick<FeedItem, "_id"> & Partial<Pick<FeedItem, "path" | "thumb_url">>;
 
 /**
- * The rest of the image's batch (same workflow, same prompt: its seeds and
- * reruns), as a strip of thumbnails. Picking one steps the viewer into the
- * batch: arrows then walk its members, like drilling into it in the gallery.
- * Nothing when the image is alone in its batch.
+ * The rest of the image's batch (see `BatchOf`), as a strip of thumbnails.
+ * Picking one steps the viewer into the batch: arrows then walk its members,
+ * like drilling into it in the gallery. Nothing when the image is alone in
+ * its batch.
  */
 export function BatchStrip({
-  groupId,
+  of,
   scope,
   currentId,
   currentThumb,
 }: {
-  groupId: string;
+  of: BatchOf;
   scope: string;
   currentId: string;
   currentThumb?: string | null;
 }) {
   const location = useLocation();
-  const query = useMemo(() => {
-    const sp = new URLSearchParams(scope);
-    sp.set("group_id", groupId);
-    return sp.toString();
-  }, [scope, groupId]);
+  const query = batchStripQuery(of, scope);
   const { data: fetched } = useQuery({
     queryKey: [...BATCH_STRIP_KEY, query],
     queryFn: ({ signal }) =>
@@ -73,13 +70,24 @@ export function BatchStrip({
   return (
     <div className="space-y-2">
       <div className="text-xs font-medium text-muted">
-        This batch{" "}
+        {"genBatch" in of ? (
+          <Link to={`/generations/${of.genBatch}`} className="hover:text-neutral-100">
+            This batch
+          </Link>
+        ) : (
+          "This batch"
+        )}{" "}
         <span className="text-faint tabular-nums">
           {fetched && fetched.length >= BATCH_STRIP_MAX ? `${BATCH_STRIP_MAX}+` : members.length}
         </span>
       </div>
       {/* Relative: the thumbs' offsetLeft is measured from it. */}
-      <div ref={stripRef} className="relative -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:thin]">
+      <div
+        ref={stripRef}
+        role="group"
+        aria-label="This batch"
+        className="relative -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:thin]"
+      >
         {members.map((m) => {
           const here = m._id === currentId;
           return (

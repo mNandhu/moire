@@ -560,3 +560,5 @@ sa.Index(
     generation_requests.c.idx,
 )
 sa.Index("ix_generation_requests_state", generation_requests.c.state)
+# An image's Generation batch (the viewer's strip, Remix).
+sa.Index("ix_generation_outputs_image", generation_outputs.c.image_id)

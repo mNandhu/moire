@@ -600,6 +600,7 @@ export default function ImageView() {
                         onCopyAll={() => void copyWorkflow()}
                         batchScope={serializeFiltersForPeek(filters)}
                         thumbUrl={data.thumb_url}
+                        genBatch={data.gen_batch}
                       />
                     }
                     tags={

@@ -1,9 +1,11 @@
 import asyncio
+import json
 import os
 import itertools
 import time
 from fastapi import FastAPI, WebSocket, Request
 from PIL import Image
+from PIL.PngImagePlugin import PngInfo
 
 OUT = os.environ.get("FAKE_COMFY_OUT", "out")
 app = FastAPI()
@@ -112,11 +114,15 @@ async def run(pid, graph, fail=False):
     sub, _, stem = save.rpartition("/")
     os.makedirs(os.path.join(OUT, sub), exist_ok=True)
     files = []
+    # Like ComfyUI, the graph rides along in the PNG, so Moiré reads the
+    # prompt back (and groups same-prompt runs) the way it does a real output.
+    info = PngInfo()
+    info.add_text("prompt", json.dumps(graph))
     for i in range(int(lat["batch_size"])):
         fn = f"{stem}_{pid}_{i:05}_.png"
         Image.new(
             "RGB", (lat["width"] // 8, lat["height"] // 8), (40 * i % 255, 90, 160)
-        ).save(os.path.join(OUT, sub, fn))
+        ).save(os.path.join(OUT, sub, fn), pnginfo=info)
         files.append({"filename": fn, "subfolder": sub, "type": "output"})
     running.remove(pid)
     hist[pid] = {

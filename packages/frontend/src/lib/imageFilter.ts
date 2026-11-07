@@ -58,6 +58,8 @@ export type ImageDetail = ImageFields & {
   tags: string[];
   // Structured generation metadata (extracted from embedded AI-art data).
   gen: import("./gen").GenMeta | null;
+  /** The Generation batch a Moiré output came from (one press of Queue). */
+  gen_batch: number | null;
   ai:
     | (import("./tags").AiTagMeta & {
         rating?: Record<string, number>;
@@ -101,6 +103,7 @@ export const IMAGE_DETAIL_KEYS = keysOf<ImageDetail>()([
   "size",
   "tags",
   "gen",
+  "gen_batch",
   "ai",
   "ctime",
   "thumb_key",
@@ -151,6 +154,10 @@ export type Filters = {
   // in practice: drilling in turns collapse off.
   group: boolean;
   groupId?: string;
+  /** One Generation batch's images (one press of Queue), by its id: what
+   * its batch page shows. Narrower than a group, which is every run of the
+   * same prompt and workflow. */
+  genBatch?: number;
   // Workflow: a whole family (its editor-graph id, every version Rules groups
   // under it) or one version (its signature). One or the other.
   workflow?: string;
@@ -181,6 +188,7 @@ export const DEFAULT_FILTERS: Filters = {
   maxH: undefined,
   group: false,
   groupId: undefined,
+  genBatch: undefined,
   workflow: undefined,
   workflowSig: undefined,
   sort: "newest",
@@ -235,10 +243,16 @@ export function parseFilters(sp: URLSearchParams): Filters {
     maxH: numOrUndef(sp.get("max_h")),
     group: sp.get("group") === "1",
     groupId: sp.get("group_id") || undefined,
+    genBatch: batchIdOrUndef(sp.get("gen_batch")),
     workflow: sp.get("workflow") || undefined,
     workflowSig: sp.get("workflow_sig") || undefined,
     sort: SORTS.find((x) => x === sp.get("sort")) ?? "newest",
   });
+}
+
+function batchIdOrUndef(v: string | null): number | undefined {
+  const n = numOrUndef(v);
+  return n != null && Number.isInteger(n) && n > 0 ? n : undefined;
 }
 
 function numOrUndef(v: string | null): number | undefined {
@@ -276,6 +290,7 @@ export function serializeFilters(f: Filters): URLSearchParams {
   if (filters.maxH != null) sp.set("max_h", String(filters.maxH));
   if (filters.group) sp.set("group", "1");
   if (filters.groupId) sp.set("group_id", filters.groupId);
+  if (filters.genBatch != null) sp.set("gen_batch", String(filters.genBatch));
   if (filters.workflow) sp.set("workflow", filters.workflow);
   if (filters.workflowSig) sp.set("workflow_sig", filters.workflowSig);
   if (filters.sort && filters.sort !== "newest") sp.set("sort", filters.sort);
@@ -310,6 +325,26 @@ export function serializeFiltersForPeek(filters: Filters): string {
   sp.delete("group");
   sp.delete("group_id");
   return sp.toString();
+}
+
+/** Into one group of the grouped view: its members, ungrouped. `group`
+ * stays as it was, so `leaveGroup` goes back to the view it was opened from. */
+export function enterGroup(f: Filters, groupId: string): Filters {
+  return { ...f, groupId };
+}
+
+/** Out of a group's members, back to the gallery with the same filters:
+ * grouped if it was (or if grouping is the saved choice, on a direct link). */
+export function leaveGroup(f: Filters): Filters {
+  return { ...f, groupId: undefined };
+}
+
+/** The gallery's title for `f`. `libraryName` resolves a library id. */
+export function galleryTitle(f: Filters, libraryName: (id: string) => string | undefined = () => undefined): string {
+  if (f.quarantined) return "Quarantined Images";
+  if (f.groupId || f.genBatch != null) return "Batch Images";
+  if (f.libraryId) return libraryName(f.libraryId) ?? "Library Images";
+  return hasActiveFilter(f) ? "Filtered Images" : "All Images";
 }
 
 /** Whether any filter axis is set (vs the empty default feed): whatever the
@@ -364,21 +399,25 @@ function rangeLabel(name: string, min?: number, max?: number): string {
  * The active filters as removable chips, for showing state while the filter
  * panel is closed. Search terms (tags, loras, embeddings) are left out (the
  * search input already shows them as chips), as are batch grouping and drill-in, which have their own
- * toggle and "Back to batches" control. `libraryName` resolves an id to a
+ * toggle and back control (`leaveGroup`). `libraryName` resolves an id to a
  * display name; `workflowName` does the same for a workflow family id or a
- * version signature.
+ * version signature; `batchName` names a Generation batch.
  */
 export function activeFilterChips(
   filters: Filters,
   libraryName: (id: string) => string | undefined = () => undefined,
   workflowName: (key: { workflow?: string; workflowSig?: string }) => string | undefined = () =>
     undefined,
+  batchName: (id: number) => string | undefined = () => undefined,
 ): FilterChip[] {
   const f = normalizeFilters(filters);
   const chips: FilterChip[] = [];
   const add = (key: string, label: string, patch: Partial<Filters>) =>
     chips.push({ key, label, without: { ...f, ...patch } });
 
+  if (f.genBatch != null) {
+    add("genBatch", `Batch: ${batchName(f.genBatch) ?? `#${f.genBatch}`}`, { genBatch: undefined });
+  }
   if (f.libraryId) {
     add("library", `Library: ${libraryName(f.libraryId) ?? f.libraryId}`, { libraryId: undefined });
   }

@@ -33,6 +33,7 @@
     "blurhash",
     "ctime",
     "gen",
+    "gen_batch",
     "has_ai_tags",
     "has_prompt_tags",
     "has_tags",

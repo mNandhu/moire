@@ -7,7 +7,7 @@ import os
 from ..database.db import async_conn, async_tx
 from ..services import gen_metadata, gen_raw, image_tags, image_feed
 from ..services import tag_index
-from ..services import image_delete, thumb_version
+from ..services import generation_batches, image_delete, thumb_version
 from ..services.image_feed import FeedFilter, FeedFilterError
 from ..services.image_tags import find_image as _find_image_doc  # type: ignore
 from . import image_facets, image_media
@@ -59,6 +59,7 @@ def feed_filter(
     min_h: int | None = Query(default=None, ge=0),
     max_h: int | None = Query(default=None, ge=0),
     group_id: str | None = Query(default=None),
+    gen_batch: int | None = Query(default=None),
     workflow: str | None = Query(default=None, max_length=256),
     workflow_sig: str | None = Query(default=None, max_length=256),
     outfit: list[str] | None = Query(default=None),
@@ -87,6 +88,7 @@ def feed_filter(
             min_h=min_h,
             max_h=max_h,
             group_id=group_id,
+            gen_batch=gen_batch,
             workflow_id=workflow,
             workflow_sig=workflow_sig,
             outfit=outfit,
@@ -198,6 +200,8 @@ async def get_image(image_id: str):
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
     await thumb_version.urls_for_rows([img])
+    async with async_conn() as conn:
+        img["gen_batch"] = await generation_batches.batch_id_of_image(conn, img["_id"])
     return img
 
 

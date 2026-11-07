@@ -60,7 +60,7 @@ class GroupRow(FeedRow):
 
 class ImageDetail(FeedRow):
     """The single-image document (GET /images/{id}): image_tags.row_to_doc
-    plus thumb_url."""
+    plus thumb_url and its Generation batch."""
 
     library_id: str
     size: int | None
@@ -71,6 +71,8 @@ class ImageDetail(FeedRow):
     tags: list[str]
     ai: dict[str, Any] | None
     gen: dict[str, Any] | None
+    #: The Generation batch a Moiré output came from (one press of Queue).
+    gen_batch: int | None
 
 
 class TagCount(_Payload):

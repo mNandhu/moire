@@ -190,6 +190,12 @@ belongs in this file.
   `feed_where` builds the WHERE clause; `list_feed` / `list_groups` run the
   cursor-paged feed and the batch-collapsed grouped view. The feed and grouped
   view share one builder so they can never drift. (`services/image_feed.py`)
+  The grouped view's "batches" are **groups** (`gen.group_id`: same workflow
+  signature and positive prompt, so every run of one prompt, whatever the
+  checkpoint or Queue press). A Generation batch is narrower, one press of
+  Queue (`gen_batch` filter, from `generation_outputs`); the viewer's "This
+  batch" strip is the Generation batch for a Moiré output and the group
+  otherwise, so it always matches the batch page.
 - **Attire tag**: a general tag naming something worn (`serafuku`,
   `thighhighs`), from a list built from Danbooru's attire tag groups and
   limited to the tagger's vocabulary. Each carries its group (headwear,

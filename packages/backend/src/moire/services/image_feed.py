@@ -138,6 +138,8 @@ class FeedFilter:
     min_h: int | None = None
     max_h: int | None = None
     group_id: str | None = None
+    # One Generation batch's images (one press of Queue), by its id.
+    gen_batch: int | None = None
     workflow_id: str | None = None
     workflow_sig: str | None = None
     # Outfits the image wears (saved ids, or `default:<character>`), each.
@@ -308,7 +310,21 @@ def _workflow_conds(f: FeedFilter) -> list:
     # Drill into one batch's members (used by the grouped view's expand).
     if f.group_id:
         conds.append(t.images.c.gen_group_id == f.group_id)
+    if f.gen_batch is not None:
+        conds.append(t.images.c._id.in_(_gen_batch_ids(f.gen_batch)))
     return conds
+
+
+def _gen_batch_ids(batch_id: int) -> sa.Select:
+    """The image ids a Generation batch's requests returned. What the batch
+    page shows; the prompt group (``gen_group_id``) is wider: every run of the
+    same prompt and workflow, whatever its checkpoint or Queue press."""
+    o, r = t.generation_outputs, t.generation_requests
+    return (
+        sa.select(o.c.image_id)
+        .select_from(o.join(r, r.c._id == o.c.request_id))
+        .where(r.c.batch_id == batch_id)
+    )
 
 
 def feed_where(f: FeedFilter):

@@ -12,6 +12,7 @@ import { useToast } from "../Toasts";
 import { ResolvePromptDialog } from "../ResolvePromptDialog";
 import { RemixButton, WorkflowLine } from "../generate/Remix";
 import { BatchStrip } from "./BatchStrip";
+import { stripOf } from "../../lib/batchStrip";
 import { TAB_ACTION, TabActions } from "./TabActions";
 import { Tooltip } from "../ui/Tooltip";
 
@@ -211,6 +212,7 @@ export function GenPanel({
   onCopyAll,
   batchScope,
   thumbUrl,
+  genBatch,
 }: {
   imageId: string;
   gen: import("../../lib/gen").GenMeta | null;
@@ -220,6 +222,8 @@ export function GenPanel({
   /** The viewer's filters, less any batch grouping (serializeFiltersForPeek). */
   batchScope: string;
   thumbUrl?: string | null;
+  /** The Generation batch the image came from, if Moiré queued it. */
+  genBatch?: number | null;
 }) {
   const { data: remix } = useRemix(imageId, !!gen?.source);
   const [resolving, setResolving] = useState<"prompt" | "negative" | null>(null);
@@ -241,6 +245,7 @@ export function GenPanel({
     seed: gen.seed ?? null,
     batch: null,
   };
+  const strip = stripOf(genBatch, gen.group_id);
   const editRule = gen.workflow_sig && (
     <Link
       to={`/rules?sig=${encodeURIComponent(gen.workflow_sig)}`}
@@ -349,7 +354,7 @@ export function GenPanel({
         </div>
       </div>
 
-      {gen.group_id && <BatchStrip groupId={gen.group_id} scope={batchScope} currentId={imageId} currentThumb={thumbUrl} />}
+      {strip && <BatchStrip of={strip} scope={batchScope} currentId={imageId} currentThumb={thumbUrl} />}
     </section>
   );
 }

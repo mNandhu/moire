@@ -419,3 +419,48 @@ async def test_rare_filter_by_ids_matches_the_full_walk(client, seed, monkeypatc
     walked = [await walk(**f) for f in filters]
     assert driven == walked
     assert all(driven[:6])  # every filter matched something
+
+
+def _gen_batch(conn, outputs: list[str]) -> int:
+    """A Generation batch whose one request returned ``outputs``."""
+    bid = conn.execute(
+        sa.insert(t.generation_batches).values(
+            name="b", generator_id="builtin", inputs={}, state="done"
+        )
+    ).inserted_primary_key[0]
+    rid = conn.execute(
+        sa.insert(t.generation_requests).values(batch_id=bid, idx=0, state="done")
+    ).inserted_primary_key[0]
+    for i, image_id in enumerate(outputs):
+        conn.execute(
+            sa.insert(t.generation_outputs).values(
+                request_id=rid, idx=i, filename=image_id, image_id=image_id
+            )
+        )
+    return bid
+
+
+async def test_gen_batch_is_one_queue_press_not_the_prompt_group(client, seed):
+    # Two presses of Queue, same prompt and workflow (so one prompt group),
+    # different checkpoints: each batch is only its own images.
+    gen = {"prompt": "1girl", "workflow_sig": "s", "group_id": "g"}
+    seed("OUT:a.png", gen={**gen, "model": "one"}, mtime=1)
+    seed("OUT:b.png", gen={**gen, "model": "one"}, mtime=2)
+    seed("OUT:c.png", gen={**gen, "model": "two"}, mtime=3)
+    with db.sync_tx() as conn:
+        first = _gen_batch(conn, ["OUT:a.png", "OUT:b.png"])
+        second = _gen_batch(conn, ["OUT:c.png", "OUT:not-scanned-yet.png"])
+    assert await _ids(client, group_id="g") == ["OUT:c.png", "OUT:b.png", "OUT:a.png"]
+    assert await _ids(client, gen_batch=first) == ["OUT:b.png", "OUT:a.png"]
+    assert await _ids(client, gen_batch=second) == ["OUT:c.png"]
+    assert await _ids(client, gen_batch=second + 1) == []
+    # Every route that takes the gallery filter honours it.
+    got = (await client.get("/images/ids", params={"gen_batch": first})).json()
+    assert sorted(got["ids"]) == ["OUT:a.png", "OUT:b.png"]
+    assert (await client.get("/images", params={"gen_batch": "x"})).status_code == 422
+    # The image's own doc names its batch, for the viewer's strip.
+    detail = lambda i: client.get(f"/images/{i}")  # noqa: E731
+    assert (await detail("OUT:c.png")).json()["gen_batch"] == second
+    assert (await detail("OUT:a.png")).json()["gen_batch"] == first
+    seed("L1:mine.png", gen=gen)
+    assert (await detail("L1:mine.png")).json()["gen_batch"] is None

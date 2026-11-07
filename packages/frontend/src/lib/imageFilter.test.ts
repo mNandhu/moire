@@ -15,6 +15,9 @@ import {
   IMAGE_FIELD_KEYS,
   FEED_ITEM_KEYS,
   IMAGE_DETAIL_KEYS,
+  enterGroup,
+  leaveGroup,
+  galleryTitle,
 } from "./imageFilter";
 
 const roundTrip = (f: Filters): Filters =>
@@ -326,6 +329,7 @@ const SAMPLES: Record<keyof Filters, Partial<Filters>> = {
   maxH: { maxH: 4 },
   group: { group: true },
   groupId: { groupId: "g" },
+  genBatch: { genBatch: 120 },
   workflow: { workflow: "w" },
   workflowSig: { workflowSig: "s" },
   sort: { sort: "top" },
@@ -366,5 +370,56 @@ describe("image payload types", () => {
 
   it("ImageDetail is the single-image row", () => {
     expect(sorted(IMAGE_DETAIL_KEYS)).toEqual(sorted(payloads.detail));
+  });
+});
+
+describe("a Generation batch in the URL", () => {
+  it("reads only a positive whole id", () => {
+    expect(parseFilters(new URLSearchParams("gen_batch=120")).genBatch).toBe(120);
+    for (const bad of ["0", "-1", "1.5", "x", ""]) {
+      expect(parseFilters(new URLSearchParams(`gen_batch=${bad}`)).genBatch).toBeUndefined();
+    }
+  });
+
+  it("is a removable chip, named when the name is known", () => {
+    const f = { ...DEFAULT_FILTERS, genBatch: 120 };
+    const [chip] = activeFilterChips(f, undefined, undefined, (id) => (id === 120 ? "hu tao" : undefined));
+    expect(chip.label).toBe("Batch: hu tao");
+    expect(chip.without.genBatch).toBeUndefined();
+    expect(activeFilterChips(f)[0].label).toBe("Batch: #120");
+  });
+
+  it("goes when the filters are cleared", () => {
+    expect(withoutFilters({ ...DEFAULT_FILTERS, genBatch: 120 }).genBatch).toBeUndefined();
+  });
+});
+
+describe("into and out of a group", () => {
+  it("leaves to the view it was opened from, grouped or not", () => {
+    const grouped = { ...DEFAULT_FILTERS, group: true, tags: ["cat"] };
+    const inside = enterGroup(grouped, "g");
+    expect(inside).toMatchObject({ group: true, groupId: "g" });
+    expect(leaveGroup(inside)).toEqual(grouped);
+    // A direct link into a group, grouping off: back to the flat gallery.
+    const flat = { ...DEFAULT_FILTERS, groupId: "g" };
+    expect(leaveGroup(flat)).toEqual(DEFAULT_FILTERS);
+  });
+
+  it("names where it leaves to, never a batches page", () => {
+    const back = (f: Filters) => galleryTitle(leaveGroup(f), (id) => (id === "L1" ? "Renders" : undefined));
+    expect(back({ ...DEFAULT_FILTERS, group: true, groupId: "g" })).toBe("All Images");
+    expect(back({ ...DEFAULT_FILTERS, groupId: "g", tags: ["cat"] })).toBe("Filtered Images");
+    expect(back({ ...DEFAULT_FILTERS, groupId: "g", libraryId: "L1" })).toBe("Renders");
+    expect(back({ ...DEFAULT_FILTERS, groupId: "g", quarantined: true })).toBe("Quarantined Images");
+  });
+});
+
+describe("galleryTitle", () => {
+  it("names the view", () => {
+    expect(galleryTitle(DEFAULT_FILTERS)).toBe("All Images");
+    expect(galleryTitle({ ...DEFAULT_FILTERS, group: true })).toBe("All Images");
+    expect(galleryTitle({ ...DEFAULT_FILTERS, groupId: "g" })).toBe("Batch Images");
+    expect(galleryTitle({ ...DEFAULT_FILTERS, genBatch: 3 })).toBe("Batch Images");
+    expect(galleryTitle({ ...DEFAULT_FILTERS, libraryId: "gone" })).toBe("Library Images");
   });
 });

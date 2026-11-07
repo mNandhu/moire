@@ -18,7 +18,11 @@ import {
   withoutFilters,
   type Filters,
   activeFilterChips,
+  enterGroup,
+  galleryTitle,
+  leaveGroup,
 } from "../lib/imageFilter";
+import { useBatch } from "../lib/generate";
 import { fetchImageIds } from "../lib/imageApi";
 import { PageHeader } from "../components/ui/PageHeader";
 import { LibraryScopeTabs } from "../components/LibraryScopeTabs";
@@ -90,6 +94,9 @@ export default function AllImagesPage() {
   // link), which would otherwise leave an empty feed with nothing to clear.
   const scopeInTabs =
     libs.length >= 2 && libs.some((l) => l._id === filters.libraryId);
+  // The Generation batch the feed is narrowed to, for its chip's name.
+  const { data: genBatch } = useBatch(filters.genBatch ?? 0, filters.genBatch != null);
+  const genBatchName = genBatch?._id === filters.genBatch ? genBatch?.name : undefined;
   const filterChips = useMemo(
     () =>
       activeFilterChips(
@@ -99,8 +106,16 @@ export default function AllImagesPage() {
           return lib ? lib.name || lib.path : libs.length ? "not found" : undefined;
         },
         (key) => workflowFilterName(workflowFamilies, key),
+        () => genBatchName,
       ).filter((chip) => chip.key !== "library" || !scopeInTabs),
-    [filters, libs, workflowFamilies, scopeInTabs],
+    [filters, libs, workflowFamilies, scopeInTabs, genBatchName],
+  );
+  const libraryTitle = useCallback(
+    (id: string) => {
+      const lib = libs.find((l) => l._id === id);
+      return lib ? lib.name || lib.path : undefined;
+    },
+    [libs],
   );
 
   // An empty feed while its library is still scanning (or queued) is not
@@ -279,7 +294,7 @@ export default function AllImagesPage() {
       if (groupMode) {
         const it = items.find((x) => x._id === id);
         if (it && (it.group_count ?? 1) > 1 && it.group_id) {
-          setFilters({ ...filters, group: false, groupId: it.group_id });
+          setFilters(enterGroup(filters, it.group_id));
           return;
         }
       }
@@ -333,19 +348,7 @@ export default function AllImagesPage() {
       <PageHeader
         sticky={false}
         width="full"
-        title={
-          filters.quarantined
-            ? "Quarantined Images"
-            : filters.groupId
-              ? "Batch Images"
-              : filters.libraryId
-                ? (libs.find((l) => l._id === filters.libraryId)?.name ??
-                  libs.find((l) => l._id === filters.libraryId)?.path ??
-                  "Library Images")
-                : hasActiveFilter(filters)
-                  ? "Filtered Images"
-                  : "All Images"
-        }
+        title={galleryTitle(filters, libraryTitle)}
         // Not a total: the feed is cursor-paged and the API exposes no count,
         // so this is what has been loaded so far. Labelling it plainly beats a
         // bare number that climbs as you scroll and looks like a bug.
@@ -497,14 +500,10 @@ export default function AllImagesPage() {
         }}
       />
 
+      {/* Named for where it goes: the gallery the batch was opened from. */}
       {filters.groupId && (
-        <Button
-          size="sm"
-          onClick={() =>
-            setFilters({ ...filters, groupId: undefined, group: true })
-          }
-        >
-          <ArrowLeft size={14} /> Back to batches
+        <Button size="sm" onClick={() => setFilters(leaveGroup(filters))}>
+          <ArrowLeft size={14} /> Back to {galleryTitle(leaveGroup(filters), libraryTitle)}
         </Button>
       )}
 
