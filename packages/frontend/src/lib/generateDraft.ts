@@ -91,6 +91,23 @@ export function keepOff(v: unknown, characters: readonly string[]): Record<strin
   return out;
 }
 
+/** Style LoRAs from storage: the well-formed ones, their preset and off
+ * switch kept. */
+export function validLoras(v: unknown): StyleLora[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter(
+      (l: unknown): l is StyleLora =>
+        !!l && typeof l === "object" && isStr((l as StyleLora).name) && typeof (l as StyleLora).strength === "number",
+    )
+    .map((l) => ({ name: l.name, strength: l.strength, preset: presetRef(l.preset) ?? null, ...(l.off === true ? { off: true } : {}) }));
+}
+
+/** The characters whose LoRA is off, among those picked. */
+export function keepLoraOff(v: unknown, characters: readonly string[]): string[] {
+  return Array.isArray(v) ? characters.filter((c) => v.includes(c)) : [];
+}
+
 const DRAFT_KEY = "moire.generate.draft";
 
 /** The saved draft merged over defaults; defaults when storage is empty,
@@ -121,14 +138,8 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     if (isStr(d.workflow) && d.workflow) out.workflow = d.workflow;
     for (const k of ["width", "height", "count"] as const) if (typeof d[k] === "number") out[k] = d[k];
     if (Number.isInteger(d.perRequest) && d.perRequest >= 1 && d.perRequest <= PER_REQUEST_MAX) out.perRequest = d.perRequest;
-    if (Array.isArray(d.loras)) {
-      out.loras = d.loras
-        .filter(
-          (l: unknown): l is StyleLora =>
-            !!l && typeof l === "object" && isStr((l as StyleLora).name) && typeof (l as StyleLora).strength === "number",
-        )
-        .map((l: StyleLora) => ({ name: l.name, strength: l.strength, preset: presetRef(l.preset) ?? null }));
-    }
+    if (Array.isArray(d.loras)) out.loras = validLoras(d.loras);
+    out.loraOff = keepLoraOff(d.loraOff, out.characters);
     const rx = d.remix;
     if (rx && typeof rx === "object" && isStr(rx.image) && (rx.seed === null || Number.isInteger(rx.seed))) {
       out.remix = { image: rx.image, seed: rx.seed };

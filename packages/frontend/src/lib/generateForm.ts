@@ -55,6 +55,8 @@ export type GenerateForm = {
   /** Per character: identity tags struck for this batch only (the recipe
    * keeps them). */
   identityOff: Record<string, string[]>;
+  /** Characters whose LoRA is switched off for this batch (the recipe keeps it). */
+  loraOff: string[];
   /** Characters just picked, still to start in what Settings says new
    * characters wear (an outfit chosen for one meanwhile wins). */
   fresh: string[];
@@ -86,6 +88,7 @@ export const DEFAULT_FORM: GenerateForm = {
   characters: [],
   outfits: {},
   identityOff: {},
+  loraOff: [],
   fresh: [],
   width: 832,
   height: 1216,
@@ -133,6 +136,15 @@ export function presetText(ref: PresetRef, presets: readonly { _id: string; text
 
 /** A style LoRA's activation words: its preset's current text, else the
  * snapshot taken when it was picked. */
+/** The style LoRAs switched on: the ones sent. */
+export const onLoras = (f: Pick<GenerateForm, "loras">): StyleLora[] => f.loras.filter((l) => !l.off);
+
+/** A character's LoRA switched off for this batch, or back on. Pure. */
+export function toggleLoraOff(f: GenerateForm, character: string): GenerateForm {
+  const off = f.loraOff.includes(character);
+  return { ...f, loraOff: off ? f.loraOff.filter((c) => c !== character) : [...f.loraOff, character] };
+}
+
 export function loraWords(l: StyleLora, loraPresets: readonly LoraPreset[] | undefined): string {
   return presetText(l.preset ?? null, loraPresets);
 }
@@ -150,7 +162,7 @@ export function toParts(
     else if (b.kind === "character") positive.push({ kind: "character" });
     else if (b.kind === "prompt") positive.push({ kind: "text", role: "prompt", text: f.prompt });
     else if (b.kind === "style") {
-      const words = f.loras.map((l) => loraWords(l, loraPresets).trim()).filter(Boolean);
+      const words = onLoras(f).map((l) => loraWords(l, loraPresets).trim()).filter(Boolean);
       if (words.length) positive.push({ kind: "text", role: "style", text: words.join(", ") });
     }
     else if (b.kind === "text") positive.push({ kind: "text", role: "text", text: b.text });
@@ -197,7 +209,7 @@ export function toQueueBody(
     generator_id: generatorId,
     checkpoint: f.checkpoint,
     sampling: f.sampling,
-    loras: f.loras.map(({ name, strength }) => ({ name, strength })),
+    loras: onLoras(f).map(({ name, strength }) => ({ name, strength })),
     characters,
     positive,
     negative,
@@ -236,5 +248,9 @@ function composerState(f: GenerateForm): Record<string, unknown> {
     loraPresets: Object.fromEntries(f.loras.filter((l) => l.preset).map((l) => [l.name, l.preset])),
     // Batch-only strikes, so Edit and queue strikes the same tags again.
     identityOff: f.identityOff,
+    // Switched-off LoRAs aren't in the batch's inputs: kept here so Edit
+    // and queue brings them back, still off.
+    lorasOff: f.loras.filter((l) => l.off).map(({ name, strength }) => ({ name, strength })),
+    loraOff: f.loraOff,
   };
 }

@@ -36,7 +36,7 @@ import {
   type CharacterInput,
   type NodeError,
 } from "../lib/generate";
-import { nameWords, previewText, toParts, toEstimateBody, toQueueBody, type GenerateForm } from "../lib/generateForm";
+import { nameWords, onLoras, previewText, toParts, toEstimateBody, toQueueBody, type GenerateForm } from "../lib/generateForm";
 import { loadDraft, saveDraft } from "../lib/generateDraft";
 import { settleFresh, switchWorkflow } from "../lib/composerEdits";
 import { boardLayersOf } from "../lib/boardLayers";
@@ -164,7 +164,10 @@ export default function GeneratePage() {
   // Each block as it would be sent; null until its recipe has loaded.
   const inputs = form.characters.map((tag, i) => {
     const r = recipes[i];
-    return r && r.tag === tag ? { ...characterInput(r, labels[i], form.identityOff[tag]), outfit: outfitInput(form.outfits[tag]) } : null;
+    if (!r || r.tag !== tag) return null;
+    const input = { ...characterInput(r, labels[i], form.identityOff[tag]), outfit: outfitInput(form.outfits[tag]) };
+    // Its LoRA switched off for this batch: sent without it.
+    return form.loraOff.includes(tag) ? { ...input, lora: null } : input;
   });
   const characters = inputs.every((c) => c) ? (inputs as CharacterInput[]) : null;
   const oneWorn = form.characters.length === 1 ? form.outfits[form.characters[0]] : undefined;
@@ -379,7 +382,7 @@ export default function GeneratePage() {
   );
   const boardLayers = boardLayersOf(parts.positive, recipes, everyone, form, setForm);
   // As the backend merges them: characters' LoRAs first, each file once.
-  const sentLoras = [...(characters ?? []).flatMap((c) => (c.lora ? [c.lora] : [])), ...form.loras].filter(
+  const sentLoras = [...(characters ?? []).flatMap((c) => (c.lora ? [c.lora] : [])), ...onLoras(form)].filter(
     (l, i, all) => all.findIndex((x) => stemOf(x.name) === stemOf(l.name)) === i,
   );
   const ready = !!gen?.ready;

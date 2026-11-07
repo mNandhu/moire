@@ -6,7 +6,7 @@ import { batchCast } from "./batches";
 import { compose } from "./compose";
 import type { BatchInputs, Generator, RemixDoc, Sampling } from "./generate";
 import { DEFAULT_FORM, type GenerateForm, type PresetRef } from "./generateForm";
-import { composerFrom, keepOff, presetRef } from "./generateDraft";
+import { composerFrom, keepLoraOff, keepOff, presetRef, validLoras } from "./generateDraft";
 import { MAX_CHARACTERS } from "./generationLimits";
 import { pickFromInput, type OutfitPick } from "./outfit";
 
@@ -29,13 +29,17 @@ export function formFromBatch(i: BatchInputs, name: string | null, workflow = "b
     }),
     checkpoint: i.checkpoint,
     sampling: { ...i.sampling },
-    loras: i.loras.map((l) => ({ ...l, preset: loraPresetOf(i.composer, l.name) })),
+    loras: [
+      ...i.loras.map((l) => ({ ...l, preset: loraPresetOf(i.composer, l.name) })),
+      ...validLoras(i.composer?.lorasOff).map((l) => ({ ...l, preset: loraPresetOf(i.composer, l.name), off: true })),
+    ],
     characters: chars.map((c) => c.tag),
     outfits: Object.fromEntries(chars.flatMap((c) => {
       const p = pickFromInput(c.outfit);
       return p ? [[c.tag, p]] : [];
     })),
     identityOff: keepOff(i.composer?.identityOff, chars.map((c) => c.tag)),
+    loraOff: keepLoraOff(i.composer?.loraOff, chars.map((c) => c.tag)),
     width: i.width ?? DEFAULT_FORM.width,
     height: i.height ?? DEFAULT_FORM.height,
     seed: i.seed.mode === "fixed" ? { ...i.seed } : { mode: "random", value: null },
@@ -117,11 +121,11 @@ function endRemix(f: GenerateForm): GenerateForm {
  * says new characters wear (a character page's Generate). A remix it was
  * is over. Pure. */
 export function withCharacter(f: GenerateForm, tag: string): GenerateForm {
-  return { ...endRemix(f), characters: [tag], outfits: {}, identityOff: {}, fresh: [tag] };
+  return { ...endRemix(f), characters: [tag], outfits: {}, identityOff: {}, loraOff: [], fresh: [tag] };
 }
 
 /** The draft with `tag` as its one character, wearing `pick` (an outfit's
  * Use in Generate). A remix it was is over. Pure. */
 export function wearingOutfit(f: GenerateForm, tag: string, pick: OutfitPick): GenerateForm {
-  return { ...endRemix(f), characters: [tag], outfits: { [tag]: pick }, identityOff: {}, fresh: [] };
+  return { ...endRemix(f), characters: [tag], outfits: { [tag]: pick }, identityOff: {}, loraOff: [], fresh: [] };
 }

@@ -31,9 +31,11 @@ describe("setCharacters", () => {
       characters: ["a", "b"],
       outfits: { a: dress, b: dress },
       identityOff: { a: ["x"], b: ["y"] },
+      loraOff: ["a", "b"],
       fresh: ["b"],
     };
     const next = setCharacters(f, ["a", "c"]);
+    expect(next.loraOff).toEqual(["a"]);
     expect(next.characters).toEqual(["a", "c"]);
     expect(next.outfits).toEqual({ a: dress });
     expect(next.identityOff).toEqual({ a: ["x"] });

@@ -9,6 +9,7 @@ import {
   toParts,
   toEstimateBody,
   toQueueBody,
+  toggleLoraOff,
   type GenerateForm,
 } from "./generateForm";
 import { loadDraft } from "./generateDraft";
@@ -101,6 +102,39 @@ describe("style LoRAs", () => {
 
   it("keeps a draft's presets", () => {
     expect(draft({ loras: form.loras }).loras).toEqual(form.loras);
+  });
+
+  const switched: GenerateForm = {
+    ...form,
+    loras: form.loras.map((l, i) => (i === 0 ? { ...l, off: true } : l)),
+    characters: ["a"],
+    loraOff: ["a"],
+  };
+
+  it("sends neither a switched-off LoRA nor its words", () => {
+    const body = toQueueBody(switched, "builtin", [], presets, loraPresets);
+    expect(body.loras.map((l) => l.name)).toEqual(["detail.safetensors", "gone.safetensors"]);
+    expect(body.positive[body.positive.length - 1]).toEqual({ kind: "text", role: "style", text: "flat color" });
+  });
+
+  it("brings switched-off LoRAs back with the batch and the draft, still off", () => {
+    const sent = toQueueBody(switched, "builtin", [{ tag: "a", label: "A", tags: ["a"], lora: null }], presets, loraPresets);
+    const f = formFromBatch({ ...({} as BatchInputs), ...sent, seed: sent.seed, composer: sent.composer } as BatchInputs, null);
+    expect(f.loras.map((l) => [l.name, !!l.off, l.preset?.id ?? null])).toEqual([
+      ["detail.safetensors", false, null],
+      ["gone.safetensors", false, "x"],
+      ["niji.safetensors", true, "g"],
+    ]);
+    expect(f.loraOff).toEqual(["a"]);
+    const d = draft({ loras: switched.loras, characters: ["a", "b"], loraOff: ["a", "z"] });
+    expect(d.loras[0].off).toBe(true);
+    expect(d.loraOff).toEqual(["a"]);
+  });
+
+  it("switches a character's LoRA off and back on", () => {
+    const f = toggleLoraOff({ ...DEFAULT_FORM, characters: ["a"] }, "a");
+    expect(f.loraOff).toEqual(["a"]);
+    expect(toggleLoraOff(f, "a").loraOff).toEqual([]);
   });
 });
 

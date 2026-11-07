@@ -259,7 +259,11 @@ type LoraPick = { name: string; strength: number };
 
 /** A style LoRA in the composer: the pick plus its activation preset (a
  * snapshot of the words, like a prompt preset's). */
-export type StyleLora = LoraPick & { preset?: { id: string; text: string } | null };
+export type StyleLora = LoraPick & {
+  preset?: { id: string; text: string } | null;
+  /** Switched off: kept in the composer, not sent (nor its words). */
+  off?: boolean;
+};
 
 /** The Character block as queued: tag, display label, the tags sent, its LoRA file. */
 /** What a character wears in a batch: a saved outfit's id (or "default"),

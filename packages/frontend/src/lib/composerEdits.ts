@@ -26,6 +26,7 @@ export function setCharacters(f: GenerateForm, tags: string[]): GenerateForm {
     characters: tags,
     outfits: keepPicked(f.outfits, tags),
     identityOff: keepOff(f.identityOff, tags),
+    loraOff: f.loraOff.filter((t) => tags.includes(t)),
     fresh: [...f.fresh, ...tags.filter((t) => !f.characters.includes(t))].filter((t) => tags.includes(t)),
   };
 }

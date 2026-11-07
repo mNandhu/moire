@@ -43,11 +43,14 @@ function CharacterRow({
   prompt,
   onPrompt,
   off,
+  loraSwitch,
 }: {
   value: string | null;
   onChange: (tag: string | null) => void;
   /** Identity tags struck for this batch, and the toggle. */
   off?: { tags: readonly string[]; toggle: (tag: string) => void };
+  /** Its LoRA switched off for this batch, and the toggle. */
+  loraSwitch?: { off: boolean; toggle: () => void };
   installedLoras: readonly string[];
   rejectedLoras: ReadonlySet<string>;
   taken?: readonly string[];
@@ -136,9 +139,26 @@ function CharacterRow({
         )}
         {lora &&
           (lora.file ? (
-            <span className="shrink-0 font-mono text-xs text-neutral-300">
-              {lora.stem} {lora.strength.toFixed(2)}
-            </span>
+            loraSwitch ? (
+              <Tooltip content={loraSwitch.off ? "Off for this batch" : undefined} bubble className="shrink-0">
+                <button
+                  type="button"
+                  onClick={loraSwitch.toggle}
+                  aria-pressed={!loraSwitch.off}
+                  aria-label={`Use ${lora.stem}`}
+                  className={cn(
+                    "rounded-md px-1 py-0.5 font-mono text-xs hover:bg-line/60",
+                    loraSwitch.off ? "text-faint line-through" : "text-neutral-300",
+                  )}
+                >
+                  {lora.stem} {lora.strength.toFixed(2)}
+                </button>
+              </Tooltip>
+            ) : (
+              <span className="shrink-0 font-mono text-xs text-neutral-300">
+                {lora.stem} {lora.strength.toFixed(2)}
+              </span>
+            )
           ) : (
             <Tooltip content="This ComfyUI doesn't have this LoRA, so it is left out of the prompt" bubble className="shrink-0">
               <span className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-amber-700/70 bg-amber-950/20 px-1.5 py-0.5 text-xs text-amber-200">
@@ -304,9 +324,14 @@ export function CharacterLayer({
   onPrompt,
   identityOff,
   onIdentityOff,
+  loraOff,
+  onLoraOff,
 }: {
   value: readonly string[];
   onChange: (tags: string[]) => void;
+  /** Characters whose LoRA is off for this batch; and the toggle. */
+  loraOff?: readonly string[];
+  onLoraOff?: (character: string) => void;
   /** Per character, identity tags struck for this batch; and the toggle. */
   identityOff?: Record<string, string[]>;
   onIdentityOff?: (character: string, tag: string) => void;
@@ -349,6 +374,7 @@ export function CharacterLayer({
           prompt={prompt}
           onPrompt={onPrompt}
           off={onIdentityOff && { tags: identityOff?.[tag] ?? [], toggle: (t) => onIdentityOff(tag, t) }}
+          loraSwitch={onLoraOff && { off: !!loraOff?.includes(tag), toggle: () => onLoraOff(tag) }}
         />
       ))}
       {adding && value.length < MAX_CHARACTERS && (

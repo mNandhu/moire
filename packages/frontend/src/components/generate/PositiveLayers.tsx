@@ -9,7 +9,7 @@ import { PromptInput } from "./PromptInput";
 import { AddLayer, EmbeddingLayer, LayerRow, NegativeLayer, PresetControl, TextLayer } from "./Layers";
 import { PromptBoard, type BoardLayer } from "./PromptBoard";
 import { MAX_CHARACTERS } from "../../lib/generationLimits";
-import { insertBlock, presetText, removeBlock, updateBlock, type GenerateForm } from "../../lib/generateForm";
+import { insertBlock, presetText, removeBlock, toggleLoraOff, updateBlock, type GenerateForm } from "../../lib/generateForm";
 import { setCharacters, setOutfitPick, toggleIdentityOff } from "../../lib/composerEdits";
 import { prefixRepeats } from "../../lib/promptRepeats";
 import { cleanPrompt, cleanupWords } from "../../lib/promptCleanup";
@@ -101,6 +101,8 @@ export function PositiveLayers({
               onOutfit={(tag, pick) => setForm((f) => setOutfitPick(f, tag, pick))}
               identityOff={form.identityOff}
               onIdentityOff={(character, tag) => setForm((f) => toggleIdentityOff(f, character, tag))}
+              loraOff={form.loraOff}
+              onLoraOff={(character) => setForm((f) => toggleLoraOff(f, character))}
               prompt={form.prompt}
               onPrompt={(v) => set("prompt", v)}
               adding={addingCharacter}

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
-import { Button, Card } from "../ui";
+import { Button, Card, Checkbox } from "../ui";
 import { Picker, type PickerOption } from "../ui/Picker";
 import { cn } from "../../lib/cn";
 import {
@@ -141,7 +141,7 @@ function LoraPresetDialog({
   );
 }
 
-/** One style LoRA: its preset, the words it adds, its strength. */
+/** One style LoRA: on or off, its preset, the words it adds, its strength. */
 function LoraRow({
   lora,
   onChange,
@@ -163,10 +163,19 @@ function LoraRow({
   const words = loraWords(lora, presets);
   const pick = (p: LoraPreset) =>
     onChange({ ...lora, preset: { id: p._id, text: p.text }, strength: p.strength ?? lora.strength });
+  const on = !lora.off;
   return (
     <div className="flex items-center gap-2.5 border-t border-line py-1.5 first:border-t-0">
+      <Checkbox
+        checked={on}
+        onChange={(v) => onChange({ ...lora, off: !v })}
+        aria-label={`Use ${stemOf(lora.name)}`}
+        className="shrink-0"
+      />
+      {/* Off, it stays as set but isn't sent: dimmed, still editable. */}
+      <div className={cn("flex min-w-0 flex-1 items-center gap-2.5", !on && "opacity-50")}>
       <Tooltip content={invalid ? "Not installed in ComfyUI" : undefined} bubble className="w-40 shrink-0">
-        <span className={cn("w-full truncate font-mono text-xs", invalid ? "text-red-300" : "text-neutral-100")}>
+        <span className={cn("w-full truncate font-mono text-xs", invalid ? "text-red-300" : "text-neutral-100", !on && "line-through")}>
           {stemOf(lora.name)}
         </span>
       </Tooltip>
@@ -217,6 +226,7 @@ function LoraRow({
           small
           hideLabel
         />
+      </div>
       </div>
       <button
         type="button"
@@ -288,7 +298,7 @@ export function StyleLayer({
   const summary = value
     .map((l) => {
       const p = l.preset ? presetsOf(l.name, presets).find((x) => x._id === l.preset!.id) : null;
-      return `${stemOf(l.name)} ${l.strength}${p ? ` ${p.name}` : ""}`;
+      return l.off ? `${stemOf(l.name)} off` : `${stemOf(l.name)} ${l.strength}${p ? ` ${p.name}` : ""}`;
     })
     .join(" · ");
   return (
