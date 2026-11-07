@@ -207,6 +207,14 @@ export function seedOutfit(
   return { name: "", shared: false, rows: (prefill?.tags ?? []).map((t) => ({ ...t, source: t.source })) };
 }
 
+/** The dialog's rows for another character: the usual ones go and `usual`
+ * (theirs) leads, each tag once; the image's and your own stay. Pure. */
+export function swapUsual(rows: readonly OutfitRow[], usual: readonly Omit<OutfitRow, "source">[]): OutfitRow[] {
+  const kept = rows.filter((r) => r.source !== "usual");
+  const have = new Set(kept.map((r) => r.tag));
+  return [...usual.filter((t) => !have.has(t.tag)).map((t) => ({ ...t, source: "usual" as const })), ...kept];
+}
+
 /** The request a Save makes: a Default's patch, a saved outfit's update, or
  * a new outfit. */
 export type OutfitSavePlan =

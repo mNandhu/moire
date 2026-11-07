@@ -30,6 +30,7 @@ import {
   outfitSavePlan,
   seedOutfit,
   suggestOutfitName,
+  swapUsual,
   type OutfitRow as Row,
   type OutfitRowSource as Source,
 } from "../../lib/outfit";
@@ -102,15 +103,22 @@ export function SaveOutfitDialog({
   const lookedUp = useThumbUrl(shown && shown === outfit?.image_id ? null : shown);
   const coverUrl = shown && shown === outfit?.image_id ? (outfit?.thumb_url ?? null) : lookedUp;
   const { data: usual, isError: noUsual } = useDefaultOutfit(open && mode === "blank" && character ? character : null);
-  // Picked in the dialog: a new pick starts again from their usual clothes,
-  // until a name or a tag of your own is in.
-  const [seededFor, setSeededFor] = useState(character);
-  if (onCharacter && character !== seededFor) {
-    setSeededFor(character);
+  // Picked in the dialog: the last one's usual clothes make way for the new
+  // one's (once loaded); the name, your own tags and Shared stay.
+  const [usualFor, setUsualFor] = useState<string | null>(null);
+  const pickCharacter = (tag: string) => {
+    if (tag === character) return;
+    setRows((x) => swapUsual(x, []));
     setCover(null);
     setChanging(false);
-    if (!typed && rows.every((r) => r.source === "usual")) setSeeded(false);
-  }
+    setUsualFor(tag);
+    onCharacter?.(tag);
+  };
+  useEffect(() => {
+    if (!usualFor || usualFor !== character) return;
+    if (usual) setRows((x) => swapUsual(x, usual.tags));
+    if (usual || noUsual) setUsualFor(null);
+  }, [usualFor, character, usual, noUsual]);
   useEffect(() => {
     if (!open) return setSeeded(false);
     if (seeded) return;
@@ -235,7 +243,7 @@ export function SaveOutfitDialog({
           {onCharacter && (
             <div className="flex flex-col gap-2">
               <span className="text-xs font-medium text-muted">For</span>
-              <CharacterPicker value={character || null} onChange={onCharacter} />
+              <CharacterPicker value={character || null} onChange={pickCharacter} />
             </div>
           )}
           <label className="flex flex-col gap-2">

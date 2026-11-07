@@ -14,8 +14,14 @@ describe("swapAliases", () => {
     expect(swapAliases("1girl, blowjob", undefined)).toEqual({ text: "1girl, blowjob", swapped: 0 });
   });
 
-  it("swaps an alias whose tag is already in, leaving the repeat for Clean up", () => {
-    expect(swapAliases("fellatio, blowjob", places).text).toBe("fellatio, fellatio");
+  it("drops an alias whose tag is already in, as the board's Remove duplicate does", () => {
+    expect(swapAliases("fellatio, blowjob, solo", places).text).toBe("fellatio, solo");
+    expect(swapAliases("blowjob, solo, fellatio", places).text).toBe("solo, fellatio");
+  });
+
+  it("keeps the first of two aliases of one tag", () => {
+    const two = { ...places, bj: { alias_of: "fellatio" } };
+    expect(swapAliases("bj, solo, blowjob", two).text).toBe("fellatio, solo");
   });
 
   it("names the count", () => {

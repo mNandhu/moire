@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "../../lib/cn";
 import {
@@ -21,6 +21,7 @@ import { appendPiece, appendTag, promptTerms, removeTerms, replaceName } from ".
 import { useBoardOffers, useBoilerplate, useTagDescriptions, useTagPlaces } from "../../lib/queries";
 import { useTagCovers } from "../../lib/tagSamples";
 import type { TagSuggestion } from "../../lib/tagSuggest";
+import type { TagPlaces } from "../../lib/queries/board";
 import { useLocalPref } from "../../hooks/useLocalPref";
 import { descriptionKey } from "../../lib/tags";
 import { useToast } from "../Toasts";
@@ -50,6 +51,7 @@ export function PromptBoard({
   layers,
   pool,
   glow,
+  onPlaces,
 }: {
   prompt: string;
   onPrompt: (v: string) => void;
@@ -59,6 +61,8 @@ export function PromptBoard({
   /** A box to light up once, when the app just wrote its tags (a new key
    * replays it). */
   glow?: { key: number; box: BoxKey } | null;
+  /** Where each tag goes, as the board read it (the Prompt card's alias swap). */
+  onPlaces?: (names: TagPlaces["names"] | undefined) => void;
 }) {
   const boilerplate = useBoilerplate();
   const { push } = useToast();
@@ -82,6 +86,7 @@ export function PromptBoard({
     [terms, layerTerms],
   );
   const { data: places } = useTagPlaces(names);
+  useEffect(() => onPlaces?.(places?.names), [onPlaces, places]);
   const { mine, theirs, repeats } = useMemo(() => {
     const mine = placeTerms(terms, places?.names, boilerplate);
     const theirs = layerTerms.map((l) => ({ layer: l.layer, terms: placeTerms(l.terms, places?.names, boilerplate) }));

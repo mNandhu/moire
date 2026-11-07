@@ -10,6 +10,7 @@ import {
   pickFromInput,
   pickOf,
   seedOutfit,
+  swapUsual,
   suggestOutfitName,
   restoreWorn,
   strikeWorn,
@@ -317,5 +318,20 @@ describe("save dialog", () => {
       body: { name: "Mine", tags: ["coat", "hat"], shared: false, character: "a", image_id: "L:2.png" },
     });
     expect(outfitSavePlan("blank", state).body).toMatchObject({ image_id: "L:1.png" });
+  });
+});
+
+describe("swapUsual", () => {
+  const t = (tag: string) => ({ tag, group: null, checkable: true });
+  it("swaps the last character's usual tags for the new one's, keeping your own", () => {
+    const rows = [
+      { ...t("robe"), source: "usual" as const },
+      { ...t("scarf"), source: "added" as const },
+    ];
+    expect(swapUsual(rows, [t("coat"), t("scarf")])).toEqual([
+      { ...t("coat"), source: "usual" },
+      { ...t("scarf"), source: "added" },
+    ]);
+    expect(swapUsual(rows, [])).toEqual([{ ...t("scarf"), source: "added" }]);
   });
 });

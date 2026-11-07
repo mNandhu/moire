@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { BookA, Eraser } from "lucide-react";
 import { Badge, Button, Card, Tooltip } from "../ui";
@@ -14,8 +14,7 @@ import { setCharacters, setOutfitPick, toggleIdentityOff } from "../../lib/compo
 import { prefixRepeats } from "../../lib/promptRepeats";
 import { cleanPrompt, cleanupWords } from "../../lib/promptCleanup";
 import { aliasSwapWords, swapAliases } from "../../lib/promptAliases";
-import { promptTerms } from "../../lib/promptOutline";
-import { useTagPlaces } from "../../lib/queries";
+import type { TagPlaces } from "../../lib/queries/board";
 import { cn } from "../../lib/cn";
 import type { ComfyModels, Generator, LoraPreset, NodeError, Preset } from "../../lib/generate";
 import type { RunBar } from "../../lib/generatorRunBar";
@@ -69,10 +68,10 @@ export function PositiveLayers({
   // Repeated tags and stray commas, taken out in one click (Ctrl+Z brings them back).
   const cleanup = useMemo(() => cleanPrompt(form.prompt), [form.prompt]);
   const cleanupTitle = cleanupWords(cleanup, cleanup.text !== form.prompt);
-  // Danbooru aliases written in the Prompt, each swapped for its tag.
-  const promptNames = useMemo(() => promptTerms(form.prompt).filter((t) => t.kind === "tag").map((t) => t.name), [form.prompt]);
-  const { data: places } = useTagPlaces(promptNames);
-  const aliases = useMemo(() => swapAliases(form.prompt, places?.names), [form.prompt, places]);
+  // Danbooru aliases written in the Prompt, each swapped for its tag (the
+  // board's read of the tags: one request for both).
+  const [places, setPlaces] = useState<TagPlaces["names"]>();
+  const aliases = useMemo(() => swapAliases(form.prompt, places), [form.prompt, places]);
   const aliasTitle = aliasSwapWords(aliases);
   return (
     <div className="flex flex-col" aria-label="Positive prompt">
@@ -150,6 +149,7 @@ export function PositiveLayers({
                 layers={boardLayers}
                 pool={pool}
                 glow={boardGlow != null ? { key: boardGlow, box: "subject" } : null}
+                onPlaces={setPlaces}
               />
             </Card>
           ) : blk.kind === "style" && !bar.loras ? (

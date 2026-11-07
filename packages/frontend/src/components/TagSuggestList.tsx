@@ -4,6 +4,7 @@ import { cn } from "../lib/cn";
 import { formatSearchTag, isManual, isPrompt } from "../lib/tags";
 import { resourceLabel, type TagSuggestion } from "../lib/tagSuggest";
 import { smallThumb } from "../lib/media";
+import { scrollTopFor } from "../lib/scrollRow";
 
 /**
  * The tag autocomplete dropdown: each row a tag with its kind and image
@@ -34,16 +35,23 @@ export function TagSuggestList({
   style?: React.CSSProperties;
 }) {
   const listRef = useRef<HTMLUListElement>(null);
-  // A row the pointer made active is already under it: scrolling then would
-  // slide the list under the cursor and pick the next row.
-  const byPointer = useRef(false);
+  // The row the pointer last made active: it is already under the cursor,
+  // and scrolling then would slide the list under it and pick the next one.
+  const pointerAt = useRef<number | null>(null);
+  // Only a new list (typing), not a new array of the same rows.
+  const shownKey = matches.map((m) => m._id).join("\n");
   useEffect(() => {
-    if (byPointer.current) {
-      byPointer.current = false;
-      return;
-    }
-    listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
-  }, [active, matches]);
+    const byPointer = pointerAt.current === active;
+    pointerAt.current = null;
+    if (byPointer) return;
+    const list = listRef.current;
+    const row = list?.querySelector<HTMLElement>(`[data-index="${active}"]`);
+    if (!list || !row) return;
+    // Where the row sits in the list's content, however the list is positioned.
+    const offsetTop = row.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+    const top = scrollTopFor(list, { offsetTop, offsetHeight: row.offsetHeight });
+    if (top !== null) list.scrollTop = top;
+  }, [active, shownKey]);
   return (
     <ul
       ref={listRef}
@@ -62,7 +70,7 @@ export function TagSuggestList({
               type="button"
               onMouseEnter={() => {
                 if (i === active) return;
-                byPointer.current = true;
+                pointerAt.current = i;
                 onActive(i);
               }}
               onMouseDown={(e) => {

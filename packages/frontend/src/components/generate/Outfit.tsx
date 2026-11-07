@@ -42,7 +42,7 @@ function option(o: Outfit, group: string): PickerOption {
 
 /** What one character wears: Default, their own outfits, the shared ones
  * (the ones they have worn first), then every other character's, each under
- * its owner's name, or nothing. The closed button shows the pick's
+ * "For" its owner (series too, so two Rins stay apart), or nothing. The closed button shows the pick's
  * thumbnail. */
 export function OutfitPicker({
   character,
@@ -58,11 +58,15 @@ export function OutfitPicker({
   const lookup = useCharacterLookup();
   const others = useMemo(() => {
     const listed = new Set([...own, ...shared, ...unworn].map((o) => o._id));
-    const owner = (o: Outfit) => displayName(lookup.get(o.character) ?? { tag: o.character }).name;
+    const owner = (o: Outfit) => {
+      const { name, series } = displayName(lookup.get(o.character) ?? { tag: o.character });
+      return `For ${series ? `${name} (${series})` : name}`;
+    };
     return (everyone ?? [])
       .filter((o) => !listed.has(o._id) && !o.shared && o.character !== character)
       .map((o) => ({ o, owner: owner(o) }))
-      .sort((a, b) => a.owner.localeCompare(b.owner) || a.o.name.localeCompare(b.o.name));
+      // By owner then tag, so one owner's outfits sit under one heading.
+      .sort((a, b) => a.owner.localeCompare(b.owner) || a.o.character.localeCompare(b.o.character) || a.o.name.localeCompare(b.o.name));
   }, [everyone, lookup, character, own, shared, unworn]);
   const all = [...(def ? [def] : []), ...own, ...shared, ...unworn, ...others.map((x) => x.o)];
   const options: PickerOption[] = [

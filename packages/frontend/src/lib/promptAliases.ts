@@ -1,20 +1,37 @@
 /**
  * Every Danbooru alias in a prompt swapped for its tag in one go
- * (`blowjob` is `fellatio`), as the board's swap does one at a time. Only the
- * name changes: weight, emphasis and grouping stay. An alias whose tag is
- * already in the prompt becomes a repeat, which Clean up then takes out.
- * Pure.
+ * (`blowjob` is `fellatio`), as the board's swap does one at a time: only
+ * the name changes (weight, emphasis and grouping stay), and an alias whose
+ * tag is already in goes instead, as the board's Remove duplicate does. Pure.
  */
-import { promptTerms, replaceName } from "./promptOutline";
+import { promptTerms, removeTerms, replaceName } from "./promptOutline";
 
 export type AliasSwap = { text: string; swapped: number };
 
-export function swapAliases(text: string, places: Readonly<Record<string, { alias_of?: string }>> | undefined): AliasSwap {
+type Places = Readonly<Record<string, { alias_of?: string }>>;
+
+const aliasOf = (name: string, places: Places) => {
+  const tag = places[name]?.alias_of;
+  return tag && tag !== name ? tag : null;
+};
+
+export function swapAliases(text: string, places: Places | undefined): AliasSwap {
   if (!places) return { text, swapped: 0 };
-  const hits = promptTerms(text).filter((t) => t.kind === "tag" && places[t.name]?.alias_of && places[t.name].alias_of !== t.name);
-  let out = text;
+  const tags = promptTerms(text).filter((t) => t.kind === "tag");
+  const hits = tags.filter((t) => aliasOf(t.name, places));
+  if (!hits.length) return { text, swapped: 0 };
+  // The tag written as itself, or by an alias swapped earlier: the rest go.
+  const present = new Set(tags.filter((t) => !aliasOf(t.name, places)).map((t) => t.name));
+  const drop = hits.filter((t) => {
+    const tag = aliasOf(t.name, places)!;
+    if (present.has(tag)) return true;
+    present.add(tag);
+    return false;
+  });
+  let out = drop.length ? removeTerms(text, drop) : text;
   // From the end, so the offsets before each one still hold.
-  for (const t of [...hits].reverse()) out = replaceName(out, t, places[t.name].alias_of!);
+  const left = promptTerms(out).filter((t) => t.kind === "tag" && aliasOf(t.name, places));
+  for (const t of [...left].reverse()) out = replaceName(out, t, aliasOf(t.name, places)!);
   return { text: out, swapped: hits.length };
 }
 
