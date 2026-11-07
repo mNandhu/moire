@@ -604,6 +604,9 @@ export function useComfyStatus() {
     queryKey: STATUS_KEY,
     queryFn: ({ signal }) => api<ComfyStatus>(`${BASE}/status`, { signal }),
     refetchInterval: (q) => (q.state.data?.active.length ? 1000 : 5000),
+    // Generation goes on with Moiré in another window: keep up, so its
+    // images and times are current on coming back.
+    refetchIntervalInBackground: true,
     staleTime: 0,
   });
 }
@@ -829,6 +832,7 @@ export function useBatches(limit = 50) {
     // A new limit is a new key: keep showing the last list until it loads.
     placeholderData: keepPreviousData,
     refetchInterval: (q) => (q.state.data?.some((b) => b.state === "running" || b.arriving > 0) ? 2000 : false),
+    refetchIntervalInBackground: true,
   });
 }
 
@@ -858,6 +862,7 @@ export function useBatch(id: number) {
       if (b.state === "running" || b.state === "paused") return 1000;
       return waitingForScan(b) ? 2000 : false;
     },
+    refetchIntervalInBackground: true,
   });
 }
 
