@@ -10,13 +10,59 @@ const POINTER_ONLY = "hidden [@media(hover:hover)_and_(pointer:fine)]:inline-fle
 
 type Spot = { top: number; left: number; gap: number; width: number; height: number };
 
+const enabledTone = "text-faint hover:text-neutral-100 hover:bg-raised/60";
+const disabledTone = "text-faint/40 cursor-default";
+
 /**
- * The sidebar's back button. Hovering it shows a forward button floating
- * just past the sidebar's edge, when there is somewhere to go forward to.
- * The forward button sits in a portal: the sidebar clips its overflow and
- * its transformed wrapper would also capture `position: fixed`.
+ * The sidebar's back and forward buttons. With a label (sidebar expanded)
+ * the two sit side by side. Without one (collapsed) only back shows, and
+ * hovering it floats a forward button just past the sidebar's edge when
+ * there is somewhere to go forward to.
  */
 export function BackButton({ className, label }: { className?: string; label?: string }) {
+  if (label) return <InlineHistoryButtons label={label} className={className} />;
+  return <FloatingForwardBackButton className={className} />;
+}
+
+function InlineHistoryButtons({ className, label }: { className?: string; label: string }) {
+  const { canBack, canForward, back, forward } = useHistoryNav();
+  return (
+    <div className={cn(POINTER_ONLY, "w-full items-center gap-1", className)}>
+      <button
+        type="button"
+        onClick={() => canBack && back()}
+        aria-disabled={!canBack}
+        aria-label="Go back"
+        className={cn(
+          "flex flex-1 items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors",
+          canBack ? enabledTone : disabledTone,
+        )}
+      >
+        <ArrowLeft size={18} />
+        {label}
+      </button>
+      <button
+        type="button"
+        onClick={() => canForward && forward()}
+        aria-disabled={!canForward}
+        aria-label="Go forward"
+        className={cn(
+          "flex items-center justify-center p-2 rounded-lg transition-colors",
+          canForward ? enabledTone : disabledTone,
+        )}
+      >
+        <ArrowRight size={18} />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Collapsed sidebar: the forward button sits in a portal, since the sidebar
+ * clips its overflow and its transformed wrapper would also capture
+ * `position: fixed`.
+ */
+function FloatingForwardBackButton({ className }: { className?: string }) {
   const { canBack, canForward, back, forward } = useHistoryNav();
   const ref = useRef<HTMLButtonElement>(null);
   const hideTimer = useRef<number | undefined>(undefined);
@@ -32,13 +78,12 @@ export function BackButton({ className, label }: { className?: string; label?: s
     const edge = btn.closest("aside")?.getBoundingClientRect().right ?? r.right;
     // Starts right at the back button so the pointer never crosses a gap
     // on its way over; the padding carries it out past the sidebar.
-    // Same box as the back button (square when it carries a label), so the
-    // pair reads as one control.
+    // Same box as the back button, so the pair reads as one control.
     setSpot({
       top: r.top + r.height / 2,
       left: r.right,
       gap: edge - r.right + 6,
-      width: label ? r.height : r.width,
+      width: r.width,
       height: r.height,
     });
   };
@@ -60,15 +105,11 @@ export function BackButton({ className, label }: { className?: string; label?: s
         className={cn(
           POINTER_ONLY,
           "p-1.5 rounded-lg transition-colors",
-          label && "w-full items-center gap-3 px-3 py-2 text-sm",
-          canBack
-            ? "text-faint hover:text-neutral-100 hover:bg-raised/60"
-            : "text-faint/40 cursor-default",
+          canBack ? enabledTone : disabledTone,
           className,
         )}
       >
         <ArrowLeft size={18} />
-        {label}
       </button>
       {spot &&
         canForward &&
