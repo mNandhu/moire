@@ -5,11 +5,13 @@ import { Picker, type PickerOption } from "../ui/Picker";
 import { cn } from "../../lib/cn";
 import {
   DEFAULT_OUTFIT,
+  useOutfits,
   type Outfit,
 } from "../../lib/generate";
+import { displayName } from "../../lib/character";
 import { pickOf, toggleWorn, addWorn, outfitsHref, type OutfitPick } from "../../lib/outfit";
 import { useCharacterOutfits } from "../../hooks/useOutfitData";
-import { useTagFacets } from "../../lib/queries";
+import { useCharacterLookup, useTagFacets } from "../../lib/queries";
 import { TagAddInput } from "../TagAddInput";
 import { TagPill } from "./TagPill";
 import type { TagSuggestion } from "../../lib/tagSuggest";
@@ -27,9 +29,8 @@ export function OutfitThumb({ url, className }: { url: string | null; className?
   );
 }
 
-function option(o: Outfit, group: string, searchOnly = false): PickerOption {
+function option(o: Outfit, group: string): PickerOption {
   return {
-    searchOnly,
     value: o._id,
     label: o.name,
     group,
@@ -40,8 +41,9 @@ function option(o: Outfit, group: string, searchOnly = false): PickerOption {
 }
 
 /** What one character wears: Default, their own outfits, the shared ones
- * they have worn (any other shared one by searching), or nothing. The closed
- * button shows the pick's thumbnail. */
+ * (the ones they have worn first), then every other character's, each under
+ * its owner's name, or nothing. The closed button shows the pick's
+ * thumbnail. */
 export function OutfitPicker({
   character,
   value,
@@ -52,14 +54,23 @@ export function OutfitPicker({
   onChange: (pick: OutfitPick | null) => void;
 }) {
   const { def, own, shared, unworn } = useCharacterOutfits(character);
-  const all = [...(def ? [def] : []), ...own, ...shared, ...unworn];
+  const { data: everyone } = useOutfits();
+  const lookup = useCharacterLookup();
+  const others = useMemo(() => {
+    const listed = new Set([...own, ...shared, ...unworn].map((o) => o._id));
+    const owner = (o: Outfit) => displayName(lookup.get(o.character) ?? { tag: o.character }).name;
+    return (everyone ?? [])
+      .filter((o) => !listed.has(o._id) && !o.shared && o.character !== character)
+      .map((o) => ({ o, owner: owner(o) }))
+      .sort((a, b) => a.owner.localeCompare(b.owner) || a.o.name.localeCompare(b.o.name));
+  }, [everyone, lookup, character, own, shared, unworn]);
+  const all = [...(def ? [def] : []), ...own, ...shared, ...unworn, ...others.map((x) => x.o)];
   const options: PickerOption[] = [
     { value: NO_OUTFIT, label: "Not set" },
     ...(def ? [option(def, "Usual clothes")] : []),
     ...own.map((o) => option(o, "Their outfits")),
-    ...shared.map((o) => option(o, "Shared")),
-    // The one picked stays in the list either way.
-    ...unworn.map((o) => option(o, "Shared", o._id !== value?.id)),
+    ...[...shared, ...unworn].map((o) => option(o, "Shared")),
+    ...others.map(({ o, owner }) => option(o, owner)),
   ];
   const thumb = value ? (all.find((o) => o._id === value.id)?.thumb_url ?? null) : null;
   return (
@@ -67,7 +78,6 @@ export function OutfitPicker({
       value={value?.id ?? NO_OUTFIT}
       options={options}
       aria-label="Outfit"
-      searchable={unworn.length > 0 || undefined}
       onChange={(v) => {
         if (v === NO_OUTFIT) return onChange(null);
         const o = all.find((x) => x._id === v);

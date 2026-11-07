@@ -69,7 +69,7 @@ export function useCharacterOutfits(character: string) {
     const d = def && def.tags.length ? def : null;
     const own = visible.filter((o) => o.character === character);
     const others = visible.filter((o) => o.character !== character);
-    // Shared ones they have worn; the rest only turn up in a search.
+    // Shared ones they have worn, then the rest.
     const shared = others.filter((o) => (o.worn ?? 0) > 0);
     const unworn = others.filter((o) => !((o.worn ?? 0) > 0));
     // Attire group per tag, from every outfit in the list.

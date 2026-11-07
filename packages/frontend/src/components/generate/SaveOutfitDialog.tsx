@@ -22,6 +22,7 @@ import { useAttireGroups, useThumbUrl } from "../../lib/queries";
 import { AttireTagInput, OutfitThumb } from "./Outfit";
 import { TagPill } from "./TagPill";
 import { CoverGrid } from "./OutfitCover";
+import { CharacterPicker } from "../CharacterPicker";
 import { Image as ImageIcon } from "lucide-react";
 import {
   MAX_OUTFIT_TAGS,
@@ -54,7 +55,9 @@ function Key({ source, children }: { source: Source; children: React.ReactNode }
  * (rename it, strike computed tags, add your own, Reset to computed). New:
  * the tags start as the image's attire plus the character's usual ones, each
  * marked by where it came from; the image is the thumbnail. Editing, Change
- * opens a grid of the character's images wearing it.
+ * opens a grid of the character's images wearing it. With `onCharacter`
+ * (the Outfits page's New outfit) the dialog picks who it is for itself;
+ * `character` is "" until one is picked.
  */
 export function SaveOutfitDialog({
   open,
@@ -63,6 +66,7 @@ export function SaveOutfitDialog({
   characterName,
   imageId,
   outfit,
+  onCharacter,
 }: {
   open: boolean;
   onClose: () => void;
@@ -70,6 +74,7 @@ export function SaveOutfitDialog({
   characterName: string;
   imageId: string | null;
   outfit?: Outfit;
+  onCharacter?: (tag: string) => void;
 }) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -96,13 +101,22 @@ export function SaveOutfitDialog({
   // The outfit's own cover comes with it; only another one is looked up.
   const lookedUp = useThumbUrl(shown && shown === outfit?.image_id ? null : shown);
   const coverUrl = shown && shown === outfit?.image_id ? (outfit?.thumb_url ?? null) : lookedUp;
-  const { data: usual, isError: noUsual } = useDefaultOutfit(open && mode === "blank" ? character : null);
+  const { data: usual, isError: noUsual } = useDefaultOutfit(open && mode === "blank" && character ? character : null);
+  // Picked in the dialog: a new pick starts again from their usual clothes,
+  // until a name or a tag of your own is in.
+  const [seededFor, setSeededFor] = useState(character);
+  if (onCharacter && character !== seededFor) {
+    setSeededFor(character);
+    setCover(null);
+    setChanging(false);
+    if (!typed && rows.every((r) => r.source === "usual")) setSeeded(false);
+  }
   useEffect(() => {
     if (!open) return setSeeded(false);
     if (seeded) return;
     setTyped(!!outfit);
     // Without a prefill (the image or character is gone): start empty.
-    if (!outfit && (mode === "blank" ? !usual && !noUsual : !prefill && !noPrefill)) return;
+    if (!outfit && (mode === "blank" ? !!character && !usual && !noUsual : !prefill && !noPrefill)) return;
     const seed = seedOutfit(mode, { outfit, prefill, usual });
     setName(seed.name);
     setShared(seed.shared);
@@ -112,7 +126,7 @@ export function SaveOutfitDialog({
       setChanging(false);
     }
     setSeeded(true);
-  }, [open, outfit, prefill, noPrefill, usual, noUsual, seeded, mode]);
+  }, [open, outfit, prefill, noPrefill, usual, noUsual, seeded, mode, character]);
 
   const taken = useMemo(() => new Set(rows.map((r) => r.tag)), [rows]);
   const shownName = typed ? name : suggestOutfitName(rows);
@@ -152,7 +166,7 @@ export function SaveOutfitDialog({
   // Struck tags aren't sent, so they don't count.
   const kept = rows.filter((r) => !r.struck);
   const tooMany = kept.length > MAX_OUTFIT_TAGS;
-  const ready = (mode === "default" || (!!shownName.trim() && rows.length > 0)) && !tooMany;
+  const ready = (mode === "default" || (!!shownName.trim() && rows.length > 0)) && !tooMany && !!character;
 
   return (
     <Dialog
@@ -163,9 +177,11 @@ export function SaveOutfitDialog({
       title={
         <span className="flex items-baseline gap-3">
           {mode === "default" ? "Default outfit" : outfit ? "Edit outfit" : mode === "blank" ? "New outfit" : "Save outfit"}
-          <span className="text-sm font-normal text-muted">
-            {mode === "default" ? `${characterName}, read from ${outfit!.images ?? 0} images` : `for ${characterName}`}
-          </span>
+          {!onCharacter && (
+            <span className="text-sm font-normal text-muted">
+              {mode === "default" ? `${characterName}, read from ${outfit!.images ?? 0} images` : `for ${characterName}`}
+            </span>
+          )}
         </span>
       }
       footer={
@@ -204,7 +220,7 @@ export function SaveOutfitDialog({
       <div className="flex flex-wrap gap-5">
         <div className="relative h-[140px] w-24 shrink-0">
           <OutfitThumb url={coverUrl} className="h-full w-full rounded-lg border border-line-strong" />
-          {(outfit || mode === "blank") && (
+          {(outfit || mode === "blank") && !!character && (
             <button
               type="button"
               onClick={() => setChanging((x) => !x)}
@@ -216,6 +232,12 @@ export function SaveOutfitDialog({
           )}
         </div>
         <div className="flex min-w-0 flex-[1_1_22rem] flex-col gap-4">
+          {onCharacter && (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-medium text-muted">For</span>
+              <CharacterPicker value={character || null} onChange={onCharacter} />
+            </div>
+          )}
           <label className="flex flex-col gap-2">
             <span className="text-xs font-medium text-muted">Name</span>
             <Input
@@ -236,7 +258,7 @@ export function SaveOutfitDialog({
               {!outfit && (
                 <>
                   {mode !== "blank" && <Key source="image">in this image</Key>}
-                  <Key source="usual">{characterName} usually wears</Key>
+                  {characterName && <Key source="usual">{characterName} usually wears</Key>}
                 </>
               )}
               <Key source="added">added by you</Key>
@@ -293,7 +315,7 @@ export function SaveOutfitDialog({
           )}
         </div>
       </div>
-      {(outfit || mode === "blank") && changing && (
+      {(outfit || mode === "blank") && changing && !!character && (
         <div className="mt-5 flex flex-col gap-2 border-t border-line pt-4">
           <span className="text-xs font-medium text-muted">Thumbnail</span>
           <CoverGrid

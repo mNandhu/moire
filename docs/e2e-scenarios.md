@@ -8,13 +8,14 @@ Scenarios worth testing end to end, for the Playwright suite in `packages/e2e` (
 - Gallery: scrolling pages in the rest of the feed; a searched tag filters the gallery and survives a reload from the URL; selection mode from the toolbar and the phone View options menu; Edit tags adding and removing a manual tag on a whole Select all (`gallery.spec.ts`)
 - Generate: every Clear and Undo scenario below (`generate-clear-undo.spec.ts`); Ctrl+Up/Down weigh the tag under the caret, a group with the caret on its own weight, and in a preset's text (`generate-prompt-keys.spec.ts`); a run on the fake ComfyUI lands its images in the output library, with the Images stepper and the batch name's rename, Escape and auto name on the way, then a rename on its batch page (`generate-run.spec.ts`); Ctrl+Z / Ctrl+Shift+Z on a board removal, Ctrl+Enter queueing from the prompt, Clear on the output column, keeping a batch still running, Clean up on the Prompt, arrow keys after a stepper's + (`generate-shortcuts.spec.ts`)
 - Viewer: prompt weights on the Tags tab, a ComfyUI prompt escaped twice, adding manual tags, setting a score, arrow keys through the feed, also pressed back to back, the phone details sheet dragged up and off, quarantining the open image and stepping on past it and back (`viewer.spec.ts`)
+- Outfits: New outfit on the Outfits page for a picked character, shared; Generate's Outfit picker listing another character's outfit (`outfits.spec.ts`)
 - Tags page: a tag's panel and its Open in gallery link, closing the panel (`tag-panel.spec.ts`)
 - New character: identity tags complete from the library's tags and a typed one is kept without Enter; arrowing down the suggestions keeps the highlighted row in view; a picture link to a private address is refused; a link pasted in the Tag field goes to the tagger; Generate's Edit tags dialog opens the character page (`new-character.spec.ts`)
 - AI tagging: the real WD tagger on three images from the AI Tagging page, and on a picture in New character, filling identity and Default outfit (`tagging-ai.spec.ts`)
 
 ## Still to cover
 
-Removing and renaming tags, quarantine from the gallery, rules, outfits page, the Generations page and the rest of the batch view, Remix, the rest of phone width (swipes on the viewer stage, the gallery), the empty gallery (Add library and Generate; the sandbox always has a library, so only the unit test covers it).
+Removing and renaming tags, quarantine from the gallery, rules, the rest of the Outfits page (editing, deleting, hiding a shared one), the Generations page and the rest of the batch view, Remix, the rest of phone width (swipes on the viewer stage, the gallery), the empty gallery (Add library and Generate; the sandbox always has a library, so only the unit test covers it).
 
 ## Generate: Tags by part, Clear and Undo
 

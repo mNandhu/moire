@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Search, Shirt } from "lucide-react";
-import { Badge, DropdownMenu, EmptyState, Input, PageBody, PageHeader } from "../components/ui";
+import { Plus, Search, Shirt } from "lucide-react";
+import { Badge, Button, DropdownMenu, EmptyState, Input, PageBody, PageHeader } from "../components/ui";
 import { Picker, type PickerOption } from "../components/ui/Picker";
 import { CharacterAvatar } from "../components/CharacterAvatar";
 import { useCharacterLookup } from "../lib/queries";
@@ -79,7 +79,8 @@ function OutfitCardMenu({ o, onEdit }: { o: Outfit; onEdit: () => void }) {
 }
 
 /** Every saved outfit: search, a character filter, All / Shared / One
- * character. A card opens the outfit to edit (or delete). */
+ * character. A card opens the outfit to edit (or delete); New outfit makes
+ * one for any character, shared or not. */
 export default function OutfitsPage() {
   useDocumentTitle("Outfits");
   const { data, isLoading } = useOutfits();
@@ -89,6 +90,8 @@ export default function OutfitsPage() {
   const [q, setQ] = useState("");
   const [show, setShow] = useState<Show>("all");
   const [editing, setEditing] = useState<Outfit | null>(null);
+  // New outfit: who it is for ("" until picked), the filtered one to start.
+  const [newFor, setNewFor] = useState<string | null>(null);
   const all = useMemo(() => data ?? [], [data]);
 
   const owners: PickerOption[] = useMemo(() => {
@@ -124,6 +127,11 @@ export default function OutfitsPage() {
         title="Outfits"
         description={data ? `${all.length} saved, ${sharedCount} shared` : undefined}
         width="wide"
+        actions={
+          <Button variant="primary" size="sm" onClick={() => setNewFor(character)}>
+            <Plus size={14} /> New outfit
+          </Button>
+        }
       />
       <PageBody width="wide">
         <div className="mb-5 flex flex-wrap items-center gap-2.5">
@@ -173,6 +181,16 @@ export default function OutfitsPage() {
           </div>
         )}
       </PageBody>
+      {newFor !== null && (
+        <SaveOutfitDialog
+          open
+          onClose={() => setNewFor(null)}
+          character={newFor}
+          characterName={newFor ? displayName(lookup.get(newFor) ?? { tag: newFor }).name : ""}
+          imageId={null}
+          onCharacter={setNewFor}
+        />
+      )}
       {editing && (
         <SaveOutfitDialog
           open
