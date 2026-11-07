@@ -122,3 +122,23 @@ def test_gen_term_weights_adds_the_column_and_keeps_the_rows(temp_db):
             sa.text("SELECT image_id, term, weight FROM image_gen_terms")
         ).all()
     assert [tuple(r) for r in rows] == [("L1:a", "cat", 1.0)]
+
+
+def test_character_escapes_rekeys_a_made_character_and_its_recipe(temp_db):
+    old, new = r"yuzuriha_\(jigokuraku\)", "yuzuriha_(jigokuraku)"
+    with db.sync_tx() as conn:
+        conn.execute(t.characters.insert().values(tag=old, kind="character"))
+        conn.execute(t.recipe_additions.insert().values(tag=old, tags=["red_eyes"]))
+        conn.execute(t.outfit_defaults.insert().values(character=old, added=["kimono"]))
+        # Already taken unescaped: left alone, not a crash.
+        conn.execute(t.characters.insert().values(tag=r"a_\(b\)", kind="character"))
+        conn.execute(t.characters.insert().values(tag="a_(b)", kind="character"))
+    tag_migrations.migrate_character_escapes()
+    tag_migrations.migrate_character_escapes()  # idempotent
+    with db.sync_conn() as conn:
+        chars = set(conn.execute(sa.select(t.characters.c.tag)).scalars())
+        adds = conn.execute(sa.select(t.recipe_additions)).mappings().one()
+        default = conn.execute(sa.select(t.outfit_defaults.c.character)).scalar_one()
+    assert chars == {new, "a_(b)", r"a_\(b\)"}
+    assert adds["tag"] == new and adds["tags"] == ["red_eyes"]
+    assert default == new

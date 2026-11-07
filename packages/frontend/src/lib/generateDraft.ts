@@ -1,3 +1,4 @@
+import { unescapeParens } from "./tags";
 /**
  * Reading the Generate draft (kept in localStorage so a half-written prompt
  * survives navigation) and the composer state a batch stored. Both are stored
@@ -105,12 +106,17 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     if (!("prompt" in d) && ("base" in d || "extra" in d)) Object.assign(out, migrated(d));
     if (isStr(d.checkpoint) || d.checkpoint === null) out.checkpoint = d.checkpoint;
     out.sampling = samplingOf(d.sampling);
-    // Drafts from before several characters keep their one.
-    if (Array.isArray(d.characters)) out.characters = [...new Set<string>(d.characters.filter(isStr))].slice(0, MAX_CHARACTERS);
-    else if (isStr(d.character)) out.characters = [d.character];
-    out.outfits = keepPicked(validOutfits(d.outfits), out.characters);
-    out.identityOff = keepOff(d.identityOff, out.characters);
-    if (Array.isArray(d.fresh)) out.fresh = d.fresh.filter((t: unknown) => isStr(t) && out.characters.includes(t));
+    // Drafts from before several characters keep their one. A character
+    // made under a prompt-escaped name (`a_\\(b\\)`) is now `a_(b)`, so
+    // keys picked back then are unescaped to match.
+    const key = (c: string) => unescapeParens(c);
+    const rekey = (v: unknown) =>
+      v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).map(([k, x]) => [key(k), x])) : v;
+    if (Array.isArray(d.characters)) out.characters = [...new Set<string>(d.characters.filter(isStr).map(key))].slice(0, MAX_CHARACTERS);
+    else if (isStr(d.character)) out.characters = [key(d.character)];
+    out.outfits = keepPicked(validOutfits(rekey(d.outfits)), out.characters);
+    out.identityOff = keepOff(rekey(d.identityOff), out.characters);
+    if (Array.isArray(d.fresh)) out.fresh = d.fresh.filter(isStr).map(key).filter((t: string) => out.characters.includes(t));
     if (isStr(d.name) || d.name === null) out.name = d.name;
     if (isStr(d.workflow) && d.workflow) out.workflow = d.workflow;
     for (const k of ["width", "height", "count"] as const) if (typeof d[k] === "number") out[k] = d[k];

@@ -33,7 +33,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from ..database.db import sync_tx
 from ..database import schema as t
 from . import app_settings, image_tags, reproject, tag_covers, tag_index
-from .tag_names import canonical_name
+from .tag_names import canonical_name, unescape_parens
 
 logger = logging.getLogger("moire.migrations")
 
@@ -182,6 +182,43 @@ def migrate_gen_term_weights() -> None:
             )
 
 
+# Tables keyed by a character's tag, and the column holding it.
+_CHARACTER_KEYED = (
+    (t.characters, "tag"),
+    (t.recipe_edits, "tag"),
+    (t.recipe_additions, "tag"),
+    (t.recipe_genders, "tag"),
+    (t.tag_meta, "tag"),
+    (t.tag_focus, "tag"),
+    (t.outfits, "character"),
+    (t.outfit_defaults, "character"),
+    (t.outfit_hidden, "character"),
+)
+
+
+def migrate_character_escapes() -> None:
+    """A character made by hand from a name copied out of a prompt was saved
+    with ComfyUI's paren escapes (``yuzuriha_\\(jigokuraku\\)``), so no
+    image's tag ever matched it. Rekey it, its recipe and outfits; a row
+    whose unescaped key is already taken is left as it was."""
+    with sync_tx() as conn:
+        for table, col in _CHARACTER_KEYED:
+            c = table.c[col]
+            olds = conn.execute(
+                sa.select(c).distinct().where(c.like("%\\(%") | c.like("%\\)%"))
+            ).scalars()
+            for old in list(olds):
+                new = unescape_parens(old)
+                if new == old:
+                    continue
+                conn.execute(
+                    table.update()
+                    .where(c == old)
+                    .values({col: new})
+                    .prefix_with("OR IGNORE")
+                )
+
+
 _MIGRATIONS = (
     ("tag_underscores", migrate_tag_underscores, True),
     ("prompt_parser_v2", None, True),
@@ -203,6 +240,7 @@ _MIGRATIONS = (
     ("prompt_weights_v2", None, True),
     # ComfyUI escapes only a paren: `\\(` is a stray backslash, not a group.
     ("comfy_escapes", None, True),
+    ("character_escapes", migrate_character_escapes, False),
 )
 
 

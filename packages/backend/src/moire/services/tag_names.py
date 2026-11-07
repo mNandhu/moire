@@ -61,3 +61,13 @@ def display_tag(name: str) -> str:
     kaomoji, whose underscore is part of the face. Backend twin of
     ``lib/tags.ts`` ``formatTag``."""
     return name if name in KAOMOJIS else name.replace("_", " ")
+
+
+_PAREN_ESCAPE = re.compile(r"\\([()])")
+
+
+def unescape_parens(name: str) -> str:
+    """``yuzuriha_\\(jigokuraku\\)`` -> ``yuzuriha_(jigokuraku)``: a name
+    copied out of a prompt keeps ComfyUI's paren escapes, which no stored tag
+    has (the prompt parser drops them). Pure."""
+    return _PAREN_ESCAPE.sub(r"\1", name)

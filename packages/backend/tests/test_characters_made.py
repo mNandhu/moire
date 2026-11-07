@@ -123,3 +123,15 @@ async def test_deleting_a_made_character_drops_its_own_outfits(client):
     # The shared outfit stays for everyone, with other characters' hides.
     assert outfits == ["o1"]
     assert hidden == [("other", "o1")]
+
+
+async def test_made_character_from_an_escaped_prompt_name_matches_images(client, seed):
+    """A name copied out of a ComfyUI prompt keeps its paren escapes; the
+    character is made under the tag images actually carry."""
+    r = await client.post("/tags/characters", json={"tag": r"yuzuriha_\(jigokuraku\)"})
+    assert r.status_code == 200 and r.json()["tag"] == "yuzuriha_(jigokuraku)"
+
+    await asyncio.to_thread(seed, "L1:y1", tags=("prompt:yuzuriha_(jigokuraku)",))
+    tag_index.invalidate()
+    listed = {c["tag"]: c for c in (await client.get("/tags/characters")).json()}
+    assert listed["yuzuriha_(jigokuraku)"]["count"] == 1

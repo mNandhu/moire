@@ -289,6 +289,12 @@ export function bulkTagNames(chips: readonly string[]): string[] {
 
 /** Mirror of the backend's canonical_name: trimmed, whitespace runs as one
  * underscore. Lora tokens (`<lora:...>`) pass through. */
+/** `yuzuriha_\\(jigokuraku\\)` -> `yuzuriha_(jigokuraku)`: a name copied out
+ * of a prompt keeps ComfyUI's paren escapes, which no stored tag has. */
+export function unescapeParens(name: string): string {
+  return name.replace(/\\([()])/g, "$1");
+}
+
 export function canonicalName(name: string): string {
   const s = name.trim();
   return s.startsWith("<") ? s : s.replace(/\s+/g, "_");

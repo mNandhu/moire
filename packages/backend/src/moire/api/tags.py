@@ -6,6 +6,7 @@ import asyncio
 from ..services import thumb_version
 from ..services import tag_detail as tag_panel
 from ._utils import validate_tags
+from ..services.tag_names import unescape_parens
 from ..models.responses import TagCount, documents
 from ..services import (
     characters,
@@ -219,7 +220,9 @@ async def create_character(body: dict):
     """Make a character by hand: a tag (the tagger's name for them, or any),
     with an optional name, series and colour. It has a page and a recipe
     before any image has the tag."""
-    raw = str(body.get("tag") or "").strip()
+    # A name copied out of a prompt (``yuzuriha_\\(jigokuraku\\)``) keeps
+    # its paren escapes, which no image's tag has.
+    raw = unescape_parens(str(body.get("tag") or "")).strip()
     if not raw:
         raise HTTPException(status_code=422, detail="tag is required")
     # Lower case, as the tagger writes characters, so images match it.

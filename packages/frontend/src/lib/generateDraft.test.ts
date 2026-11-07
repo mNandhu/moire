@@ -60,3 +60,18 @@ describe("loadDraft", () => {
     expect(d.blocks).toEqual(DEFAULT_BLOCKS);
   });
 });
+
+describe("loadDraft: prompt-escaped character keys", () => {
+  it("unescapes a character picked under its escaped name, with its outfit", () => {
+    const store = {
+      getItem: () =>
+        JSON.stringify({
+          characters: ["yuzuriha_\\(jigokuraku\\)"],
+          outfits: { "yuzuriha_\\(jigokuraku\\)": { id: "default", name: "Default", tags: ["kimono"] } },
+        }),
+    };
+    const form = loadDraft(store);
+    expect(form.characters).toEqual(["yuzuriha_(jigokuraku)"]);
+    expect(Object.keys(form.outfits)).toEqual(["yuzuriha_(jigokuraku)"]);
+  });
+});
