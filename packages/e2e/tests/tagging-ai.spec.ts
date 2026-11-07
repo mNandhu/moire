@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
 import { API, libraries, sandbox } from "./helpers";
 
 type Row = { _id: string };
@@ -28,4 +30,25 @@ test("AI tagging a few images of one library", async ({ page, request }) => {
 
   await page.goto("/tags");
   await expect(page.getByRole("link", { name: `AI tagged ${before + 3} images AI-tagged` })).toBeVisible();
+});
+
+test("New character: a picture fills identity and Default outfit", async ({ page }) => {
+  test.setTimeout(180_000);
+  const dir = path.join(sandbox().dir, "frieren");
+  const picture = path.join(dir, fs.readdirSync(dir).find((f) => f.endsWith(".png"))!);
+
+  await page.goto("/tags");
+  await page.getByRole("button", { name: "New character" }).click();
+  const dialog = page.getByRole("dialog", { name: "New character" });
+  await dialog.getByLabel("Picture to tag").setInputFiles(picture);
+
+  // The model is loaded by the run above, or loads now. Each list fills
+  // with removable chips: hair or eyes for identity, clothes for the outfit.
+  const box = (label: string) => dialog.getByLabel(`Add ${label} tag`).locator("xpath=../..");
+  await expect(box("identity").getByRole("button", { name: /^Remove / }).first()).toBeVisible({ timeout: 120_000 });
+  await expect(box("default outfit").getByRole("button", { name: /^Remove / }).first()).toBeVisible();
+  // The tagger named who it is.
+  await expect(dialog.getByLabel("Tag", { exact: true })).not.toHaveValue("");
+
+  await dialog.getByRole("button", { name: "Cancel" }).click();
 });

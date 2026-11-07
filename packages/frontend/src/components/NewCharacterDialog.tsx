@@ -1,27 +1,33 @@
-import { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, X } from "lucide-react";
+import { Loader2, Plus, ScanSearch, Upload, X } from "lucide-react";
 import { Dialog, DialogFooter } from "./ui/Dialog";
+import { Button } from "./ui/Button";
 import { Field, Input } from "./ui/Input";
 import { Picker } from "./ui/Picker";
 import { useToast } from "./Toasts";
 import { useCharacters } from "../lib/queries";
 import { TagSuggestList } from "./TagSuggestList";
+import { TagAddInput } from "./TagAddInput";
 import { useSuggestNav, useTagMatches } from "../hooks/useSuggestNav";
 import { cn } from "../lib/cn";
 import { characterHref, characterName, displayName } from "../lib/character";
-import { canonicalName } from "../lib/tags";
+import { canonicalName, unescapeParens } from "../lib/tags";
 import { createCharacter } from "../lib/tagMutations";
 import { TAGS_KEY } from "../lib/queries";
-import { putRecipe, useCharacterNames, useComfyModels, useLoraWords } from "../lib/generate";
+import { putDefaultOutfit, putRecipe, useCharacterNames, useComfyModels, useLoraWords } from "../lib/generate";
 import { stemOf } from "../lib/modelNames";
 import { errorText } from "../lib/api";
+import { postAiTagImage, postAiTagImageUrl } from "../lib/ai";
+import { pastedLink, refill } from "../lib/pictureTags";
 
 /**
  * Make a character the library has no image of yet: the tagger's name for
- * them (or any), a shown name, a character LoRA, and identity tags (offered
- * from the LoRA's training tags). Opens their page, or hands the new tag to
+ * them (or any), a shown name, a character LoRA, identity tags (offered
+ * from the LoRA's training tags) and a Default outfit. A picture of them
+ * (pasted, dropped, chosen or linked) fills the tag, identity and outfit
+ * from what the tagger sees. Opens their page, or hands the new tag to
  * `onCreated` instead.
  */
 export function NewCharacterDialog({
@@ -43,7 +49,12 @@ export function NewCharacterDialog({
   const [name, setName] = useState("");
   const [lora, setLora] = useState("");
   const [identity, setIdentity] = useState<string[]>([]);
-  const [typed, setTyped] = useState("");
+  const [outfit, setOutfit] = useState<string[]>([]);
+  const [picture, setPicture] = useState<string | null>(null);
+  const [link, setLink] = useState("");
+  // What the last picture put in each list: a new picture replaces it.
+  const fromPicture = useRef<{ identity: string[]; outfit: string[] }>({ identity: [], outfit: [] });
+  const fileInput = useRef<HTMLInputElement>(null);
   const [suggest, setSuggest] = useState(!!initialTag);
   const { data: names } = useCharacterNames();
   const { data: everyone } = useCharacters();
@@ -69,8 +80,12 @@ export function NewCharacterDialog({
       .filter((c) => [c.tag, ...c.aliases].some((n) => n.replace(/_/g, " ").toLowerCase().includes(q)))
       .slice(0, 3);
   }, [tag, existing, everyone]);
-  const offered = (words ?? []).map((w) => w.word).filter((w) => !identity.includes(canonicalName(w)));
-  const fromTag = characterName(canonicalName(tag) || "character");
+  const taken = useMemo(() => new Set([canonicalName(tag), ...identity, ...outfit]), [tag, identity, outfit]);
+  const offered = (words ?? []).map((w) => canonicalName(w.word)).filter((w) => !taken.has(w));
+  useEffect(() => () => {
+    if (picture?.startsWith("blob:")) URL.revokeObjectURL(picture);
+  }, [picture]);
+  const fromTag = characterName(canonicalName(tag) || "fern_(sousou_no_frieren)");
 
   const pickTag = (t: string) => {
     setTag(t);
@@ -84,22 +99,62 @@ export function NewCharacterDialog({
     tab: true,
     resetKey: tag,
   });
-  const addIdentity = (w: string) => {
+  const adder = (set: React.Dispatch<React.SetStateAction<string[]>>) => (w: string) => {
     const t = canonicalName(w);
-    if (t && !identity.includes(t)) setIdentity((xs) => [...xs, t]);
+    if (t && !taken.has(t)) set((xs) => [...xs, t]);
+  };
+  const addIdentity = adder(setIdentity);
+
+  // A file, or a link the server fetches. Cancelled with the dialog.
+  const abort = useRef<AbortController | null>(null);
+  useEffect(() => () => abort.current?.abort(), []);
+  const tagPicture = useMutation({
+    mutationFn: async (from: File | string) => {
+      abort.current?.abort();
+      const ctl = (abort.current = new AbortController());
+      const tags = typeof from === "string" ? await postAiTagImageUrl(from, ctl.signal) : await postAiTagImage(from, ctl.signal);
+      return { from, tags, ctl };
+    },
+    onSuccess: ({ from, tags, ctl }) => {
+      if (ctl.signal.aborted) return;
+      setPicture(typeof from === "string" ? from : URL.createObjectURL(from));
+      setLink("");
+      const who = tags.character_tags[0]?.[0];
+      // The tagger's best guess at who it is, unless a tag is already typed.
+      const charTag = canonicalName(tag) || (who ? canonicalName(who) : "");
+      if (who && !canonicalName(tag)) pickTag(who);
+      const prev = fromPicture.current;
+      const id = refill(identity, prev.identity, tags.identity.map(canonicalName), new Set([charTag, ...outfit]));
+      const out = refill(outfit, prev.outfit, tags.outfit.map(canonicalName), new Set([charTag, ...id.tags]));
+      fromPicture.current = { identity: id.added, outfit: out.added };
+      setIdentity(id.tags);
+      setOutfit(out.tags);
+    },
+    onError: (e) => {
+      // Cancelled (the dialog closed, or a newer picture): nothing to say.
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      push(`Couldn't tag the picture: ${errorText(e)}`, "error");
+    },
+  });
+  const fromClipboard = (e: React.ClipboardEvent) => {
+    const file = Array.from(e.clipboardData.files).find((f) => f.type.startsWith("image/"));
+    const url = file ? null : pastedLink(e.clipboardData.getData("text"));
+    if (!file && !url) return;
+    // A picture or a link is never a tag or a name: tag it, wherever pasted.
+    e.preventDefault();
+    tagPicture.mutate(file ?? url!);
   };
 
   const create = useMutation({
     mutationFn: async () => {
-      // A tag typed but not yet added with Enter still counts.
-      const tags = typed.trim() && !identity.includes(canonicalName(typed)) ? [...identity, canonicalName(typed)] : identity;
       const made = await createCharacter({ tag: canonicalName(tag), ...(name.trim() ? { name: name.trim() } : {}) });
       try {
-        if (tags.length || lora) {
-          await putRecipe(made.tag, { ...(tags.length ? { added: tags } : {}), ...(lora ? { lora } : {}) });
+        if (identity.length || lora) {
+          await putRecipe(made.tag, { ...(identity.length ? { added: identity } : {}), ...(lora ? { lora } : {}) });
         }
+        if (outfit.length) await putDefaultOutfit(made.tag, { added: outfit });
       } catch (e) {
-        push(`Made the character, but couldn't save its tags and LoRA: ${errorText(e)}`, "error");
+        push(`Made the character, but couldn't save its tags, outfit and LoRA: ${errorText(e)}`, "error");
       }
       await qc.invalidateQueries({ queryKey: TAGS_KEY });
       return made.tag;
@@ -133,7 +188,7 @@ export function NewCharacterDialog({
         />
       }
     >
-      <div className="space-y-5">
+      <div className="space-y-5" onPasteCapture={fromClipboard}>
         <Field label="Tag" htmlFor="new-character-tag" hint={existing ? <span className="text-red-300">Already a character</span> : undefined}>
           {alike.length > 0 && (
             <p className="mb-1.5 text-sm text-amber-300">
@@ -155,7 +210,8 @@ export function NewCharacterDialog({
               placeholder="fern_(sousou_no_frieren)"
               autoComplete="off"
               onChange={(e) => {
-                setTag(e.target.value);
+                // A name copied out of a prompt keeps ComfyUI's paren escapes.
+                setTag(unescapeParens(e.target.value));
                 setSuggest(true);
               }}
               onBlur={() => setTimeout(() => setSuggest(false), 150)}
@@ -187,57 +243,156 @@ export function NewCharacterDialog({
           />
         </Field>
 
-        <Field label="Identity">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {identity.map((t) => (
-              <span key={t} className="inline-flex items-center gap-1 rounded-md border border-line bg-raised py-0.5 pl-2 pr-1 text-sm text-neutral-100">
-                {t.replace(/_/g, " ")}
-                <button
-                  type="button"
-                  aria-label={`Remove ${t}`}
-                  onClick={() => setIdentity((xs) => xs.filter((x) => x !== t))}
-                  className="rounded p-0.5 text-muted hover:bg-line hover:text-neutral-100"
-                >
-                  <X size={13} />
-                </button>
-              </span>
-            ))}
+        <Field label="Fill from a picture" htmlFor="new-character-picture">
+          <div
+            className="flex gap-2"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              const file = Array.from(e.dataTransfer.files).find((f) => f.type.startsWith("image/"));
+              const url = file ? null : pastedLink(e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text"));
+              if (file || url) {
+                e.preventDefault();
+                tagPicture.mutate(file ?? url!);
+              }
+            }}
+          >
+            {(picture || tagPicture.isPending) && (
+              <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-line bg-canvas">
+                {picture && <img src={picture} alt="" className="h-full w-full object-cover" />}
+                {tagPicture.isPending && (
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/60 text-neutral-100">
+                    <Loader2 size={16} className="animate-spin" />
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="relative min-w-0 flex-1">
+              <ScanSearch size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+              <Input
+                id="new-character-picture"
+                aria-label="Picture link"
+                value={link}
+                placeholder="Paste a picture or its link"
+                autoComplete="off"
+                disabled={tagPicture.isPending}
+                className="pl-9"
+                onChange={(e) => setLink(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && link.trim()) {
+                    e.preventDefault();
+                    tagPicture.mutate(link.trim());
+                  } else if (e.key === "Escape" && link) {
+                    // Clears the box; Escape on an empty one closes the dialog.
+                    e.stopPropagation();
+                    setLink("");
+                  }
+                }}
+              />
+            </div>
+            <Button
+              variant="secondary"
+              className="shrink-0 whitespace-nowrap"
+              onClick={() => fileInput.current?.click()}
+              disabled={tagPicture.isPending}
+            >
+              <Upload size={14} />
+              Choose file
+            </Button>
             <input
-              aria-label="Add identity tag"
-              value={typed}
-              placeholder="Add tag"
-              onChange={(e) => setTyped(e.target.value)}
-              onKeyDown={(e) => {
-                if ((e.key === "Enter" || e.key === ",") && typed.trim()) {
-                  e.preventDefault();
-                  addIdentity(typed);
-                  setTyped("");
-                }
+              ref={fileInput}
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              tabIndex={-1}
+              aria-label="Picture to tag"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) tagPicture.mutate(file);
+                e.target.value = "";
               }}
-              className="h-7 w-32 rounded-md border border-dashed border-line bg-transparent px-2 text-sm text-neutral-100 placeholder:text-faint outline-none focus:border-brand-600/60"
             />
           </div>
+        </Field>
+
+        <TagBox label="Identity" tags={identity} onChange={setIdentity} taken={taken} onAdd={addIdentity}>
           {offered.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {offered.map((w) => (
-                <button
-                  key={w}
-                  type="button"
-                  onClick={() => addIdentity(w)}
-                  title="From the LoRA's training tags"
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full border border-line-strong bg-raised px-2.5 py-0.5 text-sm text-neutral-200",
-                    "hover:border-brand-500 hover:text-white",
-                  )}
-                >
-                  <Plus size={12} />
-                  {w}
-                </button>
+                <OfferChip key={w} tag={w} title="From the LoRA's training tags" onAdd={addIdentity} />
               ))}
             </div>
           )}
-        </Field>
+        </TagBox>
+
+        <TagBox label="Default outfit" tags={outfit} onChange={setOutfit} taken={taken} onAdd={adder(setOutfit)} />
       </div>
     </Dialog>
+  );
+}
+
+/** A labelled box of removable tag chips with a completing field to add more. */
+function TagBox({
+  label,
+  tags,
+  onChange,
+  taken,
+  onAdd,
+  children,
+}: {
+  label: string;
+  tags: string[];
+  onChange: (tags: string[]) => void;
+  taken: ReadonlySet<string>;
+  onAdd: (tag: string) => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div>
+      <span className="mb-1.5 block text-xs font-medium text-muted">{label}</span>
+      <div
+        onMouseDown={(e) => {
+          // A click on the box's empty space goes to its input.
+          if (e.target === e.currentTarget) {
+            e.preventDefault();
+            e.currentTarget.querySelector("input")?.focus();
+          }
+        }}
+        className="flex min-h-9 w-full cursor-text flex-wrap items-center gap-1.5 rounded-lg border border-line bg-canvas px-1.5 py-1 transition-colors hover:border-line-strong focus-within:border-brand-500/70"
+      >
+        {tags.map((t) => (
+          <span key={t} className="inline-flex items-center gap-1 rounded-md border border-line bg-raised py-0.5 pl-2 pr-1 text-sm text-neutral-100">
+            {t.replace(/_/g, " ")}
+            <button
+              type="button"
+              aria-label={`Remove ${t}`}
+              onClick={() => onChange(tags.filter((x) => x !== t))}
+              className="rounded p-0.5 text-muted hover:bg-line hover:text-neutral-100"
+            >
+              <X size={13} />
+            </button>
+          </span>
+        ))}
+        <TagAddInput ariaLabel={`Add ${label.toLowerCase()} tag`} taken={taken} onAdd={onAdd} bare commitOnBlur className="min-w-24 flex-1" />
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** A tag offered for identity: click to add it. */
+function OfferChip({ tag, title, onAdd }: { tag: string; title: string; onAdd: (tag: string) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onAdd(tag)}
+      title={title}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border border-line-strong bg-raised px-2.5 py-0.5 text-sm text-neutral-200",
+        "hover:border-brand-500 hover:text-white",
+      )}
+    >
+      <Plus size={12} />
+      {tag.replace(/_/g, " ")}
+    </button>
   );
 }

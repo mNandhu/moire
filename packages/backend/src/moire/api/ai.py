@@ -1,10 +1,20 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+import asyncio
+from io import BytesIO
+
+from fastapi import APIRouter, HTTPException, Request
+from PIL import Image
 from pydantic import BaseModel, Field, create_model
 
 
-from ..services import ai_coverage as ai_coverage_service, face_detect, image_tags
+from ..services import (
+    ai_coverage as ai_coverage_service,
+    attire,
+    face_detect,
+    fetch_image,
+    image_tags,
+)
 from ..services.ai_settings import (
     DEFAULT_AI_SETTINGS,
     get_ai_settings,
@@ -12,6 +22,8 @@ from ..services.ai_settings import (
 )
 from ..services.ai_jobs import get_ai_job_manager
 from ..services.ai_tagger import (
+    TagParams,
+    decode_image,
     get_tagger_manager,
     model_status_view,
     resolved_model_target,
@@ -156,6 +168,88 @@ async def ai_tag(req: TagRequest):
     # the clear (a job releases each image once it has tagged it).
     job = await jm.enqueue(ids=req.ids, force=bool(req.force))
     return {"job_id": job.id, "queued": job.total, "skipped": job.skipped}
+
+
+# A dropped-in picture, not a library image: big enough for any real one.
+MAX_TAG_IMAGE_BYTES = fetch_image.MAX_BYTES
+# Decoding and padding to a square costs ~(longest side)^2 * 4 bytes, so a
+# small, highly compressed picture can't be allowed to be huge.
+MAX_TAG_IMAGE_SIDE = 8192
+MAX_TAG_IMAGE_PIXELS = 40_000_000
+
+
+def _decode_capped(body: bytes):
+    """``decode_image``, after checking the header's size (cheap: no pixels
+    read yet). Blocking: call from a thread."""
+    with Image.open(BytesIO(body)) as probe:
+        w, h = probe.size
+    if max(w, h) > MAX_TAG_IMAGE_SIDE or w * h > MAX_TAG_IMAGE_PIXELS:
+        raise HTTPException(status_code=413, detail="Picture is too large")
+    return decode_image(body)
+
+
+class TagImageUrl(BaseModel):
+    url: str = Field(max_length=4096)
+
+
+async def _tag_bytes(body: bytes) -> dict:
+    """What the tagger sees in a picture's bytes, storing nothing.
+    ``identity`` and ``outfit`` split the general tags into body features
+    (hair, eyes, ...) and attire, most likely first. Loads the model if it isn't."""
+    try:
+        img = await asyncio.to_thread(_decode_capped, body)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=400, detail="Not an image this can read"
+        ) from None
+    settings = await get_ai_settings()
+    repo, cache_dir = resolved_model_target(settings)
+    result = await get_tagger_manager().predict_image(
+        image=img,
+        model_repo=repo,
+        cache_dir=cache_dir,
+        params=TagParams.from_settings(settings),
+    )
+    general = result.get("general_tags") or []
+    return {
+        "identity": [tag for tag, _p in general if attire.is_identity(tag)],
+        "outfit": [tag for tag, _p in general if attire.is_attire(tag)],
+        "general_tags": general,
+        "character_tags": result.get("character_tags") or [],
+        "rating": result.get("rating") or {},
+    }
+
+
+@router.post("/tag-image")
+async def ai_tag_image(request: Request):
+    """Tag a picture sent as the raw request body (any image type): for
+    filling in a new character's tags from a picture of them."""
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > MAX_TAG_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Picture is too large")
+    # Counted as it streams in: a body without (or lying in) Content-Length
+    # is cut off at the cap, not buffered whole first.
+    buf = bytearray()
+    async for chunk in request.stream():
+        buf += chunk
+        if len(buf) > MAX_TAG_IMAGE_BYTES:
+            raise HTTPException(status_code=413, detail="Picture is too large")
+    if not buf:
+        raise HTTPException(status_code=400, detail="No image sent")
+    return await _tag_bytes(bytes(buf))
+
+
+@router.post("/tag-image-url")
+async def ai_tag_image_url(req: TagImageUrl):
+    """Tag the picture at a public link (``services/fetch_image`` keeps the
+    fetch off loopback, the LAN and metadata addresses)."""
+    try:
+        body = await fetch_image.fetch_image(req.url)
+    except fetch_image.FetchError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+    return await _tag_bytes(body)
 
 
 @router.post("/tag-untagged")

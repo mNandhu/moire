@@ -308,6 +308,34 @@ export function postAiTag(
   return postJson<{ job_id: string }>("/api/v1/ai/tag", { ids, ...opts });
 }
 
+export type ImageTagResult = {
+  /** The body features among `general_tags` (hair, eyes, ...), most likely first. */
+  identity: string[];
+  /** The attire among `general_tags`, most likely first. */
+  outfit: string[];
+  /** [tag, probability], most likely first. */
+  general_tags: [string, number][];
+  character_tags: [string, number][];
+  rating: Record<string, number>;
+};
+
+/** Tag a picture that isn't in the library (the file's bytes as the body);
+ * nothing is stored. Loads the model first if it isn't. */
+export function postAiTagImage(file: Blob, signal?: AbortSignal): Promise<ImageTagResult> {
+  return api<ImageTagResult>("/api/v1/ai/tag-image", {
+    method: "POST",
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+    body: file,
+    signal,
+  });
+}
+
+/** Tag the picture at a public link; the server fetches it (never from
+ * loopback or the LAN). */
+export function postAiTagImageUrl(url: string, signal?: AbortSignal): Promise<ImageTagResult> {
+  return apiJson<ImageTagResult>("/api/v1/ai/tag-image-url", "POST", { url }, { signal });
+}
+
 /** Request cancellation of an AI tagging job. Returns whether the backend
  * accepted the request (false if the job already finished). */
 export function postAiJobCancel(id: string): Promise<{ ok: boolean }> {

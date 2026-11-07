@@ -19,6 +19,8 @@ export function TagAddInput({
   ariaLabel,
   rank,
   noteOf,
+  bare,
+  commitOnBlur,
   className,
 }: {
   onAdd: (tag: string) => void;
@@ -26,6 +28,11 @@ export function TagAddInput({
   ariaLabel: string;
   rank?: (matches: TagSuggestion[]) => TagSuggestion[];
   noteOf?: (id: string) => string | null;
+  /** Borderless, filling its row: for a token box that draws the border. */
+  bare?: boolean;
+  /** Leaving the field adds what was typed (a form saved without Enter
+   * keeps it). */
+  commitOnBlur?: boolean;
   className?: string;
 }) {
   const [text, setText] = useState("");
@@ -55,6 +62,7 @@ export function TagAddInput({
         value={text}
         placeholder="Add tag"
         onChange={(e) => setText(e.target.value)}
+        onBlur={commitOnBlur ? () => text.trim() && add(text) : undefined}
         onKeyDown={(e) => {
           if (nav.onKeyDown(e)) return;
           if (e.key === "Enter" || e.key === ",") {
@@ -63,7 +71,10 @@ export function TagAddInput({
           } else if (e.key === "Escape") setText("");
         }}
         {...nav.ariaProps}
-        className="h-7 w-32 rounded-md border border-dashed border-line-strong bg-transparent px-2 text-sm text-neutral-100 placeholder:text-faint outline-none focus:w-48 focus:border-solid focus:border-brand-600/60"
+        className={cn(
+          "h-7 bg-transparent px-2 text-sm text-neutral-100 placeholder:text-faint outline-none",
+          bare ? "w-full" : "w-32 rounded-md border border-dashed border-line-strong focus:w-48 focus:border-solid focus:border-brand-600/60",
+        )}
       />
       {open && (
         <div className="absolute left-0 top-full z-30 w-64">
