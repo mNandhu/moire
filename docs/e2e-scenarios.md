@@ -10,7 +10,7 @@ Scenarios worth testing end to end, for the Playwright suite in `packages/e2e` (
 - Viewer: prompt weights on the Tags tab, a ComfyUI prompt escaped twice, adding manual tags, setting a score, arrow keys through the feed, also pressed back to back, the phone details sheet dragged up and off, quarantining the open image and stepping on past it and back (`viewer.spec.ts`)
 - Outfits: New outfit on the Outfits page for a picked character, shared; Generate's Outfit picker listing another character's outfit (`outfits.spec.ts`)
 - Tags page: a tag's panel and its Open in gallery link, closing the panel (`tag-panel.spec.ts`)
-- New character: identity tags complete from the library's tags and a typed one is kept without Enter; arrowing down the suggestions keeps the highlighted row in view; a picture link to a private address is refused; a link pasted in the Tag field goes to the tagger; Generate's Edit tags dialog opens the character page (`new-character.spec.ts`)
+- New character: identity tags complete from the library's tags and a typed one is kept without Enter; arrowing down the suggestions keeps the highlighted row in view; a picture link to a private address is refused; a link pasted in the Tag field goes to the tagger; Generate's Edit tags dialog opens the character page; a picked character no character has shows Not found and Queue says Character not found until it is removed (`new-character.spec.ts`)
 - AI tagging: the real WD tagger on three images from the AI Tagging page, and on a picture in New character, filling identity and Default outfit (`tagging-ai.spec.ts`)
 
 ## Still to cover

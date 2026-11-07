@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_BLOCKS, DEFAULT_FORM } from "./generateForm";
-import { loadDraft, validBlocks } from "./generateDraft";
+import { DEFAULT_BLOCKS, DEFAULT_FORM, type GenerateForm } from "./generateForm";
+import { loadDraft, rekeyCast, unescapeCast, validBlocks } from "./generateDraft";
 
 const draft = (d: unknown) => loadDraft({ getItem: () => JSON.stringify(d) });
 
@@ -73,5 +73,43 @@ describe("loadDraft: prompt-escaped character keys", () => {
     const form = loadDraft(store);
     expect(form.characters).toEqual(["yuzuriha_(jigokuraku)"]);
     expect(Object.keys(form.outfits)).toEqual(["yuzuriha_(jigokuraku)"]);
+  });
+
+  it("takes the LoRA switch along too", () => {
+    const store = { getItem: () => JSON.stringify({ characters: ["a_\\(b\\)"], loraOff: ["a_\\(b\\)"] }) };
+    expect(loadDraft(store).loraOff).toEqual(["a_(b)"]);
+  });
+});
+
+describe("rekeyCast", () => {
+  const pick = (name: string) => ({ id: name, name, tags: [name], dropped: [] });
+  const f: GenerateForm = {
+    ...DEFAULT_FORM,
+    characters: ["old", "b"],
+    outfits: { old: pick("o1"), b: pick("o2") },
+    identityOff: { old: ["x"] },
+    loraOff: ["old"],
+    fresh: ["b"],
+  };
+
+  it("renames a character with what it wears, struck tags, LoRA switch and fresh mark", () => {
+    const g = rekeyCast(f, (t) => (t === "old" ? "new" : t));
+    expect(g.characters).toEqual(["new", "b"]);
+    expect(g.outfits).toEqual({ new: pick("o1"), b: pick("o2") });
+    expect(g.identityOff).toEqual({ new: ["x"] });
+    expect(g.loraOff).toEqual(["new"]);
+    expect(g.fresh).toEqual(["b"]);
+  });
+
+  it("keeps the first of two that become one, in its place", () => {
+    const g = rekeyCast(f, (t) => (t === "b" ? "old" : t));
+    expect(g.characters).toEqual(["old"]);
+    expect(g.outfits).toEqual({ old: pick("o1") });
+    expect(g.fresh).toEqual([]);
+  });
+
+  it("is the same form when nothing moves", () => {
+    expect(rekeyCast(f, (t) => t)).toBe(f);
+    expect(unescapeCast(f)).toBe(f);
   });
 });

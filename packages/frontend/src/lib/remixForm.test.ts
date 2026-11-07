@@ -151,6 +151,35 @@ describe("formFromBatch", () => {
     expect(formFromBatch({ ...base, character: one }, null).characters).toEqual(["a"]);
   });
 
+  // Queued before New character unescaped the name: no character has that
+  // key now, so Generate would wait on it for good.
+  const esc = "yuzuriha_\\(jigokuraku\\)";
+  const escaped = {
+    tag: esc,
+    label: "yuzuriha \\(jigokuraku\\)",
+    tags: [esc, "red_eyes"],
+    lora: null,
+    outfit: { id: "default", name: "Default", tags: ["kimono"] },
+  };
+
+  it("brings a character queued under a prompt-escaped name back under its own", () => {
+    const f = formFromBatch(
+      { ...base, characters: [escaped], composer: { v: 2, identityOff: { [esc]: ["red_eyes"] }, loraOff: [esc] } },
+      null,
+    );
+    expect(f.characters).toEqual(["yuzuriha_(jigokuraku)"]);
+    expect(Object.keys(f.outfits)).toEqual(["yuzuriha_(jigokuraku)"]);
+    expect(f.identityOff).toEqual({ "yuzuriha_(jigokuraku)": ["red_eyes"] });
+    expect(f.loraOff).toEqual(["yuzuriha_(jigokuraku)"]);
+  });
+
+  it("remixing an image of that batch does the same", () => {
+    const batch = { id: 162, name: "b", auto_name: true, generator_id: "builtin", inputs: { ...base, characters: [escaped] }, seed: 5, images: 1, index: 0 };
+    const f = formFromRemix({ ...doc, batch }, builtin, "same", current);
+    expect(f.characters).toEqual(["yuzuriha_(jigokuraku)"]);
+    expect(f.remix).toEqual({ image: doc.image_id, seed: 5 });
+  });
+
   it("restores a layered batch's composer", () => {
     const sent = toQueueBody({ ...DEFAULT_FORM, prompt: "swing", prefix: { id: "q", text: "t" } }, "builtin", [], presets);
     const f = formFromBatch({ ...base, composer: sent.composer }, "Mine");

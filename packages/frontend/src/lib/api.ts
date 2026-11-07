@@ -65,3 +65,10 @@ export async function apiRaw(url: string, init?: RequestInit): Promise<Response>
 export function errorText(e: unknown): string {
   return detailText(e instanceof Error ? e.message : String(e));
 }
+
+/** Whether `e` is the server saying there is no such thing (a 404). */
+export const isNotFound = (e: unknown): boolean => e instanceof ApiError && e.status === 404;
+
+/** A query's `retry`: up to three more tries, none after a 404, which would
+ * only say the same again. */
+export const retryUnlessNotFound = (failures: number, e: unknown): boolean => !isNotFound(e) && failures < 3;

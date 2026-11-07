@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, api, apiJson, apiRaw, errorText, httpError, jsonInit } from "./api";
+import { ApiError, api, apiJson, apiRaw, errorText, httpError, isNotFound, jsonInit, retryUnlessNotFound } from "./api";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -136,5 +136,19 @@ describe("errorText", () => {
 
   it("passes an ApiError message through", () => {
     expect(errorText(new ApiError("clean", 400))).toBe("clean");
+  });
+});
+
+describe("retryUnlessNotFound", () => {
+  it("gives up at once on a 404", () => {
+    expect(isNotFound(new ApiError("Character not found", 404))).toBe(true);
+    expect(retryUnlessNotFound(0, new ApiError("Character not found", 404))).toBe(false);
+  });
+
+  it("tries three more times on anything else", () => {
+    const e = new ApiError("boom", 500);
+    expect(isNotFound(e)).toBe(false);
+    expect(isNotFound(new Error("offline"))).toBe(false);
+    expect([0, 1, 2, 3].map((n) => retryUnlessNotFound(n, e))).toEqual([true, true, true, false]);
   });
 });

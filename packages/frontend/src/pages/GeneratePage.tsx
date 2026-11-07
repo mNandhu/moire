@@ -37,7 +37,7 @@ import {
   type NodeError,
 } from "../lib/generate";
 import { nameWords, onLoras, previewText, toParts, toEstimateBody, toQueueBody, type GenerateForm } from "../lib/generateForm";
-import { loadDraft, saveDraft } from "../lib/generateDraft";
+import { loadDraft, rekeyCast, saveDraft } from "../lib/generateDraft";
 import { settleFresh, switchWorkflow } from "../lib/composerEdits";
 import { boardLayersOf } from "../lib/boardLayers";
 import { rejectedFields } from "../lib/sampling";
@@ -184,7 +184,17 @@ export default function GeneratePage() {
   const usage = useMemo(() => new Map((models?.matching ?? []).map((m) => [m.stem, m.images])), [models]);
   const flagged = useMemo(() => rejectedFields(rejected ?? []), [rejected]);
   const { data: everyone } = useCharacters();
-  const recipes = useRecipes(form.characters);
+  const { recipes, missing, failed } = useRecipes(form.characters);
+  // A character picked under another of its names (a batch queued before
+  // its tag changed) answers under its page key: take that one, or its
+  // block never counts as loaded.
+  const renamed = JSON.stringify(
+    form.characters.flatMap((tag, i) => (recipes[i] && recipes[i].tag !== tag ? [[tag, recipes[i].tag]] : [])),
+  );
+  useEffect(() => {
+    const pairs = new Map(JSON.parse(renamed) as [string, string][]);
+    if (pairs.size) history.setQuietly((f) => rekeyCast(f, (tag) => pairs.get(tag) ?? tag));
+  }, [renamed, history]);
   const labels = form.characters.map(
     (tag) => displayName(everyone?.find((c) => c.tag === tag) ?? { tag }).name,
   );
@@ -418,6 +428,8 @@ export default function GeneratePage() {
     outputLibraryId: settings?.output_library_id,
     picked: form.characters.length,
     loaded: !!characters,
+    missing: missing.length,
+    failed: failed.length,
   });
   queueKey.current = () => {
     if (!blocked && !queue.isPending) queue.mutate();

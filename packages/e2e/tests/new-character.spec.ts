@@ -105,3 +105,21 @@ test("Generate: a character's Edit tags dialog opens their page", async ({ page,
   await expect(page).toHaveURL(/\/characters\/frieren$/);
   await expect(dialog).toHaveCount(0);
 });
+
+test("Generate: a picked character that isn't one says so, not Loading for good", async ({ page }) => {
+  // A name no character has (one saved before it changed, or since deleted).
+  await page.addInitScript((draft) => localStorage.setItem("moire.generate.draft", JSON.stringify(draft)), {
+    characters: ["nobody_(nowhere)"],
+    prompt: "1girl",
+  });
+  await page.goto("/generate");
+  const notFound = page.getByText("Not found", { exact: true });
+  await expect(notFound).toBeVisible();
+  // ComfyUI is ready by now (generate-run ran first): the character is what's in the way.
+  await expect(page.getByRole("button", { name: "Character not found" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Loading character" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Remove character" }).click();
+  await expect(notFound).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Character not found" })).toHaveCount(0);
+});

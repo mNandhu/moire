@@ -113,6 +113,12 @@ describe("blockedReason", () => {
     expect(blockedReason({ ...ok, loaded: false })).toBe("Loading character");
   });
 
+  it("says a character that can't load, never Loading for good", () => {
+    expect(blockedReason({ ...ok, picked: 2, loaded: false, missing: 1 })).toBe("Character not found");
+    expect(blockedReason({ ...ok, loaded: false, failed: 1 })).toBe("Character didn't load");
+    expect(blockedReason({ ...ok, picked: 2, loaded: false, missing: 1, failed: 1 })).toBe("Character not found");
+  });
+
   it("is null when Queue can run", () => {
     expect(blockedReason(ok)).toBeNull();
     expect(blockedReason({ ...ok, picked: 0, loaded: false })).toBeNull();

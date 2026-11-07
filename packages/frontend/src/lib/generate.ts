@@ -4,7 +4,7 @@
  */
 import { testState } from "./generatorRunBar";
 import { keepPreviousData, useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { api, apiJson, httpError, jsonInit } from "./api";
+import { api, apiJson, httpError, isNotFound, jsonInit, retryUnlessNotFound } from "./api";
 import type { NewEstimate } from "./eta";
 
 const BASE = "/api/v1/generate";
@@ -759,12 +759,16 @@ export function useLoraWords(name: string | null, { describe = false } = {}) {
   });
 }
 
+/** A character's recipe. No retry once the server says there is no such
+ * character: asking again would only keep the page waiting. */
+export const recipeQuery = (tag: string) => ({
+  queryKey: recipeKey(tag),
+  queryFn: ({ signal }: { signal: AbortSignal }) => api<Recipe>(`${BASE}/recipes/${encodeURIComponent(tag)}`, { signal }),
+  retry: retryUnlessNotFound,
+});
+
 export function useRecipe(tag: string | null) {
-  return useQuery({
-    queryKey: recipeKey(tag ?? ""),
-    queryFn: ({ signal }) => api<Recipe>(`${BASE}/recipes/${encodeURIComponent(tag!)}`, { signal }),
-    enabled: !!tag,
-  });
+  return useQuery({ ...recipeQuery(tag ?? ""), enabled: !!tag });
 }
 
 /** Every saved outfit, or one character's list (own and shared). */
@@ -822,14 +826,18 @@ export function useDefaultOutfit(character: string | null) {
   return useQuery({ ...defaultOutfitQuery(character ?? ""), enabled: !!character });
 }
 
-/** Several characters' recipes, in order (undefined while one loads). */
-export function useRecipes(tags: readonly string[]): (Recipe | undefined)[] {
-  return useQueries({
-    queries: tags.map((tag) => ({
-      queryKey: recipeKey(tag),
-      queryFn: ({ signal }: { signal: AbortSignal }) => api<Recipe>(`${BASE}/recipes/${encodeURIComponent(tag)}`, { signal }),
-    })),
-  }).map((q) => q.data);
+/** Several characters' recipes, in order (undefined while one loads or when
+ * it can't), and those that can't: no such character (`missing`), or the
+ * request failed (`failed`). */
+export function useRecipes(tags: readonly string[]): {
+  recipes: (Recipe | undefined)[];
+  missing: string[];
+  failed: string[];
+} {
+  const qs = useQueries({ queries: tags.map(recipeQuery) });
+  const stuck = (notFound: boolean) =>
+    tags.filter((_, i) => qs[i].data === undefined && qs[i].isError && isNotFound(qs[i].error) === notFound);
+  return { recipes: qs.map((q) => q.data), missing: stuck(true), failed: stuck(false) };
 }
 
 export function useBatches(limit = 50) {

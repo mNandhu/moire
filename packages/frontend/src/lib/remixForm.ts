@@ -6,7 +6,7 @@ import { batchCast } from "./batches";
 import { compose } from "./compose";
 import type { BatchInputs, Generator, RemixDoc, Sampling, StyleLora } from "./generate";
 import { DEFAULT_FORM, type GenerateForm, type PresetRef } from "./generateForm";
-import { composerFrom, keepLoraOff, keepOff, presetRef, validLoras } from "./generateDraft";
+import { composerFrom, keepLoraOff, keepOff, presetRef, unescapeCast, validLoras } from "./generateDraft";
 import { MAX_CHARACTERS } from "./generationLimits";
 import { pickFromInput, type OutfitPick } from "./outfit";
 
@@ -31,11 +31,12 @@ function withLorasOff(sent: StyleLora[], off: unknown, composer: Record<string, 
 }
 
 /** A batch's inputs back in the composer ("Edit and queue"). A typed name
- * stays; an auto name is picked again. */
+ * stays; an auto name is picked again. A character queued under a
+ * prompt-escaped name comes back under the one it has now. */
 export function formFromBatch(i: BatchInputs, name: string | null, workflow = "builtin"): GenerateForm {
   const c = i.composer && (i.composer as { v?: unknown }).v === 2 ? composerFrom(i.composer) : null;
   const chars = batchCast(i);
-  return {
+  return unescapeCast({
     ...DEFAULT_FORM,
     ...(c ?? {
       prompt: compose(i.base ?? "", i.extra ?? []),
@@ -62,7 +63,7 @@ export function formFromBatch(i: BatchInputs, name: string | null, workflow = "b
     perRequest: i.per_request_asked ?? null,
     name,
     workflow,
-  };
+  });
 }
 
 export type SeedChoice = "same" | "new";

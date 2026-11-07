@@ -99,6 +99,10 @@ export function blockedReason(s: {
   /** Characters picked, and whether every one's recipe has loaded. */
   picked: number;
   loaded: boolean;
+  /** Picked characters the library has no such character for, and those
+   * whose recipe failed to load: neither will ever finish loading. */
+  missing?: number;
+  failed?: number;
 }): string | null {
   return !s.connected
     ? "Waiting for ComfyUI"
@@ -106,7 +110,11 @@ export function blockedReason(s: {
       ? "Run the test first"
       : !s.outputLibraryId
         ? "Set the output folder"
-        : s.picked && !s.loaded
-          ? "Loading character"
-          : null;
+        : s.missing
+          ? "Character not found"
+          : s.failed
+            ? "Character didn't load"
+            : s.picked && !s.loaded
+              ? "Loading character"
+              : null;
 }

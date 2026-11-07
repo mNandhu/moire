@@ -108,6 +108,31 @@ export function keepLoraOff(v: unknown, characters: readonly string[]): string[]
   return Array.isArray(v) ? characters.filter((c) => v.includes(c)) : [];
 }
 
+/** `f` with each picked character renamed by `rename`, taking along what it
+ * wears, its struck tags, LoRA switch and fresh mark. Two that become one
+ * keep the first. Pure. */
+export function rekeyCast(f: GenerateForm, rename: (tag: string) => string): GenerateForm {
+  const from = new Map<string, string>();
+  for (const c of f.characters) {
+    const to = rename(c);
+    if (!from.has(to)) from.set(to, c);
+  }
+  if ([...from].every(([to, c]) => to === c) && from.size === f.characters.length) return f;
+  const characters = [...from.keys()];
+  const outfits: GenerateForm["outfits"] = {};
+  const identityOff: GenerateForm["identityOff"] = {};
+  for (const [to, c] of from) {
+    if (f.outfits[c]) outfits[to] = f.outfits[c];
+    if (f.identityOff[c]) identityOff[to] = f.identityOff[c];
+  }
+  const kept = (list: readonly string[]) => characters.filter((to) => list.includes(from.get(to)!));
+  return { ...f, characters, outfits, identityOff, loraOff: kept(f.loraOff), fresh: kept(f.fresh) };
+}
+
+/** A character picked under a prompt-escaped name (`a_\\(b\\)`, saved that
+ * way before making one unescaped it) under the name it has now, `a_(b)`. */
+export const unescapeCast = (f: GenerateForm) => rekeyCast(f, unescapeParens);
+
 const DRAFT_KEY = "moire.generate.draft";
 
 /** The saved draft merged over defaults; defaults when storage is empty,
@@ -123,17 +148,12 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     if (!("prompt" in d) && ("base" in d || "extra" in d)) Object.assign(out, migrated(d));
     if (isStr(d.checkpoint) || d.checkpoint === null) out.checkpoint = d.checkpoint;
     out.sampling = samplingOf(d.sampling);
-    // Drafts from before several characters keep their one. A character
-    // made under a prompt-escaped name (`a_\\(b\\)`) is now `a_(b)`, so
-    // keys picked back then are unescaped to match.
-    const key = (c: string) => unescapeParens(c);
-    const rekey = (v: unknown) =>
-      v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).map(([k, x]) => [key(k), x])) : v;
-    if (Array.isArray(d.characters)) out.characters = [...new Set<string>(d.characters.filter(isStr).map(key))].slice(0, MAX_CHARACTERS);
-    else if (isStr(d.character)) out.characters = [key(d.character)];
-    out.outfits = keepPicked(validOutfits(rekey(d.outfits)), out.characters);
-    out.identityOff = keepOff(rekey(d.identityOff), out.characters);
-    if (Array.isArray(d.fresh)) out.fresh = d.fresh.filter(isStr).map(key).filter((t: string) => out.characters.includes(t));
+    // Drafts from before several characters keep their one.
+    if (Array.isArray(d.characters)) out.characters = [...new Set<string>(d.characters.filter(isStr))].slice(0, MAX_CHARACTERS);
+    else if (isStr(d.character)) out.characters = [d.character];
+    out.outfits = keepPicked(validOutfits(d.outfits), out.characters);
+    out.identityOff = keepOff(d.identityOff, out.characters);
+    if (Array.isArray(d.fresh)) out.fresh = d.fresh.filter((t: unknown) => isStr(t) && out.characters.includes(t));
     if (isStr(d.name) || d.name === null) out.name = d.name;
     if (isStr(d.workflow) && d.workflow) out.workflow = d.workflow;
     for (const k of ["width", "height", "count"] as const) if (typeof d[k] === "number") out[k] = d[k];
@@ -148,7 +168,7 @@ export function loadDraft(storage: Pick<Storage, "getItem"> | null = safeStorage
     if (seed && (seed.mode === "random" || seed.mode === "fixed") && (seed.value === null || typeof seed.value === "number")) {
       out.seed = { mode: seed.mode, value: seed.value };
     }
-    return out;
+    return unescapeCast(out);
   } catch {
     return DEFAULT_FORM;
   }
