@@ -16,6 +16,7 @@ import { searchTerms, withSearchTerms } from "../lib/searchTerms";
 import type { FilterOptions } from "../hooks/useFilterOptions";
 import { Button } from "./ui/Button";
 import { DropdownMenu } from "./ui/DropdownMenu";
+import { Tooltip } from "./ui/Tooltip";
 import { SortControl, SORT_OPTIONS } from "./SortControl";
 import { TagSearchInput } from "./TagSearchInput";
 
@@ -75,7 +76,7 @@ export function GalleryToolbar({
       key: "group",
       label: "Group batches",
       short: "Group",
-      title: "Group batches (same prompt + workflow)",
+      tip: "Group batches (same prompt + workflow)",
       Icon: Layers,
       on: grouped,
       // Its name stays put, so it says on/off as a press; Select's name changes.
@@ -86,7 +87,7 @@ export function GalleryToolbar({
       key: "select",
       label: selectionMode ? "Done selecting" : "Select images",
       short: selectionMode ? "Done" : "Select",
-      title: selectionMode ? "Done selecting" : "Select (S)",
+      tip: selectionMode ? "Done selecting" : "Select (S)",
       Icon: selectionMode ? CheckSquare : Square,
       on: selectionMode,
       pressed: undefined,
@@ -102,7 +103,6 @@ export function GalleryToolbar({
         active={filtersOpen || filterCount > 0}
         onClick={() => setFiltersOpen((v) => !v)}
         aria-label={filtersOpen ? "Hide filters" : "Show filters"}
-        title={filtersOpen ? "Hide filters" : "Show filters"}
         className="relative"
       >
         <Filter size={18} />
@@ -154,20 +154,20 @@ export function GalleryToolbar({
         onChange={(sort) => setFilters({ ...filters, sort })}
       />
       {toggles.map((t) => (
-        <Button
-          key={t.key}
-          size="icon"
-          variant="secondary"
-          active={t.on}
-          aria-pressed={t.pressed}
-          onClick={t.toggle}
-          aria-label={t.label}
-          title={t.title}
-          className="xl:w-auto xl:px-3 xl:gap-2"
-        >
-          <t.Icon size={18} />
-          <span className="hidden xl:inline">{t.short}</span>
-        </Button>
+        <Tooltip key={t.key} content={t.tip} bubble>
+          <Button
+            size="icon"
+            variant="secondary"
+            active={t.on}
+            aria-pressed={t.pressed}
+            onClick={t.toggle}
+            aria-label={t.label}
+            className="xl:w-auto xl:px-3 xl:gap-2"
+          >
+            <t.Icon size={18} />
+            <span className="hidden xl:inline">{t.short}</span>
+          </Button>
+        </Tooltip>
       ))}
       </div>
       {selectionMode && (
@@ -184,7 +184,6 @@ export function GalleryToolbar({
           variant="secondary"
           onClick={() => (selectionActive ? clearSelection() : void selectAll())}
           disabled={selectingAll}
-          title={selectionActive ? "Clear the selection" : "Select every image this search and filter match"}
         >
           {selectingAll ? "Selecting…" : selectionActive ? "Select none" : "Select all"}
         </Button>

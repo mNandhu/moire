@@ -2,6 +2,7 @@ import { useMemo, useState, type Ref } from "react";
 import { Plus, Search } from "lucide-react";
 import { JsonTree, collectMatches } from "../GraphTree";
 import { FIELD_LABEL, type RuleField } from "../../lib/rules";
+import { Tooltip } from "../ui/Tooltip";
 
 /**
  * The sample's raw graph: click a value to pin it to the active field, or
@@ -74,7 +75,6 @@ export function GraphPanel({
                 >
                   <button
                     onClick={() => onReveal(m.path)}
-                    title={`Jump to ${m.path}`}
                     className="flex-1 min-w-0 text-left flex items-baseline gap-2 px-1.5 py-1 font-mono text-2xs"
                   >
                     <span className="text-brand-300 shrink-0">{m.path}</span>
@@ -82,14 +82,15 @@ export function GraphPanel({
                       {String(m.value)}
                     </span>
                   </button>
-                  <button
-                    onClick={() => onPin(m.path)}
-                    title={`Pin ${m.path} → ${FIELD_LABEL[activeField]}`}
-                    aria-label={`Pin ${m.path}`}
-                    className="shrink-0 px-1.5 py-1 text-faint hover:text-brand-300"
-                  >
-                    <Plus size={13} />
-                  </button>
+                  <Tooltip content={`Pin to ${FIELD_LABEL[activeField]}`} bubble className="shrink-0">
+                    <button
+                      onClick={() => onPin(m.path)}
+                      aria-label={`Pin ${m.path}`}
+                      className="px-1.5 py-1 text-faint hover:text-brand-300"
+                    >
+                      <Plus size={13} />
+                    </button>
+                  </Tooltip>
                 </div>
               ))}
             </div>

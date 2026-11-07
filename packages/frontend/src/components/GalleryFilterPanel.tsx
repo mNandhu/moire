@@ -41,7 +41,6 @@ export function ActiveFilterChips({
             type="button"
             onClick={() => setFilters(chip.without)}
             aria-label={`Remove filter: ${chip.label}`}
-            title="Remove filter"
             className="inline-flex items-center justify-center h-5 w-5 rounded-full text-brand-200 hover:text-white hover:bg-brand-500/30"
           >
             <X size={12} />
@@ -108,7 +107,6 @@ export function GalleryFilterPanel({
                 setFilters({ ...filters, noTags: !filters.noTags })
               }
               aria-label={filters.noTags ? "No tags on" : "No tags off"}
-              title="Images with no AI or manual tags"
             >
               Untagged
             </Button>
@@ -123,7 +121,6 @@ export function GalleryFilterPanel({
               aria-label={
                 filters.noAiTags ? "No AI tags on" : "No AI tags off"
               }
-              title="No AI tags"
             >
               No AI
             </Button>
@@ -143,7 +140,6 @@ export function GalleryFilterPanel({
                   ? "Showing quarantined"
                   : "Show quarantined"
               }
-              title="Quarantined images"
             >
               Quarantined
             </Button>

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Section } from "../ui/Card";
 import { Skeleton } from "../ui/Skeleton";
 import { countLastDays, weekLabel, weeklyActivity, type DayCount } from "../../lib/activity";
+import { Tooltip } from "../ui/Tooltip";
 
 /**
  * Images generated per week over the past year: one bar per week, in the
@@ -36,20 +37,24 @@ export function ActivityChart({ days, className }: { days?: DayCount[]; classNam
         <div>
           <div className="flex items-end gap-[2px] sm:gap-[3px] h-32" role="img" aria-label="Images generated per week">
             {weeks.map((w) => (
-              <div
+              <Tooltip
                 key={w.start.getTime()}
-                className="group relative flex-1 h-full flex items-end"
-                title={`${weekLabel(w.start, now)}: ${w.count.toLocaleString()} ${w.count === 1 ? "image" : "images"}`}
+                content={`${weekLabel(w.start, now)}: ${w.count.toLocaleString()} ${w.count === 1 ? "image" : "images"}`}
+                bubble
+                side="up"
+                className="flex-1 h-full"
               >
-                <div
-                  className={
-                    w.count
-                      ? "w-full rounded-sm bg-brand-500/70 group-hover:bg-brand-400 transition-colors"
-                      : "w-full h-px bg-line-strong"
-                  }
-                  style={w.count ? { height: `${Math.max(4, (w.count / max) * 100)}%` } : undefined}
-                />
-              </div>
+                <div className="group relative w-full h-full flex items-end">
+                  <div
+                    className={
+                      w.count
+                        ? "w-full rounded-sm bg-brand-500/70 group-hover:bg-brand-400 transition-colors"
+                        : "w-full h-px bg-line-strong"
+                    }
+                    style={w.count ? { height: `${Math.max(4, (w.count / max) * 100)}%` } : undefined}
+                  />
+                </div>
+              </Tooltip>
             ))}
           </div>
           <div className="flex gap-[2px] sm:gap-[3px] mt-2 h-4 text-2xs text-faint" aria-hidden="true">

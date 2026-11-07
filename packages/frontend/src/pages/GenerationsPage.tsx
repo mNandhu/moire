@@ -180,7 +180,7 @@ function BatchCard({ b, phase }: { b: BatchSummary; phase: Phase }) {
             <span className="min-w-0 flex-1 truncate text-sm text-neutral-100 group-hover:text-white">{b.name}</span>
             <span className="shrink-0 text-xs tabular-nums text-faint">{whenLabel(b.created_at)}</span>
           </div>
-          <div className="truncate text-xs text-faint" title={b.generator ?? undefined}>
+          <div className="truncate text-xs text-faint">
             {batchLine(b)}
           </div>
         </div>

@@ -84,7 +84,6 @@ export function OutfitPicker({
             "group/outfit -mx-1 inline-flex shrink-0 items-center gap-2.5 rounded-md px-1 py-0.5 text-sm hover:bg-line/60",
             value ? "font-medium text-neutral-100" : "text-muted",
           )}
-          title="Change outfit"
         >
           {/* As wide as the character's avatar above, so the names line up. */}
           <span className="flex w-7 shrink-0 justify-center">

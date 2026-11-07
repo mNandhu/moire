@@ -4,6 +4,7 @@ import { ArrowLeftRight, ArrowUpRight, Ban, Pencil, UserRound, X } from "lucide-
 import { Card } from "../ui";
 import { Dialog } from "../ui/Dialog";
 import { ButtonLink } from "../ui/Button";
+import { Tooltip } from "../ui/Tooltip";
 import { CharacterAvatar } from "../CharacterAvatar";
 import { CharacterPicker } from "../CharacterPicker";
 import { useCharacters } from "../../lib/queries";
@@ -100,7 +101,7 @@ function CharacterRow({
           align="left"
           taken={taken}
           trigger={() => (
-            <span className="group/pick -mx-1 inline-flex items-center gap-2.5 rounded-md px-1 py-0.5 hover:bg-line/60" title="Change character">
+            <span className="group/pick -mx-1 inline-flex items-center gap-2.5 rounded-md px-1 py-0.5 hover:bg-line/60">
               {entry ? (
                 <CharacterAvatar
                   src={entry.thumb_url}
@@ -125,29 +126,27 @@ function CharacterRow({
         ) : off && recipe ? (
           <StrikeList
             tags={recipe.identity.filter((c) => !c.dropped).map((c) => c.tag)}
-            title={recipe.identity.filter((c) => !c.dropped).map((c) => c.tag).join(", ")}
             struck={(tag) => off.tags.includes(tag)}
             onToggle={off.toggle}
           />
         ) : (
-          <span className="min-w-0 flex-1 truncate text-xs text-faint" title={kept.join(", ")}>
+          <span className="min-w-0 flex-1 truncate text-xs text-faint">
             {kept.join(", ")}
           </span>
         )}
         {lora &&
           (lora.file ? (
-            <span className="shrink-0 font-mono text-xs text-neutral-300" title="Character LoRA">
+            <span className="shrink-0 font-mono text-xs text-neutral-300">
               {lora.stem} {lora.strength.toFixed(2)}
             </span>
           ) : (
-            <span
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-dashed border-amber-700/70 bg-amber-950/20 px-1.5 py-0.5 text-xs text-amber-200"
-              title="This ComfyUI doesn't have this LoRA, so it is left out of the prompt"
-            >
-              <Ban size={12} />
-              <span className="font-mono line-through">{lora.stem}</span>
-              not used
-            </span>
+            <Tooltip content="This ComfyUI doesn't have this LoRA, so it is left out of the prompt" bubble className="shrink-0">
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-amber-700/70 bg-amber-950/20 px-1.5 py-0.5 text-xs text-amber-200">
+                <Ban size={12} />
+                <span className="font-mono line-through">{lora.stem}</span>
+                not used
+              </span>
+            </Tooltip>
           ))}
       </div>
       <button
@@ -155,7 +154,6 @@ function CharacterRow({
         onClick={() => setEditing(true)}
         disabled={!recipe}
         aria-label="Edit tags"
-        title="Edit tags"
         className="shrink-0 rounded p-1 text-muted hover:bg-line hover:text-neutral-100 disabled:opacity-40"
       >
         <Pencil size={14} />
@@ -165,7 +163,6 @@ function CharacterRow({
         type="button"
         onClick={() => onChange(null)}
         aria-label="Remove character"
-        title="Remove character"
         className="rounded p-1 text-muted hover:bg-line hover:text-neutral-100"
       >
         <X size={14} />
@@ -222,14 +219,13 @@ function WearsLine({
   onOutfit: (pick: OutfitPick | null) => void;
   folded: boolean;
 }) {
-  const worn = wornTags(outfit).map(displayWord).join(", ");
   const struck = new Set(outfit?.dropped);
   return (
     <div className="flex min-h-[2.25rem] min-w-0 items-center gap-3">
       <span className="w-[4.5rem] shrink-0 text-xs font-medium text-muted">Outfit</span>
       <OutfitPicker character={character} value={outfit} onChange={onOutfit} />
       {folded && outfit && (
-        <StrikeList tags={outfit.tags} title={worn} struck={(tag) => struck.has(tag)} onToggle={(tag) => onOutfit(toggleWorn(outfit, tag))} />
+        <StrikeList tags={outfit.tags} struck={(tag) => struck.has(tag)} onToggle={(tag) => onOutfit(toggleWorn(outfit, tag))} />
       )}
     </div>
   );
@@ -239,24 +235,21 @@ function WearsLine({
  * batch (or brings it back). */
 function StrikeList({
   tags,
-  title,
   struck,
   onToggle,
 }: {
   tags: readonly string[];
-  title: string;
   struck: (tag: string) => boolean;
   onToggle: (tag: string) => void;
 }) {
   return (
-    <span className="min-w-0 flex-1 truncate text-xs text-faint" title={title}>
+    <span className="min-w-0 flex-1 truncate text-xs text-faint">
       {tags.map((tag, i) => (
         <span key={tag}>
           {i > 0 && ", "}
           <button
             type="button"
             onClick={() => onToggle(tag)}
-            title={struck(tag) ? "Bring back" : "Leave out of this batch"}
             className={cn("rounded-sm hover:text-neutral-100", struck(tag) && "text-faint/60 line-through")}
           >
             {displayWord(tag)}

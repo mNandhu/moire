@@ -35,7 +35,6 @@ export function TagPreview({ term, count, swap }: { term: Placed; count: number 
             target="_blank"
             rel="noreferrer"
             aria-label={`Open the ${term.written} tag page`}
-            title="Open the tag page"
             className="-mr-0.5 shrink-0 rounded p-0.5 text-faint hover:bg-white/10 hover:text-neutral-100"
           >
             <ExternalLink size={13} />

@@ -178,7 +178,7 @@ export function SaveOutfitDialog({
           start={
             mode === "default" ? (
               outfit!.edited && (
-                <Button variant="ghost" onClick={() => reset.mutate()} title="Back to the name and tags read from their images">
+                <Button variant="ghost" onClick={() => reset.mutate()}>
                   Reset to computed
                 </Button>
               )
@@ -252,7 +252,7 @@ export function SaveOutfitDialog({
                     group={r.group}
                     struck={r.struck}
                     className={cn(!r.struck && SOURCE_STYLE[r.source], !r.checkable && "decoration-dotted")}
-                    title={r.checkable ? undefined : "The tagger can't check this one"}
+                    tip={r.checkable ? undefined : "The tagger can't check this one"}
                     onToggle={() =>
                       setRows((x) =>
                         // A Default's computed tag is struck, not removed: it stays restorable.
@@ -287,7 +287,7 @@ export function SaveOutfitDialog({
               <Checkbox
                 checked={shared}
                 onChange={setShared}
-                label={<span title="Shows in every character's outfit list, marked shared">Available for all characters</span>}
+                label="Available for all characters"
               />
             </div>
           )}

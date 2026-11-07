@@ -13,6 +13,7 @@ import { ResolvePromptDialog } from "../ResolvePromptDialog";
 import { RemixButton, WorkflowLine } from "../generate/Remix";
 import { BatchStrip } from "./BatchStrip";
 import { TAB_ACTION, TabActions } from "./TabActions";
+import { Tooltip } from "../ui/Tooltip";
 
 // A small key/value pill for the "Other metadata" row.
 function MetaChip({ label, value }: { label: string; value: React.ReactNode }) {
@@ -44,12 +45,11 @@ function ResourceRow({
           <Link
             to={to}
             className="block text-sm text-neutral-100 truncate hover:underline"
-            title={`Show all images using ${name}`}
           >
             {name}
           </Link>
         ) : (
-          <div className="text-sm text-neutral-100 truncate" title={name}>
+          <div className="text-sm text-neutral-100 truncate">
             {name}
           </div>
         )}
@@ -77,7 +77,6 @@ function CopyButton({ text, label }: { text?: string | null; label: string }) {
         }
       }}
       className="p-1.5 rounded-md text-muted hover:text-white hover:bg-raised transition-colors"
-      title={`Copy ${label.toLowerCase()}`}
       aria-label={`Copy ${label.toLowerCase()}`}
     >
       <Copy size={14} />
@@ -192,12 +191,9 @@ function PromptBlock({ text, fit = false }: { text: string; fit?: boolean }) {
 function GuessedBadge({ onResolve }: { onResolve?: () => void }) {
   return (
     <>
-    <span
-      className="text-2xs px-1.5 py-0.5 rounded-md border border-amber-400/30 text-amber-300"
-      title="Picked by keyword match: the workflow doesn't show where its prompt goes. Resolve it to be certain."
-    >
-      Guessed
-    </span>
+    <Tooltip content="Picked by keyword match: the workflow doesn't show where its prompt goes. Resolve it to be certain.">
+      <span className="text-2xs px-1.5 py-0.5 rounded-md border border-amber-400/30 text-amber-300">Guessed</span>
+    </Tooltip>
     {onResolve && (
       <button type="button" onClick={onResolve} className="text-2xs text-brand-300 hover:text-brand-200">
         Resolve
@@ -249,7 +245,6 @@ export function GenPanel({
     <Link
       to={`/rules?sig=${encodeURIComponent(gen.workflow_sig)}`}
       className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
-      title="Edit this workflow's extraction rule"
     >
       <Workflow size={12} /> Edit rule
     </Link>
@@ -265,7 +260,6 @@ export function GenPanel({
           type="button"
           onClick={onCopyAll}
           className={TAB_ACTION}
-          title="Copy all generation data"
           aria-label="Copy all generation data"
         >
           <Copy size={15} />

@@ -127,14 +127,14 @@ export default function BatchPage() {
             {perRun != null && perRun > 1 ? ` of ${perRun}` : ""}
           </span>
           {took && (
-            <span title="Time ComfyUI spent generating">
+            <span>
               Took {durationWords(took.total)}
               {took.perImage != null && took.images > 1 && `, ${durationWords(took.perImage)} per image`}
             </span>
           )}
           {inLibrary < images && <span>{inLibrary} in library</span>}
           {unfinished > 0 && <span>{unfinished} running</span>}
-          {left && <span title="From how long the same work took before">{leftLabel(left)}</span>}
+          {left && <span>{leftLabel(left)}</span>}
           {failed.length > 0 && <span className="text-red-300">{failed.length} failed</span>}
         </div>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">

@@ -35,7 +35,7 @@ function BatchPanel({ id }: { id: number }) {
     // No card: a frame sized to the column sat wider than a portrait batch.
     <section aria-label={b.name}>
       <div className="mb-1.5 flex items-center gap-2 px-2 text-sm">
-        <span className="min-w-0 truncate font-medium text-neutral-100" title={b.name}>
+        <span className="min-w-0 truncate font-medium text-neutral-100">
           {b.name}
         </span>
         {done < b.requests.length && (
@@ -50,7 +50,6 @@ function BatchPanel({ id }: { id: number }) {
           took && (
             <span
               className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted"
-              title={took.perImage != null && took.images > 1 ? `${durationWords(took.perImage)} per image` : undefined}
             >
               {durationWords(took.total)}
             </span>

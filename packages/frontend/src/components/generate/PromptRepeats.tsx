@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { useToast } from "../Toasts";
 import { displayWord } from "../../lib/compose";
 import { withoutTerms } from "../../lib/promptRepeats";
+import { Tooltip } from "../ui/Tooltip";
 
 /** Under a layer (the Prefix, a character): the prompt's tags that layer
  * already sends, with a way to take them out of the prompt (Undo in the
@@ -52,15 +53,16 @@ export function PromptRepeats({
       <button type="button" onClick={remove} className="shrink-0 text-brand-300 hover:text-brand-200">
         Remove from prompt
       </button>
-      <button
-        type="button"
-        onClick={() => setClosed(key)}
-        aria-label="Keep them"
-        title="Keep them"
-        className="shrink-0 rounded p-0.5 text-muted hover:bg-line hover:text-neutral-100"
-      >
-        <X size={13} />
-      </button>
+      <Tooltip content="Keep them" bubble className="shrink-0">
+        <button
+          type="button"
+          onClick={() => setClosed(key)}
+          aria-label="Keep them"
+          className="rounded p-0.5 text-muted hover:bg-line hover:text-neutral-100"
+        >
+          <X size={13} />
+        </button>
+      </Tooltip>
     </div>
   );
 }

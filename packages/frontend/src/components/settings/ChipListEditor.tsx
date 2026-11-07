@@ -58,7 +58,6 @@ export function ChipListEditor({
               type="button"
               onClick={() => onChange(entries.filter((e) => e !== entry))}
               aria-label={`Remove ${display(entry)}`}
-              title="Remove"
               className="inline-flex items-center justify-center h-5 w-5 rounded-full text-faint hover:text-white hover:bg-line"
             >
               <X size={12} />

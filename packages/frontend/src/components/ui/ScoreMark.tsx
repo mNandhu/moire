@@ -20,7 +20,6 @@ export function ScoreMark({ score, className }: { score: number; className?: str
   return (
     <span
       className={cn(MARKER_DIGIT, "text-[22px]", className)}
-      title={`Score ${n}/5`}
       aria-label={`Score ${n} of 5`}
     >
       {n}
@@ -58,7 +57,6 @@ export function ScorePicker({
             role="radio"
             aria-checked={on}
             aria-label={`Set score ${n}`}
-            title={on ? "Clear score" : `Score ${n}`}
             onClick={() => onSet(on ? 0 : n)}
             className={cn(
               box,

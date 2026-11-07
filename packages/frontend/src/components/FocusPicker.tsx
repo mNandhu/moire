@@ -24,7 +24,6 @@ export function FocusPicker({
     <button
       type="button"
       aria-label="Set the centre"
-      title="Click to centre here"
       className={`relative ${height} max-w-full rounded-lg overflow-hidden bg-raised cursor-crosshair`}
       style={{ aspectRatio: aspect ?? 1 }}
       onClick={(e) => {

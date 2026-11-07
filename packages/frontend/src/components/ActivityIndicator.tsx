@@ -61,7 +61,7 @@ export function ActivityIndicator({ collapsed }: { collapsed: boolean }) {
 
   if (collapsed) {
     return (
-      <div className="flex justify-center py-2 text-brand-300" title={summary} role="status" aria-label={summary}>
+      <div className="flex justify-center py-2 text-brand-300" role="status" aria-label={summary}>
         <Loader2 size={18} className="animate-spin" />
       </div>
     );

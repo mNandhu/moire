@@ -5,6 +5,7 @@ import { BookOpen, ExternalLink, Pencil, Tag as TagIcon, UserRound, X } from "lu
 import { Badge } from "./ui/Badge";
 import { Button, ButtonAnchor, ButtonLink } from "./ui/Button";
 import { Skeleton } from "./ui/Skeleton";
+import { Tooltip } from "./ui/Tooltip";
 import { Mosaic } from "./TagMosaic";
 import { MadeWithChips } from "./tagstats/MadeWithChips";
 import { MonthChart } from "./tagstats/MonthChart";
@@ -115,7 +116,6 @@ export function TagPanel({
             {group && (
               <Link
                 to={groupHref(group)}
-                title={`Every tag in ${groupLabel(group)}`}
                 className="rounded-md border border-line px-1.5 py-0.5 text-2xs font-normal text-muted hover:border-line-strong hover:text-neutral-100"
               >
                 {groupLabel(group)}
@@ -140,7 +140,6 @@ export function TagPanel({
           type="button"
           onClick={onClose}
           aria-label="Close tag details"
-          title="Close (Esc)"
           className="h-8 w-8 shrink-0 rounded-full inline-flex items-center justify-center text-muted hover:text-white hover:bg-raised"
         >
           <X size={16} />
@@ -151,7 +150,7 @@ export function TagPanel({
 
       {/* A character's avatar heads the panel; a tag shows a collage. */}
       {detail?.category !== "character" && (
-        <Link to={tagHref(tag)} title="Open the tag's page" className="block rounded-lg overflow-hidden hover:opacity-90">
+        <Link to={tagHref(tag)} aria-label="Open the tag's page" className="block rounded-lg overflow-hidden hover:opacity-90">
           <Mosaic samples={samples} cover={detail?.thumb_url ?? null} focus={detail?.focus} focusImage={detail?.cover_image_id} className="aspect-[16/10]" />
         </Link>
       )}
@@ -167,10 +166,10 @@ export function TagPanel({
         ) : (
           detail && (
             <>
-            <ButtonLink size="sm" to={tagHref(tag)} title="Its images, cover and what it was made with">
+            <ButtonLink size="sm" to={tagHref(tag)}>
               <TagIcon size={14} /> Tag page
             </ButtonLink>
-            <Button size="sm" onClick={() => void markCharacter()} title="Give this tag a character page">
+            <Button size="sm" onClick={() => void markCharacter()}>
               <UserRound size={14} /> Mark as character
             </Button>
             </>
@@ -182,18 +181,15 @@ export function TagPanel({
             const n = prompt ? detail.sources.prompt : detail.sources.manual;
             const both = renamableTags(detail).length > 1;
             return (
-              <Button
-                key={stored}
-                size="sm"
-                onClick={() => onRename(stored, n)}
-                title={detail.sources.ai > 0 ? "The AI's tag keeps its name" : undefined}
-              >
-                <Pencil size={14} /> {both ? (prompt ? "Rename prompt tag" : "Rename my tag") : "Rename or merge"}
-              </Button>
+              <Tooltip key={stored} content={detail.sources.ai > 0 ? "The AI's tag keeps its name" : undefined} bubble>
+                <Button size="sm" onClick={() => onRename(stored, n)}>
+                  <Pencil size={14} /> {both ? (prompt ? "Rename prompt tag" : "Rename my tag") : "Rename or merge"}
+                </Button>
+              </Tooltip>
             );
           })}
         {detail && onDanbooru(detail.sources.ai, description) && (
-          <ButtonAnchor size="sm" href={danbooruWikiUrl(tag)} title="Its page on Danbooru's wiki">
+          <ButtonAnchor size="sm" href={danbooruWikiUrl(tag)}>
             <BookOpen size={14} /> Danbooru
           </ButtonAnchor>
         )}
@@ -233,7 +229,6 @@ export function TagPanel({
               <h3 className="text-2xs uppercase tracking-wider text-faint mb-1">Prompt weight</h3>
               <p
                 className="text-xs text-neutral-200 tabular-nums"
-                title={`Weighted in ${detail.weights.weighted.toLocaleString()} of the ${detail.weights.prompted.toLocaleString()} prompts that name it`}
               >
                 {weightSpreadText(detail.weights)}
               </p>
@@ -249,7 +244,6 @@ export function TagPanel({
                     key={r.tag}
                     type="button"
                     onClick={() => onSelect(r.tag)}
-                    title={`${r.count.toLocaleString()} images have both`}
                     className="inline-flex items-baseline gap-1 h-6 px-2 rounded-full bg-raised border border-line text-xs text-neutral-200 hover:border-line-strong"
                   >
                     {formatTag(r.tag)}

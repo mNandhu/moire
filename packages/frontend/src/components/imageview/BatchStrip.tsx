@@ -91,7 +91,7 @@ export function BatchStrip({
               replace
               state={location.state}
               aria-current={here ? "true" : undefined}
-              title={m.path?.split(/[\\/]/).pop()}
+              aria-label={m.path?.split(/[\\/]/).pop()}
               className={`relative h-16 w-12 shrink-0 overflow-hidden rounded-md bg-raised transition-opacity ${
                 here ? "" : "opacity-70 hover:opacity-100"
               }`}

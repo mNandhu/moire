@@ -149,13 +149,11 @@ function LibraryCoverage({
               <Link
                 to={libraryPageHref(l.library_id)}
                 className="truncate text-sm text-neutral-300 hover:text-white"
-                title={l.name}
               >
                 {l.name}
               </Link>
               <span
                 className="text-xs text-faint tabular-nums"
-                title={`${l.ai_tagged.toLocaleString()} of ${l.total.toLocaleString()} AI-tagged`}
               >
                 {l.untagged.toLocaleString()} left
               </span>
@@ -166,7 +164,6 @@ function LibraryCoverage({
                 className="h-7 px-2"
                 onClick={() => void runUntagged(l.library_id)}
                 disabled={running || !(untaggedLimit > 0)}
-                title={`Tag up to ${Math.min(l.untagged, untaggedLimit || 0).toLocaleString()} images in ${l.name}`}
               >
                 <Sparkles size={12} /> Tag
               </Button>

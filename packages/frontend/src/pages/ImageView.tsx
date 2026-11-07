@@ -44,6 +44,7 @@ import { TagsSection } from "../components/imageview/TagsSection";
 const OVERLAY_BTN =
   "p-2 rounded-full bg-black/45 border border-white/10 text-white/80 hover:text-white hover:bg-black/65 disabled:opacity-30 disabled:pointer-events-none transition-colors duration-150";
 import { imageDocKey, invalidateFeeds, syncFeedsFromDoc, writeImageFields } from "../lib/feedCache";
+import { Tooltip } from "../components/ui/Tooltip";
 
 export default function ImageView() {
   // `routeId` is where the URL points; `id` is the image actually on screen
@@ -336,7 +337,6 @@ export default function ImageView() {
           onClick={goBack}
           className={`absolute top-4 left-4 z-50 ${OVERLAY_BTN}`}
           aria-label="Back"
-          title="Back"
         >
           <ArrowLeft />
         </button>
@@ -345,7 +345,6 @@ export default function ImageView() {
           <button
             onClick={open}
             className={`absolute top-4 right-4 z-50 ${OVERLAY_BTN}`}
-            title="Show details"
             aria-label="Show details"
           >
             <PanelRight />
@@ -447,7 +446,6 @@ export default function ImageView() {
             onClick={goPrev}
             className={`pointer-events-auto ${OVERLAY_BTN}`}
             aria-label="Previous"
-            title="Previous"
           >
             <ChevronLeft />
           </button>
@@ -456,7 +454,6 @@ export default function ImageView() {
             onClick={goNext}
             className={`pointer-events-auto ${OVERLAY_BTN}`}
             aria-label="Next"
-            title="Next"
           >
             <ChevronRight />
           </button>
@@ -498,7 +495,6 @@ export default function ImageView() {
               <div className="min-w-0">
                 <div
                   className="text-sm font-semibold truncate"
-                  title={data.path}
                 >
                   {fileName}
                 </div>
@@ -509,7 +505,6 @@ export default function ImageView() {
                 {library && (
                   <Link
                     to={libraryPageHref(library._id)}
-                    title={`${library.path}\nShow in Libraries`}
                     className="mt-0.5 flex items-center gap-1 min-w-0 text-xs text-muted hover:text-white"
                   >
                     <FolderOpen size={12} className="shrink-0" />
@@ -519,7 +514,6 @@ export default function ImageView() {
                 <button
                   type="button"
                   onClick={() => void copyPath()}
-                  title={`${data.path}\nCopy path`}
                   className="group mt-1 flex max-w-full items-center gap-1 text-left text-xs text-faint hover:text-neutral-200"
                 >
                   {/* One line: the file name it ends on is the header above. */}
@@ -532,7 +526,6 @@ export default function ImageView() {
                   href={fileUrl || imageFileUrl(data._id)}
                   download={fileName || ""}
                   className="p-2 rounded-lg text-muted hover:text-white hover:bg-raised transition-colors"
-                  title="Download original"
                   aria-label="Download original"
                 >
                   <Download size={16} />
@@ -540,7 +533,6 @@ export default function ImageView() {
                 <button
                   onClick={() => setInfoOpen(false)}
                   className="p-2 rounded-lg text-muted hover:text-white hover:bg-raised transition-colors"
-                  title="Collapse panel"
                   aria-label="Collapse panel"
                 >
                   <PanelRight size={16} />
@@ -577,20 +569,21 @@ export default function ImageView() {
                       />
                       <div className="flex items-center gap-1">
                         <ScorePicker value={score} onSet={applyScore} />
-                        <button
-                          type="button"
-                          onClick={() => void toggleQuarantine()}
-                          aria-pressed={quarantined}
-                          title={quarantined ? "Restore (X)" : "Quarantine (X)"}
-                          aria-label={quarantined ? "Restore" : "Quarantine"}
-                          className={`ml-1 p-2 rounded-lg transition-colors ${
-                            quarantined
-                              ? "bg-amber-900/40 text-amber-200 hover:bg-amber-900/60"
-                              : "text-muted hover:text-white hover:bg-raised"
-                          }`}
-                        >
-                          <Ban size={16} />
-                        </button>
+                        <Tooltip content={quarantined ? "Restore (X)" : "Quarantine (X)"} bubble className="ml-1">
+                          <button
+                            type="button"
+                            onClick={() => void toggleQuarantine()}
+                            aria-pressed={quarantined}
+                            aria-label={quarantined ? "Restore" : "Quarantine"}
+                            className={`p-2 rounded-lg transition-colors ${
+                              quarantined
+                                ? "bg-amber-900/40 text-amber-200 hover:bg-amber-900/60"
+                                : "text-muted hover:text-white hover:bg-raised"
+                            }`}
+                          >
+                            <Ban size={16} />
+                          </button>
+                        </Tooltip>
                       </div>
                     </div>
                   </div>

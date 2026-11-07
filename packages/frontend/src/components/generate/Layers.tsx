@@ -40,7 +40,6 @@ export function LayerRow({
           type="button"
           onClick={onRemove}
           aria-label={`Remove ${label}`}
-          title="Remove this layer"
           className="rounded p-1 text-muted hover:bg-line hover:text-neutral-100"
         >
           <X size={14} />
@@ -56,10 +55,10 @@ export function LayerRow({
   );
 }
 
-const ADD: { kind: AddedKind; label: string; icon: React.ReactNode; title: string }[] = [
-  { kind: "text", label: "Text", icon: <TextCursorInput size={14} />, title: "Free text, written here in the prompt" },
-  { kind: "preset", label: "Preset", icon: <Bookmark size={14} />, title: "A saved snippet" },
-  { kind: "embedding", label: "Embedding", icon: <Sparkles size={14} />, title: "An installed embedding" },
+const ADD: { kind: AddedKind; label: string; icon: React.ReactNode }[] = [
+  { kind: "text", label: "Text", icon: <TextCursorInput size={14} /> },
+  { kind: "preset", label: "Preset", icon: <Bookmark size={14} /> },
+  { kind: "embedding", label: "Embedding", icon: <Sparkles size={14} /> },
 ];
 
 /** The chevron that folds a layer open or shut. */
@@ -70,7 +69,6 @@ export function ExpandButton({ open, onToggle }: { open: boolean; onToggle: () =
       onClick={onToggle}
       aria-expanded={open}
       aria-label={open ? "Less" : "More"}
-      title={open ? "Less" : "More"}
       className="shrink-0 rounded p-1 text-muted hover:bg-line hover:text-neutral-100"
     >
       {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -90,9 +88,9 @@ export function AddLayer({
   const [open, setOpen] = useState(false);
   const items: DropdownItem[] = [
     ...(onCharacter
-      ? [{ label: "Character", icon: <UserRound size={14} />, title: "Another character, in the Character layer", onClick: onCharacter }]
+      ? [{ label: "Character", icon: <UserRound size={14} />, onClick: onCharacter }]
       : []),
-    ...ADD.map((a) => ({ label: a.label, icon: a.icon, title: a.title, onClick: () => onAdd(a.kind) })),
+    ...ADD.map((a) => ({ label: a.label, icon: a.icon, onClick: () => onAdd(a.kind) })),
   ];
   return (
     <div className="flex h-7 items-center gap-2.5 pl-6">
@@ -103,7 +101,6 @@ export function AddLayer({
         onOpenChange={setOpen}
         trigger={
           <span
-            title="Add a layer here"
             className={cn(
               "grid h-5 w-5 place-items-center rounded-full border text-muted transition-colors",
               open
@@ -198,7 +195,7 @@ export function PresetControl({
       </div>
       <PresetPreview text={text} extra={extra} onClick={onPreview} />
       {current && (
-        <Button size="sm" variant="ghost" onClick={() => setDialog("edit")} title="Edit this preset">
+        <Button size="sm" variant="ghost" onClick={() => setDialog("edit")}>
           Edit
         </Button>
       )}
@@ -222,13 +219,11 @@ export function PresetControl({
  * clicking it opens where the own text is written. */
 function PresetPreview({ text, extra, onClick }: { text: string; extra?: string; onClick?: () => void }) {
   const own = extra?.trim();
-  const full = [text, own].filter(Boolean).join(", ");
   const Tag = onClick ? "button" : "span";
   return (
     <Tag
       type={onClick ? "button" : undefined}
       onClick={onClick}
-      title={full || undefined}
       className={cn(
         "min-w-0 flex-1 truncate text-left font-mono text-xs text-faint",
         onClick && "self-stretch hover:text-muted",

@@ -48,7 +48,6 @@ describe("ImageCharacters › setting an avatar", () => {
     const pin = await screen.findByRole("button", { name: "Use as alice's avatar" });
     fireEvent.click(pin);
     await waitFor(() => expect(pin).toHaveAttribute("aria-busy", "true"));
-    expect(pin).toHaveAttribute("title", "Updating…");
 
     answer();
     await waitFor(() => expect(pin).toHaveAttribute("aria-busy", "false"));

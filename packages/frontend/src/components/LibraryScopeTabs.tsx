@@ -39,7 +39,6 @@ export function LibraryScopeTabs({
             type="button"
             onClick={() => onChange(tab.id)}
             aria-current={on ? "page" : undefined}
-            title={tab.label}
             className={cn(
               "shrink-0 inline-flex items-center gap-1.5 max-w-[16rem] px-3 py-2.5 text-sm border-b-2 transition-colors",
               on

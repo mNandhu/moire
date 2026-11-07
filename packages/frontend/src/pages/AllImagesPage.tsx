@@ -366,7 +366,6 @@ export default function AllImagesPage() {
               className="hidden md:inline-flex"
               onClick={openShortcutHelp}
               aria-label="Keyboard shortcuts"
-              title="Keyboard shortcuts (?)"
             >
               <Keyboard size={18} />
             </Button>

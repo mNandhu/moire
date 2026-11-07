@@ -68,7 +68,7 @@ export function ActiveJob({ job }: { job: AiJob }) {
         <div className="flex items-baseline gap-3 text-xs text-faint">
           {speed && <span className="shrink-0 tabular-nums text-muted">{speed}</span>}
           {job.current && (
-            <span className="min-w-0 flex-1 truncate text-right" title={job.current}>
+            <span className="min-w-0 flex-1 truncate text-right">
               {imageFileName(job.current)}
             </span>
           )}
@@ -91,7 +91,7 @@ export function RecentJobs() {
       ) : (
         <ul className="divide-y divide-line -my-2">
           {jobs.map((j) => (
-            <li key={j.id} className="py-2.5 space-y-1.5" title={`Job ${j.id}`}>
+            <li key={j.id} className="py-2.5 space-y-1.5">
               <div className="flex items-center justify-between gap-3 text-sm">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Badge tone={statusTone(j.status)}>{jobStatusLabel(j.status)}</Badge>

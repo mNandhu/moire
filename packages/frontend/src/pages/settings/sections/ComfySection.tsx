@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, RefreshCw, Settings2, X } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Section } from "../../../components/ui/Card";
-import { Badge, Button, Checkbox, Input, Picker } from "../../../components/ui";
+import { Badge, Button, Checkbox, Input, Picker, Tooltip } from "../../../components/ui";
 import { ComfyStatusLine } from "../../../components/generate/ComfyStatusLine";
 import { TestBadge } from "../../../components/generate/TestBadge";
 import {
@@ -82,7 +82,7 @@ function MatchRow({ m, onPick }: { m: LoraMatch; onPick: (name: string) => void 
       <td className="py-2 pr-3 text-right tabular-nums text-xs text-muted">{m.images.toLocaleString()}</td>
       <td className="py-2 pr-3 text-xs">
         {m.files.length > 1 ? (
-          <span title="Two files share this name">
+          <span>
             <Picker
               aria-label={`File for ${m.stem}`}
               value={m.name ?? ""}
@@ -205,9 +205,9 @@ export function ComfySection() {
           {address.trim().startsWith("https://") && (
             <div>
               <label htmlFor="comfy-cert" className="mb-1.5 block text-xs font-medium text-muted">
-                <span title="For a self-signed certificate: the PEM file to trust for this server">
-                  TLS certificate (optional)
-                </span>
+                <Tooltip content="For a self-signed certificate: the PEM file to trust for this server">
+                  <span>TLS certificate (optional)</span>
+                </Tooltip>
               </label>
               <Input
                 id="comfy-cert"
@@ -220,9 +220,9 @@ export function ComfySection() {
           )}
           <div>
             <div className="mb-1.5 text-xs font-medium text-muted">
-              <span title="Sent with every request to ComfyUI, for a proxied or secured server. Kept on this machine.">
-                Request headers (optional)
-              </span>
+              <Tooltip content="Sent with every request to ComfyUI, for a proxied or secured server. Kept on this machine.">
+                <span>Request headers (optional)</span>
+              </Tooltip>
             </div>
             <div className="space-y-2">
               {headers.map((h, i) => (
@@ -275,7 +275,6 @@ export function ComfySection() {
             placeholder="ComfyUI/output"
             onChange={(e) => setOutputPath(e.target.value)}
             className="font-mono"
-            title="ComfyUI's output folder; Moiré adds it as a library, or reuses one at that path"
           />
           <Button
             onClick={() => save.mutate({ output_path: outputPath })}
@@ -284,11 +283,10 @@ export function ComfySection() {
             Save
           </Button>
         </div>
-        <div
-          className="mt-4 space-y-1.5"
-          title="ComfyUI's own output folder as Moiré sees it, found from the first image a library already holds. Images there are linked where they are, not downloaded."
-        >
-          <span className="text-sm text-neutral-200">ComfyUI saves to</span>
+        <div className="mt-4 space-y-1.5">
+          <Tooltip content="ComfyUI's own output folder as Moiré sees it, found from the first image a library already holds. Images there are linked where they are, not downloaded.">
+            <span className="text-sm text-neutral-200">ComfyUI saves to</span>
+          </Tooltip>
           <div className="flex gap-2">
             <Input
               aria-label="ComfyUI saves to"
@@ -305,9 +303,9 @@ export function ComfySection() {
             </Button>
           </div>
         </div>
-        <div
-          className="mt-4"
-          title="For a ComfyUI on another machine, whose output folder isn't shared with this one: Moiré copies each finished image here. Images already in the folder are left alone."
+        <Tooltip
+          className="mt-4 flex"
+          content="For a ComfyUI on another machine, whose output folder isn't shared with this one: Moiré copies each finished image here. Images already in the folder are left alone."
         >
           <Checkbox
             checked={settings?.download_outputs ?? true}
@@ -315,16 +313,14 @@ export function ComfySection() {
             label="Download images from ComfyUI"
             disabled={save.isPending}
           />
-        </div>
+        </Tooltip>
       </Section>
 
       <WorkflowsList />
 
       <Section title="Built-in workflow">
         <label className="flex items-center justify-between gap-4 text-sm">
-          <span className="text-neutral-200" title="The most images ComfyUI makes at once in one request">
-            Images per run
-          </span>
+          <span className="text-neutral-200">Images per run</span>
           <Input
             type="number"
             min={1}

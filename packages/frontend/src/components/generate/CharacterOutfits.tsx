@@ -39,7 +39,7 @@ function Mini({ o, character }: { o: Outfit; character: string }) {
         )}
       </div>
       <span className="flex min-w-0 items-center gap-1.5 px-0.5 text-sm text-neutral-100">
-        <span className="truncate" title={o.name}>
+        <span className="truncate">
           {o.name}
         </span>
         {isDefault && !empty && (
@@ -88,7 +88,7 @@ export function CharacterOutfits({ character, name }: { character: string; name:
   const card = (o: Outfit, canHide = false) =>
     o._id === DEFAULT_OUTFIT && !o.tags.length ? (
       // Nothing to use or open in the gallery yet: straight to writing it.
-      <button key={o._id} type="button" onClick={() => setEditing(o)} className="rounded-xl text-left" title="Add their usual clothes">
+      <button key={o._id} type="button" onClick={() => setEditing(o)} className="rounded-xl text-left">
         <Mini o={o} character={character} />
       </button>
     ) : (

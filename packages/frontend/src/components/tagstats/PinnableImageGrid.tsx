@@ -66,7 +66,6 @@ export function PinnableImageGrid({
                 type="button"
                 onClick={() => open(img._id)}
                 aria-label={`Open ${img.path}`}
-                title={img.path}
                 className="absolute inset-0 hover:opacity-90"
               >
                 <img src={img.thumb_url} alt="" loading="lazy" className="w-full h-full object-cover" />

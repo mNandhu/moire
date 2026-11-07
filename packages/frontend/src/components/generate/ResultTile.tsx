@@ -37,7 +37,6 @@ export function ResultTile({ out, ratio, onChanged }: { out: Output; ratio: numb
       <div
         className="flex items-center justify-center rounded-lg border border-dashed border-line text-xs text-faint"
         style={{ aspectRatio: ratio }}
-        title={out.filename}
       >
         {out.arriving ? (
           <>
@@ -56,7 +55,7 @@ export function ResultTile({ out, ratio, onChanged }: { out: Output; ratio: numb
     <div
       tabIndex={0}
       onKeyDown={onKeyDown}
-      title={rejected ? "K restore" : "K keep · X reject · 1 to 5 score"}
+      aria-keyshortcuts={rejected ? "K" : "K X 1 2 3 4 5"}
       className="group relative overflow-hidden rounded-lg bg-raised outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
       style={{ aspectRatio: ratio }}
     >
@@ -74,7 +73,6 @@ export function ResultTile({ out, ratio, onChanged }: { out: Output; ratio: numb
       {rejected && (
         <span
           aria-label="Rejected"
-          title="Rejected"
           className="pointer-events-none absolute left-2 top-1 font-marker text-[30px] leading-none text-red-500 -rotate-6 [text-shadow:0_0_1px_rgb(0_0_0/0.95),0_0_2px_rgb(0_0_0/0.9),0_1px_4px_rgb(0_0_0/0.75)]"
         >
           X
@@ -103,7 +101,6 @@ export function ResultTile({ out, ratio, onChanged }: { out: Output; ratio: numb
             <button
               type="button"
               aria-label="Reject"
-              title="Reject"
               onClick={() => act(() => setQuarantine(out.image_id, true))}
               className="rounded p-0.5 text-neutral-300 opacity-0 hover:text-red-300 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100"
             >

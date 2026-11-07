@@ -103,8 +103,6 @@ export type CellProgress = {
   /** The big clock (time left, how far over, or time so far); null when queued. */
   big: string | null;
   caption: string;
-  /** Hover text: ComfyUI's steps, the usual time. Empty when there is none. */
-  tip: string;
   /** 0 to 1: ComfyUI's steps when it sends them, else the time against the estimate. */
   progress: number | null;
   fill: number;
@@ -142,6 +140,5 @@ export function cellProgress(req: Pick<GenRequest, "state" | "progress" | "expec
           ? "Taking longer than usual"
           : "Finishing up"
       : (stepsLabel(req) ?? "Running");
-  const tip = [stepsLabel(req), run && req.expected ? `Usually about ${clockText(req.expected)}` : null].filter(Boolean).join(" · ");
-  return { big, caption, tip, progress, fill: progress ?? 0, late, striped: !!run && run.phase !== "on-time" };
+  return { big, caption, progress, fill: progress ?? 0, late, striped: !!run && run.phase !== "on-time" };
 }

@@ -19,6 +19,7 @@ import { PresetPicker } from "./PresetPicker";
 import { ExpandButton } from "./Layers";
 import { NumberStepper } from "./fields";
 import { stemOf } from "../../lib/modelNames";
+import { Tooltip } from "../ui/Tooltip";
 
 const DEFAULT_STRENGTH = 0.7;
 
@@ -86,7 +87,6 @@ function LoraPresetDialog({
         />
         <label
           className="flex items-center gap-2.5 text-xs text-muted"
-          title="Picking the preset sets the LoRA to this strength; left empty, it stays as it is"
         >
           Default strength
           <input
@@ -123,12 +123,6 @@ function LoraPresetDialog({
                   key={w.word}
                   type="button"
                   onClick={() => setText((t) => (t.trim() ? `${t.trim().replace(/,$/, "")}, ` : "") + toPromptText([w.word]))}
-                  title={[
-                    w.sources.includes("file") ? "In the LoRA's training tags" : null,
-                    w.prompts ? `In ${w.prompts} of your prompts that used it` : null,
-                  ]
-                    .filter(Boolean)
-                    .join("; ")}
                   className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-raised px-2.5 py-0.5 text-sm text-neutral-200 hover:border-brand-500 hover:text-white"
                 >
                   <Plus size={12} />
@@ -171,12 +165,11 @@ function LoraRow({
     onChange({ ...lora, preset: { id: p._id, text: p.text }, strength: p.strength ?? lora.strength });
   return (
     <div className="flex items-center gap-2.5 border-t border-line py-1.5 first:border-t-0">
-      <span
-        className={cn("w-40 shrink-0 truncate font-mono text-xs", invalid ? "text-red-300" : "text-neutral-100")}
-        title={invalid ? `${lora.name}: not installed in ComfyUI` : lora.name}
-      >
-        {stemOf(lora.name)}
-      </span>
+      <Tooltip content={invalid ? "Not installed in ComfyUI" : undefined} bubble className="w-40 shrink-0">
+        <span className={cn("w-full truncate font-mono text-xs", invalid ? "text-red-300" : "text-neutral-100")}>
+          {stemOf(lora.name)}
+        </span>
+      </Tooltip>
       {/* The preset and its Edit side by side, the words it adds after. */}
       <div className="flex w-48 shrink-0 items-center gap-1">
         <div className="min-w-0 flex-1">
@@ -195,12 +188,12 @@ function LoraRow({
         </div>
         {/* New is in the picker; Edit only once one is picked. */}
         {current && (
-          <Button size="sm" variant="ghost" onClick={() => current && setDialog({ edit: current })} title="Edit this preset">
+          <Button size="sm" variant="ghost" onClick={() => current && setDialog({ edit: current })}>
             Edit
           </Button>
         )}
       </div>
-      <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted" title={words || undefined}>
+      <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted">
         {words}
       </span>
       <input
@@ -302,7 +295,7 @@ export function StyleLayer({
     <Card className="px-3.5 py-2">
       <div className="flex min-h-[2.25rem] items-center gap-3">
         <span className="w-[4.5rem] shrink-0 text-xs font-medium text-muted">Style</span>
-        <span className="min-w-0 flex-1 truncate text-sm text-neutral-200" title={summary || undefined}>
+        <span className="min-w-0 flex-1 truncate text-sm text-neutral-200">
           {open || !value.length ? (
             <span className="text-xs text-muted">
               {value.length ? `${value.length} ${value.length === 1 ? "LoRA" : "LoRAs"}` : "No style LoRAs"}

@@ -50,12 +50,12 @@ describe("ThumbnailTile triage state", () => {
 
   it("shows quarantine state", () => {
     renderTile(doc({ quarantined: true }));
-    expect(screen.getByTitle("Quarantined")).toBeInTheDocument();
+    expect(screen.getByLabelText("Quarantined")).toBeInTheDocument();
   });
 
   it("flags a rating worth noticing but stays quiet for 'general'", () => {
     const { unmount } = renderTile(doc({ rating: "explicit" }));
-    expect(screen.getByTitle("Rating: explicit")).toBeInTheDocument();
+    expect(screen.getByLabelText("Rating: explicit")).toBeInTheDocument();
     unmount();
     renderTile(doc({ rating: "general" }));
     expect(screen.queryByTitle("Rating: general")).not.toBeInTheDocument();
@@ -63,7 +63,7 @@ describe("ThumbnailTile triage state", () => {
 
   it("shows the batch size for a collapsed batch", () => {
     renderTile(doc({ group_count: 7, group_id: "g1" }));
-    expect(screen.getByTitle("7 variations in this batch")).toBeInTheDocument();
+    expect(screen.getByLabelText("7 variations in this batch")).toBeInTheDocument();
   });
 });
 

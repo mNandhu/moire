@@ -53,7 +53,7 @@ export function WaitingCell({
   const elapsed = useLiveSeconds(running ? req.elapsed : null, running);
   // Every cell of a running request develops together (one request makes
   // all its images at once); only the first carries Cancel.
-  const { big, caption, tip, progress, fill, late, striped } = cellProgress(req, elapsed);
+  const { big, caption, progress, fill, late, striped } = cellProgress(req, elapsed);
   return (
     <div
       className={cn(
@@ -61,7 +61,6 @@ export function WaitingCell({
         running ? cn("border bg-raised", late ? "border-amber-600/60" : "border-brand-700/70") : "bg-raised/50",
       )}
       style={{ aspectRatio: ratio }}
-      title={tip || undefined}
     >
       {running ? (
         <>
@@ -88,7 +87,6 @@ export function WaitingCell({
         <button
           type="button"
           aria-label="Cancel"
-          title="Cancel"
           onClick={() => cancel.mutate()}
           disabled={cancel.isPending}
           className="absolute right-1.5 top-1.5 z-10 rounded p-0.5 text-muted hover:bg-black/30 hover:text-neutral-100"

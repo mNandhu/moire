@@ -108,7 +108,8 @@ describe("AllImagesPage", () => {
     // Guards the whole file: if the grid packs nothing, every other assertion
     // about tile UI below would pass vacuously.
     await waitFor(() =>
-      expect(screen.getAllByRole("img")).toHaveLength(IMAGES.length),
+      // Thumbnails only: a tile's state badges are labelled images too.
+      expect(screen.getAllByRole("img").filter((el) => el.tagName === "IMG")).toHaveLength(IMAGES.length),
     );
   });
 

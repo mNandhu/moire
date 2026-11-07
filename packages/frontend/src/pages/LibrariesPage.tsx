@@ -261,11 +261,10 @@ export default function LibrariesPage() {
                 <Link
                   to={libraryGalleryHref(l._id)}
                   className="block font-semibold text-neutral-100 truncate hover:text-brand-200"
-                  title="Show its images in the gallery"
                 >
                   {l.name && l.name !== l.path ? l.name : label}
                 </Link>
-                <div className="text-xs text-faint truncate" title={l.path}>
+                <div className="text-xs text-faint truncate">
                   {l.path}
                 </div>
                 {/* Separators are a trailing dot on each fact, so a
@@ -302,7 +301,6 @@ export default function LibrariesPage() {
                   variant="ghost"
                   to={libraryGalleryHref(l._id)}
                   aria-label="Show images"
-                  title="Show its images in the gallery"
                   className="hidden sm:inline-flex"
                 >
                   <Images size={14} />
@@ -313,7 +311,6 @@ export default function LibrariesPage() {
                   onClick={() => void rescan(l)}
                   disabled={busy}
                   aria-label="Rescan"
-                  title="Rescan this folder"
                 >
                   <RotateCw size={14} className={busy ? "animate-spin" : undefined} />
                   <span className="hidden sm:inline">
@@ -351,7 +348,7 @@ export default function LibrariesPage() {
             </div>
 
             {problem && (
-              <div className={cn("mt-2 text-xs break-words", problem.note ? "text-amber-400" : "text-red-400")} title={problem.text}>
+              <div className={cn("mt-2 text-xs break-words", problem.note ? "text-amber-400" : "text-red-400")}>
                 {problem.text}
               </div>
             )}
@@ -413,7 +410,6 @@ export default function LibrariesPage() {
             onClick={() => setFolderCollapsed([node.key], open)}
             aria-expanded={open}
             aria-controls={listId}
-            title={node.key}
             className="flex flex-1 items-center gap-2 min-w-0 px-1 py-1 rounded-lg text-left hover:bg-raised"
           >
             <ChevronRight
@@ -482,7 +478,6 @@ export default function LibrariesPage() {
               <Button
                 active={selecting}
                 onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
-                title={selecting ? "Done selecting" : "Select libraries to delete several at once"}
                 aria-label={selecting ? "Done" : "Select"}
               >
                 {selecting ? <CheckSquare size={16} /> : <Square size={16} />}

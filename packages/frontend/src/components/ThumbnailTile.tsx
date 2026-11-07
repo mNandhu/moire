@@ -173,7 +173,8 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
             "inline-flex items-center gap-1 backdrop-blur-sm",
             scrubbing && "bg-brand-600/80 border-brand-300/40",
           )}
-          title={`${groupCount} variations in this batch`}
+          role="img"
+          aria-label={`${groupCount} variations in this batch`}
         >
           <Layers size={11} />{" "}
           {/* Denominator is the batch size, not scrub.total; the peek only
@@ -207,7 +208,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
           {untagged && (
             <span
               className={cn("text-white/70", chipVisibility(false))}
-              title="No AI tags yet"
+              role="img"
               aria-label="Untagged"
             >
               <Sparkles size={13} />
@@ -216,11 +217,12 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
           {ratingDot && (
             <span
               className={cn("h-2 w-2 rounded-full", ratingDot)}
-              title={`Rating: ${item.rating}`}
+              role="img"
+              aria-label={`Rating: ${item.rating}`}
             />
           )}
           {quarantined && (
-            <span className="text-red-300" title="Quarantined">
+            <span className="text-red-300" role="img" aria-label="Quarantined">
               <ShieldOff size={13} />
             </span>
           )}

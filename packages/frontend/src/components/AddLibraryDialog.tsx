@@ -274,7 +274,7 @@ function SourceBlock({
   return (
     <div className="rounded-lg border border-neutral-800 bg-neutral-950/40">
       <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-neutral-800">
-        <span className="font-mono text-xs text-neutral-200 truncate min-w-0 flex-1" title={s.path}>
+        <span className="font-mono text-xs text-neutral-200 truncate min-w-0 flex-1">
           {s.path}
         </span>
         {split && s.ok && !s.fell_back_to_root && (
@@ -335,7 +335,6 @@ function SourceBlock({
                 />
                 <div
                   className="mt-0.5 truncate font-mono text-2xs text-faint"
-                  title={c.note ? `${c.note}${c.conflict_path ? `: ${c.conflict_path}` : ""}` : c.path}
                 >
                   {c.path}
                   {c.note && c.conflict_path && c.status === "overlap" && (

@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { Clock, History, Star, type LucideIcon } from "lucide-react";
 import { cn } from "../lib/cn";
+import { Tooltip } from "./ui/Tooltip";
 import type { FeedSort } from "../lib/imageFilter";
 
 export const SORT_OPTIONS: Array<{ value: FeedSort; label: string; hint: string; icon: LucideIcon }> = [
@@ -53,26 +54,26 @@ export function SortControl({
         const on = i === index;
         const Icon = o.icon;
         return (
-          <button
-            key={o.value}
-            ref={(el) => {
-              refs.current[i] = el;
-            }}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            aria-label={o.hint}
-            title={o.hint}
-            tabIndex={on ? 0 : -1}
-            onClick={() => onChange(o.value)}
-            className={cn(
-              "relative z-[1] inline-flex items-center justify-center gap-1.5 w-8 xl:w-auto xl:px-2.5 rounded-md text-sm font-medium transition-colors",
-              on ? "text-brand-100" : "text-muted hover:text-neutral-100",
-            )}
-          >
-            <Icon size={16} className="shrink-0" />
-            <span className="hidden xl:inline">{o.label}</span>
-          </button>
+          <Tooltip key={o.value} content={o.hint} bubble>
+            <button
+              ref={(el) => {
+                refs.current[i] = el;
+              }}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              aria-label={o.hint}
+              tabIndex={on ? 0 : -1}
+              onClick={() => onChange(o.value)}
+              className={cn(
+                "relative z-[1] inline-flex items-center justify-center gap-1.5 w-8 xl:w-auto xl:px-2.5 rounded-md text-sm font-medium transition-colors",
+                on ? "text-brand-100" : "text-muted hover:text-neutral-100",
+              )}
+            >
+              <Icon size={16} className="shrink-0" />
+              <span className="hidden xl:inline">{o.label}</span>
+            </button>
+          </Tooltip>
         );
       })}
     </div>

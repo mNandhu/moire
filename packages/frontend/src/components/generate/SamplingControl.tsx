@@ -7,6 +7,7 @@ import type { Sampling } from "../../lib/generate";
 import { CFG_RANGE, STEPS_RANGE } from "../../lib/generationLimits";
 import { samplerLabel, samplingLabel } from "../../lib/sampling";
 import { FieldLabel, NumberStepper } from "./fields";
+import { Tooltip } from "../ui/Tooltip";
 
 /**
  * Sampler, scheduler, steps and CFG behind one field that shows them in a
@@ -50,42 +51,43 @@ export function SamplingControl({
       onKeyDown={dismiss.onKeyDown}
     >
       <FieldLabel>Sampling</FieldLabel>
-      <button
-        type="button"
-        aria-label="Sampling"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        title={invalid ?? samplingLabel(shown)}
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "sampling-field flex h-9 w-full items-center gap-2 rounded-lg border border-line bg-canvas px-3 text-left text-sm hover:border-line-strong",
-          invalid && "ring-1 ring-red-700",
-        )}
-      >
-        {/* The sampler gives way when space is short; steps and CFG never
-            truncate, and drop their words when the field is narrow. */}
-        <span className={cn("min-w-0 flex-1 truncate", changed ? "text-neutral-100" : "text-muted")}>
-          {shown.sampler ? samplerLabel(shown.sampler) : samplingLabel({ scheduler: shown.scheduler }) || "Default"}
-        </span>
-        {(shown.steps != null || shown.cfg != null) && (
-          <span className="shrink-0 whitespace-nowrap tabular-nums text-muted">
-            {shown.steps != null && (
-              <>
-                {shown.steps}
-                <span className="sampling-unit"> steps</span>
-              </>
-            )}
-            {shown.steps != null && shown.cfg != null && <span className="text-faint"> · </span>}
-            {shown.cfg != null && (
-              <>
-                <span className="sampling-unit">CFG </span>
-                {shown.cfg}
-              </>
-            )}
+      <Tooltip content={invalid} className="flex w-full">
+        <button
+          type="button"
+          aria-label="Sampling"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+          className={cn(
+            "sampling-field flex h-9 w-full items-center gap-2 rounded-lg border border-line bg-canvas px-3 text-left text-sm hover:border-line-strong",
+            invalid && "ring-1 ring-red-700",
+          )}
+        >
+          {/* The sampler gives way when space is short; steps and CFG never
+              truncate, and drop their words when the field is narrow. */}
+          <span className={cn("min-w-0 flex-1 truncate", changed ? "text-neutral-100" : "text-muted")}>
+            {shown.sampler ? samplerLabel(shown.sampler) : samplingLabel({ scheduler: shown.scheduler }) || "Default"}
           </span>
-        )}
-        <ChevronDown size={16} className={cn("shrink-0 text-faint transition-transform", open && "rotate-180")} />
-      </button>
+          {(shown.steps != null || shown.cfg != null) && (
+            <span className="shrink-0 whitespace-nowrap tabular-nums text-muted">
+              {shown.steps != null && (
+                <>
+                  {shown.steps}
+                  <span className="sampling-unit"> steps</span>
+                </>
+              )}
+              {shown.steps != null && shown.cfg != null && <span className="text-faint"> · </span>}
+              {shown.cfg != null && (
+                <>
+                  <span className="sampling-unit">CFG </span>
+                  {shown.cfg}
+                </>
+              )}
+            </span>
+          )}
+          <ChevronDown size={16} className={cn("shrink-0 text-faint transition-transform", open && "rotate-180")} />
+        </button>
+      </Tooltip>
       {open && (
         <div className="absolute bottom-full left-0 z-50 mb-1 w-80 max-w-[90vw] space-y-3 rounded-lg border border-line-strong bg-raised p-3 shadow-panel">
           {"sampler" in defaults && (
@@ -127,7 +129,6 @@ export function SamplingControl({
             <button
               type="button"
               onClick={() => onChange({})}
-              title={samplingLabel(defaults)}
               className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-neutral-100"
             >
               <RotateCcw size={12} />

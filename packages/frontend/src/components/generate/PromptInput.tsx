@@ -91,7 +91,6 @@ export function PromptInput({
         onScroll={overlay.onScroll}
         onMouseMove={overlay.onMouseMove}
         onBlur={() => setTimeout(suggest.close, 150)}
-        title="Tab completes a suggested tag"
         role="combobox"
         aria-expanded={suggest.open}
         aria-autocomplete="list"

@@ -19,7 +19,6 @@ export function PinButton({
   noun: "avatar" | "cover";
   onClick: () => void;
 }) {
-  const Noun = noun === "avatar" ? "Avatar" : "Cover";
   return (
     <button
       type="button"
@@ -28,7 +27,6 @@ export function PinButton({
       aria-pressed={on}
       aria-busy={pending}
       aria-label={on ? `Unpin ${noun}` : `Use as ${noun}`}
-      title={pending ? "Updating…" : on ? `${Noun}. Click to let Moiré pick again` : `Use as ${noun}`}
       className={cn(
         "absolute right-1 top-1 h-6 w-6 rounded-full inline-flex items-center justify-center transition-opacity",
         on || pending

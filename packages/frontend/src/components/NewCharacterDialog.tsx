@@ -318,7 +318,7 @@ export function NewCharacterDialog({
           {offered.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {offered.map((w) => (
-                <OfferChip key={w} tag={w} title="From the LoRA's training tags" onAdd={addIdentity} />
+                <OfferChip key={w} tag={w} onAdd={addIdentity} />
               ))}
             </div>
           )}
@@ -380,12 +380,11 @@ function TagBox({
 }
 
 /** A tag offered for identity: click to add it. */
-function OfferChip({ tag, title, onAdd }: { tag: string; title: string; onAdd: (tag: string) => void }) {
+function OfferChip({ tag, onAdd }: { tag: string; onAdd: (tag: string) => void }) {
   return (
     <button
       type="button"
       onClick={() => onAdd(tag)}
-      title={title}
       className={cn(
         "inline-flex items-center gap-1 rounded-full border border-line-strong bg-raised px-2.5 py-0.5 text-sm text-neutral-200",
         "hover:border-brand-500 hover:text-white",

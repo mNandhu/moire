@@ -89,7 +89,6 @@ export function InlineRename({
       <button
         type="button"
         aria-label={`Rename ${label}`}
-        title="Rename"
         onClick={() => {
           closed.current = false;
           setDraft(value);

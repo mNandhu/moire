@@ -13,6 +13,7 @@ import { FieldLabel } from "./fields";
 import { stemOf } from "../../lib/modelNames";
 import { TagAddInput } from "../TagAddInput";
 import { TagPill } from "./TagPill";
+import { Tooltip } from "../ui/Tooltip";
 
 const NO_LORA = "\u0000none";
 
@@ -53,17 +54,11 @@ function LoraControl({
   }, [recipe.candidates, installed, label]);
 
   const value = lora ? (lora.file ?? lora.stem) : NO_LORA;
-  const why = lora?.images
-    ? `Used on ${lora.images.toLocaleString()} of ${label}'s images`
-    : recipe.lora_edited
-      ? "Picked by you"
-      : undefined;
-
   const unused = !!lora && !lora.file;
   return (
     <div>
       <FieldLabel>
-        <span title="Changes with the character">Character LoRA</span>
+        Character LoRA
       </FieldLabel>
       <div
         className={cn(
@@ -72,7 +67,6 @@ function LoraControl({
         )}
       >
         <div
-          title={why}
           className={cn(
             "min-w-[12rem] max-w-full",
             invalid && "rounded-lg ring-1 ring-red-700",
@@ -113,24 +107,24 @@ function LoraControl({
               Installed
             </Badge>
           ) : (
-            <span
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-200"
-              title="This ComfyUI doesn't have this LoRA, so it is left out of the prompt. Install it, then Refresh models in Settings, or pick another."
-            >
-              <Ban size={14} />
-              Not installed, not used
-            </span>
+            <Tooltip content="This ComfyUI doesn't have this LoRA, so it is left out of the prompt. Install it, then Refresh models in Settings, or pick another.">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-200">
+                <Ban size={14} />
+                Not installed, not used
+              </span>
+            </Tooltip>
           ))}
         {(recipe.lora_edited || recipe.strength_edited) && (
-          <button
-            type="button"
-            onClick={() => onPatch({ lora: null, strength: null })}
-            title="Back to the LoRA picked from the library"
-            aria-label="Reset character LoRA"
-            className="rounded p-1 text-muted hover:bg-line hover:text-neutral-100"
-          >
-            <RotateCcw size={14} />
-          </button>
+          <Tooltip content="Back to the LoRA picked from the library" bubble>
+            <button
+              type="button"
+              onClick={() => onPatch({ lora: null, strength: null })}
+              aria-label="Reset character LoRA"
+              className="rounded p-1 text-muted hover:bg-line hover:text-neutral-100"
+            >
+              <RotateCcw size={14} />
+            </button>
+          </Tooltip>
         )}
       </div>
     </div>
@@ -159,47 +153,51 @@ export function GenderPick({ recipe, onPick, small }: { recipe: Recipe; onPick: 
   const unknown = recipe.gender == null;
   const read = recipe.gender_read ? GENDERS.find((g) => g.value === recipe.gender_read)?.label.toLowerCase() : null;
   return (
-    <div
-      role="radiogroup"
-      aria-label="Gender"
-      title={
+    <Tooltip
+      className="shrink-0"
+      content={
         recipe.gender_set
           ? `Set by you${read ? `; their images say ${read}` : ""}`
           : unknown
             ? "Their images don't say. Pick one so the prompt gets the right count tags"
             : "Read from their images"
       }
-      className={cn(
-        "inline-flex shrink-0 gap-0.5 rounded-lg border p-0.5",
-        unknown ? "border-dashed border-amber-500/60 bg-amber-500/5" : "border-line bg-canvas",
-      )}
     >
-      {GENDERS.map((g) => {
-        const on = recipe.gender === g.value;
-        return (
-          <button
-            key={g.value}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            onClick={() => onPick(on && recipe.gender_set ? null : g.value)}
-            className={cn(
-              "rounded-md font-medium transition-colors",
-              small ? "px-1.5 py-0.5 text-xs" : "px-2.5 py-1 text-sm",
-              on
-                ? recipe.gender_set
-                  ? "bg-brand-600 text-white"
-                  : "bg-line text-neutral-100"
-                : unknown
-                  ? "text-amber-200 hover:bg-amber-500/10"
-                  : "text-muted hover:bg-line hover:text-neutral-100",
-            )}
-          >
-            {g.label}
-          </button>
-        );
-      })}
-    </div>
+      <div
+        role="radiogroup"
+        aria-label="Gender"
+        className={cn(
+          "inline-flex shrink-0 gap-0.5 rounded-lg border p-0.5",
+          unknown ? "border-dashed border-amber-500/60 bg-amber-500/5" : "border-line bg-canvas",
+        )}
+      >
+        {GENDERS.map((g) => {
+          const on = recipe.gender === g.value;
+          return (
+            <button
+              key={g.value}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => onPick(on && recipe.gender_set ? null : g.value)}
+              className={cn(
+                "rounded-md font-medium transition-colors",
+                small ? "px-1.5 py-0.5 text-xs" : "px-2.5 py-1 text-sm",
+                on
+                  ? recipe.gender_set
+                    ? "bg-brand-600 text-white"
+                    : "bg-line text-neutral-100"
+                  : unknown
+                    ? "text-amber-200 hover:bg-amber-500/10"
+                    : "text-muted hover:bg-line hover:text-neutral-100",
+              )}
+            >
+              {g.label}
+            </button>
+          );
+        })}
+      </div>
+    </Tooltip>
   );
 }
 
@@ -240,7 +238,6 @@ export function RecipeEditor({
         <div className="flex flex-wrap items-center gap-1.5">
           <span
             className="inline-flex items-center rounded-md border border-brand-700 bg-brand-900/30 px-2 py-0.5 text-sm text-brand-100"
-            title={recipe.tag}
           >
             {displayWord(recipe.tag)}
           </span>
@@ -254,11 +251,9 @@ export function RecipeEditor({
                       key={c.tag}
                       tag={c.tag}
                       struck={struck}
-                      title={struck ? "Left out of this batch" : undefined}
                       style={chipBorderStyle(c.tag)}
                       onToggle={() => off.toggle(c.tag)}
                       actionLabel={`${struck ? "Bring back" : "Leave out"} ${displayWord(c.tag)}`}
-                      actionTitle={struck ? "Bring back" : "Leave out of this batch"}
                     />
                   );
                 })
@@ -267,7 +262,6 @@ export function RecipeEditor({
                   key={c.tag}
                   tag={c.tag}
                   struck={c.dropped}
-                  title={c.dropped ? "Dropped from this recipe" : c.added ? "Added by you" : undefined}
                   style={chipBorderStyle(c.tag)}
                   className={c.added && !c.dropped ? "border-brand-800" : undefined}
                   onToggle={() =>

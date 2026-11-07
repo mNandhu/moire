@@ -318,7 +318,6 @@ export function SpecialTile({
   return (
     <Link
       to={to}
-      title={title}
       className="rounded-xl border border-white/5 bg-surface bg-sheen shadow-panel px-4 py-3 text-left card-hover min-w-0 sm:min-w-[180px]"
     >
       <div className="flex items-center gap-2 font-semibold">

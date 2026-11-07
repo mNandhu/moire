@@ -38,6 +38,7 @@ import {
   tagHref,
   type CharacterPage as Character,
 } from "../lib/character";
+import { Tooltip } from "../components/ui/Tooltip";
 
 const PAGE = 48;
 const SIGNATURE = 16;
@@ -109,7 +110,7 @@ export default function CharacterPage({ route = "character" }: { route?: "charac
                 <Pencil size={14} /> Edit
               </Button>
               {detail && onDanbooru(detail.sources.ai, description) && (
-                <ButtonAnchor size="sm" href={danbooruWikiUrl(c.tag)} title="Its page on Danbooru's wiki">
+                <ButtonAnchor size="sm" href={danbooruWikiUrl(c.tag)}>
                   <BookOpen size={14} /> Danbooru
                 </ButtonAnchor>
               )}
@@ -227,21 +228,25 @@ function Profile({
         {look.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5">
             {look.map((s) => (
-              <Link
+              <Tooltip
                 key={s.tag}
-                to={galleryHref({ ...characterFilters(c.tag, []), tags: [`any:${c.tag}`, `any:${s.tag}`] })}
-                title={
+                content={
                   lookShare(s.count) +
                   // The gallery can't AND a look onto "any of these names".
                   (c.aliases.length ? `. Opens those tagged ${formatTag(c.tag)}.` : "")
                 }
-                style={chipBorderStyle(s.tag)}
-                className="inline-flex items-center h-6 px-2 rounded-full bg-raised/80 border border-line text-xs text-neutral-200 hover:border-line-strong"
+                bubble
               >
-                {formatTag(s.tag)}
-              </Link>
+                <Link
+                  to={galleryHref({ ...characterFilters(c.tag, []), tags: [`any:${c.tag}`, `any:${s.tag}`] })}
+                  style={chipBorderStyle(s.tag)}
+                  className="inline-flex items-center h-6 px-2 rounded-full bg-raised/80 border border-line text-xs text-neutral-200 hover:border-line-strong"
+                >
+                  {formatTag(s.tag)}
+                </Link>
+              </Tooltip>
             ))}
-            <Button size="sm" variant="ghost" onClick={() => void copyLook()} title="Copy as prompt text">
+            <Button size="sm" variant="ghost" onClick={() => void copyLook()}>
               <Copy size={14} /> Copy look
             </Button>
           </div>
@@ -269,7 +274,7 @@ function BestOf({ c }: { c: Character }) {
             key={b.image_id}
             type="button"
             onClick={() => open(b.image_id)}
-            title={`Score ${b.score}`}
+            aria-label={`Score ${b.score}`}
             className="relative h-48 aspect-[3/4] shrink-0 rounded-lg overflow-hidden bg-raised hover:opacity-90"
           >
             <img src={b.thumb_url} alt="" loading="lazy" className="w-full h-full object-cover" />
@@ -343,11 +348,11 @@ function Recipe({ c, onEdit }: { c: Character; onEdit: () => void }) {
   return (
     <section className="space-y-2.5">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xs uppercase tracking-wider text-faint" title="What Generate writes for this character">
+        <h2 className="text-2xs uppercase tracking-wider text-faint">
           Recipe
         </h2>
         <div className="flex items-center gap-1">
-          <Button size="sm" variant="ghost" onClick={onEdit} aria-label="Edit recipe" title="Edit recipe">
+          <Button size="sm" variant="ghost" onClick={onEdit} aria-label="Edit recipe">
             <Pencil size={13} />
           </Button>
           <Button size="sm" onClick={() => generate(c.tag)}>
@@ -374,9 +379,11 @@ function Recipe({ c, onEdit }: { c: Character; onEdit: () => void }) {
         <p className="text-xs text-faint">{fewImagesNote(recipe.identity_images)}</p>
       )}
       {lora && (
-        <p className={cn("font-mono text-xs", missing ? "text-amber-200 line-through" : "text-muted")} title={missing ? "Not installed in ComfyUI" : undefined}>
-          {lora.stem} {lora.strength.toFixed(2)}
-        </p>
+        <Tooltip content={missing ? "Not installed in ComfyUI" : undefined} bubble>
+          <p className={cn("font-mono text-xs", missing ? "text-amber-200 line-through" : "text-muted")}>
+            {lora.stem} {lora.strength.toFixed(2)}
+          </p>
+        </Tooltip>
       )}
     </section>
   );
@@ -408,7 +415,6 @@ function Sidebar({ c, accent, onEdit, person }: { c: Character; accent?: string;
                 <Link
                   key={w.tag}
                   to={characterHref(w.tag)}
-                  title={`${w.count.toLocaleString()} ${w.count === 1 ? "image" : "images"} ${person ? "together" : "with this tag"}`}
                   className="group flex w-16 flex-col items-center gap-1 text-center"
                 >
                   <CharacterAvatar

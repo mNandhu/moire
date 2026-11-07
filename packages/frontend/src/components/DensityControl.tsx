@@ -31,7 +31,6 @@ export function DensityControl({
         onClick={onZoomOut}
         disabled={atMax}
         aria-label="Smaller thumbnails"
-        title="Smaller thumbnails (-)"
       >
         <ZoomOut size={17} />
       </Button>
@@ -43,7 +42,6 @@ export function DensityControl({
         onClick={onZoomIn}
         disabled={atMin}
         aria-label="Larger thumbnails"
-        title="Larger thumbnails (+)"
       >
         <ZoomIn size={17} />
       </Button>

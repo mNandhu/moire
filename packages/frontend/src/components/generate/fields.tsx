@@ -35,19 +35,21 @@ export function CheckpointPicker({
   return (
     <div>
       <FieldLabel>Checkpoint</FieldLabel>
-      <div title={invalid ?? undefined} className={cn(invalid && "rounded-lg ring-1 ring-red-700")}>
-        <Picker
-          aria-label="Checkpoint"
-          value={value ?? ""}
-          options={opts}
-          onChange={onChange}
-          placeholder="Choose a checkpoint"
-          searchable
-          disabled={disabled}
-          className="w-full"
-          side="up"
-        />
-      </div>
+      <Tooltip content={invalid} className="flex w-full">
+        <div className={cn("w-full", invalid && "rounded-lg ring-1 ring-red-700")}>
+          <Picker
+            aria-label="Checkpoint"
+            value={value ?? ""}
+            options={opts}
+            onChange={onChange}
+            placeholder="Choose a checkpoint"
+            searchable
+            disabled={disabled}
+            className="w-full"
+            side="up"
+          />
+        </div>
+      </Tooltip>
     </div>
   );
 }
@@ -235,7 +237,6 @@ export function SeedControl({ value, onChange }: { value: SeedValue; onChange: (
         <button
           type="button"
           aria-pressed={!fixed}
-          title="A new seed for every request"
           onClick={() => onChange({ mode: "random", value: value.value })}
           className={cn(
             "rounded-md px-2 text-xs",
@@ -253,7 +254,6 @@ export function SeedControl({ value, onChange }: { value: SeedValue; onChange: (
               type="number"
               inputMode="numeric"
               aria-label="Seed"
-              title="Later runs count up from this seed"
               value={value.value ?? ""}
               placeholder="Seed"
               onChange={(e) => onChange({ mode: "fixed", value: e.target.value ? Number(e.target.value) : null })}
@@ -262,7 +262,6 @@ export function SeedControl({ value, onChange }: { value: SeedValue; onChange: (
             <button
               type="button"
               aria-label="New random seed"
-              title="New random seed"
               onClick={() => onChange({ mode: "fixed", value: randomSeed() })}
               className="shrink-0 rounded-md p-1.5 text-muted hover:text-neutral-100"
             >
@@ -270,16 +269,17 @@ export function SeedControl({ value, onChange }: { value: SeedValue; onChange: (
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            aria-pressed={false}
-            title="Keep one seed (later runs count up from it)"
-            onClick={toFixed}
-            className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-2.5 text-xs text-muted hover:text-neutral-100"
-          >
-            Fixed
-            {value.value != null && <span className="truncate tabular-nums text-faint">{value.value}</span>}
-          </button>
+          <Tooltip content="Keep one seed: later runs count up from it" bubble className="flex min-w-0 flex-1">
+            <button
+              type="button"
+              aria-pressed={false}
+              onClick={toFixed}
+              className="flex w-full min-w-0 items-center justify-center gap-2 rounded-md px-2.5 text-xs text-muted hover:text-neutral-100"
+            >
+              Fixed
+              {value.value != null && <span className="truncate tabular-nums text-faint">{value.value}</span>}
+            </button>
+          </Tooltip>
         )}
       </div>
     </div>
@@ -322,9 +322,9 @@ export function CountStepper({
           </div>
         )}
       </div>
-      <div className="mt-1 w-fit whitespace-nowrap text-xs tabular-nums text-muted" title={countHint(value, mode)}>
-        {countLabel(value, mode)}
-      </div>
+      <Tooltip content={countHint(value, mode)} className="mt-1">
+        <span className="whitespace-nowrap text-xs tabular-nums text-muted">{countLabel(value, mode)}</span>
+      </Tooltip>
     </div>
   );
 }

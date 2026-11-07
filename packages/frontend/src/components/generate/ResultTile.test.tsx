@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ToastProvider } from "../Toasts";
 import type { Output } from "../../lib/generate";
@@ -14,14 +14,14 @@ vi.mock("../../lib/imageMutations", () => ({
 const out = { image_id: "lib:a.png", in_library: true, thumb_url: "/t/a", quarantined: false, score: 0 } as unknown as Output;
 
 function tile(o: Output = out) {
-  render(
+  const { container } = render(
     <MemoryRouter>
       <ToastProvider>
         <ResultTile out={o} ratio={1} onChanged={() => undefined} />
       </ToastProvider>
     </MemoryRouter>,
   );
-  return screen.getByTitle(/K (keep|restore)/);
+  return container.querySelector<HTMLElement>("[aria-keyshortcuts]")!;
 }
 
 describe("ResultTile keys", () => {

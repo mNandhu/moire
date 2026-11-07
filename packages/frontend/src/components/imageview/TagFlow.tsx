@@ -93,7 +93,6 @@ function GroupHeading({
       type="button"
       aria-pressed={picked}
       onClick={onPick}
-      title={picked ? "Show all tags" : `Pick out the ${label} tags`}
       className={`${cls} ${picked ? "text-neutral-100" : "text-faint hover:text-neutral-200"}`}
     >
       {body}
@@ -188,11 +187,6 @@ export function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.
       type="button"
       onClick={() => setShowBoilerplate((v) => !v)}
       aria-expanded={showBoilerplate}
-      title={
-        showBoilerplate
-          ? "Fold boilerplate tags away"
-          : `Show ${boilerplate.length} boilerplate ${boilerplate.length === 1 ? "tag" : "tags"} (set in Settings)`
-      }
       className="inline-flex items-center h-5 px-1.5 rounded-full border border-line text-2xs text-faint hover:text-neutral-100 hover:border-line-strong align-middle"
     >
       {showBoilerplate ? "fold boilerplate" : `+${boilerplate.length} boilerplate`}
@@ -277,7 +271,6 @@ export function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.
               type="button"
               aria-pressed={picked === f}
               onClick={() => pick(f)}
-              title={picked === f ? "Show all tags" : `Pick out the ${FACET_LABEL[f]} tags`}
               className={`rounded px-1 text-neutral-200 transition-opacity ${
                 picked === f ? "ring-1 ring-neutral-300" : picked ? "opacity-50 hover:opacity-100" : ""
               }`}

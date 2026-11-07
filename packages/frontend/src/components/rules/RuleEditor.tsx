@@ -14,6 +14,7 @@ import {
   type RuleFields,
   type SignatureRow,
 } from "../../lib/rules";
+import { Tooltip } from "../ui/Tooltip";
 
 
 // An unpinned field the sample only has by keyword guessing: where the text
@@ -36,7 +37,6 @@ function GuessedFrom({
             type="button"
             onClick={() => onReveal(path)}
             className="font-mono truncate hover:text-amber-200"
-            title="Show it in the graph"
           >
             {path}
           </button>
@@ -44,7 +44,6 @@ function GuessedFrom({
             type="button"
             onClick={() => onPin(path)}
             className="shrink-0 inline-flex items-center gap-0.5 text-brand-300 hover:text-brand-200"
-            title="Pin this value so it's no longer a guess"
           >
             <Plus size={11} /> Pin
           </button>
@@ -110,27 +109,21 @@ export function RuleEditor({
         <Button onClick={onPreview} disabled={busy}>
           <Play size={14} /> Preview
         </Button>
-        <Button
-          variant="primary"
-          onClick={onSave}
-          disabled={busy || loading || loadFailed}
-          title={loadFailed ? "Ruleset didn't load. Click the signature to retry" : undefined}
-        >
-          <Save size={14} /> Save
-          {isDirty && (
-            <span className="ml-1 w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-          )}
-        </Button>
+        <Tooltip content={loadFailed ? "Ruleset didn't load. Click the signature to retry" : undefined} bubble>
+          <Button variant="primary" onClick={onSave} disabled={busy || loading || loadFailed}>
+            <Save size={14} /> Save
+            {isDirty && (
+              <span className="ml-1 w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+            )}
+          </Button>
+        </Tooltip>
         {/* Nothing to reset without saved pins, and the DELETE would
             still reproject every image of the signature. */}
-        <Button
-          variant="ghost"
-          onClick={onRemove}
-          disabled={busy || !hasRuleset}
-          title={hasRuleset ? undefined : "Already using the built-in extraction"}
-        >
-          <Trash2 size={14} /> Reset to built-in
-        </Button>
+        <Tooltip content={hasRuleset ? undefined : "Already using the built-in extraction"} bubble>
+          <Button variant="ghost" onClick={onRemove} disabled={busy || !hasRuleset}>
+            <Trash2 size={14} /> Reset to built-in
+          </Button>
+        </Tooltip>
         {isDirty && (
           <span className="flex items-center gap-1 text-2xs text-amber-400">
             <AlertTriangle size={12} /> Unsaved changes
@@ -141,7 +134,6 @@ export function RuleEditor({
           variant="ghost"
           className="ml-auto"
           to={galleryHref({ workflowSig: selected.workflow_sig })}
-          title={`The ${selected.count} ${selected.count === 1 ? "image" : "images"} made with this version`}
         >
           <Images size={14} /> Show in gallery
         </ButtonLink>
@@ -172,21 +164,22 @@ export function RuleEditor({
           }`}
         >
           <div className="flex items-center justify-between mb-1.5">
-            <button
-              onClick={() => onActiveField(field)}
-              className="text-sm font-medium inline-flex items-center gap-1.5"
-              title="Make this the target for tree clicks"
-            >
-              <Plus
-                size={13}
-                className={
-                  activeField === field
-                    ? "text-brand-300"
-                    : "text-faint"
-                }
-              />
-              {FIELD_LABEL[field]}
-            </button>
+            <Tooltip content="Make this the target for tree clicks" bubble>
+              <button
+                onClick={() => onActiveField(field)}
+                className="text-sm font-medium inline-flex items-center gap-1.5"
+              >
+                <Plus
+                  size={13}
+                  className={
+                    activeField === field
+                      ? "text-brand-300"
+                      : "text-faint"
+                  }
+                />
+                {FIELD_LABEL[field]}
+              </button>
+            </Tooltip>
             {previewGen != null && (
               <span className="text-2xs text-neutral-400 truncate max-w-[55%]">
                 → {String((previewGen as Record<string, unknown>)[field] ?? "none")}
@@ -200,28 +193,26 @@ export function RuleEditor({
               );
               const ok = fired && fired.coerced != null;
               return (
-                <span
-                  key={p}
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono border ${
-                    preview
-                      ? ok
-                        ? "bg-brand-500/15 border-brand-500/50 text-brand-100"
-                        : "bg-raised border-line-strong text-muted"
-                      : "bg-raised border-line-strong"
-                  }`}
-                  title={
-                    fired ? `resolved: ${String(fired.coerced)}` : undefined
-                  }
-                >
-                  {p}
-                  <button
-                    onClick={() => onRemovePath(field, p)}
-                    className="hover:text-white"
-                    aria-label={`Remove ${p}`}
+                <Tooltip key={p} content={fired ? `Resolved: ${String(fired.coerced)}` : undefined} bubble>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono border ${
+                      preview
+                        ? ok
+                          ? "bg-brand-500/15 border-brand-500/50 text-brand-100"
+                          : "bg-raised border-line-strong text-muted"
+                        : "bg-raised border-line-strong"
+                    }`}
                   >
-                    <X size={11} />
-                  </button>
-                </span>
+                    {p}
+                    <button
+                      onClick={() => onRemovePath(field, p)}
+                      className="hover:text-white"
+                      aria-label={`Remove ${p}`}
+                    >
+                      <X size={11} />
+                    </button>
+                  </span>
+                </Tooltip>
               );
             })}
             {(fields[field] || []).length === 0 &&

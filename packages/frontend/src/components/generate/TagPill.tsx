@@ -1,7 +1,8 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Undo2, X } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { displayWord } from "../../lib/compose";
+import { Tooltip } from "../ui/Tooltip";
 
 /**
  * A tag chip with an x to take it out, or an arrow to bring a struck one
@@ -14,8 +15,7 @@ export function TagPill({
   struck,
   onToggle,
   actionLabel,
-  actionTitle,
-  title,
+  tip,
   style,
   className,
 }: {
@@ -25,16 +25,15 @@ export function TagPill({
   onToggle: () => void;
   /** The button's accessible name; "Remove" or "Restore" and the tag by default. */
   actionLabel?: string;
-  actionTitle?: string;
-  title?: string;
+  /** Hover text on the chip: a caveat about the tag. */
+  tip?: ReactNode;
   /** Only while not struck (a border colour, say). */
   style?: CSSProperties;
   className?: string;
 }) {
   const word = displayWord(tag);
-  return (
+  const pill = (
     <span
-      title={title}
       style={struck ? undefined : style}
       className={cn(
         "inline-flex items-center gap-1 rounded-md border py-0.5 pl-2 pr-1 text-sm",
@@ -48,11 +47,17 @@ export function TagPill({
         type="button"
         onClick={onToggle}
         aria-label={actionLabel ?? `${struck ? "Restore" : "Remove"} ${word}`}
-        title={actionTitle}
         className="rounded p-0.5 text-muted no-underline hover:bg-line hover:text-neutral-100"
       >
         {struck ? <Undo2 size={13} /> : <X size={13} />}
       </button>
     </span>
+  );
+  return tip ? (
+    <Tooltip content={tip} bubble>
+      {pill}
+    </Tooltip>
+  ) : (
+    pill
   );
 }

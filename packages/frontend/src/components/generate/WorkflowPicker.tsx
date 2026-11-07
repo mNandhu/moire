@@ -51,7 +51,7 @@ export function WorkflowPicker({
               open && "border-brand-500/70",
             )}
           >
-            <span className="truncate" title={chosen?.name}>
+            <span className="truncate">
               {chosen?.name ?? "Built-in"}
             </span>
             <ChevronDown size={14} className={cn("shrink-0 text-faint transition-transform", open && "rotate-180")} />

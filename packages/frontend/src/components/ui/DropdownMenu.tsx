@@ -9,8 +9,6 @@ export type DropdownItem = {
   label: string;
   icon?: React.ReactNode;
   variant?: "default" | "danger";
-  /** Hover text for the item. */
-  title?: string;
   /** Shown at the row's end (a status badge). */
   hint?: React.ReactNode;
   /** Heading the item sits under; consecutive items share it. */
@@ -134,7 +132,6 @@ export function DropdownMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={ariaLabel}
-        title={icon ? ariaLabel : undefined}
         active={icon ? open : undefined}
       >
         {icon ?? (
@@ -166,7 +163,6 @@ export function DropdownMenu({
             {item.divider && <div className="my-1 border-t border-line" />}
             <button
               role="menuitem"
-              title={item.title}
               className={cn(
                 "w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-left",
                 item.variant === "danger"

@@ -18,6 +18,7 @@ import {
   readWorkflowFiles,
   type WorkflowFamily,
 } from "../../lib/workflows";
+import { Tooltip } from "../ui/Tooltip";
 
 const COLLAPSED_KEY = "rules:collapsedWorkflows";
 const NO_KEYS: Set<string> = new Set();
@@ -248,7 +249,6 @@ export function WorkflowFamilyList({
                   aria-expanded={open}
                   aria-controls={listId}
                   className="flex items-center gap-1 min-w-0 -ml-1 pl-0.5 pr-1 py-0.5 rounded hover:bg-raised"
-                  title={fam.id ? `${fam.name}\nWorkflow id ${fam.id}` : fam.name}
                 >
                   <ChevronRight
                     size={14}
@@ -271,20 +271,20 @@ export function WorkflowFamilyList({
                     }}
                     className="shrink-0 p-1 rounded text-faint hover:text-neutral-100 hover:bg-raised"
                     aria-label={`Rename ${fam.name}`}
-                    title="Rename"
                   >
                     <Pencil size={12} />
                   </button>
                 )}
                 {fam.id && (
-                  <Link
-                    to={galleryHref({ workflow: fam.id })}
-                    className="shrink-0 p-1 rounded text-faint hover:text-neutral-100 hover:bg-raised"
-                    aria-label={`Show images from every version of ${fam.name} in the gallery`}
-                    title="Show every version's images in the gallery"
-                  >
-                    <Images size={12} />
-                  </Link>
+                  <Tooltip content="Show every version's images in the gallery" bubble className="shrink-0">
+                    <Link
+                      to={galleryHref({ workflow: fam.id })}
+                      className="p-1 rounded text-faint hover:text-neutral-100 hover:bg-raised"
+                      aria-label={`Show images from every version of ${fam.name} in the gallery`}
+                    >
+                      <Images size={12} />
+                    </Link>
+                  </Tooltip>
                 )}
                 {fam.id && (
                   <InGenerateBadge
@@ -307,7 +307,6 @@ export function WorkflowFamilyList({
               <button
                 key={s.workflow_sig}
                 onClick={() => onSelect(s)}
-                title={`Signature ${s.workflow_sig}`}
                 aria-current={on ? "true" : undefined}
                 className={`w-full text-left p-2 rounded-lg border flex items-center gap-3 transition-colors ${
                   on
@@ -336,13 +335,13 @@ export function WorkflowFamilyList({
                         .join(" · ")}
                     </span>
                     {s.needs_mapping > 0 ? (
-                      <span className="ml-auto shrink-0 text-amber-300" title="Images whose prompt couldn't be found">
+                      <span className="ml-auto shrink-0 text-amber-300">
                         {s.needs_mapping} unmapped
                       </span>
                     ) : s.guessed ? (
-                      <span className="ml-auto shrink-0 text-amber-300/80" title="Prompts picked by keyword match; pin the prompt to be certain">
-                        {s.guessed} guessed
-                      </span>
+                      <Tooltip content="Prompts picked by keyword match; pin the prompt to be certain" className="ml-auto shrink-0">
+                        <span className="text-amber-300/80">{s.guessed} guessed</span>
+                      </Tooltip>
                     ) : s.has_ruleset ? (
                       <span className="ml-auto shrink-0 text-brand-300">Rules set</span>
                     ) : null}

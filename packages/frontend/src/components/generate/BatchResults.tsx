@@ -107,7 +107,7 @@ export function BatchResults({
   return (
     <div className={cn("grid gap-2", cols === 1 && "justify-center")} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, ${cell}))` }}>
       {slots.map((s, i) => (
-        <div key={slotKey(s, i)} title={cellTitle(s)}>
+        <div key={slotKey(s, i)}>
           <SlotCell batch={batch} s={s} ratio={ratio} onChanged={onChanged} />
         </div>
       ))}
@@ -151,7 +151,7 @@ function PanelResults({
         step(e.key === "ArrowLeft" ? -1 : 1);
       }}
     >
-      <div className="mx-auto" style={{ width: `min(100cqw, max(6rem, (100dvh - 22rem) * ${ratio}))` }} title={cellTitle(s)}>
+      <div className="mx-auto" style={{ width: `min(100cqw, max(6rem, (100dvh - 22rem) * ${ratio}))` }}>
         {/* Unkeyed: stepping swaps the image in place, so focus (and the
             arrow keys with it) stays on the tile. */}
         <SlotCell batch={batch} s={s} ratio={ratio} onChanged={onChanged} />
@@ -164,7 +164,7 @@ function PanelResults({
               type="button"
               role="tab"
               aria-selected={i === at}
-              title={cellTitle(x)}
+              aria-label={cellTitle(x)}
               onClick={() => setPicked(keys[i])}
               className={cn(
                 "relative h-14 overflow-hidden rounded-md transition-opacity",

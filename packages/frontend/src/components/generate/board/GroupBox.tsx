@@ -7,6 +7,7 @@ import { useDropSide } from "../../../hooks/useDropSide";
 import { TagSuggestList } from "../../TagSuggestList";
 import type { TagSuggestion } from "../../../lib/tagSuggest";
 import { Chip, CoverRow } from "./Chip";
+import { Tooltip } from "../../ui/Tooltip";
 
 const LIST_ROWS = 40;
 // TagSuggestList's own max-h-72, and about one row's height with its padding
@@ -109,15 +110,16 @@ export function GroupBox({
         {label}
         {missing && <span className="text-amber-300">Missing</span>}
         {onClear && (
-          <button
-            type="button"
-            onClick={onClear}
-            aria-label={`Clear ${label}`}
-            title={`Clear ${label}`}
-            className="ml-auto rounded p-1 text-faint opacity-0 transition-opacity hover:bg-white/10 hover:text-neutral-100 focus-visible:opacity-100 group-hover/box:opacity-100 [@media(hover:none)]:opacity-100"
-          >
-            <Eraser size={13} />
-          </button>
+          <Tooltip content={`Clear ${label}`} bubble className="ml-auto">
+            <button
+              type="button"
+              onClick={onClear}
+              aria-label={`Clear ${label}`}
+              className="rounded p-1 text-faint opacity-0 transition-opacity hover:bg-white/10 hover:text-neutral-100 focus-visible:opacity-100 group-hover/box:opacity-100 [@media(hover:none)]:opacity-100"
+            >
+              <Eraser size={13} />
+            </button>
+          </Tooltip>
         )}
       </div>
       {covers.length > 0 && (

@@ -198,7 +198,7 @@ export function CharacterEditDialog({
 
         {recipe && (
           <section className="space-y-4 rounded-lg border border-line p-4">
-            <h3 className="text-xs font-medium text-muted" title="What Generate writes for them. Saved as you change it.">
+            <h3 className="text-xs font-medium text-muted">
               For Generate
             </h3>
             <RecipeEditor recipe={recipe} label={name || fromTag.name} installedLoras={models?.loras ?? []} />
@@ -236,7 +236,6 @@ function Swatch({
       onClick={onPick}
       aria-pressed={on}
       aria-label={label ?? colour}
-      title={label ?? colour}
       className={cn(
         "relative h-8 rounded-full ring-1 ring-line inline-flex items-center justify-center text-2xs font-medium text-white",
         label ? "px-3" : "w-8",

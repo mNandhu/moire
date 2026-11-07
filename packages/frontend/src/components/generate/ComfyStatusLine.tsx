@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "../../lib/cn";
 import { STATUS_KEY, testConnection, useComfySettings, useComfyStatus } from "../../lib/generate";
 import { RotateCw } from "lucide-react";
+import { Tooltip } from "../ui/Tooltip";
 
 /**
  * One status for generating: a dot and a word ("Ready", "Generating",
@@ -31,11 +32,11 @@ export function ComfyStatusLine({ withActions = true, ready }: { withActions?: b
   return (
     <div role={down ? "alert" : undefined} className="flex min-w-0 items-center gap-2 text-sm">
       <span className={cn("h-2 w-2 shrink-0 rounded-full", tone)} />
-      <span className={cn("shrink-0", down ? "text-red-200" : "text-neutral-100")} title={down ? status.error ?? undefined : undefined}>
-        {label}
-      </span>
+      <Tooltip content={down ? status.error : undefined} className="shrink-0">
+        <span className={down ? "text-red-200" : "text-neutral-100"}>{label}</span>
+      </Tooltip>
       {/* A long address gives way, not the page's width. */}
-      <span className="hidden min-w-0 truncate text-faint sm:inline" title={`ComfyUI at ${address}`}>
+      <span className="hidden min-w-0 truncate text-faint sm:inline">
         ComfyUI <span className="font-mono">{address}</span>
       </span>
       {down && withActions && (
@@ -44,7 +45,6 @@ export function ComfyStatusLine({ withActions = true, ready }: { withActions?: b
             type="button"
             onClick={() => retry.mutate()}
             disabled={retry.isPending}
-            title="Retry"
             aria-label="Retry"
             className="-mx-1 shrink-0 rounded-md p-1 text-muted hover:bg-raised hover:text-neutral-100 disabled:opacity-60"
           >

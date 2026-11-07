@@ -155,7 +155,7 @@ export function FoldersStep({
                 key={f.source.path}
                 className="grid animate-fade-in grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3.5 border-b border-line py-2 pl-0.5"
               >
-                <span className="truncate font-mono text-[13px]" title={f.source.path}>
+                <span className="truncate font-mono text-[13px]">
                   {f.source.path}
                 </span>
                 <span className="whitespace-nowrap text-[13px] tabular-nums text-muted">{rowLabel(f, split)}</span>

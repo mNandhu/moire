@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { cn } from "../../lib/cn";
 import { chartMonths, monthLabel, recentMonths, type TagDetail } from "../../lib/tagBrowse";
+import { Tooltip } from "../ui/Tooltip";
 
 /** Images per month: up to two years, the latest month lit. */
 export function MonthChart({
@@ -25,18 +26,24 @@ export function MonthChart({
         {months.map((m, i) => {
           const last = i === months.length - 1;
           return (
-            <div
+            <Tooltip
               key={m.month}
-              title={`${monthLabel(m.month)}: ${m.count.toLocaleString()}`}
-              className={cn(
-                "flex-1 rounded-sm",
-                !m.count ? "bg-line" : accent ? "" : last ? "bg-brand-300" : "bg-brand-600/70",
-              )}
-              style={{
-                height: m.count ? `${Math.max(8, (m.count / peak) * 100)}%` : "2px",
-                ...(m.count && accent ? { background: accent, opacity: last ? 1 : 0.7 } : {}),
-              }}
-            />
+              content={`${monthLabel(m.month)}: ${m.count.toLocaleString()}`}
+              bubble
+              side="up"
+              className="flex-1 h-full items-end"
+            >
+              <div
+                className={cn(
+                  "w-full rounded-sm",
+                  !m.count ? "bg-line" : accent ? "" : last ? "bg-brand-300" : "bg-brand-600/70",
+                )}
+                style={{
+                  height: m.count ? `${Math.max(8, (m.count / peak) * 100)}%` : "2px",
+                  ...(m.count && accent ? { background: accent, opacity: last ? 1 : 0.7 } : {}),
+                }}
+              />
+            </Tooltip>
           );
         })}
       </div>

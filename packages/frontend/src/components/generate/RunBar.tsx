@@ -12,6 +12,7 @@ import { queueTitle, type NewEstimate } from "../../lib/eta";
 import { etaShort } from "../../lib/format";
 import { cn } from "../../lib/cn";
 import { countText, type CountMode } from "../../lib/requests";
+import { Tooltip } from "../ui/Tooltip";
 
 const NO_STRINGS: string[] = [];
 
@@ -40,9 +41,13 @@ function RejectedBox({
               {e.class_type ?? "Node"}{" "}
               <span className="font-mono text-2xs text-red-300/80">{e.added ? "added by Moiré" : `node ${e.node}`}</span>
             </dt>
-            <dd className="font-mono text-red-300" title={e.details || undefined}>
-              {e.input ? `${e.input}: ` : ""}
-              {e.message}
+            <dd className="font-mono text-red-300">
+              <Tooltip content={e.details || undefined}>
+                <span>
+                  {e.input ? `${e.input}: ` : ""}
+                  {e.message}
+                </span>
+              </Tooltip>
             </dd>
           </div>
         ))}
@@ -80,16 +85,17 @@ function TestRunCard({ gen, checkpoint, disabled }: { gen: Generator; checkpoint
     <Card className="p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm text-neutral-100">Test run</div>
-        <Button
-          size="sm"
-          variant="primary"
-          onClick={() => run.mutate()}
-          disabled={disabled || !canRunTest(state) || run.isPending}
-          title={disabled ? "Waiting for connection" : "One image at the chosen checkpoint"}
-        >
-          {(running || run.isPending) && <Loader2 size={14} className="animate-spin" />}
-          {running ? "Running" : waiting || failed ? "Run again" : "Test run"}
-        </Button>
+        <Tooltip content={disabled ? "Waiting for connection" : undefined} bubble>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => run.mutate()}
+            disabled={disabled || !canRunTest(state) || run.isPending}
+          >
+            {(running || run.isPending) && <Loader2 size={14} className="animate-spin" />}
+            {running ? "Running" : waiting || failed ? "Run again" : "Test run"}
+          </Button>
+        </Tooltip>
       </div>
       {failed && t?.error && (
         <div className="mt-2 font-mono text-xs text-red-300">
@@ -127,38 +133,40 @@ type RunButtonProps = {
 function RunButton({ blocked, ready, connected, pending, justQueued, onQueue, estimate, count, countMode }: RunButtonProps) {
   const canQueue = !blocked && !pending;
   return blocked ? (
-    <Button
-      className="w-full h-11 text-[15px]"
-      disabled
-      title={!ready && connected ? "Use Test run above: one image proves the checkpoint and the output folder" : undefined}
+    <Tooltip
+      content={!ready && connected ? "Use Test run above: one image proves the checkpoint and the output folder" : undefined}
+      className="flex w-full"
     >
-      {blocked === "Run the test first" ? <FlaskConical size={16} /> : <Lock size={16} />}
-      {blocked}
-    </Button>
+      <Button className="w-full h-11 text-[15px]" disabled>
+        {blocked === "Run the test first" ? <FlaskConical size={16} /> : <Lock size={16} />}
+        {blocked}
+      </Button>
+    </Tooltip>
   ) : (
-    <Button
-      variant="primary"
-      className="w-full h-11 text-[15px]"
-      disabled={!canQueue}
-      onClick={onQueue}
-      title={queueTitle(estimate)}
-    >
-      {pending ? (
-        <Loader2 size={16} className="animate-spin" />
-      ) : justQueued ? (
-        <Check size={16} />
-      ) : (
-        <Wand2 size={16} />
-      )}
-      {justQueued && !pending ? (
-        "Queued"
-      ) : (
-        <>
-          Queue {countText(count, countMode)}
-          {estimate?.seconds != null && <span className="font-normal tabular-nums opacity-70">~{etaShort(estimate.seconds)}</span>}
-        </>
-      )}
-    </Button>
+    <Tooltip content={queueTitle(estimate)} bubble className="flex w-full">
+      <Button
+        variant="primary"
+        className="w-full h-11 text-[15px]"
+        disabled={!canQueue}
+        onClick={onQueue}
+      >
+        {pending ? (
+          <Loader2 size={16} className="animate-spin" />
+        ) : justQueued ? (
+          <Check size={16} />
+        ) : (
+          <Wand2 size={16} />
+        )}
+        {justQueued && !pending ? (
+          "Queued"
+        ) : (
+          <>
+            Queue {countText(count, countMode)}
+            {estimate?.seconds != null && <span className="font-normal tabular-nums opacity-70">~{etaShort(estimate.seconds)}</span>}
+          </>
+        )}
+      </Button>
+    </Tooltip>
   );
 }
 

@@ -50,7 +50,6 @@ export function RatingEditor({
       className="inline-block group"
       trigger={() => (
         <span
-          title="Change rating"
           className={`px-3 py-1 rounded-full text-xs border flex items-center gap-1.5 transition-all duration-200 ${ratingBadgeClass(
             v,
           )} ${saving ? "opacity-50" : "group-hover:scale-[1.02] group-hover:brightness-110"}`}

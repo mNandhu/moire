@@ -107,7 +107,7 @@ export function WornOutfits({
         type="button"
         onClick={toggle}
         aria-expanded={open}
-        title={open ? "Fold outfits" : "Outfits it wears"}
+        aria-label={open ? "Fold outfits" : "Outfits it wears"}
         className={cn(
           "absolute bottom-0 left-1/2 z-10 inline-flex h-6 -translate-x-1/2 translate-y-1/2 items-center gap-1.5 rounded-full border border-line-strong bg-raised text-2xs text-neutral-300 shadow-md hover:text-neutral-50",
           open ? "px-1.5" : "pl-1 pr-2",

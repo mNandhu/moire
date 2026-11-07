@@ -17,7 +17,6 @@ export function MergeRules({ rules, onUndo }: { rules: TagRule[]; onUndo: (from:
             variant="ghost"
             className="ml-auto shrink-0"
             onClick={() => onUndo(a.from)}
-            title={`Stop merging “${formatTag(a.from)}”; images get their own prompt's name back`}
           >
             <Undo2 size={14} /> Undo
           </Button>

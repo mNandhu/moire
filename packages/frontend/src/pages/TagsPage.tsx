@@ -228,7 +228,6 @@ export default function TagsPage({ group }: { group?: string } = {}) {
             <Button
               active={showBoilerplate}
               onClick={() => setShowBoilerplate((v) => !v)}
-              title="Boilerplate tags are set in Settings"
             >
               {showBoilerplate
                 ? "Hide boilerplate"
@@ -239,7 +238,6 @@ export default function TagsPage({ group }: { group?: string } = {}) {
             <Button
               active={showSuggestions}
               onClick={() => setShowSuggestions((v) => !v)}
-              title="Prompt tags Danbooru names otherwise"
             >
               <Wand2 size={15} /> Suggested merges ({suggestions.length.toLocaleString()})
             </Button>
@@ -248,7 +246,6 @@ export default function TagsPage({ group }: { group?: string } = {}) {
             <Button
               active={showRules}
               onClick={() => setShowRules((v) => !v)}
-              title="Prompt tags you merged into another name"
             >
               <GitMerge size={15} /> Merge rules ({mergeRules.length.toLocaleString()})
             </Button>
@@ -392,7 +389,7 @@ function ViewSwitch({ value, onChange }: { value: TagView; onChange: (v: TagView
           key={v}
           type="button"
           aria-pressed={value === v}
-          title={`${label} view`}
+          aria-label={label}
           onClick={() => onChange(v)}
           className={cn(
             "inline-flex items-center gap-1.5 px-2.5 rounded-md text-sm",

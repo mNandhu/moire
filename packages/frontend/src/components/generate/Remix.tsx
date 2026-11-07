@@ -40,7 +40,7 @@ export function WorkflowLine({ info, imageId }: { info: RemixInfo; imageId: stri
   return (
     <div className="flex items-center gap-2 text-sm">
       <span className="text-xs font-medium text-muted">Workflow</span>
-      <span className="min-w-0 truncate text-neutral-100" title={name}>
+      <span className="min-w-0 truncate text-neutral-100">
         {name}
       </span>
       {w.family && <InGenerateBadge generators={generators} family={w.family} />}
@@ -54,9 +54,9 @@ export function WorkflowLine({ info, imageId }: { info: RemixInfo; imageId: stri
   );
 }
 
-function SeedSwitch({ value, onChange, own }: { value: SeedChoice; onChange: (v: SeedChoice) => void; own: string }) {
+function SeedSwitch({ value, onChange }: { value: SeedChoice; onChange: (v: SeedChoice) => void }) {
   return (
-    <div className="flex items-center gap-2.5 px-2 py-1" title={`For ${own}; other workflows start on a new seed`}>
+    <div className="flex items-center gap-2.5 px-2 py-1">
       <span className="text-xs font-medium text-muted">Seed</span>
       <div role="radiogroup" aria-label="Seed" className="inline-flex gap-0.5 rounded-lg border border-line bg-canvas p-0.5">
         {(["same", "new"] as const).map((v) => (
@@ -146,7 +146,7 @@ export function RemixButton({ info }: { info: RemixInfo }) {
           {label}
         </span>
       )}
-      footer={own && <SeedSwitch value={seedChoice} onChange={setSeed} own={own.name} />}
+      footer={own && <SeedSwitch value={seedChoice} onChange={setSeed} />}
     />
   );
 }

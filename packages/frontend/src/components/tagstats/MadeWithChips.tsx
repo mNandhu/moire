@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { galleryHref, type Filters } from "../../lib/imageFilter";
 import type { TagWorkflow } from "../../lib/tagBrowse";
+import { Tooltip } from "../ui/Tooltip";
 
 export function ChipRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -12,16 +13,17 @@ export function ChipRow({ label, children }: { label: string; children: ReactNod
   );
 }
 
-export function Chip({ to, title, label, share }: { to: string; title: string; label: string; share: string }) {
+export function Chip({ to, detail, label, share }: { to: string; detail: string; label: string; share: string }) {
   return (
-    <Link
-      to={to}
-      title={`${label}: ${title}`}
-      className="inline-flex items-baseline gap-1.5 max-w-full h-6 px-2 rounded-full bg-raised border border-line text-xs text-neutral-200 hover:border-line-strong"
-    >
-      <span className="truncate">{label}</span>
-      <span className="shrink-0 text-2xs text-faint tabular-nums">{share}</span>
-    </Link>
+    <Tooltip content={`${label}: ${detail}`} bubble className="max-w-full">
+      <Link
+        to={to}
+        className="inline-flex items-baseline gap-1.5 max-w-full h-6 px-2 rounded-full bg-raised border border-line text-xs text-neutral-200 hover:border-line-strong"
+      >
+        <span className="truncate">{label}</span>
+        <span className="shrink-0 text-2xs text-faint tabular-nums">{share}</span>
+      </Link>
+    </Tooltip>
   );
 }
 
@@ -63,7 +65,7 @@ export function MadeWithChips({
               <Chip
                 key={l.name}
                 to={galleryHref({ ...base, lora: [l.name] })}
-                title={[
+                detail={[
                   `${l.count.toLocaleString()} images`,
                   strength !== null && `usually at ${strength}`,
                   score !== null && `average score ${score.toFixed(1)}`,
@@ -83,7 +85,7 @@ export function MadeWithChips({
             <Chip
               key={e.name}
               to={galleryHref({ ...base, embedding: [e.name] })}
-              title={`${e.count.toLocaleString()} images`}
+              detail={`${e.count.toLocaleString()} images`}
               label={e.name}
               share={share(e.count)}
             />
@@ -96,7 +98,7 @@ export function MadeWithChips({
             <Chip
               key={JSON.stringify(w.filter)}
               to={galleryHref({ ...base, ...w.filter })}
-              title={`${w.count.toLocaleString()} images`}
+              detail={`${w.count.toLocaleString()} images`}
               label={w.name}
               share={share(w.count)}
             />

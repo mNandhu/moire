@@ -56,7 +56,6 @@ export function BackButton({ className, label }: { className?: string; label?: s
         onPointerEnter={show}
         onPointerLeave={hide}
         aria-disabled={!canBack}
-        title="Go back"
         aria-label="Go back"
         className={cn(
           POINTER_ONLY,
@@ -86,7 +85,6 @@ export function BackButton({ className, label }: { className?: string; label?: s
                 setSpot(null);
                 forward();
               }}
-              title="Go forward"
               aria-label="Go forward"
               style={{ width: spot.width, height: spot.height }}
               className="flex items-center justify-center rounded-lg bg-raised border border-line text-muted hover:text-neutral-100 hover:border-line-strong shadow-lg animate-fade-in"

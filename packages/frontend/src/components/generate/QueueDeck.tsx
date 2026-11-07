@@ -21,7 +21,6 @@ function CancelX({ id, className }: { id: number; className?: string }) {
     <button
       type="button"
       aria-label="Cancel batch"
-      title="Cancel batch"
       disabled={cancel.isPending}
       onClick={() => cancel.mutate()}
       className={cn("shrink-0 rounded p-0.5 text-faint hover:bg-red-500/15 hover:text-red-300 touch:p-1.5", className)}

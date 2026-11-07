@@ -81,16 +81,10 @@ export function ImageCharacters({
             const { name, series } = displayName(c);
             const isAvatar = c.thumb_image_id === imageId;
             const busy = pinning === c.tag;
-            const title = isAvatar
-              ? "This image is their avatar"
-              : quarantined
-                ? "Quarantined images can't be avatars"
-                : "Use as avatar";
             return (
               <div key={c.tag} className="group relative w-20 max-lg:w-auto max-lg:max-w-[11rem]">
                 <Link
                   to={characterHref(c.tag)}
-                  title={`${formatTag(c.tag)}: ${c.count.toLocaleString()} ${c.count === 1 ? "image" : "images"}`}
                   className="flex flex-col items-center gap-1.5 text-center max-lg:flex-row max-lg:gap-2 max-lg:text-left"
                 >
                   <span className="relative">
@@ -125,7 +119,6 @@ export function ImageCharacters({
                   disabled={isAvatar || quarantined || pinning !== null}
                   aria-label={isAvatar ? `This image is ${name}'s avatar` : `Use as ${name}'s avatar`}
                   aria-busy={busy}
-                  title={busy ? "Updating…" : title}
                   className={cn(
                     "absolute right-1.5 top-0 max-lg:right-auto max-lg:left-6 max-lg:-top-1.5 h-6 w-6 max-lg:h-5 max-lg:w-5 rounded-full inline-flex items-center justify-center transition-opacity",
                     isAvatar || busy

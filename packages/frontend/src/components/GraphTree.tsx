@@ -132,7 +132,6 @@ export function JsonTree({
         className={`group inline-flex items-baseline gap-2 text-left hover:bg-brand-500/10 rounded px-1 -mx-1 w-full ${
           mark ? "ring-1 ring-amber-400/40" : ""
         }`}
-        title={`Pin ${path}`}
       >
         <span className={valHit ? `break-all ${HIT}` : "text-emerald-300 break-all"}>
           {JSON.stringify(value)}

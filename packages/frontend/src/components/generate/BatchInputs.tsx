@@ -63,7 +63,7 @@ export function BatchInputs({ b }: { b: Batch }) {
         {i.per_request != null && row("Per run", `${i.per_request} ${i.per_request === 1 ? "image" : "images"}`)}
         {row(
           b.requests.length > 1 ? "Seeds" : "Seed",
-          <span className="font-mono" title={b.requests.map((q) => q.seed).join(", ")}>
+          <span className="font-mono">
             {b.requests[0]?.seed}
             {b.requests.length > 1 && <span className="text-muted"> and {b.requests.length - 1} more</span>}
           </span>,

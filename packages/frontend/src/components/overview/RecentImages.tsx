@@ -69,7 +69,7 @@ export function RecentImages() {
                 "block aspect-square overflow-hidden rounded-lg bg-sunken ring-brand-400 focus-visible:outline-none focus-visible:ring-2",
                 i >= BASE && "hidden xl:block",
               )}
-              title={img.path}
+              aria-label={img.path}
             >
               {img.thumb_url && (
                 <img

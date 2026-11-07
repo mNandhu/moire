@@ -77,7 +77,6 @@ export function PageHeader({
             type="button"
             onClick={openNav}
             aria-label="Open navigation"
-            title="Menu"
             className="md:hidden -ml-1.5 p-1 rounded-lg hover:bg-raised"
           >
             <MoireMark size={26} />

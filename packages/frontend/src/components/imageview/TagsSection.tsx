@@ -14,6 +14,7 @@ import { ProgressBar } from "../ui/ProgressBar";
 import { Input } from "../ui/Input";
 import { TagFlow } from "./TagFlow";
 import { TabActions, TAB_ACTION } from "./TabActions";
+import { Tooltip } from "../ui/Tooltip";
 
 /** A quiet text action for a section header ("Copy all", "Tag with AI"). */
 const HEADER_ACTION = "inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200";
@@ -73,22 +74,17 @@ export function TagsSection({
         {/* While it runs, the status line below says so. */}
         {!busy &&
           (aiTagged ? (
-            <button
-              type="button"
-              onClick={() => void retag()}
-              className={TAB_ACTION}
-              title="Re-tag with AI: remove its AI tags and rating, and tag it again"
-              aria-label="Re-tag with AI"
-            >
-              <RotateCcw size={15} />
-            </button>
+            <Tooltip content="Re-tag with AI" bubble>
+              <button type="button" onClick={() => void retag()} className={TAB_ACTION} aria-label="Re-tag with AI">
+                <RotateCcw size={15} />
+              </button>
+            </Tooltip>
           ) : (
             // Untagged, tagging is the thing to do here: worth its words.
             <button
               type="button"
               onClick={() => void start([id])}
               className={HEADER_ACTION}
-              title="Tag this image with the AI tagger"
             >
               <Sparkles size={12} /> Tag with AI
             </button>
@@ -98,7 +94,6 @@ export function TagsSection({
             type="button"
             onClick={onCopyAll}
             className={TAB_ACTION}
-            title="Copy all tags as prompt text"
             aria-label="Copy all tags"
           >
             <Copy size={15} />
@@ -141,7 +136,6 @@ function AiTagStatus({
         <Link
           to="/ai-tagging"
           className="min-w-0 flex-1 truncate text-neutral-200 hover:text-white"
-          title="AI tagging jobs"
         >
           {label}
         </Link>
@@ -152,7 +146,6 @@ function AiTagStatus({
             onClick={onCancel}
             disabled={cancelling}
             className="-mr-1 rounded p-0.5 text-muted hover:bg-line hover:text-neutral-100 disabled:opacity-50"
-            title="Cancel AI tagging"
             aria-label="Cancel AI tagging"
           >
             <X size={12} />
@@ -199,7 +192,6 @@ function AddTags({ id, onAdded }: { id: string; onAdded: () => void }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title="Add your own tags"
         className="inline-flex items-center gap-0.5 h-5 px-1.5 rounded-full border border-dashed border-line text-2xs text-muted hover:text-neutral-100 hover:border-line-strong align-middle"
       >
         <Plus size={11} /> Add tags
@@ -236,7 +228,6 @@ function AddTags({ id, onAdded }: { id: string; onAdded: () => void }) {
         type="submit"
         disabled={adding || !tags.length}
         className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted hover:bg-raised hover:text-neutral-100 disabled:opacity-40 disabled:pointer-events-none"
-        title={tags.length > 1 ? `Add ${tags.length} tags` : "Add tag"}
         aria-label="Add tags"
       >
         {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}

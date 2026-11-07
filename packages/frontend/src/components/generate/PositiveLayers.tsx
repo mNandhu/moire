@@ -112,9 +112,11 @@ export function PositiveLayers({
                 <span className="text-sm font-semibold text-neutral-50">Prompt</span>
                 <span className="flex-1" />
                 {cleanupTitle && (
-                  <Button size="sm" variant="ghost" title={cleanupTitle} onClick={() => set("prompt", cleanup.text)}>
-                    <Eraser size={13} /> Clean up
-                  </Button>
+                  <Tooltip content={cleanupTitle} bubble>
+                    <Button size="sm" variant="ghost" onClick={() => set("prompt", cleanup.text)}>
+                      <Eraser size={13} /> Clean up
+                    </Button>
+                  </Tooltip>
                 )}
                 {gen?.defaults?.base && form.prompt.trim() !== gen.defaults.base.trim() && (
                   <Button

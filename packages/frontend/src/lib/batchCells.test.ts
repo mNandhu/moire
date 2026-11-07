@@ -15,7 +15,7 @@ describe("stepsLabel", () => {
 describe("cellProgress", () => {
   it("reads queued while it is not running, however it waits", () => {
     const c = cellProgress({ state: "pending", progress: null, expected: 20 } as never, null);
-    expect(c).toMatchObject({ big: null, caption: "Queued", progress: null, fill: 0, late: false, striped: false, tip: "" });
+    expect(c).toMatchObject({ big: null, caption: "Queued", progress: null, fill: 0, late: false, striped: false });
   });
 
   it("counts down against the estimate", () => {
@@ -24,7 +24,6 @@ describe("cellProgress", () => {
     expect(c.caption).toBe("left");
     expect(c.fill).toBe(0.25);
     expect(c.striped).toBe(false);
-    expect(c.tip).toBe("Usually about 0:20");
   });
 
   it("counts up past the estimate, then calls it late", () => {
@@ -38,7 +37,6 @@ describe("cellProgress", () => {
     const c = cellProgress(run({ progress: { value: 14, max: 28 } }), 5);
     expect(c.progress).toBe(0.5);
     expect(c.fill).toBe(0.5);
-    expect(c.tip).toBe("14 / 28 · Usually about 0:20");
   });
 
   it("shows the time so far without an estimate, and the steps as caption", () => {
