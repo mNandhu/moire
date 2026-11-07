@@ -27,6 +27,20 @@ describe("rankSuggestions", () => {
     ]);
   });
 
+  it("offers a tag for its Danbooru alias, whatever its kind prefix", () => {
+    const pool = [
+      { _id: "any:anime_screenshot", count: 5 },
+      { _id: "prompt:closed_eyes", count: 3 },
+      { _id: "any:screen", count: 9 },
+    ];
+    const aliases: Record<string, string[]> = { anime_screenshot: ["anime_screencap"], closed_eyes: ["eyes_closed"] };
+    const of = (t: string) => aliases[t];
+    expect(rankSuggestions("anime screencap", pool, [], none, of).map((s) => s._id)).toEqual(["any:anime_screenshot"]);
+    expect(rankSuggestions("eyes_clos", pool, [], none, of).map((s) => s._id)).toEqual(["prompt:closed_eyes"]);
+    // Without the list, an alias finds nothing.
+    expect(rankSuggestions("anime screencap", pool, [], none)).toEqual([]);
+  });
+
   it("offers nothing extra without resources (the rename dialog)", () => {
     expect(rankSuggestions("bad", tags, [], none).every((s) => s._id.startsWith("any:"))).toBe(true);
   });

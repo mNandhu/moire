@@ -119,6 +119,14 @@ async def descriptions():
     return JSONResponse(tag_descriptions.served(tags.aliases))
 
 
+@router.get("/danbooru-aliases")
+async def danbooru_aliases():
+    """``tag -> [alias, ...]``: Danbooru's aliases of the library's tags, for
+    tag suggestions (an alias typed offers its tag). Empty until Danbooru's
+    list is in; this never starts its download."""
+    return JSONResponse(await tag_views.library_aliases())
+
+
 @router.get("/samples")
 async def tag_samples(
     tags: list[str] = Query(default=[]),

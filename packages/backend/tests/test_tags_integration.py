@@ -281,3 +281,39 @@ async def test_tag_groups_route(client, seed):
     assert "fav" not in body["tags"]
     assert body["categories"]["attire"] == "attire_and_body_accessories"
     assert set(body["categories"]) == set(body["tags"].values())
+
+
+async def test_danbooru_aliases_list_the_library_tags_aliases(
+    client, seed, monkeypatch
+):
+    from moire.services import danbooru_tags
+
+    seed(
+        "L1:a",
+        tags=("anime_screenshot", "prompt:closed_eyes", "screencap"),
+    )
+    listed = danbooru_tags.TagList(
+        tags={"anime_screenshot": (5, 15692), "closed_eyes": (0, 9)},
+        aliases={
+            "anime_screencap": "anime_screenshot",
+            # The library has it as a tag of its own: it suggests itself.
+            "screencap": "anime_screenshot",
+            "eyes_closed": "closed_eyes",
+            # Not a library tag.
+            "boat": "watercraft",
+        },
+    )
+
+    async def present():
+        return listed
+
+    def boom():
+        raise AssertionError("suggestions must not fetch Danbooru's list")
+
+    monkeypatch.setattr(danbooru_tags, "load_present", present)
+    monkeypatch.setattr(danbooru_tags, "ensure_fresh", boom)
+    body = (await client.get("/tags/danbooru-aliases")).json()
+    assert body == {
+        "anime_screenshot": ["anime_screencap"],
+        "closed_eyes": ["eyes_closed"],
+    }

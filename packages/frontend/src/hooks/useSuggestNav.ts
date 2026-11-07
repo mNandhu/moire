@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
-import { useBoilerplate } from "../lib/queries";
+import { useBoilerplate, useDanbooruAliases } from "../lib/queries";
 import { rankSuggestions, suggestKeyAction, type TagSuggestion } from "../lib/tagSuggest";
 
 const NONE: TagSuggestion[] = [];
@@ -12,9 +12,11 @@ export function useTagMatches(
   resources: readonly TagSuggestion[] = NONE,
 ): TagSuggestion[] {
   const isBoilerplate = useBoilerplate();
+  const { data: aliases } = useDanbooruAliases();
+  const aliasesOf = useMemo(() => (aliases ? (tag: string) => aliases[tag] : undefined), [aliases]);
   return useMemo(
-    () => rankSuggestions(text, pool, resources, isBoilerplate),
-    [text, pool, resources, isBoilerplate],
+    () => rankSuggestions(text, pool, resources, isBoilerplate, aliasesOf),
+    [text, pool, resources, isBoilerplate, aliasesOf],
   );
 }
 

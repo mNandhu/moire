@@ -69,19 +69,30 @@ function score(query: string, target: string): number | null {
  * Rank `items` by fuzzy relevance of `query` against `getText(item)`, dropping
  * non-matches. Returns at most `limit` items, best first. Ties keep input order
  * (stable), so callers can pre-sort the source (e.g. by count) for empty / weak
- * queries.
+ * queries. An item with several texts (a tag and its aliases) ranks by the
+ * one that matches best.
  */
 export function fuzzyRank<T>(
   query: string,
   items: readonly T[],
-  getText: (item: T) => string,
+  getText: (item: T) => string | readonly string[],
   limit = 8,
 ): T[] {
   const scored: { item: T; score: number; i: number }[] = [];
   items.forEach((item, i) => {
-    const score = fuzzyScore(query, getText(item));
+    const text = getText(item);
+    const score = typeof text === "string" ? fuzzyScore(query, text) : bestScore(query, text);
     if (score !== null) scored.push({ item, score, i });
   });
   scored.sort((a, b) => b.score - a.score || a.i - b.i);
   return scored.slice(0, limit).map((s) => s.item);
+}
+
+function bestScore(query: string, texts: readonly string[]): number | null {
+  let best: number | null = null;
+  for (const t of texts) {
+    const s = fuzzyScore(query, t);
+    if (s !== null && (best === null || s > best)) best = s;
+  }
+  return best;
 }

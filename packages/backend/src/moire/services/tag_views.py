@@ -72,6 +72,26 @@ async def tag_maps() -> tuple[dict[str, str], dict[str, str], dict]:
         return attire_map, facet_map, groups
 
 
+async def library_aliases() -> dict[str, list[str]]:
+    """``tag -> [alias, ...]``: Danbooru's aliases of the library's tags, so
+    typing an alias (``anime_screencap``) can suggest the tag
+    (``anime_screenshot``). An alias the library also carries as a tag of
+    its own is left out: it suggests itself. Never starts the list's
+    download. Kept until a tag write or a new list."""
+    gen = tag_index.current_generation()
+    tags = await danbooru_tags.load_present()
+    cached = tag_index.read_derived("library-aliases")
+    if cached is not None and cached[0] is tags:
+        return cached[1]
+    library = frozenset(await library_bases())
+    out: dict[str, list[str]] = {}
+    for alias, tag in tags.aliases.items():
+        if tag in library and alias not in library and alias != tag:
+            out.setdefault(tag, []).append(alias)
+    tag_index.store_derived("library-aliases", gen, (tags, out))
+    return out
+
+
 async def place(names: list[str]) -> dict:
     """Where each prompt tag goes on Generate's prompt board, with what the
     tag lists know of it. ``list``: whether Danbooru's list is in;

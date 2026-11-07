@@ -3,7 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import type { KeyboardEvent } from "react";
 import { useSuggestNav } from "./useSuggestNav";
 
-vi.mock("../lib/queries", () => ({ useBoilerplate: () => () => false }));
+vi.mock("../lib/queries", () => ({ useBoilerplate: () => () => false, useDanbooruAliases: () => ({ data: undefined }) }));
 
 const matches = [
   { _id: "a", count: 3 },

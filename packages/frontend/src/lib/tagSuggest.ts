@@ -1,9 +1,15 @@
 import { fuzzyRank } from "./fuzzy";
 import { splitBoilerplate } from "./boilerplate";
-import { formatSearchTag, tagQueryText } from "./tags";
+import { ANY_PREFIX, formatSearchTag, formatTag, tagName, tagQueryText } from "./tags";
 import { resourceOf } from "./searchTerms";
 
 export type TagSuggestion = { _id: string; count: number };
+
+/** A tag's Danbooru aliases (`anime_screenshot` -> `anime_screencap`), by
+ * its bare name. */
+export type AliasesOf = (tag: string) => readonly string[] | undefined;
+
+const bareName = (id: string) => tagName(id.startsWith(ANY_PREFIX) ? id.slice(ANY_PREFIX.length) : id);
 
 export const MAX_SUGGESTIONS = 8;
 // Rows kept for loras and embeddings when tags also match: they rank below
@@ -18,13 +24,15 @@ const TYPED_KIND = /^(lora|embedding|emb|outfit):\s*(.*)$/i;
  * then loras and embeddings (`resources`, ids `lora:name` /
  * `embedding:name`) matched on their name, below the tags but always given
  * a row or two. Typing `lora:` (or `embedding:`, `emb:`) lists only that
- * kind. Pure.
+ * kind. A tag also matches on its Danbooru aliases (`aliasesOf`), so typing
+ * `anime screencap` offers `anime screenshot`. Pure.
  */
 export function rankSuggestions(
   text: string,
   pool: readonly TagSuggestion[],
   resources: readonly TagSuggestion[],
   isBoilerplate: (tag: string) => boolean,
+  aliasesOf?: AliasesOf,
 ): TagSuggestion[] {
   const q = text.trim();
   if (!q) return [];
@@ -39,7 +47,12 @@ export function rankSuggestions(
       ? fuzzyRank(rest, ofKind, nameOf, MAX_SUGGESTIONS)
       : [...ofKind].sort((a, b) => b.count - a.count).slice(0, MAX_SUGGESTIONS);
   }
-  const ranked = fuzzyRank(tagQueryText(q), [...pool], (s) => formatSearchTag(s._id), pool.length);
+  const textOf = (s: TagSuggestion) => {
+    const shown = formatSearchTag(s._id);
+    const aliases = aliasesOf?.(bareName(s._id));
+    return aliases?.length ? [shown, ...aliases.map(formatTag)] : shown;
+  };
+  const ranked = fuzzyRank(tagQueryText(q), [...pool], textOf, pool.length);
   const { kept, boilerplate } = splitBoilerplate(ranked, (s) => s._id, isBoilerplate);
   const tags = [...kept, ...boilerplate];
   const res = fuzzyRank(q, resources, nameOf, MAX_SUGGESTIONS);

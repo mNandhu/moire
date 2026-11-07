@@ -86,6 +86,18 @@ export function useTagDetail(tag: string | null, source: TagSource) {
   });
 }
 
+/** `tag -> [alias, ...]`: Danbooru's aliases of the library's tags, so tag
+ * suggestions find a tag by an alias (`anime_screencap` offers
+ * `anime_screenshot`). Empty until the server has Danbooru's list. */
+export function useDanbooruAliases() {
+  return useQuery({
+    queryKey: [...TAGS_KEY, "danbooru-aliases"],
+    queryFn: ({ signal }) => api<Record<string, string[]>>("/api/v1/tags/danbooru-aliases", { signal }),
+    staleTime: TAG_MAP_STALE_MS,
+    gcTime: TAG_MAP_STALE_MS,
+  });
+}
+
 /** `tag -> attire group` (headwear, accessories, ...): outfit chips are
  * labelled by it. Covers the library's own tags, so it sits under TAGS_KEY
  * and refreshes after tag writes. */
