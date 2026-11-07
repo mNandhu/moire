@@ -31,6 +31,7 @@ export function Dialog({
   open,
   onClose,
   title,
+  titleAction,
   description,
   children,
   footer,
@@ -43,6 +44,8 @@ export function Dialog({
   open: boolean;
   onClose: () => void;
   title?: React.ReactNode;
+  /** Beside the title, at the right (a link out); not part of its name. */
+  titleAction?: React.ReactNode;
   description?: React.ReactNode;
   children?: React.ReactNode;
   footer?: React.ReactNode;
@@ -137,11 +140,19 @@ export function Dialog({
           className,
         )}
       >
-        {title && (
-          <div id={labelledBy} className="text-lg font-semibold text-neutral-100">
-            {title}
-          </div>
-        )}
+        {title &&
+          (titleAction ? (
+            <div className="flex items-start justify-between gap-3">
+              <div id={labelledBy} className="min-w-0 text-lg font-semibold text-neutral-100">
+                {title}
+              </div>
+              <div className="shrink-0">{titleAction}</div>
+            </div>
+          ) : (
+            <div id={labelledBy} className="text-lg font-semibold text-neutral-100">
+              {title}
+            </div>
+          ))}
         {description && (
           <div className="mt-1.5 text-sm text-neutral-400">{description}</div>
         )}

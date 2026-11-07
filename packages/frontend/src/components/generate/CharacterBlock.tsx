@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeftRight, Ban, Pencil, UserRound, X } from "lucide-react";
+import { ArrowLeftRight, ArrowUpRight, Ban, Pencil, UserRound, X } from "lucide-react";
 import { Card } from "../ui";
 import { Dialog } from "../ui/Dialog";
+import { ButtonLink } from "../ui/Button";
 import { CharacterAvatar } from "../CharacterAvatar";
 import { CharacterPicker } from "../CharacterPicker";
 import { useCharacters } from "../../lib/queries";
@@ -188,7 +189,17 @@ function CharacterRow({
         </div>
       )}
       {recipe && (
-        <Dialog open={editing} onClose={() => setEditing(false)} title={name}>
+        <Dialog
+          open={editing}
+          onClose={() => setEditing(false)}
+          title={name}
+          titleAction={
+            <ButtonLink to={characterHref(value)} variant="ghost" size="sm" className="-mr-2" onClick={() => setEditing(false)}>
+              Open character page
+              <ArrowUpRight size={14} />
+            </ButtonLink>
+          }
+        >
           <div className="space-y-4">
             <RecipeEditor recipe={recipe} label={name} installedLoras={installedLoras} rejectedLoras={rejectedLoras} />
           </div>
