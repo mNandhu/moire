@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Badge } from "./ui/Badge";
 import { cn } from "../lib/cn";
 import { formatSearchTag, isManual, isPrompt } from "../lib/tags";
@@ -32,8 +33,20 @@ export function TagSuggestList({
   className?: string;
   style?: React.CSSProperties;
 }) {
+  const listRef = useRef<HTMLUListElement>(null);
+  // A row the pointer made active is already under it: scrolling then would
+  // slide the list under the cursor and pick the next row.
+  const byPointer = useRef(false);
+  useEffect(() => {
+    if (byPointer.current) {
+      byPointer.current = false;
+      return;
+    }
+    listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [active, matches]);
   return (
     <ul
+      ref={listRef}
       className={cn(
         "absolute z-20 mt-1 w-full max-h-72 overflow-auto rounded-lg border border-neutral-800 bg-neutral-900 shadow-xl shadow-black/40 py-1",
         className,
@@ -44,10 +57,14 @@ export function TagSuggestList({
       {matches.map((s, i) => {
         const description = descriptionOf?.(s._id);
         return (
-          <li key={s._id} role="option" aria-selected={i === active}>
+          <li key={s._id} role="option" aria-selected={i === active} data-index={i}>
             <button
               type="button"
-              onMouseEnter={() => onActive(i)}
+              onMouseEnter={() => {
+                if (i === active) return;
+                byPointer.current = true;
+                onActive(i);
+              }}
               onMouseDown={(e) => {
                 // mousedown (not click) so it fires before input blur.
                 e.preventDefault();

@@ -23,6 +23,28 @@ test("New character: identity tags complete from the library's tags", async ({ p
   await expect(dialog).toHaveCount(0);
 });
 
+test("Tag suggestions: the arrows keep the highlighted row in view", async ({ page }) => {
+  await page.goto("/tags");
+  await page.getByRole("button", { name: "New character" }).click();
+  const dialog = page.getByRole("dialog", { name: "New character" });
+
+  const add = dialog.getByLabel("Add identity tag");
+  await add.fill("a");
+  const options = dialog.getByRole("option");
+  await expect(options.first()).toBeVisible();
+  // More rows than the list shows at once, so the last is below the fold.
+  const count = await options.count();
+  expect(count).toBeGreaterThan(10);
+  for (let i = 1; i < count; i++) await add.press("ArrowDown");
+  const selected = dialog.locator('[role="option"][aria-selected="true"]');
+  await expect(selected).toHaveCount(1);
+  await expect(selected).toBeInViewport();
+  await expect(options.first()).not.toBeInViewport();
+
+  await add.fill("");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+});
+
 test("New character: a picture link to a private address is refused", async ({ page }) => {
   await page.goto("/tags");
   await page.getByRole("button", { name: "New character" }).click();
