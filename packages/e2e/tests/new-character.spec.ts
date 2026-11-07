@@ -32,9 +32,11 @@ test("Tag suggestions: the arrows keep the highlighted row in view", async ({ pa
   await add.fill("a");
   const options = dialog.getByRole("option");
   await expect(options.first()).toBeVisible();
-  // More rows than the list shows at once, so the last is below the fold.
+  // Rows with descriptions or covers overflow the list; these short ones
+  // fit, so squeeze it until only a couple show.
+  await page.addStyleTag({ content: '[role="listbox"] { max-height: 4.5rem !important; }' });
   const count = await options.count();
-  expect(count).toBeGreaterThan(10);
+  expect(count).toBeGreaterThan(3);
   for (let i = 1; i < count; i++) await add.press("ArrowDown");
   const selected = dialog.locator('[role="option"][aria-selected="true"]');
   await expect(selected).toHaveCount(1);
