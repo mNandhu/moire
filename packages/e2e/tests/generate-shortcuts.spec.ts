@@ -1,5 +1,7 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
-import { API } from "./helpers";
+import { API, COMFY_PORT, FAKE_COMFY_RUN } from "./helpers";
+
+const COMFY = `http://127.0.0.1:${COMFY_PORT}`;
 
 // docs/e2e-scenarios.md, "Generate: keys and Clear". Runs after
 // generate-run.spec.ts, which sets the output folder and passes the test run.
@@ -48,45 +50,34 @@ test("Ctrl+Enter in the prompt queues the batch", async ({ page }) => {
   await expect(prompt).toHaveValue("1girl, smile, garden");
 });
 
-test("Clear empties the output column, and a new batch shows again", async ({ page, request }) => {
-  // A batch still running when Clear is pressed would stay (the next test).
+test("a batch still in the queue when Clear is pressed stays once done", async ({ page, request }) => {
+  // Nothing else running: this batch's progress is the only one on show.
   await settled(request);
   await page.goto("/generate");
   const output = page.getByRole("complementary", { name: "Output" });
   const panels = output.getByRole("link", { name: "Batch page" });
-  const clear = output.getByRole("button", { name: "Clear output", exact: true });
-  await expect(clear).toBeVisible({ timeout: 30_000 });
-  await clear.click();
-  await expect(panels).toHaveCount(0);
-  await page.reload();
-  await expect(panels).toHaveCount(0);
-
   await page.getByLabel("Prompt", { exact: true }).fill("1girl, smile, garden");
-  await page.getByRole("button", { name: /^Queue/ }).click();
-  await expect(panels).toHaveCount(1, { timeout: 30_000 });
-});
-
-test("a batch still in the queue when Clear is pressed stays once done", async ({ page }) => {
-  await page.goto("/generate");
-  const output = page.getByRole("complementary", { name: "Output" });
-  const panels = output.getByRole("link", { name: "Batch page" });
-  await page.getByLabel("Prompt", { exact: true }).fill("1girl, smile, garden");
-  // Long enough to still be making images when Clear is pressed.
-  await page.getByRole("spinbutton", { name: "Images", exact: true }).fill("12");
+  await page.getByRole("spinbutton", { name: "Images", exact: true }).fill("2");
   await expect(page.getByRole("button", { name: /^Queue/ })).toBeEnabled({ timeout: 30_000 });
-  const queued = page.waitForResponse((r) => r.request().method() === "POST" && /\/batches$/.test(new URL(r.url()).pathname));
-  await page.getByRole("button", { name: /^Queue/ }).click();
-  const batch: { _id: number } = await (await queued).json();
-  const mine = output.locator(`a[href="/generations/${batch._id}"]`).first();
-  await expect(mine).toBeVisible({ timeout: 30_000 });
-  await expect(output.getByText(/ \/ 12$/)).toBeVisible();
-  await output.getByRole("button", { name: "Clear output", exact: true }).click();
+  // Each image slow enough that the batch is still making them when Clear is pressed.
+  await request.post(`${COMFY}/fake/run?seconds=3`);
+  try {
+    const queued = page.waitForResponse((r) => r.request().method() === "POST" && /\/batches$/.test(new URL(r.url()).pathname));
+    await page.getByRole("button", { name: /^Queue/ }).click();
+    const batch: { _id: number } = await (await queued).json();
+    const mine = output.locator(`a[href="/generations/${batch._id}"]`).first();
+    await expect(mine).toBeVisible({ timeout: 30_000 });
+    await expect(output.getByText(/ \/ 2$/)).toBeVisible();
+    await output.getByRole("button", { name: "Clear output", exact: true }).click();
 
-  // Done, and still there.
-  await expect(output.getByText(/ \/ \d+$/)).toHaveCount(0, { timeout: 60_000 });
-  await expect(mine).toBeVisible();
-  await page.reload();
-  await expect(panels.first()).toBeVisible();
+    // Done, and still there.
+    await expect(output.getByText(/ \/ \d+$/)).toHaveCount(0, { timeout: 60_000 });
+    await expect(mine).toBeVisible();
+    await page.reload();
+    await expect(panels.first()).toBeVisible();
+  } finally {
+    await request.post(`${COMFY}/fake/run?seconds=${FAKE_COMFY_RUN}`);
+  }
 });
 
 test("Clean up takes out repeated tags and stray commas, and Ctrl+Z brings them back", async ({ page }) => {

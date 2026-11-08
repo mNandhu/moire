@@ -20,15 +20,6 @@ async function clearHair(page: Page, board: ReturnType<Page["getByLabel"]>) {
   await expect(page.getByText("Cleared Hair")).toBeVisible();
 }
 
-test("Clear takes the box's tags out of the Prompt", async ({ page }) => {
-  const { prompt, board } = await openBoard(page);
-  await clearHair(page, board);
-  await expect(prompt).not.toHaveValue(/red hair/);
-  await expect(prompt).toHaveValue(/1girl/);
-  await expect(prompt).toHaveValue(/blue eyes/);
-  await expect(board.getByRole("button", { name: "Remove red hair" })).toHaveCount(0);
-});
-
 test("Undo leaves text typed since untouched", async ({ page }) => {
   const { prompt, board } = await openBoard(page);
   await clearHair(page, board);
@@ -42,10 +33,14 @@ test("Undo leaves text typed since untouched", async ({ page }) => {
   await expect(prompt).not.toHaveValue(/red hair/);
 });
 
-test("Undo on an untouched Prompt restores it exactly", async ({ page }) => {
+test("Clear takes the box's tags out, and Undo on an untouched Prompt restores it exactly", async ({ page }) => {
   const { prompt, board } = await openBoard(page);
   await clearHair(page, board);
-  await expect(prompt).not.toHaveValue(START);
+  // Only the Hair box's tags leave.
+  await expect(prompt).not.toHaveValue(/red hair/);
+  await expect(prompt).toHaveValue(/1girl/);
+  await expect(prompt).toHaveValue(/blue eyes/);
+  await expect(board.getByRole("button", { name: "Remove red hair" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(prompt).toHaveValue(START);

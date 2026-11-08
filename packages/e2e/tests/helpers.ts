@@ -8,6 +8,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 // Ports away from `pnpm dev` (8000/5173) and the dev-tools sandbox (8010/8190/5180).
 export const BACKEND_PORT = 8020;
 export const COMFY_PORT = 8191;
+/** Seconds the fake ComfyUI takes per prompt; a spec that slows it puts this back. */
+export const FAKE_COMFY_RUN = 0.3;
 
 /** Wiped and laid out on every run by `servers/start_backend.py`. */
 export const SANDBOX_DIR = path.resolve(here, "../.sandbox");

@@ -105,7 +105,7 @@ test("Clear rejected takes rejected images out of the column only", async ({ pag
   await expect(output.getByRole("tablist", { name: "Images in this batch" }).getByRole("tab")).toHaveCount(2, { timeout: 15_000 });
 });
 
-test("Ctrl+Z brings back a cleared column", async ({ page, request }) => {
+test("Ctrl+Z brings back a cleared column, and a cleared one stays empty after a reload", async ({ page, request }) => {
   await settled(request);
   await page.goto("/generate");
   const output = page.getByRole("complementary", { name: "Output" });
@@ -117,6 +117,11 @@ test("Ctrl+Z brings back a cleared column", async ({ page, request }) => {
   await page.keyboard.press("ControlOrMeta+z");
   await expect(batches).toHaveCount(before);
   await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect(batches).toHaveCount(0);
+  // The column has read its batches again, and none come back.
+  const listed = page.waitForResponse((r) => new URL(r.url()).pathname === `${API}/generate/batches` && r.request().method() === "GET");
+  await page.reload();
+  await listed;
   await expect(batches).toHaveCount(0);
 });
 

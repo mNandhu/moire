@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { BACKEND_PORT, COMFY_OUT, COMFY_PORT, MODEL_CACHE_DIR } from "./tests/helpers";
+import { BACKEND_PORT, COMFY_OUT, COMFY_PORT, FAKE_COMFY_RUN, MODEL_CACHE_DIR } from "./tests/helpers";
 
 export default defineConfig({
   testDir: "tests",
@@ -29,7 +29,7 @@ export default defineConfig({
       // Never the real ComfyUI: the suite only ever talks to this fake.
       command: `uv --directory ../backend run uvicorn fake_comfy_server:app --app-dir ../e2e/servers --host 127.0.0.1 --port ${COMFY_PORT}`,
       url: `http://127.0.0.1:${COMFY_PORT}/system_stats`,
-      env: { FAKE_COMFY_OUT: COMFY_OUT, FAKE_COMFY_RUN: "0.3" },
+      env: { FAKE_COMFY_OUT: COMFY_OUT, FAKE_COMFY_RUN: String(FAKE_COMFY_RUN) },
       reuseExistingServer: false,
       stdout: "ignore",
       stderr: "ignore",

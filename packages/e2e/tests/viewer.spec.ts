@@ -62,20 +62,6 @@ test("a score set in the viewer sticks", async ({ page, request }) => {
   await expect.poll(async () => (await imageById(request, _id)).score).toBe(4);
 });
 
-test("arrow keys step through the feed", async ({ page, request }) => {
-  const { _id } = await imageByPath(request, "furina/furina_41.png");
-  await page.goto(viewerUrl(_id));
-  await expect(page.getByText("furina_41.png", { exact: true })).toBeVisible();
-
-  const here = viewerUrl(_id);
-  // Newest first: furina_41, furina_63, shinobu_23.
-  await page.keyboard.press("ArrowRight");
-  await expect(page.getByText("furina_63.png", { exact: true })).toBeVisible();
-  await page.keyboard.press("ArrowLeft");
-  await expect.poll(() => page.url()).toContain(here);
-  await expect(page.getByText("furina_41.png", { exact: true })).toBeVisible();
-});
-
 test("arrow keys pressed back to back each take a step", async ({ page, request }) => {
   const { _id } = await imageByPath(request, "furina/furina_41.png");
   const { _id: twoOn } = await imageByPath(request, "shinobu/shinobu_23.png");
@@ -96,8 +82,9 @@ test("arrow keys pressed back to back each take a step", async ({ page, request 
   await expect.poll(() => page.url()).toContain(viewerUrl(twoOn));
 });
 
-test("quarantining the open image leaves the arrows working", async ({ page, request }) => {
+test("arrow keys step through the feed, also past a quarantined image", async ({ page, request }) => {
   const { _id } = await imageByPath(request, "furina/furina_63.png");
+  const { _id: first } = await imageByPath(request, "furina/furina_41.png");
   try {
     await page.goto(viewerUrl(_id));
     await expect(page.getByText("furina_63.png", { exact: true })).toBeVisible();
@@ -112,6 +99,7 @@ test("quarantining the open image leaves the arrows working", async ({ page, req
     await expect(page.getByText("furina_63.png", { exact: true })).toBeVisible();
     await page.keyboard.press("ArrowLeft");
     await expect(page.getByText("furina_41.png", { exact: true })).toBeVisible();
+    await expect.poll(() => page.url()).toContain(viewerUrl(first));
   } finally {
     await request.post(`${API}/images/${encodeURIComponent(_id)}/quarantine`, { data: { quarantined: false } });
   }
