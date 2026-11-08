@@ -16,7 +16,10 @@ test("AI tagging a few images of one library", async ({ page, request }) => {
     const body = await res.json();
     return (body.items ?? body) as Row[];
   };
+  const ofFixtures = (rows: Row[]) => rows.filter((r) => r._id.startsWith(`${fixtures!._id}:`));
   const before = (await aiTagged()).length;
+  // An earlier spec may have tagged some (a cancelled job finishes its image).
+  const fixturesBefore = ofFixtures(await aiTagged()).length;
 
   await page.goto("/ai-tagging");
   await page.getByLabel("Most images to tag in one run").fill("3");
@@ -25,8 +28,7 @@ test("AI tagging a few images of one library", async ({ page, request }) => {
   await row.getByRole("button", { name: "Tag" }).click();
 
   await expect.poll(async () => (await aiTagged()).length, { timeout: 240_000, intervals: [2000] }).toBe(before + 3);
-  const tagged = (await aiTagged()).filter((r) => r._id.startsWith(`${fixtures!._id}:`));
-  expect(tagged).toHaveLength(3);
+  expect(ofFixtures(await aiTagged())).toHaveLength(fixturesBefore + 3);
 
   await page.goto("/tags");
   await expect(page.getByRole("link", { name: `AI tagged ${before + 3} images AI-tagged` })).toBeVisible();

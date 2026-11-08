@@ -134,3 +134,14 @@ export function startedKinds(before: readonly BackgroundTask[], after: readonly 
   const was = new Set(before.map((t) => t.key));
   return new Set(after.filter((t) => !was.has(t.key)).map((t) => t.kind));
 }
+
+/** The running AI job that tags many images (the one a "Tag them" started),
+ * if any: the biggest, so an image's own one-image job doesn't stand in. */
+export function bulkAiJob(tasks: readonly BackgroundTask[] | undefined): BackgroundTask | null {
+  let best: BackgroundTask | null = null;
+  for (const t of tasks ?? []) {
+    if (t.kind !== "ai_job" || !t.job_id || (t.total ?? 0) < 2) continue;
+    if (!best || (t.total ?? 0) > (best.total ?? 0)) best = t;
+  }
+  return best;
+}

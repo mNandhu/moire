@@ -116,3 +116,10 @@ test("Edit tags adds and removes a manual tag on a whole Select all", async ({ p
     if (ids.length) await request.post(`${API}/tags/bulk`, { data: { image_ids: ids, remove: ["e2e_bulk"] } });
   }
 });
+
+test("an address no page answers says so, with a way back", async ({ page }) => {
+  await page.goto("/no-such-page");
+  await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+  await page.getByRole("link", { name: "All Images" }).last().click();
+  await expect(page).toHaveURL(/\/$/);
+});

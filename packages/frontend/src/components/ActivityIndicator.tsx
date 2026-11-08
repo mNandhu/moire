@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronUp, Loader2 } from "lucide-react";
+import { ChevronUp, Loader2, X } from "lucide-react";
 import { cn } from "../lib/cn";
 import { describeTask, type BackgroundTask, type TaskView } from "../lib/backgroundTasks";
 import { libraryPageHref, useLibraries } from "../lib/queries";
-import { useBackgroundTasks } from "../hooks/useBackgroundTasks";
-import { ProgressBar } from "./ui";
+import { useBackgroundTasks, useCancelAiJob } from "../hooks/useBackgroundTasks";
+import { Button, ProgressBar } from "./ui";
 
 /** Where a task's own page is, if it has one. */
 function hrefOf(t: BackgroundTask): string | null {
@@ -16,6 +16,29 @@ function hrefOf(t: BackgroundTask): string | null {
 }
 
 function Row({ task, view }: { task: BackgroundTask; view: TaskView }) {
+  const { cancel, cancelling } = useCancelAiJob();
+  const row = <LinkedRow task={task} view={view} />;
+  // An AI job runs for minutes to an hour: stoppable from here, not only
+  // from the AI Tagging page.
+  if (task.kind !== "ai_job" || !task.job_id) return row;
+  const jobId = task.job_id;
+  return (
+    <div className="flex items-center gap-1">
+      <div className="min-w-0 flex-1">{row}</div>
+      <Button
+        size="iconSm"
+        variant="ghost"
+        aria-label="Cancel AI tagging"
+        pending={cancelling === jobId}
+        onClick={() => void cancel(jobId)}
+      >
+        <X size={14} />
+      </Button>
+    </div>
+  );
+}
+
+function LinkedRow({ task, view }: { task: BackgroundTask; view: TaskView }) {
   const href = hrefOf(task);
   const body = (
     <>

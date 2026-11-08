@@ -45,6 +45,24 @@ test("the header shield hides images above the level, and says so on a direct li
   }
 });
 
+test("Tag them shows the job's progress in the banner, and the activity list cancels it", async ({ page, request }) => {
+  test.setTimeout(120_000);
+  const res = await request.post(`${API}/sensitivity`, { data: { max_level: "questionable" } });
+  expect(res.ok()).toBeTruthy();
+  await page.goto("/");
+  const banner = page.getByRole("status").filter({ hasText: "hidden until AI-tagged" });
+  await banner.getByRole("button", { name: "Tag them" }).click();
+
+  // While it runs the banner follows it: no second Tag them, a Cancel instead.
+  await expect(banner.getByRole("button", { name: "Cancel" })).toBeVisible();
+  await expect(banner.getByRole("button", { name: "Tag them" })).toHaveCount(0);
+
+  // The sidebar's background work list stops it too.
+  await page.getByRole("button", { name: /^AI tagging/ }).click();
+  await page.getByRole("button", { name: "Cancel AI tagging" }).click();
+  await expect(banner.getByRole("button", { name: "Tag them" })).toBeVisible({ timeout: 30_000 });
+});
+
 test("Settings sets this library's level for a tag, and drops it", async ({ page }) => {
   await page.goto("/settings?section=sensitivity");
   await expect(page.getByRole("heading", { name: "Tag levels" })).toBeVisible();

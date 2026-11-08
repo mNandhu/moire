@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../lib/api";
+import { api, errorText } from "../lib/api";
+import { useToast } from "../components/Toasts";
 import {
   endedKinds,
   startedKinds,
@@ -8,7 +9,9 @@ import {
   type EndedCounts,
 } from "../lib/backgroundTasks";
 import { AI_COVERAGE_KEY, LIBRARIES_KEY, TAGS_KEY } from "../lib/queries";
-import { AI_STATUS_KEY } from "../lib/ai";
+import { AI_STATUS_KEY, postAiJobCancel } from "../lib/ai";
+import { SENSITIVITY_KEY } from "../lib/queries/sensitivity";
+import type { SensitivityState } from "../lib/sensitivity";
 import { TAG_SAMPLES_KEY } from "../lib/tagSamples";
 import { IMAGE_DOC_PREFIX, invalidateFeeds } from "../lib/feedCache";
 
@@ -78,6 +81,13 @@ export function useRefreshOnFinish() {
       void qc.invalidateQueries({ queryKey: IMAGE_DOC_PREFIX });
       void qc.invalidateQueries({ queryKey: AI_COVERAGE_KEY });
       void qc.invalidateQueries({ queryKey: AI_STATUS_KEY });
+      // Tagging gave hidden images a level: under the sensitivity filter some
+      // now show, so the lists refetch (once, at the end: mid-job they would
+      // pop in among older images and shift the grid). With the filter off
+      // nothing moved, and an image's own one-image run shouldn't refetch
+      // every loaded gallery page.
+      void qc.invalidateQueries({ queryKey: SENSITIVITY_KEY });
+      if (qc.getQueryData<SensitivityState>(SENSITIVITY_KEY)?.max_level) invalidateFeeds(qc);
     }
     if (ended.has("reproject")) {
       // Prompt tags were re-derived: the open image and the gallery show them.
@@ -91,4 +101,27 @@ export function useRefreshOnFinish() {
       void qc.invalidateQueries({ queryKey: TAG_SAMPLES_KEY });
     }
   }, [data, qc]);
+}
+
+/** Cancel an AI job from anywhere it shows (the activity list, a banner);
+ * the activity poll is asked again at once so it drops out. */
+export function useCancelAiJob() {
+  const qc = useQueryClient();
+  const { push } = useToast();
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const cancel = useCallback(
+    async (jobId: string) => {
+      setCancelling(jobId);
+      try {
+        await postAiJobCancel(jobId);
+      } catch (e) {
+        push(`Couldn't cancel AI tagging: ${errorText(e)}`, "error");
+      } finally {
+        setCancelling(null);
+        void qc.invalidateQueries({ queryKey: BACKGROUND_TASKS_KEY });
+      }
+    },
+    [qc, push],
+  );
+  return { cancel, cancelling };
 }

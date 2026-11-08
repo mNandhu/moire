@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { describeTask, endedKinds, startedKinds, taskPct, type BackgroundTask } from "./backgroundTasks";
+import { bulkAiJob, describeTask, endedKinds, startedKinds, taskPct, type BackgroundTask } from "./backgroundTasks";
 
 const names = (id: string) => ({ A: "sdxl" })[id];
 
@@ -64,4 +64,21 @@ it("finds the kinds of work that just started", () => {
   const b = { key: "ai:1", kind: "ai_job" };
   expect([...startedKinds([a], [a, b])]).toEqual(["ai_job"]);
   expect(startedKinds([a, b], [a]).size).toBe(0);
+});
+
+describe("bulkAiJob", () => {
+  const job = (id: string, total: number): BackgroundTask => ({ key: `ai:${id}`, kind: "ai_job", job_id: id, total, done: 0 });
+
+  it("is null with no AI job running", () => {
+    expect(bulkAiJob(undefined)).toBeNull();
+    expect(bulkAiJob([{ key: "s", kind: "scan", total: 10 }])).toBeNull();
+  });
+
+  it("skips an image's own one-image job", () => {
+    expect(bulkAiJob([job("one", 1)])).toBeNull();
+  });
+
+  it("picks the biggest job", () => {
+    expect(bulkAiJob([job("a", 5), job("b", 1395), job("c", 1)])?.job_id).toBe("b");
+  });
 });

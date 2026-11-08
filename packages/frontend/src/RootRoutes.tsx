@@ -5,6 +5,7 @@ import { OverlayOpenContext, getBackgroundLocation } from "./lib/backgroundLocat
 import App from "./App";
 import AllImagesPage from "./pages/AllImagesPage";
 import ImageView from "./pages/ImageView";
+import NotFoundPage from "./pages/NotFoundPage";
 import { useRefreshOnFinish } from "./hooks/useBackgroundTasks";
 import { useTrackHistory } from "./hooks/useHistoryNav";
 import { ONBOARDING_KEY, fetchOnboarding } from "./lib/onboarding";
@@ -110,6 +111,7 @@ export default function RootRoutes() {
           <Route path="generations" element={<GenerationsPage />} />
           <Route path="generations/:id" element={<BatchPage />} />
           <Route path="outfits" element={<OutfitsPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
         <Route path="/image/:id" element={<ImageView />} />
         <Route

@@ -9,11 +9,14 @@ import type { FilterLevel, SensitivityState, TagLevels } from "../sensitivity";
 export const SENSITIVITY_KEY = ["sensitivity"] as const;
 const TAG_LEVELS_KEY = [...SENSITIVITY_KEY, "tags"] as const;
 
-export function useSensitivity() {
+/** `poll`: refetch every few seconds (an AI job is giving hidden images a
+ * level, so the counts move). */
+export function useSensitivity({ poll = false }: { poll?: boolean } = {}) {
   return useQuery({
     queryKey: SENSITIVITY_KEY,
     queryFn: ({ signal }) => api<SensitivityState>("/api/v1/sensitivity", { signal }),
     staleTime: 30_000,
+    refetchInterval: poll ? 3000 : false,
   });
 }
 
