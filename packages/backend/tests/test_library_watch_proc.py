@@ -25,6 +25,7 @@ def ingested(monkeypatch):
     """Records (library_id, file name) for every ingest the watcher makes."""
     library_watch.stop_all()  # a child left by an earlier test's library add
     monkeypatch.setattr(settings, "watch_debounce_ms", 50)
+    monkeypatch.setattr(settings, "watch_poll_delay_ms", 50)
     monkeypatch.setattr(settings, "watch_stability_window_ms", 50)
     monkeypatch.setattr(library_watch._child, "restart_delay_s", 0.0)
     seen: list[tuple[str, str]] = []

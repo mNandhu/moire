@@ -9,7 +9,8 @@ process; `library_watch` in the server keeps its threads responsive.
 Imports nothing from Moiré beyond the package itself (no DB, no settings).
 
 Protocol, one JSON object per line:
-  stdin   {"op": "add", "key": k, "gen": g, "path": p, "debounce_ms": n}
+  stdin   {"op": "add", "key": k, "gen": g, "path": p, "debounce_ms": n,
+           "poll_delay_ms": n}
           {"op": "remove", "key": k}
   stdout  {"key": k, "gen": g, "changes": [[change, path], ...]}
           {"key": k, "gen": g, "error": "..."}  (the watch loop died)
@@ -41,10 +42,17 @@ def _emit(msg: dict) -> None:
 
 
 def _run(
-    key: str, gen: int, path: str, debounce_ms: int, stop: threading.Event
+    key: str,
+    gen: int,
+    path: str,
+    debounce_ms: int,
+    poll_delay_ms: int,
+    stop: threading.Event,
 ) -> None:
     try:
-        for changes in watch(path, debounce=debounce_ms, stop_event=stop):
+        for changes in watch(
+            path, debounce=debounce_ms, poll_delay_ms=poll_delay_ms, stop_event=stop
+        ):
             if stop.is_set():
                 break
             _emit(
@@ -84,6 +92,7 @@ def main() -> None:
                     cmd.get("gen"),
                     cmd["path"],
                     int(cmd.get("debounce_ms", 800)),
+                    int(cmd.get("poll_delay_ms", 300)),
                     stop,
                 ),
                 name=f"watch-{key}",

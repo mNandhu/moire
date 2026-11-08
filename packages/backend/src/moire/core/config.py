@@ -79,6 +79,11 @@ class Settings(BaseSettings):
     # watchfiles' own debounce: how long a burst of events on one path is
     # coalesced before it's delivered as a single batch.
     watch_debounce_ms: int = 800
+    # Pause between stat passes when the watcher has to poll (watchfiles forces
+    # polling on WSL, and network mounts need it). Each pass stats every file
+    # of every watched library, so at watchfiles' 300 ms default many libraries
+    # on a slow mount keep over a core busy while nothing changes.
+    watch_poll_delay_ms: int = 2000
     # Backstop full rescan per watched library, in case events are missed
     # (network shares, drives that drop inotify/ReadDirectoryChanges).
     watch_reconcile_interval_s: int = 900

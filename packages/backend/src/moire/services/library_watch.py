@@ -75,6 +75,7 @@ def _add_cmd(w: _Watch) -> dict:
         "gen": w.gen,
         "path": str(w.root),
         "debounce_ms": max(50, settings.watch_debounce_ms),
+        "poll_delay_ms": max(50, settings.watch_poll_delay_ms),
     }
 
 
