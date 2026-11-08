@@ -149,9 +149,11 @@ export type Filters = {
   maxW?: number;
   minH?: number;
   maxH?: number;
-  // Batch grouping: `group` collapses the feed into batches (grouped view);
-  // `groupId` drills into one batch's members (ungrouped). Mutually exclusive
-  // in practice: drilling in turns collapse off.
+  // Batch grouping: `group` is the grouping setting (the grouped view, and the
+  // saved choice); `groupId` drills into one batch's members, shown ungrouped.
+  // Both can be set: a drill from the grouped view keeps `group`, so leaving
+  // it goes back there. The view is grouped only with `group` and no
+  // `groupId` (`isGroupedView`).
   group: boolean;
   groupId?: string;
   /** One Generation batch's images (one press of Queue), by its id: what
@@ -339,12 +341,45 @@ export function leaveGroup(f: Filters): Filters {
   return { ...f, groupId: undefined };
 }
 
-/** The gallery's title for `f`. `libraryName` resolves a library id. */
-export function galleryTitle(f: Filters, libraryName: (id: string) => string | undefined = () => undefined): string {
+/** Whether the gallery shows batches (one tile each) rather than images. */
+export function isGroupedView(f: Filters): boolean {
+  return f.group && !f.groupId;
+}
+
+/** The grouping toggle: flips the setting and, inside a batch, leaves it
+ * for the gallery grouped (or not) as the toggle now says. */
+export function toggleGrouping(f: Filters): Filters {
+  return { ...f, group: !f.group, groupId: undefined };
+}
+
+/** Resolvers for the names a gallery title can need. */
+export type GalleryNames = {
+  library?: (id: string) => string | undefined;
+  batch?: (id: number) => string | undefined;
+};
+
+/** The gallery's name for `f`, or undefined while a name it needs (a
+ * library's, a Generation batch's) is not known. */
+export function galleryName(f: Filters, names: GalleryNames = {}): string | undefined {
   if (f.quarantined) return "Quarantined Images";
-  if (f.groupId || f.genBatch != null) return "Batch Images";
-  if (f.libraryId) return libraryName(f.libraryId) ?? "Library Images";
+  if (f.groupId) return "Batch Images";
+  if (f.genBatch != null) return names.batch?.(f.genBatch);
+  if (f.libraryId) return names.library?.(f.libraryId);
   return hasActiveFilter(f) ? "Filtered Images" : "All Images";
+}
+
+/** The gallery's title for `f`: its name, or a plain one until that loads. */
+export function galleryTitle(f: Filters, names: GalleryNames = {}): string {
+  const name = galleryName(f, names);
+  if (name) return name;
+  return f.genBatch != null ? "Batch Images" : "Library Images";
+}
+
+/** The label of the control leaving a batch's members: named for where it
+ * goes, or plain "Back" until that name is known. */
+export function leaveGroupLabel(f: Filters, names: GalleryNames = {}): string {
+  const name = galleryName(leaveGroup(f), names);
+  return name ? `Back to ${name}` : "Back";
 }
 
 /** Whether any filter axis is set (vs the empty default feed): whatever the

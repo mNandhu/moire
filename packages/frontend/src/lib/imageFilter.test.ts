@@ -17,7 +17,10 @@ import {
   IMAGE_DETAIL_KEYS,
   enterGroup,
   leaveGroup,
+  leaveGroupLabel,
   galleryTitle,
+  isGroupedView,
+  toggleGrouping,
 } from "./imageFilter";
 
 const roundTrip = (f: Filters): Filters =>
@@ -406,20 +409,43 @@ describe("into and out of a group", () => {
   });
 
   it("names where it leaves to, never a batches page", () => {
-    const back = (f: Filters) => galleryTitle(leaveGroup(f), (id) => (id === "L1" ? "Renders" : undefined));
-    expect(back({ ...DEFAULT_FILTERS, group: true, groupId: "g" })).toBe("All Images");
-    expect(back({ ...DEFAULT_FILTERS, groupId: "g", tags: ["cat"] })).toBe("Filtered Images");
-    expect(back({ ...DEFAULT_FILTERS, groupId: "g", libraryId: "L1" })).toBe("Renders");
-    expect(back({ ...DEFAULT_FILTERS, groupId: "g", quarantined: true })).toBe("Quarantined Images");
+    const names = {
+      library: (id: string) => (id === "L1" ? "Renders" : undefined),
+      batch: (id: number) => (id === 7 ? "hu tao" : undefined),
+    };
+    const back = (f: Filters) => leaveGroupLabel(f, names);
+    expect(back({ ...DEFAULT_FILTERS, group: true, groupId: "g" })).toBe("Back to All Images");
+    expect(back({ ...DEFAULT_FILTERS, groupId: "g", tags: ["cat"] })).toBe("Back to Filtered Images");
+    expect(back({ ...DEFAULT_FILTERS, groupId: "g", libraryId: "L1" })).toBe("Back to Renders");
+    expect(back({ ...DEFAULT_FILTERS, groupId: "g", quarantined: true })).toBe("Back to Quarantined Images");
+    // Inside a Generation batch's stack: back to that batch, by its name.
+    expect(back({ ...DEFAULT_FILTERS, groupId: "g", genBatch: 7 })).toBe("Back to hu tao");
+  });
+
+  it("says only Back while the name it needs is loading, never a wrong one", () => {
+    expect(leaveGroupLabel({ ...DEFAULT_FILTERS, groupId: "g", libraryId: "L1" })).toBe("Back");
+    expect(leaveGroupLabel({ ...DEFAULT_FILTERS, groupId: "g", genBatch: 7 })).toBe("Back");
+  });
+});
+
+describe("the grouping toggle", () => {
+  it("shows the setting inside a batch too, and flipping it leaves the batch", () => {
+    const inside = enterGroup({ ...DEFAULT_FILTERS, group: true }, "g");
+    expect(isGroupedView(inside)).toBe(false);
+    expect(toggleGrouping(inside)).toEqual(DEFAULT_FILTERS);
+    // Grouping off (a direct link into a batch): the toggle turns it on.
+    expect(toggleGrouping({ ...DEFAULT_FILTERS, groupId: "g" })).toEqual({ ...DEFAULT_FILTERS, group: true });
+    expect(isGroupedView({ ...DEFAULT_FILTERS, group: true })).toBe(true);
   });
 });
 
 describe("galleryTitle", () => {
-  it("names the view", () => {
+  it("names the view, plainly until a name loads", () => {
     expect(galleryTitle(DEFAULT_FILTERS)).toBe("All Images");
     expect(galleryTitle({ ...DEFAULT_FILTERS, group: true })).toBe("All Images");
     expect(galleryTitle({ ...DEFAULT_FILTERS, groupId: "g" })).toBe("Batch Images");
     expect(galleryTitle({ ...DEFAULT_FILTERS, genBatch: 3 })).toBe("Batch Images");
+    expect(galleryTitle({ ...DEFAULT_FILTERS, genBatch: 3 }, { batch: () => "hu tao" })).toBe("hu tao");
     expect(galleryTitle({ ...DEFAULT_FILTERS, libraryId: "gone" })).toBe("Library Images");
   });
 });

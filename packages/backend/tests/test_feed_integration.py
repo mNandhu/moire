@@ -421,11 +421,14 @@ async def test_rare_filter_by_ids_matches_the_full_walk(client, seed, monkeypatc
     assert all(driven[:6])  # every filter matched something
 
 
-def _gen_batch(conn, outputs: list[str]) -> int:
+def _gen_batch(conn, outputs: list[str], *, test: bool = False) -> int:
     """A Generation batch whose one request returned ``outputs``."""
     bid = conn.execute(
         sa.insert(t.generation_batches).values(
-            name="b", generator_id="builtin", inputs={}, state="done"
+            name="b",
+            generator_id="builtin",
+            inputs={"test": {"generator": "x"}} if test else {},
+            state="done",
         )
     ).inserted_primary_key[0]
     rid = conn.execute(
@@ -464,3 +467,20 @@ async def test_gen_batch_is_one_queue_press_not_the_prompt_group(client, seed):
     assert (await detail("OUT:a.png")).json()["gen_batch"] == first
     seed("L1:mine.png", gen=gen)
     assert (await detail("L1:mine.png")).json()["gen_batch"] is None
+    # With other filters too: the batch drives, they still narrow it.
+    seed("OUT:d.png", tags=("cat",), gen=gen, mtime=4)
+    seed("OUT:e.png", gen=gen, mtime=5)
+    with db.sync_tx() as conn:
+        third = _gen_batch(conn, ["OUT:d.png", "OUT:e.png"])
+    assert await _ids(client, gen_batch=third, tags="cat") == ["OUT:d.png"]
+    groups = (await client.get("/images/groups", params={"gen_batch": third})).json()
+    assert [(g["_id"], g["group_count"]) for g in groups] == [("OUT:e.png", 2)]
+
+
+async def test_a_test_run_is_no_batch(client, seed):
+    # Hidden from the Generations page, so neither strip nor filter shows it.
+    seed("OUT:t.png", gen={"prompt": "x", "group_id": "g"})
+    with db.sync_tx() as conn:
+        bid = _gen_batch(conn, ["OUT:t.png"], test=True)
+    assert (await client.get("/images/OUT:t.png")).json()["gen_batch"] is None
+    assert await _ids(client, gen_batch=bid) == []

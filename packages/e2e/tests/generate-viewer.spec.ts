@@ -61,7 +61,11 @@ test("the viewer steps through only the images Generate shows", async ({ page, r
   await expect(tiles).toHaveCount(1, { timeout: 30_000 });
   const feedPages: string[] = [];
   page.on("request", (r) => {
-    if (new URL(r.url()).pathname === `${API}/images`) feedPages.push(r.url());
+    const u = new URL(r.url());
+    // The Generation tab's This batch strip reads its own batch; that is
+    // not the gallery feed.
+    const strip = u.searchParams.has("gen_batch") || u.searchParams.has("group_id");
+    if (u.pathname === `${API}/images` && !strip) feedPages.push(r.url());
   });
   await tiles.first().click();
   await expect.poll(() => openId(page)).toBe(only);

@@ -175,47 +175,47 @@ async def get_batch(batch_id: int, manager: GenerationManager) -> dict[str, Any]
     }
 
 
-async def batch_id_of_image(conn, image_id: str) -> int | None:
-    """The id of the Generation batch a Moiré output came from, else None:
-    the batch its viewer strip shows (one press of Queue, not every run of
-    the same prompt)."""
+# Test runs are the gate's business, not history: no list, no strip.
+NOT_TEST = sa.func.coalesce(sa.func.json_extract(_b.c.inputs, "$.test"), 0) == 0
+
+
+def _image_batch(image_id: Any, *cols: Any) -> sa.Select:
+    """``cols`` of the batch and request an image came from: the newest
+    request that returned it (a retried one returns it again)."""
     return (
-        await conn.execute(
-            sa.select(_r.c.batch_id)
-            .select_from(_o.join(_r, _r.c._id == _o.c.request_id))
-            .where(_o.c.image_id == image_id)
-            .order_by(_r.c._id.desc())
-            .limit(1)
+        sa.select(*cols)
+        .select_from(
+            _o.join(_r, _r.c._id == _o.c.request_id).join(_b, _b.c._id == _r.c.batch_id)
         )
-    ).scalar()
+        .where(_o.c.image_id == image_id)
+        .order_by(_r.c._id.desc())
+        .limit(1)
+    )
+
+
+def batch_id_of_image(image_id: Any) -> sa.ScalarSelect:
+    """The id of the Generation batch a Moiré output came from (NULL for any
+    other image, and for a test run): the batch its viewer strip shows, one
+    press of Queue, not every run of the same prompt. A scalar subquery, so
+    the image's own read carries it."""
+    return _image_batch(image_id, _b.c._id).where(NOT_TEST).scalar_subquery()
 
 
 async def batch_of_image(conn, image_id: str) -> dict[str, Any] | None:
     """The batch and request a Moiré output came from, else None."""
     row = (
         await conn.execute(
-            sa.select(
-                t.generation_batches.c._id,
-                t.generation_batches.c.name,
-                t.generation_batches.c.auto_name,
-                t.generation_batches.c.generator_id,
-                t.generation_batches.c.inputs,
-                t.generation_requests.c.seed,
-                t.generation_requests.c.images,
-                t.generation_outputs.c.idx,
+            _image_batch(
+                image_id,
+                _b.c._id,
+                _b.c.name,
+                _b.c.auto_name,
+                _b.c.generator_id,
+                _b.c.inputs,
+                _r.c.seed,
+                _r.c.images,
+                _o.c.idx,
             )
-            .select_from(
-                t.generation_outputs.join(
-                    t.generation_requests,
-                    t.generation_requests.c._id == t.generation_outputs.c.request_id,
-                ).join(
-                    t.generation_batches,
-                    t.generation_batches.c._id == t.generation_requests.c.batch_id,
-                )
-            )
-            .where(t.generation_outputs.c.image_id == image_id)
-            .order_by(t.generation_requests.c._id.desc())
-            .limit(1)
         )
     ).first()
     if row is None or not isinstance(row.inputs, dict):
@@ -237,7 +237,7 @@ async def list_batches(
 ) -> list[dict[str, Any]]:
     q = sa.select(_b).order_by(_b.c._id.desc()).limit(limit)
     # Test runs are the gate's business, not history.
-    q = q.where(sa.func.coalesce(sa.func.json_extract(_b.c.inputs, "$.test"), 0) == 0)
+    q = q.where(NOT_TEST)
     if before is not None:
         q = q.where(_b.c._id < before)
     async with async_conn() as conn:

@@ -132,9 +132,11 @@ test("a second Queue press of the same prompt is its own batch", async ({ page, 
   // The gallery still stacks every run of the prompt. Its back control says
   // where it goes, and goes there.
   await page.goto("/?group=1");
-  await page.locator("[data-tile-index]").filter({ has: page.getByTitle("3 variations in this batch") }).click();
+  await page.locator("[data-tile-index]").filter({ has: page.getByRole("img", { name: "3 variations in this batch" }) }).click();
   await expect(page.getByRole("heading", { name: "Batch Images" })).toBeVisible();
   await expect(page.locator("[data-tile-index]")).toHaveCount(3);
+  // Grouping is still on inside the stack, and the toggle says so.
+  await expect(page.getByRole("button", { name: "Group batches" })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Back to All Images" }).click();
   await expect(page.getByRole("heading", { name: "All Images" })).toBeVisible();
   await expect.poll(() => new URL(page.url()).searchParams.get("group_id")).toBeNull();

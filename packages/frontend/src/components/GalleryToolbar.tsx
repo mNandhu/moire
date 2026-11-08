@@ -34,6 +34,7 @@ export function GalleryToolbar({
   searchInputRef,
   options,
   grouped,
+  groupOn,
   onToggleGroup,
   selection,
   selectionMode,
@@ -55,7 +56,10 @@ export function GalleryToolbar({
   filterButtonRef: Ref<HTMLButtonElement>;
   searchInputRef: Ref<HTMLInputElement>;
   options: Pick<FilterOptions, "tagOptions" | "resourceSuggestions" | "knownOutfits" | "knownResources" | "tagNames">;
+  /** The gallery shows batches, not images (no Select all there). */
   grouped: boolean;
+  /** The grouping setting the toggle shows: on inside one batch's members too. */
+  groupOn: boolean;
   onToggleGroup: () => void;
   selection: Set<string>;
   selectionMode: boolean;
@@ -78,9 +82,9 @@ export function GalleryToolbar({
       short: "Group",
       tip: "Group batches (same prompt + workflow)",
       Icon: Layers,
-      on: grouped,
+      on: groupOn,
       // Its name stays put, so it says on/off as a press; Select's name changes.
-      pressed: grouped as boolean | undefined,
+      pressed: groupOn as boolean | undefined,
       toggle: onToggleGroup,
     },
     {

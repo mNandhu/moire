@@ -213,19 +213,25 @@ def resolve_image_id_sync(conn: Connection, image_id: str) -> str | None:
 
 
 async def find_image(
-    image_id: str, columns: Iterable[str] | None = None
+    image_id: str,
+    columns: Iterable[str] | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> dict | None:
     """Look up an image by id, tolerating slash/backslash id variants.
 
     ``columns`` names the ``images`` columns to read (``_id`` always comes
     too); ``None`` reads the whole document. The thumb and file routes read
     one column per grid tile, so they must not decode the JSON ones.
+    ``extra`` adds fields computed in the same read: name -> a scalar
+    subquery over ``images._id``.
     """
     if columns is None:
         select = sa.select(t.images)
     else:
         names = dict.fromkeys(["_id", *columns])
         select = sa.select(*(t.images.c[name] for name in names))
+    for name, expr in (extra or {}).items():
+        select = select.add_columns(expr.label(name))
     async with async_conn() as conn:
         for candidate in id_candidates(image_id):
             row = (

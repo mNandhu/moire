@@ -154,6 +154,9 @@ class FeedFilter:
     # The images of the filter's rarest tag group or prompt term, when that
     # is few enough to drive the query by id (`_drive_by_rarest`).
     driver_ids: tuple[str, ...] | None = None
+    # `gen_batch`'s images, resolved by `_resolved` (a handful: they drive
+    # the query too).
+    gen_batch_ids: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if self.sort not in SORTS:
@@ -311,19 +314,27 @@ def _workflow_conds(f: FeedFilter) -> list:
     if f.group_id:
         conds.append(t.images.c.gen_group_id == f.group_id)
     if f.gen_batch is not None:
-        conds.append(t.images.c._id.in_(_gen_batch_ids(f.gen_batch)))
+        if f.gen_batch_ids is None:
+            raise RuntimeError("gen_batch filter used before _resolved()")
+        conds.append(t.images.c._id.in_(f.gen_batch_ids))
     return conds
 
 
 def _gen_batch_ids(batch_id: int) -> sa.Select:
     """The image ids a Generation batch's requests returned. What the batch
     page shows; the prompt group (``gen_group_id``) is wider: every run of the
-    same prompt and workflow, whatever its checkpoint or Queue press."""
-    o, r = t.generation_outputs, t.generation_requests
+    same prompt and workflow, whatever its checkpoint or Queue press. A test
+    run is no batch here, as on the Generations page."""
+    from .generation_batches import NOT_TEST
+
+    o, r, b = t.generation_outputs, t.generation_requests, t.generation_batches
     return (
         sa.select(o.c.image_id)
-        .select_from(o.join(r, r.c._id == o.c.request_id))
-        .where(r.c.batch_id == batch_id)
+        .select_from(
+            o.join(r, r.c._id == o.c.request_id).join(b, b.c._id == r.c.batch_id)
+        )
+        .where(r.c.batch_id == batch_id, NOT_TEST)
+        .distinct()
     )
 
 
@@ -351,6 +362,14 @@ async def _resolved(conn, f: FeedFilter) -> FeedFilter:
 
         rules = [await outfits.wear_rule(o) for o in dict.fromkeys(f.outfit) if o]
         f = replace(f, outfit_rules=tuple(rules))
+    if f.gen_batch is not None and f.gen_batch_ids is None:
+        # A batch is a handful of images: they drive the query by id, like a
+        # rare tag, instead of a walk of the whole sort index.
+        ids = tuple((await conn.execute(_gen_batch_ids(f.gen_batch))).scalars())
+        if f.driver_ids is not None:
+            had = set(f.driver_ids)
+            ids = tuple(i for i in ids if i in had)
+        f = replace(f, gen_batch_ids=ids, driver_ids=ids)
     return await _drive_by_rarest(conn, f)
 
 

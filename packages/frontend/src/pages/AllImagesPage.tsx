@@ -20,9 +20,13 @@ import {
   activeFilterChips,
   enterGroup,
   galleryTitle,
+  isGroupedView,
   leaveGroup,
+  leaveGroupLabel,
+  toggleGrouping,
+  type GalleryNames,
 } from "../lib/imageFilter";
-import { useBatch } from "../lib/generate";
+import { useBatchList } from "../lib/generate";
 import { fetchImageIds } from "../lib/imageApi";
 import { PageHeader } from "../components/ui/PageHeader";
 import { LibraryScopeTabs } from "../components/LibraryScopeTabs";
@@ -69,7 +73,7 @@ export default function AllImagesPage() {
   const [filters, setFilters] = useFilters();
   // Grouped (batch-collapsed) view: active only when collapsing AND not drilled
   // into a specific batch. Drilling in (groupId) shows that batch ungrouped.
-  const groupMode = filters.group && !filters.groupId;
+  const groupMode = isGroupedView(filters);
   const feed = useImageFeed(filters, PAGE_LIMIT, !groupMode);
   const groups = useImageGroups(filters, groupMode);
   const activeFeed = groupMode ? groups : feed;
@@ -95,8 +99,9 @@ export default function AllImagesPage() {
   const scopeInTabs =
     libs.length >= 2 && libs.some((l) => l._id === filters.libraryId);
   // The Generation batch the feed is narrowed to, for its chip's name.
-  const { data: genBatch } = useBatch(filters.genBatch ?? 0, filters.genBatch != null);
-  const genBatchName = genBatch?._id === filters.genBatch ? genBatch?.name : undefined;
+  // Read once, not polled: the name is all the chip and title need.
+  const [genBatch] = useBatchList(filters.genBatch != null ? [filters.genBatch] : []);
+  const genBatchName = genBatch?.name;
   const filterChips = useMemo(
     () =>
       activeFilterChips(
@@ -110,12 +115,15 @@ export default function AllImagesPage() {
       ).filter((chip) => chip.key !== "library" || !scopeInTabs),
     [filters, libs, workflowFamilies, scopeInTabs, genBatchName],
   );
-  const libraryTitle = useCallback(
-    (id: string) => {
-      const lib = libs.find((l) => l._id === id);
-      return lib ? lib.name || lib.path : undefined;
-    },
-    [libs],
+  const galleryNames = useMemo<GalleryNames>(
+    () => ({
+      library: (id) => {
+        const lib = libs.find((l) => l._id === id);
+        return lib ? lib.name || lib.path : undefined;
+      },
+      batch: () => genBatchName,
+    }),
+    [libs, genBatchName],
   );
 
   // An empty feed while its library is still scanning (or queued) is not
@@ -330,11 +338,10 @@ export default function AllImagesPage() {
   });
 
   // Grouped view, as both the desktop button and the phone menu show it.
-  // Inside one batch (groupId) the feed isn't grouped, so the toggle turns
+  // The toggle shows the grouping setting, also inside one batch (whose
+  // members show ungrouped); flipping it there leaves the batch.
   // grouping on rather than off.
-  const grouped = filters.group && !filters.groupId;
-  const toggleGroup = () =>
-    setFilters({ ...filters, group: !grouped, groupId: undefined });
+  const toggleGroup = () => setFilters(toggleGrouping(filters));
 
   return (
     <div ref={containerRef}>
@@ -348,7 +355,7 @@ export default function AllImagesPage() {
       <PageHeader
         sticky={false}
         width="full"
-        title={galleryTitle(filters, libraryTitle)}
+        title={galleryTitle(filters, galleryNames)}
         // Not a total: the feed is cursor-paged and the API exposes no count,
         // so this is what has been loaded so far. Labelling it plainly beats a
         // bare number that climbs as you scroll and looks like a bug.
@@ -384,7 +391,8 @@ export default function AllImagesPage() {
           filterButtonRef={filterButtonRef}
           searchInputRef={searchInputRef}
           options={filterOptions}
-          grouped={grouped}
+          grouped={groupMode}
+          groupOn={filters.group}
           onToggleGroup={toggleGroup}
           selection={selection}
           selectionMode={selectionMode}
@@ -503,7 +511,7 @@ export default function AllImagesPage() {
       {/* Named for where it goes: the gallery the batch was opened from. */}
       {filters.groupId && (
         <Button size="sm" onClick={() => setFilters(leaveGroup(filters))}>
-          <ArrowLeft size={14} /> Back to {galleryTitle(leaveGroup(filters), libraryTitle)}
+          <ArrowLeft size={14} /> {leaveGroupLabel(filters, galleryNames)}
         </Button>
       )}
 

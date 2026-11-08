@@ -20,7 +20,10 @@ describe("batchStripQuery", () => {
     expect(batchStripQuery({ groupId: "g" }, "tags=cat")).toBe("tags=cat&group_id=g");
   });
 
-  it("replaces a batch the scope already names", () => {
+  it("drops any batch the scope already names", () => {
     expect(batchStripQuery({ genBatch: 7 }, "gen_batch=3")).toBe("gen_batch=7");
+    // A group strip under a viewer opened from a batch strip: the group only.
+    expect(batchStripQuery({ groupId: "g" }, "tags=cat&gen_batch=3")).toBe("tags=cat&group_id=g");
+    expect(batchStripQuery({ genBatch: 7 }, "group_id=g")).toBe("gen_batch=7");
   });
 });

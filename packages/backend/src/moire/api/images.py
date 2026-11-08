@@ -5,6 +5,7 @@ import anyio  # type: ignore[import-not-found]
 import os
 
 from ..database.db import async_conn, async_tx
+from ..database import schema as t
 from ..services import gen_metadata, gen_raw, image_tags, image_feed
 from ..services import tag_index
 from ..services import generation_batches, image_delete, thumb_version
@@ -196,12 +197,13 @@ async def get_image_workflow(image_id: str):
 
 @router.get("/{image_id:path}", **documents(ImageDetail))
 async def get_image(image_id: str):
-    img = await _find_image_doc(image_id)
+    img = await _find_image_doc(
+        image_id,
+        extra={"gen_batch": generation_batches.batch_id_of_image(t.images.c._id)},
+    )
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
     await thumb_version.urls_for_rows([img])
-    async with async_conn() as conn:
-        img["gen_batch"] = await generation_batches.batch_id_of_image(conn, img["_id"])
     return img
 
 

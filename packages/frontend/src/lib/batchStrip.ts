@@ -14,9 +14,13 @@ export function stripOf(genBatch: number | null | undefined, groupId: string | n
   return groupId ? { groupId } : null;
 }
 
-/** The strip's feed query: the viewer's `scope` narrowed to the batch. */
+/** The strip's feed query: the viewer's `scope` narrowed to the batch. Any
+ * batch the scope names already is dropped first, so the strip (and the
+ * arrows, which step through the same query) is this batch alone. */
 export function batchStripQuery(of: BatchOf, scope: string): string {
   const sp = new URLSearchParams(scope);
+  sp.delete("gen_batch");
+  sp.delete("group_id");
   if ("genBatch" in of) sp.set("gen_batch", String(of.genBatch));
   else sp.set("group_id", of.groupId);
   return sp.toString();
