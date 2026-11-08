@@ -14,42 +14,36 @@ const enabledTone = "text-faint hover:text-neutral-100 hover:bg-raised/60";
 const disabledTone = "text-faint/40 cursor-default";
 
 /**
- * The sidebar's back and forward buttons. With a label (sidebar expanded)
- * the two sit side by side. Without one (collapsed) only back shows, and
+ * The sidebar's back and forward buttons. Expanded, the two sit side by side
+ * as equal icon-only halves. Collapsed, only back shows, and
  * hovering it floats a forward button just past the sidebar's edge when
  * there is somewhere to go forward to.
  */
-export function BackButton({ className, label }: { className?: string; label?: string }) {
-  if (label) return <InlineHistoryButtons label={label} className={className} />;
+export function BackButton({ className, expanded }: { className?: string; expanded?: boolean }) {
+  if (expanded) return <InlineHistoryButtons className={className} />;
   return <FloatingForwardBackButton className={className} />;
 }
 
-function InlineHistoryButtons({ className, label }: { className?: string; label: string }) {
+function InlineHistoryButtons({ className }: { className?: string }) {
   const { canBack, canForward, back, forward } = useHistoryNav();
+  const base = "flex flex-1 basis-0 items-center justify-center py-2 rounded-lg transition-colors";
   return (
-    <div className={cn(POINTER_ONLY, "w-full items-center gap-1", className)}>
+    <div className={cn(POINTER_ONLY, "w-full items-center", className)}>
       <button
         type="button"
         onClick={() => canBack && back()}
         aria-disabled={!canBack}
         aria-label="Go back"
-        className={cn(
-          "flex flex-1 items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors",
-          canBack ? enabledTone : disabledTone,
-        )}
+        className={cn(base, canBack ? enabledTone : disabledTone)}
       >
         <ArrowLeft size={18} />
-        {label}
       </button>
       <button
         type="button"
         onClick={() => canForward && forward()}
         aria-disabled={!canForward}
         aria-label="Go forward"
-        className={cn(
-          "flex items-center justify-center p-2 rounded-lg transition-colors",
-          canForward ? enabledTone : disabledTone,
-        )}
+        className={cn(base, canForward ? enabledTone : disabledTone)}
       >
         <ArrowRight size={18} />
       </button>

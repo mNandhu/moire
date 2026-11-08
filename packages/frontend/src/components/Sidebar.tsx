@@ -165,7 +165,7 @@ export function Sidebar({
             button past the sidebar's edge. */}
         <div className="hidden [@media(hover:hover)_and_(pointer:fine)]:block">
           <div className={cn("mb-3 border-t border-line", collapsed && "mx-2")} />
-          <BackButton label={collapsed ? undefined : "Back"} className={collapsed ? "w-full justify-center py-2.5" : undefined} />
+          <BackButton expanded={!collapsed} className={collapsed ? "w-full justify-center py-2.5" : undefined} />
         </div>
       </nav>
 
