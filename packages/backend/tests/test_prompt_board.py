@@ -9,8 +9,8 @@ from moire.services.danbooru_tags import TagList, newest, parse
 LIST = [
     '1girl,0,8483124,"sole_female,1girls"',
     'long_hair,0,6263710,"/lh,longhair"',
-    'fellatio,0,99573,"blow_job,blowjob"',
-    'irrumatio,0,17154,"forced_blowjob"',
+    'closed_eyes,0,99573,"eye_closed,eyes_closed"',
+    'one_eye_closed,0,17154,"closed_one_eye"',
     "blue_sky,0,303405,",
     "hatsune_miku,4,146762,miku",
     "wlop,1,401,",
@@ -28,7 +28,7 @@ def place(name: str) -> dict:
 
 
 def test_parse_keeps_clean_aliases_only():
-    assert TAGS.aliases["blowjob"] == "fellatio"
+    assert TAGS.aliases["eyes_closed"] == "closed_eyes"
     assert TAGS.aliases["longhair"] == "long_hair"
     assert "/lh" not in TAGS.aliases
     assert "shared" not in TAGS.aliases
@@ -78,11 +78,11 @@ def test_newest_full_list():
         ("wlop", "style"),
         ("absurdres", "quality"),
         ("xyzzy_tag", "unknown"),
-        # Builds the groups file under sex acts are body; the acts stay pose.
+        # Builds the groups file under intimate acts are body; the acts stay pose.
         ("muscular_male", "body"),
         ("curvy", "body"),
         ("pectorals", "body"),
-        ("fellatio", "pose"),
+        ("spooning", "pose"),
         # Only counts are Subject; the rest the count group lists goes by
         # its other groups.
         ("2girls", "subject"),
@@ -90,7 +90,7 @@ def test_newest_full_list():
         ("pov", "framing"),
         ("comic", "framing"),
         ("ass_focus", "framing"),
-        ("penis", "body"),
+        ("breasts", "body"),
         ("doll", "other"),
     ],
 )
@@ -99,11 +99,11 @@ def test_sections(name, section):
 
 
 def test_alias_placed_as_its_tag():
-    p = place("Blowjob")
-    assert p["alias_of"] == "fellatio"
-    assert p["section"] == "pose"
+    p = place("Eyes_Closed")
+    assert p["alias_of"] == "closed_eyes"
+    assert p["section"] == place("closed_eyes")["section"]
     assert p["posts"] == 99573
-    assert "alias_of" not in place("fellatio")
+    assert "alias_of" not in place("closed_eyes")
 
 
 def test_nothing_unknown_without_the_list():
@@ -112,7 +112,7 @@ def test_nothing_unknown_without_the_list():
 
 def test_offers_rank_by_posts_and_skip_aliases_and_characters():
     offers = prompt_board.offers(
-        ["blue_sky"], TAGS, frozenset(), ["my_lora_word", "hatsune_miku", "blowjob"]
+        ["blue_sky"], TAGS, frozenset(), ["my_lora_word", "hatsune_miku", "eyes_closed"]
     )
     assert ["blue_sky", 303405] in offers["background"]
     hair = [n for n, _ in offers["hair"]]
@@ -120,7 +120,7 @@ def test_offers_rank_by_posts_and_skip_aliases_and_characters():
     every = {n for v in offers.values() for n, _ in v}
     assert "my_lora_word" not in every  # unknown: not offered
     assert "hatsune_miku" not in every
-    assert "blowjob" not in every
+    assert "eyes_closed" not in every
 
 
 def test_offers_leave_stray_library_words_out_without_the_list():
@@ -150,12 +150,12 @@ def tag_list(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_place_route(client, tag_list):
     r = await client.post(
-        "/tags/place", json={"names": ["blowjob", "xyzzy_tag", "long_hair"]}
+        "/tags/place", json={"names": ["eyes_closed", "xyzzy_tag", "long_hair"]}
     )
     body = r.json()
     assert body["list"] is True
     assert body["fetching"] is False
-    assert body["names"]["blowjob"]["alias_of"] == "fellatio"
+    assert body["names"]["eyes_closed"]["alias_of"] == "closed_eyes"
     assert body["names"]["xyzzy_tag"]["section"] == "unknown"
     assert body["names"]["long_hair"]["section"] == "hair"
 

@@ -201,7 +201,7 @@ belongs in this file.
   limited to the tagger's vocabulary. Each carries its group (headwear,
   legwear, ...). The list is a slice of the **tag-group list**
   (`data/tag_groups.json`, built from the whole `tag_groups` wiki hub by
-  `scripts/build_tag_groups.py`): every tag keeps its category (body, sex,
+  `scripts/build_tag_groups.py`): every tag keeps its category (body, attire,
   ...), its most specific group and its other places. Attire is a set of
   groups, not one category. (`services/attire.py`)
 - **Prompt board**: Generate's Prompt read as a board under its text: each
@@ -211,7 +211,7 @@ belongs in this file.
   box suggests and takes its own tags; the text stays the one source. A tag's
   section comes from the tag-group list (through the facets) and from
   **Danbooru's tag list**: every Danbooru tag with 20+ posts, its category,
-  post count and aliases (`blowjob` is `fellatio`), downloaded on first use
+  post count and aliases (`eyes_closed` is `closed_eyes`), downloaded on first use
   into the model cache and refreshed quarterly (`services/danbooru_tags.py`).
   A name in neither list is **unknown**. The aliases serve the board only:
   library tags never go through them. (`services/prompt_board.py`,

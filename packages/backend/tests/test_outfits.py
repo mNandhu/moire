@@ -16,6 +16,7 @@ from moire.database.db import async_tx
 
 from moire.services import outfits, tag_categories
 from moire.services.outfits import OutfitError
+from moire.services.tag_hash import hash_tag
 from tests.test_characters import _chars
 from tests.test_generate_integration import comfy, make_ready  # noqa: F401
 from tests.test_recipes import _library
@@ -73,7 +74,9 @@ async def test_outfits_end_to_end(client, comfy, seed, monkeypatch):  # noqa: F8
     monkeypatch.setattr(tag_categories, "load", _chars(HU, hu_tao="genshin_impact"))
     await asyncio.to_thread(_library, seed)
     seed("L1:wear", tags=(HU, "porkpie_hat", "manual:long_coat", "prompt:sandals"))
-    seed("L1:bare", tags=(HU, "porkpie_hat", "nude"), score=5)
+    # A tag saying nobody is dressed (outfits.UNDRESSED, by hash).
+    monkeypatch.setattr(outfits, "UNDRESSED", frozenset({hash_tag("unclothed")}))
+    seed("L1:bare", tags=(HU, "porkpie_hat", "unclothed"), score=5)
 
     d = (await client.get("/generate/outfits/default", params={"character": HU})).json()
     assert [x["tag"] for x in d["tags"]] == ["porkpie_hat"]
@@ -305,7 +308,7 @@ def test_exposure_is_a_list_not_a_pattern():
     from moire.services import attire
 
     assert attire.group_of("midriff") == "exposure"
-    for tag in ("open_bra", "crotch_cutout", "underboob", "open_pants"):
+    for tag in ("armpits", "covering_face", "tan"):
         assert not attire.is_attire(tag)
 
 

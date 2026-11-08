@@ -1,5 +1,5 @@
 """Danbooru's tag list: every tag with 20+ posts, its category, post count and
-aliases (``blowjob`` is ``fellatio``).
+aliases (``eyes_closed`` is ``closed_eyes``).
 
 The prompt board uses it to tell a real tag the groups don't list
 (``blue_sky``) from a typo, to read an alias as its tag, and to rank

@@ -232,25 +232,28 @@ async def test_merge_suggestions_read_prompt_tags_against_danbooru(
 
     path = tmp_path / "danbooru-tags.csv"
     path.write_text(
-        "long_hair,0,500,\nwhite_hair,0,500,\nheart_pasties,0,500,\n"
-        'fellatio,0,500,"blowjob"\n',
+        "long_hair,0,500,\nwhite_hair,0,500,\nheart_hairclip,0,500,\n"
+        'closed_eyes,0,500,"eyes_closed"\n',
         encoding="utf-8",
     )
     monkeypatch.setattr(danbooru_tags, "list_path", lambda: path)
     monkeypatch.setattr(danbooru_tags, "ensure_fresh", lambda: None)
     danbooru_tags.reset_for_tests()
     seed("L1:a", tags=())
-    _raw("L1:a", "long white hair, black heart pasties, blowjob, long hair, sparkles")
+    _raw(
+        "L1:a",
+        "long white hair, black heart hairclip, eyes closed, long hair, sparkles",
+    )
     reproject.reproject_library("L1")
     await client.post(
-        "/tags/rules", json={"rules": [{"from": "blowjob", "to": ["fellatio"]}]}
+        "/tags/rules", json={"rules": [{"from": "eyes_closed", "to": ["closed_eyes"]}]}
     )
 
     body = (await client.get("/tags/merge-suggestions")).json()
     assert body["available"] is True
     assert {s["from"]: (s["to"], s["kind"]) for s in body["suggestions"]} == {
         "long_white_hair": (["long_hair", "white_hair"], "split"),
-        "black_heart_pasties": (["heart_pasties"], "strip"),
+        "black_heart_hairclip": (["heart_hairclip"], "strip"),
     }
     danbooru_tags.reset_for_tests()
 

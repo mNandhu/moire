@@ -47,7 +47,7 @@ _SUBJECT = frozenset({"character_count", "focus_tags", "groups"})
 _STYLE = frozenset(
     {"visual_aesthetic", "artistic_license", "colors", "year_tags", "fine_art_parody"}
 )
-_POSE = frozenset({"sex_acts", "sexual_positions", "simulated_sex_acts"})
+_POSE = frozenset({"intimate_acts", "intimate_positions", "simulated_intimate_acts"})
 # Who and how many: the count tags. The groups file much else beside them
 # (`comic`, `pov`, `doll`, `ass_focus`), which goes by its other groups.
 _COUNT = re.compile(
@@ -61,7 +61,7 @@ OVERRIDES = {
     "outdoors": "background",
     "indoors": "background",
     "scenery": "background",
-    # Builds the groups file under sex acts: how a body looks, not what it does.
+    # Builds the groups file under intimate acts: how a body looks, not what it does.
     "muscular": "body",
     "muscular_male": "body",
     "muscular_female": "body",
@@ -148,7 +148,7 @@ def _framing_section(c: _Tag) -> str:
         return "subject"
     if c.entry and c.entry[1] in _SUBJECT:
         also = c.entry[2]
-        # `ass_focus` frames the picture; `penis` is a body part.
+        # `ass_focus` frames the picture; a body part listed with the counts is body.
         if c.entry[1] == "focus_tags" or any(
             g.endswith("/image_composition") for g in also
         ):
@@ -181,7 +181,7 @@ def _entry_section(c: _Tag) -> str | None:
         return None
     if c.groups & _STYLE:
         return "style"
-    # A body part first: `pectorals` is also listed under sex acts.
+    # A body part first: `pectorals` is also listed under intimate acts.
     if c.entry[0] == "body":
         return "body"
     if c.groups & _POSE:

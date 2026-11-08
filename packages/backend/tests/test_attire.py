@@ -36,11 +36,11 @@ def listed(tmp_path, monkeypatch):
                     },
                     "barefoot": {
                         "category": "attire_and_body_accessories",
-                        "group": "nudity",
+                        "group": "bare_skin",
                     },
-                    "skirt_lift": {
+                    "adjusting_clothes": {
                         "category": "attire_and_body_accessories",
-                        "group": "nudity",
+                        "group": "bare_skin",
                     },
                     "anklet": {
                         "category": "body",
@@ -67,10 +67,10 @@ def test_lookup(listed):
     assert attire.is_attire("serafuku")
     assert not attire.is_attire("1girl")
     assert not attire.is_attire("blue_eyes")  # listed, but not worn
-    # The nudity group: how a garment is cut or worn counts (exposure), an
+    # The bare-skin group: how a garment is cut or worn counts (exposure), an
     # action doesn't.
     assert attire.group_of("barefoot") == "exposure"
-    assert not attire.is_attire("skirt_lift")
+    assert not attire.is_attire("adjusting_clothes")
     assert attire.is_attire("necktie")  # neckwear sits under body
     assert not attire.is_attire("adjusting_scarf")  # an action, not a garment
     assert attire.is_attire("anklet")  # primary place is feet, also accessories
@@ -288,7 +288,9 @@ def test_animal_traits_are_a_look():
     assert attire.facet_of_entry("cat_girl", cats) == "look"
     assert attire.facet_of_entry("cat", cats) is None  # the animal itself
     assert (
-        attire.facet_of_entry("tail", ("body", "body_parts", ("sex/sex_acts",)))
+        attire.facet_of_entry(
+            "tail", ("body", "body_parts", ("intimacy/intimate_acts",))
+        )
         == "look"
     )
     # Unlisted kemonomimi.
@@ -323,7 +325,7 @@ def test_described_garments_count_as_their_garment():
     for tag, group in {
         "oversized_baby_blue_cropped_hoodie": "attire",
         "pastel_pink_dolphin_shorts": "attire",
-        "blue_cotton_panties": "sexual_attire",
+        "white_lace_garter_belt": "intimate_attire",
         "yellow_star_hair_clip": "accessories",
         "bare_midriff": "exposure",
     }.items():
@@ -363,6 +365,6 @@ def test_described_garments_count_as_their_garment():
         assert attire.is_attire(tag), tag
     assert attire.is_identity("waist-length_sky_blue_hair")
     # Unlisted names get any facet facet_of gives them.
-    got = attire.facets(["waist-length_sky_blue_hair", "blue_cotton_panties"])
+    got = attire.facets(["waist-length_sky_blue_hair", "white_lace_garter_belt"])
     assert got["waist-length_sky_blue_hair"] == "look"
-    assert got["blue_cotton_panties"] == "outfit"
+    assert got["white_lace_garter_belt"] == "outfit"

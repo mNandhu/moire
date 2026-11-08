@@ -1,6 +1,6 @@
 /**
  * Every Danbooru alias in a prompt swapped for its tag in one go
- * (`blowjob` is `fellatio`), as the board's swap does one at a time: only
+ * (`eyes_closed` is `closed_eyes`), as the board's swap does one at a time: only
  * the name changes (weight, emphasis and grouping stay), and an alias whose
  * tag is already in goes instead, as the board's Remove duplicate does. Pure.
  */

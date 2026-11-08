@@ -57,7 +57,7 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from moire.services import danbooru_tags  # noqa: E402
+from moire.services import danbooru_tags, tag_descriptions  # noqa: E402
 
 CACHE = Path(__file__).resolve().parents[1] / ".tag-desc-cache"
 EXPORT = Path(__file__).resolve().parents[1] / "src/moire/data/tag_descriptions.json"
@@ -102,7 +102,7 @@ For each tag, write ONE plain sentence (at most 25 words) saying what the tag sh
 Rules:
 - If a wiki excerpt is given, base the sentence on it and nothing else.
 - Describe what is visible. No "this tag", no "used for", no examples, no trivia.
-- Explicit or sexual tags get a plain, factual, non-graphic description.
+- Mature tags get a plain, factual, non-graphic description.
 - Never use em dashes or en dashes.
 - known: false if you do not recognize the tag as a real, established term; then description is "".
 - confidence (1-5): 5 certain (or wiki given), 4 confident, 3 plausible guess, 2 weak guess, 1 no idea.
@@ -532,10 +532,12 @@ def keep(row: dict) -> bool:
 def export(out: Path, dest: Path) -> None:
     rows = [json.loads(line) for line in open(out, encoding="utf-8") if line.strip()]
     kept = {r["tag"].lower(): r["description"] for r in rows if keep(r)}
+    named, hashed = tag_descriptions.shipped_form(dict(sorted(kept.items())))
     doc = {
         "about": "Built by scripts/build_tag_descriptions.py from Danbooru's wiki "
         "(dartags/danbooru-wiki-2609), condensed by an LLM.",
-        "descriptions": dict(sorted(kept.items())),
+        "descriptions": named,
+        "hashed": hashed,
     }
     dest.write_text(
         json.dumps(doc, ensure_ascii=False, indent=0) + "\n", encoding="utf-8"

@@ -195,9 +195,9 @@ describe("appendTag / replaceName", () => {
   });
 
   it("swaps a name and keeps its weight", () => {
-    const text = "1girl, (blowjob:1.2), solo";
+    const text = "1girl, (eyes_closed:1.2), solo";
     const t = promptTerms(text)[1];
-    expect(replaceName(text, t, "fellatio")).toBe("1girl, (fellatio:1.2), solo");
+    expect(replaceName(text, t, "closed_eyes")).toBe("1girl, (closed eyes:1.2), solo");
   });
 });
 

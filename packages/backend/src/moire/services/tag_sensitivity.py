@@ -35,7 +35,6 @@ import json
 import logging
 import threading
 import time
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -44,6 +43,7 @@ import sqlalchemy as sa
 from ..database import schema as t
 from ..database.db import async_conn, async_tx, sync_conn
 from . import app_settings, tag_index
+from .tag_hash import HASH_CHARS, hash_tag  # noqa: F401 (re-exported)
 from .tag_kinds import base_of
 from .tag_names import canonical_name
 
@@ -57,9 +57,6 @@ SOURCES = ("user", "suggested")
 
 _ROW = "tag_levels"
 
-# Hex characters of a tag's SHA-256 kept as its key in the shipped file.
-HASH_CHARS = 16
-
 _lock = threading.Lock()
 _shipped: dict[str, int] | None = None
 _shipped_bytes: bytes = b""
@@ -70,12 +67,6 @@ _edit_lock = asyncio.Lock()
 
 
 # --- levels -------------------------------------------------------------------
-
-
-@lru_cache(maxsize=1 << 16)
-def hash_tag(name: str) -> str:
-    """A tag's key in the shipped file: its lower-case name, hashed."""
-    return hashlib.sha256(name.lower().encode()).hexdigest()[:HASH_CHARS]
 
 
 def _load_shipped() -> dict[str, int]:

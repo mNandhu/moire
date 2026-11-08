@@ -1,7 +1,7 @@
 """One-off dev script: build ``src/moire/data/tag_groups.json``, the tag-group list.
 
 Walks Danbooru's ``tag_groups`` wiki hub and its ``tag_group:*`` sub-group pages
-recursively (Body, Hair, Clothing, Composition, Sex, World, ...). Each tag keeps
+recursively (Body, Hair, Clothing, Composition, World, ...). Each tag keeps
 the top-level category (the hub heading it sits under) and the group page it
 came from. Tags the WD tagger can't produce (its ``selected_tags.csv``) are
 dropped. Output is sorted, stable, hand-editable JSON; the attire list
@@ -39,6 +39,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from moire.services import attire  # noqa: E402
 from moire.services.tag_names import canonical_name  # noqa: E402
 
 BASE_URL = "https://danbooru.donmai.us"
@@ -305,10 +306,14 @@ def main() -> int:
         return 1
 
     tags, dropped, ambiguous = build(found, load_vocab(args.vocab))
+    # Danbooru's adult groups renamed, the entries of tags with a sensitivity
+    # level kept by hash (attire.shipped_form).
+    named, hashed = attire.shipped_form(tags)
     doc = {
         "source": f"{BASE_URL}/wiki_pages/{ROOT_TITLE}",
         "built": datetime.date.today().isoformat(),
-        "tags": tags,
+        "tags": named,
+        "hashed": hashed,
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(

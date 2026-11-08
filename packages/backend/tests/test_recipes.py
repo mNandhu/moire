@@ -66,7 +66,7 @@ def test_identity_is_body_features_and_attire_the_outfit():
         "smile",
         "indoors",
         "looking_at_viewer",
-        "nipples",
+        "collarbone",
         "large_breasts",
         "flower-shaped_pupils",
     ]

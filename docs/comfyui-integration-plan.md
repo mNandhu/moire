@@ -460,7 +460,7 @@ running prompt only after a fresh `/queue` shows it is ours and running.
 - Identity = signature tags in the body groups of the tag-group list (hair,
   hair colour / styles, eyes, ears, skin colour, wings; breast sizes only);
   unlisted tags only when the name says body (`_pupils`, `halo`, ...). The
-  plain "signature minus attire" let in scene, pose and nudity tags
+  plain "signature minus attire" let in scene, pose and bare-skin tags
   (`full_moon`, `couch`, `looking_at_viewer`).
 - Character LoRA: a LoRA whose file name holds the character's name comes
   first; any other must have at least 3 of the character's images, be mostly
@@ -567,7 +567,7 @@ running prompt only after a fresh `/queue` shows it is ours and running.
 - The user's library: most families are RemoteQueue / RQ-Img (the sampler
   runs on a remote ComfyUI, prompts go through JSON key nodes) or prompt
   generators (TIPO, regex): setup needs a hand-picked positive there.
-- The connected ComfyUI is public: no NSFW graphs to it (every text node
+- The connected ComfyUI is public: no private content to it (every text node
   travels). Tests run against the fake only.
 - Later the same night: a failed connection setup at startup is shown and
   retried once a minute (it stayed unconfigured until Test before); prompts
@@ -603,7 +603,7 @@ running prompt only after a fresh `/queue` shows it is ours and running.
 **As built (phase 4, 2026-10-21, `feat/comfyui-phase4`).**
 - Placement decided on the board "Generate: outfit with several
   characters" (option B): each character card in the composer has an
-  "Outfit" line (was "Wears": read as nude when empty), an outfit picker (Not set, their usual clothes = Default,
+  "Outfit" line (was "Wears": read as unclothed when empty), an outfit picker (Not set, their usual clothes = Default,
   their own, shared ones they don't hide; thumbnail in the closed button)
   and the outfit's tags; unfolded, the chips (struck or added for this
   batch only). No separate Outfit layer: an outfit belongs to a character,
@@ -619,7 +619,7 @@ running prompt only after a fresh `/queue` shows it is ours and running.
 - `services/outfits.py`, routes under `/generate/outfits`: list (all, or a
   character's own + shared with `hidden`), `default?character=` (recipe
   outfit; cover = best-scored image wearing most of it, never one tagged
-  nude), `prefill?image=&character=` (the image's attire from every tag
+  unclothed), `prefill?image=&character=` (the image's attire from every tag
   source, since most generated images carry only prompt tags, then the
   usual ones it lacks), CRUD, `PUT /{id}/hidden`. Tags carry their attire
   group and `checkable` (in the tagger's vocabulary).
@@ -855,7 +855,7 @@ Left:
 - Library survey: all 66 files in the user's ComfyUI workflows folder are
   editor format, 26 without an id; most are RemoteQueue (no local sampler)
   or TIPO / regex prompt builders that need the positive picked by hand.
-- Never queue NSFW on the connected ComfyUI (public). A graph carries every
+- Never queue private content on the connected ComfyUI (public). A graph carries every
   text node; check them all before any real queue, else use the fake.
 
 ### Next session (from 2026-10-21; phase 4)
@@ -880,7 +880,7 @@ the tags each image lacks. Outfit cards open a menu on click (Edit tags and
 thumbnail, Use in Generate, Open in gallery, Hide / Show for shared).
 
 Later still (64390ab..b8f87eb): exposure tags (how a garment is cut or worn,
-from Danbooru's nudity group: midriff, bare shoulders, *_cutout, ...) count
+from Danbooru's bare-skin group: midriff, bare shoulders, *_cutout, ...) count
 as attire in an "exposure" group, plus unlisted hubs (jewelry, strapless);
 tags added by hand get group and tagger check from the server
 (`/tags/attire`, `/generate/outfits/tag-info`). Composer copy is

@@ -23,7 +23,8 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import attire, recipes, tag_categories, tag_detail
+from . import attire, recipes, tag_categories, tag_detail, tag_views
+from .tag_hash import hash_tag
 from .image_tags import find_image
 from .outfit_wear import WearRule, wears, wears_most
 from .tag_names import canonical_name
@@ -31,8 +32,14 @@ from .tag_names import canonical_name
 # Mirrored by the frontend's MAX_OUTFIT_TAGS (lib/outfit.ts; a test checks).
 MAX_TAGS = 40
 DEFAULT_ID = "default"
-# Never an outfit's cover: an image of nobody wearing anything.
-UNDRESSED = ("nude", "completely_nude")
+# Never an outfit's cover: an image of nobody wearing anything. The two tags
+# that say so, by hash (tag_hash), matched against the library's tag names.
+UNDRESSED = frozenset({"d92f4cf1e2d7e812", "4eb30b5ecfa9fe34"})
+
+
+async def _undressed() -> list[str]:
+    """The library's tag names that say nobody is dressed."""
+    return [b for b in await tag_views.library_bases() if hash_tag(b) in UNDRESSED]
 
 
 class OutfitError(ValueError):
@@ -292,6 +299,7 @@ async def _wearing(
         return []
     it, im = t.image_tags, t.images
     wearing = sa.func.count(sa.distinct(it.c.base))
+    undressed = await _undressed()
     async with async_conn() as conn:
         rows = await conn.execute(
             sa.select(it.c.image_id, wearing)
@@ -299,7 +307,7 @@ async def _wearing(
             .where(
                 it.c.image_id.in_(tag_detail.image_ids(names)),
                 it.c.base.in_(tags),
-                ~it.c.image_id.in_(tag_detail.image_ids(list(UNDRESSED))),
+                ~it.c.image_id.in_(tag_detail.image_ids(undressed)),
             )
             .group_by(it.c.image_id)
             .order_by(

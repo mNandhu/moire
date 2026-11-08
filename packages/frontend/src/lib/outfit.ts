@@ -132,7 +132,7 @@ export const outfitsHref = (character: string): string => `/outfits?character=${
 const NAME_GROUPS = [
   "fashion_style",
   "attire",
-  "sexual_attire",
+  "intimate_attire",
   "legwear",
   "headwear",
   "handwear",

@@ -16,6 +16,7 @@ from ..services import (
     image_tags,
     sensitivity_filter,
     tag_descriptions,
+    tag_categories,
     tag_kinds,
     tag_browse,
     tag_covers,
@@ -130,8 +131,10 @@ async def descriptions():
     shipped file), and their Danbooru aliases when that list is already in
     (this never starts its download: the prompt board does)."""
     tags = await danbooru_tags.load_present()
+    vocab = await tag_categories.load()
+    names = [*vocab.general, *await tag_views.library_bases()]
     return JSONResponse(
-        sensitivity_filter.allowed_keys(tag_descriptions.served(tags.aliases))
+        sensitivity_filter.allowed_keys(tag_descriptions.served(tags.aliases, names))
     )
 
 

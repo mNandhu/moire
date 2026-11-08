@@ -97,7 +97,7 @@ test("Use canonical tags swaps every alias in the Prompt, and Ctrl+Z brings them
   // Danbooru's list is a download: answer for the board instead.
   await page.route("**/api/v1/tags/place", async (route) => {
     const { names } = route.request().postDataJSON() as { names: string[] };
-    const aliases: Record<string, string> = { blowjob: "fellatio", sideboob: "breasts_apart" };
+    const aliases: Record<string, string> = { eyes_closed: "closed_eyes", longhair: "long_hair" };
     await route.fulfill({
       json: {
         list: true,
@@ -108,11 +108,11 @@ test("Use canonical tags swaps every alias in the Prompt, and Ctrl+Z brings them
   });
   await page.goto("/generate");
   const prompt = page.getByLabel("Prompt", { exact: true });
-  const written = "1girl, (blowjob:1.2), sideboob";
+  const written = "1girl, (eyes_closed:1.2), longhair";
   await prompt.fill(written);
   const swap = page.getByRole("button", { name: "Use canonical tags" });
   await swap.click();
-  await expect(prompt).toHaveValue("1girl, (fellatio:1.2), breasts apart");
+  await expect(prompt).toHaveValue("1girl, (closed eyes:1.2), long hair");
   await expect(swap).toHaveCount(0);
   await page.keyboard.press("ControlOrMeta+z");
   await expect(prompt).toHaveValue(written);

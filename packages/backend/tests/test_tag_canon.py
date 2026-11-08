@@ -9,8 +9,8 @@ LIST = parse(
 white_hair,0,{P},"silver_white_hair"
 grey_hair,0,{P},gray_hair
 red_hair,0,{P},
-heart_pasties,0,{P},
-pasties,0,{P},
+heart_hairclip,0,{P},
+hairclip,0,{P},
 rose,0,{P},
 red_rose,0,{P},
 blue_suit,0,{P},
@@ -82,7 +82,7 @@ def test_split_into_a_tag_per_describing_word():
 
 
 def test_strip_the_colour_when_nothing_keeps_it():
-    assert _s("black_heart_pasties") == (("heart_pasties",), "strip")
+    assert _s("black_heart_hairclip") == (("heart_hairclip",), "strip")
     assert _s("green_forest") == (("forest",), "strip")
     # Not a person, not a narrower qualified tag, not a rare tag.
     assert _s("black_male") is None

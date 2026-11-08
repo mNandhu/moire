@@ -2,11 +2,11 @@
 Danbooru tag (or tags) they mean.
 
 Prompts are written by hand (or by an LLM), so they carry names Danbooru
-doesn't use: ``black_heart_pasties``, ``long_white_hair``, ``red_roses``.
+doesn't use: ``black_heart_hairclip``, ``long_white_hair``, ``red_roses``.
 Each is checked against Danbooru's list (:mod:`danbooru_tags`) in this order,
 the first stage that finds something winning:
 
-1. **alias**: Danbooru's own alias (``blowjob`` is ``fellatio``).
+1. **alias**: Danbooru's own alias (``eyes_closed`` is ``closed_eyes``).
 2. **respell**: the same words spelled Danbooru's way: singular
    (``red_roses`` to ``red_rose``), joined (``body_suit``, ``one_piece`` to
    ``one-piece``), a colour synonym (``silver_hair`` to ``grey_hair``).
@@ -16,7 +16,7 @@ the first stage that finds something winning:
    its own (``long_white_hair`` to ``long_hair`` + ``white_hair``,
    ``red_turtleneck_sweater`` to ``turtleneck_sweater`` + ``red_sweater``).
 5. **strip**: the colour dropped, when nothing keeps it
-   (``black_heart_pasties`` to ``heart_pasties``).
+   (``black_heart_hairclip`` to ``heart_hairclip``).
 
 A term that is already a Danbooru tag, of any category, is left alone, and
 so is one no stage reads. Targets past the alias stage are general tags with

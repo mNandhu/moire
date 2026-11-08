@@ -1,27 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { aliasSwapWords, swapAliases } from "./promptAliases";
 
-const places = { blowjob: { alias_of: "fellatio" }, sideboob: { alias_of: "breasts_apart" }, solo: {} };
+const places = { eyes_closed: { alias_of: "closed_eyes" }, longhair: { alias_of: "long_hair" }, solo: {} };
 
 describe("swapAliases", () => {
   it("swaps every alias for its tag, weights and groups kept", () => {
-    const s = swapAliases("1girl, (blowjob:1.2), solo, [sideboob]", places);
-    expect(s).toEqual({ text: "1girl, (fellatio:1.2), solo, [breasts apart]", swapped: 2 });
+    const s = swapAliases("1girl, (eyes_closed:1.2), solo, [longhair]", places);
+    expect(s).toEqual({ text: "1girl, (closed eyes:1.2), solo, [long hair]", swapped: 2 });
   });
 
   it("leaves a prompt with no alias alone", () => {
     expect(swapAliases("1girl, solo", places)).toEqual({ text: "1girl, solo", swapped: 0 });
-    expect(swapAliases("1girl, blowjob", undefined)).toEqual({ text: "1girl, blowjob", swapped: 0 });
+    expect(swapAliases("1girl, eyes_closed", undefined)).toEqual({ text: "1girl, eyes_closed", swapped: 0 });
   });
 
   it("drops an alias whose tag is already in, as the board's Remove duplicate does", () => {
-    expect(swapAliases("fellatio, blowjob, solo", places).text).toBe("fellatio, solo");
-    expect(swapAliases("blowjob, solo, fellatio", places).text).toBe("solo, fellatio");
+    expect(swapAliases("closed_eyes, eyes_closed, solo", places).text).toBe("closed_eyes, solo");
+    expect(swapAliases("eyes_closed, solo, closed_eyes", places).text).toBe("solo, closed_eyes");
   });
 
   it("keeps the first of two aliases of one tag", () => {
-    const two = { ...places, bj: { alias_of: "fellatio" } };
-    expect(swapAliases("bj, solo, blowjob", two).text).toBe("fellatio, solo");
+    const two = { ...places, eye_closed: { alias_of: "closed_eyes" } };
+    expect(swapAliases("eye_closed, solo, eyes_closed", two).text).toBe("closed eyes, solo");
   });
 
   it("names the count", () => {

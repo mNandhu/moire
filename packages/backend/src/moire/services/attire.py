@@ -3,12 +3,17 @@
 The WD tagger has no clothing category, so Moiré ships a tag-group list built
 from Danbooru's ``tag_groups`` wiki hub (``scripts/build_tag_groups.py``),
 limited to the tagger's vocabulary and committed as ``data/tag_groups.json``.
-Each tag keeps its top-level category (body, sex, ...) and the group it came
-from (headwear, legwear, ...), plus ``also``: its other places, since Danbooru
-lists a tag in several pages. Attire is a set of groups (``ATTIRE_GROUPS``),
-not one category, because the clothing category also holds nudity and makeup
-tags and neckwear sits under body. The file is hand-editable; the loader
-reads it once and caches it.
+Each tag keeps its top-level category (body, attire, ...) and the group it
+came from (headwear, legwear, ...), plus ``also``: its other places, since
+Danbooru lists a tag in several pages. Attire is a set of groups
+(``ATTIRE_GROUPS``), not one category, because the clothing category also
+holds bare-skin and makeup tags and neckwear sits under body. The file is
+hand-editable; the loader reads it once and caches it.
+
+Danbooru's adult groups are stored under neutral names
+(:data:`GROUP_RENAMES`), and the entries of tags that have a sensitivity level
+are keyed by :func:`tag_hash.hash_tag` under ``hashed`` (:func:`hide_entry`):
+they are found by name as any other, but never listed by it.
 
 Pure and dependency-free. Takes bare tag names (no ``manual:`` / ``prompt:``
 prefix); spelling goes through :func:`tag_names.canonical_name`, lowercased,
@@ -23,7 +28,29 @@ from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
 
+from .tag_hash import hash_tag
 from .tag_names import canonical_name
+
+# Danbooru's adult category and groups (keyed by tag_hash.hash_tag of
+# Danbooru's name), and the neutral names the shipped file uses instead
+# (scripts/build_tag_groups.py renames them).
+CATEGORY_RENAMES = {"98d44e13f455d916": "intimacy"}
+GROUP_RENAMES = {
+    "67f3196ce0a0dce0": "intimate_acts",
+    "8b96ed61f429c0b1": "intimate_positions",
+    "5f47ad44795518d9": "simulated_intimate_acts",
+    "415881a3620ebd3d": "restraint_play",
+    "5c5a7771ac8cd0b1": "intimate_attire",
+    "b394be7d534989e5": "intimate_objects",
+    "6672b930d5d08ec0": "bare_skin",
+    "0f28c4960d96647e": "groin",
+}
+ADULT_GROUPS = frozenset(GROUP_RENAMES.values())
+
+
+def _rename(name: str, renames: dict[str, str]) -> str:
+    return renames.get(hash_tag(name), name)
+
 
 TAG_GROUPS_PATH = Path(__file__).resolve().parents[1] / "data" / "tag_groups.json"
 # Groups whose tags are things worn. A tag is attire when any of its places is
@@ -38,13 +65,13 @@ ATTIRE_GROUPS = frozenset(
         "headwear",
         "legwear",
         "neck_and_neckwear",
-        "sexual_attire",
+        "intimate_attire",
         "sleeves",
     }
 )
 
 # Groups whose tags describe the body itself: what stays when a character
-# changes clothes, pose or scene (expressions, nudity and posture don't).
+# changes clothes, pose or scene (expressions, bare skin and posture don't).
 IDENTITY_GROUPS = frozenset(
     {
         "breasts_tags",
@@ -73,20 +100,25 @@ _ANIMAL_PERSON = re.compile(
 # (`adjusting_scarf`, `towel_around_neck`, `hand_on_headwear`), not garments;
 # what isn't on (`unworn_hat`, `no_gloves`); body parts filed under neckwear
 # (`collarbone`, `nape`); carried things (`umbrella`, `shopping_bag`); names
-# that only end like a garment (`clitoral_hood`, `mobile_suit`).
+# that only end like a garment (`mobile_suit`, and one more kept by hash).
 _NOT_WORN = re.compile(
     r"^(adjusting|holding|kissing|no|unworn|removing|carrying|drawing)_|_around_neck$"
     r"|_grab$|^hands?_(on|in)_|(^|_)bag$"
     r"|^(long_neck|hand_fan|hand_tattoo|collarbone|nape|strangling|umbrella"
-    r"|clitoral_hood|mobile_suit)$"
+    r"|mobile_suit)$"
 )
+_NOT_WORN_HASHED = frozenset({"0d05a5ea6faa438b"})
 
 
-# From the nudity group, the tags that say how a garment is cut or worn
+def _not_worn(name: str) -> bool:
+    return bool(_NOT_WORN.search(name)) or hash_tag(name) in _NOT_WORN_HASHED
+
+
+# From the bare-skin group, the tags that say how a garment is cut or worn
 # (`midriff`, `off_shoulder`, `shoulder_cutout`): part of an outfit, in the
 # "exposure" group. A list, not a pattern: the group also holds actions
-# (`skirt_lift`), nudity and underwear states (`open_bra`, `crotch_cutout`),
-# which never belong in an outfit.
+# (`adjusting_clothes`) and states of being unclothed, which never belong in
+# an outfit.
 EXPOSURE_GROUP = "exposure"
 EXPOSURE_TAGS = frozenset(
     {
@@ -162,36 +194,43 @@ _AMBIGUOUS = frozenset(
 )
 _WORN_LEAD = re.compile(
     r"^(ankle|arm|back|belly|breast|chest|ear|ears|finger|foot|hair|hand|head|hip"
-    r"|horn|knee|leg|lip|navel|neck|nipple|nose|shoulder|sleeve|tail|thigh|thumb"
+    r"|horn|knee|leg|lip|navel|neck|nose|shoulder|sleeve|tail|thigh|thumb"
     r"|toe|tongue|waist|wrist|large|huge|big|small|long|short|loose|open|tight"
     r"|thin|wide|single|double|multiple|leather|studded|spiked|rope|lace|fur"
     r"|metal|silk|satin|velvet|cloth|chain|oversized)$"
 )
+# Lead words kept by hash (tag_hash) rather than spelled in the pattern.
+_WORN_LEAD_HASHED = frozenset({"d84f691fc4981d9d"})
+
+
+def _worn_lead(word: str) -> bool:
+    return bool(_WORN_LEAD.match(word)) or hash_tag(word) in _WORN_LEAD_HASHED
+
+
 # What may stand in front of a cut or exposure ending (`bare_midriff`): any
 # other word describes the body (`toned_midriff`, `huge_cleavage`).
 _EXPOSURE_LEAD = frozenset({"bare", "exposed"})
 
 
 def _clothing(entry: tuple[str, str, tuple[str, ...]]) -> bool:
-    """Listed somewhere about clothing, attire or not (`naked_shirt`)."""
-    return bool(groups_of(entry) & (ATTIRE_GROUPS | {"nudity"}))
+    """Listed somewhere about clothing, attire or not (`adjusting_clothes`)."""
+    return bool(groups_of(entry) & (ATTIRE_GROUPS | {"bare_skin"}))
 
 
 def _garment_group(key: str) -> str | None:
     """The attire group of an unlisted tag that ends in a garment, whatever
     comes in front (`red_bikini`, `oversized_cropped_hoodie`,
-    `blue_cotton_panties`, `bare_midriff`; `star_hair_clip` as `hairclip`).
+    `white_lace_garter_belt`, `bare_midriff`; `star_hair_clip` as `hairclip`).
     The longest listed ending decides; one listed elsewhere is skipped
     (`floral_print_kimono` is a `kimono`, though `print_kimono` is a print),
-    but one about clothing that isn't attire stops it (`white_naked_shirt`,
-    `girl_holding_mask`). `sky_blue_hair` has no garment ending."""
-    if _PHRASE.search(key) or _NOT_WORN.search(key):
+    but one about clothing that isn't attire stops it (`girl_holding_mask`). `sky_blue_hair` has no garment ending."""
+    if _PHRASE.search(key) or _not_worn(key):
         return None
     listed = entries()
     words = key.split("_")
     for i in range(1, len(words)):
         tail = "_".join(words[i:])
-        if _NOT_WORN.search(tail):
+        if _not_worn(tail):
             return None
         front = words[:i]
         for name in dict.fromkeys((tail, tail.replace("_", ""))):
@@ -209,7 +248,7 @@ def _garment_group(key: str) -> str | None:
                 return group if set(front) <= _EXPOSURE_LEAD else None
             if name in _AMBIGUOUS:
                 m = _COLOURED.match(key)
-                worn = (m and m.group(2) == name) or _WORN_LEAD.match(front[-1])
+                worn = (m and m.group(2) == name) or _worn_lead(front[-1])
                 return group if worn else None
             return group
     return None
@@ -223,14 +262,72 @@ def _unlisted_group(key: str) -> str | None:
     return UNLISTED_ATTIRE.get(key) or _garment_group(key)
 
 
-def parse(doc: object) -> dict[str, tuple[str, str, tuple[str, ...]]]:
-    """The ``tag -> (category, group, also)`` map of a tag-group document, keys
-    normalised. Malformed input yields an empty map (or skips the entry)
-    rather than raising: a broken hand edit must not take the app down."""
-    tags = doc.get("tags") if isinstance(doc, dict) else None
+Entry = tuple[str, str, tuple[str, ...]]
+
+
+class Listed(dict):
+    """``tag -> (category, group, also)``, plus the entries stored by hash:
+    :meth:`get` and ``in`` find those by name too, iterating lists only the
+    named ones (a hash is no tag to show)."""
+
+    def __init__(self, named: dict[str, Entry], hashed: dict[str, Entry]):
+        super().__init__(named)
+        self.hashed = hashed
+
+    def get(self, key, default=None):  # type: ignore[override]
+        found = super().get(key)
+        if found is None and isinstance(key, str):
+            found = self.hashed.get(hash_tag(key))
+        return default if found is None else found
+
+    def __contains__(self, key) -> bool:
+        return super().__contains__(key) or (
+            isinstance(key, str) and hash_tag(key) in self.hashed
+        )
+
+    def is_hashed(self, key: str) -> bool:
+        return not dict.__contains__(self, key) and key in self
+
+
+def hide_entry(tag: str, info: dict) -> bool:
+    """Whether a tag's entry is stored by hash: it has a sensitivity level, or
+    sits in one of the adult groups."""
+    from . import tag_sensitivity
+
+    return tag_sensitivity.level_of(tag) > 0 or info.get("group") in ADULT_GROUPS
+
+
+def _renamed(info: dict) -> dict:
+    out = dict(info)
+    out["category"] = _rename(info["category"], CATEGORY_RENAMES)
+    out["group"] = _rename(info["group"], GROUP_RENAMES)
+    if "also" in info:
+        out["also"] = [
+            f"{_rename(c, CATEGORY_RENAMES)}/{_rename(g, GROUP_RENAMES)}"
+            for c, _, g in (a.partition("/") for a in info["also"])
+        ]
+    return out
+
+
+def shipped_form(tags: dict[str, dict]) -> tuple[dict[str, dict], dict[str, dict]]:
+    """``(tags, hashed)`` as the shipped file stores Danbooru's groups: the
+    adult ones renamed, the entries :func:`hide_entry` picks keyed by hash
+    (scripts/build_tag_groups.py writes this)."""
+    named: dict[str, dict] = {}
+    hashed: dict[str, dict] = {}
+    for tag, info in tags.items():
+        info = _renamed(info)
+        if hide_entry(tag, info):
+            hashed[hash_tag(tag)] = info
+        else:
+            named[tag] = info
+    return named, dict(sorted(hashed.items()))
+
+
+def _entries(tags: object) -> dict[str, Entry]:
+    out: dict[str, Entry] = {}
     if not isinstance(tags, dict):
-        return {}
-    out: dict[str, tuple[str, str, tuple[str, ...]]] = {}
+        return out
     for name, info in tags.items():
         if not (isinstance(name, str) and name.strip() and isinstance(info, dict)):
             continue
@@ -247,12 +344,26 @@ def parse(doc: object) -> dict[str, tuple[str, str, tuple[str, ...]]]:
     return out
 
 
+def parse(doc: object) -> Listed:
+    """The ``tag -> (category, group, also)`` map of a tag-group document, keys
+    normalised (``hashed`` entries keep their hash). Malformed input yields an
+    empty map (or skips the entry) rather than raising: a broken hand edit
+    must not take the app down."""
+    if not isinstance(doc, dict):
+        return Listed({}, {})
+    hashed = doc.get("hashed")
+    return Listed(
+        _entries(doc.get("tags")),
+        {k: v for k, v in _entries(hashed).items()} if isinstance(hashed, dict) else {},
+    )
+
+
 @lru_cache(maxsize=1)
-def entries() -> dict[str, tuple[str, str, tuple[str, ...]]]:
+def entries() -> Listed:
     try:
         return parse(json.loads(TAG_GROUPS_PATH.read_text(encoding="utf-8")))
     except (OSError, ValueError):
-        return {}
+        return Listed({}, {})
 
 
 def groups_of(entry: tuple[str, str, tuple[str, ...]]) -> set[str]:
@@ -261,9 +372,9 @@ def groups_of(entry: tuple[str, str, tuple[str, ...]]) -> set[str]:
 
 def _attire_group(tag: str, entry: tuple[str, str, tuple[str, ...]]) -> str | None:
     groups = groups_of(entry) & ATTIRE_GROUPS
-    if not groups and "nudity" in groups_of(entry):
+    if not groups and "bare_skin" in groups_of(entry):
         return EXPOSURE_GROUP if tag in EXPOSURE_TAGS else None
-    if not groups or _NOT_WORN.search(tag):
+    if not groups or _not_worn(tag):
         return None
     return entry[1] if entry[1] in groups else min(groups)
 
@@ -338,7 +449,7 @@ def library_groups(names: Iterable[str]) -> dict[str, dict[str, str]]:
         if key not in tags and (group := group_of(key)):
             tags[key] = group
     primary: dict[str, str] = {}
-    for category, group, _also in listed.values():
+    for category, group, _also in [*listed.values(), *listed.hashed.values()]:
         primary.setdefault(group, category)
     worn = "attire_and_body_accessories"
     categories = {
@@ -374,6 +485,11 @@ def attire_tags(extra: Iterable[str] = ()) -> dict[str, str]:
     if listed:
         out.update({t: g for t, g in UNLISTED_ATTIRE.items() if t not in listed})
         out.update(unlisted_attire(extra))
+        # Entries stored by hash are found by name, among ``extra``.
+        for name in extra:
+            key = tag_key(name)
+            if listed.is_hashed(key) and (group := _attire_group(key, listed.get(key))):
+                out[key] = group
     return out
 
 
@@ -470,5 +586,7 @@ def facets(extra: Iterable[str] = ()) -> dict[str, str]:
         for name in extra:
             key = tag_key(name)
             if key not in listed and (f := facet_of_entry(key, None)):
+                added[key] = f
+            elif listed.is_hashed(key) and (f := facet_of_entry(key, listed.get(key))):
                 added[key] = f
     return {**_facets_cache[1], **added} if added else _facets_cache[1]

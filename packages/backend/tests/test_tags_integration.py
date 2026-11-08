@@ -195,12 +195,12 @@ async def test_attire_and_facet_maps_know_the_library_garments(client, seed):
     facets = (await client.get("/tags/facets")).json()
     assert facets["pastel_pink_dolphin_shorts"] == "outfit"
     # Kept until a tag write, then rebuilt with the new tags.
-    seed("L1:b", tags=("prompt:blue_cotton_panties",))
-    assert "blue_cotton_panties" not in (await client.get("/tags/attire")).json()
+    seed("L1:b", tags=("prompt:white_lace_garter_belt",))
+    assert "white_lace_garter_belt" not in (await client.get("/tags/attire")).json()
     tag_index.invalidate()
     assert (await client.get("/tags/attire")).json()[
-        "blue_cotton_panties"
-    ] == "sexual_attire"
+        "white_lace_garter_belt"
+    ] == "intimate_attire"
 
 
 async def test_descriptions_serve_the_shipped_file(client, tmp_path, monkeypatch):
