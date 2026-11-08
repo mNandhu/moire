@@ -50,6 +50,35 @@ def test_store_is_discarded_when_a_write_landed_mid_query():
     assert cache == {}
 
 
+def test_soft_write_keeps_a_build_that_spanned_it():
+    """A bulk job's write landing mid-build must not throw the build away (it
+    did for every image, so the tag list was never cached during a job)."""
+    cache: dict = {}
+    gen = tag_index.current_generation()
+    tag_index.invalidate_soft()
+    tag_index._store(cache, "k", gen, [{"_id": "a"}])
+    assert tag_index._read(cache, "k", ttl=999) == [{"_id": "a"}]
+
+
+def test_soft_write_lets_a_view_lag_only_inside_the_window(monkeypatch):
+    cache: dict = {}
+    gen = tag_index.current_generation()
+    tag_index._store(cache, "k", gen, [{"_id": "a"}])
+    tag_index.invalidate_soft()
+    assert tag_index._read(cache, "k", ttl=999) == [{"_id": "a"}]
+    monkeypatch.setattr(tag_index, "_SOFT_STALE_SECONDS", 0.0)
+    assert tag_index._read(cache, "k", ttl=999) is None
+
+
+def test_derived_values_follow_soft_writes_too(monkeypatch):
+    gen = tag_index.current_generation()
+    tag_index.store_derived("d", gen, 42)
+    tag_index.invalidate_soft()
+    assert tag_index.read_derived("d") == 42
+    monkeypatch.setattr(tag_index, "_SOFT_STALE_SECONDS", 0.0)
+    assert tag_index.read_derived("d") is None
+
+
 # --- Writers dirty the index (integration) ------------------------------------
 
 
@@ -104,6 +133,21 @@ async def test_replace_ai_dirties_a_warm_index(temp_db, client, seed):
         "L1:a.jpg", ai_tags=["dog"], ai_meta={}, rating="general"
     )
 
+    assert await _counts(client) == {"dog": 1}
+
+
+@pytest.mark.asyncio
+async def test_bulk_replace_ai_lags_until_the_run_ends(temp_db, client, seed):
+    """An AI job's writes may lag in the tag views; its end catches them up."""
+    seed("L1:a.jpg", tags=("cat",))
+    assert await _counts(client) == {"cat": 1}
+
+    await image_tags.replace_ai(
+        "L1:a.jpg", ai_tags=["dog"], ai_meta={}, rating="general", bulk=True
+    )
+    assert await _counts(client) == {"cat": 1}
+
+    image_tags.end_bulk_writes()
     assert await _counts(client) == {"dog": 1}
 
 

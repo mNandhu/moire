@@ -16,7 +16,9 @@ pnpm dev                     # backend (uvicorn :8000, --reload) + frontend (vit
 pnpm perf                    # backend perf benchmark
 pnpm e2e                     # build the UI, then Playwright e2e (packages/e2e; sandbox backend :8020, fake ComfyUI :8191)
 
-# Backend (Python via uv; never call `python` directly)
+# Backend (Python via uv; never call `python` directly). With the GPU tagger
+# installed, a plain `uv run` reinstalls the CPU onnxruntime over it: use
+# `node scripts/uv-backend.mjs run ...` instead (same args), as the pnpm scripts do.
 uv --directory packages/backend sync                # install deps
 uv --directory packages/backend run moire run --reload   # backend only (serves a built UI too)
 uv --directory packages/backend run pytest          # all backend tests
@@ -64,5 +66,5 @@ The backend's import package is `moire` (`packages/backend/src/moire`, PyPI name
 
 - Use the engine helpers from `database/db.py` (`async_conn`/`async_tx` async, `sync_conn`/`sync_tx` for scanner/reproject threads) with the table objects in `database/schema.py` (imported as `t`); don't open connections ad hoc. All writes go through the `*_tx` helpers.
 - Keep list responses minimal via column `select(...)` projections; return full rows only when needed.
-- `tags` GET aggregation is cached (`services/tag_index.py`, ~30s TTL). **Invalidation is structural. Don't clear it from call sites.** Async tag writes dirty it via `image_tags`' transaction owners; the sync path leaves it to whoever owns the transaction (`reproject._flush_batch`, once per batch). A new writer that owns its own transaction must call `tag_index.invalidate()` *after* it commits.
+- `tags` GET aggregation is cached (`services/tag_index.py`, ~30s TTL). **Invalidation is structural. Don't clear it from call sites.** Async tag writes dirty it via `image_tags`' transaction owners; the sync path leaves it to whoever owns the transaction (`reproject._flush_batch`, once per batch). A new writer that owns its own transaction must call `tag_index.invalidate()` *after* it commits. A bulk background writer (the AI job: `replace_ai(..., bulk=True)`) only soft-invalidates, so views may lag it by up to 15 s instead of rebuilding per image, and must hard-invalidate when the run ends (`image_tags.end_bulk_writes()`).
 - In `content-visibility:auto` is a known paint-gap hazard in the virtualized grid (see project memory); avoid reintroducing it.

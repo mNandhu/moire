@@ -21,6 +21,16 @@ the reader captures the generation before touching the database and discards its
 result on store if that generation has moved. Without that discard, a write
 landing mid-query would leave stale data cached for a full TTL.
 
+Bulk background writes
+----------------------
+A bulk AI job writes an image every fraction of a second, and building the
+tag list takes seconds, so with a hard :func:`invalidate` per image no view
+would ever be cached while a job runs (each build is discarded on store and
+every page load rebuilds). Such writers call :func:`invalidate_soft` instead: it
+does not bump the generation, so a build that spans it is still stored, and a
+cached view stays readable for up to ``_SOFT_STALE_SECONDS`` past a soft write.
+The writer owns ending it: a hard :func:`invalidate` when the bulk run ends.
+
 The generation lock is a plain ``threading.Lock`` rather than an ``asyncio``
 one: reprojection invalidates from scanner threads, and every critical section
 here is a dict operation with no await inside it.
@@ -34,15 +44,20 @@ from typing import Any
 
 _TAGS_TTL_SECONDS = 30.0
 _SAMPLES_TTL_SECONDS = 60.0
+# How stale a view may get behind soft writes (a bulk job), see the docstring.
+_SOFT_STALE_SECONDS = 15.0
 
 _LOCK = threading.Lock()
 _generation = 0
+# When the last soft write committed (0: none since start).
+_last_soft_write = 0.0
 # Each entry is (stored_at, generation, value).
 _tags_cache: dict[str, tuple[float, int, list[dict]]] = {}
 _samples_cache: dict[tuple[str, int], tuple[float, int, list[dict]]] = {}
 # Values derived from every tag (the attire and facet maps): no TTL, only the
 # generation, since they are costly to build and change only with a write.
-_derived_cache: dict[str, tuple[int, Any]] = {}
+# Each entry is (stored_at, generation, value).
+_derived_cache: dict[str, tuple[float, int, Any]] = {}
 
 
 def invalidate() -> None:
@@ -55,6 +70,22 @@ def invalidate() -> None:
         _tags_cache.clear()
         _samples_cache.clear()
         _derived_cache.clear()
+
+
+def invalidate_soft() -> None:
+    """A tag write from a bulk background run: cached views may lag it by up to
+    ``_SOFT_STALE_SECONDS``. The run must end with :func:`invalidate`."""
+    global _last_soft_write
+    with _LOCK:
+        _last_soft_write = time.time()
+
+
+def _fresh(stored_at: float, gen: int, now: float) -> bool:
+    """Not superseded: same generation, and no soft write since it was stored
+    unless it is still inside the soft staleness window. Caller holds _LOCK."""
+    if gen != _generation:
+        return False
+    return _last_soft_write <= stored_at or (now - stored_at) < _SOFT_STALE_SECONDS
 
 
 def current_generation() -> int:
@@ -71,7 +102,7 @@ def _read(
         if entry is None:
             return None
         stored_at, gen, value = entry
-        if gen != _generation or (now - stored_at) >= ttl:
+        if not _fresh(stored_at, gen, now) or (now - stored_at) >= ttl:
             return None
         return value
 
@@ -116,7 +147,9 @@ def read_derived(key: str) -> Any:
     intervened."""
     with _LOCK:
         entry = _derived_cache.get(key)
-        return entry[1] if entry is not None and entry[0] == _generation else None
+        if entry is None or not _fresh(entry[0], entry[1], time.time()):
+            return None
+        return entry[2]
 
 
 def store_derived(key: str, gen: int, value: Any) -> None:
@@ -124,14 +157,15 @@ def store_derived(key: str, gen: int, value: Any) -> None:
     ``gen`` was captured."""
     with _LOCK:
         if gen == _generation:
-            _derived_cache[key] = (gen, value)
+            _derived_cache[key] = (time.time(), gen, value)
 
 
 def reset_for_tests() -> None:
     """Drop all cached state and the generation counter."""
-    global _generation
+    global _generation, _last_soft_write
     with _LOCK:
         _generation = 0
+        _last_soft_write = 0.0
         _tags_cache.clear()
         _samples_cache.clear()
         _derived_cache.clear()

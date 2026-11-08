@@ -324,7 +324,13 @@ def _make_session(ort, onnx_path: str):
         if hasattr(ort, "preload_dlls"):
             ort.preload_dlls()
         providers.insert(0, "CUDAExecutionProvider")
-    session = ort.InferenceSession(onnx_path, providers=providers)
+    # ORT's CPU worker threads spin-wait between ops by default: several times
+    # the CPU for no faster tagging, and the spinning threads starve the API's
+    # own, so requests slow down during a bulk job.
+    opts = ort.SessionOptions()
+    opts.add_session_config_entry("session.intra_op.allow_spinning", "0")
+    opts.add_session_config_entry("session.inter_op.allow_spinning", "0")
+    session = ort.InferenceSession(onnx_path, sess_options=opts, providers=providers)
     logger.info("Tagger session providers: %s", session.get_providers())
     return session
 

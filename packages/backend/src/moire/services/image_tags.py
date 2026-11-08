@@ -281,10 +281,21 @@ async def find_image(
     return None
 
 
-def _dirty_tag_index() -> None:
+def _dirty_tag_index(*, bulk: bool = False) -> None:
     """Mark the derived tag aggregation stale, after our transaction committed.
     Every async tag write funnels through the transaction owners below, so no
-    caller has to remember this."""
+    caller has to remember this. ``bulk``: one write of a background run (an AI
+    job), which may lag in the cached views until the run ends and calls
+    :func:`end_bulk_writes`."""
+    if bulk:
+        tag_index.invalidate_soft()
+    else:
+        tag_index.invalidate()
+
+
+def end_bulk_writes() -> None:
+    """A background run that wrote with ``bulk=True`` ended: the cached tag
+    views catch up with every write it made."""
     tag_index.invalidate()
 
 
@@ -329,10 +340,11 @@ async def _mutate_tags(
     transform: Callable[[list[str]], list[str]],
     *,
     extra: dict[str, Any] | None = None,
+    bulk: bool = False,
 ) -> None:
     """Resolve, read the current tag array, apply ``transform``, and persist:
     the one read-modify-write path behind every high-level tag intent. No-op if
-    the image is unknown."""
+    the image is unknown. ``bulk``: see :func:`_dirty_tag_index`."""
     async with async_tx() as conn:
         resolved = await resolve_image_id(conn, image_id)
         if resolved is None:
@@ -343,7 +355,7 @@ async def _mutate_tags(
             )
         ).scalar() or []
         await _persist(conn, resolved, transform(current), extra=extra)
-    _dirty_tag_index()
+    _dirty_tag_index(bulk=bulk)
 
 
 async def apply_manual(image_id: str, tags: list[str]) -> None:
@@ -531,12 +543,20 @@ async def rename_manual(old: str, new: str) -> int:
 
 
 async def replace_ai(
-    image_id: str, *, ai_tags: list[str], ai_meta: dict[str, Any], rating: str
+    image_id: str,
+    *,
+    ai_tags: list[str],
+    ai_meta: dict[str, Any],
+    rating: str,
+    bulk: bool = False,
 ) -> None:
+    """``bulk``: written by a background job, which calls
+    :func:`end_bulk_writes` when it ends."""
     await _mutate_tags(
         image_id,
         lambda current: with_replaced_ai(current, ai_tags),
         extra={"ai": ai_meta, "rating": _ai_rating(rating)},
+        bulk=bulk,
     )
 
 

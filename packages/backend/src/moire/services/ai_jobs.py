@@ -348,6 +348,8 @@ class AIJobManager:
                 job.current = None
                 if job.started_at is not None:
                     job.finished_at = time.time()
+                    # The tag views lagged this job's writes (bulk=True).
+                    image_tags.end_bulk_writes()
                 activity.note_ended("ai_job")
                 self._release(ids[released:])
 
@@ -445,7 +447,11 @@ class AIJobManager:
 
         # Replace prior AI tags with the new set, preserving manual tags.
         await image_tags.replace_ai(
-            image_id, ai_tags=ai_tags, ai_meta=ai_meta, rating=rating_label
+            image_id,
+            ai_tags=ai_tags,
+            ai_meta=ai_meta,
+            rating=rating_label,
+            bulk=True,
         )
 
 
