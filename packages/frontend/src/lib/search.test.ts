@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   characterItems,
   generationItems,
+  imageItems,
   libraryItems,
   resourceItems,
   searchSections,
@@ -105,5 +106,31 @@ describe("searchSections", () => {
     // Scattered letters across a long name are noise.
     expect(searchSections("bat 1", items)[0].items[0].label).toBe("Batch 1");
     expect(searchSections("hair", items).map((x) => x.group)).toEqual(["tags"]);
+  });
+});
+
+describe("imageItems", () => {
+  const hits = imageItems([
+    { _id: "L1:out/ComfyUI_00123_.png", name: "ComfyUI_00123_.png", folder: "out", thumb_url: "/t/1" },
+    { _id: "L1:sunset/a.png", name: "a.png", folder: "sunset", thumb_url: "/t/2" },
+    { _id: "L1:top.png", name: "top.png", folder: "", thumb_url: "/t/3" },
+  ]);
+
+  it("opens the image and shows its folder", () => {
+    expect(hits[0]).toMatchObject({
+      group: "images",
+      label: "ComfyUI_00123_.png",
+      detail: "out",
+      href: "/image/L1%3Aout%2FComfyUI_00123_.png",
+      thumb: "/t/1",
+    });
+    expect(hits[2].detail).toBeUndefined();
+  });
+
+  it("keeps a hit the server found by name or by folder", () => {
+    const labels = (q: string) => searchSections(q, hits).flatMap((s) => s.items.map((i) => i.label));
+    expect(labels("comfyui 00123")).toEqual(["ComfyUI_00123_.png"]);
+    expect(labels("00123")).toEqual(["ComfyUI_00123_.png"]);
+    expect(labels("sunset")).toEqual(["a.png"]);
   });
 });

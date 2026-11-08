@@ -44,6 +44,20 @@ test("searching a tag filters the gallery and the URL", async ({ page }) => {
   await expect(page.getByRole("button", { name: /^Remove blue[_ ]hair$/ })).toBeVisible();
 });
 
+test("Ctrl+K finds an image by its file name and opens it", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(tiles).first()).toBeVisible();
+  await page.keyboard.press("ControlOrMeta+k");
+  const search = page.getByRole("combobox", { name: "Search", exact: true });
+  // A space for the underscore, like tags.
+  await search.fill("filler 042");
+  const hit = page.getByRole("option", { name: /filler_042\.png/ });
+  await expect(hit).toBeVisible();
+  await expect(page.getByRole("option", { name: /filler_043\.png/ })).toHaveCount(0);
+  await search.press("Enter");
+  await expect(page).toHaveURL(/\/image\/[^?]*filler_042\.png/);
+});
+
 test("selection mode shows the tile checkboxes, from the toolbar and the phone menu", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(tiles).first()).toBeVisible();

@@ -8,7 +8,7 @@ from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ..services import gen_metadata, gen_raw, image_tags, image_feed
 from ..services import tag_index
-from ..services import generation_batches, image_delete, thumb_version
+from ..services import generation_batches, image_delete, image_search, thumb_version
 from ..services.image_feed import FeedFilter, FeedFilterError
 from ..services.image_tags import find_image as _find_image_doc  # type: ignore
 from . import image_facets, image_media
@@ -142,6 +142,18 @@ async def list_image_ids(f: FeedFilter = Depends(feed_filter)):
     return JSONResponse(
         {"ids": ids[:SELECT_ALL_CAP], "truncated": len(ids) > SELECT_ALL_CAP}
     )
+
+
+@router.get("/search")
+async def search_images(
+    q: str = Query(min_length=1, max_length=200),
+    limit: int = Query(default=8, ge=1, le=50),
+):
+    """Images whose file name (or folder, inside the library) holds `q`,
+    for the Ctrl/Cmd+K search. Hidden images are left out."""
+    rows = await image_search.search(q, limit)
+    await _attach_thumb_urls(rows)
+    return rows
 
 
 # Route order is load-bearing: fixed paths (/models, /stats, /groups...) must

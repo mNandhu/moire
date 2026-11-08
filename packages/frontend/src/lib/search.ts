@@ -2,13 +2,15 @@
  * The Ctrl/Cmd+K search's pure logic: everything it can open, as rows, and
  * how a query ranks them. Every source is a list the app already fetches
  * (tags, characters, workflows, batches, libraries, loras…), so matching
- * runs here, with `fuzzyScore`, like the tag search box.
+ * runs here, with `fuzzyScore`, like the tag search box. Images are the
+ * exception: too many to hold, the server finds them by file name
+ * (`/images/search`) and their rows are ranked here with the rest.
  */
 import { fuzzyScore } from "./fuzzy";
 import { displayName, characterHref, tagHref, type CharacterEntry } from "./character";
 import { formatTag, tagQueryText } from "./tags";
 import { libraryGalleryHref, type Library } from "./queries";
-import { galleryHref } from "./imageFilter";
+import { galleryHref, imageHref } from "./imageFilter";
 import type { BrowseTag } from "./tagBrowse";
 import { groupHref, groupOptions, type TagGroups } from "./tagGroups";
 import type { BatchSummary, Generator } from "./generate";
@@ -21,6 +23,7 @@ export type SearchGroup =
   | "groups"
   | "workflows"
   | "generations"
+  | "images"
   | "libraries"
   | "loras"
   | "embeddings"
@@ -35,6 +38,7 @@ export const GROUP_LABEL: Record<SearchGroup, string> = {
   groups: "Tag groups",
   workflows: "Workflows",
   generations: "Generations",
+  images: "Images",
   libraries: "Libraries",
   loras: "LoRAs",
   embeddings: "Embeddings",
@@ -51,6 +55,7 @@ const LIMIT: Record<SearchGroup, number> = {
   groups: 3,
   workflows: 4,
   generations: 4,
+  images: 5,
   libraries: 3,
   loras: 3,
   embeddings: 3,
@@ -140,6 +145,23 @@ export function generationItems(rows: readonly BatchSummary[]): SearchItem[] {
     hint: b.images ? `${count(b.images)} ${b.images === 1 ? "image" : "images"}` : undefined,
     href: `/generations/${b._id}`,
     thumb: b.thumbs[0] ?? null,
+  }));
+}
+
+/** One image the server found by name (`GET /images/search`). */
+export type ImageHit = { _id: string; name: string; folder: string; thumb_url: string };
+
+/** Images by file name; the folder they sit in also matches, so a hit found
+ * by its folder alone still clears the fuzzy bar. */
+export function imageItems(rows: readonly ImageHit[]): SearchItem[] {
+  return rows.map((r) => ({
+    key: `image:${r._id}`,
+    group: "images",
+    label: r.name,
+    detail: r.folder || undefined,
+    href: imageHref(r._id),
+    also: r.folder ? [r.folder, `${r.folder}/${r.name}`] : undefined,
+    thumb: r.thumb_url,
   }));
 }
 

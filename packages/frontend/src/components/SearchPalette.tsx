@@ -1,14 +1,16 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
-import { Box, FolderOpen, History, Layers, Puzzle, Search, Tags, Wand2 } from "lucide-react";
+import { Box, FolderOpen, History, Image as ImageIcon, Layers, Puzzle, Search, Tags, Wand2 } from "lucide-react";
 import { Dialog } from "./ui/Dialog";
 import { CharacterAvatar } from "./CharacterAvatar";
 import { useCharacters } from "../lib/queries";
 import { NAV_PAGES } from "../lib/nav";
 import { SETTINGS_SECTIONS } from "../pages/settings/registry";
 import { cn } from "../lib/cn";
+import { api } from "../lib/api";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { smallThumb } from "../lib/media";
 import {
   imageEmbeddingsQuery,
@@ -23,12 +25,14 @@ import {
   GROUP_LABEL,
   characterItems,
   generationItems,
+  imageItems,
   libraryItems,
   resourceItems,
   searchSections,
   tagItems,
   groupItems,
   workflowItems,
+  type ImageHit,
   type SearchGroup,
   type SearchItem,
 } from "../lib/search";
@@ -55,6 +59,7 @@ const GROUP_ICON: Partial<Record<SearchGroup, LucideIcon>> = {
   tags: Tags,
   workflows: Wand2,
   generations: History,
+  images: ImageIcon,
   libraries: FolderOpen,
   loras: Layers,
   embeddings: Puzzle,
@@ -65,7 +70,8 @@ const NONE: never[] = [];
 
 /**
  * Ctrl/Cmd+K: one search over the app's pages, settings, characters, tags,
- * workflows, generations, libraries and the models images used. Arrow keys
+ * workflows, generations, images by file name, libraries and the models
+ * images used. Arrow keys
  * move, Enter opens, Escape closes. The lists load when it opens.
  */
 export function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -95,6 +101,18 @@ function SearchBody({ onClose }: { onClose: () => void }) {
   const loras = useQuery({ ...imageLorasQuery, staleTime: 60_000 });
   const embeddings = useQuery({ ...imageEmbeddingsQuery, staleTime: 60_000 });
   const models = useQuery({ ...imageModelsQuery, staleTime: 60_000 });
+  // Images are asked of the server, by name, once typing pauses. Not part of
+  // `loading`: a keystroke shouldn't swap the results for "Loading…".
+  const imageQuery = useDebouncedValue(query.trim(), 200);
+  const images = useQuery({
+    queryKey: ["image-search", imageQuery],
+    queryFn: ({ signal }) =>
+      api<ImageHit[]>(`/api/v1/images/search?${new URLSearchParams({ q: imageQuery, limit: "8" })}`, { signal }),
+    enabled: imageQuery.length >= 2,
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  });
+  const imageHits = query.trim().length >= 2 ? images.data : undefined;
   const loading = [characters, tags, workflows, batches, libraries, loras, embeddings, models].some((q) => q.isLoading);
 
   const items = useMemo(
@@ -105,12 +123,13 @@ function SearchBody({ onClose }: { onClose: () => void }) {
       ...groupItems(groups.data),
       ...workflowItems(workflows.data ?? NONE),
       ...generationItems(batches.data ?? NONE),
+      ...imageItems(imageHits ?? NONE),
       ...libraryItems(libraries.data ?? NONE),
       ...resourceItems("loras", loras.data ?? NONE),
       ...resourceItems("embeddings", embeddings.data ?? NONE),
       ...resourceItems("checkpoints", (models.data ?? NONE).map((m) => ({ name: m.model, count: m.count }))),
     ],
-    [characters.data, tags.data, groups.data, workflows.data, batches.data, libraries.data, loras.data, embeddings.data, models.data],
+    [characters.data, tags.data, groups.data, workflows.data, batches.data, imageHits, libraries.data, loras.data, embeddings.data, models.data],
   );
   const sections = useMemo(() => searchSections(query, items), [query, items]);
   const flat = useMemo(() => sections.flatMap((s) => s.items), [sections]);
@@ -149,7 +168,7 @@ function SearchBody({ onClose }: { onClose: () => void }) {
           autoFocus
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search characters, tags, workflows, pages…"
+          placeholder="Search characters, tags, images, pages…"
           aria-label="Search"
           role="combobox"
           aria-expanded={flat.length > 0}
