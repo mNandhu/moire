@@ -26,6 +26,7 @@ from moire.services import (
     tag_index,
     tag_kinds,
     tag_sensitivity,
+    tag_views,
 )
 
 
@@ -60,6 +61,7 @@ def fresh_tag_index():
     tag_index.reset_for_tests()
     tag_sensitivity.reset_for_tests()
     sensitivity_filter.reset_for_tests()
+    tag_views.reset_for_tests()
     lora_words._last_total = None
     yield
     tag_index.reset_for_tests()

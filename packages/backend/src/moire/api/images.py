@@ -174,7 +174,7 @@ async def get_image_workflow(image_id: str):
     Format-aware: ComfyUI returns the `workflow` (UI graph, drops onto canvas)
     plus the `prompt` (API graph); A1111 returns the `parameters` string.
     """
-    if not await _find_image_doc(image_id, (), within_filter=True):
+    if not await _find_image_doc(image_id, ()):
         raise HTTPException(status_code=404, detail="Image not found")
     async with async_conn() as conn:
         raw = await gen_raw.raw_for(conn, image_id)
@@ -202,12 +202,11 @@ async def get_image(image_id: str):
     img = await _find_image_doc(
         image_id,
         extra={"gen_batch": generation_batches.batch_id_of_image(t.images.c._id)},
-        within_filter=True,
     )
     if not img:
         # There but hidden by the sensitivity filter: say so (the viewer
         # shows that, not "not found").
-        if await _find_image_doc(image_id, ()):
+        if await _find_image_doc(image_id, (), within_filter=False):
             raise HTTPException(
                 status_code=403, detail="Hidden by the sensitivity filter"
             )
@@ -261,7 +260,7 @@ async def purge_image(image_id: str, body: PurgeBody):
     """
     if not body.confirm:
         raise HTTPException(status_code=400, detail="purge requires confirm=true")
-    img = await _find_image_doc(image_id, ("path", "thumb_key"))
+    img = await _find_image_doc(image_id, ("path", "thumb_key"), within_filter=False)
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
 

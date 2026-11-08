@@ -85,20 +85,22 @@ def known(names: Iterable[str]) -> dict[str, str]:
     return out
 
 
-def served(aliases: dict[str, str], names: Iterable[str] = ()) -> dict[str, str]:
+def served(aliases: dict[str, str], *names: list[str]) -> dict[str, str]:
     """:func:`with_aliases` over the shipped file, with the hashed entries of
-    ``names`` (and of the tags those aliases name). Kept until the list or
-    the names change."""
+    the tags in ``names`` (lists, such as the vocabulary and the library's
+    tags) and of those the aliases name. Kept while the file, the alias map
+    and each list are the same objects (they are rebuilt, not edited)."""
     global _merged
     named, _hashed = _load()
-    names = tuple(names)
     if (
         _merged is None
         or _merged[0] is not named
         or _merged[1] is not aliases
-        or _merged[2] != names
+        or len(_merged[2]) != len(names)
+        or any(a is not b for a, b in zip(_merged[2], names))
     ):
-        descriptions = {**named, **known([*names, *aliases.values()])}
+        every = [n for group in names for n in group]
+        descriptions = {**named, **known([*every, *aliases.values()])}
         _merged = (named, aliases, names, with_aliases(descriptions, aliases))
     return _merged[3]
 

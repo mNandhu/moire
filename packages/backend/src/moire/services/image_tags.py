@@ -249,7 +249,7 @@ async def find_image(
     columns: Iterable[str] | None = None,
     extra: dict[str, Any] | None = None,
     *,
-    within_filter: bool = False,
+    within_filter: bool = True,
 ) -> dict | None:
     """Look up an image by id, tolerating slash/backslash id variants.
 
@@ -257,9 +257,10 @@ async def find_image(
     too); ``None`` reads the whole document. The thumb and file routes read
     one column per grid tile, so they must not decode the JSON ones.
     ``extra`` adds fields computed in the same read: name -> a scalar
-    subquery over ``images._id``. ``within_filter``: an image the
-    sensitivity filter hides reads as unknown (routes that show an image by
-    id; quarantine is no bar, its own view opens them).
+    subquery over ``images._id``. An image the sensitivity filter hides
+    reads as unknown, unless ``within_filter=False`` (AI tagging, purge: work
+    on the image itself, not a view of it); quarantine is no bar either way,
+    its own view opens them.
     """
     if columns is None:
         select = sa.select(t.images)
@@ -587,6 +588,9 @@ async def set_rating(image_id: str, rating: str) -> tuple[str, str] | None:
             .where(t.images.c._id == resolved)
             .values(rating=rating, rating_manual=manual)
         )
+    # A rating can move the image across the sensitivity filter, which the
+    # tag counts and covers follow.
+    _dirty_tag_index()
     return resolved, rating
 
 

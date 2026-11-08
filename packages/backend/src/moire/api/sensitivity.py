@@ -8,7 +8,7 @@ import sqlalchemy as sa
 
 from ..database import schema as t
 from ..database.db import async_conn
-from ..services import image_visibility, sensitivity_filter, tag_sensitivity
+from ..services import image_visibility, sensitivity_filter, tag_index, tag_sensitivity
 
 router = APIRouter()
 
@@ -21,7 +21,13 @@ class SensitivityPatch(BaseModel):
 async def _counts() -> dict:
     """Images out of quarantine by level, the filter aside: ``unknown`` has
     no level yet (no rating, and no tags that vouch for one), which the
-    filter hides until AI tagging gives it one."""
+    filter hides until AI tagging gives it one. Every page header asks, so
+    it is kept in the tag index's derived cache, which tag writes, ratings,
+    quarantine and level edits clear."""
+    gen = tag_index.current_generation()
+    cached = tag_index.read_derived("sensitivity-counts")
+    if cached is not None:
+        return cached
     level = image_visibility.image_level().label("level")
     async with async_conn() as conn:
         rows = (
@@ -39,7 +45,9 @@ async def _counts() -> dict:
             unknown += n
         else:
             by_level[tag_sensitivity.LEVELS[lv]] += n
-    return {"unknown": unknown, "by_level": by_level}
+    counts = {"unknown": unknown, "by_level": by_level}
+    tag_index.store_derived("sensitivity-counts", gen, counts)
+    return counts
 
 
 @router.get("")

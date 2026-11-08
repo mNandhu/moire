@@ -44,7 +44,7 @@ from ..database import schema as t
 from ..database.db import async_conn, async_tx, sync_conn
 from . import app_settings, tag_index
 from .tag_hash import HASH_CHARS, hash_tag  # noqa: F401 (re-exported)
-from .tag_kinds import base_of
+from .tag_kinds import ANY_PREFIX, base_of
 from .tag_names import canonical_name
 
 logger = logging.getLogger("moire.tag_sensitivity")
@@ -70,10 +70,16 @@ _edit_lock = asyncio.Lock()
 
 
 def _load_shipped() -> dict[str, int]:
+    """The shipped levels; empty (every tag general, with a warning) when the
+    file is missing or unreadable, so a broken edit can't take the app down."""
     global _shipped, _shipped_bytes
     if _shipped is None:
-        raw = PATH.read_bytes()
-        _shipped = dict(json.loads(raw)["levels"])
+        try:
+            raw = PATH.read_bytes()
+            _shipped = {k: int(v) for k, v in json.loads(raw)["levels"].items()}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+            logger.warning("tag sensitivity list unavailable: %s", exc)
+            raw, _shipped = b"", {}
         _shipped_bytes = raw
     return _shipped
 
@@ -87,7 +93,8 @@ def shipped() -> dict[str, int]:
 def level_of(tag: str) -> int:
     """One tag's level (any kind prefix, case ignored): this library's own,
     else the shipped one, else 0."""
-    name = base_of(tag).lower()
+    # Any kind prefix, the search's ``any:`` included.
+    name = base_of(tag.removeprefix(ANY_PREFIX)).lower()
     own = _overrides.get(name)
     if own is not None:
         return own[0]

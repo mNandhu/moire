@@ -201,3 +201,96 @@ async def test_tag_levels_list_and_set(client, seed):
     assert (await client.get("/sensitivity/tags")).json()["tags"] == []
     bad = await client.post("/sensitivity/tags", json={"tag": "x", "level": "spicy"})
     assert bad.status_code == 422
+
+
+# --- review fixes ---------------------------------------------------------------
+
+
+async def test_picking_a_rating_refreshes_the_filtered_counts(client, seed):
+    seed("L1:a", tags=("1girl",))
+    await _set(client, "general")
+    first = (await client.get("/tags", params={"merge_sources": True})).json()
+    assert {r["_id"] for r in first} == {"any:1girl"}
+    await client.post("/images/L1:a/rating", json={"rating": "explicit"})
+    again = (await client.get("/tags", params={"merge_sources": True})).json()
+    assert again == []
+    counts = (await client.get("/sensitivity")).json()["counts"]
+    assert counts["by_level"]["explicit"] == 1
+
+
+async def test_remix_of_a_hidden_image_is_not_found(client, seed):
+    _library(seed)
+    await _set(client, "general")
+    resp = await client.get("/generate/remix/L1:explicit", params={"full": True})
+    assert resp.status_code == 404
+
+
+async def test_search_style_names_are_filtered_too(client, seed):
+    _library(seed)
+    await _set(client, "general")
+    got = (
+        await client.get(
+            "/tags/samples", params={"tags": [f"any:{THREE}", "any:1girl"]}
+        )
+    ).json()
+    assert f"any:{THREE}" not in got and "any:1girl" in got
+
+
+async def test_making_a_character_ignores_the_filter(client, seed):
+    await _set(client, "general")
+    resp = await client.post("/tags/characters", json={"tag": THREE})
+    assert resp.status_code == 200, resp.text
+
+
+def test_a_broken_shipped_list_reads_as_all_general(tmp_path, monkeypatch):
+    bad = tmp_path / "levels.json"
+    bad.write_text("{not json", encoding="utf-8")
+    monkeypatch.setattr(tag_sensitivity, "PATH", bad)
+    tag_sensitivity.reset_for_tests()
+    assert tag_sensitivity.level_of("anything") == 0
+    assert tag_sensitivity.tag_level(["a", "b"]) == 0
+
+
+async def test_by_id_reads_are_filtered_unless_asked(client, seed):
+    from moire.services import image_tags
+
+    _library(seed)
+    await _set(client, "general")
+    assert await image_tags.find_image("L1:explicit", ("path",)) is None
+    assert await image_tags.find_image("L1:explicit", ("path",), within_filter=False)
+
+
+async def test_a_batch_cover_skips_hidden_outputs(client, seed):
+    from moire.database.db import async_tx
+
+    _library(seed)
+    async with async_tx() as conn:
+        await conn.execute(
+            sa.insert(t.generation_batches).values(
+                _id=1,
+                generator_id="builtin",
+                name="b",
+                inputs={},
+                state="done",
+                created_at=0,
+            )
+        )
+        await conn.execute(
+            sa.insert(t.generation_requests).values(
+                _id=1, batch_id=1, idx=0, state="done"
+            )
+        )
+        for idx, image_id in enumerate(("L1:explicit", "L1:general")):
+            await conn.execute(
+                sa.insert(t.generation_outputs).values(
+                    request_id=1,
+                    idx=idx,
+                    filename=f"{idx}.png",
+                    subfolder="",
+                    image_id=image_id,
+                )
+            )
+    await _set(client, "general")
+    batches = (await client.get("/generate/batches")).json()
+    assert len(batches) == 1 and len(batches[0]["thumbs"]) == 1
+    assert None not in batches[0]["thumbs"]

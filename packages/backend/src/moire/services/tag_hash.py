@@ -16,7 +16,7 @@ from functools import lru_cache
 HASH_CHARS = 16
 
 
-@lru_cache(maxsize=1 << 16)
+@lru_cache(maxsize=1 << 18)
 def hash_tag(name: str) -> str:
     """A tag's key in shipped data: its lower-case name, hashed."""
     return hashlib.sha256(name.lower().encode()).hexdigest()[:HASH_CHARS]

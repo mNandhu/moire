@@ -290,7 +290,8 @@ async def list_batches(
                     1 for o in outs if o["in_library"] and not o["quarantined"]
                 ),
                 "arriving": sum(1 for o in outs if o["arriving"]),
-                "thumbs": [o["thumb_url"] for o in outs if o["in_library"]][:12],
+                # Shown pictures only: an output the filter hides has none.
+                "thumbs": [o["thumb_url"] for o in outs if o["thumb_url"]][:12],
             }
         )
     return out

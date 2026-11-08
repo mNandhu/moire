@@ -25,7 +25,7 @@ router = APIRouter()
 async def _original(image_id: str) -> tuple[str, os.stat_result]:
     """The original file of ``image_id`` on disk and its stat, or the 404
     that says why it can't be served (unknown image, no path, file gone)."""
-    img = await _find_image_doc(image_id, ("path",), within_filter=True)
+    img = await _find_image_doc(image_id, ("path",))
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
     path = img.get("path")
@@ -133,7 +133,7 @@ async def get_image_thumb(
     (made on first ask), for previews shown postage-stamp size. `v` is the
     URL's version (`thumb_version`): with it the response is kept for a year,
     without it the browser asks again (a 304 while the file is unchanged)."""
-    img = await _find_image_doc(image_id, ("thumb_key",), within_filter=True)
+    img = await _find_image_doc(image_id, ("thumb_key",))
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
     thumb_key = img.get("thumb_key")
@@ -165,7 +165,7 @@ async def head_image_thumb(
     size: ThumbSize | None = None,
     v: str | None = Query(default=None, max_length=64),
 ):
-    img = await _find_image_doc(image_id, ("thumb_key",), within_filter=True)
+    img = await _find_image_doc(image_id, ("thumb_key",))
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
     thumb_key = img.get("thumb_key", "") or ""
@@ -181,7 +181,7 @@ async def head_image_thumb(
 @router.get("/{image_id:path}/thumb-url")
 async def get_thumb_url(image_id: str):
     """The image's versioned thumbnail URL, for a page holding only its id."""
-    img = await _find_image_doc(image_id, ("thumb_key",), within_filter=True)
+    img = await _find_image_doc(image_id, ("thumb_key",))
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
     row = {"_id": img["_id"], "thumb_key": img.get("thumb_key")}

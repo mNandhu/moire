@@ -75,18 +75,20 @@ function TagLevelsCard() {
   const [tag, setTag] = useState("");
   const [level, setLevel] = useState<Rating>("sensitive");
 
-  const save = async (name: string, to: Rating | null) => {
+  /** Whether it saved; a failure is a toast. */
+  const save = async (name: string, to: Rating | null): Promise<boolean> => {
     try {
       await setTagLevel(qc, name, to);
+      return true;
     } catch (e) {
       push(`Couldn't save the level: ${errorText(e)}`, "error");
+      return false;
     }
   };
   const add = async () => {
     const name = tag.trim();
-    if (!name) return;
-    await save(name, level);
-    setTag("");
+    // Kept on a failure, to try again.
+    if (name && (await save(name, level))) setTag("");
   };
 
   const rows = data?.tags ?? [];
@@ -134,7 +136,7 @@ function TagLevelsCard() {
   );
 }
 
-function TagLevelRow({ row, onSave }: { row: TagLevel; onSave: (tag: string, level: Rating | null) => Promise<void> }) {
+function TagLevelRow({ row, onSave }: { row: TagLevel; onSave: (tag: string, level: Rating | null) => Promise<boolean> }) {
   return (
     <li className="flex items-center gap-3 px-3 py-2 text-sm">
       <span className="min-w-0 flex-1 truncate text-neutral-100">{formatTag(row.tag)}</span>
