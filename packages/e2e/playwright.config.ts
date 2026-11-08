@@ -27,7 +27,7 @@ export default defineConfig({
   webServer: [
     {
       // Never the real ComfyUI: the suite only ever talks to this fake.
-      command: `uv --directory ../backend run uvicorn fake_comfy_server:app --app-dir ../e2e/servers --host 127.0.0.1 --port ${COMFY_PORT}`,
+      command: `node ../../scripts/uv-backend.mjs run uvicorn fake_comfy_server:app --app-dir ../e2e/servers --host 127.0.0.1 --port ${COMFY_PORT}`,
       url: `http://127.0.0.1:${COMFY_PORT}/system_stats`,
       env: { FAKE_COMFY_OUT: COMFY_OUT, FAKE_COMFY_RUN: String(FAKE_COMFY_RUN) },
       reuseExistingServer: false,
@@ -35,7 +35,7 @@ export default defineConfig({
       stderr: "ignore",
     },
     {
-      command: `uv --directory ../backend run python ../e2e/servers/start_backend.py`,
+      command: `node ../../scripts/uv-backend.mjs run python ../e2e/servers/start_backend.py`,
       url: `http://127.0.0.1:${BACKEND_PORT}/health`,
       env: { E2E_BACKEND_PORT: String(BACKEND_PORT), E2E_COMFY_OUT: COMFY_OUT, E2E_MODEL_CACHE_DIR: MODEL_CACHE_DIR },
       reuseExistingServer: false,

@@ -59,6 +59,10 @@ default-groups = ["dev", "cpu"]
 conflicts = [
     [{ group = "cpu" }, { group = "gpu" }],
     [{ extra = "cpu" }, { extra = "gpu" }],
+    # A checkout's default `cpu` group with the `gpu` extra installed both
+    # builds, and one overwrote the other: say so instead (use the group).
+    [{ group = "cpu" }, { extra = "gpu" }],
+    [{ group = "gpu" }, { extra = "cpu" }],
 ]
 environments = [
     "sys_platform == 'win32'",

@@ -34,11 +34,10 @@ A stale build there doesn't affect `pnpm dev`. To try the wheel before a release
 The `gpu` dependency group swaps `onnxruntime` for `onnxruntime-gpu` and pulls CUDA 12 and cuDNN 9 from pip (about 2 GB). No system CUDA toolkit is needed. Linux and Windows only.
 
 ```bash
-export UV_NO_GROUP=cpu      # keep it set, or the next `uv run` reinstalls the CPU build
-uv --directory packages/backend sync --group gpu
+UV_NO_GROUP=cpu uv --directory packages/backend sync --group gpu
 ```
 
-Put the `export` in your shell profile (PowerShell: `$env:UV_NO_GROUP = "cpu"`). If the CPU build slipped back in, the backend log warns that both are installed; repair with `UV_NO_GROUP=cpu uv --directory packages/backend sync --group gpu --reinstall-package onnxruntime-gpu`. The log line `Tagger session providers: [...]` shows which device the tagger got.
+A plain `uv run` afterwards installs the CPU build again (it is in the default `cpu` group), and since both builds share one `onnxruntime/` folder, tagging quietly falls back to the CPU. The `pnpm` scripts (`dev`, `perf`, `e2e`, the pre-commit checks) go through `scripts/uv-backend.mjs`, which keeps the GPU build once it is installed and puts it back if a plain `uv run` replaced it. Run other backend commands the same way, `node scripts/uv-backend.mjs run pytest`, or `export UV_NO_GROUP=cpu` in your shell profile (PowerShell: `$env:UV_NO_GROUP = "cpu"`). The backend log warns when both builds are installed, and the line `Tagger session providers: [...]` shows which device the tagger got.
 
 ## Tests and checks
 

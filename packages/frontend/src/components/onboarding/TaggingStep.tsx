@@ -74,7 +74,7 @@ export function TaggingStep({ images, capped, checkout }: { images: number; capp
               {copied ? "Copied" : "Copy"}
             </Button>
           </div>
-          {checkout && "Keep UV_NO_GROUP=cpu set in the shell you run Moiré from, or the next sync reinstalls the CPU build."}
+          {checkout && "pnpm dev keeps the GPU build from then on. A plain uv run would put the CPU build back."}
         </div>
       </Group>
     </section>
