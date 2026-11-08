@@ -13,8 +13,11 @@ const post = <T>(url: string, body?: unknown) => apiJson<T>(url, "POST", body);
 
 // --- Scalars ------------------------------------------------------------------
 
-export function setRating(id: string, rating: string): Promise<unknown> {
-  return post(imageUrl(id, "rating"), { rating });
+/** Resolves to the rating now stored: Unrated ("-") hands it back to the AI
+ * tagger, so the answer is its pick, which may not be "-". */
+export async function setRating(id: string, rating: string): Promise<string> {
+  const res = await post<{ rating?: string } | null>(imageUrl(id, "rating"), { rating });
+  return res?.rating ?? rating;
 }
 
 export function setScore(id: string, score: number): Promise<unknown> {

@@ -68,6 +68,14 @@ describe("per-image mutations", () => {
     expect(spy.mock.calls[0][0]).toBe("/api/v1/tags/remove/L1%3Aa.jpg");
   });
 
+  it("setRating resolves to the rating the server stored", async () => {
+    // Unrated hands the rating back to the AI tagger's pick.
+    mockFetch({ _id: "L1:a.jpg", rating: "sensitive" });
+    await expect(setRating("L1:a.jpg", "-")).resolves.toBe("sensitive");
+    mockFetch({});
+    await expect(setRating("L1:a.jpg", "general")).resolves.toBe("general");
+  });
+
   it("throws the response body on failure", async () => {
     vi.stubGlobal(
       "fetch",

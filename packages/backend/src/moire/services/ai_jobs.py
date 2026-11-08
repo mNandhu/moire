@@ -424,17 +424,7 @@ class AIJobManager:
         character_tags = [t for (t, _p) in (result.get("character_tags") or [])]
         ai_tags = list(dict.fromkeys([*general_tags, *character_tags]))
 
-        # Pick rating with highest probability.
-        rating_map = result.get("rating") or {}
-        rating_label = "-"
-        if isinstance(rating_map, dict) and rating_map:
-            try:
-                rating_label = max(
-                    rating_map.items(), key=lambda kv: float(kv[1] or 0.0)
-                )[0]
-            except Exception:
-                rating_label = "-"
-        rating_label = image_tags.normalize_rating(str(rating_label)) or "-"
+        rating_label = image_tags.ai_rating_label(result.get("rating"))
 
         now = time.time()
         ai_meta: dict[str, Any] = {

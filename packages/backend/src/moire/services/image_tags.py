@@ -11,7 +11,11 @@ Conventions enforced here (and nowhere else):
   tag, i.e. AI or manual). Prompt-only images stay "untagged" for curation.
 - ``has_ai_tags``     : True iff ``tags`` has a tag that is neither manual nor prompt.
 - ``has_prompt_tags``: True iff ``tags`` contains at least one ``prompt:`` tag.
-- ``rating``          : one of RATINGS; reset to ``"-"`` when AI tags are cleared.
+- ``tag_level``       : the highest sensitivity level among the tags
+  (:mod:`services.tag_sensitivity`), NULL when there are none.
+- ``rating``          : one of RATINGS. The AI tagger writes its pick and clearing
+  AI tags resets it to ``"-"``, unless ``rating_manual``: a rating picked by
+  hand stays until the user picks again (Unrated brings the AI's back).
 
 Every write recomputes the three flags from the resulting array
 (:func:`recompute_flags`) and rebuilds this image's rows in the derived
@@ -29,9 +33,9 @@ import sqlalchemy as sa
 from sqlalchemy import Connection
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from ..database.db import async_conn, async_tx
+from ..database.db import async_conn, async_tx, sync_tx
 from ..database import schema as t
-from . import tag_index
+from . import image_visibility, tag_index, tag_sensitivity
 from .tag_kinds import (
     base_of,
     canonical_tag,
@@ -68,6 +72,30 @@ def normalize_rating(raw: str | None) -> str | None:
     return None
 
 
+def ai_rating_label(rating_map: Any) -> str:
+    """The AI tagger's rating: the label it scored highest, canonical, or
+    ``"-"`` when there is no usable score."""
+    if not isinstance(rating_map, dict) or not rating_map:
+        return "-"
+    try:
+        label = max(rating_map.items(), key=lambda kv: float(kv[1] or 0.0))[0]
+    except (TypeError, ValueError):
+        return "-"
+    return normalize_rating(str(label)) or "-"
+
+
+def _ai_rating(label: str) -> Any:
+    """The ``rating`` value an AI write sets: ``label``, unless the user
+    picked the rating by hand, which stays."""
+    return sa.case(
+        (
+            sa.func.coalesce(t.images.c.rating_manual, False).is_(True),
+            t.images.c.rating,
+        ),
+        else_=sa.literal(label),
+    )
+
+
 # --- Image id variants (pure) -------------------------------------------------
 
 
@@ -101,13 +129,17 @@ def id_candidates(image_id: str) -> list[str]:
 # The ``images`` columns a tag write sets: the array and the flags it
 # implies. The one column list for every writer (single, bulk, insert
 # defaults), so a column added here reaches all of them.
-TAG_STATE_COLUMNS = ("tags", "has_tags", "has_ai_tags", "has_prompt_tags")
+TAG_STATE_COLUMNS = ("tags", "has_tags", "has_ai_tags", "has_prompt_tags", "tag_level")
 
 
 def tag_state_values(tags: list[str]) -> dict[str, Any]:
     """Values for :data:`TAG_STATE_COLUMNS` (exactly those, in that order)
     for a write of ``tags``."""
-    values = {"tags": tags, **recompute_flags(tags)}
+    values = {
+        "tags": tags,
+        **recompute_flags(tags),
+        "tag_level": tag_sensitivity.tag_level(tags),
+    }
     return {c: values[c] for c in TAG_STATE_COLUMNS}
 
 
@@ -216,6 +248,8 @@ async def find_image(
     image_id: str,
     columns: Iterable[str] | None = None,
     extra: dict[str, Any] | None = None,
+    *,
+    within_filter: bool = False,
 ) -> dict | None:
     """Look up an image by id, tolerating slash/backslash id variants.
 
@@ -223,7 +257,9 @@ async def find_image(
     too); ``None`` reads the whole document. The thumb and file routes read
     one column per grid tile, so they must not decode the JSON ones.
     ``extra`` adds fields computed in the same read: name -> a scalar
-    subquery over ``images._id``.
+    subquery over ``images._id``. ``within_filter``: an image the
+    sensitivity filter hides reads as unknown (routes that show an image by
+    id; quarantine is no bar, its own view opens them).
     """
     if columns is None:
         select = sa.select(t.images)
@@ -232,6 +268,8 @@ async def find_image(
         select = sa.select(*(t.images.c[name] for name in names))
     for name, expr in (extra or {}).items():
         select = select.add_columns(expr.label(name))
+    if within_filter:
+        select = select.where(image_visibility.within_filter())
     async with async_conn() as conn:
         for candidate in id_candidates(image_id):
             row = (
@@ -497,14 +535,16 @@ async def replace_ai(
     await _mutate_tags(
         image_id,
         lambda current: with_replaced_ai(current, ai_tags),
-        extra={"ai": ai_meta, "rating": rating},
+        extra={"ai": ai_meta, "rating": _ai_rating(rating)},
     )
 
 
 async def clear_ai(image_id: str) -> None:
     """Drop one image's AI tags, tagger metadata and rating (before a re-tag).
-    Manual and prompt tags stay."""
-    await _mutate_tags(image_id, with_cleared_ai, extra={"ai": None, "rating": "-"})
+    Manual and prompt tags stay, and so does a rating picked by hand."""
+    await _mutate_tags(
+        image_id, with_cleared_ai, extra={"ai": None, "rating": _ai_rating("-")}
+    )
 
 
 # --- Scalar column writes (rating / score / quarantine) -----------------------
@@ -525,9 +565,29 @@ async def _set_columns(image_id: str, **values: Any) -> str | None:
         return resolved
 
 
-async def set_rating(image_id: str, rating: str) -> str | None:
-    """Set the content-safety rating (caller normalizes via ``normalize_rating``)."""
-    return await _set_columns(image_id, rating=rating)
+async def set_rating(image_id: str, rating: str) -> tuple[str, str] | None:
+    """Pick the content-safety rating by hand (caller normalizes via
+    ``normalize_rating``). ``"-"`` (Unrated) hands the rating back to the AI
+    tagger: its pick from the stored scores, or ``"-"`` when untagged.
+    Returns ``(resolved _id, rating now stored)``, or None if unknown."""
+    async with async_tx() as conn:
+        resolved = await resolve_image_id(conn, image_id)
+        if resolved is None:
+            return None
+        manual = rating != "-"
+        if not manual:
+            ai = (
+                await conn.execute(
+                    sa.select(t.images.c.ai).where(t.images.c._id == resolved)
+                )
+            ).scalar()
+            rating = ai_rating_label((ai or {}).get("rating"))
+        await conn.execute(
+            sa.update(t.images)
+            .where(t.images.c._id == resolved)
+            .values(rating=rating, rating_manual=manual)
+        )
+    return resolved, rating
 
 
 async def set_score(image_id: str, score: int) -> str | None:
@@ -551,7 +611,7 @@ async def clear_ai_all() -> tuple[int, int]:
         ids = [
             r._id for r in (await conn.execute(sa.select(t.images.c._id))).fetchall()
         ]
-    cleared_extra = {"ai": None, "rating": "-"}
+    cleared_extra = {"ai": None, "rating": _ai_rating("-")}
     modified = 0
 
     def rewrite(current: list[str]):
@@ -563,6 +623,87 @@ async def clear_ai_all() -> tuple[int, int]:
 
     matched = await _rewrite_in_chunks(ids, rewrite)
     return matched, modified
+
+
+# --- tag_level after the levels change -----------------------------------------
+#
+# ``tag_level`` is written with the tags (TAG_STATE_COLUMNS); these rewrite it
+# alone, for when the levels themselves changed (services/tag_sensitivity.py).
+# Each returns how many images changed; the caller invalidates the tag index.
+
+_LEVEL_BATCH = 500
+
+
+def _tag_level_update():
+    return (
+        sa.update(t.images)
+        .where(t.images.c._id == sa.bindparam("b_id"))
+        .values(tag_level=sa.bindparam("b_level", type_=sa.Integer))
+    )
+
+
+def _tag_level_changes(rows: Iterable[Any]) -> list[dict[str, Any]]:
+    out = []
+    for row in rows:
+        level = tag_sensitivity.tag_level(row.tags or [])
+        if level != row.tag_level:
+            out.append({"b_id": row._id, "b_level": level})
+    return out
+
+
+def recompute_tag_levels_sync() -> int:
+    """Recompute every image's ``tag_level``, a batch per transaction."""
+    im = t.images.c
+    changed = 0
+    last_id = ""
+    while True:
+        with sync_tx() as conn:
+            rows = conn.execute(
+                sa.select(im._id, im.tags, im.tag_level)
+                .where(im._id > last_id)
+                .order_by(im._id)
+                .limit(_LEVEL_BATCH)
+            ).fetchall()
+            if not rows:
+                return changed
+            updates = _tag_level_changes(rows)
+            if updates:
+                conn.execute(_tag_level_update(), updates)
+            changed += len(updates)
+            last_id = rows[-1]._id
+
+
+async def recompute_tag_levels_for(bases: list[str]) -> int:
+    """Recompute ``tag_level`` for the images carrying any of ``bases`` (stored
+    base names, any kind), a batch per transaction."""
+    if not bases:
+        return 0
+    async with async_conn() as conn:
+        ids = sorted(
+            {
+                r.image_id
+                for r in await conn.execute(
+                    sa.select(t.image_tags.c.image_id)
+                    .where(t.image_tags.c.base.in_(bases))
+                    .distinct()
+                )
+            }
+        )
+    changed = 0
+    for chunk in _chunks(ids, _LEVEL_BATCH):
+        async with async_tx() as conn:
+            rows = (
+                await conn.execute(
+                    sa.select(
+                        t.images.c._id, t.images.c.tags, t.images.c.tag_level
+                    ).where(t.images.c._id.in_(chunk))
+                )
+            ).fetchall()
+            updates = _tag_level_changes(rows)
+            if updates:
+                await conn.execute(_tag_level_update(), updates)
+            changed += len(updates)
+    return changed
 
 
 # --- Sync repo helpers (scanner / reproject threads) --------------------------

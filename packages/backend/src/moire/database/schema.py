@@ -45,11 +45,17 @@ images = sa.Table(
     sa.Column("blurhash", sa.Text),
     sa.Column("score", sa.Float, server_default="0"),
     sa.Column("rating", sa.Text),
+    # The rating was picked by hand: AI tagging leaves it alone, and it wins
+    # over the tag-derived level (services/tag_sensitivity.py).
+    sa.Column("rating_manual", sa.Boolean, server_default=sa.text("0")),
     sa.Column("quarantined", sa.Boolean, server_default=sa.text("0")),
     # Tag-state summary flags (derived from `tags`, recomputed on every tag write).
     sa.Column("has_tags", sa.Boolean, server_default=sa.text("0")),
     sa.Column("has_ai_tags", sa.Boolean, server_default=sa.text("0")),
     sa.Column("has_prompt_tags", sa.Boolean, server_default=sa.text("0")),
+    # Highest sensitivity level among the tags (0 general .. 3 explicit), NULL
+    # when the image has no tags at all. Derived like the flags above.
+    sa.Column("tag_level", sa.Integer),
     # Authoritative, ordered tag list (AI unprefixed, manual:, prompt:).
     sa.Column("tags", sa.JSON, server_default="[]"),
     # AI tagger metadata subdoc (model, thresholds, raw tag scores).
@@ -230,6 +236,19 @@ tag_rules = sa.Table(
     sa.Column("from_name", sa.Text, primary_key=True),
     sa.Column("to_names", sa.JSON, nullable=False),
     sa.Column("created_at", sa.Float),
+)
+
+# Per-library sensitivity levels for tags (services/tag_sensitivity.py), over
+# the shipped data/tag_sensitivity.json. ``source`` is "user" (set by hand) or
+# "suggested" (imported, not yet checked); a user row is never overwritten by
+# a suggestion.
+tag_levels = sa.Table(
+    "tag_levels",
+    metadata,
+    sa.Column("tag", sa.Text, primary_key=True),
+    sa.Column("level", sa.Text, nullable=False),
+    sa.Column("source", sa.Text, nullable=False),
+    sa.Column("updated_at", sa.Float),
 )
 
 # User prompt-extraction rulesets, keyed by workflow signature.

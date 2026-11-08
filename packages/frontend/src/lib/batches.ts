@@ -107,7 +107,7 @@ export function shownImages(
   return batches.flatMap((b) =>
     b
       ? resultSlots(b).flatMap((s) =>
-          s.kind === "image" && s.out.in_library && !isHiddenSlot(s, hidden)
+          s.kind === "image" && s.out.in_library && !s.out.hidden && !isHiddenSlot(s, hidden)
             ? [{ _id: s.out.image_id, thumb_url: s.out.thumb_url, width: s.out.width, height: s.out.height }]
             : [],
         )

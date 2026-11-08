@@ -14,6 +14,7 @@ from ..services import (
     face_detect,
     image_feed,
     image_tags,
+    sensitivity_filter,
     tag_descriptions,
     tag_kinds,
     tag_browse,
@@ -55,7 +56,9 @@ async def get_attire_groups():
     """``tag -> attire group`` (headwear, accessories, ...) for every attire
     tag the app knows of: outfit chips are labelled by it, and the attire
     autocomplete ranks by it. Changes with the library's tags."""
-    return JSONResponse((await tag_views.tag_maps())[0])
+    return JSONResponse(
+        sensitivity_filter.allowed_keys((await tag_views.tag_maps())[0])
+    )
 
 
 @router.get("/facets")
@@ -63,7 +66,9 @@ async def get_tag_facets():
     """``tag -> facet`` (look, outfit, pose, scene, framing) for every listed
     tag that has one, plus the library's own tags that :func:`attire.facet_of`
     places: the image view tints tags by it."""
-    return JSONResponse((await tag_views.tag_maps())[1])
+    return JSONResponse(
+        sensitivity_filter.allowed_keys((await tag_views.tag_maps())[1])
+    )
 
 
 @router.get("/groups")
@@ -72,7 +77,10 @@ async def get_tag_groups():
     library's tags; ``categories``: each of those groups' top-level category.
     The group pages list a group's tags from it. Built with the attire and
     facet maps, kept until a tag write."""
-    return JSONResponse((await tag_views.tag_maps())[2])
+    groups = (await tag_views.tag_maps())[2]
+    return JSONResponse(
+        {**groups, "tags": sensitivity_filter.allowed_keys(groups.get("tags", {}))}
+    )
 
 
 class PlaceBody(BaseModel):
@@ -93,7 +101,13 @@ async def board_offers():
     """``section -> [[tag, posts], ...]``: what each prompt-board section can
     suggest, the library's tags among them. Changes with the library's tags
     and when Danbooru's list arrives."""
-    return JSONResponse(await tag_views.board_offers())
+    offers = await tag_views.board_offers()
+    if sensitivity_filter.max_level() is not None:
+        offers = {
+            section: [o for o in rows if sensitivity_filter.allowed(o[0])]
+            for section, rows in offers.items()
+        }
+    return JSONResponse(offers)
 
 
 @router.get("/settings")
@@ -116,7 +130,9 @@ async def descriptions():
     shipped file), and their Danbooru aliases when that list is already in
     (this never starts its download: the prompt board does)."""
     tags = await danbooru_tags.load_present()
-    return JSONResponse(tag_descriptions.served(tags.aliases))
+    return JSONResponse(
+        sensitivity_filter.allowed_keys(tag_descriptions.served(tags.aliases))
+    )
 
 
 @router.get("/danbooru-aliases")
@@ -124,7 +140,13 @@ async def danbooru_aliases():
     """``tag -> [alias, ...]``: Danbooru's aliases of the library's tags, for
     tag suggestions (an alias typed offers its tag). Empty until Danbooru's
     list is in; this never starts its download."""
-    return JSONResponse(await tag_views.library_aliases())
+    aliases = sensitivity_filter.allowed_keys(await tag_views.library_aliases())
+    if sensitivity_filter.max_level() is not None:
+        aliases = {
+            tag: [a for a in names if sensitivity_filter.allowed(a)]
+            for tag, names in aliases.items()
+        }
+    return JSONResponse(aliases)
 
 
 @router.get("/samples")
@@ -139,7 +161,10 @@ async def tag_samples(
     if len(tags) > 200:
         raise HTTPException(status_code=422, detail="too many tags (max 200)")
     # Keyed by what the caller asked for; looked up by the canonical spelling.
-    tags = validate_tags(tags, max_count=200)
+    # A tag the sensitivity filter hides has no samples.
+    tags = [
+        t for t in validate_tags(tags, max_count=200) if sensitivity_filter.allowed(t)
+    ]
     results = await asyncio.gather(
         *[tag_covers.samples_for_tag(tag_kinds.canonical_tag(tag), per) for tag in tags]
     )
@@ -152,8 +177,12 @@ async def tag_samples(
 
 def _base(tag: str) -> str:
     """The tag a route names (query or path), as its covers and pages key
-    it: validated, any source prefix dropped."""
-    return tag_covers.pin_key(validate_tags([tag])[0])
+    it: validated, any source prefix dropped. A tag the sensitivity filter
+    hides reads as unknown."""
+    base = tag_covers.pin_key(validate_tags([tag])[0])
+    if not sensitivity_filter.allowed(base):
+        raise HTTPException(status_code=404, detail="No image has this tag")
+    return base
 
 
 def _source(source: str) -> str:
@@ -407,7 +436,17 @@ async def add_rules(body: TagRules):
 @router.get("/merge-suggestions")
 async def merge_suggestions():
     """Prompt tags Danbooru names otherwise, as rules to accept (tag_canon)."""
-    return JSONResponse(await tag_rename.merge_suggestions())
+    got = await tag_rename.merge_suggestions()
+    if sensitivity_filter.max_level() is not None:
+        got = {
+            **got,
+            "suggestions": [
+                s
+                for s in got["suggestions"]
+                if all(sensitivity_filter.allowed(x) for x in (s["from"], *s["to"]))
+            ],
+        }
+    return JSONResponse(got)
 
 
 @router.delete("/rules/{from_name:path}")

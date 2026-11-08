@@ -9,7 +9,13 @@ import sqlalchemy as sa
 
 from ..database import schema as t
 from ..database.db import async_conn, ensure_schema
-from . import library_nesting, library_watch, tag_migrations
+from . import (
+    library_nesting,
+    library_watch,
+    sensitivity_filter,
+    tag_migrations,
+    tag_sensitivity,
+)
 from .ai_jobs import get_ai_job_manager
 from .ai_settings import get_ai_settings
 from .ai_tagger import get_tagger_manager
@@ -21,9 +27,14 @@ logger = logging.getLogger("moire")
 
 
 async def start() -> None:
-    # Create the SQLite schema (tables + indexes) if absent. Declarative
-    # DDL means no flag backfill is needed; columns carry their defaults.
+    # Create the SQLite schema (tables + indexes) if absent, and add any
+    # column declared since the database was made (with its default).
     await ensure_schema()
+    # This library's tag levels, before anything writes tags (the
+    # migrations' reprojection included): every write sets ``tag_level``.
+    await anyio.to_thread.run_sync(tag_sensitivity.load_overrides_sync)  # type: ignore[attr-defined]
+    # The sensitivity filter's maximum, which every visibility clause reads.
+    await anyio.to_thread.run_sync(sensitivity_filter.load_sync)  # type: ignore[attr-defined]
     # One-off data migrations (services/tag_migrations.py), before the AI
     # worker and the watchers can write tags in the new spelling alongside old.
     await anyio.to_thread.run_sync(tag_migrations.run_pending)  # type: ignore[attr-defined]
@@ -33,6 +44,9 @@ async def start() -> None:
         await anyio.to_thread.run_sync(library_nesting.adopt_nested_copies)  # type: ignore[attr-defined]
     except Exception:
         logger.exception("Failed to fold nested library copies during startup")
+    # Recompute stored tag levels when the shipped list or this library's
+    # levels changed since they were computed (first run: all of them).
+    await anyio.to_thread.run_sync(tag_sensitivity.sync_levels)  # type: ignore[attr-defined]
     # Ensure the thumbnail root dir exists (run off the event loop)
     await anyio.to_thread.run_sync(ensure_thumb_root)  # type: ignore[attr-defined]
     await _start_ai()

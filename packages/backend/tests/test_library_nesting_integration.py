@@ -105,6 +105,7 @@ async def test_adding_a_library_inside_takes_its_files_and_their_tags(client, tm
     assert row.has_tags is True
     assert row.score == 4
     assert row.rating == "general"
+    assert row.rating_manual
     assert pin == mine
 
 
@@ -166,3 +167,34 @@ def test_folder_helpers():
     assert library_nesting.under_nested(
         {"1": "/a/b/x.png", "2": "/a/bx.png", "3": None}, [root]
     ) == {"1"}
+
+
+def _copy(**over):
+    from types import SimpleNamespace
+
+    row = dict(
+        tags=[],
+        has_ai_tags=False,
+        ai=None,
+        rating=None,
+        rating_manual=False,
+        score=0,
+        quarantined=False,
+    )
+    return SimpleNamespace(**{**row, **over})
+
+
+def test_a_hand_picked_rating_beats_the_ai_pick_when_folding():
+    outer = _copy(rating="explicit", rating_manual=True)
+    _tags, extra = library_nesting._merged(_copy(rating="general"), outer)
+    assert (extra["rating"], extra["rating_manual"]) == ("explicit", True)
+    # The inner copy's own hand-picked rating stays.
+    _tags, extra = library_nesting._merged(
+        _copy(rating="general", rating_manual=True), outer
+    )
+    assert "rating" not in extra
+    # An AI pick on the outer copy doesn't replace the inner's.
+    _tags, extra = library_nesting._merged(
+        _copy(rating="general"), _copy(rating="sensitive")
+    )
+    assert "rating" not in extra

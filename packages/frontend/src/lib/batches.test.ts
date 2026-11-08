@@ -162,8 +162,8 @@ describe("batch page", () => {
 });
 
 describe("shown images", () => {
-  const out = (image_id: string, in_library = true, quarantined = false) => ({
-    idx: 0, image_id, in_library, quarantined, thumb_url: in_library ? `/t/${image_id}` : null, width: 2, height: 3,
+  const out = (image_id: string, in_library = true, quarantined = false, hidden = false) => ({
+    idx: 0, image_id, in_library, quarantined, hidden, thumb_url: in_library && !hidden ? `/t/${image_id}` : null, width: 2, height: 3,
   });
   const batch = (...reqs: { state: string; outs: ReturnType<typeof out>[] }[]) =>
     ({ requests: reqs.map((r, i) => ({ _id: i, state: r.state, images: 1, outputs: r.outs })) }) as never;
@@ -173,6 +173,11 @@ describe("shown images", () => {
     const newer = batch({ state: "done", outs: [out("c"), out("d", false)] }, { state: "running", outs: [] });
     expect(shownImages([older, undefined, newer]).map((x) => x._id)).toEqual(["a", "b", "c"]);
     expect(shownImages([older])[0]).toEqual({ _id: "a", thumb_url: "/t/a", width: 2, height: 3 });
+  });
+
+  it("leaves out images the sensitivity filter hides", () => {
+    const b = batch({ state: "done", outs: [out("a"), out("b", true, false, true)] });
+    expect(shownImages([b]).map((x) => x._id)).toEqual(["a"]);
   });
 
   it("is empty when nothing has been made", () => {

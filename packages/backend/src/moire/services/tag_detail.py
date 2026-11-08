@@ -34,9 +34,7 @@ async def visible_count(conn) -> int:
     """How many images are visible: what a tag's share of the library (a
     character's signature, a LoRA's spread) is measured against."""
     return (
-        await conn.execute(
-            sa.select(sa.func.count()).where(image_visibility.not_quarantined())
-        )
+        await conn.execute(sa.select(sa.func.count()).where(image_visibility.visible()))
     ).scalar_one()
 
 

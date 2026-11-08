@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 import { errorText } from "../../lib/api";
 import { writeImageFields } from "../../lib/feedCache";
+import { imageDocKey } from "../../lib/imageApi";
 import { setRating as apiSetRating } from "../../lib/imageMutations";
 import { RATING_OPTIONS, ratingBadgeClass } from "../../lib/rating";
 import { useToast } from "../Toasts";
@@ -30,7 +31,20 @@ export function RatingEditor({
     setSaving(true);
     // Shown at once, here and on the gallery tile; undone if the write fails.
     try {
-      await writeImageFields(queryClient, id, { rating: next }, () => apiSetRating(id, next), docId);
+      let stored = next;
+      await writeImageFields(
+        queryClient,
+        id,
+        { rating: next },
+        async () => {
+          stored = await apiSetRating(id, next);
+        },
+        docId,
+      );
+      // Unrated brings back the AI tagger's pick: show what the server stored,
+      // and refetch the document for its rating_manual.
+      if (stored !== next) await writeImageFields(queryClient, id, { rating: stored }, async () => {}, docId);
+      void queryClient.invalidateQueries({ queryKey: imageDocKey(docId), exact: true });
       push("Rating updated", "success");
       onDone();
     } catch (e) {

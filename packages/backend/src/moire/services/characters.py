@@ -410,7 +410,7 @@ async def _covers(
                 sa.exists(
                     sa.select(1).where(
                         t.images.c._id == it.c.image_id,
-                        image_visibility.not_quarantined(),
+                        image_visibility.visible(),
                     )
                 ),
             )

@@ -16,6 +16,7 @@ def test_expected_tables_exist():
         "characters",
         "image_faces",
         "tag_rules",
+        "tag_levels",
         "image_loras",
         "image_embeddings",
         "gen_rulesets",

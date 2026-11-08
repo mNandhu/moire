@@ -65,6 +65,10 @@ export type ImageDetail = ImageFields & {
         rating?: Record<string, number>;
       })
     | null;
+  /** The rating was picked by hand (AI tagging leaves it alone). */
+  rating_manual: boolean | null;
+  /** Highest sensitivity level among the tags, 0 general .. 3 explicit; null without tags. */
+  tag_level: number | null;
   // Unused by the UI; typed so the field list matches the wire.
   ctime: number | null;
   thumb_key: string | null;
@@ -109,6 +113,8 @@ export const IMAGE_DETAIL_KEYS = keysOf<ImageDetail>()([
   "thumb_key",
   "has_tags",
   "has_prompt_tags",
+  "rating_manual",
+  "tag_level",
 ]);
 
 type TagLogic = "and" | "or";

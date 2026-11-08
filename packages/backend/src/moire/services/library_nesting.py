@@ -163,8 +163,13 @@ def _merged(inner: sa.Row, outer: sa.Row) -> tuple[list[str], dict]:
     tags = image_tags.union_tags(
         tags, [x for x in outer_tags if image_tags.is_manual(x)]
     )
-    if not inner.rating and outer.rating:
+    # The outer copy's rating when the inner has none, or when it was picked
+    # by hand and the inner's wasn't (the AI's pick never beats the user's).
+    if outer.rating and (
+        not inner.rating or (outer.rating_manual and not inner.rating_manual)
+    ):
         extra["rating"] = outer.rating
+        extra["rating_manual"] = bool(outer.rating_manual)
     if not inner.score and outer.score:
         extra["score"] = outer.score
     if outer.quarantined and not inner.quarantined:
@@ -260,6 +265,7 @@ def _adopt_plan(
                         im.c.has_ai_tags,
                         im.c.ai,
                         im.c.rating,
+                        im.c.rating_manual,
                         im.c.score,
                         im.c.quarantined,
                         im.c.thumb_key,

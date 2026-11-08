@@ -2,7 +2,8 @@
 
 ``/ai/coverage`` counts it and ``AIJobManager.enqueue_untagged`` queues it, so
 a run tags exactly the set the UI counted. Quarantined images are left out of
-both, matching the default gallery (``image_visibility.not_quarantined``).
+both (``image_visibility.not_quarantined``). The sensitivity filter is not
+applied: AI tagging is how an image it hides as unknown gets a level.
 """
 
 from __future__ import annotations
@@ -15,8 +16,8 @@ from .image_visibility import not_quarantined
 
 
 def untagged_clause(library_id: str | None = None):
-    """WHERE clause for the images AI tagging should pick up: visible and
-    without AI tags, optionally within one library."""
+    """WHERE clause for the images AI tagging should pick up: not quarantined
+    and without AI tags, optionally within one library."""
     clause = sa.and_(t.images.c.has_ai_tags.is_(False), not_quarantined())
     if library_id:
         clause = sa.and_(clause, t.images.c.library_id == library_id)

@@ -65,5 +65,5 @@ def test_the_column_list_covers_every_flag():
     """A flag added to recompute_flags but not TAG_STATE_COLUMNS would be
     dropped from every write."""
     cols = image_tags.TAG_STATE_COLUMNS
-    assert {"tags", *tag_kinds.recompute_flags([])} == set(cols)
+    assert {"tags", *tag_kinds.recompute_flags([]), "tag_level"} == set(cols)
     assert tuple(image_tags.tag_state_values(["a"])) == cols

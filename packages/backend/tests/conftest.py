@@ -19,7 +19,14 @@ import sqlalchemy as sa
 from moire.core.config import settings
 from moire.database import db
 from moire.database import schema as t
-from moire.services import image_tags, lora_words, tag_index, tag_kinds
+from moire.services import (
+    image_tags,
+    lora_words,
+    sensitivity_filter,
+    tag_index,
+    tag_kinds,
+    tag_sensitivity,
+)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -51,9 +58,13 @@ def fresh_tag_index():
     cached aggregation can't leak across DB fixtures. So does lora_words'
     minute-long prompt total."""
     tag_index.reset_for_tests()
+    tag_sensitivity.reset_for_tests()
+    sensitivity_filter.reset_for_tests()
     lora_words._last_total = None
     yield
     tag_index.reset_for_tests()
+    tag_sensitivity.reset_for_tests()
+    sensitivity_filter.reset_for_tests()
     lora_words._last_total = None
 
 
@@ -117,6 +128,7 @@ def seed(temp_db):
         quarantined: bool = False,
         score: float = 0,
         rating: str | None = None,
+        rating_manual: bool = False,
         thumb_key: str | None = None,
         mtime: float | None = None,
     ) -> None:
@@ -133,6 +145,8 @@ def seed(temp_db):
                     quarantined=quarantined,
                     score=score,
                     rating=rating,
+                    rating_manual=rating_manual,
+                    tag_level=tag_sensitivity.tag_level(tag_list),
                     thumb_key=thumb_key,
                     mtime=mtime,
                     **flags,

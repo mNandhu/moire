@@ -12,6 +12,7 @@ from ..database import schema as t
 from . import (
     character_names,
     image_visibility,
+    sensitivity_filter,
     tag_categories,
     tag_covers,
     tag_index,
@@ -39,13 +40,16 @@ async def list_tags(
     *, include_manual: bool, include_prompt: bool, merge_sources: bool
 ) -> list[dict]:
     """Grouped tag counts (``{_id, count}``) for the browser and the gallery
-    autocomplete."""
+    autocomplete. While the sensitivity filter is on, only the images it
+    shows count, and tags it hides are left out (so a tag whose images are
+    all hidden goes too)."""
     cache_key = f"m{int(include_manual)}:p{int(include_prompt)}:s{int(merge_sources)}"
     cached = tag_index.read_view(cache_key)
     if cached is not None:
         return cached
 
     gen = tag_index.current_generation()
+    filtering = sensitivity_filter.max_level() is not None
 
     # Merge mode (gallery search): collapse the three sources of each tag into
     # one cross-source `any:<base>` entry counting *distinct images*, so a tag
@@ -59,12 +63,14 @@ async def list_tags(
             .group_by(t.image_tags.c.base)
             .order_by(sa.text("count DESC"))
         )
+        if filtering:
+            stmt = stmt.where(image_visibility.visible_tag_rows())
         async with async_conn() as conn:
             rows = (await conn.execute(stmt)).fetchall()
         merged = [
             {"_id": f"{tag_kinds.ANY_PREFIX}{r.base}", "count": r.count}
             for r in rows
-            if r.base
+            if r.base and sensitivity_filter.allowed(r.base)
         ]
         tag_index.store_view(cache_key, gen, merged)
         return merged
@@ -78,10 +84,16 @@ async def list_tags(
     ):
         stmt = stmt.where(~t.image_tags.c.tag.like(f"{prefix}%"))
     stmt = stmt.group_by(t.image_tags.c.tag).order_by(sa.text("count DESC"))
+    if filtering:
+        stmt = stmt.where(image_visibility.visible_tag_rows())
 
     async with async_conn() as conn:
         rows = (await conn.execute(stmt)).fetchall()
-    result = [{"_id": r.tag, "count": r.count} for r in rows]
+    result = [
+        {"_id": r.tag, "count": r.count}
+        for r in rows
+        if sensitivity_filter.allowed(r.tag)
+    ]
     tag_index.store_view(cache_key, gen, result)
     return result
 
@@ -97,7 +109,9 @@ async def browse(source: str = "all") -> list[dict]:
         return cached
 
     gen = tag_index.current_generation()
-    result = await _browse(source)
+    # Only the images the filter shows count (``_browse``), and the tags it
+    # hides are left out.
+    result = [r for r in await _browse(source) if sensitivity_filter.allowed(r["tag"])]
     tag_index.store_view(cache_key, gen, result)
     return result
 
@@ -142,7 +156,7 @@ async def _browse(
     # per-row lookups and a plan that scanned every source cost 2-15x more.
     vis = (
         sa.select(im.c._id, im.c.mtime, sa.literal_column("rowid").label("rid"))
-        .where(image_visibility.not_quarantined())
+        .where(image_visibility.visible())
         .cte("vis")
         .prefix_with("MATERIALIZED")
     )

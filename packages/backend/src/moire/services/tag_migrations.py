@@ -182,6 +182,42 @@ def migrate_gen_term_weights() -> None:
             )
 
 
+def migrate_rating_manual() -> None:
+    """``rating_manual`` is new, so which stored ratings were picked by hand
+    is inferred: one that isn't the AI tagger's pick from the stored scores
+    (or that has no scores to come from). ``tag_level`` is filled in by
+    ``tag_sensitivity.sync_levels`` after the migrations, its fingerprint
+    being new."""
+    im = t.images.c
+    marked = 0
+    last_id = ""
+    while True:
+        with sync_tx() as conn:
+            rows = conn.execute(
+                sa.select(im._id, im.rating, im.ai)
+                .where(im._id > last_id)
+                .order_by(im._id)
+                .limit(_BATCH)
+            ).fetchall()
+            if not rows:
+                break
+            ids = [
+                r._id
+                for r in rows
+                if r.rating not in (None, "", "-")
+                and r.rating != image_tags.ai_rating_label((r.ai or {}).get("rating"))
+            ]
+            if ids:
+                conn.execute(
+                    sa.update(t.images)
+                    .where(im._id.in_(ids))
+                    .values(rating_manual=True)
+                )
+            marked += len(ids)
+            last_id = rows[-1]._id
+    logger.info("rating_manual: %d ratings were picked by hand", marked)
+
+
 # Tables keyed by a character's tag, and the column holding it.
 _CHARACTER_KEYED = (
     (t.characters, "tag"),
@@ -241,6 +277,7 @@ _MIGRATIONS = (
     # ComfyUI escapes only a paren: `\\(` is a stray backslash, not a group.
     ("comfy_escapes", None, True),
     ("character_escapes", migrate_character_escapes, False),
+    ("rating_manual", migrate_rating_manual, False),
 )
 
 

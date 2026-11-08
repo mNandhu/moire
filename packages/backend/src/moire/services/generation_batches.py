@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
-from . import generation_estimate, generator_setup, thumb_version
+from . import generation_estimate, generator_setup, image_visibility, thumb_version
 from .generator_discovery import fixed_values
 from .generator_graph import sampling_defaults, slot_value
 from .generation_states import FAILED, HIDDEN, UNFINISHED
@@ -70,13 +70,18 @@ async def _outputs(conn, reqs: list[Any]) -> dict[int, list[dict[str, Any]]]:
                 _i.c.score,
                 _i.c.width,
                 _i.c.height,
+                image_visibility.within_filter().label("shown"),
             )
             .select_from(_o.outerjoin(_i, _i.c._id == _o.c.image_id))
             .where(_o.c.request_id.in_(request_ids))
             .order_by(_o.c.request_id, _o.c.idx)
         )
     ).fetchall()
-    thumbs = await thumb_version.urls(r.image_id for r in rows if r.found is not None)
+    # An output the sensitivity filter hides is listed (the batch's count
+    # stays true) with no picture.
+    thumbs = await thumb_version.urls(
+        r.image_id for r in rows if r.found is not None and r.shown
+    )
     out: dict[int, list[dict[str, Any]]] = {}
     for row in rows:
         out.setdefault(row.request_id, []).append(
@@ -87,12 +92,11 @@ async def _outputs(conn, reqs: list[Any]) -> dict[int, list[dict[str, Any]]]:
                 "in_library": row.found is not None,
                 "arriving": row.found is None and row.request_id in fresh,
                 "quarantined": bool(row.quarantined),
+                "hidden": row.found is not None and not row.shown,
                 "score": row.score,
                 "width": row.width,
                 "height": row.height,
-                "thumb_url": thumbs.get(row.image_id)
-                if row.found is not None
-                else None,
+                "thumb_url": thumbs.get(row.image_id),
             }
         )
     return out

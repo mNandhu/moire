@@ -227,9 +227,11 @@ export type Output = {
   in_library: boolean;
   /** Not in the library yet, shortly after its request finished. */
   arriving: boolean;
-  /** Its versioned thumbnail; null until it is in the library. */
+  /** Its versioned thumbnail; null until it is in the library, or while hidden. */
   thumb_url: string | null;
   quarantined: boolean;
+  /** In the library but hidden by the sensitivity filter: no picture, no viewer. */
+  hidden: boolean;
   score: number | null;
   width: number | null;
   height: number | null;

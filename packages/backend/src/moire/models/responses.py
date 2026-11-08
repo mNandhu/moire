@@ -68,6 +68,11 @@ class ImageDetail(FeedRow):
     thumb_key: str | None
     has_tags: bool | None
     has_prompt_tags: bool | None
+    #: The rating was picked by hand (AI tagging leaves it alone).
+    rating_manual: bool | None
+    #: Highest sensitivity level among the tags, 0 general .. 3 explicit;
+    #: None without tags (services/tag_sensitivity.py).
+    tag_level: int | None
     tags: list[str]
     ai: dict[str, Any] | None
     gen: dict[str, Any] | None

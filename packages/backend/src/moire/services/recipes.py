@@ -229,7 +229,7 @@ async def _uses(names: list[str]) -> list[LoraUse]:
                     .select_from(il.join(im, im.c._id == il.c.image_id))
                     .where(
                         il.c.name.in_([r.name for r in rows]),
-                        image_visibility.not_quarantined(),
+                        image_visibility.visible(),
                     )
                     .group_by(il.c.name)
                 )

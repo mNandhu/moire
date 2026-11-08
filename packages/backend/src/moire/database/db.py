@@ -19,7 +19,7 @@ from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 
 import sqlalchemy as sa
-from sqlalchemy.schema import CreateIndex
+from sqlalchemy.schema import CreateColumn, CreateIndex
 from sqlalchemy import Connection, create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import (
@@ -101,8 +101,22 @@ def sync_tx() -> Iterator[Connection]:
             yield conn
 
 
+def _add_missing_columns(conn) -> None:
+    """``create_all`` leaves an existing table as it is, so a column added to
+    ``schema.py`` later is added here, as declared. SQLite only adds a column
+    that is nullable or has a default; declare new ones that way."""
+    inspector = sa.inspect(conn)
+    for table in metadata.sorted_tables:
+        have = {c["name"] for c in inspector.get_columns(table.name)}
+        for column in table.columns:
+            if column.name not in have:
+                ddl = CreateColumn(column).compile(dialect=conn.dialect)
+                conn.execute(sa.text(f'ALTER TABLE "{table.name}" ADD COLUMN {ddl}'))
+
+
 def _create_all(conn) -> None:
     metadata.create_all(conn)
+    _add_missing_columns(conn)
     # create_all skips tables that already exist, and their indexes with them,
     # so an index added to an existing table would never reach an old DB.
     # Create each one on its own. IF NOT EXISTS, not checkfirst: reflection

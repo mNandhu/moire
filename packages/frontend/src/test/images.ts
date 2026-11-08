@@ -46,6 +46,8 @@ export function imageDetail(over: Partial<ImageDetail> = {}): ImageDetail {
     thumb_key: null,
     has_tags: null,
     has_prompt_tags: null,
+    rating_manual: null,
+    tag_level: null,
     ...over,
   };
 }

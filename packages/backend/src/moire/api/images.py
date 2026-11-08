@@ -174,6 +174,8 @@ async def get_image_workflow(image_id: str):
     Format-aware: ComfyUI returns the `workflow` (UI graph, drops onto canvas)
     plus the `prompt` (API graph); A1111 returns the `parameters` string.
     """
+    if not await _find_image_doc(image_id, (), within_filter=True):
+        raise HTTPException(status_code=404, detail="Image not found")
     async with async_conn() as conn:
         raw = await gen_raw.raw_for(conn, image_id)
     if not raw:
@@ -200,6 +202,7 @@ async def get_image(image_id: str):
     img = await _find_image_doc(
         image_id,
         extra={"gen_batch": generation_batches.batch_id_of_image(t.images.c._id)},
+        within_filter=True,
     )
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
@@ -215,9 +218,11 @@ async def set_image_rating(image_id: str, body: RatingPatch):
             status_code=422,
             detail="rating must be one of '-', 'general', 'sensitive', 'questionable', 'explicit'",
         )
-    rid = await image_tags.set_rating(image_id, rating)
-    if rid is None:
+    result = await image_tags.set_rating(image_id, rating)
+    if result is None:
         raise HTTPException(status_code=404, detail="Image not found")
+    rid, rating = result
+    # Unrated hands the rating back to the AI tagger: answer with its pick.
     return {"_id": rid, "rating": rating}
 
 

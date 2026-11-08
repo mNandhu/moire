@@ -108,7 +108,7 @@ def _prompt_scope():
     tagged = it.join(im, im.c._id == it.c.image_id)
     prompt = sa.and_(
         it.c.tag.like(f"{tag_kinds.PROMPT_PREFIX}%"),
-        image_visibility.not_quarantined(),
+        image_visibility.visible(),
     )
     return key, tagged, prompt
 
@@ -156,7 +156,7 @@ async def _library(stem: str) -> list[tuple[str, int]]:
     ids = (
         sa.select(il.c.image_id)
         .select_from(il.join(im, im.c._id == il.c.image_id))
-        .where(il.c.name == stem, image_visibility.not_quarantined())
+        .where(il.c.name == stem, image_visibility.visible())
         .scalar_subquery()
     )
     async with async_conn() as conn:

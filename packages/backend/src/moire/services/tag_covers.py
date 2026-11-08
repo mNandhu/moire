@@ -264,7 +264,7 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
                 await conn.execute(
                     sa.select(*cols).where(
                         t.images.c._id == pinned,
-                        image_visibility.not_quarantined(),
+                        image_visibility.visible(),
                         sa.exists(
                             sa.select(1).where(
                                 t.image_tags.c.image_id == t.images.c._id, match
@@ -291,7 +291,7 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
                     # source, and one image twice would leave the mosaic short.
                     sa.select(*cols)
                     .where(
-                        image_visibility.not_quarantined(),
+                        image_visibility.visible(),
                         sa.exists(
                             sa.select(1).where(
                                 t.image_tags.c.image_id == t.images.c._id, match
