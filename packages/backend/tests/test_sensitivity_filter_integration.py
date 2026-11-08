@@ -92,8 +92,8 @@ async def test_by_id_routes_hide_what_the_filter_hides(client, seed):
     _library(seed)
     seed("L1:quarantined", tags=("1girl",), quarantined=True)
     await _set(client, "sensitive")
-    assert (await client.get("/images/L1:explicit")).status_code == 404
-    assert (await client.get("/images/L1:unknown")).status_code == 404
+    assert (await client.get("/images/L1:explicit")).status_code == 403
+    assert (await client.get("/images/L1:unknown")).status_code == 403
     assert (await client.get("/images/L1:explicit/thumb")).status_code == 404
     assert (await client.head("/images/L1:explicit/file")).status_code == 404
     assert (await client.get("/images/L1:explicit/workflow")).status_code == 404
@@ -164,3 +164,40 @@ async def test_changing_the_setting_drops_cached_tag_lists(client, seed):
     await _set(client, "general")
     again = await client.get("/tags", params={"merge_sources": True})
     assert f"any:{THREE}" not in {row["_id"] for row in again.json()}
+
+
+async def test_a_hidden_image_reads_as_hidden_not_missing(client, seed):
+    _library(seed)
+    await _set(client, "general")
+    resp = await client.get("/images/L1:explicit")
+    assert resp.status_code == 403
+    assert (await client.get("/images/L1:nothing")).status_code == 404
+
+
+async def test_tag_levels_list_and_set(client, seed):
+    seed("L1:a", tags=("prompt:my_word", "prompt:other_word"))
+    seed("L1:b", tags=("prompt:my_word",))
+    resp = await client.post(
+        "/sensitivity/tags", json={"tag": "my_word", "level": "explicit"}
+    )
+    assert resp.status_code == 200 and resp.json()["changed"] == 2
+    await client.post(
+        "/sensitivity/tags", json={"tag": "other_word", "level": "sensitive"}
+    )
+    got = (await client.get("/sensitivity/tags")).json()
+    assert got == {
+        "tags": [
+            {"tag": "my_word", "level": "explicit", "source": "user", "images": 2},
+            {"tag": "other_word", "level": "sensitive", "source": "user", "images": 1},
+        ],
+        "hidden": 0,
+    }
+    # While the filter is on, the names it hides are only counted.
+    await _set(client, "sensitive")
+    got = (await client.get("/sensitivity/tags")).json()
+    assert [r["tag"] for r in got["tags"]] == ["other_word"] and got["hidden"] == 1
+
+    await client.post("/sensitivity/tags", json={"tag": "other_word", "level": None})
+    assert (await client.get("/sensitivity/tags")).json()["tags"] == []
+    bad = await client.post("/sensitivity/tags", json={"tag": "x", "level": "spicy"})
+    assert bad.status_code == 422

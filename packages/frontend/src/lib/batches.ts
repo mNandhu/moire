@@ -132,9 +132,11 @@ export function failureLabel(req: Pick<GenRequest, "state" | "images">): string 
 }
 
 /** Why a slot has no thumbnail in the strip. */
-export function slotWhy(s: ResultSlot): "failed" | "running" | "waiting" | "missing" {
+export function slotWhy(s: ResultSlot): "failed" | "running" | "waiting" | "missing" | "hidden" {
   if (s.kind === "failed") return "failed";
   if (s.kind === "waiting") return s.req.state === "running" ? "running" : "waiting";
+  // In the library, but the sensitivity filter hides it.
+  if (s.kind === "image" && s.out.hidden) return "hidden";
   return "missing";
 }
 

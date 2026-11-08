@@ -205,6 +205,12 @@ async def get_image(image_id: str):
         within_filter=True,
     )
     if not img:
+        # There but hidden by the sensitivity filter: say so (the viewer
+        # shows that, not "not found").
+        if await _find_image_doc(image_id, ()):
+            raise HTTPException(
+                status_code=403, detail="Hidden by the sensitivity filter"
+            )
         raise HTTPException(status_code=404, detail="Image not found")
     await thumb_version.urls_for_rows([img])
     return img

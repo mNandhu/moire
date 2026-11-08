@@ -373,12 +373,15 @@ export function postFaces(command: "download" | "download-cancel"): Promise<Face
 /** Queue AI tagging for up to `limit` images that have no AI tags yet. */
 export function postTagUntagged(
   limit: number,
-  libraryId?: string
+  libraryId?: string,
+  { unknown = false }: { unknown?: boolean } = {},
 ): Promise<{ job_id: string | null; queued: number }> {
-  return postJson<{ job_id: string | null; queued: number }>(
-    "/api/v1/ai/tag-untagged",
-    libraryId ? { limit, library_id: libraryId } : { limit }
-  );
+  return postJson<{ job_id: string | null; queued: number }>("/api/v1/ai/tag-untagged", {
+    limit,
+    ...(libraryId ? { library_id: libraryId } : {}),
+    // Only images with no sensitivity level yet (the filter hides them).
+    ...(unknown ? { unknown } : {}),
+  });
 }
 
 /** Remove AI tags + AI metadata from every image (manual tags are kept). */

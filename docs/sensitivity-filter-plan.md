@@ -1,7 +1,6 @@
 # Global Sensitivity Filter: plan
 
-Status: backend (levels, image level, enforcement) done 2026-11-08; UI and e2e
-to do. Per-tag decisions and the build tooling are kept out of the repository
+Status: done 2026-11-08 (backend, UI, e2e). Per-tag decisions and the build tooling are kept out of the repository
 (local tooling); the shipped list is hashed.
 
 ## Goal
@@ -76,11 +75,23 @@ so do tag names above it (tag lists, autocomplete, Tags page).
   suggestions; a hidden tag's pages answer 404. Changing the setting
   invalidates the tag caches.
 
-### UI (to do)
+### UI
 
-- Top-nav toggle (Picker, not `<select>`), level persisted server-side.
-- Settings section: level, per-tag levels (suggested ones to review), the
-  unknown-image warning with a "Tag them" action.
-- Image view of a hidden image, hidden generation outputs: a placeholder.
-- Picker page for placement first (show, don't tell).
-- e2e specs + `docs/e2e-scenarios.md` updated in the same change.
+- A shield at the right end of every page header (`SensitivityControl`):
+  dim while off, green while on; opens the level picker, each choice with
+  how many images it hides. Kept out of the sidebar (too prominent there).
+- Settings > Sensitivity: the level, images by level, the "hidden until
+  AI-tagged" strip whose Tag them queues only the unknown images
+  (`/ai/tag-untagged` with `unknown`), and this library's tag levels (add,
+  change, remove, Keep a suggestion). While the filter is on, tags above it
+  are only counted there.
+- The gallery shows the same strip, dismissible for the session.
+- A hidden image opened by link says so (the image route answers 403);
+  hidden generation outputs show a Hidden tile and stay out of the viewer.
+
+## Open
+
+- A list of the library's tags with no level, to set levels from.
+- Tag chips of a visible image are not filtered (only matters when a manual
+  rating lowers an image below its tags).
+- Violence and gore are out of scope; a separate filter would be new work.

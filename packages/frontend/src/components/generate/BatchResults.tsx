@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ImageOff, Loader2, RotateCcw, TriangleAlert } from "lucide-react";
+import { EyeOff, ImageOff, Loader2, RotateCcw, TriangleAlert } from "lucide-react";
 import { cellTitle, failureLabel, isHiddenSlot, resultGrid, resultSlots, shownSlot, slotKey, slotWhy, stepIndex, type ResultSlot } from "../../lib/batches";
 import { useRetryRequest } from "../../hooks/useBatchActions";
 import type { Batch, GenRequest } from "../../lib/generate";
@@ -207,7 +207,7 @@ function NoImageMark({
   className,
   style,
 }: {
-  why: "failed" | "running" | "waiting" | "missing";
+  why: ReturnType<typeof slotWhy>;
   className?: string;
   style?: React.CSSProperties;
 }) {
@@ -227,6 +227,8 @@ function NoImageMark({
         <Loader2 size={13} className="animate-spin" />
       ) : why === "missing" ? (
         <ImageOff size={13} />
+      ) : why === "hidden" ? (
+        <EyeOff size={13} aria-label="Hidden by the sensitivity filter" />
       ) : null}
     </span>
   );

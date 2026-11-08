@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Tags, FileText, EyeOff, Wand2, UserRound, Plug, Palette } from "lucide-react";
+import { Tags, FileText, EyeOff, Wand2, UserRound, Plug, Palette, ShieldCheck } from "lucide-react";
 import { TaggingSection } from "./sections/TaggingSection";
 import { PromptTagsSection } from "./sections/PromptTagsSection";
 import { BoilerplateSection } from "./sections/BoilerplateSection";
@@ -7,6 +7,7 @@ import { PromptGuessSection } from "./sections/PromptGuessSection";
 import { CharactersSection } from "./sections/CharactersSection";
 import { ComfySection } from "./sections/ComfySection";
 import { TagColoursSection } from "./sections/TagColoursSection";
+import { SensitivitySection } from "./sections/SensitivitySection";
 
 /**
  * One settings page section: a tab + the panel it renders.
@@ -67,6 +68,12 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: UserRound,
     description: "How character avatars are framed.",
     Component: CharactersSection,
+  },
+  {
+    id: "sensitivity",
+    label: "Sensitivity",
+    icon: ShieldCheck,
+    Component: SensitivitySection,
   },
   {
     id: "comfyui",

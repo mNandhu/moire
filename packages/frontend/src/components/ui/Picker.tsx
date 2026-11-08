@@ -1,4 +1,5 @@
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useDismiss } from "../../hooks/useDismiss";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "../../lib/cn";
@@ -57,6 +58,8 @@ export function Picker({
   pinned,
   checks = true,
   footer,
+  portal = false,
+  fill = false,
 }: {
   value: string | readonly string[];
   options: readonly PickerOption[];
@@ -82,6 +85,11 @@ export function Picker({
   checks?: boolean;
   /** Under the list (an action like "Manage …"); clicking it is the caller's. */
   footer?: React.ReactNode;
+  /** Draw the list on the page body, placed by the trigger: for a picker
+   * inside something that clips (the sidebar). */
+  portal?: boolean;
+  /** A custom trigger as wide as the picker. */
+  fill?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const wasOpen = useRef(open);
@@ -99,6 +107,17 @@ export function Picker({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   useKeepInViewport(popRef, open);
+  const [place, setPlace] = useState<React.CSSProperties | null>(null);
+  useLayoutEffect(() => {
+    if (!open || !portal || !buttonRef.current) return;
+    const r = buttonRef.current.getBoundingClientRect();
+    setPlace({
+      position: "fixed",
+      minWidth: r.width,
+      ...(align === "right" ? { right: window.innerWidth - r.right } : { left: r.left }),
+      ...(side === "up" ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }),
+    });
+  }, [open, portal, side, align]);
   const listId = useId();
   const withSearch = searchable ?? options.length > SEARCH_FROM;
 
@@ -142,7 +161,7 @@ export function Picker({
     listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
   }, [active]);
   // Escape and the arrows are in onKeyDown below; this is the outside press.
-  useDismiss(wrapRef, () => close(false), open, { escape: false });
+  useDismiss([wrapRef, popRef], () => close(false), open, { escape: false });
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (!open) {
@@ -190,6 +209,7 @@ export function Picker({
           // A button sizes to its content even as a block: capped, so a
           // custom trigger can cut its label short in a narrow spot.
           trigger && "block max-w-full disabled:cursor-default",
+          trigger && fill && "w-full",
         )}
       >
         {trigger ? (
@@ -204,13 +224,15 @@ export function Picker({
         )}
       </button>
 
-      {open && (
+      {open && (!portal || place) && maybePortal(
         <div
           ref={popRef}
+          style={portal ? (place ?? undefined) : undefined}
           className={cn(
-            "absolute z-50 min-w-full w-max max-w-[min(32rem,calc(100vw-16px))] rounded-lg border border-line-strong bg-raised shadow-panel",
-            side === "up" ? "bottom-full mb-1" : "mt-1",
-            align === "right" ? "right-0" : "left-0",
+            "z-50 w-max max-w-[min(32rem,calc(100vw-16px))] rounded-lg border border-line-strong bg-raised shadow-panel",
+            !portal && "absolute min-w-full",
+            !portal && (side === "up" ? "bottom-full mb-1" : "mt-1"),
+            !portal && (align === "right" ? "right-0" : "left-0"),
           )}
         >
           {withSearch && (
@@ -279,8 +301,12 @@ export function Picker({
             })}
           </ul>
           {footer && <div className="border-t border-line p-1">{footer}</div>}
-        </div>
+        </div>,
       )}
     </div>
   );
+
+  function maybePortal(node: React.ReactNode) {
+    return portal ? createPortal(node, document.body) : node;
+  }
 }

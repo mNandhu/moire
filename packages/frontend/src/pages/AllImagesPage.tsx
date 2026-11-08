@@ -36,6 +36,7 @@ import { applyAmbient } from "../lib/ambient";
 import { feedNeedsRefetch, useLibraries, useOnLibrariesRead } from "../lib/libraries";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
+import { UnknownHiddenNotice } from "../components/SensitivityNotice";
 import { ActiveFilterChips, GalleryFilterPanel } from "../components/GalleryFilterPanel";
 import { GalleryToolbar } from "../components/GalleryToolbar";
 import { useFilters } from "../hooks/useFilters";
@@ -438,6 +439,7 @@ export default function AllImagesPage() {
       </div>
 
       <div className="px-4 md:px-6 py-4 space-y-3">
+      <UnknownHiddenNotice dismissible />
       {activeFeed.isLoading && items.length === 0 && (
         <GallerySkeleton density={density.density} />
       )}

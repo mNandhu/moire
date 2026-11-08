@@ -53,6 +53,8 @@ class TagRequest(BaseModel):
 class TagUntaggedRequest(BaseModel):
     limit: int = 200
     library_id: str | None = None
+    #: Only images with no sensitivity level yet (hidden as unknown).
+    unknown: bool = False
 
 
 @router.get("/settings")
@@ -255,7 +257,9 @@ async def ai_tag_image_url(req: TagImageUrl):
 @router.post("/tag-untagged")
 async def ai_tag_untagged(req: TagUntaggedRequest):
     jm = get_ai_job_manager()
-    job = await jm.enqueue_untagged(limit=req.limit, library_id=req.library_id)
+    job = await jm.enqueue_untagged(
+        limit=req.limit, library_id=req.library_id, unknown=req.unknown
+    )
     if job is None:
         return {"job_id": None, "queued": 0}
     return {"job_id": job.id, "queued": job.total}

@@ -2,6 +2,7 @@ import React, { createContext, useContext } from "react";
 import { cn } from "../../lib/cn";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
 import { MoireMark } from "./Logo";
+import { SensitivityControl } from "../SensitivityControl";
 
 /**
  * How wide a page's content runs. Forms and lists read best capped; browsers
@@ -105,11 +106,13 @@ export function PageHeader({
             {children}
           </div>
         )}
-        {actions && (
-          // Never wider than the row: on a row of their own (a phone), long
-          // actions wrap inside it instead of widening the page.
-          <div className="ml-auto flex items-center gap-2 shrink-0 max-w-full min-w-0">{actions}</div>
-        )}
+        {/* Never wider than the row: on a row of their own (a phone), long
+            actions wrap inside it instead of widening the page. The Global
+            Sensitivity Filter's shield closes every header. */}
+        <div className="ml-auto flex items-center gap-2 shrink-0 max-w-full min-w-0">
+          {actions}
+          <SensitivityControl />
+        </div>
       </div>
     </header>
   );

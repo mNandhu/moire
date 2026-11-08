@@ -12,7 +12,8 @@ import {
 } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { errorText } from "../lib/api";
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Ban, Download, FolderOpen, PanelRight } from "lucide-react";
+import { isHiddenBySensitivity } from "../lib/queries/sensitivity";
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Ban, Download, EyeOff, FolderOpen, PanelRight } from "lucide-react";
 import { imageFileUrl } from "../lib/media";
 import { useToast } from "../components/Toasts";
 import { ImageCharacters } from "../components/ImageCharacters";
@@ -77,10 +78,12 @@ export default function ImageView() {
   const { id, shown, pending, index, list, fileUrl, goPrev, goNext, goBack, hasMore } =
     useImageStepper(filters, routeId);
   // Current image document (full doc with tags/rating); refetched after edits.
-  const { data, refetch, dataUpdatedAt } = useQuery({
+  const { data, refetch, dataUpdatedAt, error } = useQuery({
     queryKey: imageDocKey(id!),
     queryFn: ({ signal }) => fetchImage(id!, { signal }),
     enabled: !!id,
+    // Hidden by the sensitivity filter is an answer, not a failure to retry.
+    retry: (n, e) => !isHiddenBySensitivity(e) && n < 3,
     // Matches the neighbour prefetch in useImageStepper, so arriving on a prefetched image
     // reuses the doc instead of refetching it.
     staleTime: IMAGE_DOC_STALE_MS,
@@ -349,6 +352,14 @@ export default function ImageView() {
           >
             <PanelRight />
           </button>
+        )}
+        {/* An image the sensitivity filter hides (a link to it, or the open
+            image when the filter changed): said so, over the empty stage. */}
+        {isHiddenBySensitivity(error) && (
+          <div role="status" className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-canvas text-muted">
+            <EyeOff size={28} className="text-faint" />
+            <span>Hidden by the sensitivity filter</span>
+          </div>
         )}
         {/* The stage renders off `id` alone, never off the fetched doc: keeping
             this <img> element mounted across navigations is what makes the

@@ -14,7 +14,7 @@ from PIL import Image
 
 from ..database.db import async_conn
 from ..database import schema as t
-from . import activity, ai_coverage, image_tags
+from . import activity, ai_coverage, image_tags, image_visibility
 from .ai_settings import get_ai_settings
 from .ai_tagger import (
     PreparedImage,
@@ -230,10 +230,14 @@ class AIJobManager:
         return job
 
     async def enqueue_untagged(
-        self, *, limit: int = 200, library_id: str | None = None
+        self, *, limit: int = 200, library_id: str | None = None, unknown: bool = False
     ) -> AIJob | None:
-        # A run tags the set /ai/coverage counted (ai_coverage.untagged_clause).
+        # A run tags the set /ai/coverage counted (ai_coverage.untagged_clause);
+        # ``unknown``: only those with no sensitivity level yet, which the
+        # sensitivity filter hides until tagged.
         stmt = sa.select(t.images.c._id).where(ai_coverage.untagged_clause(library_id))
+        if unknown:
+            stmt = stmt.where(image_visibility.image_level().is_(None))
         stmt = stmt.order_by(t.images.c._id.desc()).limit(int(limit))
         async with async_conn() as conn:
             ids = [row._id for row in (await conn.execute(stmt)).fetchall()]

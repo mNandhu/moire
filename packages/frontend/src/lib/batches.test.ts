@@ -15,6 +15,7 @@ import {
   resultGrid,
   resultSlots,
   shownImages,
+  slotWhy,
   scrubIndex,
   turnLabel,
   whenLabel,
@@ -178,6 +179,11 @@ describe("shown images", () => {
   it("leaves out images the sensitivity filter hides", () => {
     const b = batch({ state: "done", outs: [out("a"), out("b", true, false, true)] });
     expect(shownImages([b]).map((x) => x._id)).toEqual(["a"]);
+  });
+
+  it("marks a hidden image's slot as hidden", () => {
+    const b = batch({ state: "done", outs: [out("a"), out("b", true, false, true)] });
+    expect(resultSlots(b).map(slotWhy)).toEqual(["missing", "hidden"]);
   });
 
   it("is empty when nothing has been made", () => {

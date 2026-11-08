@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { UndoActionContext } from "../../lib/undoActions";
 import { GEN_KEY, invalidateQueue, type Output } from "../../lib/generate";
 import { Link, useLocation } from "react-router-dom";
-import { ImageOff, Loader2, Undo2, X } from "lucide-react";
+import { EyeOff, ImageOff, Loader2, Undo2, X } from "lucide-react";
 import { withBackgroundLocation } from "../../lib/backgroundLocation";
 import { cn } from "../../lib/cn";
 import { hasModifier } from "../../lib/dom";
@@ -66,6 +66,16 @@ export function ResultTile({ out, ratio, onChanged }: { out: Output; ratio: numb
     // A rejected image is out; it takes a score once restored.
     else if (BATCH.score.keys.includes(k) && !out.quarantined) void act(() => setScore(out.image_id, Number(k)));
   };
+  if (out.hidden) {
+    return (
+      <div
+        className="flex items-center justify-center rounded-lg border border-dashed border-line text-xs text-faint"
+        style={{ aspectRatio: ratio }}
+      >
+        <EyeOff size={14} className="mr-1.5" /> Hidden
+      </div>
+    );
+  }
   if (!out.in_library) {
     return (
       <div

@@ -166,6 +166,14 @@ describe("AI commands", () => {
     });
   });
 
+  it("postTagUntagged can ask for only the images with no level yet", async () => {
+    const spy = mockFetch({ job_id: null, queued: 0 });
+    await postTagUntagged(50, undefined, { unknown: true });
+    expect(spy.mock.calls[0][1]).toMatchObject({
+      body: JSON.stringify({ limit: 50, unknown: true }),
+    });
+  });
+
   it("postTagUntagged names the library when given one", async () => {
     const spy = mockFetch({ job_id: null, queued: 0 });
     await postTagUntagged(50, "lib1");
