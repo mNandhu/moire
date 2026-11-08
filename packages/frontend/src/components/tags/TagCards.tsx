@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Tag as TagIcon, Slash } from "lucide-react";
 import { useQueries } from "@tanstack/react-query";
@@ -6,6 +6,7 @@ import { Skeleton } from "../ui/Skeleton";
 import { Button } from "../ui/Button";
 import { Tooltip } from "../ui/Tooltip";
 import { cn } from "../../lib/cn";
+import { fillLastRow, gridColumns } from "../../lib/gridFill";
 import { smallThumb } from "../../lib/media";
 import { useCharacterLookup, type Sample } from "../../lib/queries";
 import { formatTag } from "../../lib/tags";
@@ -43,9 +44,12 @@ export function TagSection({
   describe: Describe;
 }) {
   const [visible, setVisible] = useState(PAGE[view]);
+  const [columns, setColumns] = useState(1);
   // A new filter or view starts the section from its first page again.
   useEffect(() => setVisible(PAGE[view]), [rows, view]);
-  const shown = rows.slice(0, visible);
+  // Cards fill the grid's last row while "Show more" has more to give.
+  const count = view === "grid" ? fillLastRow(visible, columns, rows.length) : Math.min(visible, rows.length);
+  const shown = rows.slice(0, count);
   const max = rows.reduce((m, r) => Math.max(m, r.count), 1);
 
   return (
@@ -56,7 +60,14 @@ export function TagSection({
         </h2>
       )}
       {view === "grid" ? (
-        <TagGrid rows={shown} source={source} selected={selected} onSelect={onSelect} describe={describe} />
+        <TagGrid
+          rows={shown}
+          source={source}
+          selected={selected}
+          onSelect={onSelect}
+          describe={describe}
+          onColumns={setColumns}
+        />
       ) : (
         <div className="rounded-xl border border-white/5 bg-surface shadow-panel overflow-hidden divide-y divide-white/5">
           {shown.map((t) => (
@@ -66,10 +77,10 @@ export function TagSection({
           ))}
         </div>
       )}
-      {rows.length > visible && (
+      {rows.length > count && (
         <div className="flex justify-center">
-          <Button onClick={() => setVisible((v) => v + PAGE[view])}>
-            Show more ({(rows.length - visible).toLocaleString()} left)
+          <Button onClick={() => setVisible(count + PAGE[view])}>
+            Show more ({(rows.length - count).toLocaleString()} left)
           </Button>
         </div>
       )}
@@ -84,14 +95,27 @@ function TagGrid({
   selected,
   onSelect,
   describe,
+  onColumns,
 }: {
   rows: BrowseTag[];
   source: TagSource;
   selected: string | null;
   onSelect: (tag: string) => void;
   describe: Describe;
+  /** The grid's column count, now and whenever its width changes it. */
+  onColumns: (n: number) => void;
 }) {
   const characters = useCharacterLookup();
+  const gridRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const measure = () => onColumns(gridColumns(el));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [onColumns]);
   // One request for the cards that asked in the same render; a changed list
   // (a pinned cover, a rename) invalidates TAG_SAMPLES_KEY and the mosaics refresh.
   const ids = useMemo(
@@ -102,7 +126,7 @@ function TagGrid({
   const samples = new Map(ids.map((id, i) => [id, results[i].data] as const));
 
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(min(170px,calc(50%_-_6px)),1fr))] gap-3">
+    <div ref={gridRef} className="grid grid-cols-[repeat(auto-fill,minmax(min(170px,calc(50%_-_6px)),1fr))] gap-3">
       {rows.map((t) =>
         t.category === "character" ? (
           <SpineCard

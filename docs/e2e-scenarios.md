@@ -5,7 +5,7 @@ Scenarios worth testing end to end, for the Playwright suite in `packages/e2e` (
 ## Covered
 
 - Onboarding: welcome flow adds a folder and connects the fake ComfyUI, the scan indexes every image (`onboarding.setup.ts`)
-- Gallery: scrolling pages in the rest of the feed; a searched tag filters the gallery and survives a reload from the URL; selection mode from the toolbar and the phone View options menu; Edit tags adding and removing a manual tag on a whole Select all (`gallery.spec.ts`)
+- Gallery: scrolling pages in the rest of the feed; a searched tag filters the gallery and survives a reload from the URL; selection mode from the toolbar and the phone View options menu; Ctrl+K finding an image by file name and opening it; Edit tags adding and removing a manual tag on a whole Select all (`gallery.spec.ts`)
 - Generate: every Clear and Undo scenario below (`generate-clear-undo.spec.ts`); Ctrl+Up/Down weigh the tag under the caret, a group with the caret on its own weight, and in a preset's text (`generate-prompt-keys.spec.ts`); a run on the fake ComfyUI lands its images in the output library, with the Images stepper and the batch name's rename, Escape and auto name on the way, then a rename on its batch page; the same prompt queued twice, the second while the first runs, is two batches: the viewer's This batch strip holds only the image's own batch and links its page, and the gallery's stack of the prompt drills in with grouping still on and comes back with Back to All Images (`generate-run.spec.ts`); Ctrl+Z / Ctrl+Shift+Z on a board removal, Ctrl+Enter queueing from the prompt, keeping a batch still running when the output column is cleared, Clean up and Use canonical tags on the Prompt, arrow keys after a stepper's + (`generate-shortcuts.spec.ts`); an image made while the tab is hidden, rejecting and Clear undone with Ctrl+Z, a cleared column still empty after a reload, clearing a batch's rejected and failed images, a switched-off style LoRA, a Danbooru alias suggesting its tag (`generate-work-output.spec.ts`)
 - Viewer: prompt weights on the Tags tab, a ComfyUI prompt escaped twice, adding manual tags, setting a score, arrow keys through the feed, also pressed back to back, the phone details sheet dragged up and off, quarantining the open image and stepping on past it and back (`viewer.spec.ts`)
 - Outfits: New outfit on the Outfits page for a picked character, shared; Generate's Outfit picker listing another character's outfit (`outfits.spec.ts`)
@@ -16,7 +16,7 @@ Scenarios worth testing end to end, for the Playwright suite in `packages/e2e` (
 
 ## Still to cover
 
-Removing and renaming tags, quarantine from the gallery, rules, the rest of the Outfits page (editing, deleting, hiding a shared one), the Generations page and the rest of the batch view, Remix, the rest of phone width (swipes on the viewer stage, the gallery), the empty gallery (Add library and Generate; the sandbox always has a library, so only the unit test covers it).
+Removing and renaming tags, quarantine from the gallery, rules, the rest of the Outfits page (editing, deleting, hiding a shared one), the Generations page and the rest of the batch view, Remix, the rest of phone width (swipes on the viewer stage, the gallery), the empty gallery (Add library and Generate; the sandbox always has a library, so only the unit test covers it), the Tags page grid filling its last row before Show more (only `gridFill.test.ts` covers the rounding).
 
 ## Generate: Tags by part, Clear and Undo
 
