@@ -68,7 +68,7 @@ ComfyUI's workflow mapping so it only gets built once.
   - Visible indicator in the header while it's on
 - Gallery
   - "Prompt contains..." text search over the original prompt: prose pieces
-    aren't prompt tags (services/prompt_parse.py), so this is how to find them
+    aren't prompt tags (services/metadata/prompt_parse.py), so this is how to find them
   - Score filter, so "Unrated" and "4+ stars" become real views
   - Saved views: name any filter + sort and pin it to the sidebar (after the
     score filter; its first presets are "Unrated" and "4+ stars")

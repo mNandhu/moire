@@ -11,8 +11,8 @@ from ..models.library import (
     LibraryUpdate,
 )
 from ..models.responses import LibraryRow, documents
-from ..services import library_discover, library_ops
-from ..services.scanner import scan_library_async
+from ..services.library import library_discover, library_ops
+from ..services.library.scanner import scan_library_async
 
 router = APIRouter()
 
@@ -71,7 +71,7 @@ async def reproject_library_endpoint(library_id: str):
         ).scalar()
     if found is None:
         raise HTTPException(status_code=404, detail="Library not found")
-    from ..services.reproject import reproject_library_async
+    from ..services.metadata.reproject import reproject_library_async
 
     reproject_library_async(library_id)
     return {"reproject": library_id, "started": True}

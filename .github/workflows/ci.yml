@@ -125,7 +125,7 @@ jobs:
       # default model (ai_settings.py's model_repo).
       - name: Tagger model
         id: tagger
-        run: echo "repo=$(grep -oP '"model_repo":\s*"\K[^"]+' packages/backend/src/moire/services/ai_settings.py)" >> "$GITHUB_OUTPUT"
+        run: echo "repo=$(grep -oP '"model_repo":\s*"\K[^"]+' packages/backend/src/moire/services/ai/ai_settings.py)" >> "$GITHUB_OUTPUT"
 
       - name: Cache tagger model
         uses: actions/cache@v4

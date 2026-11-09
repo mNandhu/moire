@@ -4,7 +4,7 @@ Patterns recreated from real prompts with neutral wording."""
 
 import pytest
 
-from moire.services.prompt_parse import classify, is_prose, parse_prompt
+from moire.services.metadata.prompt_parse import classify, is_prose, parse_prompt
 
 
 def tags(text):
@@ -235,7 +235,7 @@ def test_parse_prompt_pieces_pinned(prompt, expected):
 
 
 def test_scan_reports_the_enclosing_brackets():
-    from moire.services.prompt_parse import _scan
+    from moire.services.metadata.prompt_parse import _scan
 
     got = [(r.text, r.stack) for r in _scan("a, (b, [c:1.1], {d}), e")]
     assert got == [

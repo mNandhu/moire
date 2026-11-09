@@ -31,7 +31,7 @@ export function isAiTag(raw: string): boolean {
 
 /**
  * WD tagger entries whose underscore is part of the face, not a word gap.
- * Mirror of the backend's services/tag_names.py KAOMOJIS.
+ * Mirror of the backend's services/tags/tag_names.py KAOMOJIS.
  */
 export const KAOMOJIS = new Set([
   "0_0", "(o)_(o)", "+_+", "+-", "._.", "<o>_<o>", "<|>_<|>", "=_=", ">_<",
@@ -41,7 +41,7 @@ export const KAOMOJIS = new Set([
 /**
  * A stored tag's name without its kind prefix, in stored spelling. Tags are
  * stored Danbooru-style with underscores (`blue_eyes`); see
- * services/tag_names.py.
+ * services/tags/tag_names.py.
  */
 export function tagName(raw: string): string {
   if (isManual(raw)) return raw.slice(MANUAL_PREFIX.length);
@@ -312,7 +312,7 @@ export type RenamePlan =
 
 /**
  * What renaming stored tag `raw` to the typed `to` would do, for the dialog
- * preview. Mirrors services/tag_rename.py: the kind is kept, AI tags are
+ * preview. Mirrors services/tags/tag_rename.py: the kind is kept, AI tags are
  * refused, prompt names are lowercase, and the same name in another spelling
  * is no rename at all.
  */

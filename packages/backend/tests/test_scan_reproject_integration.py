@@ -13,7 +13,8 @@ from PIL.PngImagePlugin import PngInfo
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import reproject, scanner, thumbnailer
+from moire.services.metadata import reproject
+from moire.services.library import scanner, thumbnailer
 
 
 def _write_png(path, **text_chunks):
@@ -375,7 +376,7 @@ async def test_rescan_skips_unchanged_files_and_rebuilds_on_change(
     import os
 
     from moire.core.config import settings
-    from moire.services.storage_fs import delete_thumb
+    from moire.services.library.storage_fs import delete_thumb
 
     lib_dir = tmp_path / "lib"
     lib_dir.mkdir()

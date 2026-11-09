@@ -7,7 +7,7 @@ from io import BytesIO
 import pytest
 from PIL import Image as PILImage
 
-from moire.services import storage_fs
+from moire.services.library import storage_fs
 
 
 def _webp(w: int, h: int) -> bytes:

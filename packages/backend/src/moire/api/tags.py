@@ -3,15 +3,15 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import asyncio
 
-from ..services import thumb_version
-from ..services import tag_detail as tag_panel
+from ..services.library import thumb_version
+from ..services.tags import tag_detail as tag_panel
 from ._utils import validate_tags
-from ..services.tag_names import unescape_parens
+from ..services.tags.tag_names import unescape_parens
 from ..models.responses import TagCount, documents
-from ..services import (
-    characters,
-    face_detect,
-    image_feed,
+from ..services.characters import characters
+from ..services.ai import face_detect
+from ..services.images import image_feed
+from ..services.tags import (
     image_tags,
     sensitivity_filter,
     tag_kinds,

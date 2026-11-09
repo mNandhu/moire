@@ -43,8 +43,8 @@ so do tag names above it (tag lists, autocomplete, Tags page).
 
 - `images.tag_level` (0 general .. 3 explicit, NULL = no tags): the highest
   level among the tags, by base name, case ignored. Derived with the flags
-  (`TAG_STATE_COLUMNS` in `services/image_tags.py`), so every tag writer sets
-  it; levels from `services/tag_sensitivity.py`.
+  (`TAG_STATE_COLUMNS` in `services/tags/image_tags.py`), so every tag writer sets
+  it; levels from `services/tags/tag_sensitivity.py`.
 - `images.rating_manual`: the rating was picked by hand. AI tagging, clearing
   AI tags and clear-all leave such a rating alone; picking Unrated clears the
   flag and restores the AI tagger's pick (`image_tags.ai_rating_label`).
@@ -61,9 +61,9 @@ so do tag names above it (tag lists, autocomplete, Tags page).
 
 ### Enforcement
 
-- `services/sensitivity_filter.py`: the maximum (or off), kept in memory,
+- `services/tags/sensitivity_filter.py`: the maximum (or off), kept in memory,
   `GET/POST /api/v1/sensitivity` (with counts by level and unknown).
-- `services/image_visibility.py`: `visible()` = not quarantined and within the
+- `services/images/image_visibility.py`: `visible()` = not quarantined and within the
   filter; the feed, facets, Tags page, characters, recipes, covers and LoRA
   words read it. AI coverage keeps `not_quarantined()` alone, so the unknowns
   stay queued for tagging.

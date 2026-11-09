@@ -12,7 +12,7 @@ from PIL import Image
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import scan_incremental
+from moire.services.library import scan_incremental
 
 
 async def _img(image_id: str):

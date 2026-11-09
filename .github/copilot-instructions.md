@@ -30,7 +30,7 @@ Brief: Moiré is a pnpm monorepo with a FastAPI backend (Python, MongoDB, MinIO)
 - Libraries (src/api/libraries.py): create triggers scan_library_async; rescan; delete removes Mongo docs and MinIO objects by prefix.
 - Tags (src/api/tags.py): GET aggregates with a 30s TTL cache; apply/remove mutate tags.
 - Storage (src/services/storage*minio.py): Keys "{library_id}/{image_id}.ext"; thumbs are JPEG "...jpg". Use presign*\* for redirect/url modes; delete_by_prefix for cleanup.
-- Scanner (src/services/scanner.py): multithreaded walk; uploads original + thumb; upserts image docs; updates library progress; respects SCANNER_MAX_WORKERS.
+- Scanner (src/services/library/scanner.py): multithreaded walk; uploads original + thumb; upserts image docs; updates library progress; respects SCANNER_MAX_WORKERS.
 
 ## Frontend patterns
 

@@ -5,7 +5,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import reproject
+from moire.services.metadata import reproject
 
 
 def _comfy(image_id, loras):

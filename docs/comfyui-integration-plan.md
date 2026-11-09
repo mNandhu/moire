@@ -582,7 +582,7 @@ running prompt only after a fresh `/queue` shows it is ours and running.
 - Checked on the user's ComfyUI (SFW only): the hires / FaceDetailer / USDU
   workflow with its four missing LoRAs left out ran, its test passed, and
   the image joined its family.
-- Remix (2026-10-21): `GET /generate/remix/{image_id}` (`services/remix.py`)
+- Remix (2026-10-21): `GET /generate/remix/{image_id}` (`services/generate/remix.py`)
   returns the image's workflow (family, names, signature), the prompt with
   characters that have a recipe moved out (name plus the identity tags the
   block adds back; worn things stay until phase 4), the seed, the base
@@ -616,7 +616,7 @@ running prompt only after a fresh `/queue` shows it is ours and running.
   image_id, times) and `outfit_hidden` (character, outfit). Plan said owner
   NULL = shared; built as owner + `shared` so a shared card can say whose
   it was ("From Furina, any character").
-- `services/outfits.py`, routes under `/generate/outfits`: list (all, or a
+- `services/characters/outfits.py`, routes under `/generate/outfits`: list (all, or a
   character's own + shared with `hidden`), `default?character=` (recipe
   outfit; cover = best-scored image wearing most of it, never one tagged
   unclothed), `prefill?image=&character=` (the image's attire from every tag

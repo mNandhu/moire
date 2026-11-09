@@ -11,8 +11,9 @@ from typing import get_args
 
 import pytest
 
-from moire.services import attire, character_look, tag_canon, tag_categories
-from moire.services.tag_names import KAOMOJIS, canonical_name
+from moire.services.characters import attire, character_look
+from moire.services.tags import tag_canon, tag_categories
+from moire.services.tags.tag_names import KAOMOJIS, canonical_name
 
 LIB = Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib"
 
@@ -119,7 +120,7 @@ def test_canonical_name_rule_matches():
 
 
 def test_ai_settings_keys_match():
-    from moire.services.ai_settings import DEFAULT_AI_SETTINGS
+    from moire.services.ai.ai_settings import DEFAULT_AI_SETTINGS
 
     block = _block(_src("ai.ts"), "export type AISettings")
     ts = set(re.findall(r"^\s+(\w+): ", block, re.M))
@@ -127,14 +128,14 @@ def test_ai_settings_keys_match():
 
 
 def test_ratings_match():
-    from moire.services.image_tags import RATINGS
+    from moire.services.tags.image_tags import RATINGS
 
     block = _block(_src("rating.ts"), "export const RATINGS")
     assert ("-", *_quoted(block)) == RATINGS
 
 
 def test_board_sections_match():
-    from moire.services.prompt_board import SECTIONS
+    from moire.services.generate.prompt_board import SECTIONS
 
     union = re.search(r"export type BoardSection =([^;]+);", _src("queries/board.ts"))
     assert union
@@ -142,7 +143,7 @@ def test_board_sections_match():
 
 
 def test_feed_sorts_match():
-    from moire.services.image_feed import SORTS
+    from moire.services.images.image_feed import SORTS
 
     src = _src("imageFilter.ts")
     union = re.search(r"export type FeedSort = ([^;]+);", src)
@@ -172,7 +173,7 @@ def test_thumb_sizes_match():
 
 def test_prompt_vocab_matches_fixture():
     """The splitter's word lists, shared with promptOutline.test.ts."""
-    from moire.services import prompt_parse as pp
+    from moire.services.metadata import prompt_parse as pp
 
     fx = json.loads(
         (

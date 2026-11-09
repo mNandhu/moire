@@ -9,7 +9,8 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import recipes, remix, tag_categories
+from moire.services.generate import recipes, remix
+from moire.services.tags import tag_categories
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

@@ -6,7 +6,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import scanner
+from moire.services.library import scanner
 
 
 async def _img(image_id):

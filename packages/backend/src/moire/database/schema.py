@@ -9,7 +9,7 @@ Design notes:
 - ``images.tags`` stays a JSON array (ordered, the authoritative tag list that the
   API returns). The derived ``image_tags`` and ``image_gen_terms`` tables are
   *rebuilt transactionally* from that array on every tag write (see
-  :mod:`services.image_tags`); they exist only to serve ``GROUP BY`` / ``$in`` /
+  :mod:`services.tags.image_tags`); they exist only to serve ``GROUP BY`` / ``$in`` /
   ``$all`` style queries the JSON array can't index.
 - ``gen.*`` scalars filtered in the feed (model / workflow_sig / group_id / prompt)
   are promoted to indexed columns; the full ``gen`` subdoc is kept as JSON for the
@@ -46,7 +46,7 @@ images = sa.Table(
     sa.Column("score", sa.Float, server_default="0"),
     sa.Column("rating", sa.Text),
     # The rating was picked by hand: AI tagging leaves it alone, and it wins
-    # over the tag-derived level (services/tag_sensitivity.py).
+    # over the tag-derived level (services/tags/tag_sensitivity.py).
     sa.Column("rating_manual", sa.Boolean, server_default=sa.text("0")),
     sa.Column("quarantined", sa.Boolean, server_default=sa.text("0")),
     # Tag-state summary flags (derived from `tags`, recomputed on every tag write).
@@ -227,7 +227,7 @@ image_embeddings = sa.Table(
     sa.Column("negative", sa.Boolean, primary_key=True),
 )
 
-# Prompt-tag rules (services/tag_rename.py): reprojection reads ``from_name``
+# Prompt-tag rules (services/tags/tag_rename.py): reprojection reads ``from_name``
 # as ``to_names``. One target is a merge (``blonde`` -> ``blonde_hair``),
 # several a split (``long_white_hair`` -> ``long_hair``, ``white_hair``).
 tag_rules = sa.Table(
@@ -238,7 +238,7 @@ tag_rules = sa.Table(
     sa.Column("created_at", sa.Float),
 )
 
-# Per-library sensitivity levels for tags (services/tag_sensitivity.py), over
+# Per-library sensitivity levels for tags (services/tags/tag_sensitivity.py), over
 # the shipped data/tag_sensitivity.json. ``source`` is "user" (set by hand) or
 # "suggested" (imported, not yet checked); a user row is never overwritten by
 # a suggestion.
@@ -519,7 +519,7 @@ generation_outputs = sa.Table(
 
 
 # --- Indexes ------------------------------------------------------------------
-# Feed orders (services/image_feed.SORTS). Each expression must match the
+# Feed orders (services/images/image_feed.SORTS). Each expression must match the
 # feed's sort keys exactly for SQLite to use it (image_feed imports these, and
 # test_image_feed checks the plan), and every index a
 # feed filter can lead with ends in the same keys, so a filtered or scoped page

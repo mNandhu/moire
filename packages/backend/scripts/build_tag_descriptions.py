@@ -57,7 +57,7 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from moire.services import danbooru_tags, tag_descriptions  # noqa: E402
+from moire.services.tags import danbooru_tags, tag_descriptions  # noqa: E402
 
 CACHE = Path(__file__).resolve().parents[1] / ".tag-desc-cache"
 EXPORT = Path(__file__).resolve().parents[1] / "src/moire/data/tag_descriptions.json"

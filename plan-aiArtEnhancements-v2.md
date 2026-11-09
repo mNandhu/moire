@@ -73,7 +73,7 @@ becomes re-runnable against stored raw with no disk rescan.
    - **No structured extraction here.** Scan stays raw-only.
 
 2. **Reproject pass** (new `services/reproject_jobs.py`, modeled on
-   `services/ai_jobs.py`):
+   `services/ai/ai_jobs.py`):
    - Idempotent. Reads raw from `image_gen_raw`, applies the matching ruleset,
      writes structured `gen.*` + `gen.prompt_terms[]` + `gen.group_id` onto the
      `images` doc.
@@ -284,7 +284,7 @@ same way `manual:` is separated from AI tags. Not a separate collection/browser.
 ### Design
 
 - **New prefix `prompt:`** (parallel to `MANUAL_PREFIX` in
-  `services/image_tags.py`). A tag is now one of three kinds: AI (unprefixed),
+  `services/tags/image_tags.py`). A tag is now one of three kinds: AI (unprefixed),
   `manual:`, `prompt:`.
 
 - **Tag-state flags must gain a third axis.** Current invariant: `has_tags` (any)
@@ -298,9 +298,9 @@ same way `manual:` is separated from AI tags. Not a separate collection/browser.
     `{$ne:true}`-style missing-field footgun on any new filter).
 
 - **Reproject owns writing them.** `tags` is mutated only through
-  `services/image_tags.py`. Add a `replace_prompt_pipeline` (mirror of
+  `services/tags/image_tags.py`. Add a `replace_prompt_pipeline` (mirror of
   `replace_ai_pipeline`): replace existing `prompt:` tags, preserve AI + manual.
-  Reproject (`services/reproject.py`) calls it alongside writing `gen.*`, deriving
+  Reproject (`services/metadata/reproject.py`) calls it alongside writing `gen.*`, deriving
   `prompt:<term>` from the same tokenization as `gen.prompt_terms`
   (`gen_metadata.tokenize_prompt`). Re-runnable (replace, not append).
 

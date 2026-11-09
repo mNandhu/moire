@@ -1,7 +1,7 @@
 /**
  * Every write the UI can make to Images: one Image's rating, score,
  * quarantine, purge and tags, and manual tags on many at once. The backend
- * counterpart is services/image_tags.py, the single owner of per-image
+ * counterpart is services/tags/image_tags.py, the single owner of per-image
  * writes. Tag and character state lives in lib/tagMutations.ts.
  */
 

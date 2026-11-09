@@ -10,7 +10,7 @@ Setup:
   If node_modules is missing in the worktree, run `pnpm install --frozen-lockfile` (or symlink from /home/mnand/Projects/Tagify). NEVER commit node_modules or a node_modules symlink: check `git show --stat` after each commit.
 
 Rules (project invariants):
-- services/image_tags.py is the only tag mutator. A writer that owns its transaction calls tag_index.invalidate() after commit; don't clear the cache from call sites otherwise. Use async_tx/sync_tx from database/db.py.
+- services/tags/image_tags.py is the only tag mutator. A writer that owns its transaction calls tag_index.invalidate() after commit; don't clear the cache from call sites otherwise. Use async_tx/sync_tx from database/db.py.
 - Tag names are canonical (underscores). No em dash characters anywhere (code, comments, strings, commits). No native <select>/<datalist>. Thumbnail URLs only via thumb_url/useThumbUrl. No UI helper subtext. Tests never touch the real data/moire.db (use the conftest fixtures).
 - Match surrounding code style and comment density. Keep public response shapes unchanged unless the item says otherwise.
 - This is P5: contracts, naming and dead code. Do what each item's catalogue Proposal says; small behaviour changes the Proposal calls for are fine, anything bigger or ambiguous: skip and report. Keep public response shapes and URLs unless the item says otherwise (removing a dead route the item names is fine). Tests: when you delete dead code delete its tests; when you add a parity check or fix a slip, add a test. A bug-ish item (a slip) gets a test that fails before the fix where practical.

@@ -2,8 +2,8 @@
 ComfyUI graph walking, signature stability across id renumbering, tokenisation,
 and grouping."""
 
-from moire.services import gen_metadata as gm
-from moire.services import workflow_identity as wi
+from moire.services.metadata import gen_metadata as gm
+from moire.services.metadata import workflow_identity as wi
 
 
 # --- A1111 -------------------------------------------------------------------
@@ -697,8 +697,8 @@ def test_extract_weights_come_from_the_positive_prompt_only():
 
 
 def test_derive_carries_weights_through_merge_and_split_rules():
-    from moire.services.extraction_settings import ExtractionConfig
-    from moire.services.prompt_guess import DEFAULT_KEYWORDS
+    from moire.services.metadata.extraction_settings import ExtractionConfig
+    from moire.services.metadata.prompt_guess import DEFAULT_KEYWORDS
 
     params = "(cat:1.2), (kitty:1.4), [dog], (outfit:0.8)\nSteps: 20, Seed: 1"
     config = ExtractionConfig(

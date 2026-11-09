@@ -7,7 +7,7 @@ import json
 import threading
 import time
 
-from moire.services.watch_child import ChildWatcher
+from moire.services.library.watch_child import ChildWatcher
 
 
 class _FakeProc:

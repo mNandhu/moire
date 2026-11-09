@@ -1,6 +1,6 @@
 import pytest
 
-from moire.services import storage_fs
+from moire.services.library import storage_fs
 
 
 def test_put_thumb_writes_under_the_one_key_formula():

@@ -12,9 +12,11 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import characters, image_tags, recipes, tag_categories
-from moire.services.generator_graph import merge_loras
-from moire.services.recipes import LoraUse
+from moire.services.characters import characters
+from moire.services.tags import image_tags, tag_categories
+from moire.services.generate import recipes
+from moire.services.generate.generator_graph import merge_loras
+from moire.services.generate.recipes import LoraUse
 from tests.test_characters import _chars
 from tests.test_generate_integration import comfy, make_ready  # noqa: F401
 

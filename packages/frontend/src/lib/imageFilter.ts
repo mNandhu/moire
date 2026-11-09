@@ -12,7 +12,7 @@
 // keys can be null follows models/responses.py, held to real rows there.
 
 /** The columns every image payload carries: the feed row
- * (services/image_feed.FEED_KEYS, its thumb_key swapped for thumb_url). */
+ * (services/images/image_feed.FEED_KEYS, its thumb_key swapped for thumb_url). */
 export type ImageFields = {
   _id: string;
   // Never null in practice (the scanner writes every row with one), though
@@ -22,10 +22,10 @@ export type ImageFields = {
   height: number | null;
   // Ready-to-use thumbnail URL: the API streaming route
   // (`/api/v1/images/{id}/thumb?v=`, versioned). Lets the grid render <img src> with no per-tile
-  // resolve request. See services/thumb_version.py.
+  // resolve request. See services/library/thumb_version.py.
   thumb_url: string;
   // Compact blurred-preview hash; decoded to an instant placeholder so tiles
-  // never show a grey loading skeleton. See services/blurhash.py.
+  // never show a grey loading skeleton. See services/library/blurhash.py.
   blurhash: string | null;
   // Null, not undefined, when unset: the nullable fields come straight from
   // SQL columns.
@@ -37,7 +37,7 @@ export type ImageFields = {
   // File modification time (epoch seconds): the feed's newest-first sort key
   // and half of its cursor. Null for rows scanned without one.
   mtime: number | null;
-  // Summary flag maintained by services/image_tags.py. The grid draws an
+  // Summary flag maintained by services/tags/image_tags.py. The grid draws an
   // "untagged" marker from it so an un-AI-tagged image is visible at a glance.
   has_ai_tags: boolean | null;
 };
@@ -119,7 +119,7 @@ export const IMAGE_DETAIL_KEYS = keysOf<ImageDetail>()([
 
 type TagLogic = "and" | "or";
 
-/** Feed order; see services/image_feed.py `SORTS`. */
+/** Feed order; see services/images/image_feed.py `SORTS`. */
 export type FeedSort = "newest" | "oldest" | "top";
 const SORTS: readonly FeedSort[] = ["newest", "oldest", "top"];
 
@@ -149,7 +149,7 @@ export type Filters = {
    * `default:<character>`. `outfit:Name` chips in the search box. */
   outfit: string[];
   /** Size presets ("2:3"): the image's shape is any of them. Matched by
-   * ratio, so upscales count (services/image_shapes.py). */
+   * ratio, so upscales count (services/images/image_shapes.py). */
   shape: string[];
   minW?: number;
   maxW?: number;

@@ -3,7 +3,7 @@ import type { GenRequest } from "./generate";
 
 /**
  * Run-time estimates as the Generate pages show them. The server estimates
- * each request from past runs (services/generation_estimate.py); this rounds
+ * each request from past runs (services/generate/generation_estimate.py); this rounds
  * them for reading, works out what's left of a batch, and how far along a
  * running request is. Pure.
  *

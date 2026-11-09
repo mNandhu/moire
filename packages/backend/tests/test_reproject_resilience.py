@@ -4,7 +4,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import gen_metadata, reproject
+from moire.services.metadata import gen_metadata, reproject
 
 
 def _raw(image_id, prompt):

@@ -7,7 +7,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import library_nesting
+from moire.services.library import library_nesting
 
 
 def _case_folding(monkeypatch):
@@ -46,7 +46,7 @@ async def test_a_case_only_edit_is_not_a_move(client, temp_db, tmp_path, monkeyp
         conn.execute(
             sa.insert(t.libraries), {"_id": "L", "path": str(lib), "name": "l"}
         )
-    from moire.services import library_ops
+    from moire.services.library import library_ops
 
     moved = []
     monkeypatch.setattr(library_ops, "restart_scan", lambda *a: moved.append(a))

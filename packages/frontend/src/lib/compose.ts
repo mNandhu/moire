@@ -1,6 +1,6 @@
 /**
  * Prompt blocks to ComfyUI prompt text: the preview of what the backend's
- * `services/generation_compose.py` sends. Keep the two in step: the auto-name
+ * `services/generate/generation_compose.py` sends. Keep the two in step: the auto-name
  * terms share `tests/fixtures/mirrored/auto_name_terms.json`, and compose cases
  * sit in `compose.test.ts` and `test_generation_compose.py`.
  *

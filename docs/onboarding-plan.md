@@ -62,14 +62,14 @@ Skipping at any point lands in the gallery, with whatever was done so far.
 
 ## Phase 2: ComfyUI step
 
-- [x] Address field with Connect / Disconnect, reusing the ComfyUI settings service (`services/comfy_settings.py`). States: checking, connected, nothing answered.
+- [x] Address field with Connect / Disconnect, reusing the ComfyUI settings service (`services/generate/comfy_settings.py`). States: checking, connected, nothing answered.
 - [x] Saved workflows: folder picker (`<input webkitdirectory>`) and drop zone, reusing `parseWorkflowFile` and `importWorkflowFiles` from `lib/workflows.ts` and `POST /rules/workflow-files`.
 - [x] Show what was read: workflow names and node counts, files skipped, or "no workflows in that folder".
 - [x] Step summary in the rail ("Connected · 7 workflows").
 
 ## Phase 3: AI tagging and auto-tag
 
-- [x] Setting `auto_tag` (default off) in `DEFAULT_AI_SETTINGS` (`services/ai_settings.py`). Turning it on in onboarding (saved on Open Moiré) or with the switch on the AI Tagging page sets it.
+- [x] Setting `auto_tag` (default off) in `DEFAULT_AI_SETTINGS` (`services/ai/ai_settings.py`). Turning it on in onboarding (saved on Open Moiré) or with the switch on the AI Tagging page sets it.
 - [x] Turning it on queues **every** untagged image: `enqueue_untagged` takes no limit by default. Explicit-id jobs (an image's own re-tag) are `urgent` and run between the images of a long run, so they don't wait behind the backlog.
 - [x] Auto-tag new images: a scan ending or a watcher ingest calls `AIJobManager.nudge()`; a few seconds later `auto_tag()` queues the untagged images no job holds (scope `auto`), once no scan is running.
 - [x] Survive restarts: startup nudges auto-tag, which queues the untagged images again.
@@ -79,7 +79,7 @@ Skipping at any point lands in the gallery, with whatever was done so far.
 - [x] Onboarding step UI: switch (off by default), CPU vs GPU time for this library, GPU callout.
 - [x] Switch enabled (it shipped disabled until the backlog could run whole).
 - [x] Time estimate from the documented rates (CPU ~0.6 images/s in a real job, GPU ~0.1 s an image on a GTX 1650, see `docs/perf-findings.md`), in `lib/onboarding.ts`.
-- [x] Measured rate: a run of 20+ images stores its rate per device (`services/ai_estimate.py`, app_settings row `ai_rate`); `/ai/status` `estimate` serves it, else the documented rate for the device. The AI Tagging page shows it for the backlog and each library.
+- [x] Measured rate: a run of 20+ images stores its rate per device (`services/ai/ai_estimate.py`, app_settings row `ai_rate`); `/ai/status` `estimate` serves it, else the documented rate for the device. The AI Tagging page shows it for the backlog and each library.
 - [ ] GPU detection:
   - [x] Which build is running: the session's providers once loaded, else `get_available_providers()` (`WDTagger.device`). On the GPU build the step drops the CPU/GPU bars and the GPU callout.
   - [ ] Whether an NVIDIA GPU is present when the CPU build is running (for example `nvidia-smi` on PATH). Until then the step shows the recommendation to everyone ("Have an NVIDIA GPU?") without claiming one was found.

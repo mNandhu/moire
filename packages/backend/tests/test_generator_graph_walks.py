@@ -1,4 +1,4 @@
-from moire.services.generator_graph import bypass_loras, drop_missing
+from moire.services.generate.generator_graph import bypass_loras, drop_missing
 
 
 def test_a_node_with_null_inputs_does_not_crash_the_graph_walks():

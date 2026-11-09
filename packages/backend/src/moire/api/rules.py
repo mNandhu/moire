@@ -13,8 +13,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..database.db import async_conn
-from ..services import extraction_settings, gen_metadata, gen_raw, reproject
-from ..services import rulesets, workflow_signatures
+from ..services.metadata import extraction_settings, gen_metadata, gen_raw, reproject
+from ..services.metadata import rulesets, workflow_signatures
 
 router = APIRouter()
 

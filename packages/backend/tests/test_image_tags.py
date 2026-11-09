@@ -1,14 +1,14 @@
 """Unit tests for the Image tag-state invariant.
 
-These exercise the pure helpers in ``services.tag_kinds`` and the transforms in
-``services.image_tags``, the single
+These exercise the pure helpers in ``services.tags.tag_kinds`` and the transforms in
+``services.tags.image_tags``, the single
 owner of the manual-prefix convention and the has_tags/has_ai_tags/has_prompt_tags
 recompute, so the invariant has a test surface that needs no database. The
 transactional repo writes are covered separately by the DB integration tests.
 """
 
-from moire.services import image_tags as it
-from moire.services import tag_kinds as tk
+from moire.services.tags import image_tags as it
+from moire.services.tags import tag_kinds as tk
 
 
 # --- id candidates -----------------------------------------------------------
@@ -297,17 +297,18 @@ def _modules_after_import(module: str) -> set[str]:
 def test_tag_kinds_imports_no_database_code():
     """The vocabulary is pure: anything may import it without pulling in
     engines or the writer."""
-    loaded = _modules_after_import("moire.services.tag_kinds")
+    loaded = _modules_after_import("moire.services.tags.tag_kinds")
     assert "moire.database.db" not in loaded
-    assert "moire.services.image_tags" not in loaded
+    assert "moire.services.tags.image_tags" not in loaded
 
 
 def test_tag_index_does_not_import_the_writer():
     """The writer imports the cache to invalidate it, never the other way
     round: the cycle that once forced a function-local import is gone."""
-    loaded = _modules_after_import("moire.services.tag_index")
-    assert "moire.services.image_tags" not in loaded
+    loaded = _modules_after_import("moire.services.tags.tag_index")
+    assert "moire.services.tags.image_tags" not in loaded
     # Cache only: the views it caches live in modules that import it.
     assert {m for m in loaded if m.startswith("moire.services.")} == {
-        "moire.services.tag_index"
+        "moire.services.tags",
+        "moire.services.tags.tag_index",
     }

@@ -8,11 +8,11 @@
      "title": "Renaming a source-specific tag moves the cover, focus and character settings of the shared base name",
      "kind": "bug",
      "evidence": [
-      "packages/backend/src/moire/services/tag_rename.py:62-94",
-      "packages/backend/src/moire/services/tag_rename.py:370-381",
-      "packages/backend/src/moire/services/tag_rename.py:494-497",
-      "packages/backend/src/moire/services/tag_rename.py:475-481",
-      "packages/backend/src/moire/services/tag_index.py:190-196"
+      "packages/backend/src/moire/services/tags/tag_rename.py:62-94",
+      "packages/backend/src/moire/services/tags/tag_rename.py:370-381",
+      "packages/backend/src/moire/services/tags/tag_rename.py:494-497",
+      "packages/backend/src/moire/services/tags/tag_rename.py:475-481",
+      "packages/backend/src/moire/services/tags/tag_index.py:190-196"
      ],
      "problem": "Pins, focus and `characters` rows are keyed by base name (`pin_key` strips the kind prefix). `_move_thumbnail` and `_move_character` run `pin_key` on both sides, so renaming only `manual:foo` to `manual:bar`, or writing a prompt rule `foo -> bar`, relocates the pinned cover, its framing and the whole `characters` row of base `foo` to `bar` even though the AI tag `foo` (or other sources) still exists and still owns that page. With a merge onto an existing target the old pin is simply deleted. A user who renames a manual duplicate of a character tag can lose the character page's avatar, colour and kind override.",
      "proposal": "Only carry pin/focus/character state when no other source of the old base remains after the operation: add `_base_survives(conn, old_base)` (an EXISTS on `image_tags.base == old_base` excluding the tag being renamed) and skip `_move_thumbnail`/`_move_character` when true. Add a test in test_tag_rename_integration.py: AI tag `foo` pinned, rename `manual:foo` to `manual:bar`, assert the `foo` pin is untouched.",
@@ -29,14 +29,14 @@
      "title": "Two diverging definitions of 'is a character': tag_rename._character_names vs tag_index._characters",
      "kind": "dedupe",
      "evidence": [
-      "packages/backend/src/moire/services/tag_rename.py:418-431",
-      "packages/backend/src/moire/services/tag_index.py:554-578",
-      "packages/backend/src/moire/services/tag_index.py:581-588",
-      "packages/backend/src/moire/services/tag_index.py:591-637",
-      "packages/backend/src/moire/services/tag_categories.py:410-411"
+      "packages/backend/src/moire/services/tags/tag_rename.py:418-431",
+      "packages/backend/src/moire/services/tags/tag_index.py:554-578",
+      "packages/backend/src/moire/services/tags/tag_index.py:581-588",
+      "packages/backend/src/moire/services/tags/tag_index.py:591-637",
+      "packages/backend/src/moire/services/tags/tag_categories.py:410-411"
      ],
      "problem": "The Tags page decides character-ness in `tag_index._characters` (listed names, plus bare-name candidates the library backs via `_listed_characters`, then `characters.kind` overrides, treating kind NULL as no override). The rename/split guard and merge-suggestions filter use `tag_rename._character_names`, which takes only `vocab.names`, ignores library-backed bare candidates (`furina`), and treats a kind-NULL `characters` row as a character (the else branch). So a bare-name character the Tags page shows as a character can still be split by a rule ('is a character, so it can't be split' is not raised), and suggestions are offered for it. CONTEXT.md says the library check lives in tag_index but the vocabulary concept belongs with tag_categories.",
-     "proposal": "Move `_characters`, `_listed_characters` and `_may_be_characters` out of tag_index into one `services/character_names.py` (or tag_categories) exposing `async def character_names(conn, vocab, bases: set[str] | None) -> frozenset[str]` (bases None = every library base, using the cheap candidate walk). tag_index._browse, tag_rename (`_write_rule`, `merge_suggestions`) and characters.py call it. Delete `tag_rename._character_names`. Decide the kind-NULL semantics once (tag_index's: no override).",
+     "proposal": "Move `_characters`, `_listed_characters` and `_may_be_characters` out of tag_index into one `services/tags/character_names.py` (or tag_categories) exposing `async def character_names(conn, vocab, bases: set[str] | None) -> frozenset[str]` (bases None = every library base, using the cheap candidate walk). tag_index._browse, tag_rename (`_write_rule`, `merge_suggestions`) and characters.py call it. Delete `tag_rename._character_names`. Decide the kind-NULL semantics once (tag_index's: no override).",
      "size": "M",
      "risk": "med",
      "leverage": 4,
@@ -50,13 +50,13 @@
      "title": "Split tag_index.py: cache primitives, cover pins, browse, character classification and the detail panel are fused",
      "kind": "split",
      "evidence": [
-      "packages/backend/src/moire/services/tag_index.py:57-140",
-      "packages/backend/src/moire/services/tag_index.py:142-210",
-      "packages/backend/src/moire/services/tag_index.py:285-395",
-      "packages/backend/src/moire/services/tag_index.py:417-551",
-      "packages/backend/src/moire/services/tag_index.py:554-637",
-      "packages/backend/src/moire/services/tag_index.py:659-786",
-      "packages/backend/src/moire/services/characters.py:537"
+      "packages/backend/src/moire/services/tags/tag_index.py:57-140",
+      "packages/backend/src/moire/services/tags/tag_index.py:142-210",
+      "packages/backend/src/moire/services/tags/tag_index.py:285-395",
+      "packages/backend/src/moire/services/tags/tag_index.py:417-551",
+      "packages/backend/src/moire/services/tags/tag_index.py:554-637",
+      "packages/backend/src/moire/services/tags/tag_index.py:659-786",
+      "packages/backend/src/moire/services/characters/characters.py:537"
      ],
      "problem": "One 786-line module owns six jobs. `detail` alone is a 128-line function issuing 8 queries (span, kinds, months, loras, embeddings, sigs, related, pin) that repeats the same 'row's image is not quarantined' EXISTS that `image_ids` and `_listed_characters` also build. characters.py reaches into the private `tag_index._pins`. The tag-weights spread aggregate (plan step 4) would add a ninth query to `detail`.",
      "proposal": "Keep tag_index.py as the cache owner only (invalidate, generation, read/store view/derived, ~90 lines, imported by writers). Move: (1) `pin_key`, `_pins`, `_seed*`, `_shuffled`, `samples_for_tag` to `tag_covers.py` (public `pins(conn, bases)` replaces characters.py's private reach-in); (2) `_browse`, `browse`, `character_rows`, `list_tags` to `tag_browse.py`; (3) `detail` plus `image_ids` to `tag_detail.py`, one small private function per panel section (`_months`, `_loras`, `_embeddings`, `_workflows`, `_related`) and a single `_visible_tag_rows()` fragment shared with `image_ids`; (4) character classification per the previous finding. Pure move first, no behaviour change; the existing test_tag_index.py/test_tags_page_integration.py pin it.",
@@ -75,14 +75,14 @@
      "kind": "boundary",
      "evidence": [
       "packages/backend/src/moire/api/tags.py:362-415",
-      "packages/backend/src/moire/services/tag_rename.py:62-94",
-      "packages/backend/src/moire/services/tag_migrations.py:111-136",
-      "packages/backend/src/moire/services/library_nesting.py:257",
+      "packages/backend/src/moire/services/tags/tag_rename.py:62-94",
+      "packages/backend/src/moire/services/tags/tag_migrations.py:111-136",
+      "packages/backend/src/moire/services/library/library_nesting.py:257",
       "packages/backend/src/moire/services/tag_focus.py:556-600",
-      "packages/backend/src/moire/services/tag_index.py:199-209"
+      "packages/backend/src/moire/services/tags/tag_index.py:199-209"
      ],
      "problem": "set_tag_thumbnail / clear_tag_thumbnail build a `sqlite_insert(t.tag_meta)` upsert, an image-carries-tag EXISTS and the `tag_index.invalidate()` call inside the router (a router doing SQL, and a call-site invalidate, which CLAUDE.md says to avoid). The same table is also touched by tag_rename (move), tag_migrations (rekey) and library_nesting (repoint), while its read side (`_pins`, `pin_key`) is in tag_index and its sibling table tag_focus is in tag_focus.py. There is no single owner for a tag's cover.",
-     "proposal": "Create `services/tag_covers.py` owning both tables: `pin_key`, `pins(conn, bases)`, `async set_pin(tag_key, names, image_id) -> bool` (does the carries-tag check, upsert and invalidate, returns False for the 404), `clear_pin(tag_key)`, `move(conn, old, new)` (today's `_move_thumbnail` focus+pin half), and the focus functions from tag_focus.py (`clean`, `put`, `get`, `all_focus`, `for_cover`). The two thumbnail routes shrink to validate, call, map to HTTP; the face_detect call stays in the router or characters.",
+     "proposal": "Create `services/tags/tag_covers.py` owning both tables: `pin_key`, `pins(conn, bases)`, `async set_pin(tag_key, names, image_id) -> bool` (does the carries-tag check, upsert and invalidate, returns False for the 404), `clear_pin(tag_key)`, `move(conn, old, new)` (today's `_move_thumbnail` focus+pin half), and the focus functions from tag_focus.py (`clean`, `put`, `get`, `all_focus`, `for_cover`). The two thumbnail routes shrink to validate, call, map to HTTP; the face_detect call stays in the router or characters.",
      "size": "M",
      "risk": "low",
      "leverage": 3,
@@ -98,7 +98,7 @@
      "evidence": [
       "packages/backend/src/moire/api/tags.py:346-359",
       "packages/backend/src/moire/api/tags.py:338-343",
-      "packages/backend/src/moire/services/tag_index.py:659-786"
+      "packages/backend/src/moire/services/tags/tag_index.py:659-786"
      ],
      "problem": "`set_tag_focus` calls `tag_index.detail(base, 'all')` (months, loras, embeddings, workflows, related, characters) and uses only `got['thumb_image_id']` (the pin) and `is None` (existence). Each focus nudge in the picker pays the whole panel cost. `tag_detail` then recomputes the same cover with `_cover_of`.",
      "proposal": "Add `tag_covers.cover_of(base) -> str | None` (pin if present and visible, else the mosaic lead via `samples_for_tag('any:'+base, 1)`; None when no visible image carries the base) and use it in set_tag_focus (404 when None) and tag_detail (which already has the pin from `detail`). Delete the router-level `_cover_of`.",
@@ -121,7 +121,7 @@
       "packages/backend/src/moire/api/tags.py:366"
      ],
      "problem": "`_tag_maps`, `_library_bases`, `board_offers` and `place_tags` assemble derived caches (generation capture, `read_derived`/`store_derived`, `asyncio.to_thread`, a module-global asyncio.Lock) and run SQL in the router. `_tag_maps` and `_library_bases` both run `SELECT DISTINCT image_tags.base` and cache separately, so a tag write triggers the scan twice. The idiom `tag_index.pin_key(validate_tags([tag])[0])` appears 8 times.",
-     "proposal": "Move `library_bases()`, `tag_maps()` and `board_offers()` into a `services/tag_views.py` (they are derived views over the tag index with the same invalidation rule); `tag_maps` takes its `library` from `library_bases()`. In the router add one dependency `def _base(tag: str = Query(...)) -> str` returning `pin_key(validate_tags([tag])[0])` for character/detail/focus/thumbnail routes. Router keeps only HTTP mapping.",
+     "proposal": "Move `library_bases()`, `tag_maps()` and `board_offers()` into a `services/tags/tag_views.py` (they are derived views over the tag index with the same invalidation rule); `tag_maps` takes its `library` from `library_bases()`. In the router add one dependency `def _base(tag: str = Query(...)) -> str` returning `pin_key(validate_tags([tag])[0])` for character/detail/focus/thumbnail routes. Router keeps only HTTP mapping.",
      "size": "M",
      "risk": "low",
      "leverage": 3,
@@ -132,11 +132,11 @@
      "title": "Rule changes reproject synchronously in two of three paths while add_rules has a background threshold",
      "kind": "invariant",
      "evidence": [
-      "packages/backend/src/moire/services/tag_rename.py:512-514",
-      "packages/backend/src/moire/services/tag_rename.py:525-570",
-      "packages/backend/src/moire/services/tag_rename.py:670-674",
-      "packages/backend/src/moire/services/reproject.py:237-249",
-      "packages/backend/src/moire/services/reproject.py:339-345"
+      "packages/backend/src/moire/services/tags/tag_rename.py:512-514",
+      "packages/backend/src/moire/services/tags/tag_rename.py:525-570",
+      "packages/backend/src/moire/services/tags/tag_rename.py:670-674",
+      "packages/backend/src/moire/services/metadata/reproject.py:237-249",
+      "packages/backend/src/moire/services/metadata/reproject.py:339-345"
      ],
      "problem": "`add_rules` reprojects inline up to 500 images, otherwise `reproject_ids_async`. `rename_tag` (prompt branch) and `delete_alias` always run `reproject_ids` inline via `anyio.to_thread`, with no cap and no activity task, so merging or deleting a rule on a tag used by tens of thousands of images holds the HTTP request (and the single SQLite writer in 500-id chunks) for minutes, then returns a count the UI treats as done. The three paths also differ on who invalidates the tag index (inline: caller; async: reproject).",
      "proposal": "Extract `async def _apply(affected: list[str]) -> bool` in tag_rename.py: sorted ids, inline up to `_SYNC_REPROJECT` (then `tag_index.invalidate()`), else `reproject_ids_async`; returns `background`. Use it in rename_tag, add_rules and delete_alias, and add `background` to the rename/delete responses (frontend already reads it for add_rules).",
@@ -150,14 +150,14 @@
      "title": "Split image_tags into a pure tag-kinds vocabulary and the writer; this removes the tag_index import cycle",
      "kind": "deepen",
      "evidence": [
-      "packages/backend/src/moire/services/image_tags.py:55-165",
-      "packages/backend/src/moire/services/image_tags.py:318-329",
-      "packages/backend/src/moire/services/image_tags.py:517-520",
-      "packages/backend/src/moire/services/tag_index.py:42",
-      "packages/backend/src/moire/services/tag_names.py:1-13"
+      "packages/backend/src/moire/services/tags/image_tags.py:55-165",
+      "packages/backend/src/moire/services/tags/image_tags.py:318-329",
+      "packages/backend/src/moire/services/tags/image_tags.py:517-520",
+      "packages/backend/src/moire/services/tags/tag_index.py:42",
+      "packages/backend/src/moire/services/tags/tag_names.py:1-13"
      ],
      "problem": "image_tags.py mixes four layers: pure tag-kind vocabulary (prefixes, canonical_tag, any: expansion, tag_match_groups, excluded_prefixes, base_of), rating normalization, image-id variants/row_to_doc, and the transactional writers. tag_index imports image_tags only for prefix helpers and `not_quarantined`, which forces image_tags to import tag_index lazily inside `_dirty_tag_index` ('keeping the import local is what breaks the cycle'). The tag-weights work will add weight handling into `_persist_statements` and the bulk twin, both in the 621-line module.",
-     "proposal": "Extract `services/tag_kinds.py` (no DB imports): MANUAL_PREFIX/PROMPT_PREFIX/ANY_PREFIX, is_*/to_*/base_of, canonical_tag, any_variants/expand_search_tag/tag_match_groups, excluded_prefixes, recompute_flags, plus `not_quarantined` into a tiny `image_filters` or schema helper. tag_index and every reader import tag_kinds; image_tags imports tag_index at module scope and re-exports nothing (update ~25 callers, mechanical). Keep `normalize_rating`, writers and scalar setters in image_tags.",
+     "proposal": "Extract `services/tags/tag_kinds.py` (no DB imports): MANUAL_PREFIX/PROMPT_PREFIX/ANY_PREFIX, is_*/to_*/base_of, canonical_tag, any_variants/expand_search_tag/tag_match_groups, excluded_prefixes, recompute_flags, plus `not_quarantined` into a tiny `image_filters` or schema helper. tag_index and every reader import tag_kinds; image_tags imports tag_index at module scope and re-exports nothing (update ~25 callers, mechanical). Keep `normalize_rating`, writers and scalar setters in image_tags.",
      "size": "M",
      "risk": "med",
      "leverage": 3,
@@ -173,7 +173,7 @@
      "title": "GET /tags (non-merged) computes thumbnails and pins nothing reads",
      "kind": "dead",
      "evidence": [
-      "packages/backend/src/moire/services/tag_index.py:249-282",
+      "packages/backend/src/moire/services/tags/tag_index.py:249-282",
       "packages/backend/src/moire/api/tags.py:36-49",
       "packages/frontend/src/lib/queries.ts:105-129",
       "packages/frontend/src/pages/OverviewPage.tsx:27-35",
@@ -191,12 +191,12 @@
      "title": "'alias' names three different things; the user's merge rules are still called aliases in code and routes",
      "kind": "naming",
      "evidence": [
-      "packages/backend/src/moire/services/tag_names.py:59-66",
-      "packages/backend/src/moire/services/tag_rename.py:644-657",
-      "packages/backend/src/moire/services/reproject.py:44-52",
-      "packages/backend/src/moire/services/reproject.py:206",
+      "packages/backend/src/moire/services/tags/tag_names.py:59-66",
+      "packages/backend/src/moire/services/tags/tag_rename.py:644-657",
+      "packages/backend/src/moire/services/metadata/reproject.py:44-52",
+      "packages/backend/src/moire/services/metadata/reproject.py:206",
       "packages/backend/src/moire/api/tags.py:479-512",
-      "packages/backend/src/moire/services/danbooru_tags.py:54-63"
+      "packages/backend/src/moire/services/tags/danbooru_tags.py:54-63"
      ],
      "problem": "CONTEXT.md calls the user's rewrites Merge/Split rules (`tag_rules`), but the code says `apply_aliases` (tag_names), `_load_aliases` (reproject), `list_aliases`/`delete_alias` (tag_rename), `/tags/aliases` routes, while `danbooru_tags.TagList.aliases`, `tag_descriptions.with_aliases` and `characters` 'aliases' (bare names) mean other things. Reproject also keeps its own sync `tag_rules` reader beside tag_rename._load_rules, and `apply_aliases` lives in tag_names though it is rule application, so weight-carrying merges will have to touch an oddly placed function.",
      "proposal": "Rename `apply_aliases` to `apply_rules` and move it beside the rule reader (a small `tag_rules.py` holding `load_rules_sync`, `async load_rules`, `apply_rules`, used by tag_rename and reproject); rename `list_aliases`/`delete_alias`/`add_aliases` to `*_rules`. Keep the `/aliases` URL for now (frontend contract) or alias it in the same pass. Leave Danbooru and character 'aliases' as they are.",
@@ -209,10 +209,10 @@
     }
    ],
    "cross_cutting_hints": [
-    "packages/backend/src/moire/services/characters.py:537 calls the private tag_index._pins; characters.py:446-450 uses tag_index.read_view/store_view as a side cache (only caller), so a split of tag_index must keep those two seams.",
-    "packages/backend/src/moire/services/tag_names.py:21 KAOMOJIS is the only non-name content of tag_names and is consumed by prompt_parse.py:38; consider living in prompt_parse or a shared vocab since tag_names should stay the one spelling rule.",
-    "packages/backend/src/moire/services/reproject.py:44-52 and 206 read tag_rules with a second sync loader (see tag_rules.py proposal); the extraction-config finding in docs/tag-weights-plan.md should include it.",
-    "packages/backend/src/moire/services/tag_migrations.py:44-60 is another hand-written app_settings JSON row read/upsert (part of the already reported 8-module duplication); tag_settings.py:496-522 is a ninth."
+    "packages/backend/src/moire/services/characters/characters.py:537 calls the private tag_index._pins; characters.py:446-450 uses tag_index.read_view/store_view as a side cache (only caller), so a split of tag_index must keep those two seams.",
+    "packages/backend/src/moire/services/tags/tag_names.py:21 KAOMOJIS is the only non-name content of tag_names and is consumed by prompt_parse.py:38; consider living in prompt_parse or a shared vocab since tag_names should stay the one spelling rule.",
+    "packages/backend/src/moire/services/metadata/reproject.py:44-52 and 206 read tag_rules with a second sync loader (see tag_rules.py proposal); the extraction-config finding in docs/tag-weights-plan.md should include it.",
+    "packages/backend/src/moire/services/tags/tag_migrations.py:44-60 is another hand-written app_settings JSON row read/upsert (part of the already reported 8-module duplication); tag_settings.py:496-522 is a ninth."
    ]
   },
   {
@@ -270,12 +270,12 @@
      "title": "feed_where (radon F48) and _drive_by_rarest each re-derive the same tag groups and prompt-term list",
      "kind": "dedupe",
      "evidence": [
-      "packages/backend/src/moire/services/image_feed.py:195-319",
-      "packages/backend/src/moire/services/image_feed.py:205-207",
-      "packages/backend/src/moire/services/image_feed.py:229",
-      "packages/backend/src/moire/services/image_feed.py:343-380",
-      "packages/backend/src/moire/services/image_feed.py:354-359",
-      "packages/backend/src/moire/services/image_feed.py:208-214"
+      "packages/backend/src/moire/services/images/image_feed.py:195-319",
+      "packages/backend/src/moire/services/images/image_feed.py:205-207",
+      "packages/backend/src/moire/services/images/image_feed.py:229",
+      "packages/backend/src/moire/services/images/image_feed.py:343-380",
+      "packages/backend/src/moire/services/images/image_feed.py:354-359",
+      "packages/backend/src/moire/services/images/image_feed.py:208-214"
      ],
      "problem": "The canonical_tag + tag_match_groups step (205-206 vs 354-355) and the `[canonical_name(p.lower()) for p in pterms if p and p.strip()]` normalization (229 vs 358) are written twice. The driver is documented as 'every group is ANDed into the filter, so its images are a superset of the result', which only holds while the two copies agree, so a change to one (say a new tag alias rule, or pterms OR semantics) silently makes the driver prune real matches. `no_ai_tags` is also emitted in both arms of an if/else (209, 214). feed_where itself is one 125-line function with 38 branches mixing tags, gen terms, loras, outfits, sizes and workflow.",
      "proposal": "Add two small pure helpers: `_tag_groups(f) -> list[list[str]]` and `_pterms(f) -> list[str]`, used by both feed_where and _drive_by_rarest. Then split feed_where into `_tag_conds(f)`, `_gen_conds(f)` (pterms, model, lora, embedding, workflow, needs_mapping), `_outfit_conds(f)` and `_size_conds(f)`, each returning list[ColumnElement]; feed_where becomes `sa.and_(*_tag_conds(f), *_gen_conds(f), ...)`. Hoist `no_ai_tags` out of the if/else. Cover with the existing test_image_feed/test_feed_integration plus one test asserting driver_ids never changes the result set.",
@@ -326,7 +326,7 @@
       "packages/frontend/src/lib/imageFilter.ts:357-403",
       "packages/frontend/src/pages/AllImagesPage.tsx:485-492",
       "packages/frontend/src/pages/AllImagesPage.tsx:1080-1094",
-      "packages/backend/src/moire/services/image_feed.py:167-170"
+      "packages/backend/src/moire/services/images/image_feed.py:167-170"
      ],
      "problem": "Adding a filter axis means touching the Filters type, DEFAULT_FILTERS, parse, serialize, hasActiveFilter, withoutFilters, activeFilterChips and the filter panel; hasActiveFilter and withoutFilters can already disagree (withoutFilters keeps libraryId/groupId, hasActiveFilter counts them). The rule 'aiTagged is ignored beside noTags/noAiTags' is applied in parse (144), serialize (183), chips (375), two hotkeys (487, 492) and two panel buttons, while the backend rejects the combination with 422, so a hand-built URL is silently repaired in the UI. The `workflow` vs `workflowSig` 'one or the other' comment (89-90) is not enforced anywhere on the client, but both are ANDed by the backend.",
      "proposal": "Add `normalizeFilters(f): Filters` in imageFilter.ts that enforces aiTagged exclusivity and workflow/workflowSig exclusivity, call it at the end of parseFilters and inside useFilters.setFilters, and delete the per-call-site repairs. Define hasActiveFilter as 'serializeFilters(withoutView(f)) has params' where withoutView drops logic/sort/group/libraryId, so a new axis is picked up by the codec alone. Test: one table-driven vitest that every Filters key round-trips and that a new key without a serialize line fails.",
@@ -366,8 +366,8 @@
      "evidence": [
       "packages/backend/src/moire/api/images.py:321-373",
       "packages/backend/src/moire/api/images.py:376-403",
-      "packages/backend/src/moire/services/image_tags.py:517-520",
-      "packages/backend/src/moire/services/image_feed.py:219-224"
+      "packages/backend/src/moire/services/tags/image_tags.py:517-520",
+      "packages/backend/src/moire/services/images/image_feed.py:219-224"
      ],
      "problem": "CONTEXT.md says counts leave quarantined images out so a count matches its gallery link. /sizes does (`.where(image_tags.not_quarantined())`), but /models, /loras and /embeddings do not, so a dropdown showing 'NahidaXL 120' opens a gallery of fewer images when some are quarantined. The three routes also differ for no reason: loras uses count() while embeddings uses count(distinct image_id), and library scoping is a join in two and a where in the other two.",
      "proposal": "One helper `_facet_base(library_id)` returning `select(...).where(not_quarantined())` joined to images when scoped, used by all four routes; use count(distinct image_id) uniformly for the join-table facets. Add an integration test that quarantining an image lowers the model/lora/embedding counts.",
@@ -403,7 +403,7 @@
       "packages/frontend/src/hooks/useImageLoadSlot.ts:190-209",
       "packages/frontend/src/components/ThumbnailTile.tsx:159",
       "packages/frontend/src/components/ImageThumbnail.tsx:58-72",
-      "packages/backend/src/moire/services/thumb_version.py:46-54",
+      "packages/backend/src/moire/services/library/thumb_version.py:46-54",
       "packages/frontend/src/lib/masonryLayout.ts:41-44",
       "packages/frontend/src/lib/masonryLayout.ts:61",
       "packages/frontend/src/lib/masonryLayout.ts:78",
@@ -461,7 +461,7 @@
       "packages/backend/src/moire/api/libraries.py:28-46"
      ],
      "problem": "add/move/remove are ordered sequences of side effects (DB write, library_nesting.invalidate, tag_index.invalidate, cancel_scan, start/stop_watch, scan_library_async, _rescan_libraries_around, delete_by_prefix) written inline in three route handlers. api/generate.py put_comfyui imports and awaits add_library and update_library as plain functions (and wraps them in `except ValueError`, which they never raise: they raise HTTPException), so the sequence is already a service with no service module. Consequences visible today: remove_library never deletes the `thumbs:{library_id}` stamp row scanner._save_stamp writes (orphaned forever); the event-loop-blocking joins (already reported) have to be fixed in three places; add_library has a check-then-insert race (two concurrent POSTs for one path both pass the dedupe, the second hits the primary key and returns 500); library_id_for and _rescan_libraries_around are router-private helpers.",
-     "proposal": "Add services/library_ops.py with async `create(path, name, watch)`, `move_or_edit(id, patch)`, `remove(id)`, `rescan_around(path, exclude)` and `library_id_for`. Each owns its full side-effect order, runs the cancel/join/start_watch calls via anyio.to_thread, deletes the scanner stamp row on remove, and makes create idempotent on IntegrityError (return the existing row). Routes become validate, call, shape response. api/generate.py put_comfyui calls `library_ops.ensure_watched(path, name)` instead of the two handlers. Return one response shape from create (existing rows return the full row, new ones a 3-key dict today).",
+     "proposal": "Add services/library/library_ops.py with async `create(path, name, watch)`, `move_or_edit(id, patch)`, `remove(id)`, `rescan_around(path, exclude)` and `library_id_for`. Each owns its full side-effect order, runs the cancel/join/start_watch calls via anyio.to_thread, deletes the scanner stamp row on remove, and makes create idempotent on IntegrityError (return the existing row). Routes become validate, call, shape response. api/generate.py put_comfyui calls `library_ops.ensure_watched(path, name)` instead of the two handlers. Return one response shape from create (existing rows return the full row, new ones a 3-key dict today).",
      "size": "M",
      "risk": "med",
      "leverage": 4,
@@ -477,15 +477,15 @@
      "title": "Image-row deletion (rows, raw gen, thumbnails, tag index) is hand-written in five places",
      "kind": "dedupe",
      "evidence": [
-      "packages/backend/src/moire/services/scanner.py:316-329",
-      "packages/backend/src/moire/services/scanner.py:783-807",
-      "packages/backend/src/moire/services/library_nesting.py:268-274",
-      "packages/backend/src/moire/services/library_nesting.py:600-618",
+      "packages/backend/src/moire/services/library/scanner.py:316-329",
+      "packages/backend/src/moire/services/library/scanner.py:783-807",
+      "packages/backend/src/moire/services/library/library_nesting.py:268-274",
+      "packages/backend/src/moire/services/library/library_nesting.py:600-618",
       "packages/backend/src/moire/api/images.py:626-646",
       "packages/backend/src/moire/api/libraries.py:146-163"
      ],
      "problem": "Every site does `delete(images)` + `delete(image_gen_raw)` in the same transaction, then tag_index.invalidate(), then best-effort delete_thumb per key, each with its own lazy `from .storage_fs import delete_thumb` inside try/except pass (scanner.py:325 and :801 import lazily although put_thumb is already imported at module top, so there is no cycle to avoid). A sixth table that must cascade (the next derived table, or tag weights if stored beside the image) has to be added in five places; the scanner and nesting variants also forget to refresh libraries.indexed_count consistently (nesting recounts, remove_single_image uses a delta, the scan sets it from the walk).",
-     "proposal": "New small module (e.g. services/image_delete.py): `delete_rows(conn, ids) -> list[thumb_key]` (sync) plus an async twin used by purge/remove_library, and `drop_thumbs(keys)` (best-effort, logs at debug). Callers keep ownership of the transaction and call `tag_index.invalidate()` after commit, but the table list and the thumb cleanup exist once. The unbounded-transaction fix already reported for the scanner stale delete then lands in one chunking loop (200 ids per tx) used by scanner, nesting and remove_library.",
+     "proposal": "New small module (e.g. services/images/image_delete.py): `delete_rows(conn, ids) -> list[thumb_key]` (sync) plus an async twin used by purge/remove_library, and `drop_thumbs(keys)` (best-effort, logs at debug). Callers keep ownership of the transaction and call `tag_index.invalidate()` after commit, but the table list and the thumb cleanup exist once. The unbounded-transaction fix already reported for the scanner stale delete then lands in one chunking loop (200 ids per tx) used by scanner, nesting and remove_library.",
      "size": "M",
      "risk": "med",
      "leverage": 4,
@@ -501,13 +501,13 @@
      "title": "scanner.py (898 lines) fuses thumbnail rendering, scan stamp, reconcile policy, watcher entry points and the scan thread",
      "kind": "split",
      "evidence": [
-      "packages/backend/src/moire/services/scanner.py:35-132",
-      "packages/backend/src/moire/services/scanner.py:54-88",
-      "packages/backend/src/moire/services/scanner.py:254-330",
-      "packages/backend/src/moire/services/scanner.py:332-388",
-      "packages/backend/src/moire/services/scanner.py:391-426",
-      "packages/backend/src/moire/services/library_watch.py:375-396",
-      "packages/backend/src/moire/services/library_discover.py:25"
+      "packages/backend/src/moire/services/library/scanner.py:35-132",
+      "packages/backend/src/moire/services/library/scanner.py:54-88",
+      "packages/backend/src/moire/services/library/scanner.py:254-330",
+      "packages/backend/src/moire/services/library/scanner.py:332-388",
+      "packages/backend/src/moire/services/library/scanner.py:391-426",
+      "packages/backend/src/moire/services/library/library_watch.py:375-396",
+      "packages/backend/src/moire/services/library/library_discover.py:25"
      ],
      "problem": "One module owns five jobs with different consumers: (1) thumbnail recipe (_THUMB_*, thumb_stamp, _make_thumb_bytes, is_image) which library_discover imports from the scanner, pulling PIL, gen_metadata and the whole scan machinery into a dry-run path counter; (2) the stamp/retry persistence (_load_stamp/_save_stamp); (3) the pure reconcile policy (reconcile_stale, stale_guard, unread_prefixes), the highest-risk code in the file; (4) the watcher-facing incremental API (ingest_single_file, remove_single_image, _touch_library); (5) the scan thread, slots and cancel registry. The cancel/slot state (_scan_lock, _current_scans, _cancel_scans, _scan_threads, _scans_ended) is module globals reached via scans_ended/is_scanning/cancel_scan.",
      "proposal": "Split along existing seams, keeping `scanner` as the public facade so no caller changes: `thumbnailer.py` (recipe constants, thumb_stamp, make_thumb_bytes, is_image; library_discover imports this), `scan_reconcile.py` (reconcile_stale, stale_guard, unread_prefixes, plus the stamp load/save), `incremental.py` (ingest_single_file, remove_single_image, _touch_library, used only by library_watch), and scanner.py keeps the thread/slot/cancel registry and the (already flagged) _run, which can then shrink to orchestration. Pure moves, tests keep importing through `scanner` re-exports for one release.",
@@ -564,13 +564,13 @@
      "title": "Folder ancestry and 'innermost library' are implemented four ways",
      "kind": "dedupe",
      "evidence": [
-      "packages/backend/src/moire/services/library_nesting.py:30-43",
-      "packages/backend/src/moire/services/library_nesting.py:497-535",
-      "packages/backend/src/moire/services/library_discover.py:36-41",
-      "packages/backend/src/moire/services/library_discover.py:200-239",
-      "packages/backend/src/moire/services/generation_jobs.py:107-119",
+      "packages/backend/src/moire/services/library/library_nesting.py:30-43",
+      "packages/backend/src/moire/services/library/library_nesting.py:497-535",
+      "packages/backend/src/moire/services/library/library_discover.py:36-41",
+      "packages/backend/src/moire/services/library/library_discover.py:200-239",
+      "packages/backend/src/moire/services/generate/generation_jobs.py:107-119",
       "packages/backend/src/moire/api/libraries.py:28-46",
-      "packages/backend/src/moire/services/library_discover.py:24-27",
+      "packages/backend/src/moire/services/library/library_discover.py:24-27",
       "packages/frontend/src/lib/libraryTree.ts:93-97"
      ],
      "problem": "library_nesting owns the rule (path_key + is_inside, case-folded where the OS is). library_discover re-derives it with os.path.commonpath on un-case-folded strings (_is_within), so a Windows library stored as `D:/Images` and a candidate `d:/images/x` are judged by different rules in the dry run and in the scan. generation_jobs.held_by re-implements 'innermost library holding this file' as its own best-length loop, and library_nesting._adopt_from does the same with max(holders, key=len). library_discover also re-exports normalize_path through `__all__` only so api/libraries.py can call `library_discover.normalize_path` (twice) instead of importing it from models.library. The frontend has a fourth spelling in normalizeLibraryPath (display grouping only, acceptable).",
@@ -587,8 +587,8 @@
      "kind": "bug",
      "evidence": [
       "packages/backend/src/moire/api/libraries.py:268-277",
-      "packages/backend/src/moire/services/scanner.py:545-549",
-      "packages/backend/src/moire/services/scanner.py:585-598"
+      "packages/backend/src/moire/services/library/scanner.py:545-549",
+      "packages/backend/src/moire/services/library/scanner.py:585-598"
      ],
      "problem": "update_library on a path change calls scan_library_async(library_id, new_path), which returns {'started': False, 'status': 'already_running'} when a scan is in flight (the result is ignored). The running scan only re-reads libraries.path once, right after it gets its slot (scanner.py:588-594), so a scan already walking continues on the old root, writes rows with old absolute paths, and its stale reconciliation runs against that old root. The new location is not scanned until the watcher's reconcile timer fires (and never if watch_enabled is false). The same ignored return value applies to every caller of scan_library_async in the router.",
      "proposal": "In the move path (in library_ops.move, see finding 1) call cancel_scan via to_thread, wait for it to end (join with a longer timeout than the 0.5 s default), then start the scan; or have scan_library_async record a `rescan_requested` flag that _run checks in its finally block and re-enters once. Add an integration test: start a scan, PATCH path, assert the final rows carry the new root.",
@@ -604,13 +604,13 @@
      "title": "What counts as an indexable file is decided in three places and the rules disagree",
      "kind": "drift",
      "evidence": [
-      "packages/backend/src/moire/services/scanner.py:33-39",
-      "packages/backend/src/moire/services/scanner.py:134-138",
-      "packages/backend/src/moire/services/scanner.py:130-131",
-      "packages/backend/src/moire/services/scanner.py:530",
-      "packages/backend/src/moire/services/library_watch.py:101-103",
-      "packages/backend/src/moire/services/library_watch.py:326-330",
-      "packages/backend/src/moire/services/library_discover.py:68-81"
+      "packages/backend/src/moire/services/library/scanner.py:33-39",
+      "packages/backend/src/moire/services/library/scanner.py:134-138",
+      "packages/backend/src/moire/services/library/scanner.py:130-131",
+      "packages/backend/src/moire/services/library/scanner.py:530",
+      "packages/backend/src/moire/services/library/library_watch.py:101-103",
+      "packages/backend/src/moire/services/library/library_watch.py:326-330",
+      "packages/backend/src/moire/services/library/library_discover.py:68-81"
      ],
      "problem": "The full scan walks every file and keeps anything with an IMAGE_EXTS suffix or any mimetype that starts with image/ (so .svg, .tif, .ico, and whatever the host mime table adds). The watcher additionally drops dotfiles, ~files and .tmp/.part suffixes, but the scan does not, so `.cover.png` is indexed by a scan yet its watcher delete event is ignored and the row lingers until the next reconcile. A file Pillow cannot open (an .svg) passes is_image, _make_thumb_bytes returns (None, None, 0, 0, None) from a swallowed exception, and _process_image still returns ok=True with width=0, height=0 and thumb_key=None: it is indexed as a blank tile, never counted in failed_count, never listed in the retry ids, and rebuilt on every rescan because _unchanged needs a thumb_key. The discover preview counts with is_image only, so its numbers differ from both.",
      "proposal": "One predicate `is_indexable(path)` in the new thumbnailer/scan module (extension allow-list, no generic mimetype fallback unless intended, plus the ignore rules) used by the walk, the watcher, ingest and library_discover._count_images. Treat a decode failure (width == 0) as a failed result (ok False, stage 'decode') so it appears in scan_failed_samples and the retry list instead of a silent blank row. Low confidence the mimetype fallback is accidental: confirm with the author before narrowing it.",
@@ -625,9 +625,9 @@
      "title": "Thumbnail key is built by two formulas, and the thumb_format setting is half implemented",
      "kind": "invariant",
      "evidence": [
-      "packages/backend/src/moire/services/storage_fs.py:45-71",
-      "packages/backend/src/moire/services/thumb_version.py:44-62",
-      "packages/backend/src/moire/services/scanner.py:111-123",
+      "packages/backend/src/moire/services/library/storage_fs.py:45-71",
+      "packages/backend/src/moire/services/library/thumb_version.py:44-62",
+      "packages/backend/src/moire/services/library/scanner.py:111-123",
       "packages/backend/src/moire/core/config.py:91-92",
       "packages/backend/src/moire/api/images.py:305"
      ],
@@ -644,13 +644,13 @@
      "title": "library_watch.py mixes a child-process supervisor with per-library event routing; _write_loop is radon D21",
      "kind": "split",
      "evidence": [
-      "packages/backend/src/moire/services/library_watch.py:134-304",
-      "packages/backend/src/moire/services/library_watch.py:307-323",
-      "packages/backend/src/moire/services/library_watch.py:359-426",
-      "packages/backend/src/moire/services/library_watch.py:429-499"
+      "packages/backend/src/moire/services/library/library_watch.py:134-304",
+      "packages/backend/src/moire/services/library/library_watch.py:307-323",
+      "packages/backend/src/moire/services/library/library_watch.py:359-426",
+      "packages/backend/src/moire/services/library/library_watch.py:429-499"
      ],
      "problem": "Lines 134-304 (_writer, _send, _add_cmd, _write_loop, _write, _close, _spawn, _back_off, _read_child, restart backoff globals) are a generic 'keep a JSON-lines child alive, replay its adds on respawn, drop commands while it is down' supervisor with no knowledge of libraries beyond `_watches`, which it reads unlocked and under `_lock` in different places. The rest is library semantics (_Watch, _run_watch debounce-merge, _wait_stable, reconcile timer, start/stop). The supervisor's tricky state machine (readded set, closing event, want_child, per-writer queue retired by stop_all) can only be tested through real subprocesses (test_library_watch_proc.py).",
-     "proposal": "Extract `services/watch_child.py` with `class ChildWatcher(on_message, current_adds)` exposing `add(cmd)`, `remove(key)`, `close(timeout)`; spawn and clock injectable. library_watch keeps _Watch, routing (`on_message` = _route) and the reconcile timer and passes `lambda: [_add_cmd(w) for w in _watches.values()]` as the respawn replay source. Gives _write_loop a unit-test surface with a fake process.",
+     "proposal": "Extract `services/library/watch_child.py` with `class ChildWatcher(on_message, current_adds)` exposing `add(cmd)`, `remove(key)`, `close(timeout)`; spawn and clock injectable. library_watch keeps _Watch, routing (`on_message` = _route) and the reconcile timer and passes `lambda: [_add_cmd(w) for w in _watches.values()]` as the respawn replay source. Gives _write_loop a unit-test surface with a fake process.",
      "size": "M",
      "risk": "med",
      "leverage": 2,
@@ -661,12 +661,12 @@
    ],
    "cross_cutting_hints": [
     "packages/backend/src/moire/api/generate.py:205-218 awaits add_library and update_library handlers directly and catches ValueError they never raise (HTTPException is what they raise); overlaps the already-reported 'route handlers call each other' pattern.",
-    "packages/backend/src/moire/services/generation_jobs.py:107-119 held_by re-implements the innermost-library lookup that library_nesting should own.",
+    "packages/backend/src/moire/services/generate/generation_jobs.py:107-119 held_by re-implements the innermost-library lookup that library_nesting should own.",
     "packages/backend/src/moire/api/images.py:626-646 purge_image is one of five image-row delete recipes (see finding 2).",
     "packages/backend/tests/perf_benchmark.py:120,135 is the only caller of GET /libraries/{id}/progress; check before deleting the route.",
     "packages/frontend/src/lib/dropFiles.ts, hooks/useDropSide.ts and lib/dropSide.ts are generic UI utilities (ComfyStep drop, PromptBoard dropdown) with no library logic; they are mis-bucketed in slice S5 and look healthy (colocated pure tests, small).",
     "packages/frontend/src/lib/libraryPlan.ts:7 CandidateStatus is flagged by knip as an unused export but is used structurally through LibraryCandidate['status'] in AddLibraryDialog.tsx:23; harmless, do not delete.",
-    "packages/backend/src/moire/services/scanner.py:268-286 ingest_single_file swallows reproject_image failures with a bare `except Exception: pass` and no log line, unlike the scan path which logs."
+    "packages/backend/src/moire/services/library/scanner.py:268-286 ingest_single_file swallows reproject_image failures with a bare `except Exception: pass` and no log line, unlike the scan path which logs."
    ]
   },
   {
@@ -677,13 +677,13 @@
      "title": "Character signature pipeline is written twice and recomputed uncached on every outfit request and image view",
      "kind": "dedupe",
      "evidence": [
-      "packages/backend/src/moire/services/recipes.py:240-276",
-      "packages/backend/src/moire/services/recipes.py:288-301",
-      "packages/backend/src/moire/services/characters.py:632-646",
-      "packages/backend/src/moire/services/characters.py:724-736",
-      "packages/backend/src/moire/services/outfits.py:151-227",
-      "packages/backend/src/moire/services/outfits.py:345-376",
-      "packages/backend/src/moire/services/tag_index.py:104-125"
+      "packages/backend/src/moire/services/generate/recipes.py:240-276",
+      "packages/backend/src/moire/services/generate/recipes.py:288-301",
+      "packages/backend/src/moire/services/characters/characters.py:632-646",
+      "packages/backend/src/moire/services/characters/characters.py:724-736",
+      "packages/backend/src/moire/services/characters/outfits.py:151-227",
+      "packages/backend/src/moire/services/characters/outfits.py:345-376",
+      "packages/backend/src/moire/services/tags/tag_index.py:104-125"
      ],
      "problem": "recipes._signature and characters.page both do the same read: count the character's images, count visible images, signature_counts, signature(visible=vocab.general, skip=...), with different limits and then different filters (facet_of in LOOK vs is_identity/is_attire). The visible-image count query is written three times (characters.py:634, recipes.py:259, recipes.py:363, the last two inside one recipe() call). Worse, every outfit entry point goes through recipes.wardrobe, which recomputes the whole signature with no cache: outfits.default, covers, prefill, update_default (twice), and worn() once per character in the image (up to 10), on every image view with characters (WornOutfits). Each call also repeats characters._named (tag_index.browse plus vocab load) two to three times (_key -> character_key, then default -> wardrobe -> character_key). characters.create runs _named twice and update -> names_of a third time. tag_index already has a generation-keyed store (read_derived/store_derived) that exists for exactly this, structurally invalidated by tag writes.",
      "proposal": "Add one function in characters.py (or a new character_look module), e.g. `async def look_of(key, names, key_of, rows) -> Look(n, counted, sig_tags, gender, hair_eyes_rows)`, holding the n/total/signature_counts/signature steps, and have both characters.page and recipes._signature call it. Add `tag_index.visible_count(conn)` for the three duplicate count queries. Memoize look_of (and recipes.wardrobe) per key with tag_index.read_derived/store_derived using the generation captured before computing, so no call site invalidates. Let outfits.worn resolve all keys with one _named call (pass the resolved key into default(), skipping the second character_key). Keep the public signatures; tests in test_recipes/test_outfits/test_characters stay valid.",
@@ -702,7 +702,7 @@
      "title": "characters.page computes the character-only look for every plain tag page",
      "kind": "simplify",
      "evidence": [
-      "packages/backend/src/moire/services/characters.py:611-746",
+      "packages/backend/src/moire/services/characters/characters.py:611-746",
       "packages/backend/src/moire/api/tags.py:258-275",
       "packages/frontend/src/pages/CharacterPage.tsx:63-68",
       "packages/frontend/src/pages/CharacterPage.tsx:195-198"
@@ -721,9 +721,9 @@
      "title": "Deleting a hand-made character leaves its outfits, Default edits and hides behind",
      "kind": "bug",
      "evidence": [
-      "packages/backend/src/moire/services/characters.py:374-389",
+      "packages/backend/src/moire/services/characters/characters.py:374-389",
       "packages/backend/src/moire/database/schema.py:358-395",
-      "packages/backend/src/moire/services/outfits.py:467-494",
+      "packages/backend/src/moire/services/characters/outfits.py:467-494",
       "packages/frontend/src/components/CharacterEditDialog.tsx:62-70"
      ],
      "problem": "remove_made deletes characters, recipe_edits, recipe_additions and recipe_genders rows, but not the character's rows in outfits (character column), outfit_defaults (character) or outfit_hidden (character), nor a tag_meta pin. Their private outfits stay in the Outfits page list (outfits.listing() with no character returns every row), where they have no character: the card falls back to the raw tag, editing opens SaveOutfitDialog whose cover grid and prefill 404 because recipes.wardrobe returns None, and a shared outfit from the deleted character stays in everyone's list with a dangling owner. The confirm text only promises 'Their identity tags and LoRA go too'. Re-creating a character with the same tag later silently resurrects the old outfits.",
@@ -803,13 +803,13 @@
      "title": "Outfit wear rule is implemented twice: pure `wears` and a hand-copied SQL condition in the feed",
      "kind": "dedupe",
      "evidence": [
-      "packages/backend/src/moire/services/outfits.py:101-145",
-      "packages/backend/src/moire/services/image_feed.py:279-297",
-      "packages/backend/src/moire/services/image_feed.py:329-333",
+      "packages/backend/src/moire/services/characters/outfits.py:101-145",
+      "packages/backend/src/moire/services/images/image_feed.py:279-297",
+      "packages/backend/src/moire/services/images/image_feed.py:329-333",
       "packages/backend/tests/test_outfits.py:322"
      ],
      "problem": "outfits.wears(rule, image_id, bases) is the pure statement of 'carries `need` of the rule tags, or is the outfit's own thumbnail'. image_feed re-expresses it in SQL (the comment says 'outfits.wears' and the docstring says 'the feed's SQL condition says the same'), with a separate WearRule consumer. The two are only tied by comments and two separate tests. The feed (a lower-level service) also reaches up into outfits via a function-local import in _resolved, because outfits imports recipes -> characters -> tag_index, which makes a fragile import web for what is a tiny value type.",
-     "proposal": "Move WearRule, wears_most, rule_of-independent parts and `wears` into a pure module `services/outfit_wear.py` together with `wear_condition(rule) -> sa.ColumnElement` (the SQL, taking t.images/t.image_tags), so both forms live side by side and one parametrised test asserts they agree on a seeded DB. image_feed imports outfit_wear at module top; outfits.wear_rule (the async lookup of an id into a rule) stays in outfits and the feed's _resolved keeps calling it lazily or receives the rules from the router.",
+     "proposal": "Move WearRule, wears_most, rule_of-independent parts and `wears` into a pure module `services/characters/outfit_wear.py` together with `wear_condition(rule) -> sa.ColumnElement` (the SQL, taking t.images/t.image_tags), so both forms live side by side and one parametrised test asserts they agree on a seeded DB. image_feed imports outfit_wear at module top; outfits.wear_rule (the async lookup of an id into a rule) stays in outfits and the feed's _resolved keeps calling it lazily or receives the rules from the router.",
      "size": "S",
      "risk": "low",
      "leverage": 2,
@@ -842,15 +842,15 @@
      "title": "characters.py (811 lines) fuses pure look statistics, character IO, the listing and the settings CRUD",
      "kind": "split",
      "evidence": [
-      "packages/backend/src/moire/services/characters.py:28-260",
-      "packages/backend/src/moire/services/characters.py:300-440",
-      "packages/backend/src/moire/services/characters.py:441-609",
-      "packages/backend/src/moire/services/characters.py:611-746",
-      "packages/backend/src/moire/services/characters.py:749-811",
-      "packages/backend/src/moire/services/characters.py:537"
+      "packages/backend/src/moire/services/characters/characters.py:28-260",
+      "packages/backend/src/moire/services/characters/characters.py:300-440",
+      "packages/backend/src/moire/services/characters/characters.py:441-609",
+      "packages/backend/src/moire/services/characters/characters.py:611-746",
+      "packages/backend/src/moire/services/characters/characters.py:749-811",
+      "packages/backend/src/moire/services/characters/characters.py:537"
      ],
      "problem": "Five jobs share one module: pure colour/signature/gender statistics (COLOURS, colour_of, palette, solo_palette, confident, one_colour_per_slot, reads_solo, signature, gender; about 230 lines, all with no IO), name grouping and hand-made characters, the cached listing with covers and avatars, the page, and the validated override CRUD. It reaches into tag_index's private _pins (line 537) and recipes reaches into its private _named. SOLO_ENOUGH, SCORED_ENOUGH and _BEST are defined mid-file after the functions that use them (solo_palette at line 115 reads SOLO_ENOUGH defined at 608).",
-     "proposal": "Move the pure statistics into `services/character_look.py` (no sqlalchemy import) with constants at the top, and re-export from characters for existing callers/tests. Make `tag_index.pins(conn, bases)` public and `characters.named(base)` public (rename _named) since recipes and api call them. Keep characters.py for grouping, made characters, listing, page and settings. This is also where the shared look_of from the first finding belongs.",
+     "proposal": "Move the pure statistics into `services/characters/character_look.py` (no sqlalchemy import) with constants at the top, and re-export from characters for existing callers/tests. Make `tag_index.pins(conn, bases)` public and `characters.named(base)` public (rename _named) since recipes and api call them. Keep characters.py for grouping, made characters, listing, page and settings. This is also where the shared look_of from the first finding belongs.",
      "size": "M",
      "risk": "low",
      "leverage": 2,
@@ -866,7 +866,7 @@
       "packages/frontend/src/pages/settings/sections/CharactersSection.tsx:15-60",
       "packages/frontend/src/pages/settings/sections/CharactersSection.tsx:142-175",
       "packages/frontend/src/pages/GeneratePage.tsx:229",
-      "packages/backend/src/moire/services/attire.py:329-339",
+      "packages/backend/src/moire/services/characters/attire.py:329-339",
       "packages/frontend/src/components/generate/OutfitCover.tsx:27",
       "packages/frontend/src/lib/character.ts:227"
      ],
@@ -883,10 +883,10 @@
    ],
    "cross_cutting_hints": [
     "packages/backend/src/moire/api/tags.py:341-377 set_tag_thumbnail writes tag_meta with raw SQL inside the router (boundary violation, belongs in a tag_index/tag_meta service next to tag_focus.put)",
-    "packages/backend/src/moire/services/characters.py:537 and packages/backend/src/moire/services/recipes.py:282 call private tag_index._pins and characters._named across modules",
-    "packages/backend/src/moire/services/face_detect.py:285-298 imports characters lazily to queue avatars by calling listing() for its side effect (a cycle workaround: face_detect <-> characters)",
+    "packages/backend/src/moire/services/characters/characters.py:537 and packages/backend/src/moire/services/generate/recipes.py:282 call private tag_index._pins and characters._named across modules",
+    "packages/backend/src/moire/services/ai/face_detect.py:285-298 imports characters lazily to queue avatars by calling listing() for its side effect (a cycle workaround: face_detect <-> characters)",
     "packages/frontend/src/lib/generate.ts:739-790 outfit/recipe/cover fetch hooks sit in the 800+ line generate.ts; part of the already reported ruleset-in-lib/gen.ts pattern",
-    "packages/backend/src/moire/services/generation_jobs.py:40 imports clean_tags from outfits (generation depends on the outfits service for a string cleaner; move clean_tags to tag_names)",
+    "packages/backend/src/moire/services/generate/generation_jobs.py:40 imports clean_tags from outfits (generation depends on the outfits service for a string cleaner; move clean_tags to tag_names)",
     "packages/frontend/src/pages/OutfitsPage.tsx:148-164 and packages/frontend/src/components/generate/OutfitCover.tsx:217-230 hand-roll the same segmented radiogroup also present in SortControl, Remix, GenerationsPage (a ui/Segmented component would remove five copies)"
    ]
   },
@@ -901,12 +901,12 @@
       "packages/frontend/src/lib/promptOutline.ts:28-48",
       "packages/frontend/src/lib/promptOutline.ts:55-57",
       "packages/frontend/src/lib/promptOutline.ts:96-125",
-      "packages/backend/src/moire/services/prompt_parse.py:40",
-      "packages/backend/src/moire/services/prompt_parse.py:46",
-      "packages/backend/src/moire/services/prompt_parse.py:74",
-      "packages/backend/src/moire/services/prompt_parse.py:160-266",
-      "packages/backend/src/moire/services/prompt_parse.py:269-285",
-      "packages/backend/src/moire/services/prompt_parse.py:287-300",
+      "packages/backend/src/moire/services/metadata/prompt_parse.py:40",
+      "packages/backend/src/moire/services/metadata/prompt_parse.py:46",
+      "packages/backend/src/moire/services/metadata/prompt_parse.py:74",
+      "packages/backend/src/moire/services/metadata/prompt_parse.py:160-266",
+      "packages/backend/src/moire/services/metadata/prompt_parse.py:269-285",
+      "packages/backend/src/moire/services/metadata/prompt_parse.py:287-300",
       "packages/frontend/src/lib/promptOutline.test.ts:49"
      ],
      "problem": "Both sides are meant to produce the same term names (the board matches its terms to the backend's prompt tags via /tags/place and the prompt: tags). Verified differences: (1) FE splitSpans does depth++ on every '(' / '[' and only splits at depth 0, so one unclosed '(' (or the emoticon ';(' / '>:(' that the backend knows whole) swallows every later comma into one piece; backend _scan always cuts at separators whatever the stack holds. (2) Backend also splits on '|', BREAK and AND and treats '{}' as a group and emoticons (:d, ^_^, ;)) as whole tags; FE knows none of these. (3) FE prose = 5+ words with no underscore; backend is_prose needs 9+ words, or 5+ with a sentence end or a pronoun/article/verb marker, so a 5-word spaced tag is 'prose' on the board and a tag in the DB. (4) Backend strips a bare decimal weight ('smile:1.05') and edge punctuation ('smile.'); FE keeps both in the name (the test at promptOutline.test.ts:49 pins the colon case), so the board term name differs from the stored tag. (5) Weight rule: neither side computes it (already reported), so this is the same gap seen from the name side.",
@@ -927,20 +927,20 @@
      "title": "Generation limits are copied into 2 to 3 files each with no link between them",
      "kind": "drift",
      "evidence": [
-      "packages/backend/src/moire/services/generation_jobs.py:324",
-      "packages/backend/src/moire/services/remix.py:30",
+      "packages/backend/src/moire/services/generate/generation_jobs.py:324",
+      "packages/backend/src/moire/services/generate/remix.py:30",
       "packages/frontend/src/lib/generateForm.ts:104",
-      "packages/backend/src/moire/services/outfits.py:31",
+      "packages/backend/src/moire/services/characters/outfits.py:31",
       "packages/frontend/src/lib/outfit.ts:10",
-      "packages/backend/src/moire/services/outfits.py:148",
+      "packages/backend/src/moire/services/characters/outfits.py:148",
       "packages/backend/src/moire/api/generate.py:107-108",
-      "packages/backend/src/moire/services/remix.py:105-108",
+      "packages/backend/src/moire/services/generate/remix.py:105-108",
       "packages/frontend/src/lib/generateForm.ts:497-500",
-      "packages/backend/src/moire/services/generator_graph.py:42",
+      "packages/backend/src/moire/services/generate/generator_graph.py:42",
       "packages/frontend/src/lib/requests.ts:59"
      ],
      "problem": "MAX_CHARACTERS = 8 is defined in generation_jobs.py and remix.py (comment: 'the composer's MAX_CHARACTERS') and again in generateForm.ts. MAX_TAGS = 40 (outfits.py) mirrors MAX_OUTFIT_TAGS (outfit.ts). steps 1..200 and cfg 0..30 appear as pydantic bounds (api/generate.py), as a hand check in remix.py and as samplingOf in generateForm.ts. Seed range 2**50 is SEED_MAX on one side and a literal in randomSeed on the other. outfits.WORN_MAX_CHARACTERS = 10 beside 8 elsewhere may or may not be deliberate. If one is raised, the other side silently truncates (backend slices characters[:MAX_CHARACTERS]) or rejects.",
-     "proposal": "Define the limits once in the backend, e.g. a LIMITS dict in services/generator_graph.py (or a new services/generation_limits.py) used by generation_jobs, remix, outfits and the pydantic Field bounds, and return it from an existing cheap endpoint (GET /generate/generators or a new /generate/limits). Frontend reads it through one useGenerationLimits query with the current numbers as the default. Delete the three local constants. Add a one-line comment on WORN_MAX_CHARACTERS saying why it differs, or unify it.",
+     "proposal": "Define the limits once in the backend, e.g. a LIMITS dict in services/generate/generator_graph.py (or a new services/generate/generation_limits.py) used by generation_jobs, remix, outfits and the pydantic Field bounds, and return it from an existing cheap endpoint (GET /generate/generators or a new /generate/limits). Frontend reads it through one useGenerationLimits query with the current numbers as the default. Delete the three local constants. Add a one-line comment on WORN_MAX_CHARACTERS saying why it differs, or unify it.",
      "size": "S",
      "risk": "low",
      "leverage": 3,
@@ -952,12 +952,12 @@
      "title": "No response models or generated types: every payload and closed vocabulary is typed by hand on both sides",
      "kind": "boundary",
      "evidence": [
-      "packages/backend/src/moire/services/image_feed.py:43-62",
-      "packages/backend/src/moire/services/image_tags.py:266-277",
+      "packages/backend/src/moire/services/images/image_feed.py:43-62",
+      "packages/backend/src/moire/services/tags/image_tags.py:266-277",
       "packages/frontend/src/lib/imageFilter.ts:12-46",
       "packages/frontend/src/lib/queries.ts:361",
       "packages/frontend/src/lib/queries.ts:382-397",
-      "packages/backend/src/moire/services/prompt_board.py:26-42",
+      "packages/backend/src/moire/services/generate/prompt_board.py:26-42",
       "packages/frontend/src/lib/mergeSuggestions.ts:4",
       "packages/frontend/src/lib/tagColour.ts:128-140"
      ],
@@ -977,9 +977,9 @@
      "evidence": [
       "packages/frontend/src/lib/tagColour.ts:8-58",
       "packages/frontend/src/lib/tagColour.ts:61-72",
-      "packages/backend/src/moire/services/characters.py:29-56",
-      "packages/backend/src/moire/services/characters.py:126-139",
-      "packages/backend/src/moire/services/characters.py:72-84"
+      "packages/backend/src/moire/services/characters/characters.py:29-56",
+      "packages/backend/src/moire/services/characters/characters.py:126-139",
+      "packages/backend/src/moire/services/characters/characters.py:72-84"
      ],
      "problem": "26 colour words with identical hue/sat/lightness, the neutrals list, the multicolour tag set and the 'longest two-word then one-word suffix' lookup (colourWord vs colour_of) exist in both. They agree today (checked entry by entry; FE lifts neutrals deliberately). The character page palette (backend) and the chip outlines (frontend) are meant to match, and adding a colour on one side makes a character's page colour and its tag chips disagree.",
      "proposal": "Move the palette and multicolour sets to a single JSON (packages/backend/src/moire/data/hair_eye_colours.json) loaded by characters.py and returned by an existing endpoint (e.g. alongside /tags/groups) so tagColour.ts fetches it once; or generate tagColour's table from the same JSON at build time. Keep the neutral lightening as a frontend-side override map. Minimum viable: a vitest that reads the backend JSON/py-exported table and compares.",
@@ -994,14 +994,14 @@
      "title": "Mirrored pure functions rely on comments and copy-pasted test cases instead of one fixture",
      "kind": "drift",
      "evidence": [
-      "packages/backend/src/moire/services/generation_compose.py:1-7",
+      "packages/backend/src/moire/services/generate/generation_compose.py:1-7",
       "packages/frontend/src/lib/compose.ts:1-10",
-      "packages/backend/src/moire/services/generation_compose.py:68-83",
+      "packages/backend/src/moire/services/generate/generation_compose.py:68-83",
       "packages/frontend/src/lib/compose.ts:54-65",
       "packages/frontend/src/lib/requests.ts:1-20",
-      "packages/backend/src/moire/services/generator_graph.py:444-455",
+      "packages/backend/src/moire/services/generate/generator_graph.py:444-455",
       "packages/frontend/src/lib/batchName.ts:1-5",
-      "packages/backend/src/moire/services/tag_names.py:23-47",
+      "packages/backend/src/moire/services/tags/tag_names.py:23-47",
       "packages/frontend/src/lib/tags.ts:36-39",
       "packages/frontend/src/lib/tags.ts:262-267"
      ],
@@ -1025,7 +1025,7 @@
       "packages/frontend/src/lib/imageFilter.ts:470",
       "packages/frontend/src/lib/promptOutline.ts:119",
       "packages/frontend/src/lib/tags.ts:262-267",
-      "packages/backend/src/moire/services/tag_names.py:46-52"
+      "packages/backend/src/moire/services/tags/tag_names.py:46-52"
      ],
      "problem": "CLAUDE.md says canonical_name is the one spelling rule and lib/tags.ts canonicalName mirrors it, including the lora-token pass-through ('<lora:a b>' is left alone). These five sites write .replace(/\\s+/g, '_') themselves, some with trim and some without, none with the '<' exception. A typed '<lora:my style:0.8>' in a chip or new-character field becomes '<lora:my_style:0.8>'. Frontend-only today, so the backend still stores canonical names, but it is exactly the duplication the rule was written to prevent.",
      "proposal": "Replace the five inline regexes with canonicalName from lib/tags.ts (promptOutline needs canonicalName(x).toLowerCase()). Add an eslint no-restricted-syntax rule or a grep test banning the literal replace(/\\s+/g, \"_\") outside tags.ts.",
@@ -1040,12 +1040,12 @@
      "title": "LoRA file-stem rule is implemented three times (gen_metadata.lora_name, generator_graph.lora_stem, two frontend copies)",
      "kind": "dedupe",
      "evidence": [
-      "packages/backend/src/moire/services/gen_metadata.py:588",
-      "packages/backend/src/moire/services/gen_metadata.py:598-601",
-      "packages/backend/src/moire/services/generator_graph.py:55-64",
+      "packages/backend/src/moire/services/metadata/gen_metadata.py:588",
+      "packages/backend/src/moire/services/metadata/gen_metadata.py:598-601",
+      "packages/backend/src/moire/services/generate/generator_graph.py:55-64",
       "packages/frontend/src/components/generate/RunControls.tsx:19-23",
       "packages/frontend/src/pages/WorkflowSetupPage.tsx:404",
-      "packages/backend/src/moire/services/comfy_models.py:46-48"
+      "packages/backend/src/moire/services/generate/comfy_models.py:46-48"
      ],
      "problem": "lora_stem's docstring says it is 'the key that matches image_loras.name', but image_loras.name is written by gen_metadata.lora_name, a separate regex implementation (it also .strip()s; lora_stem does not). Frontend stemOf (RunControls) mirrors them, and WorkflowSetupPage:404 strips only '.safetensors'. The extension list (safetensors, ckpt, pt, pth, bin) is spelled in four places. A change in one means LoRA preset lookup, recipe matching and the LoRA feed filter stop agreeing, silently (they just find nothing).",
      "proposal": "Make gen_metadata.lora_name call generator_graph.lora_stem (or move lora_stem to tag_names.py/a tiny services/file_names.py both import) after the strip. Frontend: comfy_models already returns 'stem' per model, so use that field where a model object is at hand and keep a single stemOf in lib/ (not a component file) for free-text names; replace WorkflowSetupPage:404 with it. Add a shared fixture row list to the mirrored-fixtures set from finding 5.",
@@ -1061,10 +1061,10 @@
      "kind": "boundary",
      "evidence": [
       "packages/frontend/src/lib/character.ts:76-92",
-      "packages/backend/src/moire/services/tag_categories.py:37",
-      "packages/backend/src/moire/services/characters.py:399",
-      "packages/backend/src/moire/services/characters.py:423",
-      "packages/backend/src/moire/services/characters.py:520"
+      "packages/backend/src/moire/services/tags/tag_categories.py:37",
+      "packages/backend/src/moire/services/characters/characters.py:399",
+      "packages/backend/src/moire/services/characters/characters.py:423",
+      "packages/backend/src/moire/services/characters/characters.py:520"
      ],
      "problem": "The frontend derives a character's name and series from the tag text with /^(.+?) \\((.+)\\)$/ on the display string; the backend has its own single-trailing-qualifier regex (_QUALIFIER) for the same concept (name_(series)) and returns name/series only as user overrides (null otherwise). The two regexes differ: 'a_(b)_(c)' is name 'a' series 'b) (c' on the frontend and no match on the backend. Anything that later sorts, searches or groups by series on the backend (tag_categories already needs it) will get different answers from what the UI shows.",
      "proposal": "Let tag_categories (or characters.py) expose character_parts(tag) -> (name, series) using the stricter _QUALIFIER rule, include the resolved name/series in /tags/characters and the character page payload (override first, then derived), and delete characterName/displayName's regex in character.ts. Test both with the existing hu_tao_(genshin_impact) style cases plus the nested-paren case.",
@@ -1078,10 +1078,10 @@
    ],
    "cross_cutting_hints": [
     "packages/frontend/src/lib/imageFilter.ts:34 comment cites api/images.list_images for thumb_url; the thumb URLs are built in _attach_thumb_urls (api/images.py:136), a stale pointer worth fixing with the ImageDoc split",
-    "packages/backend/src/moire/services/image_tags.py:300-305 find_image ignores projection (already reported), but feed/detail payload shape depends on it returning the whole row, so any ImageDetail type must be built from row_to_doc",
+    "packages/backend/src/moire/services/tags/image_tags.py:300-305 find_image ignores projection (already reported), but feed/detail payload shape depends on it returning the whole row, so any ImageDetail type must be built from row_to_doc",
     "packages/frontend/src/lib/imageFilter.ts:1-3 and model?: string vs backend feed_filter model: list[str] (api/images.py:64): the frontend only ever sends one model, backend accepts several; harmless but undocumented",
-    "packages/backend/src/moire/services/outfits.py:148 WORN_MAX_CHARACTERS = 10 vs 8 elsewhere: confirm intent",
-    "packages/backend/src/moire/services/workflow_family.py:20-23 reads the '$.moire.family' key as a second family id; the writer of that key (generation placement) and this reader are in different modules with no shared constant"
+    "packages/backend/src/moire/services/characters/outfits.py:148 WORN_MAX_CHARACTERS = 10 vs 8 elsewhere: confirm intent",
+    "packages/backend/src/moire/services/metadata/workflow_family.py:20-23 reads the '$.moire.family' key as a second family id; the writer of that key (generation placement) and this reader are in different modules with no shared constant"
    ]
   },
   {
@@ -1097,11 +1097,11 @@
       "packages/backend/src/moire/api/rules.py:335-347",
       "packages/backend/src/moire/api/rules.py:221-290",
       "packages/backend/src/moire/api/rules.py:351-381",
-      "packages/backend/src/moire/services/reproject.py:36-41",
-      "packages/backend/src/moire/services/generator_setup.py:138-143"
+      "packages/backend/src/moire/services/metadata/reproject.py:36-41",
+      "packages/backend/src/moire/services/generate/generator_setup.py:138-143"
      ],
      "problem": "list_signatures builds the signature index, samples, family ids, names, file matches and node-type descriptions inline (SQL, json parsing, two closures). import_workflow_files then calls list_signatures() (a route handler, full signature scan with sample graph parsing) just to learn which workflow ids are known. put_workflow_name and import_workflow_files hold their upserts in the router. gen_rulesets is read in three modules (rules.py, reproject._load_rulesets, generator_setup) but only written here, with no owner. put/delete_ruleset re-import reproject_by_sig_async inline although `reproject` is already imported at the top (line 22). preview_ruleset repeats the id_candidates raw lookup that api/images.py:528-542 also has (jscpd clone).",
-     "proposal": "Create services/workflow_signatures.py with `async def list_signatures() -> list[dict]` (the current body, split into `_sample_rows(conn, sigs)`, `_family_labels(conn, family_ids)`) and `async def known_workflow_ids(conn, ids)` (one cheap query, so import no longer calls a route). Create services/rulesets.py owning gen_rulesets: `get/list/put/delete` plus the reproject trigger, and move workflow_names/workflow_files upserts next to them (or into workflow_family.py). Add `image_tags.gen_raw_for(conn, image_id)` (or services/gen_raw.py) returning the raw doc via id_candidates and use it in rules.preview_ruleset and images.get_image_workflow. The router then only parses bodies and maps errors. Drop the inline imports.",
+     "proposal": "Create services/metadata/workflow_signatures.py with `async def list_signatures() -> list[dict]` (the current body, split into `_sample_rows(conn, sigs)`, `_family_labels(conn, family_ids)`) and `async def known_workflow_ids(conn, ids)` (one cheap query, so import no longer calls a route). Create services/metadata/rulesets.py owning gen_rulesets: `get/list/put/delete` plus the reproject trigger, and move workflow_names/workflow_files upserts next to them (or into workflow_family.py). Add `image_tags.gen_raw_for(conn, image_id)` (or services/metadata/gen_raw.py) returning the raw doc via id_candidates and use it in rules.preview_ruleset and images.get_image_workflow. The router then only parses bodies and maps errors. Drop the inline imports.",
      "size": "M",
      "risk": "low",
      "leverage": 4,
@@ -1119,11 +1119,11 @@
      "evidence": [
       "packages/backend/src/moire/api/rules.py:169-186",
       "packages/backend/src/moire/api/rules.py:120-147",
-      "packages/backend/src/moire/services/generator_setup.py:103-135",
-      "packages/backend/src/moire/services/workflow_family.py:18-27"
+      "packages/backend/src/moire/services/generate/generator_setup.py:103-135",
+      "packages/backend/src/moire/services/metadata/workflow_family.py:18-27"
      ],
      "problem": "workflow_family.WORKFLOW_ID is the SQL definition of a family key (workflow.id, else moire.family). generator_setup re-derives the same key in Python by hand (isinstance chains), then repeats the name lookup, the unnamed-family file fallback (workflow_files + editor_node_types + match_workflow_file) that rules._family does. The module docstring promises that the Rules page and the gallery 'can never disagree about what a family holds', but the Generator setup path is a third reader with its own copy; a change to the family key or the fallback order (e.g. a new moire.* key) must be made in three places.",
-     "proposal": "Add to services/workflow_family.py a pure `family_id_of(raw: dict) -> str | None` (mirror of WORKFLOW_ID, with a test that SQL and Python agree on a table of raw docs) and `async def label_for(conn, family_id, ui_nodes) -> {name, file_name, file_match}` implementing 'saved name, else best imported file'. rules.list_signatures batches over many families, so give it `labels_for(conn, {family_id: ui_nodes})` and have label_for call it with one entry. Use from both rules.py and generator_setup.py.",
+     "proposal": "Add to services/metadata/workflow_family.py a pure `family_id_of(raw: dict) -> str | None` (mirror of WORKFLOW_ID, with a test that SQL and Python agree on a table of raw docs) and `async def label_for(conn, family_id, ui_nodes) -> {name, file_name, file_match}` implementing 'saved name, else best imported file'. rules.list_signatures batches over many families, so give it `labels_for(conn, {family_id: ui_nodes})` and have label_for call it with one entry. Use from both rules.py and generator_setup.py.",
      "size": "S",
      "risk": "low",
      "leverage": 3,
@@ -1292,9 +1292,9 @@
      "kind": "drift",
      "evidence": [
       "packages/frontend/src/lib/tagColour.ts:17-52",
-      "packages/backend/src/moire/services/characters.py:29-59",
+      "packages/backend/src/moire/services/characters/characters.py:29-59",
       "packages/frontend/src/lib/tags.ts:34-37",
-      "packages/backend/src/moire/services/tag_names.py:21",
+      "packages/backend/src/moire/services/tags/tag_names.py:21",
       "packages/frontend/src/lib/tags.ts:193-198",
       "packages/frontend/src/lib/tagColour.ts:99-117",
       "packages/frontend/src/lib/mergeSuggestions.ts:4-5"
@@ -1315,7 +1315,7 @@
    ],
    "cross_cutting_hints": [
     "packages/backend/src/moire/api/images.py:528-542 repeats the image_gen_raw lookup via id_candidates (clone of rules.py:359-373); fold into one helper next to image_tags.id_candidates",
-    "packages/backend/src/moire/services/generator_setup.py:96-135 re-derives workflow family id/name/file-match by hand (see finding 2)",
+    "packages/backend/src/moire/services/generate/generator_setup.py:96-135 re-derives workflow family id/name/file-match by hand (see finding 2)",
     "packages/frontend/src/components/TagPanel.tsx:88-96 and packages/frontend/src/components/generate/PromptBoard.tsx:147-155 hand-roll the /tags/samples query (see finding 3)",
     "packages/frontend/src/components/NewCharacterDialog.tsx:157, components/generate/Outfit.tsx:164, components/generate/CharacterBlock.tsx:260, components/generate/PromptInput.tsx:252, components/generate/ChipInput.tsx:84 each carry their own suggestion-list ArrowUp/Down handler (see finding 6)",
     "packages/frontend/src/pages/RulesPage.tsx:161-181 and pages/TagsPage.tsx:66-74 are two more hand-rolled localStorage prefs (extends the wave1 finding on useTagMarks vs DETAIL_TAB_KEY)",
@@ -1330,14 +1330,14 @@
      "title": "Tagger parameters and defaults are spelled in several places; SettingsPatch is a hand-synced copy of DEFAULT_AI_SETTINGS",
      "kind": "dedupe",
      "evidence": [
-      "packages/backend/src/moire/services/ai_settings.py:20-38",
-      "packages/backend/src/moire/services/ai_settings.py:41-70",
+      "packages/backend/src/moire/services/ai/ai_settings.py:20-38",
+      "packages/backend/src/moire/services/ai/ai_settings.py:41-70",
       "packages/backend/src/moire/api/ai.py:26-37",
-      "packages/backend/src/moire/services/ai_jobs.py:363-383",
-      "packages/backend/src/moire/services/ai_jobs.py:402-411",
-      "packages/backend/src/moire/services/ai_tagger.py:108-118",
-      "packages/backend/src/moire/services/ai_tagger.py:248-258",
-      "packages/backend/src/moire/services/ai_tagger.py:483-495",
+      "packages/backend/src/moire/services/ai/ai_jobs.py:363-383",
+      "packages/backend/src/moire/services/ai/ai_jobs.py:402-411",
+      "packages/backend/src/moire/services/ai/ai_tagger.py:108-118",
+      "packages/backend/src/moire/services/ai/ai_tagger.py:248-258",
+      "packages/backend/src/moire/services/ai/ai_tagger.py:483-495",
       "packages/frontend/src/lib/ai.ts:8-21"
      ],
      "problem": "The same knobs (general_thresh 0.35, character_thresh 0.85, mcut flags, max_general 80, max_character 40, idle 300) have defaults in DEFAULT_AI_SETTINGS, in the pydantic SettingsPatch field list, in _tag_one as eight settings.get(key, default) fallbacks, and as keyword defaults on select_tags, WDTagger.predict and TaggerManager.predict_image (which threads six separate args through twice). Adding a knob means editing 5 to 6 sites and a missed one silently falls back to a stale literal. clean_settings_patch coerces floats and ints but not general_mcut/character_mcut, which are only coerced because SettingsPatch does; removing SettingsPatch would let them through uncoerced. No range check exists on thresholds, so a typo like 35 silently tags nothing.",
@@ -1352,11 +1352,11 @@
      "title": "A failed model download is swallowed: download_wd_tagger returns paths and the load fails with a bare FileNotFoundError",
      "kind": "bug",
      "evidence": [
-      "packages/backend/src/moire/services/ai_tagger_download.py:166-182",
-      "packages/backend/src/moire/services/ai_tagger_download.py:227-231",
-      "packages/backend/src/moire/services/ai_tagger_download.py:355-370",
-      "packages/backend/src/moire/services/ai_tagger.py:226-227",
-      "packages/backend/src/moire/services/ai_jobs.py:256-263"
+      "packages/backend/src/moire/services/ai/ai_tagger_download.py:166-182",
+      "packages/backend/src/moire/services/ai/ai_tagger_download.py:227-231",
+      "packages/backend/src/moire/services/ai/ai_tagger_download.py:355-370",
+      "packages/backend/src/moire/services/ai/ai_tagger.py:226-227",
+      "packages/backend/src/moire/services/ai/ai_jobs.py:256-263"
      ],
      "problem": "_runner catches every Exception and stores it on the state (status 'error', error text), so awaiting the task in wait() returns normally. download_wd_tagger then returns the expected paths without checking the state, and WDTagger.load goes straight to _load_labels_from_csv, which raises FileNotFoundError ('No such file or directory ...csv'). That text becomes TaggerManager's load_error and the AI job's job.error (shown as the load error line and the toast 'AI tagging failed: ...') instead of the real cause (HTTP 404 for a mistyped repo, DNS failure, disk full). The download card shows the real error only while no load error masks it.",
      "proposal": "In download_wd_tagger, after dm.wait, read the state: if status == 'error' raise RuntimeError(st.error); if 'cancelled' raise asyncio.CancelledError. Add a test with a ModelDownloadManager whose _download_one raises, asserting the load error carries the download error text.",
@@ -1370,8 +1370,8 @@
      "title": "AI worker loop dies on any error outside the per-image try, leaving the job 'running' and every later job queued forever",
      "kind": "bug",
      "evidence": [
-      "packages/backend/src/moire/services/ai_jobs.py:240-313",
-      "packages/backend/src/moire/services/ai_jobs.py:135-139"
+      "packages/backend/src/moire/services/ai/ai_jobs.py:240-313",
+      "packages/backend/src/moire/services/ai/ai_jobs.py:135-139"
      ],
      "problem": "_worker_loop sets job.status='running' and then runs get_ai_settings() (a DB read), set_idle_unload_s and resolved_model_target outside any except. Only _prepare_model and the per-image body are guarded. If the settings read raises (SQLite busy, schema error) the exception passes through the finally and out of the while True, ending the worker task. The job stays 'running' forever (Cancel only sets cancel_requested), and since start() is called once from the lifespan, every later enqueue goes into a queue nobody reads until restart.",
      "proposal": "Wrap the per-job body in try/except Exception that logs, sets job.status='error' and job.error=str(e), and lets the loop continue (keep the finally for in-flight release and counters). Add a test that makes get_ai_settings raise for one job and checks a second job still completes.",
@@ -1385,14 +1385,14 @@
      "title": "'Untagged' and 'not quarantined' are defined in two parallel queries beside the feed's own filter",
      "kind": "dedupe",
      "evidence": [
-      "packages/backend/src/moire/services/ai_jobs.py:197-213",
+      "packages/backend/src/moire/services/ai/ai_jobs.py:197-213",
       "packages/backend/src/moire/api/ai.py:204-253",
-      "packages/backend/src/moire/services/image_tags.py:517-520",
-      "packages/backend/src/moire/services/image_feed.py:129",
-      "packages/backend/src/moire/services/image_feed.py:167"
+      "packages/backend/src/moire/services/tags/image_tags.py:517-520",
+      "packages/backend/src/moire/services/images/image_feed.py:129",
+      "packages/backend/src/moire/services/images/image_feed.py:167"
      ],
      "problem": "enqueue_untagged selects ids with has_ai_tags false plus an inline coalesce(quarantined, False).is_(False), with a comment that it must match /ai/coverage; /ai/coverage (a 50-line raw SQL aggregate inside the router) repeats the coalesce and counts has_ai_tags and has_tags. Both skip image_tags.not_quarantined(), which CONTEXT.md names as the shared definition. The invariant 'a run tags the set the UI counted' is held only by a comment across two files plus the feed's no_ai_tags filter, a third spelling.",
-     "proposal": "Create services/ai_coverage.py with untagged_clause(library_id=None), built from image_tags.not_quarantined() and has_ai_tags, and coverage() returning the dict api/ai.py builds now. api/ai.py ai_coverage becomes a one-line call and enqueue_untagged uses untagged_clause. Add a test asserting coverage.untagged equals the ids enqueue_untagged would pick (large limit) with a quarantined image present.",
+     "proposal": "Create services/ai/ai_coverage.py with untagged_clause(library_id=None), built from image_tags.not_quarantined() and has_ai_tags, and coverage() returning the dict api/ai.py builds now. api/ai.py ai_coverage becomes a one-line call and enqueue_untagged uses untagged_clause. Add a test asserting coverage.untagged equals the ids enqueue_untagged would pick (large limit) with a quarantined image present.",
      "size": "S",
      "risk": "low",
      "leverage": 2,
@@ -1422,13 +1422,13 @@
      "title": "GET /ai/faces enqueues every avatar; face worker state is module globals and rides the AI router and settings blob",
      "kind": "boundary",
      "evidence": [
-      "packages/backend/src/moire/services/face_detect.py:88-100",
-      "packages/backend/src/moire/services/face_detect.py:191-199",
-      "packages/backend/src/moire/services/face_detect.py:286-298",
-      "packages/backend/src/moire/services/face_detect.py:60-71",
+      "packages/backend/src/moire/services/ai/face_detect.py:88-100",
+      "packages/backend/src/moire/services/ai/face_detect.py:191-199",
+      "packages/backend/src/moire/services/ai/face_detect.py:286-298",
+      "packages/backend/src/moire/services/ai/face_detect.py:60-71",
       "packages/backend/src/moire/api/ai.py:123-143",
       "packages/frontend/src/pages/settings/sections/CharactersSection.tsx:40-58",
-      "packages/backend/src/moire/services/ai_settings.py:90-100"
+      "packages/backend/src/moire/services/ai/ai_settings.py:90-100"
      ],
      "problem": "status() is a read, but when ready it calls _queue_avatars, which runs characters.listing() (a full character query) and flips _avatars_queued; the frontend depends on it (CharactersSection:49-50), so the work starts only if someone opens Settings. status() also reads settings three times. The worker state is five module globals (_pending, _batch, drains, _worker, _avatars_queued) where every other background worker is a manager class with a singleton getter. The face endpoints live in api/ai.py but have no function in lib/ai.ts: CharactersSection does raw api() calls with its own FaceStatus type and re-sums download bytes. face_detect and prompt_positive_only are stored in the tagger settings doc, so update_ai_settings carries a reproject trigger and tag_index invalidation unrelated to the tagger.",
      "proposal": "Move queue-all-avatars to an explicit call: once from lifespan when ready() and after the face download completes, and make status() pure. Wrap the globals in a FaceWorker class with the shape of the other managers (resettable in tests). Add fetchFaces/postFaces to lib/ai.ts and use them in CharactersSection. Longer term, split face_detect and prompt_positive_only out of the 'ai' doc so update_ai_settings handles only tagger knobs.",
@@ -1481,16 +1481,16 @@
      "title": "Settings readers go through the ai_jobs re-export shim while others import ai_settings directly",
      "kind": "simplify",
      "evidence": [
-      "packages/backend/src/moire/services/ai_jobs.py:17",
-      "packages/backend/src/moire/services/ai_jobs.py:28-34",
+      "packages/backend/src/moire/services/ai/ai_jobs.py:17",
+      "packages/backend/src/moire/services/ai/ai_jobs.py:28-34",
       "packages/backend/src/moire/api/ai.py:12-16",
       "packages/backend/src/moire/api/activity.py:22",
       "packages/backend/src/moire/main.py:14",
-      "packages/backend/src/moire/services/face_detect.py:31",
-      "packages/backend/src/moire/services/tag_categories.py:113"
+      "packages/backend/src/moire/services/ai/face_detect.py:31",
+      "packages/backend/src/moire/services/tags/tag_categories.py:113"
      ],
      "problem": "ai_jobs re-exports DEFAULT_AI_SETTINGS, get_ai_settings and update_ai_settings in __all__ purely as a pass-through, so api/ai.py, api/activity.py and main.py import settings from the job manager module while face_detect and tag_categories import ai_settings. Two import paths for one concept make ai_jobs look like the owner of settings.",
-     "proposal": "Delete the three names from ai_jobs.__all__ and its import, and change the three callers to import from services.ai_settings. Check tests that import them via ai_jobs (none found in test_ai_jobs.py).",
+     "proposal": "Delete the three names from ai_jobs.__all__ and its import, and change the three callers to import from services.ai.ai_settings. Check tests that import them via ai_jobs (none found in test_ai_jobs.py).",
      "size": "S",
      "risk": "low",
      "leverage": 1,
@@ -1499,10 +1499,10 @@
     }
    ],
    "cross_cutting_hints": [
-    "packages/backend/src/moire/services/reproject.py:53-62 reads prompt_positive_only from the 'ai' app_settings doc by raw SQL while ai_settings.get_ai_settings() is the owner (an extraction knob stored in tagger settings)",
-    "packages/backend/src/moire/services/ai_settings.py:68-80 and reproject.py:53-62 are two more app_settings JSON-row readers (relevant to the existing app_settings read/upsert finding)",
+    "packages/backend/src/moire/services/metadata/reproject.py:53-62 reads prompt_positive_only from the 'ai' app_settings doc by raw SQL while ai_settings.get_ai_settings() is the owner (an extraction knob stored in tagger settings)",
+    "packages/backend/src/moire/services/ai/ai_settings.py:68-80 and reproject.py:53-62 are two more app_settings JSON-row readers (relevant to the existing app_settings read/upsert finding)",
     "packages/frontend/src/pages/ImageView.tsx:1200 consumes aiJobLabel; the module-level jobOfImage Map in packages/frontend/src/hooks/useAiTagging.ts:11 survives across images and is cleared only when the job query errors or ends",
-    "packages/backend/src/moire/services/ai_tagger_download.py:26 DEFAULT_CACHE_DIR '.cache/moire/models' is a second default beside settings.model_cache_dir_path (core/config.py:109), reachable only when cache_dir is empty"
+    "packages/backend/src/moire/services/ai/ai_tagger_download.py:26 DEFAULT_CACHE_DIR '.cache/moire/models' is a second default beside settings.model_cache_dir_path (core/config.py:109), reachable only when cache_dir is empty"
    ]
   },
   {
@@ -1859,13 +1859,13 @@
      "title": "prompt_presets and lora_presets are the same CRUD service written twice, with two PresetError classes and doubled route error mapping",
      "kind": "dedupe",
      "evidence": [
-      "packages/backend/src/moire/services/prompt_presets.py:21-128",
-      "packages/backend/src/moire/services/lora_presets.py:41-117",
+      "packages/backend/src/moire/services/generate/prompt_presets.py:21-128",
+      "packages/backend/src/moire/services/generate/lora_presets.py:41-117",
       "packages/backend/src/moire/api/generate.py:590-655",
       "docs/refactor-pass/leads.txt:61-62"
      ],
      "problem": "listing/create/update/delete, the name 1..80 and text <=4000 validation in `clean`, the `update` select-after-update, `delete` rowcount, and `updated_at` stamping are line-for-line the same (jscpd clones at lora_presets 78-87 and 99-110). Each module declares its own `PresetError`, so api/generate.py has two parallel try/except-to-400 blocks and eight near-identical handlers. A new preset field has to be added in two places and the validators can drift (e.g. strength rounding only exists on one side).",
-     "proposal": "Add `services/preset_store.py` with `class PresetError(ValueError)` and `class Store(table, clean_fields, order_by, seed=None)` providing listing/create/update/delete; each module becomes its field validator (`clean`) plus `store = Store(...)`. Share `clean_name`/`clean_text`. In api/generate.py register both route sets from one helper (`preset_routes(prefix, store)`) mapping PresetError once. Keep prompt_presets' seed-once-flag in its module.",
+     "proposal": "Add `services/generate/preset_store.py` with `class PresetError(ValueError)` and `class Store(table, clean_fields, order_by, seed=None)` providing listing/create/update/delete; each module becomes its field validator (`clean`) plus `store = Store(...)`. Share `clean_name`/`clean_text`. In api/generate.py register both route sets from one helper (`preset_routes(prefix, store)`) mapping PresetError once. Keep prompt_presets' seed-once-flag in its module.",
      "size": "M",
      "risk": "low",
      "leverage": 3,
@@ -1878,13 +1878,13 @@
      "title": "lora_presets.py mixes CRUD with library analytics SQL and keeps its own ad-hoc TTL cache beside tag_index",
      "kind": "split",
      "evidence": [
-      "packages/backend/src/moire/services/lora_presets.py:119-335",
-      "packages/backend/src/moire/services/lora_presets.py:168-196",
-      "packages/backend/src/moire/services/lora_presets.py:199-300",
+      "packages/backend/src/moire/services/generate/lora_presets.py:119-335",
+      "packages/backend/src/moire/services/generate/lora_presets.py:168-196",
+      "packages/backend/src/moire/services/generate/lora_presets.py:199-300",
       "packages/backend/src/moire/api/tags.py:121-175"
      ],
      "problem": "Past line 119 the module is not presets: it is trigger-word mining over `image_tags`/`image_loras`/`images` with a module-global `_total`/TOTAL_TTL cache that ignores tag writes (60 s stale, not generation-based), while the same codebase's derived-cache mechanism (`tag_index.read_derived/store_derived` with `current_generation`, used by api/tags.py `_library_bases` and `board_offers`) invalidates structurally. The 'distinct prompt' key (`coalesce(gen_prompt,_id)`), the `tag LIKE 'prompt:%'` filter and `not_quarantined()` are re-assembled three times (_prompt_total, _library, _common), which is how a filter gets missed in one of them.",
-     "proposal": "Move lines 119-335 (file_words, library_words, _prompt_total/_library/_common/_file, suggestions) to `services/lora_words.py`, leaving lora_presets as CRUD only. Inside, add one `_prompt_scope()` helper returning (key, tagged join, prompt predicate) used by the three queries, and replace `_total` with `tag_index.read_derived('lora-prompt-total')`/`store_derived`. Keep file_words/library_words pure and their tests.",
+     "proposal": "Move lines 119-335 (file_words, library_words, _prompt_total/_library/_common/_file, suggestions) to `services/generate/lora_words.py`, leaving lora_presets as CRUD only. Inside, add one `_prompt_scope()` helper returning (key, tagged join, prompt predicate) used by the three queries, and replace `_total` with `tag_index.read_derived('lora-prompt-total')`/`store_derived`. Keep file_words/library_words pure and their tests.",
      "size": "M",
      "risk": "low",
      "leverage": 3,
@@ -1899,11 +1899,11 @@
      "title": "prompt_board._section is a 39-complexity if-ladder that reaches into attire's private functions",
      "kind": "simplify",
      "evidence": [
-      "packages/backend/src/moire/services/prompt_board.py:93-160",
-      "packages/backend/src/moire/services/prompt_board.py:106",
-      "packages/backend/src/moire/services/prompt_board.py:118",
-      "packages/backend/src/moire/services/prompt_board.py:168-178",
-      "packages/backend/src/moire/services/prompt_board.py:228-237",
+      "packages/backend/src/moire/services/generate/prompt_board.py:93-160",
+      "packages/backend/src/moire/services/generate/prompt_board.py:106",
+      "packages/backend/src/moire/services/generate/prompt_board.py:118",
+      "packages/backend/src/moire/services/generate/prompt_board.py:168-178",
+      "packages/backend/src/moire/services/generate/prompt_board.py:228-237",
       "docs/refactor-pass/leads.txt:64-66"
      ],
      "problem": "`_section` (radon E39, ruff C901 24) is one ordered ladder of 20+ rules with interleaved early returns, so the rule priority is only readable by tracing it. It and `place`/`offers` call attire's underscore-private `_load`, `_groups`, `_facet`, `_key` (7 call sites), so a refactor of attire's internals silently breaks the board and CLAUDE's 'one spelling rule' for keys is borrowed through a private name. `place` also re-runs the 'last words' fallback loop that calls _section again.",
@@ -1997,9 +1997,9 @@
      "title": "Split remix_view (E35) into light and full reads; move the image-to-batch lookup and settings readers out",
      "kind": "split",
      "evidence": [
-      "packages/backend/src/moire/services/remix.py:200-302",
-      "packages/backend/src/moire/services/remix.py:141-180",
-      "packages/backend/src/moire/services/remix.py:24",
+      "packages/backend/src/moire/services/generate/remix.py:200-302",
+      "packages/backend/src/moire/services/generate/remix.py:141-180",
+      "packages/backend/src/moire/services/generate/remix.py:24",
       "packages/backend/src/moire/api/generate.py:427-431",
       "packages/backend/tests/test_remix.py:89-223"
      ],
@@ -2017,13 +2017,13 @@
      "title": "Sampling bounds and MAX_CHARACTERS are each written in 3-4 places",
      "kind": "dedupe",
      "evidence": [
-      "packages/backend/src/moire/services/remix.py:105",
-      "packages/backend/src/moire/services/remix.py:108",
+      "packages/backend/src/moire/services/generate/remix.py:105",
+      "packages/backend/src/moire/services/generate/remix.py:108",
       "packages/backend/src/moire/api/generate.py:107-108",
       "packages/frontend/src/components/generate/RunControls.tsx:277",
       "packages/frontend/src/components/generate/RunControls.tsx:280",
-      "packages/backend/src/moire/services/remix.py:29-30",
-      "packages/backend/src/moire/services/generation_jobs.py:324",
+      "packages/backend/src/moire/services/generate/remix.py:29-30",
+      "packages/backend/src/moire/services/generate/generation_jobs.py:324",
       "packages/frontend/src/lib/generateForm.ts"
      ],
      "problem": "Steps 1..200 and CFG 0..30 are the pydantic Field limits in api/generate.py, the hand-checked limits in remix.checked_sampling, and the NumberStepper min/max in RunControls. MAX_CHARACTERS = 8 is defined separately in remix.py (with a comment saying it mirrors the composer's), in generation_jobs.py, and in the frontend generateForm. outfits.py has a fourth, different WORN_MAX_CHARACTERS = 10. Change one and a remixed image can carry a value the queue endpoint then rejects with a 422, or a 9th character that the queue silently truncates ([:MAX_CHARACTERS]).",
@@ -2048,7 +2048,7 @@
       "packages/frontend/src/components/generate/CharacterBlock.tsx:18",
       "packages/frontend/src/components/NewCharacterDialog.tsx:17",
       "packages/frontend/src/pages/WorkflowSetupPage.tsx:404",
-      "packages/backend/src/moire/services/generator_graph.py:55-63"
+      "packages/backend/src/moire/services/generate/generator_graph.py:55-63"
      ],
      "problem": "`stemOf` is the frontend half of the backend's `lora_stem` (the key matching image_loras.name) but sits at the top of a component file and is imported by a page, a dialog and two other components, so pages depend on a widget module. WorkflowSetupPage:404 re-implements it a weaker way (only `.safetensors`, no backslash handling). The file name says 'RunControls' but it holds FieldLabel, CheckpointPicker, FixedValue, NumberStepper, SamplingControl, SizePicker, SeedControl, CountStepper and BatchName. A stale comment at line 300 ('The compact queue card...') sits above the `Size` type. CountStepper hand-rolls the -/+ stepper that NumberStepper (same file) already is.",
      "proposal": "Move `stemOf` to `lib/loraName.ts` (pure, with a test table that mirrors test_generator_graph's lora_stem cases) and use it in WorkflowSetupPage:404. Split RunControls into `components/generate/fields.tsx` (FieldLabel, FixedValue, CheckpointPicker, SizePicker, SeedControl, BatchName) and `SamplingControl.tsx` (NumberStepper + SamplingControl). Make CountStepper use an exported NumberStepper (add a `compact` prop for the 2rem input and the 1..500 clamp). Delete the stale comment.",
@@ -2171,7 +2171,7 @@
       "packages/frontend/src/lib/generate.ts:53-54",
       "packages/frontend/src/lib/requests.ts:52-55",
       "packages/frontend/src/lib/requests.test.ts:41",
-      "packages/backend/src/moire/services/generation_batches.py:399",
+      "packages/backend/src/moire/services/generate/generation_batches.py:399",
       "packages/frontend/src/components/generate/QueueFrames.tsx:7",
       "packages/frontend/src/components/generate/QueueFrames.tsx:15-23"
      ],
@@ -2188,7 +2188,7 @@
    ],
    "cross_cutting_hints": [
     "packages/frontend/src/pages/WorkflowSetupPage.tsx:404 strips only .safetensors by hand, a weaker copy of lora_stem/stemOf",
-    "packages/backend/src/moire/services/outfits.py:148 WORN_MAX_CHARACTERS = 10 differs from the composer's 8 without a stated reason",
+    "packages/backend/src/moire/services/characters/outfits.py:148 WORN_MAX_CHARACTERS = 10 differs from the composer's 8 without a stated reason",
     "packages/frontend/src/hooks/useBatchScrub.ts is the gallery's image-group hover peek, not a Generation batch: the word 'batch' means two things in hooks/ and lib/batches.ts (CONTEXT.md only defines Generation batch)",
     "packages/backend/src/moire/api/images.py:521-545 get_image_workflow re-implements the id_candidates loop to read image_gen_raw, and remix.py:244-252 reads the same table a third way (find_image-style lookup missing there)",
     "packages/frontend/src/lib/generate.ts (828 lines) bundles types, a private fetch wrapper `send` that duplicates lib/api for errors, and ~50 endpoint fns for generators, outfits, recipes, presets and batches; wave 1 flagged the routers, the client file has the same split opportunity",
@@ -2203,9 +2203,9 @@
      "title": "Workflow family naming (name, matched file) is implemented in api/rules.py and again in generator_setup.image_source",
      "kind": "dedupe",
      "evidence": [
-      "packages/backend/src/moire/services/generator_setup.py:103-137",
+      "packages/backend/src/moire/services/generate/generator_setup.py:103-137",
       "packages/backend/src/moire/api/rules.py:105-181",
-      "packages/backend/src/moire/services/workflow_family.py:1-41"
+      "packages/backend/src/moire/services/metadata/workflow_family.py:1-41"
      ],
      "problem": "workflow_family.py says both the Rules page and the gallery 'go through this module so they can never disagree', but it only owns family_sigs and the WORKFLOW_ID SQL expression. The rest of the family concept is written twice by hand. (a) The family key rule (editor workflow.id, else moire.family) exists in SQL as WORKFLOW_ID and again in Python in image_source (lines 103-107). (b) The name lookup (workflow_names), the imported-file lookup (workflow_files) and the editor-node-type match via gen_metadata.match_workflow_file are done once in the list_signatures router (_family, with the router doing the service work) and once in image_source. The two already differ: the router also returns file_match and rounds it, image_source drops it, and the frontend names a family differently again (groupWorkflows: name, else newest matched file, else 'Unnamed workflow'). A change to naming (e.g. tag-aware or case rules) has to be made in three places.",
      "proposal": "Add to workflow_family.py a pure `family_key(raw) -> str|None` (the Python twin of WORKFLOW_ID, tested against it) and `async family_labels(conn, family_ids, ui_nodes_by_family) -> {family_id: {name, file_name, file_match}}` doing the two batched queries plus match_workflow_file. rules.py _family and generator_setup.image_source both call it (image_source with one id). Keep the response shapes unchanged. The router then loses ~40 lines of SQL.",
@@ -2222,16 +2222,16 @@
      "title": "Graph primitives are scattered and imported by private name; stock LoRA loader check is spelled six times",
      "kind": "boundary",
      "evidence": [
-      "packages/backend/src/moire/services/generator_discovery.py:20-27",
-      "packages/backend/src/moire/services/generator_discovery.py:56-79",
-      "packages/backend/src/moire/services/generator_discovery.py:430-446",
-      "packages/backend/src/moire/services/generator_discovery.py:547-552",
-      "packages/backend/src/moire/services/generator_setup.py:513-516",
-      "packages/backend/src/moire/services/generator_graph.py:37-39",
-      "packages/backend/src/moire/services/generation_jobs.py:414",
-      "packages/backend/src/moire/services/remix.py:24",
-      "packages/backend/src/moire/services/remix.py:76-95",
-      "packages/backend/src/moire/services/generator_graph.py:255-298"
+      "packages/backend/src/moire/services/generate/generator_discovery.py:20-27",
+      "packages/backend/src/moire/services/generate/generator_discovery.py:56-79",
+      "packages/backend/src/moire/services/generate/generator_discovery.py:430-446",
+      "packages/backend/src/moire/services/generate/generator_discovery.py:547-552",
+      "packages/backend/src/moire/services/generate/generator_setup.py:513-516",
+      "packages/backend/src/moire/services/generate/generator_graph.py:37-39",
+      "packages/backend/src/moire/services/generate/generation_jobs.py:414",
+      "packages/backend/src/moire/services/generate/remix.py:24",
+      "packages/backend/src/moire/services/generate/remix.py:76-95",
+      "packages/backend/src/moire/services/generate/generator_graph.py:255-298"
      ],
      "problem": "generator_graph.py is documented as 'pure functions over API graphs' but the basic vocabulary lives elsewhere and leaks by underscore: discovery imports generator_graph._is_link, remix imports generator_discovery._SAMPLING_INPUTS, discovery calls gen_metadata._resolve_text. The traversal helpers (_inputs, _upstream, _title) are private to discovery while generator_graph.drop_missing and bypass_loras hand-roll the same 'follow links upstream' walk with a different guard (node.get('inputs', {}) instead of the isinstance-checked _inputs, so a null inputs crashes there but not in discovery). The test 'is this a stock LoRA loader' appears as the private _STOCK_LORA_LOADERS tuple in generator_graph but as the literal ('LoraLoader','LoraLoaderModelOnly') in discovery (twice, plus once in the check_slots block), generator_setup.carry_slots and generation_jobs, so adding a loader class means six edits. remix.graph_settings is a second reader of 'what the base sampler ran with' (sampling via _SAMPLING_INPUTS, size via fixed_values(graph, {})['size']) parallel to discover()'s slot-finding.",
      "proposal": "Make generator_graph the single owner: public `is_link`, `node_inputs(graph, nid)` (always a dict), `upstream(graph, start)`, `node_title`, `STOCK_LORA_LOADERS` plus `stock_lora_nodes(graph) -> [(nid, node)]`, and `SAMPLING_INPUTS`. drop_missing and bypass_loras use node_inputs/upstream. discovery imports only public names. Add `base_settings(graph) -> {size, sampling, checkpoint}` in discovery (built on base_sampler/_latent/model_loader) and have fixed_values and remix.graph_settings call it. Pure move plus rename, existing test_generator_graph/test_generator_discovery cover it.",
@@ -2267,13 +2267,13 @@
      "title": "Setup payload computes fields nothing reads, and the page's checklist re-derives the server's checks",
      "kind": "dead",
      "evidence": [
-      "packages/backend/src/moire/services/generator_setup.py:265",
-      "packages/backend/src/moire/services/generator_discovery.py:366-373",
-      "packages/backend/src/moire/services/generator_discovery.py:419-435",
+      "packages/backend/src/moire/services/generate/generator_setup.py:265",
+      "packages/backend/src/moire/services/generate/generator_discovery.py:366-373",
+      "packages/backend/src/moire/services/generate/generator_discovery.py:419-435",
       "packages/frontend/src/lib/generate.ts:189-190",
       "packages/frontend/src/lib/generate.ts:203",
       "packages/frontend/src/lib/generatorSetup.ts:77-108",
-      "packages/backend/src/moire/services/generator_discovery.py:516-555"
+      "packages/backend/src/moire/services/generate/generator_discovery.py:516-555"
      ],
      "problem": "grep of the frontend finds no consumer for setup.problems (typed at generate.ts:203, stubbed in a test), found.lora.existing or found.lora.consumers. Backend still computes them: _consumers is an O(nodes x inputs) scan per call, and check_slots runs on every setup_view. Meanwhile the UI's own `checklist()` re-implements a subset of check_slots (positive/negative chosen, Save Image present, node exists) with different wording, so the rules can drift: the server also blocks 'Positive and negative can't be the same input', 'prompt input is a link' and a bad LoRA insertion point, none of which the checklist shows, so the user can press an enabled Save and only learn from an error toast (create/update raise SetupError(problems[0])).",
      "proposal": "Pick one source of truth. Preferred: have the page feed the live slots to the server's check or mirror those three missing rules in `checklist` and drop `problems` from setup_view. Either way delete `_consumers`, `found.lora.consumers` and `found.lora.existing` (the separate found.loras list already serves the UI) and their test assertions (test_generator_discovery.py:59). If kept, the checklist should render server problems for blocking items instead of re-deriving.",
@@ -2290,8 +2290,8 @@
      "title": "newer_version has an always-false branch and a duplicated field",
      "kind": "dead",
      "evidence": [
-      "packages/backend/src/moire/services/generator_setup.py:434-440",
-      "packages/backend/src/moire/services/generator_setup.py:454-459",
+      "packages/backend/src/moire/services/generate/generator_setup.py:434-440",
+      "packages/backend/src/moire/services/generate/generator_setup.py:454-459",
       "packages/frontend/src/pages/WorkflowSetupPage.tsx:723-727"
      ],
      "problem": "`if src.workflow_sig in order and order.index(sig) > order.index(order[-1])` can never be true: order[-1] has the largest possible index in the list, so nothing is greater. It reads as a guard for 'the saved version is already newer than the family's newest' but does nothing. The return also sets `version` and `versions` both to len(order), so the banner ('version N of N') always reads 'version 5 of 5', which is the target version number, not the user's.",
@@ -2353,17 +2353,17 @@
      "title": "lora_stem is a model-name rule living in the graph module; workflow.ts / workflows.ts / WorkflowFamily names collide",
      "kind": "naming",
      "evidence": [
-      "packages/backend/src/moire/services/generator_graph.py:55-64",
-      "packages/backend/src/moire/services/comfy_models.py:19",
-      "packages/backend/src/moire/services/comfy_models.py:46-48",
-      "packages/backend/src/moire/services/remix.py:25",
-      "packages/backend/src/moire/services/recipes.py:32",
-      "packages/backend/src/moire/services/lora_presets.py:25",
+      "packages/backend/src/moire/services/generate/generator_graph.py:55-64",
+      "packages/backend/src/moire/services/generate/comfy_models.py:19",
+      "packages/backend/src/moire/services/generate/comfy_models.py:46-48",
+      "packages/backend/src/moire/services/generate/remix.py:25",
+      "packages/backend/src/moire/services/generate/recipes.py:32",
+      "packages/backend/src/moire/services/generate/lora_presets.py:25",
       "packages/frontend/src/lib/workflow.ts:1-91",
       "packages/frontend/src/lib/workflows.ts:136-144"
      ],
      "problem": "lora_stem is the key matching ComfyUI files to image_loras.name, used by comfy_models, remix, recipes and lora_presets (4 non-graph modules), and comfy_models even applies it to checkpoints and embeddings (stem=lora_stem(n) for kind 'checkpoint'/'embedding'). It sits in generator_graph.py only because the graph code needed it first, so comfy_models imports the Generator graph module for a filename rule. On the frontend, lib/workflow.ts (a Generator's run bar and test state) and lib/workflows.ts (signature families for the Rules page and gallery) differ by one letter and are imported side by side; 'workflow' means a saved Generator in one, an editor-graph family in the other, while CONTEXT.md only defines the family sense, and the frontend type WorkflowFamily shadows the backend workflow_family module with different content.",
-     "proposal": "Backend: move lora_stem to a tiny pure module (services/model_names.py, `model_stem`, with lora_stem kept as an alias for one release) and import it from comfy_models, remix, recipes, lora_presets, generator_graph. Frontend: rename lib/workflow.ts to lib/generatorRunBar.ts (it is about Generators: runBarOf, testState, forWorkflow) and keep lib/workflows.ts for families; add the Generator vs workflow family sense to CONTEXT.md.",
+     "proposal": "Backend: move lora_stem to a tiny pure module (services/metadata/model_names.py, `model_stem`, with lora_stem kept as an alias for one release) and import it from comfy_models, remix, recipes, lora_presets, generator_graph. Frontend: rename lib/workflow.ts to lib/generatorRunBar.ts (it is about Generators: runBarOf, testState, forWorkflow) and keep lib/workflows.ts for families; add the Generator vs workflow family sense to CONTEXT.md.",
      "size": "S",
      "risk": "low",
      "leverage": 2,
@@ -2379,8 +2379,8 @@
      "evidence": [
       "packages/frontend/src/pages/settings/sections/ComfySection.tsx:145-160",
       "packages/frontend/src/components/onboarding/ComfyStep.tsx:55-78",
-      "packages/backend/src/moire/services/comfy_settings.py:197-203",
-      "packages/backend/src/moire/services/generator_setup.py:324-328",
+      "packages/backend/src/moire/services/generate/comfy_settings.py:197-203",
+      "packages/backend/src/moire/services/generate/generator_setup.py:324-328",
       "packages/frontend/src/pages/WorkflowSetupPage.tsx:292-301",
       "packages/frontend/src/pages/settings/sections/ComfySection.tsx:333-336"
      ],
@@ -2399,10 +2399,10 @@
      "title": "discover() is one 90-line function (radon D27) mixing six slot readers; text_inputs and check_slots are D21 and D23",
      "kind": "split",
      "evidence": [
-      "packages/backend/src/moire/services/generator_discovery.py:376-464",
-      "packages/backend/src/moire/services/generator_discovery.py:205-262",
-      "packages/backend/src/moire/services/generator_discovery.py:516-555",
-      "packages/backend/src/moire/services/generator_setup.py:294-348"
+      "packages/backend/src/moire/services/generate/generator_discovery.py:376-464",
+      "packages/backend/src/moire/services/generate/generator_discovery.py:205-262",
+      "packages/backend/src/moire/services/generate/generator_discovery.py:516-555",
+      "packages/backend/src/moire/services/generate/generator_setup.py:294-348"
      ],
      "problem": "discover() interleaves prompt slots, latent size, sampling, checkpoint/loader, LoRA insertion and the node lists in one body, with the 'found' dict built by side effect as it goes. text_inputs packs a 6-clause literal filter and the reaches computation into one loop; check_slots has one long chain of per-slot rules. Adding a slot (a plausible next one: denoise or clip skip) means editing the middle of each of these plus clean_slots (D29) and the _SLOT_KEYS tuple, which is defined but never referenced (grep finds no other use).",
      "proposal": "Split discover into `_prompt_slots`, `_latent_slots`, `_sampling_slots`, `_model_slots` (checkpoint + lora insertion), each returning (slots, found) fragments merged by discover. Pull text_inputs' literal test into `_is_prompt_literal(key, value)` and the reaches mapping into a two-set lookup. Delete the unused _SLOT_KEYS or make clean_slots iterate it so the allowed keys exist once. Keep behaviour pinned by the existing discovery tests.",
@@ -2417,11 +2417,11 @@
     }
    ],
    "cross_cutting_hints": [
-    "packages/backend/src/moire/services/comfy_settings.py:55-69 hand-writes the app_settings JSON-row upsert (already in the 8-module finding); update_settings also does read-modify-write across two separate connections (get_settings, then async_tx), so two quick PUTs (ComfySection fires separate Save mutations for output folder, output root, download checkbox) can lose each other's field.",
+    "packages/backend/src/moire/services/generate/comfy_settings.py:55-69 hand-writes the app_settings JSON-row upsert (already in the 8-module finding); update_settings also does read-modify-write across two separate connections (get_settings, then async_tx), so two quick PUTs (ComfySection fires separate Save mutations for output folder, output root, download checkbox) can lose each other's field.",
     "packages/backend/src/moire/api/rules.py:105-181 holds service-level family/name/file assembly inside the signatures router (see finding 1); the same endpoint's thumb_version.urls and describe_signatures calls are fine.",
-    "packages/backend/src/moire/services/generator_discovery.py:190 and :257 call gen_metadata._resolve_text (private); already covered by the gen_metadata private-function finding but discovery is a second external caller.",
+    "packages/backend/src/moire/services/generate/generator_discovery.py:190 and :257 call gen_metadata._resolve_text (private); already covered by the gen_metadata private-function finding but discovery is a second external caller.",
     "packages/frontend/src/pages/RulesPage.test.tsx:3 imports JsonTree from ./RulesPage while the component now lives in components/GraphTree.tsx (works only if RulesPage re-exports it); worth checking the re-export is intentional.",
-    "packages/backend/src/moire/services/generation_jobs.py:414 hard-codes ('LoraLoader','LoraLoaderModelOnly'), see finding 2."
+    "packages/backend/src/moire/services/generate/generation_jobs.py:414 hard-codes ('LoraLoader','LoraLoaderModelOnly'), see finding 2."
    ]
   },
   {
@@ -2643,7 +2643,7 @@
     "packages/frontend/src/components/ui/StatCard.tsx:25, TagPanel.tsx:111, TagsPage.tsx:347/548/828, MergeSuggestions.tsx:58 repeat Card's class string ('rounded-xl border border-white/5 bg-surface shadow-panel') instead of using Card.",
     "packages/backend/src/moire/services/onboarding.py:30-37 is a ninth copy of the app_settings upsert pattern already reported in S7.",
     "packages/frontend/src/hooks/useUnsavedChangesGuard.ts:21 also defaults to window.confirm (same class as the reported useRulesetSession finding).",
-    "packages/backend/src/moire/services/ai_tagger_download.py:26 keeps DEFAULT_CACHE_DIR='.cache/moire/models', a second spelling of settings.model_cache_dir's default (config.py:184); only a fallback today, since DEFAULT_AI_SETTINGS uses settings.model_cache_dir_path."
+    "packages/backend/src/moire/services/ai/ai_tagger_download.py:26 keeps DEFAULT_CACHE_DIR='.cache/moire/models', a second spelling of settings.model_cache_dir's default (config.py:184); only a fallback today, since DEFAULT_AI_SETTINGS uses settings.model_cache_dir_path."
    ]
   }
  ]

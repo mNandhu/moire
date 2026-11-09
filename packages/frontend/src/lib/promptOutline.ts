@@ -5,7 +5,7 @@
  * touching the rest of what was written. Pure.
  *
  * The frontend's one prompt splitter, a port of the backend's
- * `services/prompt_parse.py` (scan, clean, classify) that also keeps where
+ * `services/metadata/prompt_parse.py` (scan, clean, classify) that also keeps where
  * each piece sits. The backend writes the prompt tags, so it is the
  * authority: both are checked against
  * `packages/backend/tests/fixtures/mirrored/prompt_terms.json`.

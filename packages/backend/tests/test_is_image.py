@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from moire.services import library_discover, scanner, thumbnailer
+from moire.services.library import library_discover, scanner, thumbnailer
 
 
 def test_is_image_applies_the_ignore_rules_the_watcher_always_had():

@@ -8,7 +8,12 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services.outfit_wear import WearRule, wear_condition, wears, wears_most
+from moire.services.characters.outfit_wear import (
+    WearRule,
+    wear_condition,
+    wears,
+    wears_most,
+)
 
 IMAGES = {
     "L1:abc": ("a", "b", "c"),

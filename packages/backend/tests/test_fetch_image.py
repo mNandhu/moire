@@ -2,8 +2,8 @@
 
 import pytest
 
-from moire.services import fetch_image
-from moire.services.fetch_image import FetchError, is_public
+from moire.services.ai import fetch_image
+from moire.services.ai.fetch_image import FetchError, is_public
 
 
 @pytest.mark.parametrize(

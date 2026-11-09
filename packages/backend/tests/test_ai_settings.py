@@ -1,6 +1,6 @@
 """Unit tests for the pure AI-settings validation/clamping rules."""
 
-from moire.services.ai_settings import clean_settings_patch
+from moire.services.ai.ai_settings import clean_settings_patch
 
 
 def test_unknown_keys_dropped():
@@ -42,8 +42,8 @@ def test_thresholds_clamped_and_mcut_coerced():
 def test_tag_params_defaults_are_the_settings_defaults():
     from dataclasses import asdict
 
-    from moire.services.ai_settings import DEFAULT_AI_SETTINGS
-    from moire.services.ai_tagger import TagParams
+    from moire.services.ai.ai_settings import DEFAULT_AI_SETTINGS
+    from moire.services.ai.ai_tagger import TagParams
 
     assert asdict(TagParams()) == {
         k: DEFAULT_AI_SETTINGS[k] for k in asdict(TagParams())
@@ -54,7 +54,7 @@ def test_tag_params_defaults_are_the_settings_defaults():
 
 def test_settings_patch_model_covers_every_setting():
     from moire.api.ai import SettingsPatch
-    from moire.services.ai_settings import DEFAULT_AI_SETTINGS
+    from moire.services.ai.ai_settings import DEFAULT_AI_SETTINGS
 
     assert set(SettingsPatch.model_fields) == set(DEFAULT_AI_SETTINGS)
     assert SettingsPatch().model_dump(exclude_none=True) == {}

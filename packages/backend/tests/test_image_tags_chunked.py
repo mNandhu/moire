@@ -6,7 +6,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import image_tags, tag_index
+from moire.services.tags import image_tags, tag_index
 
 
 def _tags(image_id: str) -> list[str]:

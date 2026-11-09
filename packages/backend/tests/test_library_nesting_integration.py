@@ -9,7 +9,7 @@ from PIL import Image
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import library_nesting
+from moire.services.library import library_nesting
 
 from test_scan_reproject_integration import _wait_scan
 

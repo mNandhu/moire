@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import reproject
+from moire.services.metadata import reproject
 
 
 async def _tags(image_id):
@@ -228,7 +228,7 @@ async def test_a_name_has_one_rule_and_loops_through_splits_are_refused(client, 
 async def test_merge_suggestions_read_prompt_tags_against_danbooru(
     client, seed, tmp_path, monkeypatch
 ):
-    from moire.services import danbooru_tags
+    from moire.services.tags import danbooru_tags
 
     path = tmp_path / "danbooru-tags.csv"
     path.write_text(
@@ -259,7 +259,7 @@ async def test_merge_suggestions_read_prompt_tags_against_danbooru(
 
 
 def _chars(*names, **candidates):
-    from moire.services import tag_categories
+    from moire.services.tags import tag_categories
 
     async def load():
         return tag_categories.Vocab(
@@ -286,7 +286,7 @@ async def test_a_library_backed_bare_name_is_a_character_for_rules(
 ):
     """The same rule as the Tags page: a bare name the library backs with its
     series is a character, so it can't be split."""
-    from moire.services import tag_categories
+    from moire.services.tags import tag_categories
 
     monkeypatch.setattr(tag_categories, "load", _chars(furina="genshin_impact"))
     seed("L1:a", tags=("prompt:furina", "prompt:genshin_impact"))
@@ -298,7 +298,7 @@ async def test_a_library_backed_bare_name_is_a_character_for_rules(
 async def test_a_character_row_without_a_kind_is_no_say(client, seed, monkeypatch):
     """A ``characters`` row with kind NULL (a colour or name set on a tag's
     page) does not make the tag a character; only kind does."""
-    from moire.services import tag_categories
+    from moire.services.tags import tag_categories
 
     monkeypatch.setattr(tag_categories, "load", _chars())
     async with db.async_tx() as conn:
@@ -309,7 +309,7 @@ async def test_a_character_row_without_a_kind_is_no_say(client, seed, monkeypatc
 
 
 async def test_kind_general_lets_a_listed_name_be_split(client, seed, monkeypatch):
-    from moire.services import tag_categories
+    from moire.services.tags import tag_categories
 
     monkeypatch.setattr(tag_categories, "load", _chars("red_hood"))
     assert (await _split(client, "red_hood"))["rules"] == 0
@@ -354,7 +354,7 @@ async def test_replacing_a_rule_reprojects_the_images_it_had_merged(client, seed
 async def test_suggestions_leave_out_names_a_rule_leads_to(
     client, seed, tmp_path, monkeypatch
 ):
-    from moire.services import danbooru_tags
+    from moire.services.tags import danbooru_tags
 
     path = tmp_path / "danbooru-tags.csv"
     path.write_text('grey_hair,0,500,"silver_hair"\n', encoding="utf-8")
@@ -404,7 +404,8 @@ async def test_every_rule_change_reprojects_big_sets_in_the_background(
     """Rename, add and delete share one policy: up to the threshold inline
     (shown as activity), above it in the background, ``background`` saying
     which."""
-    from moire.services import activity, tag_rename
+    from moire.services import activity
+    from moire.services.tags import tag_rename
 
     seed("L1:a", tags=())
     _raw("L1:a", "blonde")
@@ -484,7 +485,7 @@ async def test_an_inline_reprojection_failure_finishes_in_the_background(
     """The rule is saved before the reprojection; if that fails inline the
     request still succeeds, the tag list is refreshed and the work retried
     in the background."""
-    from moire.services import tag_index
+    from moire.services.tags import tag_index
 
     seed("L1:a", tags=())
     _raw("L1:a", "blonde")
@@ -554,7 +555,7 @@ async def test_a_rule_change_reaches_images_a_run_in_flight_writes_after_it(
 async def test_a_rule_change_with_nothing_to_reproject_still_invalidates(
     temp_db, monkeypatch
 ):
-    from moire.services import tag_index, tag_rename
+    from moire.services.tags import tag_index, tag_rename
 
     invalidated: list[bool] = []
     monkeypatch.setattr(tag_index, "invalidate", lambda: invalidated.append(True))

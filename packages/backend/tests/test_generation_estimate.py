@@ -10,10 +10,10 @@ import pytest
 
 import moire
 
-from moire.services.generation_estimate import Job, Run, plan
-from moire.services.generation_estimate import _job, _Memo, _run_order, _warm
-from moire.services.comfy_history import model_loaded
-from moire.services.generation_inputs import batch_shape
+from moire.services.generate.generation_estimate import Job, Run, plan
+from moire.services.generate.generation_estimate import _job, _Memo, _run_order, _warm
+from moire.services.generate.comfy_history import model_loaded
+from moire.services.generate.generation_inputs import batch_shape
 
 PX = 832 * 1216
 
@@ -225,7 +225,10 @@ def test_estimate_and_batches_do_not_import_the_manager():
     # The estimate and the read side sit below the manager: importing them
     # alone never pulls generation_jobs in (no cycle hidden by lazy imports).
     loaded = _import_time_modules(
-        "moire.services.generation_estimate", "moire.services.generation_batches"
+        "moire.services.generate.generation_estimate",
+        "moire.services.generate.generation_batches",
     )
-    assert "moire.services.generator_setup" in loaded  # the walk follows imports
-    assert "moire.services.generation_jobs" not in loaded
+    assert (
+        "moire.services.generate.generator_setup" in loaded
+    )  # the walk follows imports
+    assert "moire.services.generate.generation_jobs" not in loaded

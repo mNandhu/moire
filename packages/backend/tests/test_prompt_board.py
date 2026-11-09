@@ -3,8 +3,9 @@
 
 import pytest
 
-from moire.services import danbooru_tags, prompt_board
-from moire.services.danbooru_tags import TagList, newest, parse
+from moire.services.tags import danbooru_tags
+from moire.services.generate import prompt_board
+from moire.services.tags.danbooru_tags import TagList, newest, parse
 
 LIST = [
     '1girl,0,8483124,"sole_female,1girls"',

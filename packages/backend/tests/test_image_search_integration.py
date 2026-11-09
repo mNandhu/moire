@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from moire.services import image_search, tag_sensitivity
+from moire.services.images import image_search
+from moire.services.tags import tag_sensitivity
 
 
 @pytest.fixture(autouse=True)

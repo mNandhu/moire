@@ -14,9 +14,10 @@ import sqlalchemy as sa
 from moire.database import schema as t
 from moire.database.db import async_tx
 
-from moire.services import outfits, tag_categories
-from moire.services.outfits import OutfitError
-from moire.services.tag_hash import hash_tag
+from moire.services.characters import outfits
+from moire.services.tags import tag_categories
+from moire.services.characters.outfits import OutfitError
+from moire.services.tags.tag_hash import hash_tag
 from tests.test_characters import _chars
 from tests.test_generate_integration import comfy, make_ready  # noqa: F401
 from tests.test_recipes import _library
@@ -259,7 +260,7 @@ async def test_outfits_end_to_end(client, comfy, seed, monkeypatch):  # noqa: F8
 
 
 def test_new_character_outfit_setting_takes_known_values():
-    from moire.services.comfy_settings import clean_patch
+    from moire.services.generate.comfy_settings import clean_patch
 
     assert clean_patch({"new_character_outfit": "default"}, {}) == {
         "new_character_outfit": "default"
@@ -305,7 +306,7 @@ async def test_tag_info_route(client, monkeypatch):
 
 
 def test_exposure_is_a_list_not_a_pattern():
-    from moire.services import attire
+    from moire.services.characters import attire
 
     assert attire.group_of("midriff") == "exposure"
     for tag in ("armpits", "covering_face", "tan"):

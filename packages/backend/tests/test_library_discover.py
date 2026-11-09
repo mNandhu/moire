@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from moire.models.library import normalize_path
-from moire.services.library_discover import discover
+from moire.services.library.library_discover import discover
 
 
 def _img(p: Path) -> None:
@@ -152,7 +152,7 @@ async def test_name_only_edit_of_unnormalized_path_does_not_rescan(
     # dialog re-sends its path, which now arrives normalized.
     import sqlalchemy as sa
 
-    from moire.services import library_ops
+    from moire.services.library import library_ops
     from moire.database import schema as t
     from moire.database.db import async_tx
 
@@ -174,7 +174,7 @@ async def test_name_only_edit_of_unnormalized_path_does_not_rescan(
 
 
 def test_folder_relations_share_one_case_aware_rule():
-    from moire.services import library_nesting as n
+    from moire.services.library import library_nesting as n
 
     libs = [("outer", "/a/b"), ("inner", "/a/b/c"), ("other", "/x")]
     assert n.innermost("/a/b/c/d/x.png", libs) == ("inner", "/a/b/c")

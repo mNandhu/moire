@@ -3,7 +3,7 @@
 import sqlalchemy as sa
 
 from moire.database import schema as t
-from moire.services import workflow_family as wf
+from moire.services.metadata import workflow_family as wf
 
 
 def test_family_key_agrees_with_the_sql_workflow_id():

@@ -5,7 +5,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api, apiJson } from "../api";
 import { TAGS_KEY, TAG_MAP_STALE_MS } from "./tags";
 
-/** A part of the scene a prompt tag sets (services/prompt_board.py SECTIONS). */
+/** A part of the scene a prompt tag sets (services/generate/prompt_board.py SECTIONS). */
 export type BoardSection =
   | "subject"
   | "hair"

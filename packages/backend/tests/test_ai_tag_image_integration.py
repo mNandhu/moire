@@ -5,7 +5,7 @@ from io import BytesIO
 
 from PIL import Image
 
-from moire.services import ai_tagger
+from moire.services.ai import ai_tagger
 
 
 def _png() -> bytes:

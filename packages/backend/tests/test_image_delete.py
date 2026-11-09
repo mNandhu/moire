@@ -2,7 +2,8 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import image_delete, scan_reconcile, scan_writer, storage_fs
+from moire.services.images import image_delete
+from moire.services.library import scan_reconcile, scan_writer, storage_fs
 
 
 def _count(table) -> int:

@@ -1,4 +1,4 @@
-/** Generation limits, equal to the backend's services/generation_limits.py
+/** Generation limits, equal to the backend's services/generate/generation_limits.py
  *  (tests/test_mirrored_vocab.py keeps the two in step). */
 export const STEPS_RANGE = [1, 200] as const;
 export const CFG_RANGE = [0, 30] as const;

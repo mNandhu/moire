@@ -9,7 +9,7 @@ import pytest
 import sqlalchemy as sa
 
 from moire.database import schema as t
-from moire.services.image_feed import (
+from moire.services.images.image_feed import (
     SORTS,
     FeedFilter,
     FeedFilterError,

@@ -80,7 +80,7 @@ re-renders only the toggled tile; `content-visibility:auto` deliberately not pro
 - Repro: `scratchpad/gallery/bench-layout.mjs`.
 
 ### G3. Oversized thumbnails
-- Where: thumb generation (`services/scanner.py`, `THUMB` size in `core/config.py:60`, 1080 max).
+- Where: thumb generation (`services/library/scanner.py`, `THUMB` size in `core/config.py:60`, 1080 max).
 - Evidence: mean 73 KB, typ. 701x1024 webp; tiles ~250px (460 max) wide. Frame-time gain inferred.
 - Fix: ~480-640px thumbs + regenerate. Keep >= 512 if A3 tags from thumbnails.
 - Repro: `scratchpad/gallery/thumbdims.py`.
@@ -100,14 +100,14 @@ select_tags 6-25, DB ~18. Real job queue: 0.59 img/s. CPU batching gives nothing
 Model lifecycle fine (load once, 300s idle unload). Face detect not on tagging path.
 
 ### A1. GPU inference (CUDA EP)
-- Where: `packages/backend/src/services/ai_tagger.py:177` hardcodes `CPUExecutionProvider`.
+- Where: `packages/backend/src/services/ai/ai_tagger.py:177` hardcodes `CPUExecutionProvider`.
 - Evidence: CPU 890 ms/img vs CUDA 108 ms/img (bs1), 100 ms (bs8). Works on GTX 1650 / WSL2 with `onnxruntime-gpu==1.23.2` + `nvidia-*-cu12` pip wheels; `ort.preload_dlls()` required, otherwise silent CPU fallback.
 - Setup detail: system CUDA toolkit is 13, which ORT 1.23 can't use; the CUDA 12 libs come from pip: `nvidia-cudnn-cu12 nvidia-cublas-cu12 nvidia-cuda-runtime-cu12 nvidia-cufft-cu12 nvidia-curand-cu12 nvidia-cuda-nvrtc-cu12`. Check `session.get_providers()` starts with `CUDAExecutionProvider`. A `/sys/class/drm/card0/device/vendor` warning is harmless. TensorRT EP listed but untried.
 - Cost: ~2 GB of wheels; conflicts with `onnxruntime`, so an optional extra (`uv sync --extra gpu`); CPU fallback; 4 GB VRAM shared with Windows, one session only.
 - Repro: `scratchpad/ai/gpuvenv/bin/python scratchpad/ai/gpu_bench.py CUDAExecutionProvider,CPUExecutionProvider 1,4,8 5`.
 
 ### A2. Inference blocks the event loop
-- Where: `packages/backend/src/services/ai_tagger.py:397` `predict_bytes` (sync `Image.open` + `predict` inside `async def`); `ai_jobs.py` `_tag_one`.
+- Where: `packages/backend/src/services/ai/ai_tagger.py:397` `predict_bytes` (sync `Image.open` + `predict` inside `async def`); `ai_jobs.py` `_tag_one`.
 - Evidence: verified in code. Every API request stalls ~1.3 s per image while a job runs.
 - Fix: `asyncio.to_thread` for decode + `session.run` (ORT releases GIL); prefetch 2-4 images in a pool. With A1: 3.7 -> 9-10 img/s.
 - Repro: `scratchpad/ai/bench.py 30`.
@@ -146,7 +146,7 @@ end to end 12 workers ~27-35 img/s. Metadata parsing is negligible. Startup migr
 `file_hash` (`scanner.py:81`) is dead code. Scripts: `scratchpad/scan/` (`run_e2e.sh`, `stages.py`, `rep.py`, `walk9p.py`).
 
 ### S1. Skip unchanged files on rescan
-- Where: `packages/backend/src/services/scanner.py:458-470` (walk, then every file submitted to `_process_image`); `library_watch.py:133-153` (reconcile every `watch_reconcile_interval_s` = 900s); post-scan `reproject_library_async` (`scanner.py:~621`).
+- Where: `packages/backend/src/services/library/scanner.py:458-470` (walk, then every file submitted to `_process_image`); `library_watch.py:133-153` (reconcile every `watch_reconcile_interval_s` = 900s); post-scan `reproject_library_async` (`scanner.py:~621`).
 - Evidence: verified in code, no size/mtime check. Unchanged rescan of 297 imgs: 6.8s (full decode + encode) plus a full reproject. 10k library: ~4 min all-core CPU + ~80s reproject + 13 GB of 9P reads, every 15 min.
 - Fix: preload `{_id: (size, mtime, thumb_key)}`; skip when size + mtime match and thumb exists; thumb-settings version stamp so S2 regenerates; reproject only if something changed; count skips as processed.
 - Prototype (lost with /tmp, ~40 lines): preload rows for the library, skip matches before submitting to the pool, gate the post-scan reproject on `scanned > 0`. 6.8s -> 0.16s (44 -> 1890 img/s). `git apply scratchpad/scan/skip_unchanged.diff`, then `scratchpad/scan/run_e2e.sh proto` vs `run_e2e.sh base` ("rescan (unchanged)" line).
@@ -181,7 +181,7 @@ Prototype: WIP commit `3586e3c` (branch deleted after the port in `aa9a4e6`; sti
 - The benchmark scripts lived in the agent's worktree, removed at wrap-up; the method above is enough to rebuild them.
 
 ### D1. Drive rare filters by id list: keep, lower the threshold
-- Where: `services/image_feed.py` `_resolved` / `feed_where`.
+- Where: `services/images/image_feed.py` `_resolved` / `feed_where`.
 - Idea: when the rarest tag group or prompt term matches few images, fetch their ids first and filter `_id IN (...)`.
 - Rare filter (30 matches) at 30k: 126 -> 7 ms (HTTP), and `/images/ids` 128 -> 6 ms. On the real DB the gain is small (17.5 -> 9 ms).
 - **The 3000 threshold is wrong.** D1 costs about 10 ms per 1000 ids, while the baseline gets cheaper as the filter gets denser.

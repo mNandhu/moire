@@ -26,7 +26,7 @@ HTTPException`) and lives in the router. Untestable without FastAPI; not reusabl
 by a CLI/export. Feed and groups share it only via 14 positional kwargs passed
 twice.
 
-**Solution:** A `services/image_feed.py` taking a validated filter object →
+**Solution:** A `services/images/image_feed.py` taking a validated filter object →
 returns rows (+ the group window-query). Router does HTTP validation → filter
 object → calls it. Projection / `thumb_url` decoration move with it.
 
@@ -36,7 +36,7 @@ Filter→WHERE becomes unit-testable. Feed/groups/export can't drift.
 ## 2. Canonical image-id resolution seam: ✅ DONE
 
 **Files:** `api/images.py:471-480` (`_resolve_id`), `:433-443` (inline in
-workflow); `services/image_tags.py:258-268` (`_resolve`), `:271-286`
+workflow); `services/tags/image_tags.py:258-268` (`_resolve`), `:271-286`
 (`find_image` inline loop); `api/rules.py` preview (inline loop).
 
 **Problem:** `_id` lookups normalize `/` vs `\`. The pure part (`id_variants`) is
@@ -54,7 +54,7 @@ it.
 ## 3. Single-image mutation ownership (restores a stated invariant): ✅ DONE
 
 **Files:** `api/images.py:483-528` (rating/score/quarantine; 3 near-identical
-resolve+update+return); `services/image_tags.py:310-370` (repo read-modify-write
+resolve+update+return); `services/tags/image_tags.py:310-370` (repo read-modify-write
 repeated 3×).
 
 **Problem:** CONTEXT.md: `image_tags` is the only place that mutates tag-state,
@@ -73,7 +73,7 @@ endpoints + 3 repeated orchestrations.
 
 ## 4. Scanner orchestration (extracted pure fn, untested orchestration): ✅ DONE
 
-**Files:** `services/scanner.py:354-588` (`_run` closure), pure
+**Files:** `services/library/scanner.py:354-588` (`_run` closure), pure
 `reconcile_stale:225-241`.
 
 **Problem:** The pure deletion-decision was extracted for testability, but the
@@ -89,7 +89,7 @@ a real FS+DB.
 
 ## 5. AI tagger subsystem (two sub-seams): ✅ DONE
 
-**Files:** `services/ai_tagger.py` (766 lines), `api/ai.py:55-74` (status).
+**Files:** `services/ai/ai_tagger.py` (766 lines), `api/ai.py:55-74` (status).
 
 **Problem:** (a) `ai_tagger.py` glues three modules: model download manager,
 ONNX inference (`WDTagger`/`select_tags`), and lifecycle (`TaggerManager`).

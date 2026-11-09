@@ -8,8 +8,8 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import (
-    app_settings,
+from moire.services import app_settings
+from moire.services.tags import (
     image_tags,
     tag_index,
     tag_migrations,

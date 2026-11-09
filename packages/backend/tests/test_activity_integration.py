@@ -7,7 +7,8 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import activity, face_worker
+from moire.services import activity
+from moire.services.ai import face_worker
 
 
 async def _items(client):
@@ -93,7 +94,7 @@ def test_face_progress_counts_the_current_batch():
 
 
 def test_reprojecting_ids_never_moves_the_bar_back(monkeypatch):
-    from moire.services import reproject
+    from moire.services.metadata import reproject
 
     seen: list[tuple[int, int]] = []
 
@@ -114,7 +115,7 @@ def test_reprojecting_ids_never_moves_the_bar_back(monkeypatch):
 
 
 def test_a_download_counts_the_files_already_sized():
-    from moire.services.ai_tagger_download import activity_item as _download
+    from moire.services.ai.ai_tagger_download import activity_item as _download
 
     files = [
         {"name": "model.onnx", "downloaded": 100, "total": 400},

@@ -8,9 +8,10 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import image_visibility, sensitivity_filter
+from moire.services.images import image_visibility
+from moire.services.tags import sensitivity_filter
 
-from moire.services import tag_sensitivity
+from moire.services.tags import tag_sensitivity
 
 # Stand-ins for the shipped list.
 ONE, TWO, THREE = "level_one_tag", "level_two_tag", "level_three_tag"
@@ -252,7 +253,7 @@ def test_a_broken_shipped_list_reads_as_all_general(tmp_path, monkeypatch):
 
 
 async def test_by_id_reads_are_filtered_unless_asked(client, seed):
-    from moire.services import image_tags
+    from moire.services.tags import image_tags
 
     _library(seed)
     await _set(client, "general")

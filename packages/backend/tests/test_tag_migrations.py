@@ -5,7 +5,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import tag_migrations
+from moire.services.tags import tag_migrations
 
 
 async def _row(image_id):
@@ -109,7 +109,7 @@ async def test_rules_migration_moves_merges_and_splits_into_one_table(temp_db):
 
 
 def test_gen_term_weights_adds_the_column_and_keeps_the_rows(temp_db):
-    from moire.services.tag_migrations import migrate_gen_term_weights
+    from moire.services.tags.tag_migrations import migrate_gen_term_weights
 
     with db.sync_tx() as conn:
         conn.execute(sa.text("DROP TABLE image_gen_terms"))

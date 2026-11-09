@@ -5,7 +5,7 @@
  * in a rainbow, and each tag is tinted by its facet (how the character looks,
  * what they wear, their pose, the scene, the framing).
  *
- * The colour words mirror the backend's services/character_look.py `COLOURS` and
+ * The colour words mirror the backend's services/characters/character_look.py `COLOURS` and
  * `colour_of` (which colour the character pages), so a character page and
  * its tags agree. Neutrals are lifted here so black hair still shows on the
  * dark canvas.
@@ -96,7 +96,7 @@ export function isMulticolour(raw: string): boolean {
   return MULTICOLOUR.has(tagName(raw).toLowerCase());
 }
 
-/** The backend's facets (services/attire.py `FACETS`). */
+/** The backend's facets (services/characters/attire.py `FACETS`). */
 export type Facet = "look" | "outfit" | "pose" | "scene" | "framing";
 
 export const FACET_LABEL: Record<Facet, string> = {

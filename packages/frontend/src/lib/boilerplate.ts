@@ -3,7 +3,7 @@
  * nothing about the image ("masterpiece", "best quality", "score_9"). The UI
  * folds them away and ranks them last; search and filters never change.
  *
- * The list lives in Settings (`/tags/settings`, services/tag_settings.py).
+ * The list lives in Settings (`/tags/settings`, services/tags/tag_settings.py).
  * An entry matches a tag's *name* from any source (AI, manual, prompt, and
  * the gallery search's merged `any:` entries); `*` is a wildcard; case, and
  * spaces vs underscores, don't matter ("best_quality" = "Best Quality").

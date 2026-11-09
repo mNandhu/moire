@@ -6,8 +6,8 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import gen_metadata, reproject
-from moire.services.prompt_guess import (
+from moire.services.metadata import gen_metadata, reproject
+from moire.services.metadata.prompt_guess import (
     DEFAULT_KEYWORDS,
     Candidate,
     Keywords,

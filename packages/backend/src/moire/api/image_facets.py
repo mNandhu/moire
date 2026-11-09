@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from ..database import schema as t
 from ..database.db import async_conn
-from ..services import image_feed, image_shapes, image_visibility
+from ..services.images import image_feed, image_shapes, image_visibility
 
 router = APIRouter()
 

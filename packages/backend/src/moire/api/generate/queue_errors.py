@@ -6,7 +6,7 @@ from __future__ import annotations
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
-from ...services.generation_errors import Invalid, Rejected, Unavailable
+from ...services.generate.generation_errors import Invalid, Rejected, Unavailable
 
 QUEUE_ERRORS = (Unavailable, Invalid, Rejected)
 

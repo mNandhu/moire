@@ -140,7 +140,7 @@ export function useTagGroups() {
 
 // --- Tag rename / merge -------------------------------------------------------
 
-/** A merge rule (`to` one name) or a split (several), services/tag_rename.py. */
+/** A merge rule (`to` one name) or a split (several), services/tags/tag_rename.py. */
 export type TagRule = { from: string; to: string[]; created_at: number | null };
 export type TagRenameResult = {
   kind: "manual" | "prompt";
@@ -155,7 +155,7 @@ export type TagRenameResult = {
 
 export const TAG_RULES_KEY = ["tag-rules"] as const;
 
-/** Prompt-tag merge and split rules (services/tag_rules.py), newest first. */
+/** Prompt-tag merge and split rules (services/tags/tag_rules.py), newest first. */
 export function useTagRules() {
   return useQuery({
     queryKey: TAG_RULES_KEY,
@@ -188,7 +188,7 @@ export function addTagRules(
   return apiJson("/api/v1/tags/rules", "POST", { rules });
 }
 
-/** How a suggestion reads the prompt tag (services/tag_canon.py stages). */
+/** How a suggestion reads the prompt tag (services/tags/tag_canon.py stages). */
 export type MergeKind = "alias" | "respell" | "colour" | "split" | "strip";
 export type MergeSuggestion = { from: string; to: string[]; kind: MergeKind; images: number };
 type MergeSuggestions = { available: boolean; suggestions: MergeSuggestion[] };

@@ -20,16 +20,16 @@ import sqlalchemy as sa
 from moire.core.config import settings
 from moire.database import db
 from moire.database import schema as t
-from moire.services import (
-    ai_estimate,
+from moire.services.ai import ai_estimate
+from moire.services.tags import (
     image_tags,
-    lora_words,
     sensitivity_filter,
     tag_index,
     tag_kinds,
     tag_sensitivity,
     tag_views,
 )
+from moire.services.generate import lora_words
 
 
 @pytest.fixture(scope="session", autouse=True)

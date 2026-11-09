@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 
 
-from moire.services import scan_reconcile, scanner
+from moire.services.library import scan_reconcile, scanner
 
 
 def test_image_id_for_is_library_prefixed_relative_path():

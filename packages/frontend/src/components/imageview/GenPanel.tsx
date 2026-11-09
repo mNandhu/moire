@@ -218,7 +218,7 @@ function PromptBlock({
   );
 }
 
-// A prompt found by keywords (services/prompt_guess.py), not by following the
+// A prompt found by keywords (services/metadata/prompt_guess.py), not by following the
 // workflow to its sampler.
 function GuessedBadge({ onResolve }: { onResolve?: () => void }) {
   return (

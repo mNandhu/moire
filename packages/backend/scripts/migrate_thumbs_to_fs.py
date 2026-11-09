@@ -30,7 +30,7 @@ sys.path.insert(
 
 from minio import Minio  # noqa: E402  (optional dep, installed via --with)
 
-from moire.services.storage_fs import _safe_path, ensure_thumb_root  # noqa: E402
+from moire.services.library.storage_fs import _safe_path, ensure_thumb_root  # noqa: E402
 
 
 def _env(*names: str, default: str = "") -> str:

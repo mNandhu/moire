@@ -5,7 +5,7 @@ recursively (Body, Hair, Clothing, Composition, World, ...). Each tag keeps
 the top-level category (the hub heading it sits under) and the group page it
 came from. Tags the WD tagger can't produce (its ``selected_tags.csv``) are
 dropped. Output is sorted, stable, hand-editable JSON; the attire list
-(``src/moire/services/attire.py``) is its Clothing category.
+(``src/moire/services/characters/attire.py``) is its Clothing category.
 
 Danbooru sits behind Cloudflare, so the API needs a logged-in key. Credentials
 come from the environment only, never from files or arguments::
@@ -39,8 +39,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from moire.services import attire  # noqa: E402
-from moire.services.tag_names import canonical_name  # noqa: E402
+from moire.services.characters import attire  # noqa: E402
+from moire.services.tags.tag_names import canonical_name  # noqa: E402
 
 BASE_URL = "https://danbooru.donmai.us"
 ROOT_TITLE = "tag_groups"

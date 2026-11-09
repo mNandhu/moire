@@ -5,14 +5,14 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ...services import (
+from ...services.generate import (
     comfy_connection,
     comfy_models,
-    library_ops,
     generation_batches,
     generation_estimate,
 )
-from ...services.generation_jobs import get_generation_manager
+from ...services.library import library_ops
+from ...services.generate.generation_jobs import get_generation_manager
 
 router = APIRouter()
 

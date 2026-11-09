@@ -7,15 +7,15 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from ...services import (
-    comfy_settings,
-    generation_batches,
-    generation_estimate,
-    outfits,
+from ...services.generate import comfy_settings, generation_batches, generation_estimate
+from ...services.characters import outfits
+from ...services.generate.generation_errors import Invalid
+from ...services.generate.generation_jobs import get_generation_manager
+from ...services.generate.generation_limits import (
+    CFG_RANGE,
+    PER_REQUEST_MAX,
+    STEPS_RANGE,
 )
-from ...services.generation_errors import Invalid
-from ...services.generation_jobs import get_generation_manager
-from ...services.generation_limits import CFG_RANGE, PER_REQUEST_MAX, STEPS_RANGE
 from .queue_errors import QUEUE_ERRORS, queue_error
 
 router = APIRouter()

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from PIL import Image as PILImage
 
-from moire.services import storage_fs, thumb_version
+from moire.services.library import storage_fs, thumb_version
 
 
 def _webp() -> bytes:
@@ -77,7 +77,7 @@ async def test_lists_carry_versioned_urls(client, seed):
 def test_nothing_else_builds_a_thumb_url():
     """Every thumbnail URL comes from `thumb_version`, so none ships without
     its version."""
-    src = Path(thumb_version.__file__).parents[1]
+    src = Path(thumb_version.__file__).parents[2]
     # `images/{<id>}/thumb` with no `:path`: a URL, not the route.
     built = re.compile(r"images/\{[^}:]*\}/thumb")
     builders = [
@@ -85,7 +85,7 @@ def test_nothing_else_builds_a_thumb_url():
         for p in src.rglob("*.py")
         if built.search(p.read_text(encoding="utf-8"))
     ]
-    assert builders == ["services/thumb_version.py"]
+    assert builders == ["services/library/thumb_version.py"]
 
 
 # -- Caching -------------------------------------------------------------------

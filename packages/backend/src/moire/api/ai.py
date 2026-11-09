@@ -8,29 +8,25 @@ from PIL import Image
 from pydantic import BaseModel, Field, create_model
 
 
-from ..services import (
-    ai_coverage as ai_coverage_service,
-    attire,
-    face_detect,
-    fetch_image,
-    image_tags,
-)
-from ..services.ai_settings import (
+from ..services.ai import ai_coverage as ai_coverage_service, face_detect, fetch_image
+from ..services.characters import attire
+from ..services.tags import image_tags
+from ..services.ai.ai_settings import (
     DEFAULT_AI_SETTINGS,
     get_ai_settings,
     update_ai_settings,
 )
-from ..services import ai_estimate
-from ..services.ai_jobs import get_ai_job_manager
-from ..services.ai_tagger import (
+from ..services.ai import ai_estimate
+from ..services.ai.ai_jobs import get_ai_job_manager
+from ..services.ai.ai_tagger import (
     TagParams,
     decode_image,
     get_tagger_manager,
     model_status_view,
     resolved_model_target,
 )
-from ..services.ai_tagger_download import get_download_manager
-from ..services.face_worker import get_face_worker
+from ..services.ai.ai_tagger_download import get_download_manager
+from ..services.ai.face_worker import get_face_worker
 
 router = APIRouter()
 
@@ -248,7 +244,7 @@ async def ai_tag_image(request: Request):
 
 @router.post("/tag-image-url")
 async def ai_tag_image_url(req: TagImageUrl):
-    """Tag the picture at a public link (``services/fetch_image`` keeps the
+    """Tag the picture at a public link (``services/ai/fetch_image`` keeps the
     fetch off loopback, the LAN and metadata addresses)."""
     try:
         body = await fetch_image.fetch_image(req.url)

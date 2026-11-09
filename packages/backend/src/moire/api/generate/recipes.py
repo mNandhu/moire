@@ -6,7 +6,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from ...services import recipes, tag_categories
+from ...services.generate import recipes
+from ...services.tags import tag_categories
 
 router = APIRouter()
 

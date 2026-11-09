@@ -6,9 +6,9 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import reproject
-from moire.services.gen_metadata import prompt_embeddings
-from moire.services.prompt_parse import parse_prompt
+from moire.services.metadata import reproject
+from moire.services.metadata.gen_metadata import prompt_embeddings
+from moire.services.metadata.prompt_parse import parse_prompt
 
 
 def test_embedding_syntax_is_one_network_piece():

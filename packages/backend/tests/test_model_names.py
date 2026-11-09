@@ -1,5 +1,5 @@
-from moire.services import gen_metadata
-from moire.services.model_names import model_stem
+from moire.services.metadata import gen_metadata
+from moire.services.metadata.model_names import model_stem
 
 
 def test_model_stem_is_the_one_file_name_rule():

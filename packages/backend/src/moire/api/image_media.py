@@ -13,9 +13,9 @@ import anyio  # type: ignore[import-not-found]
 from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 
-from ..services import thumb_version
-from ..services.image_tags import find_image as _find_image_doc  # type: ignore
-from ..services.storage_fs import small_thumb_path, thumb_path
+from ..services.library import thumb_version
+from ..services.tags.image_tags import find_image as _find_image_doc  # type: ignore
+from ..services.library.storage_fs import small_thumb_path, thumb_path
 
 logger = logging.getLogger(__name__)
 

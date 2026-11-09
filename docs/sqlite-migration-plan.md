@@ -184,7 +184,7 @@ unchanged.
   fresh DB, existing data handled by the importer in §7).
 
 **Routers / services (read + write paths)**
-- `services/image_tags.py`: replace the 5 `*_pipeline()` + their `update_one` callers
+- `services/tags/image_tags.py`: replace the 5 `*_pipeline()` + their `update_one` callers
   (424/428/436/442) with transactional repo writes + flag recompute. Keep pure helpers.
 - `api/images.py`: `_build_feed_query` → Core where-clause; feed/cursor paging;
   `list_groups` window query; `list_models` group-by; rating/score/quarantine/purge
@@ -194,13 +194,13 @@ unchanged.
 - `api/libraries.py`: `ObjectId` → `uuid4().hex`; insert/delete/update; cascade deletes
   (images + gen_raw) via SQL or FK `ON DELETE CASCADE`.
 - `api/rules.py`: aggregate + `replace_one`/`delete_one` on `gen_rulesets`.
-- `services/reproject.py`: `bulk_write(UpdateOne + replace_prompt_pipeline)` → batched
+- `services/metadata/reproject.py`: `bulk_write(UpdateOne + replace_prompt_pipeline)` → batched
   `UPDATE` + `image_gen_terms` rewrite in a transaction.
-- `services/scanner.py`: **biggest change.** `bulk_write` upserts → `INSERT ... ON
+- `services/library/scanner.py`: **biggest change.** `bulk_write` upserts → `INSERT ... ON
   CONFLICT` batches through the serialized writer; `reconcile` `delete_many`; library
   progress `update_one`. Pure helpers (`reconcile_stale`, doc-building) unchanged.
-- `services/ai_jobs.py`: find-untagged query + per-doc update → SQL.
-- `services/ai_settings.py`: settings doc get/insert/update → single-row table.
+- `services/ai/ai_jobs.py`: find-untagged query + per-doc update → SQL.
+- `services/ai/ai_settings.py`: settings doc get/insert/update → single-row table.
 - `api/_utils.py`: remove `parse_object_id`.
 
 **Deps / infra / docs**

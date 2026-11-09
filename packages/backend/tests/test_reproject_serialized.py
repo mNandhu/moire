@@ -7,7 +7,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services import gen_metadata, reproject
+from moire.services.metadata import gen_metadata, reproject
 
 
 def _tags(image_id: str) -> list[str]:
@@ -103,7 +103,8 @@ def _seed_raw(seed, image_id: str, prompt: str) -> None:
 async def test_an_id_run_holds_the_lock_across_chunks(seed, monkeypatch):
     """No other run gets in between a chunked run's chunks, yet each chunk
     still reads the settings fresh."""
-    from moire.services import activity, extraction_settings
+    from moire.services import activity
+    from moire.services.metadata import extraction_settings
 
     for i in "abc":
         _seed_raw(seed, f"L1:{i}", "blue eyes")

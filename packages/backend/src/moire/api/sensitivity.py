@@ -8,7 +8,8 @@ import sqlalchemy as sa
 
 from ..database import schema as t
 from ..database.db import async_conn
-from ..services import image_visibility, sensitivity_filter, tag_index, tag_sensitivity
+from ..services.images import image_visibility
+from ..services.tags import sensitivity_filter, tag_index, tag_sensitivity
 
 router = APIRouter()
 
