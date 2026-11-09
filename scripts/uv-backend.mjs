@@ -37,6 +37,10 @@ function installed(prefix) {
 
 const GPU = ["--no-group", "cpu", "--group", "gpu"];
 const [cmd, ...rest] = process.argv.slice(2);
+if (!cmd) {
+  console.error("usage: node scripts/uv-backend.mjs <uv command> [args...]  (e.g. run pytest -x)");
+  process.exit(2);
+}
 const keepGpu = (cmd === "run" || cmd === "sync") && !process.env.UV_NO_GROUP && installed("onnxruntime_gpu-");
 
 // A plain `uv run` since the GPU install put the CPU build back over it:
@@ -52,8 +56,13 @@ if (keepGpu && cmd === "run" && installed("onnxruntime-")) {
 const args = ["--directory", backend, cmd, ...(keepGpu ? GPU : []), ...rest];
 
 const child = spawn("uv", args, { stdio: "inherit" });
+// Ctrl-C in a terminal reaches uv and the server already (one process group).
+// A second SIGINT is "quit now" to uvicorn, which skips its shutdown, so a
+// SIGINT is passed on as SIGTERM: that still stops a server sent the SIGINT
+// alone, and a server already stopping takes it as the same request.
 const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"];
-for (const sig of SIGNALS) {
+process.on("SIGINT", () => child.kill("SIGTERM"));
+for (const sig of ["SIGTERM", "SIGHUP"]) {
   process.on(sig, () => child.kill(sig));
 }
 child.on("exit", (code, signal) => {

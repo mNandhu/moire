@@ -10,13 +10,14 @@ export const SENSITIVITY_KEY = ["sensitivity"] as const;
 const TAG_LEVELS_KEY = [...SENSITIVITY_KEY, "tags"] as const;
 
 /** `poll`: refetch every few seconds (an AI job is giving hidden images a
- * level, so the counts move). */
+ * level, so the counts move). The server's count follows a job in steps of
+ * about 15 s, so asking more often than this gains nothing. */
 export function useSensitivity({ poll = false }: { poll?: boolean } = {}) {
   return useQuery({
     queryKey: SENSITIVITY_KEY,
     queryFn: ({ signal }) => api<SensitivityState>("/api/v1/sensitivity", { signal }),
     staleTime: 30_000,
-    refetchInterval: poll ? 3000 : false,
+    refetchInterval: poll ? 5000 : false,
   });
 }
 

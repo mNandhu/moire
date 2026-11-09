@@ -123,7 +123,7 @@ async def test_tag_untagged_skips_quarantined_like_coverage(client, seed, monkey
 
     queued: list[list[str]] = []
 
-    async def fake_enqueue(self, *, ids, force=False):
+    async def fake_enqueue(self, *, ids, force=False, scope=None):
         queued.append(ids)
         return None
 

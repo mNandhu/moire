@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { errorText } from "../lib/api";
 import { postTagUntagged } from "../lib/ai";
-import { bulkAiJob, describeTask } from "../lib/backgroundTasks";
+import { unknownAiJob, describeTask } from "../lib/backgroundTasks";
 import { useSensitivity } from "../lib/queries/sensitivity";
 import { unknownHidden } from "../lib/sensitivity";
 import { BACKGROUND_TASKS_KEY, useBackgroundTasks, useCancelAiJob } from "../hooks/useBackgroundTasks";
@@ -13,13 +13,13 @@ import { Button, ProgressBar } from "./ui";
 const DISMISSED = "moire.sensitivity.unknown-dismissed";
 
 /** While the sensitivity filter is on: how many images it hides for having
- * no level yet, and the AI tagging that gives them one. While a bulk AI job
- * runs it shows that job's progress (and Cancel) in place of the button, and
+ * no level yet, and the AI tagging that gives them one. While that tagging
+ * runs it shows its progress (and Cancel) in place of the button, and
  * the count follows the job. `dismissible` (the gallery) hides it for the
  * rest of the session. */
 export function UnknownHiddenNotice({ dismissible = false }: { dismissible?: boolean }) {
   const { data: tasks } = useBackgroundTasks();
-  const job = bulkAiJob(tasks);
+  const job = unknownAiJob(tasks);
   const { data } = useSensitivity({ poll: !!job });
   const qc = useQueryClient();
   const { push } = useToast();

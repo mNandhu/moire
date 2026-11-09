@@ -32,6 +32,9 @@ export type BackgroundTask = {
   job_id?: string;
   /** A one-image AI job's image. */
   image_id?: string;
+  /** AI jobs: "unknown" when queued for the images the sensitivity filter
+   * hides as having no level yet. */
+  scope?: string;
   /** AI jobs: images a second, and seconds left at that rate. */
   rate?: number;
   eta_s?: number;
@@ -135,13 +138,16 @@ export function startedKinds(before: readonly BackgroundTask[], after: readonly 
   return new Set(after.filter((t) => !was.has(t.key)).map((t) => t.kind));
 }
 
-/** The running AI job that tags many images (the one a "Tag them" started),
- * if any: the biggest, so an image's own one-image job doesn't stand in. */
-export function bulkAiJob(tasks: readonly BackgroundTask[] | undefined): BackgroundTask | null {
-  let best: BackgroundTask | null = null;
-  for (const t of tasks ?? []) {
-    if (t.kind !== "ai_job" || !t.job_id || (t.total ?? 0) < 2) continue;
-    if (!best || (t.total ?? 0) > (best.total ?? 0)) best = t;
-  }
-  return best;
+/** Whether an AI job of more than one image was running before and is gone
+ * now. A job that started and ended between two polls isn't seen: that is a
+ * few images at most. */
+export function bulkAiJobEnded(before: readonly BackgroundTask[], after: readonly BackgroundTask[]): boolean {
+  const now = new Set(after.map((t) => t.key));
+  return before.some((t) => t.kind === "ai_job" && (t.total ?? 0) > 1 && !now.has(t.key));
+}
+
+/** The running AI job queued for the images the sensitivity filter hides
+ * as unknown (a "Tag them"), if any. Other AI jobs are not the banner's. */
+export function unknownAiJob(tasks: readonly BackgroundTask[] | undefined): BackgroundTask | null {
+  return tasks?.find((t) => t.kind === "ai_job" && !!t.job_id && t.scope === "unknown") ?? null;
 }

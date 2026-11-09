@@ -65,6 +65,9 @@ class AIJob:
     # the span its throughput is measured over.
     started_at: float | None = None
     finished_at: float | None = None
+    # "unknown": queued for the images the sensitivity filter hides as having
+    # no level yet (the gallery banner follows that job, not any other).
+    scope: str | None = None
     # The work list. Kept off the API view (hundreds of ids per poll).
     ids: list[str] = field(default_factory=list, repr=False)
 
@@ -102,6 +105,7 @@ class AIJob:
             # A one-image job (an image's own "Run AI tagging") names it,
             # so that image's panel, opened again mid-job, follows it.
             **({"image_id": self.ids[0]} if self.total == 1 else {}),
+            **({"scope": self.scope} if self.scope else {}),
         }
 
     def public(self) -> dict[str, Any]:
@@ -191,7 +195,9 @@ class AIJobManager:
     def get_job(self, job_id: str) -> AIJob | None:
         return self._jobs.get(job_id)
 
-    async def enqueue(self, *, ids: list[str], force: bool = False) -> AIJob:
+    async def enqueue(
+        self, *, ids: list[str], force: bool = False, scope: str | None = None
+    ) -> AIJob:
         job_id = uuid.uuid4().hex
 
         # De-dupe within the job while preserving order.
@@ -215,6 +221,7 @@ class AIJobManager:
             created_at=time.time(),
             total=len(accepted),
             skipped=skipped,
+            scope=scope,
             ids=list(accepted),
         )
         self._jobs[job_id] = job
@@ -243,7 +250,7 @@ class AIJobManager:
             ids = [row._id for row in (await conn.execute(stmt)).fetchall()]
         if not ids:
             return None
-        return await self.enqueue(ids=ids)
+        return await self.enqueue(ids=ids, scope="unknown" if unknown else None)
 
     async def cancel(self, job_id: str) -> bool:
         job = self._jobs.get(job_id)
@@ -323,6 +330,9 @@ class AIJobManager:
                                 image=img,
                                 settings=settings,
                                 model=model,
+                                # One image (its own re-tag) is an edit the user
+                                # waits on; only a run of many lags the views.
+                                bulk=job.total > 1,
                             )
                             job.done += 1
                         except Exception as e:
@@ -416,6 +426,7 @@ class AIJobManager:
         image: Image.Image | PreparedImage,
         settings: dict[str, Any],
         model: tuple[str, str],
+        bulk: bool,
     ) -> None:
         model_repo, cache_dir = model
         params = TagParams.from_settings(settings)
@@ -451,7 +462,7 @@ class AIJobManager:
             ai_tags=ai_tags,
             ai_meta=ai_meta,
             rating=rating_label,
-            bulk=True,
+            bulk=bulk,
         )
 
 

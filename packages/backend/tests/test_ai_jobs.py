@@ -7,7 +7,7 @@ import time
 from PIL import Image
 
 from moire.services import activity, ai_jobs
-from moire.services.ai_jobs import AIJobManager
+from moire.services.ai_jobs import AIJob, AIJobManager
 from moire.services.ai_tagger import TagParams, TaggerManager
 
 _RESULT = {"caption": "", "rating": {}, "general_tags": [], "character_tags": []}
@@ -63,7 +63,7 @@ def _job_manager(
         events.append(f"load-end:{image_id}")
         return Image.new("RGBA", (4, 4))
 
-    async def fake_tag_one(*, image_id: str, image, settings, model):
+    async def fake_tag_one(*, image_id: str, image, settings, model, bulk):
         events.append(f"tag-start:{image_id}")
         await asyncio.sleep(0.05)
         events.append(f"tag-end:{image_id}")
@@ -395,3 +395,10 @@ async def test_stop_cancels_the_worker(monkeypatch):
     worker = mgr._worker_task
     await mgr.stop()
     assert worker.cancelled() and mgr._worker_task is None
+
+
+def test_activity_item_names_a_run_for_the_unknown_images():
+    """The gallery banner follows only the job its "Tag them" queued."""
+    job = AIJob(id="j", created_at=0.0, total=3, scope="unknown", ids=["a", "b", "c"])
+    assert job.activity_item()["scope"] == "unknown"
+    assert "scope" not in AIJob(id="k", created_at=0.0, total=3).activity_item()

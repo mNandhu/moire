@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { bulkAiJob, describeTask, endedKinds, startedKinds, taskPct, type BackgroundTask } from "./backgroundTasks";
+import { bulkAiJobEnded, unknownAiJob, describeTask, endedKinds, startedKinds, taskPct, type BackgroundTask } from "./backgroundTasks";
 
 const names = (id: string) => ({ A: "sdxl" })[id];
 
@@ -66,19 +66,32 @@ it("finds the kinds of work that just started", () => {
   expect(startedKinds([a, b], [a]).size).toBe(0);
 });
 
-describe("bulkAiJob", () => {
-  const job = (id: string, total: number): BackgroundTask => ({ key: `ai:${id}`, kind: "ai_job", job_id: id, total, done: 0 });
+describe("unknownAiJob", () => {
+  const job = (id: string, scope?: string): BackgroundTask => ({ key: `ai:${id}`, kind: "ai_job", job_id: id, total: 50, done: 0, scope });
 
   it("is null with no AI job running", () => {
-    expect(bulkAiJob(undefined)).toBeNull();
-    expect(bulkAiJob([{ key: "s", kind: "scan", total: 10 }])).toBeNull();
+    expect(unknownAiJob(undefined)).toBeNull();
+    expect(unknownAiJob([{ key: "s", kind: "scan", total: 10, scope: "unknown" }])).toBeNull();
   });
 
-  it("skips an image's own one-image job", () => {
-    expect(bulkAiJob([job("one", 1)])).toBeNull();
+  it("ignores AI jobs queued for anything else", () => {
+    expect(unknownAiJob([job("library")])).toBeNull();
   });
 
-  it("picks the biggest job", () => {
-    expect(bulkAiJob([job("a", 5), job("b", 1395), job("c", 1)])?.job_id).toBe("b");
+  it("finds the job queued for the unknown images", () => {
+    expect(unknownAiJob([job("library"), job("hidden", "unknown")])?.job_id).toBe("hidden");
+  });
+});
+
+describe("bulkAiJobEnded", () => {
+  const job = (id: string, total: number): BackgroundTask => ({ key: `ai:${id}`, kind: "ai_job", job_id: id, total, done: 0 });
+
+  it("is true when a job of many images is gone", () => {
+    expect(bulkAiJobEnded([job("a", 40)], [])).toBe(true);
+  });
+
+  it("is false for an image's own one-image run, or a job still running", () => {
+    expect(bulkAiJobEnded([job("one", 1)], [])).toBe(false);
+    expect(bulkAiJobEnded([job("a", 40)], [job("a", 40)])).toBe(false);
   });
 });
