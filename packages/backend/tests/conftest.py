@@ -9,6 +9,7 @@ wired to the ASGI app.
 from __future__ import annotations
 
 import asyncio
+import shutil
 from pathlib import Path
 
 import httpx
@@ -40,7 +41,12 @@ def isolated_storage(tmp_path_factory):
     configured paths, so fixture rows like `L1:a` ended up in the real
     gallery. Logs go with them. The session DB gets the schema, since tests
     without `temp_db` read it; the engines are dropped again after, so none
-    stays bound to this setup's event loop."""
+    stays bound to this setup's event loop.
+
+    A copy of that fresh DB is the template `temp_db` hands each test:
+    building the schema costs ~0.3 s, copying the file under a millisecond.
+    Disposing the engines checkpoints the WAL, so the one file is the whole DB."""
+    global _template_db
     root = tmp_path_factory.mktemp("moire")
     settings.sqlite_path = str(root / "session.db")
     settings.thumb_root = str(root / "thumbs")
@@ -52,6 +58,11 @@ def isolated_storage(tmp_path_factory):
         await db.reset_engines()
 
     asyncio.run(_setup())
+    _template_db = root / "template.db"
+    shutil.copyfile(root / "session.db", _template_db)
+
+
+_template_db: Path | None = None
 
 
 @pytest.fixture(autouse=True)
@@ -75,7 +86,7 @@ def fresh_tag_index():
 
 @pytest_asyncio.fixture
 async def temp_db(tmp_path: Path):
-    """Point the engines at a fresh temp-file DB and create the schema.
+    """Point the engines at a fresh temp-file DB holding the schema.
 
     Puts the session paths back afterwards, so a later test without this
     fixture lands on the session DB, not this test's leftovers."""
@@ -83,7 +94,7 @@ async def temp_db(tmp_path: Path):
     settings.sqlite_path = str(tmp_path / "test.db")
     settings.thumb_root = str(tmp_path / "thumbs")
     await db.reset_engines()
-    await db.ensure_schema()
+    shutil.copyfile(_template_db, settings.sqlite_path)
     yield
     await db.reset_engines()
     settings.sqlite_path, settings.thumb_root = saved

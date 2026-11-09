@@ -60,7 +60,7 @@ async def test_overlapping_runs_end_with_the_latest_rules(seed, monkeypatch):
     second.start()
     # Unserialized, the second run finishes here and the first then
     # overwrites it; serialized, it waits for the first.
-    second.join(1)
+    second.join(0.3)
     release.set()
     first.join(5)
     second.join(5)

@@ -325,9 +325,17 @@ async def test_live_loop_never_double_submits_or_loses(client, comfy, seed):
     none is called lost."""
     m = get_generation_manager()
     m.transport = comfy.transport(latency=0.005)
-    await m.configure()
     m.ws_connect = comfy.connect
+    old = m.client
     m.start()
+    # The loop's first step rebuilds the client (closing the old one): wait
+    # for it, or a request still in flight on the old client fails.
+    for _ in range(1000):
+        if m.client is not None and m.client is not old:
+            break
+        await asyncio.sleep(0.001)
+    else:
+        raise AssertionError("the loop never set up its client")
     await make_ready(client, comfy, seed)
     m.interval = m.idle_interval = 0.001
     sent_before = len(comfy.order)

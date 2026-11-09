@@ -3,10 +3,12 @@ over a queue, and reading a cold start from ComfyUI's history."""
 
 from __future__ import annotations
 
-import subprocess
-import sys
+import ast
+from pathlib import Path
 
 import pytest
+
+import moire
 
 from moire.services.generation_estimate import Job, Run, plan
 from moire.services.generation_estimate import _job, _Memo, _run_order, _warm
@@ -164,13 +166,66 @@ def test_pending_requests_run_batch_after_batch():
     assert got == [(2, 0), (3, 0), (1, 1), (1, 2), (2, 1), (2, 2)]
 
 
+def _import_time_modules(*roots: str) -> set[str]:
+    """The moire modules importing `roots` loads, read off the source: every
+    module-level import (not `if TYPE_CHECKING:`, not inside a function),
+    followed transitively, with the packages each one sits in. A static walk
+    gives what a fresh interpreter would load without starting one."""
+    src = Path(moire.__file__).parent.parent
+
+    def path_of(mod: str) -> Path | None:
+        base = src.joinpath(*mod.split("."))
+        for p in (base / "__init__.py", base.with_suffix(".py")):
+            if p.exists():
+                return p
+        return None
+
+    def imports(mod: str, path: Path) -> list[str]:
+        pkg = mod if path.name == "__init__.py" else mod.rpartition(".")[0]
+        out: list[str] = []
+
+        def visit(body):
+            for node in body:
+                if isinstance(node, ast.If):
+                    if "TYPE_CHECKING" not in ast.unparse(node.test):
+                        visit(node.body)
+                        visit(node.orelse)
+                elif isinstance(node, ast.Try):
+                    visit(node.body)
+                elif isinstance(node, ast.Import):
+                    out.extend(a.name for a in node.names)
+                elif isinstance(node, ast.ImportFrom):
+                    base = node.module or ""
+                    if node.level:
+                        parent = pkg.rsplit(".", node.level - 1)[0]
+                        base = f"{parent}.{base}" if base else parent
+                    out.append(base)
+                    out.extend(f"{base}.{a.name}" for a in node.names)
+
+        visit(ast.parse(path.read_text(encoding="utf-8")).body)
+        return out
+
+    seen: set[str] = set()
+    todo = list(roots)
+    while todo:
+        mod = todo.pop()
+        if mod in seen or not mod.startswith("moire"):
+            continue
+        path = path_of(mod)
+        if path is None:  # a name imported from a module, not a module
+            continue
+        seen.add(mod)
+        parts = mod.split(".")
+        todo += [".".join(parts[:i]) for i in range(1, len(parts))]
+        todo += imports(mod, path)
+    return seen
+
+
 def test_estimate_and_batches_do_not_import_the_manager():
     # The estimate and the read side sit below the manager: importing them
     # alone never pulls generation_jobs in (no cycle hidden by lazy imports).
-    code = (
-        "import sys\n"
-        "import moire.services.generation_estimate\n"
-        "import moire.services.generation_batches\n"
-        "assert 'moire.services.generation_jobs' not in sys.modules\n"
+    loaded = _import_time_modules(
+        "moire.services.generation_estimate", "moire.services.generation_batches"
     )
-    subprocess.run([sys.executable, "-c", code], check=True)
+    assert "moire.services.generator_setup" in loaded  # the walk follows imports
+    assert "moire.services.generation_jobs" not in loaded

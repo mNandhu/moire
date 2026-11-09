@@ -61,7 +61,7 @@ def _saw(lib, name, got):
     # The child may still be walking the root; keep touching until seen.
     def touched():
         (lib / name).write_bytes(b"x" * 16)
-        return got.wait(0.5)
+        return got.wait(0.2)
 
     return _wait(touched)
 
