@@ -38,7 +38,7 @@ async def test_plain_tag_keeps_existing_ai_tags(client, seed):
     assert row.rating == "general"
 
 
-async def test_retag_leaves_an_image_to_the_job_that_still_holds_it(client, seed):
+async def test_retag_takes_an_image_over_from_the_job_that_still_holds_it(client, seed):
     from moire.services.ai_jobs import get_ai_job_manager
 
     seed("L1:c.png", tags=("1girl",), rating="general")
@@ -49,6 +49,7 @@ async def test_retag_leaves_an_image_to_the_job_that_still_holds_it(client, seed
     finally:
         jm._in_flight["L1:c.png"] -= 1
     assert resp.status_code == 200, resp.text
-    # Cleared now; the holding job tags it, no second inference.
-    assert resp.json() == {"job_id": resp.json()["job_id"], "queued": 0, "skipped": 1}
+    # Cleared and tagged now, not when the long run gets there: that run
+    # skips it once this one has tagged it (ai_jobs._taken).
+    assert resp.json() == {"job_id": resp.json()["job_id"], "queued": 1, "skipped": 0}
     assert _row("L1:c.png").tags == []

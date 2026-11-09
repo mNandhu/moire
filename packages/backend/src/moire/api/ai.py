@@ -169,8 +169,8 @@ async def ai_tag(req: TagRequest):
     if req.retag:
         for image_id in req.ids:
             await image_tags.clear_ai(image_id)
-    # An image another job still holds is skipped: that job tags it after
-    # the clear (a job releases each image once it has tagged it).
+    # Urgent: runs between the images of a long run, and takes over images
+    # that run still holds (it skips them once this job has tagged them).
     job = await jm.enqueue(ids=req.ids, force=bool(req.force), urgent=True)
     return {"job_id": job.id, "queued": job.total, "skipped": job.skipped}
 

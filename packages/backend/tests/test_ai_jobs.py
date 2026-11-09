@@ -3,6 +3,7 @@ read + decode must overlap the current inference."""
 
 import asyncio
 import time
+import pytest
 
 from PIL import Image
 
@@ -457,7 +458,7 @@ async def test_an_image_the_tagger_finds_nothing_in_is_left_to_auto_tag(monkeypa
 
     monkeypatch.setattr(mgr, "_tag_one", nothing_for_empty)
     await _run(mgr, ["ok", "empty", "bad"])
-    assert mgr._auto_skip == {"empty", "bad"}
+    assert set(mgr._auto_skip) == {"empty", "bad"}
 
 
 async def test_tag_them_takes_over_an_auto_tag_job_holding_its_images():
@@ -471,8 +472,81 @@ async def test_tag_them_takes_over_an_auto_tag_job_holding_its_images():
 
 async def test_cancelling_an_auto_tag_run_pauses_auto_tag(monkeypatch):
     mgr = AIJobManager()
-    auto = await mgr.enqueue(ids=["a"], scope="auto")
+    auto = await mgr.enqueue(ids=["a", "b"], scope="auto", backlog=True)
+    # "Tag them" took it over: still the backlog run auto-tag would requeue.
+    await mgr.enqueue(ids=["a"], scope="unknown")
+    assert auto.scope == "unknown"
     await mgr.cancel(auto.id)
     assert await mgr.auto_tag() is None  # paused: no settings read needed
     mgr.resume_auto()
     assert mgr._auto_paused is False
+
+
+async def test_cancelling_a_selection_leaves_auto_tag_alone():
+    mgr = AIJobManager()
+    picked = await mgr.enqueue(ids=["a"], urgent=True)
+    await mgr.cancel(picked.id)
+    assert mgr._auto_paused is False
+
+
+async def test_an_urgent_job_takes_over_images_a_long_run_holds(monkeypatch):
+    """Tag on a selection the auto run holds tags them now, not when the run
+    gets there; the run then skips them instead of tagging them twice."""
+    events: list[str] = []
+    mgr = _job_manager(monkeypatch, events)
+    worker = asyncio.create_task(mgr._worker_loop())
+    bulk = await mgr.enqueue(
+        ids=[f"b{i}" for i in range(6)], scope="auto", backlog=True
+    )
+    try:
+        while "tag-start:b1" not in events:
+            await asyncio.sleep(0.005)
+        picked = await mgr.enqueue(ids=["b4"], urgent=True)
+        assert picked.total == 1 and picked.skipped == 0
+        for _ in range(500):
+            if bulk.status == "done":
+                break
+            await asyncio.sleep(0.01)
+    finally:
+        worker.cancel()
+
+    assert picked.status == "done" and bulk.status == "done"
+    assert events.count("tag-start:b4") == 1
+    assert events.index("tag-end:b4") < events.index("tag-start:b3")
+    assert bulk.done == 6 and not mgr._in_flight and not mgr._taken
+
+
+async def test_a_nudge_during_an_auto_tag_pass_runs_one_more(monkeypatch):
+    mgr = AIJobManager()
+    mgr._loop = asyncio.get_running_loop()
+    monkeypatch.setattr(ai_jobs, "_AUTO_DELAY_S", 0.0)
+    passes = 0
+
+    async def slow_pass():
+        nonlocal passes
+        passes += 1
+        if passes == 1:
+            mgr._schedule_auto()  # a file arrived mid-query
+        await asyncio.sleep(0.01)
+
+    monkeypatch.setattr(mgr, "auto_tag", slow_pass)
+    mgr._schedule_auto()
+    await mgr._auto_task
+    assert passes == 2
+
+
+async def test_the_recorded_rate_leaves_out_failures_and_urgent_jobs(monkeypatch):
+    recorded: list[tuple[float, int]] = []
+
+    async def record(device, rate, images):
+        recorded.append((rate, images))
+
+    monkeypatch.setattr(ai_jobs.ai_estimate, "record", record)
+    monkeypatch.setattr(ai_jobs.ai_estimate, "current_device", lambda: "cpu")
+    mgr = _job_manager(monkeypatch, [], fail_load=frozenset({"bad"}))
+    job = await mgr.enqueue(ids=["a", "b", "bad"])
+    job.nested_s = 0.0
+    await mgr._run_job(job)
+    ((rate, images),) = recorded
+    assert images == 2
+    assert rate == pytest.approx(2 / (job.finished_at - job.started_at))

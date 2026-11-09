@@ -36,6 +36,9 @@ _KEEP_RECENT_S = 600.0
 # Auto-tag waits this long after a nudge, so a burst of new files (the
 # watcher ingests them one at a time) queues one job, not one each.
 _AUTO_DELAY_S = 3.0
+# How long auto-tag leaves an image alone after it failed or got no tags: a
+# file read half-written gets another go, a broken one isn't retried per scan.
+_AUTO_SKIP_S = 15 * 60.0
 
 __all__ = [
     "AIJobManager",
@@ -85,6 +88,12 @@ class AIJob:
     # Named images (an image's own re-tag, a selection): run between the
     # images of a long run instead of waiting for it to end.
     urgent: bool = False
+    # Queued over the untagged backlog (auto-tag, or Tag on the AI page):
+    # cancelling one pauses auto-tag, which would queue it straight back.
+    backlog: bool = False
+    # Seconds spent running urgent jobs between this job's images: not its
+    # own tagging, so left out of the rate it records.
+    nested_s: float = 0.0
     # The work list. Kept off the API view (hundreds of ids per poll).
     ids: list[str] = field(default_factory=list, repr=False)
 
@@ -184,7 +193,13 @@ class AIJobManager:
         # Images that failed, or that the tagger found nothing in, since the
         # process started: auto-tag leaves them out so it doesn't queue them
         # again after every scan (a run started by hand still includes them).
-        self._auto_skip: set[str] = set()
+        # Image id -> when it was given up on (see _AUTO_SKIP_S).
+        self._auto_skip: dict[str, float] = {}
+        # Ids an urgent job took over from a job already holding them: that
+        # job skips them when it gets there instead of tagging them twice.
+        self._taken: set[str] = set()
+        # A nudge came while auto-tag was already querying: run it once more.
+        self._auto_again = False
         self._loop: asyncio.AbstractEventLoop | None = None
         self._auto_task: asyncio.Task | None = None
         # Cancel on an auto-tag job pauses auto-tag until the setting is
@@ -241,6 +256,7 @@ class AIJobManager:
         force: bool = False,
         scope: str | None = None,
         urgent: bool = False,
+        backlog: bool = False,
     ) -> AIJob:
         job_id = uuid.uuid4().hex
 
@@ -256,6 +272,11 @@ class AIJobManager:
             held = set()
             for image_id in unique_ids:
                 if image_id in self._in_flight:
+                    if urgent:
+                        # Named images don't wait for the long run holding
+                        # them: this job tags them now, that one skips them.
+                        accepted.append(image_id)
+                        continue
                     held.add(image_id)
                     continue
                 accepted.append(image_id)
@@ -276,6 +297,7 @@ class AIJobManager:
             skipped=skipped,
             scope=scope,
             urgent=urgent,
+            backlog=backlog,
             ids=list(accepted),
         )
         self._jobs[job_id] = job
@@ -290,6 +312,16 @@ class AIJobManager:
             _note_end(job)
         return job
 
+    @staticmethod
+    def _untagged_ids(library_id: str | None = None, *, unknown: bool = False):
+        """The images a run tags, newest file first: the set /ai/coverage
+        counts (ai_coverage.untagged_clause). ``unknown``: only those with no
+        sensitivity level yet, which the sensitivity filter hides."""
+        stmt = sa.select(t.images.c._id).where(ai_coverage.untagged_clause(library_id))
+        if unknown:
+            stmt = stmt.where(image_visibility.image_level().is_(None))
+        return stmt.order_by(t.images.c.mtime.desc(), t.images.c._id.desc())
+
     async def enqueue_untagged(
         self,
         *,
@@ -299,20 +331,18 @@ class AIJobManager:
     ) -> AIJob | None:
         """Queue the images without AI tags, newest file first; ``limit``
         None queues every one of them."""
-        # A run tags the set /ai/coverage counted (ai_coverage.untagged_clause);
-        # ``unknown``: only those with no sensitivity level yet, which the
-        # sensitivity filter hides until tagged.
-        stmt = sa.select(t.images.c._id).where(ai_coverage.untagged_clause(library_id))
-        if unknown:
-            stmt = stmt.where(image_visibility.image_level().is_(None))
-        stmt = stmt.order_by(t.images.c.mtime.desc(), t.images.c._id.desc())
+        stmt = self._untagged_ids(library_id, unknown=unknown)
         if limit is not None:
             stmt = stmt.limit(max(1, int(limit)))
         async with async_conn() as conn:
             ids = [row._id for row in (await conn.execute(stmt)).fetchall()]
         if not ids:
             return None
-        return await self.enqueue(ids=ids, scope="unknown" if unknown else None)
+        # Tagging asked for by hand: a pause from a cancelled run is over.
+        self._auto_paused = False
+        return await self.enqueue(
+            ids=ids, scope="unknown" if unknown else None, backlog=True
+        )
 
     async def auto_tag(self) -> AIJob | None:
         """With the ``auto_tag`` setting on, queue every image without AI
@@ -324,20 +354,17 @@ class AIJobManager:
             return None
         if not (await get_ai_settings()).get("auto_tag"):
             return None
-        stmt = (
-            sa.select(t.images.c._id)
-            .where(ai_coverage.untagged_clause())
-            .order_by(t.images.c.mtime.desc(), t.images.c._id.desc())
-        )
+        cutoff = time.time() - _AUTO_SKIP_S
+        self._auto_skip = {k: at for k, at in self._auto_skip.items() if at > cutoff}
         async with async_conn() as conn:
             ids = [
                 row._id
-                for row in (await conn.execute(stmt)).fetchall()
+                for row in (await conn.execute(self._untagged_ids())).fetchall()
                 if row._id not in self._in_flight and row._id not in self._auto_skip
             ]
         if not ids:
             return None
-        return await self.enqueue(ids=ids, scope="auto")
+        return await self.enqueue(ids=ids, scope="auto", backlog=True)
 
     def resume_auto(self) -> None:
         """Auto-tag was switched on: a pause from a cancelled run ends."""
@@ -357,14 +384,21 @@ class AIJobManager:
 
     def _schedule_auto(self) -> None:
         if self._auto_task is not None and not self._auto_task.done():
+            # It may be past its query already: images that arrived since
+            # need one more pass.
+            self._auto_again = True
             return
 
         async def _later() -> None:
-            await asyncio.sleep(_AUTO_DELAY_S)
-            try:
-                await self.auto_tag()
-            except Exception:
-                logger.exception("Auto-tag could not queue the new images")
+            while True:
+                await asyncio.sleep(_AUTO_DELAY_S)
+                self._auto_again = False
+                try:
+                    await self.auto_tag()
+                except Exception:
+                    logger.exception("Auto-tag could not queue the new images")
+                if not self._auto_again:
+                    return
 
         self._auto_task = asyncio.create_task(_later())
 
@@ -372,7 +406,7 @@ class AIJobManager:
         job = self._jobs.get(job_id)
         if not job:
             return False
-        if job.scope == "auto" and job.status in _ACTIVE:
+        if job.backlog and job.status in _ACTIVE:
             self._auto_paused = True
 
         # If queued, remove from queue immediately.
@@ -400,25 +434,39 @@ class AIJobManager:
                 continue
             await self._run_job(job)
 
-    async def _run_urgent(self) -> None:
+    async def _run_urgent(
+        self, outer: AIJob, run: tuple[dict[str, Any], tuple[str, str]]
+    ) -> None:
         """Run the urgent jobs queued meanwhile, between two images of a long
-        run, so an image's own re-tag doesn't wait hours behind it."""
+        run, so an image's own re-tag doesn't wait hours behind it. They use
+        the long run's settings and model: a model change mid-run would
+        otherwise swap the model back and forth."""
         while (job := self._queue.pop_urgent()) is not None:
             if job.status != "cancelled":
-                await self._run_job(job, nested=True)
+                began = time.time()
+                await self._run_job(job, nested=run)
+                outer.nested_s += time.time() - began
 
-    async def _run_job(self, job: AIJob, *, nested: bool = False) -> None:
+    async def _run_job(
+        self,
+        job: AIJob,
+        *,
+        nested: tuple[dict[str, Any], tuple[str, str]] | None = None,
+    ) -> None:
         job.status = "running"
         ids = job.ids
         released = 0  # ids[:released] are processed and their claims dropped
         try:
-            settings = await get_ai_settings()
-            # Startup sets the idle timeout best-effort; a failed read
-            # there must not pin the default for the process lifetime.
-            get_tagger_manager().set_idle_unload_s(
-                int(settings.get("idle_unload_s", 0) or 0)
-            )
-            model = resolved_model_target(settings)
+            if nested is not None:
+                settings, model = nested
+            else:
+                settings = await get_ai_settings()
+                # Startup sets the idle timeout best-effort; a failed read
+                # there must not pin the default for the process lifetime.
+                get_tagger_manager().set_idle_unload_s(
+                    int(settings.get("idle_unload_s", 0) or 0)
+                )
+                model = resolved_model_target(settings)
             try:
                 ready = await self._prepare_model(job, *model)
             except Exception as e:
@@ -438,11 +486,21 @@ class AIJobManager:
             pending: asyncio.Task | None = None
             try:
                 for i, image_id in enumerate(ids):
-                    if not nested and i > 0:
-                        await self._run_urgent()
+                    if nested is None and i > 0:
+                        await self._run_urgent(job, (settings, model))
                     if job.cancel_requested:
                         job.status = "cancelled"
                         break
+                    if not job.urgent and image_id in self._taken:
+                        # An urgent job tagged it meanwhile.
+                        self._taken.discard(image_id)
+                        if pending is not None:
+                            _discard(pending)
+                            pending = None
+                        job.done += 1
+                        self._release([image_id])
+                        released = i + 1
+                        continue
                     job.current = image_id
                     load = pending or asyncio.create_task(self._load_image(image_id))
                     pending = (
@@ -462,13 +520,16 @@ class AIJobManager:
                             bulk=job.total > 1,
                         )
                         if found is False:
-                            self._auto_skip.add(image_id)
+                            self._auto_skip[image_id] = time.time()
                         job.done += 1
                     except Exception as e:
                         logger.warning("AI tagging failed for %s: %s", image_id, e)
                         job.failed += 1
                         job.errors.append({"image_id": image_id, "error": str(e)})
-                        self._auto_skip.add(image_id)
+                        self._auto_skip[image_id] = time.time()
+                    if job.urgent and self._in_flight[image_id] > 1:
+                        # Another job still holds it: that one skips it.
+                        self._taken.add(image_id)
                     self._release([image_id])
                     released = i + 1
             finally:
@@ -488,13 +549,17 @@ class AIJobManager:
             job.current = None
             if job.started_at is not None:
                 job.finished_at = time.time()
-                if job.total > 1:
+                # A nested job's writes are part of the run around it, which
+                # ends them and measures the rate.
+                if job.total > 1 and nested is None:
                     # The tag views lagged this job's writes (bulk=True).
                     image_tags.end_bulk_writes()
-                    rate = job.throughput().get("rate")
-                    if rate:
+                    # Images tagged a second, failures and urgent jobs left
+                    # out: a failure is quick, and neither is tagging.
+                    own = job.finished_at - job.started_at - job.nested_s
+                    if own > 0:
                         await ai_estimate.record(
-                            ai_estimate.current_device(), rate, job.done
+                            ai_estimate.current_device(), job.done / own, job.done
                         )
             _note_end(job)
             self._release(ids[released:])
@@ -505,6 +570,7 @@ class AIJobManager:
         for image_id in ids:
             if self._in_flight[image_id] <= 0:
                 del self._in_flight[image_id]
+                self._taken.discard(image_id)
 
     async def _prepare_model(self, job: AIJob, repo: str, cache_dir: str) -> bool:
         """Load the tagger model before the first image, through the shared

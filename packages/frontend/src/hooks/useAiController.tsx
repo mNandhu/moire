@@ -148,7 +148,9 @@ function useAiControllerState(): AiController {
       (r) =>
         r.queued
           ? [`Queued AI tagging for ${r.queued.toLocaleString()} images`, "success"]
-          : ["No images are missing AI tags", "info"],
+          : r.skipped
+            ? ["A running job is already tagging these images", "info"]
+            : ["No images are missing AI tags", "info"],
       "Failed to start job"
     );
 

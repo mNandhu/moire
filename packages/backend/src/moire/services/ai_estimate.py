@@ -23,6 +23,10 @@ DEFAULT_SECONDS_PER_IMAGE = {"cpu": 1 / 0.6, "gpu": 0.1}
 # A run shorter than this says more about warm-up than about the rate.
 MIN_IMAGES = 20
 
+# The stored rates, read once: /ai/status asks on every poll, and they only
+# change when a run records one.
+_rates: dict[str, Any] | None = None
+
 
 def current_device() -> str:
     return get_tagger_manager().status().get("device") or "cpu"
@@ -34,10 +38,12 @@ async def record(device: str, rate: float, images: int) -> None:
     a job over."""
     if images < MIN_IMAGES or not rate or rate <= 0:
         return
+    global _rates
     try:
         doc = dict(await app_settings.read(ROW) or {})
         doc[device] = {"rate": rate, "images": images, "at": time.time()}
         await app_settings.write(ROW, doc)
+        _rates = doc
     except Exception:
         logger.debug("Could not store the tagging rate", exc_info=True)
 
@@ -45,14 +51,20 @@ async def record(device: str, rate: float, images: int) -> None:
 async def estimate() -> dict[str, Any]:
     """``device`` ("cpu" or "gpu"), ``seconds_per_image`` and whether that
     was ``measured`` on this machine or is the documented default."""
+    global _rates
     device = current_device()
-    try:
-        doc = await app_settings.read(ROW) or {}
-    except Exception:
-        doc = {}
-    rate = (doc.get(device) or {}).get("rate")
+    if _rates is None:
+        try:
+            _rates = dict(await app_settings.read(ROW) or {})
+        except Exception:
+            return _default(device)
+    rate = (_rates.get(device) or {}).get("rate")
     if rate and rate > 0:
         return {"device": device, "seconds_per_image": 1 / rate, "measured": True}
+    return _default(device)
+
+
+def _default(device: str) -> dict[str, Any]:
     return {
         "device": device,
         "seconds_per_image": DEFAULT_SECONDS_PER_IMAGE[device],

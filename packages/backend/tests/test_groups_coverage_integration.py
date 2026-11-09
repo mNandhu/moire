@@ -1,6 +1,8 @@
 """Integration tests for the batch-collapsed grouped view, AI coverage counts,
 and the models filter list."""
 
+import time
+
 
 async def test_groups_collapse_to_newest_representative(client, seed):
     # Three members of one batch + one standalone image.
@@ -123,7 +125,7 @@ async def test_tag_untagged_skips_quarantined_like_coverage(client, seed, monkey
 
     queued: list[list[str]] = []
 
-    async def fake_enqueue(self, *, ids, force=False, scope=None):
+    async def fake_enqueue(self, *, ids, force=False, scope=None, **_):
         queued.append(ids)
         return None
 
@@ -215,7 +217,7 @@ async def test_tag_untagged_queues_every_image_newest_first(client, seed, monkey
 
     queued: list[list[str]] = []
 
-    async def fake_enqueue(self, *, ids, force=False, scope=None, urgent=False):
+    async def fake_enqueue(self, *, ids, force=False, scope=None, **_):
         queued.append(ids)
         return None
 
@@ -242,7 +244,7 @@ async def test_auto_tag_only_runs_when_on_and_skips_what_it_gave_up_on(
 
     queued: list[tuple[list[str], str | None]] = []
 
-    async def fake_enqueue(*, ids, force=False, scope=None, urgent=False):
+    async def fake_enqueue(*, ids, force=False, scope=None, **_):
         queued.append((ids, scope))
         return None
 
@@ -256,7 +258,7 @@ async def test_auto_tag_only_runs_when_on_and_skips_what_it_gave_up_on(
 
     monkeypatch.setattr(scanner, "any_scanning", lambda: False)
     mgr._in_flight["L1:c"] += 1  # another job holds it
-    mgr._auto_skip.add("L1:a")  # failed earlier
+    mgr._auto_skip["L1:a"] = time.time()  # failed earlier
     await mgr.auto_tag()
     assert queued == [(["L1:b"], "auto")]
 

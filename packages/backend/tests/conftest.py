@@ -20,6 +20,7 @@ from moire.core.config import settings
 from moire.database import db
 from moire.database import schema as t
 from moire.services import (
+    ai_estimate,
     image_tags,
     lora_words,
     sensitivity_filter,
@@ -63,11 +64,13 @@ def fresh_tag_index():
     sensitivity_filter.reset_for_tests()
     tag_views.reset_for_tests()
     lora_words._last_total = None
+    ai_estimate._rates = None
     yield
     tag_index.reset_for_tests()
     tag_sensitivity.reset_for_tests()
     sensitivity_filter.reset_for_tests()
     lora_words._last_total = None
+    ai_estimate._rates = None
 
 
 @pytest_asyncio.fixture

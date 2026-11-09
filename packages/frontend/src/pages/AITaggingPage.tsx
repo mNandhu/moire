@@ -198,7 +198,9 @@ function LibraryCoverage({
   nameOf: (id: string) => string;
   est: AiEstimate | undefined;
 }) {
-  const { running, runUntagged } = useAiController();
+  const { running, runUntagged, latestJob } = useAiController();
+  // A job running now holds the untagged images: another run would get none.
+  const busy = running || (latestJob != null && isActiveJob(latestJob.status));
   const [all, setAll] = useState(false);
   const { todo, done } = libraryCoverageRows(perLibrary, nameOf);
   const shown = all ? todo : todo.slice(0, SHOWN);
@@ -236,7 +238,7 @@ function LibraryCoverage({
                 variant="ghost"
                 className="h-7 px-2"
                 onClick={() => void runUntagged(l.library_id)}
-                disabled={running}
+                disabled={busy}
                 aria-label={`Tag ${l.name}`}
               >
                 <Sparkles size={12} /> Tag
