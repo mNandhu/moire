@@ -28,13 +28,18 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ...database.db import async_conn, async_tx
 from ...database import schema as t
-from ..characters import attire, character_look, characters
+from ..characters import attire, look as character_look, pages as characters
 from . import comfy_models
-from ..images import image_visibility
-from ..tags import tag_categories, tag_detail, tag_index, tag_kinds
+from ..images import visibility as image_visibility
+from ..tags import (
+    categories as tag_categories,
+    detail as tag_detail,
+    index as tag_index,
+    kinds as tag_kinds,
+)
 from ..metadata.model_names import model_stem
-from ..tags.tag_names import unescape_parens
-from ..tags.tag_kinds import canonical_tag
+from ..tags.names import unescape_parens
+from ..tags.kinds import canonical_tag
 
 # A LoRA counts as this character's when at least this share of the images it
 # was used on are theirs: a style or detail LoRA used on everything never is.

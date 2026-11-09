@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from moire.services.generate.generation_compose import batch_name
-from moire.services.generate.generation_inputs import (
+from moire.services.generate.compose import batch_name
+from moire.services.generate.inputs import (
     DERIVED_KEYS,
     REPLAY_KEYS,
     build_batch_inputs,

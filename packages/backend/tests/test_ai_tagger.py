@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from moire.services.ai.ai_tagger import (
+from moire.services.ai.tagger import (
     LabelIndex,
     PreparedImage,
     TaggerManager,
@@ -17,7 +17,7 @@ from moire.services.ai.ai_tagger import (
     select_tags,
     TagParams,
 )
-from moire.services.ai.ai_tagger_download import (
+from moire.services.ai.tagger_download import (
     DEFAULT_CACHE_DIR,
     ModelDownloadManager,
     RemoteFile,
@@ -244,7 +244,7 @@ def test_predict_uses_a_prepared_tensor_of_the_right_size():
 
 
 def test_download_state_progress_sums_sized_files_once():
-    from moire.services.ai.ai_tagger_download import (
+    from moire.services.ai.tagger_download import (
         DownloadFileState,
         ModelDownloadState,
     )
@@ -291,7 +291,7 @@ class _FakeOrt:
 def test_make_session_inits_cuda_context_only_on_gpu(monkeypatch):
     import ctypes
 
-    from moire.services.ai import ai_tagger
+    from moire.services.ai import tagger as ai_tagger
 
     opened: list[str] = []
 

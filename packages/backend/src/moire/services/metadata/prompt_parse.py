@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 from functools import lru_cache
 
-from ..tags.tag_names import KAOMOJIS
+from ..tags.names import KAOMOJIS
 
 _SEPARATORS = {",", "\n", "|"}
 _OPEN = {"(": ")", "[": "]", "{": "}"}

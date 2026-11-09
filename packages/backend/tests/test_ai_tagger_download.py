@@ -2,7 +2,7 @@
 
 import pytest
 
-from moire.services.ai import ai_tagger_download as dl
+from moire.services.ai import tagger_download as dl
 
 
 async def test_a_failed_download_raises_its_own_error(monkeypatch, tmp_path):

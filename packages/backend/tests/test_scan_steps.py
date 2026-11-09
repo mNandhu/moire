@@ -5,7 +5,7 @@ import os
 import pytest
 from PIL import Image
 
-from moire.services.library import library_nesting, scanner
+from moire.services.library import nesting as library_nesting, scanner
 
 
 def test_walk_skips_nested_library_folders_and_returns_ids(tmp_path):

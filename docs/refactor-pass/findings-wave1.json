@@ -8,17 +8,17 @@
      "title": "Split generation_jobs.py by job and fix the jobs/estimate/batches import cycle",
      "kind": "split",
      "evidence": [
-      "packages/backend/src/moire/services/generate/generation_jobs.py:86-190",
-      "packages/backend/src/moire/services/generate/generation_jobs.py:196-278",
-      "packages/backend/src/moire/services/generate/generation_jobs.py:280-425",
-      "packages/backend/src/moire/services/generate/generation_jobs.py:428-471",
-      "packages/backend/src/moire/services/generate/generation_jobs.py:830-940",
-      "packages/backend/src/moire/services/generate/generation_estimate.py:218",
-      "packages/backend/src/moire/services/generate/generation_estimate.py:425-426",
-      "packages/backend/src/moire/services/generate/generation_batches.py:16"
+      "packages/backend/src/moire/services/generate/jobs.py:86-190",
+      "packages/backend/src/moire/services/generate/jobs.py:196-278",
+      "packages/backend/src/moire/services/generate/jobs.py:280-425",
+      "packages/backend/src/moire/services/generate/jobs.py:428-471",
+      "packages/backend/src/moire/services/generate/jobs.py:830-940",
+      "packages/backend/src/moire/services/generate/estimate.py:218",
+      "packages/backend/src/moire/services/generate/estimate.py:425-426",
+      "packages/backend/src/moire/services/generate/batches.py:16"
      ],
      "problem": "One 1505-line file holds five jobs: (a) pure ComfyUI history parsing (outputs_from_history, history_result, model_loaded, run_seconds), (b) output-folder discovery and download (held_by, root_candidates, output_image_id, _place_outputs, _find_output_root, _fetch_missing, _write_atomic), (c) pure batch-input normalization (batch_shape, _parts, _resolve, _characters_input, _character_input, _outfit_input, characters_of, outfit_tags), (d) Generator persistence (load_generator, which even self-heals the builtin row), (e) the GenerationManager poll loop and actions. generation_estimate needs load_generator and batch_shape, so it imports them lazily inside functions (lines 218, 425-426) while generation_jobs imports generation_estimate at module top: an inverted dependency hidden by deferred imports. generation_batches also imports Invalid/Unavailable/load_generator from the manager module just to reach the model.",
-     "proposal": "Carve out, leaving the manager a thin orchestrator: (1) services/generate/comfy_history.py with the four pure history functions (+ _ENDS); (2) services/generate/generation_outputs.py with the output-placement code (held_by, root_candidates, output_image_id, place_outputs(client, files, settings), fetch_missing); (3) services/generate/generation_inputs.py with batch_shape + the _parts/_resolve/_characters_input family + characters_of/outfit_tags (all pure, no manager); (4) services/generate/generators_store.py with load_generator and the builtin refresh. Errors (Unavailable/Invalid/Rejected) move to a tiny generation_errors.py. Then estimate imports generators_store and generation_inputs at top level with no cycle, and generation_batches imports from the store, not the manager. Keep re-exports in generation_jobs for one step if tests import from it (tests import held_by/root_candidates from generation_jobs).",
+     "proposal": "Carve out, leaving the manager a thin orchestrator: (1) services/generate/comfy_history.py with the four pure history functions (+ _ENDS); (2) services/generate/outputs.py with the output-placement code (held_by, root_candidates, output_image_id, place_outputs(client, files, settings), fetch_missing); (3) services/generate/inputs.py with batch_shape + the _parts/_resolve/_characters_input family + characters_of/outfit_tags (all pure, no manager); (4) services/generate/generators_store.py with load_generator and the builtin refresh. Errors (Unavailable/Invalid/Rejected) move to a tiny generation_errors.py. Then estimate imports generators_store and generation_inputs at top level with no cycle, and generation_batches imports from the store, not the manager. Keep re-exports in generation_jobs for one step if tests import from it (tests import held_by/root_candidates from generation_jobs).",
      "size": "M",
      "risk": "low",
      "leverage": 5,
@@ -30,9 +30,9 @@
      "title": "Extract a pure build_batch_inputs from queue_batch (radon D24) and derive the requeue key list from it",
      "kind": "deepen",
      "evidence": [
-      "packages/backend/src/moire/services/generate/generation_jobs.py:1097-1181",
-      "packages/backend/src/moire/services/generate/generation_jobs.py:1302-1341",
-      "packages/backend/src/moire/services/generate/generation_jobs.py:1183-1264"
+      "packages/backend/src/moire/services/generate/jobs.py:1097-1181",
+      "packages/backend/src/moire/services/generate/jobs.py:1302-1341",
+      "packages/backend/src/moire/services/generate/jobs.py:1183-1264"
      ],
      "problem": "queue_batch does connection check, generator lookup, shape math, seed resolution, assembling the persisted `inputs` dict, two prompt-composition paths (layered parts vs legacy base/extra), the 50k composer cap, then locking and submit. The inputs schema is written in queue_batch and read back in requeue through a hand-copied 16-key tuple (1316-1334), so adding an input key to one and forgetting the other silently drops it on requeue. The legacy compose path is still live (start_test sends base/negative_base, and pre-layered batches requeue through it), so it cannot just be deleted. _insert_and_submit also embeds the batch auto-naming rules (1209-1228: single character names outfit, hide untouched Default).",
      "proposal": "Add `build_batch_inputs(body, gen, settings, *, test) -> BatchPlan(inputs, sizes, seeds, name_words)` (pure, in the generation_inputs module from the previous finding) and `batch_name(body, inputs, gen_name, batch_id)` beside auto_name in generation_compose. queue_batch becomes: require connection, load generator, plan = build_batch_inputs(...), locked insert+submit. Put `REPLAY_KEYS` next to the function that writes inputs and have requeue use it, with a test asserting every key build_batch_inputs persists is in REPLAY_KEYS or explicitly derived (positive_text, negative_text, test, per_request, per_request_asked).",
@@ -46,9 +46,9 @@
      "title": "generation_compose holds a second, weaker prompt parser (prompt_terms, without_terms/_top_level_pieces) beside prompt_parse; escaped-paren auto-name bug",
      "kind": "dedupe",
      "evidence": [
-      "packages/backend/src/moire/services/generate/generation_compose.py:57-74",
-      "packages/backend/src/moire/services/generate/generation_compose.py:77-81",
-      "packages/backend/src/moire/services/generate/generation_compose.py:103-134",
+      "packages/backend/src/moire/services/generate/compose.py:57-74",
+      "packages/backend/src/moire/services/generate/compose.py:77-81",
+      "packages/backend/src/moire/services/generate/compose.py:103-134",
       "packages/backend/src/moire/services/metadata/prompt_parse.py:41",
       "packages/backend/src/moire/services/metadata/prompt_parse.py:122",
       "packages/backend/src/moire/services/generate/remix.py:22",
@@ -57,7 +57,7 @@
       "docs/tag-weights-plan.md:1-43"
      ],
      "problem": "CONTEXT says prompt parsing is owned by services/metadata/prompt_parse.py, yet generation_compose re-implements weight/bracket stripping with a regex (_WEIGHT) in prompt_terms and its own bracket-depth scanner in _top_level_pieces (without_terms then calls parse_prompt on each piece anyway). The regex version is wrong on escaped parens: `hu_tao_\\(genshin_impact\\)` has its trailing `)` stripped by `[)\\]]+$`, then backslashes removed, leaving `hu_tao_(genshin_impact` in the batch's auto name. display()/prompt_terms also turn every `_` into a space, ignoring the kaomoji rule (`^_^`) that formatTag and CONTEXT state. without_terms is prompt editing used by remix and generator_setup, not composition, so it is misfiled. The frontend mirrors prompt_terms too (compose.ts:57-70). The tag-weights plan adds a weight reader in reproject and a bumpWeight editor, so this will become a third/fourth place that knows `(x:1.2)` unless consolidated first.",
-     "proposal": "Reimplement prompt_terms(text, limit) as `[p.text for p in parse_prompt(text) if p.kind == 'tag'][:limit]` (parse_prompt already drops weights/brackets and handles escapes), then display via a shared kaomoji-aware `display_tag` (put it in services/tags/tag_names.py as the backend twin of formatTag). Move without_terms and _top_level_pieces to prompt_parse.py (or a prompt_edit.py) and keep generation_compose to compose_parts/compose/auto_name. Update the frontend promptTerms to the same rule and the shared test cases (compose.test.ts / test_generation_compose.py) with an escaped-paren and a kaomoji case. When the weights session starts, the weight reading belongs in prompt_parse next to this.",
+     "proposal": "Reimplement prompt_terms(text, limit) as `[p.text for p in parse_prompt(text) if p.kind == 'tag'][:limit]` (parse_prompt already drops weights/brackets and handles escapes), then display via a shared kaomoji-aware `display_tag` (put it in services/tags/names.py as the backend twin of formatTag). Move without_terms and _top_level_pieces to prompt_parse.py (or a prompt_edit.py) and keep generation_compose to compose_parts/compose/auto_name. Update the frontend promptTerms to the same rule and the shared test cases (compose.test.ts / test_generation_compose.py) with an escaped-paren and a kaomoji case. When the weights session starts, the weight reading belongs in prompt_parse next to this.",
      "size": "S",
      "risk": "low",
      "leverage": 4,
@@ -90,8 +90,8 @@
      "kind": "simplify",
      "evidence": [
       "packages/backend/src/moire/api/generate.py:700-751",
-      "packages/backend/src/moire/services/generate/generation_batches.py:97-163",
-      "packages/backend/src/moire/services/generate/generation_batches.py:292-340",
+      "packages/backend/src/moire/services/generate/batches.py:97-163",
+      "packages/backend/src/moire/services/generate/batches.py:292-340",
       "packages/backend/src/moire/api/generate.py:297-306"
      ],
      "problem": "rename_batch, retry_request, cancel_batch and cancel_request call the route function get_batch(); cancel_batch calls it twice (once only as a 404 check at 741, then for the reply) and each call runs generation_batches.get_batch, which reads outputs, joins images, resolves the generator and runs queue_plan (a history read + a queue query) when anything is unfinished. list_generators calls generator_view per Generator, and each one with a test batch calls get_batch again, so the Generators list does N queue_plans. cancel_request on an unknown batch cancels nothing and then 404s only via the final get_batch.",
@@ -106,9 +106,9 @@
      "title": "The Generator test gate lives in the 'read side' module and generator_view writes on GET",
      "kind": "boundary",
      "evidence": [
-      "packages/backend/src/moire/services/generate/generation_batches.py:1-4",
-      "packages/backend/src/moire/services/generate/generation_batches.py:240-284",
-      "packages/backend/src/moire/services/generate/generation_batches.py:292-340",
+      "packages/backend/src/moire/services/generate/batches.py:1-4",
+      "packages/backend/src/moire/services/generate/batches.py:240-284",
+      "packages/backend/src/moire/services/generate/batches.py:292-340",
       "packages/backend/src/moire/api/generate.py:297-306",
       "packages/backend/src/moire/api/generate.py:400-407"
      ],
@@ -124,12 +124,12 @@
      "title": "Request/batch state vocabulary is spelled out in five places",
      "kind": "dedupe",
      "evidence": [
-      "packages/backend/src/moire/services/generate/generation_jobs.py:61-62",
-      "packages/backend/src/moire/services/generate/generation_batches.py:39",
-      "packages/backend/src/moire/services/generate/generation_batches.py:123",
-      "packages/backend/src/moire/services/generate/generation_batches.py:405",
-      "packages/backend/src/moire/services/generate/generation_estimate.py:359",
-      "packages/backend/src/moire/services/generate/generation_jobs.py:1370"
+      "packages/backend/src/moire/services/generate/jobs.py:61-62",
+      "packages/backend/src/moire/services/generate/batches.py:39",
+      "packages/backend/src/moire/services/generate/batches.py:123",
+      "packages/backend/src/moire/services/generate/batches.py:405",
+      "packages/backend/src/moire/services/generate/estimate.py:359",
+      "packages/backend/src/moire/services/generate/jobs.py:1370"
      ],
      "problem": "UNFINISHED and IN_COMFY are defined in generation_jobs; generation_batches re-spells the same tuple as _OPEN (defined mid-file at line 405, after its first use in a function above) and as inline literals at 39 and 123; generation_estimate does it inline again at 359; the failed/lost pair and the retryable set (1370) are inline too. A new state (a 'replaced' like state was already added and needed _VISIBLE) must be found by grep.",
      "proposal": "One small generation_states.py: UNFINISHED, IN_COMFY, FAILED = ('failed','lost'), RETRYABLE, VISIBLE-excluded 'replaced'; import it in all four modules. Falls out naturally from splitting generation_jobs.",
@@ -143,8 +143,8 @@
      "title": "Cancelled requests render as 'done' frames in the queue card",
      "kind": "bug",
      "evidence": [
-      "packages/backend/src/moire/services/generate/generation_batches.py:405-422",
-      "packages/backend/src/moire/services/generate/generation_batches.py:343-402"
+      "packages/backend/src/moire/services/generate/batches.py:405-422",
+      "packages/backend/src/moire/services/generate/batches.py:343-402"
      ],
      "problem": "_frames maps failed/lost to 'failed', running to 'making', _OPEN to 'waiting', and everything else (including 'cancelled') falls through to 'done' frames with thumb None. Cancelling one request of an active batch (POST .../requests/{id}/cancel) therefore shows n finished-looking empty frames, and active_summary counts it in `finished` without a distinct state. Low confidence it is unintended, since no test or comment covers a cancelled frame.",
      "proposal": "Add a `cancelled` branch in _frames returning {'state': 'cancelled', 'thumb': None} (or drop cancelled requests from frames) and have the queue card style it; add a test of active_summary after a single-request cancel.",
@@ -158,10 +158,10 @@
      "title": "Rejected duplicates ComfyRejected, and non-ComfyUI failures are raised as ComfyRejected",
      "kind": "naming",
      "evidence": [
-      "packages/backend/src/moire/services/generate/generation_jobs.py:77-83",
+      "packages/backend/src/moire/services/generate/jobs.py:77-83",
       "packages/backend/src/moire/services/generate/comfy_client.py:45-52",
-      "packages/backend/src/moire/services/generate/generation_jobs.py:1028-1048",
-      "packages/backend/src/moire/services/generate/generation_jobs.py:1249-1253"
+      "packages/backend/src/moire/services/generate/jobs.py:1028-1048",
+      "packages/backend/src/moire/services/generate/jobs.py:1249-1253"
      ],
      "problem": "Rejected and ComfyRejected are the same class by shape (message, node_errors), and _insert_and_submit translates one into the other field by field. _submit also raises ComfyRejected('Its workflow was deleted', []) and ComfyRejected(str(GraphError), []) for failures ComfyUI never saw, so the client module's exception means two things and the failed request's error doc says type 'rejected' for them.",
      "proposal": "Make Rejected the single type (define it in generation_errors, have ComfyRejected subclass it, or re-raise ComfyRejected as-is and drop the translation). Raise a distinct `GraphInvalid(Rejected)` for the deleted-workflow and GraphError cases so _fail_request can record a truthful type.",
@@ -175,7 +175,7 @@
      "title": "Test-only wrappers in generation_estimate and an unused on_state hook in the client",
      "kind": "dead",
      "evidence": [
-      "packages/backend/src/moire/services/generate/generation_estimate.py:135-145",
+      "packages/backend/src/moire/services/generate/estimate.py:135-145",
       "packages/backend/src/moire/services/generate/comfy_client.py:239-274",
       "docs/refactor-pass/leads.txt:27-28"
      ],
@@ -415,7 +415,7 @@
     "packages/frontend/src/hooks/useDensity.ts: check whether it is a third localStorage external-store copy next to useTagMarks.",
     "packages/frontend/src/pages/CharacterPage.tsx:44 RATING_ORDER and :46 galleryHref duplicate lib-level concepts (rating set, gallery link builder).",
     "packages/frontend/src/lib/countTags.ts is a Generate-page concern living in an ImageView slice; S-slice for GeneratePage should own its test review.",
-    "packages/frontend/src/components/ImageCharacters.tsx:70-74 filters characters by tag names in the component; same name-matching rule probably exists in lib/character.ts and services/characters/characters.py (S3/S4 could check for drift).",
+    "packages/frontend/src/components/ImageCharacters.tsx:70-74 filters characters by tag names in the component; same name-matching rule probably exists in lib/character.ts and services/characters/pages.py (S3/S4 could check for drift).",
     "packages/frontend/src/pages/ImageView.tsx:1413 hardcodes PANEL_GROUND #15141c, a copy of the tailwind surface token; lib/tagColour.tagMarkStyle takes it as a parameter so any theme change breaks outline colours silently."
    ]
   },
@@ -432,7 +432,7 @@
       "packages/backend/src/moire/services/library/scanner.py:332-348",
       "packages/backend/src/moire/api/libraries.py:174-186",
       "packages/backend/src/moire/api/libraries.py:41-55",
-      "packages/backend/src/moire/services/library/library_watch.py:360"
+      "packages/backend/src/moire/services/library/watch.py:360"
      ],
      "problem": "The scan discovers files with os.walk(root_path), which yields nothing for a missing or unmounted root and raises no error. discovered_image_ids is then empty, so reconcile_stale marks every existing row stale. The stale-removal block deletes them all, cascading away image_tags, manual tags, ratings and scores. Only the watcher checks root.is_dir() (library_watch.py:360). The manual POST /rescan, _rescan_libraries_around and update-path scans call scan_library_async with no check. A second hole: image_id_for failures are swallowed with 'except Exception: pass' (scanner.py:560-565), so a file that was ingested but not recorded as discovered is also treated as stale and deleted.",
      "proposal": "In scan _run, right after reading the current path (scanner.py:549), fail the scan with scan_error 'library folder not found' if not Path(current).is_dir(), before any walk or delete. Also skip stale removal when discovery produced zero files but the DB holds rows, or when any discovery error occurred (make the id_for failure add the file to a discovered_errors flag that disables reconcile). Add a test in test_scanner_db_integration.py: a library with rows plus a nonexistent root keeps its rows.",
@@ -480,7 +480,7 @@
       "packages/backend/src/moire/api/images.py:265",
       "packages/backend/src/moire/api/images.py:297",
       "packages/backend/src/moire/api/images.py:313",
-      "packages/backend/src/moire/services/ai/ai_jobs.py:347"
+      "packages/backend/src/moire/services/ai/jobs.py:347"
      ],
      "problem": "find_image documents 'projection is accepted but ignored' and does select(t.images), pulling tags, gen and ai JSON columns. Six hot callers (GET/HEAD /thumb, /file, /thumb-url, ai_jobs) pass {'thumb_key':1} or {'path':1} expecting a minimal read. The grid fires one thumb request per tile, so each pays a full-row fetch and JSON decode. This breaks the 'column select(...) projections' rule on the hottest read path, and the Mongo-style dict argument is a leftover.",
      "proposal": "Change find_image to accept columns: Sequence[str] | None, select only those t.images.c[...] (all columns when None), and update the six call sites; drop the Mongo-style dict. Keep row_to_doc for the full-row case. Optionally add one helper find_image_cols(image_id, *cols) returning a Row so thumb routes skip dict conversion.",
@@ -534,7 +534,7 @@
      "title": "SORT_KEY / SCORE_KEY are defined twice (image_feed.py and schema.py); CLAUDE.md names a deleted nextCursorOf",
      "kind": "drift",
      "evidence": [
-      "packages/backend/src/moire/services/images/image_feed.py:70-81",
+      "packages/backend/src/moire/services/images/feed.py:70-81",
       "packages/backend/src/moire/database/schema.py:499-511",
       "packages/frontend/src/lib/imageFilter.ts:236-255",
       "CLAUDE.md (Frontend layout, hooks/useImageFeed bullet)"
@@ -630,9 +630,9 @@
    ],
    "cross_cutting_hints": [
     "packages/frontend/src/pages/LibrariesPage.tsx:119 uses a raw fetch('/api/v1/libraries/{id}/progress') in a page instead of lib/queries (the only component-level fetch found; boundary nit).",
-    "packages/backend/src/moire/services/library/library_nesting.py:180: adopt_nested_copies invalidates tag_index only after all chunks and only if something was dropped; an exception mid-way leaves already-committed chunks without invalidation (bounded by the 30s TTL).",
+    "packages/backend/src/moire/services/library/nesting.py:180: adopt_nested_copies invalidates tag_index only after all chunks and only if something was dropped; an exception mid-way leaves already-committed chunks without invalidation (bounded by the 30s TTL).",
     "packages/backend/src/moire/api/tags.py:515 and ai_jobs: ai_tag route enqueues ids without id_candidates resolution (ai_jobs.py:347 does find_image, so it is covered downstream).",
-    "packages/backend/src/moire/services/images/image_feed.py:176-182: FeedFilter validates tags length but only feed_where canonicalises; any other consumer of f.tags (tag_match_groups callers, _drive_by_rarest at line 353) must canonicalise separately, as it currently does at two sites.",
+    "packages/backend/src/moire/services/images/feed.py:176-182: FeedFilter validates tags length but only feed_where canonicalises; any other consumer of f.tags (tag_match_groups callers, _drive_by_rarest at line 353) must canonicalise separately, as it currently does at two sites.",
     "packages/frontend/src/pages/ImageView.tsx is about 2100 lines and builds /file endpoint URLs inline in 5 places (381, 406, 451, 514, 950); belongs to the frontend size/split lens.",
     "packages/backend/src/moire/services/tag_focus.py:80-90 and services/ai/face_detect.py:300-312 select images by raw _id without id_candidates; ids there come from DB-sourced values so it is safe, noted only for completeness."
    ]
@@ -713,8 +713,8 @@
       "packages/backend/src/moire/services/metadata/reproject.py:35-62",
       "packages/backend/src/moire/services/metadata/reproject.py:165-207",
       "packages/backend/src/moire/api/rules.py:372-381",
-      "packages/backend/src/moire/services/ai/ai_settings.py:27-31",
-      "packages/backend/src/moire/services/ai/ai_settings.py:74-97",
+      "packages/backend/src/moire/services/ai/settings.py:27-31",
+      "packages/backend/src/moire/services/ai/settings.py:74-97",
       "packages/backend/src/moire/services/metadata/extraction_settings.py:36-66"
      ],
      "problem": "What `gen_metadata.extract` needs (ruleset, keywords, prompt_positive_only, then apply_aliases to prompt_terms) is gathered in `reproject._reproject_where`; the rules preview endpoint re-gathers only keywords and passes no positive_only and no aliases, though its docstring says the result is 'what reproject would write'. So the preview's `gen.prompt_terms` differs from stored data whenever positive_only is off or a merge/split rule applies. Separately, an extraction setting (`prompt_positive_only`) lives in the tagger's 'ai' doc with its default hardcoded twice (ai_settings DEFAULT_AI_SETTINGS and `reproject._prompt_positive_only`'s `.get(..., True)`), read through a hand-written SELECT that bypasses ai_settings. Weights (plan) will add another post-extract step (aliases must carry weights through merge/split) that would also have to be added in both places.",
@@ -779,11 +779,11 @@
       "packages/backend/src/moire/services/metadata/extraction_settings.py:36-66",
       "packages/backend/src/moire/services/metadata/extraction_settings.py:85-92",
       "packages/backend/src/moire/services/metadata/reproject.py:53-62",
-      "packages/backend/src/moire/services/ai/ai_settings.py:74-107",
-      "packages/backend/src/moire/services/tags/tag_settings.py:85-110",
+      "packages/backend/src/moire/services/ai/settings.py:74-107",
+      "packages/backend/src/moire/services/tags/settings.py:85-110",
       "packages/backend/src/moire/services/onboarding.py:26-44",
       "packages/backend/src/moire/services/generate/comfy_settings.py:83-95",
-      "packages/backend/src/moire/services/tags/tag_migrations.py:47-58"
+      "packages/backend/src/moire/services/tags/migrations.py:47-58"
      ],
      "problem": "`select(app_settings.doc).where(_id == ROW)` and the sqlite `insert ... on_conflict_do_update(set_={'doc': excluded.doc})` are copied into ai_settings, tag_settings, extraction_settings (three identical selects, sync and async variants), onboarding, comfy_settings, tag_migrations and the scanner stamp. Only the row id and defaults differ. This is how reproject came to read the 'ai' row with its own SELECT and its own default.",
      "proposal": "Add `services/app_settings.py` with `async read(row) -> dict | None`, `read_sync(row)`, `async write(row, doc)` (upsert replace) and `write_sync`, using the `*_conn/*_tx` helpers. Convert extraction_settings and reproject first (in this slice), then the other modules opportunistically. Interface is four functions; the deletion test says it concentrates the upsert idiom in one place.",
@@ -841,7 +841,7 @@
     }
    ],
    "cross_cutting_hints": [
-    "packages/backend/src/moire/services/tags/tag_settings.py:57-82 and packages/frontend/src/lib/boilerplate.ts:15-24,55-62: the boilerplate entry normalisation (space/underscore, lowercase, bare-* rejection) is implemented on both sides by hand ('matching lives in the frontend'); BoilerplateSection.add re-validates what clean_boilerplate re-validates on save. A shared fixture or returning the server-cleaned list would stop drift.",
+    "packages/backend/src/moire/services/tags/settings.py:57-82 and packages/frontend/src/lib/boilerplate.ts:15-24,55-62: the boilerplate entry normalisation (space/underscore, lowercase, bare-* rejection) is implemented on both sides by hand ('matching lives in the frontend'); BoilerplateSection.add re-validates what clean_boilerplate re-validates on save. A shared fixture or returning the server-cleaned list would stop drift.",
     "packages/backend/src/moire/services/library/scanner.py:60-90 and services/onboarding.py, comfy_settings.py, tag_migrations.py: more copies of the app_settings upsert (see finding 7) outside this slice.",
     "packages/frontend/src/lib/promptOutline.ts:28 splitSpans and :159 promptWord are exported but only used inside the module / tests (knip lead at leads.txt:134); de-export splitSpans, keep promptWord only if the board needs it.",
     "packages/backend/src/moire/services/metadata/text_eval.py:25 comment 'Literal string nodes: (class_type predicate, widget holding the text)' is stale (it describes _LITERAL_KEYS only). text_eval._text_concat/_show_text and gen_metadata._resolve_text/_is_display/_CONCAT_INPUT are two parallel graph text walkers with separate cycle guards; if they keep growing, fold the concat/display handling into text_eval's handler table (only worth it with a third caller).",
@@ -858,9 +858,9 @@
      "kind": "bug",
      "evidence": [
       "packages/backend/src/moire/api/ai.py:149-156",
-      "packages/backend/src/moire/services/ai/ai_jobs.py:160-195",
-      "packages/backend/src/moire/services/ai/ai_jobs.py:306-313",
-      "packages/backend/src/moire/services/ai/ai_jobs.py:220-229",
+      "packages/backend/src/moire/services/ai/jobs.py:160-195",
+      "packages/backend/src/moire/services/ai/jobs.py:306-313",
+      "packages/backend/src/moire/services/ai/jobs.py:220-229",
       "packages/frontend/src/lib/ai.ts:270-275",
       "packages/frontend/src/hooks/useAiTagging.ts:76-78"
      ],
@@ -883,9 +883,9 @@
       "packages/backend/src/moire/services/metadata/reproject.py:165-168",
       "packages/backend/src/moire/services/metadata/reproject.py:267-356",
       "packages/backend/src/moire/services/metadata/reproject.py:290-317",
-      "packages/backend/src/moire/services/tags/tag_rename.py:237",
-      "packages/backend/src/moire/services/tags/tag_rename.py:291-293",
-      "packages/backend/src/moire/services/tags/tag_rename.py:397",
+      "packages/backend/src/moire/services/tags/rename.py:237",
+      "packages/backend/src/moire/services/tags/rename.py:291-293",
+      "packages/backend/src/moire/services/tags/rename.py:397",
       "packages/backend/src/moire/api/rules.py:306",
       "packages/backend/src/moire/api/rules.py:335-347",
       "packages/backend/src/moire/services/library/scanner.py:767-777"
@@ -913,10 +913,10 @@
       "packages/backend/src/moire/services/activity.py:77-80",
       "packages/backend/src/moire/services/library/scanner.py:360-366",
       "packages/backend/src/moire/services/library/scanner.py:795-796",
-      "packages/backend/src/moire/services/ai/ai_jobs.py:131-133",
-      "packages/backend/src/moire/services/ai/ai_jobs.py:194",
-      "packages/backend/src/moire/services/ai/ai_jobs.py:224",
-      "packages/backend/src/moire/services/ai/ai_jobs.py:310",
+      "packages/backend/src/moire/services/ai/jobs.py:131-133",
+      "packages/backend/src/moire/services/ai/jobs.py:194",
+      "packages/backend/src/moire/services/ai/jobs.py:224",
+      "packages/backend/src/moire/services/ai/jobs.py:310",
       "packages/backend/src/moire/services/ai/face_detect.py:194-195",
       "packages/backend/src/moire/services/ai/face_detect.py:283",
       "packages/backend/src/moire/api/activity.py:78-94",
@@ -942,8 +942,8 @@
       "packages/backend/src/moire/api/libraries.py:126-128",
       "packages/backend/src/moire/api/libraries.py:268-276",
       "packages/backend/src/moire/services/library/scanner.py:810-826",
-      "packages/backend/src/moire/services/library/library_watch.py:371-395",
-      "packages/backend/src/moire/services/library/library_watch.py:405-417",
+      "packages/backend/src/moire/services/library/watch.py:371-395",
+      "packages/backend/src/moire/services/library/watch.py:405-417",
       "packages/backend/src/moire/main.py:83-84"
      ],
      "problem": "`remove_library` is `async def` and calls `cancel_scan` (a `th.join` of up to 0.5 s) and `stop_watch` (a join of up to 1 s) directly on the loop. `create_library` and `update_library` call `start_watch`, which joins the old watch thread while holding `_lock` (library_watch.py:381-384). A scan thread rarely exits within 0.5 s, because run_pool leaves running futures to finish. So deleting a big library mid-scan stalls every request, including thumbnails and the activity poll, for up to 1.5 s. main.py:83-84 deliberately runs `stop_all` off the loop for exactly this reason, so the routes are inconsistent with it.",
@@ -965,7 +965,7 @@
       "packages/backend/src/moire/api/activity.py:30-41",
       "packages/frontend/src/pages/settings/sections/ModelSection.tsx:35-38",
       "packages/frontend/src/pages/settings/sections/CharactersSection.tsx:62-65",
-      "packages/backend/src/moire/services/ai/ai_tagger_download.py:98-117"
+      "packages/backend/src/moire/services/ai/tagger_download.py:98-117"
      ],
      "problem": "The activity router's `_download` sums bytes over only the files whose size is known, a rule test_activity_integration pins down. ModelSection and CharactersSection each re-sum all files from `as_dict().files`, counting a null total as 0. They also compute pct by hand rather than with `taskPct`. The tagger and face downloads share one ModelDownloadManager, yet three readers derive progress from its raw per-file list, and the numbers can disagree between the sidebar and the settings page.",
      "proposal": "Move `_download`'s rule into `ModelDownloadState.progress() -> tuple[int, int] | None` and emit it from `as_dict()` as top-level `done`/`total`. api/activity.py then just forwards them. Both settings sections read `dl.done`/`dl.total` and use `taskPct` from lib/backgroundTasks.ts (or a `downloadPct` beside it, with a test) instead of their own reduces.",
@@ -1005,15 +1005,15 @@
      "title": "GenerationManager fuses connection, poll state machine, output placement and batch building",
      "kind": "split",
      "evidence": [
-      "packages/backend/src/moire/services/generate/generation_jobs.py:474-1490",
-      "packages/backend/src/moire/services/generate/generation_jobs.py:505-636",
-      "packages/backend/src/moire/services/generate/generation_jobs.py:86-147",
-      "packages/backend/src/moire/services/generate/generation_jobs.py:830-940",
-      "packages/backend/src/moire/services/generate/generation_jobs.py:196-425",
-      "packages/backend/src/moire/services/generate/generation_jobs.py:1097-1181"
+      "packages/backend/src/moire/services/generate/jobs.py:474-1490",
+      "packages/backend/src/moire/services/generate/jobs.py:505-636",
+      "packages/backend/src/moire/services/generate/jobs.py:86-147",
+      "packages/backend/src/moire/services/generate/jobs.py:830-940",
+      "packages/backend/src/moire/services/generate/jobs.py:196-425",
+      "packages/backend/src/moire/services/generate/jobs.py:1097-1181"
      ],
      "problem": "The file is 1505 lines. `queue_batch` is radon D(24) because it assembles the whole `inputs` doc inline (1109-1174) from pure helpers that live 900 lines above it. Output placement (`held_by`, `root_candidates`, `output_image_id`, `_write_atomic`, `_place_outputs`, `_find_output_root`, `_fetch_missing`) is a self-contained filesystem and library concern that only needs `client.view` and the settings. The ComfyUI connection (configure, check, _up/_down, _set_up, the websocket loop, _on_event) is a third job sharing the same object.",
-     "proposal": "Make three moves and leave the poll/sync/submit/cancel state machine in place. (1) New `services/generate/generation_inputs.py` with a pure `plan_batch(gen, body, settings) -> BatchPlan(inputs, sizes, seeds, name_words)`, holding lines 1109-1174 plus `batch_shape`, `_parts`, `_resolve`, `characters_of`, `_characters_input`, `_character_input`, `_outfit_input`, `outfit_tags` and `_sampling_input`. `queue_batch` and `requeue` then call it, and generation_batches imports `characters_of` from there. (2) New `services/generate/generation_outputs.py` with `place_outputs(client, files, settings) -> (ids, fetch)` and `fetch_missing(client, library_id, files)`. (3) Optionally, a `ComfyConnection` holding client, connected, error, websocket, progress and started, which the manager composes.",
+     "proposal": "Make three moves and leave the poll/sync/submit/cancel state machine in place. (1) New `services/generate/inputs.py` with a pure `plan_batch(gen, body, settings) -> BatchPlan(inputs, sizes, seeds, name_words)`, holding lines 1109-1174 plus `batch_shape`, `_parts`, `_resolve`, `characters_of`, `_characters_input`, `_character_input`, `_outfit_input`, `outfit_tags` and `_sampling_input`. `queue_batch` and `requeue` then call it, and generation_batches imports `characters_of` from there. (2) New `services/generate/outputs.py` with `place_outputs(client, files, settings) -> (ids, fetch)` and `fetch_missing(client, library_id, files)`. (3) Optionally, a `ComfyConnection` holding client, connected, error, websocket, progress and started, which the manager composes.",
      "size": "L",
      "risk": "med",
      "leverage": 3,
@@ -1026,12 +1026,12 @@
      "title": "AIJob bookkeeping: jobs never pruned, ids stashed via setattr, tagger idle loop started by the wrong owner, no stop",
      "kind": "simplify",
      "evidence": [
-      "packages/backend/src/moire/services/ai/ai_jobs.py:63-64",
-      "packages/backend/src/moire/services/ai/ai_jobs.py:83-88",
-      "packages/backend/src/moire/services/ai/ai_jobs.py:127",
-      "packages/backend/src/moire/services/ai/ai_jobs.py:181-184",
-      "packages/backend/src/moire/services/ai/ai_jobs.py:135-139",
-      "packages/backend/src/moire/services/ai/ai_jobs.py:250-254",
+      "packages/backend/src/moire/services/ai/jobs.py:63-64",
+      "packages/backend/src/moire/services/ai/jobs.py:83-88",
+      "packages/backend/src/moire/services/ai/jobs.py:127",
+      "packages/backend/src/moire/services/ai/jobs.py:181-184",
+      "packages/backend/src/moire/services/ai/jobs.py:135-139",
+      "packages/backend/src/moire/services/ai/jobs.py:250-254",
       "packages/backend/src/moire/main.py:47-55",
       "packages/backend/src/moire/main.py:80-85"
      ],
@@ -1049,11 +1049,11 @@
      "title": "Generation request-state vocabulary spelled five times",
      "kind": "dedupe",
      "evidence": [
-      "packages/backend/src/moire/services/generate/generation_jobs.py:61-62",
-      "packages/backend/src/moire/services/generate/generation_batches.py:39",
-      "packages/backend/src/moire/services/generate/generation_batches.py:123",
-      "packages/backend/src/moire/services/generate/generation_batches.py:405-416",
-      "packages/backend/src/moire/services/generate/generation_estimate.py:359"
+      "packages/backend/src/moire/services/generate/jobs.py:61-62",
+      "packages/backend/src/moire/services/generate/batches.py:39",
+      "packages/backend/src/moire/services/generate/batches.py:123",
+      "packages/backend/src/moire/services/generate/batches.py:405-416",
+      "packages/backend/src/moire/services/generate/estimate.py:359"
      ],
      "problem": "`UNFINISHED = (\"pending\", \"queued\", \"running\")` exists in generation_jobs. generation_batches redefines it as `_OPEN` and also inlines the same tuple twice, and generation_estimate inlines it too. `(\"failed\", \"lost\")` also appears twice in generation_batches. A new state (such as the existing `replaced`) has to be added in every spot, or a batch's state, the queue frames and the estimate drift apart.",
      "proposal": "Keep `UNFINISHED` and add `FAILED = (\"failed\", \"lost\")` in generation_jobs, which generation_batches already imports. Replace `_OPEN` and the inline tuples in generation_batches.py:39, 123 and 405-416 and generation_estimate.py:359 with these constants.",
@@ -1071,7 +1071,7 @@
      "evidence": [
       "packages/backend/src/moire/services/library/scanner.py:19",
       "packages/backend/src/moire/services/library/scanner.py:141-146",
-      "packages/backend/src/moire/services/ai/ai_tagger_download.py:59-71"
+      "packages/backend/src/moire/services/ai/tagger_download.py:59-71"
      ],
      "problem": "A grep over packages/ and scripts/ finds no caller of `file_hash`; its `hashlib` import at scanner.py:19 has no other use. `_download_if_missing` is a self-described 'back-compat helper' with no caller. It duplicates `_download_one` without progress, atomic rename or cancel, so anyone who reuses it gets a non-atomic download.",
      "proposal": "Delete `file_hash` and the `hashlib` import from scanner.py, and delete `_download_if_missing` from ai_tagger_download.py. (`face_detect.idle` and `generation_jobs.reset_for_tests` are flagged by vulture but tests use them; keep them.)",
@@ -1090,7 +1090,7 @@
     "packages/frontend/src/lib/backgroundTasks.ts:10-25: `kind: TaskKind | string` widens to plain string, so the TaskKind union checks nothing (knip also flags TaskKind as unused).",
     "packages/frontend/src/hooks/useAiTagging.ts:37-44 + hooks/useBackgroundTasks.ts:24-31 + hooks/useAiStatus.ts:12-19: an open image's AI job is polled through /ai/jobs/:id (1.5 s) and /activity (1.5 s), and /ai/status (2 s) when the settings page is open, all carrying the same status, done and total. useAiTagging could read the active job from the activity items and fetch /ai/jobs/:id only once at the end for its error.",
     "packages/backend/src/moire/api/activity.py:107-127: the 'generate' item appears whenever ComfyUI's whole queue is non-empty (`queue_remaining` includes other clients' prompts), so the sidebar can say 'Generating' when Moire queued nothing.",
-    "packages/backend/src/moire/services/generate/generation_jobs.py:86-91 vs services/library/storage_fs.py: a second atomic-write helper; check whether storage_fs's can take a dot-prefixed staging name."
+    "packages/backend/src/moire/services/generate/jobs.py:86-91 vs services/library/storage_fs.py: a second atomic-write helper; check whether storage_fs's can take a dot-prefixed staging name."
    ]
   }
  ]

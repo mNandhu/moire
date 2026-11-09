@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from ...services.generate import lora_presets, preset_store, prompt_presets
-from ...services.generate.generation_jobs import get_generation_manager
+from ...services.generate.jobs import get_generation_manager
 from ...services.generate.lora_words import suggestions as lora_suggestions
 
 router = APIRouter()

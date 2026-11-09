@@ -13,8 +13,8 @@ import sqlalchemy as sa
 
 from ...database import schema as t
 from ...database.db import sync_conn, sync_tx
-from ..images import image_delete
-from ..tags import image_tags, tag_index
+from ..images import delete as image_delete
+from ..tags import image_tags, index as tag_index
 from . import scanner
 from .thumbnailer import is_image
 

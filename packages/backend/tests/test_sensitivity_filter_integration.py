@@ -8,10 +8,10 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services.images import image_visibility
+from moire.services.images import visibility as image_visibility
 from moire.services.tags import sensitivity_filter
 
-from moire.services.tags import tag_sensitivity
+from moire.services.tags import sensitivity as tag_sensitivity
 
 # Stand-ins for the shipped list.
 ONE, TWO, THREE = "level_one_tag", "level_two_tag", "level_three_tag"

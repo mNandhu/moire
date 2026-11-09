@@ -4,22 +4,22 @@ from pydantic import BaseModel, Field
 import asyncio
 
 from ..services.library import thumb_version
-from ..services.tags import tag_detail as tag_panel
+from ..services.tags import detail as tag_panel
 from ._utils import validate_tags
-from ..services.tags.tag_names import unescape_parens
+from ..services.tags.names import unescape_parens
 from ..models.responses import TagCount, documents
-from ..services.characters import characters
+from ..services.characters import pages as characters
 from ..services.ai import face_detect
-from ..services.images import image_feed
+from ..services.images import feed as image_feed
 from ..services.tags import (
     image_tags,
     sensitivity_filter,
-    tag_kinds,
-    tag_browse,
-    tag_covers,
-    tag_rename,
-    tag_settings,
-    tag_views,
+    kinds as tag_kinds,
+    browse as tag_browse,
+    covers as tag_covers,
+    rename as tag_rename,
+    settings as tag_settings,
+    views as tag_views,
 )
 
 router = APIRouter()

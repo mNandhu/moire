@@ -14,7 +14,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** In scan _run, right after reading the current path (scanner.py:549), fail the scan with scan_error 'library folder not found' if not Path(current).is_dir(), before any walk or delete. Also skip stale removal when discovery produced zero files but the DB holds rows, or when any discovery error occurred (make the id_for failure add the file to a discovered_errors flag that disables reconcile). Add a test in test_scanner_db_integration.py: a library with rows plus a nonexistent root keeps its rows.
 
-**Evidence.** `packages/backend/src/moire/services/library/scanner.py:549-566`, `packages/backend/src/moire/services/library/scanner.py:706-725`, `packages/backend/src/moire/services/library/scanner.py:332-348`, `packages/backend/src/moire/api/libraries.py:174-186`, `packages/backend/src/moire/api/libraries.py:41-55`, `packages/backend/src/moire/services/library/library_watch.py:360`
+**Evidence.** `packages/backend/src/moire/services/library/scanner.py:549-566`, `packages/backend/src/moire/services/library/scanner.py:706-725`, `packages/backend/src/moire/services/library/scanner.py:332-348`, `packages/backend/src/moire/api/libraries.py:174-186`, `packages/backend/src/moire/api/libraries.py:41-55`, `packages/backend/src/moire/services/library/watch.py:360`
 
 ### L4.2 Bulk prompt-tag write is a second, hand-synced copy of the tag-state write
 
@@ -34,7 +34,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Change find_image to accept columns: Sequence[str] | None, select only those t.images.c[...] (all columns when None), and update the six call sites; drop the Mongo-style dict. Keep row_to_doc for the full-row case. Optionally add one helper find_image_cols(image_id, *cols) returning a Row so thumb routes skip dict conversion.
 
-**Evidence.** `packages/backend/src/moire/services/tags/image_tags.py:300-313`, `packages/backend/src/moire/api/images.py:163`, `packages/backend/src/moire/api/images.py:265`, `packages/backend/src/moire/api/images.py:297`, `packages/backend/src/moire/api/images.py:313`, `packages/backend/src/moire/services/ai/ai_jobs.py:347`
+**Evidence.** `packages/backend/src/moire/services/tags/image_tags.py:300-313`, `packages/backend/src/moire/api/images.py:163`, `packages/backend/src/moire/api/images.py:265`, `packages/backend/src/moire/api/images.py:297`, `packages/backend/src/moire/api/images.py:313`, `packages/backend/src/moire/services/ai/jobs.py:347`
 
 ### L4.4 /images/groups re-declares the feed query parameters that feed_filter exists to share, and drops group_id
 
@@ -64,7 +64,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Define the key expressions once in database/schema.py (SORT_RECENT, SORT_SCORE) and import them in image_feed.py for SORT_KEY/SCORE_KEY. Add a test that runs EXPLAIN QUERY PLAN on the newest/oldest/top first page and asserts the ix_images_* index is used. Update CLAUDE.md to say the cursor is server-built and the agreement is SORTS vs schema.py.
 
-**Evidence.** `packages/backend/src/moire/services/images/image_feed.py:70-81`, `packages/backend/src/moire/database/schema.py:499-511`, `packages/frontend/src/lib/imageFilter.ts:236-255`, `CLAUDE.md (Frontend layout, hooks/useImageFeed bullet)`
+**Evidence.** `packages/backend/src/moire/services/images/feed.py:70-81`, `packages/backend/src/moire/database/schema.py:499-511`, `packages/frontend/src/lib/imageFilter.ts:236-255`, `CLAUDE.md (Frontend layout, hooks/useImageFeed bullet)`
 
 ### L4.7 Unbounded write transactions: scanner stale delete, clear_ai_all, rename_manual
 
@@ -109,9 +109,9 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 **Cross-cutting hints.**
 
 - packages/frontend/src/pages/LibrariesPage.tsx:119 uses a raw fetch('/api/v1/libraries/{id}/progress') in a page instead of lib/queries (the only component-level fetch found; boundary nit).
-- packages/backend/src/moire/services/library/library_nesting.py:180: adopt_nested_copies invalidates tag_index only after all chunks and only if something was dropped; an exception mid-way leaves already-committed chunks without invalidation (bounded by the 30s TTL).
+- packages/backend/src/moire/services/library/nesting.py:180: adopt_nested_copies invalidates tag_index only after all chunks and only if something was dropped; an exception mid-way leaves already-committed chunks without invalidation (bounded by the 30s TTL).
 - packages/backend/src/moire/api/tags.py:515 and ai_jobs: ai_tag route enqueues ids without id_candidates resolution (ai_jobs.py:347 does find_image, so it is covered downstream).
-- packages/backend/src/moire/services/images/image_feed.py:176-182: FeedFilter validates tags length but only feed_where canonicalises; any other consumer of f.tags (tag_match_groups callers, _drive_by_rarest at line 353) must canonicalise separately, as it currently does at two sites.
+- packages/backend/src/moire/services/images/feed.py:176-182: FeedFilter validates tags length but only feed_where canonicalises; any other consumer of f.tags (tag_match_groups callers, _drive_by_rarest at line 353) must canonicalise separately, as it currently does at two sites.
 - packages/frontend/src/pages/ImageView.tsx is about 2100 lines and builds /file endpoint URLs inline in 5 places (381, 406, 451, 514, 950); belongs to the frontend size/split lens.
 - packages/backend/src/moire/services/tag_focus.py:80-90 and services/ai/face_detect.py:300-312 select images by raw _id without id_candidates; ids there come from DB-sourced values so it is safe, noted only for completeness.
 
@@ -127,7 +127,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Two fixes, each small. (1) In `_worker_loop`, discard each id from `_in_flight` right after its `_tag_one` (or its failure), so 'in flight' means 'not yet processed'. Leave only the unprocessed tail to the `finally`. (2) In `api/ai.py` `ai_tag`, pass `force=True` whenever `req.retag` is set, because a retag has already destroyed state and must run. Optionally make `_in_flight` a `collections.Counter` so overlapping forced jobs release correctly.
 
-**Evidence.** `packages/backend/src/moire/api/ai.py:149-156`, `packages/backend/src/moire/services/ai/ai_jobs.py:160-195`, `packages/backend/src/moire/services/ai/ai_jobs.py:306-313`, `packages/backend/src/moire/services/ai/ai_jobs.py:220-229`, `packages/frontend/src/lib/ai.ts:270-275`, `packages/frontend/src/hooks/useAiTagging.ts:76-78`
+**Evidence.** `packages/backend/src/moire/api/ai.py:149-156`, `packages/backend/src/moire/services/ai/jobs.py:160-195`, `packages/backend/src/moire/services/ai/jobs.py:306-313`, `packages/backend/src/moire/services/ai/jobs.py:220-229`, `packages/frontend/src/lib/ai.ts:270-275`, `packages/frontend/src/hooks/useAiTagging.ts:76-78`
 
 ### L1.2 Reproject has five entry points with different guarantees; only reproject_all is serialized
 
@@ -137,7 +137,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Add one module-level `threading.Lock` (`_run_lock`) that `_reproject_where` takes before it loads settings and releases after its last `_flush_batch`. Runs then serialize, and each reads the settings that were current when it started. Replace the four spawners with `_spawn(name: str, work, *args, library_id: str | None = None, **kw)`, which starts the daemon thread around `_tracked`. Keep the coalescing loop only for `reproject_all_async`. Route tag_rename's inline calls through `activity.track('reproject')` so a merge shows progress. The tag-weights extraction step can then add weight reading inside `_reproject_where` without touching five call shapes.
 
-**Evidence.** `packages/backend/src/moire/services/metadata/reproject.py:165-168`, `packages/backend/src/moire/services/metadata/reproject.py:267-356`, `packages/backend/src/moire/services/metadata/reproject.py:290-317`, `packages/backend/src/moire/services/tags/tag_rename.py:237`, `packages/backend/src/moire/services/tags/tag_rename.py:291-293`, `packages/backend/src/moire/services/tags/tag_rename.py:397`, `packages/backend/src/moire/api/rules.py:306`, `packages/backend/src/moire/api/rules.py:335-347`, `packages/backend/src/moire/services/library/scanner.py:767-777`
+**Evidence.** `packages/backend/src/moire/services/metadata/reproject.py:165-168`, `packages/backend/src/moire/services/metadata/reproject.py:267-356`, `packages/backend/src/moire/services/metadata/reproject.py:290-317`, `packages/backend/src/moire/services/tags/rename.py:237`, `packages/backend/src/moire/services/tags/rename.py:291-293`, `packages/backend/src/moire/services/tags/rename.py:397`, `packages/backend/src/moire/api/rules.py:306`, `packages/backend/src/moire/api/rules.py:335-347`, `packages/backend/src/moire/services/library/scanner.py:767-777`
 
 ### L1.3 'Ended' is counted four ways; the activity router reaches into each manager's internals
 
@@ -147,7 +147,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Deepen services/activity.py with `note_ended(kind: str) -> None` (thread-safe, same `_ended` dict). Scanner, ai_jobs and face_detect call it instead of keeping their own counters. ModelDownloadManager `_runner` calls it in its `finally` with kind `model_download` or `face_download` (pass the kind through `start`). Delete `_scans_ended`/`scans_ended`, `AIJobManager.finished` and `face_detect.drains`; the router's `ended` becomes `activity.ended()`. Move the per-mechanism item projection beside its state, following the `model_status_view` precedent: `AIJob.activity_item()`, and `face_detect.activity_items(cache_dir)`. Frontend: add `face_download` to the TAGS_KEY kinds in useRefreshOnFinish and delete CharactersSection's wasBusy effect.
 
-**Evidence.** `packages/backend/src/moire/services/activity.py:22-24`, `packages/backend/src/moire/services/activity.py:77-80`, `packages/backend/src/moire/services/library/scanner.py:360-366`, `packages/backend/src/moire/services/library/scanner.py:795-796`, `packages/backend/src/moire/services/ai/ai_jobs.py:131-133`, `packages/backend/src/moire/services/ai/ai_jobs.py:194`, `packages/backend/src/moire/services/ai/ai_jobs.py:224`, `packages/backend/src/moire/services/ai/ai_jobs.py:310`, `packages/backend/src/moire/services/ai/face_detect.py:194-195`, `packages/backend/src/moire/services/ai/face_detect.py:283`, `packages/backend/src/moire/api/activity.py:78-94`, `packages/backend/src/moire/api/activity.py:107-134`, `packages/frontend/src/hooks/useBackgroundTasks.ts:50-75`, `packages/frontend/src/pages/settings/sections/CharactersSection.tsx:49-55`
+**Evidence.** `packages/backend/src/moire/services/activity.py:22-24`, `packages/backend/src/moire/services/activity.py:77-80`, `packages/backend/src/moire/services/library/scanner.py:360-366`, `packages/backend/src/moire/services/library/scanner.py:795-796`, `packages/backend/src/moire/services/ai/jobs.py:131-133`, `packages/backend/src/moire/services/ai/jobs.py:194`, `packages/backend/src/moire/services/ai/jobs.py:224`, `packages/backend/src/moire/services/ai/jobs.py:310`, `packages/backend/src/moire/services/ai/face_detect.py:194-195`, `packages/backend/src/moire/services/ai/face_detect.py:283`, `packages/backend/src/moire/api/activity.py:78-94`, `packages/backend/src/moire/api/activity.py:107-134`, `packages/frontend/src/hooks/useBackgroundTasks.ts:50-75`, `packages/frontend/src/pages/settings/sections/CharactersSection.tsx:49-55`
 
 ### L1.4 Async routes block the event loop on scan/watch thread joins
 
@@ -157,7 +157,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** In api/libraries.py, wrap these calls in `await anyio.to_thread.run_sync(...)`: `cancel_scan`, `stop_watch`, and `start_watch` (only when replacing an existing watch). The alternative is to give `cancel_scan` and `stop_watch` a signal-only mode (`wait=False`) for async callers. Prefer the to_thread form for delete: it can then wait for the scan thread to actually end (longer join), which also closes the late-batch race noted in the hints.
 
-**Evidence.** `packages/backend/src/moire/api/libraries.py:131-138`, `packages/backend/src/moire/api/libraries.py:126-128`, `packages/backend/src/moire/api/libraries.py:268-276`, `packages/backend/src/moire/services/library/scanner.py:810-826`, `packages/backend/src/moire/services/library/library_watch.py:371-395`, `packages/backend/src/moire/services/library/library_watch.py:405-417`, `packages/backend/src/moire/main.py:83-84`
+**Evidence.** `packages/backend/src/moire/api/libraries.py:131-138`, `packages/backend/src/moire/api/libraries.py:126-128`, `packages/backend/src/moire/api/libraries.py:268-276`, `packages/backend/src/moire/services/library/scanner.py:810-826`, `packages/backend/src/moire/services/library/watch.py:371-395`, `packages/backend/src/moire/services/library/watch.py:405-417`, `packages/backend/src/moire/main.py:83-84`
 
 ### L1.5 Model download progress is summed three ways with different rules
 
@@ -167,7 +167,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Move `_download`'s rule into `ModelDownloadState.progress() -> tuple[int, int] | None` and emit it from `as_dict()` as top-level `done`/`total`. api/activity.py then just forwards them. Both settings sections read `dl.done`/`dl.total` and use `taskPct` from lib/backgroundTasks.ts (or a `downloadPct` beside it, with a test) instead of their own reduces.
 
-**Evidence.** `packages/backend/src/moire/api/activity.py:30-41`, `packages/frontend/src/pages/settings/sections/ModelSection.tsx:35-38`, `packages/frontend/src/pages/settings/sections/CharactersSection.tsx:62-65`, `packages/backend/src/moire/services/ai/ai_tagger_download.py:98-117`
+**Evidence.** `packages/backend/src/moire/api/activity.py:30-41`, `packages/frontend/src/pages/settings/sections/ModelSection.tsx:35-38`, `packages/frontend/src/pages/settings/sections/CharactersSection.tsx:62-65`, `packages/backend/src/moire/services/ai/tagger_download.py:98-117`
 
 ### L1.6 scan_library_async._run is a 270-line closure; cancel is a string-matched RuntimeError checked inline four times
 
@@ -185,9 +185,9 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Problem.** The file is 1505 lines. `queue_batch` is radon D(24) because it assembles the whole `inputs` doc inline (1109-1174) from pure helpers that live 900 lines above it. Output placement (`held_by`, `root_candidates`, `output_image_id`, `_write_atomic`, `_place_outputs`, `_find_output_root`, `_fetch_missing`) is a self-contained filesystem and library concern that only needs `client.view` and the settings. The ComfyUI connection (configure, check, _up/_down, _set_up, the websocket loop, _on_event) is a third job sharing the same object.
 
-**Proposal.** Make three moves and leave the poll/sync/submit/cancel state machine in place. (1) New `services/generate/generation_inputs.py` with a pure `plan_batch(gen, body, settings) -> BatchPlan(inputs, sizes, seeds, name_words)`, holding lines 1109-1174 plus `batch_shape`, `_parts`, `_resolve`, `characters_of`, `_characters_input`, `_character_input`, `_outfit_input`, `outfit_tags` and `_sampling_input`. `queue_batch` and `requeue` then call it, and generation_batches imports `characters_of` from there. (2) New `services/generate/generation_outputs.py` with `place_outputs(client, files, settings) -> (ids, fetch)` and `fetch_missing(client, library_id, files)`. (3) Optionally, a `ComfyConnection` holding client, connected, error, websocket, progress and started, which the manager composes.
+**Proposal.** Make three moves and leave the poll/sync/submit/cancel state machine in place. (1) New `services/generate/inputs.py` with a pure `plan_batch(gen, body, settings) -> BatchPlan(inputs, sizes, seeds, name_words)`, holding lines 1109-1174 plus `batch_shape`, `_parts`, `_resolve`, `characters_of`, `_characters_input`, `_character_input`, `_outfit_input`, `outfit_tags` and `_sampling_input`. `queue_batch` and `requeue` then call it, and generation_batches imports `characters_of` from there. (2) New `services/generate/outputs.py` with `place_outputs(client, files, settings) -> (ids, fetch)` and `fetch_missing(client, library_id, files)`. (3) Optionally, a `ComfyConnection` holding client, connected, error, websocket, progress and started, which the manager composes.
 
-**Evidence.** `packages/backend/src/moire/services/generate/generation_jobs.py:474-1490`, `packages/backend/src/moire/services/generate/generation_jobs.py:505-636`, `packages/backend/src/moire/services/generate/generation_jobs.py:86-147`, `packages/backend/src/moire/services/generate/generation_jobs.py:830-940`, `packages/backend/src/moire/services/generate/generation_jobs.py:196-425`, `packages/backend/src/moire/services/generate/generation_jobs.py:1097-1181`
+**Evidence.** `packages/backend/src/moire/services/generate/jobs.py:474-1490`, `packages/backend/src/moire/services/generate/jobs.py:505-636`, `packages/backend/src/moire/services/generate/jobs.py:86-147`, `packages/backend/src/moire/services/generate/jobs.py:830-940`, `packages/backend/src/moire/services/generate/jobs.py:196-425`, `packages/backend/src/moire/services/generate/jobs.py:1097-1181`
 
 ### L1.8 AIJob bookkeeping: jobs never pruned, ids stashed via setattr, tagger idle loop started by the wrong owner, no stop
 
@@ -197,7 +197,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Make `ids: list[str] = field(default_factory=list, repr=False)` a real AIJob field, have `public()` drop it explicitly, and delete `image_ids()`'s getattr. After each job ends, trim `_jobs` to the newest N finished jobs (for example 50) plus all active ones. Move the idle loop's start into `TaggerManager.start(idle_unload_s)`, keep the task on the manager, and call it from the lifespan. Add `AIJobManager.stop()` (cancel the worker task) and call it in the lifespan shutdown beside `get_generation_manager().stop()`.
 
-**Evidence.** `packages/backend/src/moire/services/ai/ai_jobs.py:63-64`, `packages/backend/src/moire/services/ai/ai_jobs.py:83-88`, `packages/backend/src/moire/services/ai/ai_jobs.py:127`, `packages/backend/src/moire/services/ai/ai_jobs.py:181-184`, `packages/backend/src/moire/services/ai/ai_jobs.py:135-139`, `packages/backend/src/moire/services/ai/ai_jobs.py:250-254`, `packages/backend/src/moire/main.py:47-55`, `packages/backend/src/moire/main.py:80-85`
+**Evidence.** `packages/backend/src/moire/services/ai/jobs.py:63-64`, `packages/backend/src/moire/services/ai/jobs.py:83-88`, `packages/backend/src/moire/services/ai/jobs.py:127`, `packages/backend/src/moire/services/ai/jobs.py:181-184`, `packages/backend/src/moire/services/ai/jobs.py:135-139`, `packages/backend/src/moire/services/ai/jobs.py:250-254`, `packages/backend/src/moire/main.py:47-55`, `packages/backend/src/moire/main.py:80-85`
 
 ### L1.9 Generation request-state vocabulary spelled five times
 
@@ -207,7 +207,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Keep `UNFINISHED` and add `FAILED = ("failed", "lost")` in generation_jobs, which generation_batches already imports. Replace `_OPEN` and the inline tuples in generation_batches.py:39, 123 and 405-416 and generation_estimate.py:359 with these constants.
 
-**Evidence.** `packages/backend/src/moire/services/generate/generation_jobs.py:61-62`, `packages/backend/src/moire/services/generate/generation_batches.py:39`, `packages/backend/src/moire/services/generate/generation_batches.py:123`, `packages/backend/src/moire/services/generate/generation_batches.py:405-416`, `packages/backend/src/moire/services/generate/generation_estimate.py:359`
+**Evidence.** `packages/backend/src/moire/services/generate/jobs.py:61-62`, `packages/backend/src/moire/services/generate/batches.py:39`, `packages/backend/src/moire/services/generate/batches.py:123`, `packages/backend/src/moire/services/generate/batches.py:405-416`, `packages/backend/src/moire/services/generate/estimate.py:359`
 
 ### L1.10 Dead helpers: scanner.file_hash and ai_tagger_download._download_if_missing
 
@@ -217,7 +217,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Delete `file_hash` and the `hashlib` import from scanner.py, and delete `_download_if_missing` from ai_tagger_download.py. (`face_detect.idle` and `generation_jobs.reset_for_tests` are flagged by vulture but tests use them; keep them.)
 
-**Evidence.** `packages/backend/src/moire/services/library/scanner.py:19`, `packages/backend/src/moire/services/library/scanner.py:141-146`, `packages/backend/src/moire/services/ai/ai_tagger_download.py:59-71`
+**Evidence.** `packages/backend/src/moire/services/library/scanner.py:19`, `packages/backend/src/moire/services/library/scanner.py:141-146`, `packages/backend/src/moire/services/ai/tagger_download.py:59-71`
 
 **Cross-cutting hints.**
 
@@ -226,7 +226,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 - packages/frontend/src/lib/backgroundTasks.ts:10-25: `kind: TaskKind | string` widens to plain string, so the TaskKind union checks nothing (knip also flags TaskKind as unused).
 - packages/frontend/src/hooks/useAiTagging.ts:37-44 + hooks/useBackgroundTasks.ts:24-31 + hooks/useAiStatus.ts:12-19: an open image's AI job is polled through /ai/jobs/:id (1.5 s) and /activity (1.5 s), and /ai/status (2 s) when the settings page is open, all carrying the same status, done and total. useAiTagging could read the active job from the activity items and fetch /ai/jobs/:id only once at the end for its error.
 - packages/backend/src/moire/api/activity.py:107-127: the 'generate' item appears whenever ComfyUI's whole queue is non-empty (`queue_remaining` includes other clients' prompts), so the sidebar can say 'Generating' when Moire queued nothing.
-- packages/backend/src/moire/services/generate/generation_jobs.py:86-91 vs services/library/storage_fs.py: a second atomic-write helper; check whether storage_fs's can take a dot-prefixed staging name.
+- packages/backend/src/moire/services/generate/jobs.py:86-91 vs services/library/storage_fs.py: a second atomic-write helper; check whether storage_fs's can take a dot-prefixed staging name.
 
 ## L2-drift
 
@@ -250,9 +250,9 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Problem.** MAX_CHARACTERS = 8 is defined in generation_jobs.py and remix.py (comment: 'the composer's MAX_CHARACTERS') and again in generateForm.ts. MAX_TAGS = 40 (outfits.py) mirrors MAX_OUTFIT_TAGS (outfit.ts). steps 1..200 and cfg 0..30 appear as pydantic bounds (api/generate.py), as a hand check in remix.py and as samplingOf in generateForm.ts. Seed range 2**50 is SEED_MAX on one side and a literal in randomSeed on the other. outfits.WORN_MAX_CHARACTERS = 10 beside 8 elsewhere may or may not be deliberate. If one is raised, the other side silently truncates (backend slices characters[:MAX_CHARACTERS]) or rejects.
 
-**Proposal.** Define the limits once in the backend, e.g. a LIMITS dict in services/generate/generator_graph.py (or a new services/generate/generation_limits.py) used by generation_jobs, remix, outfits and the pydantic Field bounds, and return it from an existing cheap endpoint (GET /generate/generators or a new /generate/limits). Frontend reads it through one useGenerationLimits query with the current numbers as the default. Delete the three local constants. Add a one-line comment on WORN_MAX_CHARACTERS saying why it differs, or unify it.
+**Proposal.** Define the limits once in the backend, e.g. a LIMITS dict in services/generate/generator_graph.py (or a new services/generate/limits.py) used by generation_jobs, remix, outfits and the pydantic Field bounds, and return it from an existing cheap endpoint (GET /generate/generators or a new /generate/limits). Frontend reads it through one useGenerationLimits query with the current numbers as the default. Delete the three local constants. Add a one-line comment on WORN_MAX_CHARACTERS saying why it differs, or unify it.
 
-**Evidence.** `packages/backend/src/moire/services/generate/generation_jobs.py:324`, `packages/backend/src/moire/services/generate/remix.py:30`, `packages/frontend/src/lib/generateForm.ts:104`, `packages/backend/src/moire/services/characters/outfits.py:31`, `packages/frontend/src/lib/outfit.ts:10`, `packages/backend/src/moire/services/characters/outfits.py:148`, `packages/backend/src/moire/api/generate.py:107-108`, `packages/backend/src/moire/services/generate/remix.py:105-108`, `packages/frontend/src/lib/generateForm.ts:497-500`, `packages/backend/src/moire/services/generate/generator_graph.py:42`, `packages/frontend/src/lib/requests.ts:59`
+**Evidence.** `packages/backend/src/moire/services/generate/jobs.py:324`, `packages/backend/src/moire/services/generate/remix.py:30`, `packages/frontend/src/lib/generateForm.ts:104`, `packages/backend/src/moire/services/characters/outfits.py:31`, `packages/frontend/src/lib/outfit.ts:10`, `packages/backend/src/moire/services/characters/outfits.py:148`, `packages/backend/src/moire/api/generate.py:107-108`, `packages/backend/src/moire/services/generate/remix.py:105-108`, `packages/frontend/src/lib/generateForm.ts:497-500`, `packages/backend/src/moire/services/generate/generator_graph.py:42`, `packages/frontend/src/lib/requests.ts:59`
 
 ### L2.3 No response models or generated types: every payload and closed vocabulary is typed by hand on both sides
 
@@ -264,7 +264,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Depends on.** Do the ImageDoc split before adding prompt_weights to the detail payload.
 
-**Evidence.** `packages/backend/src/moire/services/images/image_feed.py:43-62`, `packages/backend/src/moire/services/tags/image_tags.py:266-277`, `packages/frontend/src/lib/imageFilter.ts:12-46`, `packages/frontend/src/lib/queries.ts:361`, `packages/frontend/src/lib/queries.ts:382-397`, `packages/backend/src/moire/services/generate/prompt_board.py:26-42`, `packages/frontend/src/lib/mergeSuggestions.ts:4`, `packages/frontend/src/lib/tagColour.ts:128-140`
+**Evidence.** `packages/backend/src/moire/services/images/feed.py:43-62`, `packages/backend/src/moire/services/tags/image_tags.py:266-277`, `packages/frontend/src/lib/imageFilter.ts:12-46`, `packages/frontend/src/lib/queries.ts:361`, `packages/frontend/src/lib/queries.ts:382-397`, `packages/backend/src/moire/services/generate/prompt_board.py:26-42`, `packages/frontend/src/lib/mergeSuggestions.ts:4`, `packages/frontend/src/lib/tagColour.ts:128-140`
 
 ### L2.4 Hair/eye colour palette is copied into tagColour.ts with only a comment tying it to characters.COLOURS
 
@@ -274,7 +274,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Move the palette and multicolour sets to a single JSON (packages/backend/src/moire/data/hair_eye_colours.json) loaded by characters.py and returned by an existing endpoint (e.g. alongside /tags/groups) so tagColour.ts fetches it once; or generate tagColour's table from the same JSON at build time. Keep the neutral lightening as a frontend-side override map. Minimum viable: a vitest that reads the backend JSON/py-exported table and compares.
 
-**Evidence.** `packages/frontend/src/lib/tagColour.ts:8-58`, `packages/frontend/src/lib/tagColour.ts:61-72`, `packages/backend/src/moire/services/characters/characters.py:29-56`, `packages/backend/src/moire/services/characters/characters.py:126-139`, `packages/backend/src/moire/services/characters/characters.py:72-84`
+**Evidence.** `packages/frontend/src/lib/tagColour.ts:8-58`, `packages/frontend/src/lib/tagColour.ts:61-72`, `packages/backend/src/moire/services/characters/pages.py:29-56`, `packages/backend/src/moire/services/characters/pages.py:126-139`, `packages/backend/src/moire/services/characters/pages.py:72-84`
 
 ### L2.5 Mirrored pure functions rely on comments and copy-pasted test cases instead of one fixture
 
@@ -286,7 +286,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Depends on.** Share the fixture directory with finding 1.
 
-**Evidence.** `packages/backend/src/moire/services/generate/generation_compose.py:1-7`, `packages/frontend/src/lib/compose.ts:1-10`, `packages/backend/src/moire/services/generate/generation_compose.py:68-83`, `packages/frontend/src/lib/compose.ts:54-65`, `packages/frontend/src/lib/requests.ts:1-20`, `packages/backend/src/moire/services/generate/generator_graph.py:444-455`, `packages/frontend/src/lib/batchName.ts:1-5`, `packages/backend/src/moire/services/tags/tag_names.py:23-47`, `packages/frontend/src/lib/tags.ts:36-39`, `packages/frontend/src/lib/tags.ts:262-267`
+**Evidence.** `packages/backend/src/moire/services/generate/compose.py:1-7`, `packages/frontend/src/lib/compose.ts:1-10`, `packages/backend/src/moire/services/generate/compose.py:68-83`, `packages/frontend/src/lib/compose.ts:54-65`, `packages/frontend/src/lib/requests.ts:1-20`, `packages/backend/src/moire/services/generate/generator_graph.py:444-455`, `packages/frontend/src/lib/batchName.ts:1-5`, `packages/backend/src/moire/services/tags/names.py:23-47`, `packages/frontend/src/lib/tags.ts:36-39`, `packages/frontend/src/lib/tags.ts:262-267`
 
 ### L2.6 canonicalName exists on the frontend but five call sites inline their own whitespace-to-underscore rule
 
@@ -296,7 +296,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Replace the five inline regexes with canonicalName from lib/tags.ts (promptOutline needs canonicalName(x).toLowerCase()). Add an eslint no-restricted-syntax rule or a grep test banning the literal replace(/\s+/g, "_") outside tags.ts.
 
-**Evidence.** `packages/frontend/src/components/generate/ChipInput.tsx:9-14`, `packages/frontend/src/components/NewCharacterDialog.tsx:20`, `packages/frontend/src/components/generate/CharacterBlock.tsx:243`, `packages/frontend/src/lib/imageFilter.ts:470`, `packages/frontend/src/lib/promptOutline.ts:119`, `packages/frontend/src/lib/tags.ts:262-267`, `packages/backend/src/moire/services/tags/tag_names.py:46-52`
+**Evidence.** `packages/frontend/src/components/generate/ChipInput.tsx:9-14`, `packages/frontend/src/components/NewCharacterDialog.tsx:20`, `packages/frontend/src/components/generate/CharacterBlock.tsx:243`, `packages/frontend/src/lib/imageFilter.ts:470`, `packages/frontend/src/lib/promptOutline.ts:119`, `packages/frontend/src/lib/tags.ts:262-267`, `packages/backend/src/moire/services/tags/names.py:46-52`
 
 ### L2.7 LoRA file-stem rule is implemented three times (gen_metadata.lora_name, generator_graph.lora_stem, two frontend copies)
 
@@ -316,7 +316,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Let tag_categories (or characters.py) expose character_parts(tag) -> (name, series) using the stricter _QUALIFIER rule, include the resolved name/series in /tags/characters and the character page payload (override first, then derived), and delete characterName/displayName's regex in character.ts. Test both with the existing hu_tao_(genshin_impact) style cases plus the nested-paren case.
 
-**Evidence.** `packages/frontend/src/lib/character.ts:76-92`, `packages/backend/src/moire/services/tags/tag_categories.py:37`, `packages/backend/src/moire/services/characters/characters.py:399`, `packages/backend/src/moire/services/characters/characters.py:423`, `packages/backend/src/moire/services/characters/characters.py:520`
+**Evidence.** `packages/frontend/src/lib/character.ts:76-92`, `packages/backend/src/moire/services/tags/categories.py:37`, `packages/backend/src/moire/services/characters/pages.py:399`, `packages/backend/src/moire/services/characters/pages.py:423`, `packages/backend/src/moire/services/characters/pages.py:520`
 
 **Cross-cutting hints.**
 
@@ -461,7 +461,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Add two small pure helpers: `_tag_groups(f) -> list[list[str]]` and `_pterms(f) -> list[str]`, used by both feed_where and _drive_by_rarest. Then split feed_where into `_tag_conds(f)`, `_gen_conds(f)` (pterms, model, lora, embedding, workflow, needs_mapping), `_outfit_conds(f)` and `_size_conds(f)`, each returning list[ColumnElement]; feed_where becomes `sa.and_(*_tag_conds(f), *_gen_conds(f), ...)`. Hoist `no_ai_tags` out of the if/else. Cover with the existing test_image_feed/test_feed_integration plus one test asserting driver_ids never changes the result set.
 
-**Evidence.** `packages/backend/src/moire/services/images/image_feed.py:195-319`, `packages/backend/src/moire/services/images/image_feed.py:205-207`, `packages/backend/src/moire/services/images/image_feed.py:229`, `packages/backend/src/moire/services/images/image_feed.py:343-380`, `packages/backend/src/moire/services/images/image_feed.py:354-359`, `packages/backend/src/moire/services/images/image_feed.py:208-214`
+**Evidence.** `packages/backend/src/moire/services/images/feed.py:195-319`, `packages/backend/src/moire/services/images/feed.py:205-207`, `packages/backend/src/moire/services/images/feed.py:229`, `packages/backend/src/moire/services/images/feed.py:343-380`, `packages/backend/src/moire/services/images/feed.py:354-359`, `packages/backend/src/moire/services/images/feed.py:208-214`
 
 ### S1.4 imageFilter.ts mixes URL codec, API client and search-term logic; the gallery uses raw api() for tags, ids and a hand-rolled libraries poll
 
@@ -481,7 +481,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Add `normalizeFilters(f): Filters` in imageFilter.ts that enforces aiTagged exclusivity and workflow/workflowSig exclusivity, call it at the end of parseFilters and inside useFilters.setFilters, and delete the per-call-site repairs. Define hasActiveFilter as 'serializeFilters(withoutView(f)) has params' where withoutView drops logic/sort/group/libraryId, so a new axis is picked up by the codec alone. Test: one table-driven vitest that every Filters key round-trips and that a new key without a serialize line fails.
 
-**Evidence.** `packages/frontend/src/lib/imageFilter.ts:52-96`, `packages/frontend/src/lib/imageFilter.ts:98-122`, `packages/frontend/src/lib/imageFilter.ts:134-163`, `packages/frontend/src/lib/imageFilter.ts:176-203`, `packages/frontend/src/lib/imageFilter.ts:286-308`, `packages/frontend/src/lib/imageFilter.ts:315-328`, `packages/frontend/src/lib/imageFilter.ts:357-403`, `packages/frontend/src/pages/AllImagesPage.tsx:485-492`, `packages/frontend/src/pages/AllImagesPage.tsx:1080-1094`, `packages/backend/src/moire/services/images/image_feed.py:167-170`
+**Evidence.** `packages/frontend/src/lib/imageFilter.ts:52-96`, `packages/frontend/src/lib/imageFilter.ts:98-122`, `packages/frontend/src/lib/imageFilter.ts:134-163`, `packages/frontend/src/lib/imageFilter.ts:176-203`, `packages/frontend/src/lib/imageFilter.ts:286-308`, `packages/frontend/src/lib/imageFilter.ts:315-328`, `packages/frontend/src/lib/imageFilter.ts:357-403`, `packages/frontend/src/pages/AllImagesPage.tsx:485-492`, `packages/frontend/src/pages/AllImagesPage.tsx:1080-1094`, `packages/backend/src/moire/services/images/feed.py:167-170`
 
 ### S1.6 api/images.py is four routers in one file and its route order is load-bearing; original-file GET/HEAD repeat path resolution
 
@@ -503,7 +503,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Depends on.** pairs naturally with the api/images.py split
 
-**Evidence.** `packages/backend/src/moire/api/images.py:321-373`, `packages/backend/src/moire/api/images.py:376-403`, `packages/backend/src/moire/services/tags/image_tags.py:517-520`, `packages/backend/src/moire/services/images/image_feed.py:219-224`
+**Evidence.** `packages/backend/src/moire/api/images.py:321-373`, `packages/backend/src/moire/api/images.py:376-403`, `packages/backend/src/moire/services/tags/image_tags.py:517-520`, `packages/backend/src/moire/services/images/feed.py:219-224`
 
 ### S1.8 useFilters reads and writes localStorage unguarded, unlike every sibling view-pref hook
 
@@ -654,7 +654,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 - packages/frontend/src/hooks/useDensity.ts: check whether it is a third localStorage external-store copy next to useTagMarks.
 - packages/frontend/src/pages/CharacterPage.tsx:44 RATING_ORDER and :46 galleryHref duplicate lib-level concepts (rating set, gallery link builder).
 - packages/frontend/src/lib/countTags.ts is a Generate-page concern living in an ImageView slice; S-slice for GeneratePage should own its test review.
-- packages/frontend/src/components/ImageCharacters.tsx:70-74 filters characters by tag names in the component; same name-matching rule probably exists in lib/character.ts and services/characters/characters.py (S3/S4 could check for drift).
+- packages/frontend/src/components/ImageCharacters.tsx:70-74 filters characters by tag names in the component; same name-matching rule probably exists in lib/character.ts and services/characters/pages.py (S3/S4 could check for drift).
 - packages/frontend/src/pages/ImageView.tsx:1413 hardcodes PANEL_GROUND #15141c, a copy of the tailwind surface token; lib/tagColour.tagMarkStyle takes it as a parameter so any theme change breaks outline colours silently.
 
 ## S3-tagcore
@@ -669,7 +669,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Only carry pin/focus/character state when no other source of the old base remains after the operation: add `_base_survives(conn, old_base)` (an EXISTS on `image_tags.base == old_base` excluding the tag being renamed) and skip `_move_thumbnail`/`_move_character` when true. Add a test in test_tag_rename_integration.py: AI tag `foo` pinned, rename `manual:foo` to `manual:bar`, assert the `foo` pin is untouched.
 
-**Evidence.** `packages/backend/src/moire/services/tags/tag_rename.py:62-94`, `packages/backend/src/moire/services/tags/tag_rename.py:370-381`, `packages/backend/src/moire/services/tags/tag_rename.py:494-497`, `packages/backend/src/moire/services/tags/tag_rename.py:475-481`, `packages/backend/src/moire/services/tags/tag_index.py:190-196`
+**Evidence.** `packages/backend/src/moire/services/tags/rename.py:62-94`, `packages/backend/src/moire/services/tags/rename.py:370-381`, `packages/backend/src/moire/services/tags/rename.py:494-497`, `packages/backend/src/moire/services/tags/rename.py:475-481`, `packages/backend/src/moire/services/tags/index.py:190-196`
 
 ### S3.2 Two diverging definitions of 'is a character': tag_rename._character_names vs tag_index._characters
 
@@ -679,7 +679,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Move `_characters`, `_listed_characters` and `_may_be_characters` out of tag_index into one `services/tags/character_names.py` (or tag_categories) exposing `async def character_names(conn, vocab, bases: set[str] | None) -> frozenset[str]` (bases None = every library base, using the cheap candidate walk). tag_index._browse, tag_rename (`_write_rule`, `merge_suggestions`) and characters.py call it. Delete `tag_rename._character_names`. Decide the kind-NULL semantics once (tag_index's: no override).
 
-**Evidence.** `packages/backend/src/moire/services/tags/tag_rename.py:418-431`, `packages/backend/src/moire/services/tags/tag_index.py:554-578`, `packages/backend/src/moire/services/tags/tag_index.py:581-588`, `packages/backend/src/moire/services/tags/tag_index.py:591-637`, `packages/backend/src/moire/services/tags/tag_categories.py:410-411`
+**Evidence.** `packages/backend/src/moire/services/tags/rename.py:418-431`, `packages/backend/src/moire/services/tags/index.py:554-578`, `packages/backend/src/moire/services/tags/index.py:581-588`, `packages/backend/src/moire/services/tags/index.py:591-637`, `packages/backend/src/moire/services/tags/categories.py:410-411`
 
 ### S3.3 Split tag_index.py: cache primitives, cover pins, browse, character classification and the detail panel are fused
 
@@ -689,7 +689,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Keep tag_index.py as the cache owner only (invalidate, generation, read/store view/derived, ~90 lines, imported by writers). Move: (1) `pin_key`, `_pins`, `_seed*`, `_shuffled`, `samples_for_tag` to `tag_covers.py` (public `pins(conn, bases)` replaces characters.py's private reach-in); (2) `_browse`, `browse`, `character_rows`, `list_tags` to `tag_browse.py`; (3) `detail` plus `image_ids` to `tag_detail.py`, one small private function per panel section (`_months`, `_loras`, `_embeddings`, `_workflows`, `_related`) and a single `_visible_tag_rows()` fragment shared with `image_ids`; (4) character classification per the previous finding. Pure move first, no behaviour change; the existing test_tag_index.py/test_tags_page_integration.py pin it.
 
-**Evidence.** `packages/backend/src/moire/services/tags/tag_index.py:57-140`, `packages/backend/src/moire/services/tags/tag_index.py:142-210`, `packages/backend/src/moire/services/tags/tag_index.py:285-395`, `packages/backend/src/moire/services/tags/tag_index.py:417-551`, `packages/backend/src/moire/services/tags/tag_index.py:554-637`, `packages/backend/src/moire/services/tags/tag_index.py:659-786`, `packages/backend/src/moire/services/characters/characters.py:537`
+**Evidence.** `packages/backend/src/moire/services/tags/index.py:57-140`, `packages/backend/src/moire/services/tags/index.py:142-210`, `packages/backend/src/moire/services/tags/index.py:285-395`, `packages/backend/src/moire/services/tags/index.py:417-551`, `packages/backend/src/moire/services/tags/index.py:554-637`, `packages/backend/src/moire/services/tags/index.py:659-786`, `packages/backend/src/moire/services/characters/pages.py:537`
 
 ### S3.4 Cover pins and focus (tag_meta, tag_focus) are written from five modules including the router
 
@@ -697,9 +697,9 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Problem.** set_tag_thumbnail / clear_tag_thumbnail build a `sqlite_insert(t.tag_meta)` upsert, an image-carries-tag EXISTS and the `tag_index.invalidate()` call inside the router (a router doing SQL, and a call-site invalidate, which CLAUDE.md says to avoid). The same table is also touched by tag_rename (move), tag_migrations (rekey) and library_nesting (repoint), while its read side (`_pins`, `pin_key`) is in tag_index and its sibling table tag_focus is in tag_focus.py. There is no single owner for a tag's cover.
 
-**Proposal.** Create `services/tags/tag_covers.py` owning both tables: `pin_key`, `pins(conn, bases)`, `async set_pin(tag_key, names, image_id) -> bool` (does the carries-tag check, upsert and invalidate, returns False for the 404), `clear_pin(tag_key)`, `move(conn, old, new)` (today's `_move_thumbnail` focus+pin half), and the focus functions from tag_focus.py (`clean`, `put`, `get`, `all_focus`, `for_cover`). The two thumbnail routes shrink to validate, call, map to HTTP; the face_detect call stays in the router or characters.
+**Proposal.** Create `services/tags/covers.py` owning both tables: `pin_key`, `pins(conn, bases)`, `async set_pin(tag_key, names, image_id) -> bool` (does the carries-tag check, upsert and invalidate, returns False for the 404), `clear_pin(tag_key)`, `move(conn, old, new)` (today's `_move_thumbnail` focus+pin half), and the focus functions from tag_focus.py (`clean`, `put`, `get`, `all_focus`, `for_cover`). The two thumbnail routes shrink to validate, call, map to HTTP; the face_detect call stays in the router or characters.
 
-**Evidence.** `packages/backend/src/moire/api/tags.py:362-415`, `packages/backend/src/moire/services/tags/tag_rename.py:62-94`, `packages/backend/src/moire/services/tags/tag_migrations.py:111-136`, `packages/backend/src/moire/services/library/library_nesting.py:257`, `packages/backend/src/moire/services/tag_focus.py:556-600`, `packages/backend/src/moire/services/tags/tag_index.py:199-209`
+**Evidence.** `packages/backend/src/moire/api/tags.py:362-415`, `packages/backend/src/moire/services/tags/rename.py:62-94`, `packages/backend/src/moire/services/tags/migrations.py:111-136`, `packages/backend/src/moire/services/library/nesting.py:257`, `packages/backend/src/moire/services/tag_focus.py:556-600`, `packages/backend/src/moire/services/tags/index.py:199-209`
 
 ### S3.5 PUT /tags/focus runs the full 8-query detail aggregate just to learn the pin and existence
 
@@ -709,7 +709,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Add `tag_covers.cover_of(base) -> str | None` (pin if present and visible, else the mosaic lead via `samples_for_tag('any:'+base, 1)`; None when no visible image carries the base) and use it in set_tag_focus (404 when None) and tag_detail (which already has the pin from `detail`). Delete the router-level `_cover_of`.
 
-**Evidence.** `packages/backend/src/moire/api/tags.py:346-359`, `packages/backend/src/moire/api/tags.py:338-343`, `packages/backend/src/moire/services/tags/tag_index.py:659-786`
+**Evidence.** `packages/backend/src/moire/api/tags.py:346-359`, `packages/backend/src/moire/api/tags.py:338-343`, `packages/backend/src/moire/services/tags/index.py:659-786`
 
 ### S3.6 api/tags.py builds service-level caches and repeats a library-bases query
 
@@ -717,7 +717,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Problem.** `_tag_maps`, `_library_bases`, `board_offers` and `place_tags` assemble derived caches (generation capture, `read_derived`/`store_derived`, `asyncio.to_thread`, a module-global asyncio.Lock) and run SQL in the router. `_tag_maps` and `_library_bases` both run `SELECT DISTINCT image_tags.base` and cache separately, so a tag write triggers the scan twice. The idiom `tag_index.pin_key(validate_tags([tag])[0])` appears 8 times.
 
-**Proposal.** Move `library_bases()`, `tag_maps()` and `board_offers()` into a `services/tags/tag_views.py` (they are derived views over the tag index with the same invalidation rule); `tag_maps` takes its `library` from `library_bases()`. In the router add one dependency `def _base(tag: str = Query(...)) -> str` returning `pin_key(validate_tags([tag])[0])` for character/detail/focus/thumbnail routes. Router keeps only HTTP mapping.
+**Proposal.** Move `library_bases()`, `tag_maps()` and `board_offers()` into a `services/tags/views.py` (they are derived views over the tag index with the same invalidation rule); `tag_maps` takes its `library` from `library_bases()`. In the router add one dependency `def _base(tag: str = Query(...)) -> str` returning `pin_key(validate_tags([tag])[0])` for character/detail/focus/thumbnail routes. Router keeps only HTTP mapping.
 
 **Evidence.** `packages/backend/src/moire/api/tags.py:56-87`, `packages/backend/src/moire/api/tags.py:136-171`, `packages/backend/src/moire/api/tags.py:260`, `packages/backend/src/moire/api/tags.py:297`, `packages/backend/src/moire/api/tags.py:322`, `packages/backend/src/moire/api/tags.py:350`, `packages/backend/src/moire/api/tags.py:366`
 
@@ -729,7 +729,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Extract `async def _apply(affected: list[str]) -> bool` in tag_rename.py: sorted ids, inline up to `_SYNC_REPROJECT` (then `tag_index.invalidate()`), else `reproject_ids_async`; returns `background`. Use it in rename_tag, add_rules and delete_alias, and add `background` to the rename/delete responses (frontend already reads it for add_rules).
 
-**Evidence.** `packages/backend/src/moire/services/tags/tag_rename.py:512-514`, `packages/backend/src/moire/services/tags/tag_rename.py:525-570`, `packages/backend/src/moire/services/tags/tag_rename.py:670-674`, `packages/backend/src/moire/services/metadata/reproject.py:237-249`, `packages/backend/src/moire/services/metadata/reproject.py:339-345`
+**Evidence.** `packages/backend/src/moire/services/tags/rename.py:512-514`, `packages/backend/src/moire/services/tags/rename.py:525-570`, `packages/backend/src/moire/services/tags/rename.py:670-674`, `packages/backend/src/moire/services/metadata/reproject.py:237-249`, `packages/backend/src/moire/services/metadata/reproject.py:339-345`
 
 ### S3.8 Split image_tags into a pure tag-kinds vocabulary and the writer; this removes the tag_index import cycle
 
@@ -737,11 +737,11 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Problem.** image_tags.py mixes four layers: pure tag-kind vocabulary (prefixes, canonical_tag, any: expansion, tag_match_groups, excluded_prefixes, base_of), rating normalization, image-id variants/row_to_doc, and the transactional writers. tag_index imports image_tags only for prefix helpers and `not_quarantined`, which forces image_tags to import tag_index lazily inside `_dirty_tag_index` ('keeping the import local is what breaks the cycle'). The tag-weights work will add weight handling into `_persist_statements` and the bulk twin, both in the 621-line module.
 
-**Proposal.** Extract `services/tags/tag_kinds.py` (no DB imports): MANUAL_PREFIX/PROMPT_PREFIX/ANY_PREFIX, is_*/to_*/base_of, canonical_tag, any_variants/expand_search_tag/tag_match_groups, excluded_prefixes, recompute_flags, plus `not_quarantined` into a tiny `image_filters` or schema helper. tag_index and every reader import tag_kinds; image_tags imports tag_index at module scope and re-exports nothing (update ~25 callers, mechanical). Keep `normalize_rating`, writers and scalar setters in image_tags.
+**Proposal.** Extract `services/tags/kinds.py` (no DB imports): MANUAL_PREFIX/PROMPT_PREFIX/ANY_PREFIX, is_*/to_*/base_of, canonical_tag, any_variants/expand_search_tag/tag_match_groups, excluded_prefixes, recompute_flags, plus `not_quarantined` into a tiny `image_filters` or schema helper. tag_index and every reader import tag_kinds; image_tags imports tag_index at module scope and re-exports nothing (update ~25 callers, mechanical). Keep `normalize_rating`, writers and scalar setters in image_tags.
 
 **Depends on.** Do before adding prompt weights to _persist_statements
 
-**Evidence.** `packages/backend/src/moire/services/tags/image_tags.py:55-165`, `packages/backend/src/moire/services/tags/image_tags.py:318-329`, `packages/backend/src/moire/services/tags/image_tags.py:517-520`, `packages/backend/src/moire/services/tags/tag_index.py:42`, `packages/backend/src/moire/services/tags/tag_names.py:1-13`
+**Evidence.** `packages/backend/src/moire/services/tags/image_tags.py:55-165`, `packages/backend/src/moire/services/tags/image_tags.py:318-329`, `packages/backend/src/moire/services/tags/image_tags.py:517-520`, `packages/backend/src/moire/services/tags/index.py:42`, `packages/backend/src/moire/services/tags/names.py:1-13`
 
 ### S3.9 GET /tags (non-merged) computes thumbnails and pins nothing reads
 
@@ -751,7 +751,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Drop `sample_image_id`, the `_pins` call and `thumb_image_id` from the non-merge branch of `list_tags` (return `{_id, count}`), update test_tags_integration.py expectations if they assert it. Optionally give Overview a dedicated count instead of the whole list.
 
-**Evidence.** `packages/backend/src/moire/services/tags/tag_index.py:249-282`, `packages/backend/src/moire/api/tags.py:36-49`, `packages/frontend/src/lib/queries.ts:105-129`, `packages/frontend/src/pages/OverviewPage.tsx:27-35`, `packages/frontend/src/pages/AllImagesPage.tsx:192-202`
+**Evidence.** `packages/backend/src/moire/services/tags/index.py:249-282`, `packages/backend/src/moire/api/tags.py:36-49`, `packages/frontend/src/lib/queries.ts:105-129`, `packages/frontend/src/pages/OverviewPage.tsx:27-35`, `packages/frontend/src/pages/AllImagesPage.tsx:192-202`
 
 ### S3.10 'alias' names three different things; the user's merge rules are still called aliases in code and routes
 
@@ -761,14 +761,14 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Rename `apply_aliases` to `apply_rules` and move it beside the rule reader (a small `tag_rules.py` holding `load_rules_sync`, `async load_rules`, `apply_rules`, used by tag_rename and reproject); rename `list_aliases`/`delete_alias`/`add_aliases` to `*_rules`. Keep the `/aliases` URL for now (frontend contract) or alias it in the same pass. Leave Danbooru and character 'aliases' as they are.
 
-**Evidence.** `packages/backend/src/moire/services/tags/tag_names.py:59-66`, `packages/backend/src/moire/services/tags/tag_rename.py:644-657`, `packages/backend/src/moire/services/metadata/reproject.py:44-52`, `packages/backend/src/moire/services/metadata/reproject.py:206`, `packages/backend/src/moire/api/tags.py:479-512`, `packages/backend/src/moire/services/tags/danbooru_tags.py:54-63`
+**Evidence.** `packages/backend/src/moire/services/tags/names.py:59-66`, `packages/backend/src/moire/services/tags/rename.py:644-657`, `packages/backend/src/moire/services/metadata/reproject.py:44-52`, `packages/backend/src/moire/services/metadata/reproject.py:206`, `packages/backend/src/moire/api/tags.py:479-512`, `packages/backend/src/moire/services/tags/danbooru.py:54-63`
 
 **Cross-cutting hints.**
 
-- packages/backend/src/moire/services/characters/characters.py:537 calls the private tag_index._pins; characters.py:446-450 uses tag_index.read_view/store_view as a side cache (only caller), so a split of tag_index must keep those two seams.
-- packages/backend/src/moire/services/tags/tag_names.py:21 KAOMOJIS is the only non-name content of tag_names and is consumed by prompt_parse.py:38; consider living in prompt_parse or a shared vocab since tag_names should stay the one spelling rule.
+- packages/backend/src/moire/services/characters/pages.py:537 calls the private tag_index._pins; characters.py:446-450 uses tag_index.read_view/store_view as a side cache (only caller), so a split of tag_index must keep those two seams.
+- packages/backend/src/moire/services/tags/names.py:21 KAOMOJIS is the only non-name content of tag_names and is consumed by prompt_parse.py:38; consider living in prompt_parse or a shared vocab since tag_names should stay the one spelling rule.
 - packages/backend/src/moire/services/metadata/reproject.py:44-52 and 206 read tag_rules with a second sync loader (see tag_rules.py proposal); the extraction-config finding in docs/tag-weights-plan.md should include it.
-- packages/backend/src/moire/services/tags/tag_migrations.py:44-60 is another hand-written app_settings JSON row read/upsert (part of the already reported 8-module duplication); tag_settings.py:496-522 is a ninth.
+- packages/backend/src/moire/services/tags/migrations.py:44-60 is another hand-written app_settings JSON row read/upsert (part of the already reported 8-module duplication); tag_settings.py:496-522 is a ninth.
 
 ## S4-tagsui-rules
 
@@ -874,7 +874,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Put the data in one JSON file both read, e.g. packages/backend/src/moire/data/tag_vocab.json (colours, neutrals, kaomojis, facets, merge kinds) served at build by Vite import (json) and loaded by Python. If that is too much plumbing, add a backend test that regex-parses the TS tables from the frontend source and asserts equality, matching the shared-fixture approach already planned for prompt weights.
 
-**Evidence.** `packages/frontend/src/lib/tagColour.ts:17-52`, `packages/backend/src/moire/services/characters/characters.py:29-59`, `packages/frontend/src/lib/tags.ts:34-37`, `packages/backend/src/moire/services/tags/tag_names.py:21`, `packages/frontend/src/lib/tags.ts:193-198`, `packages/frontend/src/lib/tagColour.ts:99-117`, `packages/frontend/src/lib/mergeSuggestions.ts:4-5`
+**Evidence.** `packages/frontend/src/lib/tagColour.ts:17-52`, `packages/backend/src/moire/services/characters/pages.py:29-59`, `packages/frontend/src/lib/tags.ts:34-37`, `packages/backend/src/moire/services/tags/names.py:21`, `packages/frontend/src/lib/tags.ts:193-198`, `packages/frontend/src/lib/tagColour.ts:99-117`, `packages/frontend/src/lib/mergeSuggestions.ts:4-5`
 
 **Cross-cutting hints.**
 
@@ -895,7 +895,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Problem.** add/move/remove are ordered sequences of side effects (DB write, library_nesting.invalidate, tag_index.invalidate, cancel_scan, start/stop_watch, scan_library_async, _rescan_libraries_around, delete_by_prefix) written inline in three route handlers. api/generate.py put_comfyui imports and awaits add_library and update_library as plain functions (and wraps them in `except ValueError`, which they never raise: they raise HTTPException), so the sequence is already a service with no service module. Consequences visible today: remove_library never deletes the `thumbs:{library_id}` stamp row scanner._save_stamp writes (orphaned forever); the event-loop-blocking joins (already reported) have to be fixed in three places; add_library has a check-then-insert race (two concurrent POSTs for one path both pass the dedupe, the second hits the primary key and returns 500); library_id_for and _rescan_libraries_around are router-private helpers.
 
-**Proposal.** Add services/library/library_ops.py with async `create(path, name, watch)`, `move_or_edit(id, patch)`, `remove(id)`, `rescan_around(path, exclude)` and `library_id_for`. Each owns its full side-effect order, runs the cancel/join/start_watch calls via anyio.to_thread, deletes the scanner stamp row on remove, and makes create idempotent on IntegrityError (return the existing row). Routes become validate, call, shape response. api/generate.py put_comfyui calls `library_ops.ensure_watched(path, name)` instead of the two handlers. Return one response shape from create (existing rows return the full row, new ones a 3-key dict today).
+**Proposal.** Add services/library/ops.py with async `create(path, name, watch)`, `move_or_edit(id, patch)`, `remove(id)`, `rescan_around(path, exclude)` and `library_id_for`. Each owns its full side-effect order, runs the cancel/join/start_watch calls via anyio.to_thread, deletes the scanner stamp row on remove, and makes create idempotent on IntegrityError (return the existing row). Routes become validate, call, shape response. api/generate.py put_comfyui calls `library_ops.ensure_watched(path, name)` instead of the two handlers. Return one response shape from create (existing rows return the full row, new ones a 3-key dict today).
 
 **Evidence.** `packages/backend/src/moire/api/libraries.py:79-95`, `packages/backend/src/moire/api/libraries.py:126-154`, `packages/backend/src/moire/api/libraries.py:268-277`, `packages/backend/src/moire/api/generate.py:205-218`, `packages/backend/src/moire/api/libraries.py:28-46`
 
@@ -905,9 +905,9 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Problem.** Every site does `delete(images)` + `delete(image_gen_raw)` in the same transaction, then tag_index.invalidate(), then best-effort delete_thumb per key, each with its own lazy `from .storage_fs import delete_thumb` inside try/except pass (scanner.py:325 and :801 import lazily although put_thumb is already imported at module top, so there is no cycle to avoid). A sixth table that must cascade (the next derived table, or tag weights if stored beside the image) has to be added in five places; the scanner and nesting variants also forget to refresh libraries.indexed_count consistently (nesting recounts, remove_single_image uses a delta, the scan sets it from the walk).
 
-**Proposal.** New small module (e.g. services/images/image_delete.py): `delete_rows(conn, ids) -> list[thumb_key]` (sync) plus an async twin used by purge/remove_library, and `drop_thumbs(keys)` (best-effort, logs at debug). Callers keep ownership of the transaction and call `tag_index.invalidate()` after commit, but the table list and the thumb cleanup exist once. The unbounded-transaction fix already reported for the scanner stale delete then lands in one chunking loop (200 ids per tx) used by scanner, nesting and remove_library.
+**Proposal.** New small module (e.g. services/images/delete.py): `delete_rows(conn, ids) -> list[thumb_key]` (sync) plus an async twin used by purge/remove_library, and `drop_thumbs(keys)` (best-effort, logs at debug). Callers keep ownership of the transaction and call `tag_index.invalidate()` after commit, but the table list and the thumb cleanup exist once. The unbounded-transaction fix already reported for the scanner stale delete then lands in one chunking loop (200 ids per tx) used by scanner, nesting and remove_library.
 
-**Evidence.** `packages/backend/src/moire/services/library/scanner.py:316-329`, `packages/backend/src/moire/services/library/scanner.py:783-807`, `packages/backend/src/moire/services/library/library_nesting.py:268-274`, `packages/backend/src/moire/services/library/library_nesting.py:600-618`, `packages/backend/src/moire/api/images.py:626-646`, `packages/backend/src/moire/api/libraries.py:146-163`
+**Evidence.** `packages/backend/src/moire/services/library/scanner.py:316-329`, `packages/backend/src/moire/services/library/scanner.py:783-807`, `packages/backend/src/moire/services/library/nesting.py:268-274`, `packages/backend/src/moire/services/library/nesting.py:600-618`, `packages/backend/src/moire/api/images.py:626-646`, `packages/backend/src/moire/api/libraries.py:146-163`
 
 ### S5.3 scanner.py (898 lines) fuses thumbnail rendering, scan stamp, reconcile policy, watcher entry points and the scan thread
 
@@ -919,7 +919,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Depends on.** complements the reported _run closure decomposition; do the module moves first
 
-**Evidence.** `packages/backend/src/moire/services/library/scanner.py:35-132`, `packages/backend/src/moire/services/library/scanner.py:54-88`, `packages/backend/src/moire/services/library/scanner.py:254-330`, `packages/backend/src/moire/services/library/scanner.py:332-388`, `packages/backend/src/moire/services/library/scanner.py:391-426`, `packages/backend/src/moire/services/library/library_watch.py:375-396`, `packages/backend/src/moire/services/library/library_discover.py:25`
+**Evidence.** `packages/backend/src/moire/services/library/scanner.py:35-132`, `packages/backend/src/moire/services/library/scanner.py:54-88`, `packages/backend/src/moire/services/library/scanner.py:254-330`, `packages/backend/src/moire/services/library/scanner.py:332-388`, `packages/backend/src/moire/services/library/scanner.py:391-426`, `packages/backend/src/moire/services/library/watch.py:375-396`, `packages/backend/src/moire/services/library/discover.py:25`
 
 ### S5.4 LibrariesPage runs its own raw-fetch progress poller beside useLibraries, which already polls the same fields
 
@@ -949,7 +949,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Add `library_nesting.innermost(path, libraries) -> (id, root) | None` and use it in _adopt_from and generation_jobs.held_by. Make library_discover._classify use `path_key`/`is_inside` (and a `related(a, b)` helper) instead of _is_within. Drop normalize_path from library_discover.__all__ and import it from models.library in the router. One test table of path pairs (posix, drive letters, case) shared by discover and nesting tests.
 
-**Evidence.** `packages/backend/src/moire/services/library/library_nesting.py:30-43`, `packages/backend/src/moire/services/library/library_nesting.py:497-535`, `packages/backend/src/moire/services/library/library_discover.py:36-41`, `packages/backend/src/moire/services/library/library_discover.py:200-239`, `packages/backend/src/moire/services/generate/generation_jobs.py:107-119`, `packages/backend/src/moire/api/libraries.py:28-46`, `packages/backend/src/moire/services/library/library_discover.py:24-27`, `packages/frontend/src/lib/libraryTree.ts:93-97`
+**Evidence.** `packages/backend/src/moire/services/library/nesting.py:30-43`, `packages/backend/src/moire/services/library/nesting.py:497-535`, `packages/backend/src/moire/services/library/discover.py:36-41`, `packages/backend/src/moire/services/library/discover.py:200-239`, `packages/backend/src/moire/services/generate/jobs.py:107-119`, `packages/backend/src/moire/api/libraries.py:28-46`, `packages/backend/src/moire/services/library/discover.py:24-27`, `packages/frontend/src/lib/libraryTree.ts:93-97`
 
 ### S5.7 Moving a library while it is scanning leaves the scan on the old folder and nothing rescans
 
@@ -971,7 +971,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** One predicate `is_indexable(path)` in the new thumbnailer/scan module (extension allow-list, no generic mimetype fallback unless intended, plus the ignore rules) used by the walk, the watcher, ingest and library_discover._count_images. Treat a decode failure (width == 0) as a failed result (ok False, stage 'decode') so it appears in scan_failed_samples and the retry list instead of a silent blank row. Low confidence the mimetype fallback is accidental: confirm with the author before narrowing it.
 
-**Evidence.** `packages/backend/src/moire/services/library/scanner.py:33-39`, `packages/backend/src/moire/services/library/scanner.py:134-138`, `packages/backend/src/moire/services/library/scanner.py:130-131`, `packages/backend/src/moire/services/library/scanner.py:530`, `packages/backend/src/moire/services/library/library_watch.py:101-103`, `packages/backend/src/moire/services/library/library_watch.py:326-330`, `packages/backend/src/moire/services/library/library_discover.py:68-81`
+**Evidence.** `packages/backend/src/moire/services/library/scanner.py:33-39`, `packages/backend/src/moire/services/library/scanner.py:134-138`, `packages/backend/src/moire/services/library/scanner.py:130-131`, `packages/backend/src/moire/services/library/scanner.py:530`, `packages/backend/src/moire/services/library/watch.py:101-103`, `packages/backend/src/moire/services/library/watch.py:326-330`, `packages/backend/src/moire/services/library/discover.py:68-81`
 
 ### S5.9 Thumbnail key is built by two formulas, and the thumb_format setting is half implemented
 
@@ -991,12 +991,12 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Extract `services/library/watch_child.py` with `class ChildWatcher(on_message, current_adds)` exposing `add(cmd)`, `remove(key)`, `close(timeout)`; spawn and clock injectable. library_watch keeps _Watch, routing (`on_message` = _route) and the reconcile timer and passes `lambda: [_add_cmd(w) for w in _watches.values()]` as the respawn replay source. Gives _write_loop a unit-test surface with a fake process.
 
-**Evidence.** `packages/backend/src/moire/services/library/library_watch.py:134-304`, `packages/backend/src/moire/services/library/library_watch.py:307-323`, `packages/backend/src/moire/services/library/library_watch.py:359-426`, `packages/backend/src/moire/services/library/library_watch.py:429-499`
+**Evidence.** `packages/backend/src/moire/services/library/watch.py:134-304`, `packages/backend/src/moire/services/library/watch.py:307-323`, `packages/backend/src/moire/services/library/watch.py:359-426`, `packages/backend/src/moire/services/library/watch.py:429-499`
 
 **Cross-cutting hints.**
 
 - packages/backend/src/moire/api/generate.py:205-218 awaits add_library and update_library handlers directly and catches ValueError they never raise (HTTPException is what they raise); overlaps the already-reported 'route handlers call each other' pattern.
-- packages/backend/src/moire/services/generate/generation_jobs.py:107-119 held_by re-implements the innermost-library lookup that library_nesting should own.
+- packages/backend/src/moire/services/generate/jobs.py:107-119 held_by re-implements the innermost-library lookup that library_nesting should own.
 - packages/backend/src/moire/api/images.py:626-646 purge_image is one of five image-row delete recipes (see finding 2).
 - packages/backend/tests/perf_benchmark.py:120,135 is the only caller of GET /libraries/{id}/progress; check before deleting the route.
 - packages/frontend/src/lib/dropFiles.ts, hooks/useDropSide.ts and lib/dropSide.ts are generic UI utilities (ComfyStep drop, PromptBoard dropdown) with no library logic; they are mis-bucketed in slice S5 and look healthy (colocated pure tests, small).
@@ -1015,7 +1015,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Add a frozen dataclass TagParams(general_thresh, character_thresh, general_mcut, character_mcut, max_general, max_character) in ai_settings.py with from_settings(dict), the only place defaults are read (from DEFAULT_AI_SETTINGS). select_tags, WDTagger.predict and predict_image take one params argument and drop their keyword defaults; _tag_one passes TagParams.from_settings(settings) and ai_meta reads the same object. Make clean_settings_patch the single validator (coerce mcut bools, clamp thresholds to 0..1) and have POST /settings take a plain dict or a model generated from DEFAULT_AI_SETTINGS keys, deleting SettingsPatch.
 
-**Evidence.** `packages/backend/src/moire/services/ai/ai_settings.py:20-38`, `packages/backend/src/moire/services/ai/ai_settings.py:41-70`, `packages/backend/src/moire/api/ai.py:26-37`, `packages/backend/src/moire/services/ai/ai_jobs.py:363-383`, `packages/backend/src/moire/services/ai/ai_jobs.py:402-411`, `packages/backend/src/moire/services/ai/ai_tagger.py:108-118`, `packages/backend/src/moire/services/ai/ai_tagger.py:248-258`, `packages/backend/src/moire/services/ai/ai_tagger.py:483-495`, `packages/frontend/src/lib/ai.ts:8-21`
+**Evidence.** `packages/backend/src/moire/services/ai/settings.py:20-38`, `packages/backend/src/moire/services/ai/settings.py:41-70`, `packages/backend/src/moire/api/ai.py:26-37`, `packages/backend/src/moire/services/ai/jobs.py:363-383`, `packages/backend/src/moire/services/ai/jobs.py:402-411`, `packages/backend/src/moire/services/ai/tagger.py:108-118`, `packages/backend/src/moire/services/ai/tagger.py:248-258`, `packages/backend/src/moire/services/ai/tagger.py:483-495`, `packages/frontend/src/lib/ai.ts:8-21`
 
 ### S6.2 A failed model download is swallowed: download_wd_tagger returns paths and the load fails with a bare FileNotFoundError
 
@@ -1025,7 +1025,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** In download_wd_tagger, after dm.wait, read the state: if status == 'error' raise RuntimeError(st.error); if 'cancelled' raise asyncio.CancelledError. Add a test with a ModelDownloadManager whose _download_one raises, asserting the load error carries the download error text.
 
-**Evidence.** `packages/backend/src/moire/services/ai/ai_tagger_download.py:166-182`, `packages/backend/src/moire/services/ai/ai_tagger_download.py:227-231`, `packages/backend/src/moire/services/ai/ai_tagger_download.py:355-370`, `packages/backend/src/moire/services/ai/ai_tagger.py:226-227`, `packages/backend/src/moire/services/ai/ai_jobs.py:256-263`
+**Evidence.** `packages/backend/src/moire/services/ai/tagger_download.py:166-182`, `packages/backend/src/moire/services/ai/tagger_download.py:227-231`, `packages/backend/src/moire/services/ai/tagger_download.py:355-370`, `packages/backend/src/moire/services/ai/tagger.py:226-227`, `packages/backend/src/moire/services/ai/jobs.py:256-263`
 
 ### S6.3 AI worker loop dies on any error outside the per-image try, leaving the job 'running' and every later job queued forever
 
@@ -1035,7 +1035,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Wrap the per-job body in try/except Exception that logs, sets job.status='error' and job.error=str(e), and lets the loop continue (keep the finally for in-flight release and counters). Add a test that makes get_ai_settings raise for one job and checks a second job still completes.
 
-**Evidence.** `packages/backend/src/moire/services/ai/ai_jobs.py:240-313`, `packages/backend/src/moire/services/ai/ai_jobs.py:135-139`
+**Evidence.** `packages/backend/src/moire/services/ai/jobs.py:240-313`, `packages/backend/src/moire/services/ai/jobs.py:135-139`
 
 ### S6.4 'Untagged' and 'not quarantined' are defined in two parallel queries beside the feed's own filter
 
@@ -1043,9 +1043,9 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Problem.** enqueue_untagged selects ids with has_ai_tags false plus an inline coalesce(quarantined, False).is_(False), with a comment that it must match /ai/coverage; /ai/coverage (a 50-line raw SQL aggregate inside the router) repeats the coalesce and counts has_ai_tags and has_tags. Both skip image_tags.not_quarantined(), which CONTEXT.md names as the shared definition. The invariant 'a run tags the set the UI counted' is held only by a comment across two files plus the feed's no_ai_tags filter, a third spelling.
 
-**Proposal.** Create services/ai/ai_coverage.py with untagged_clause(library_id=None), built from image_tags.not_quarantined() and has_ai_tags, and coverage() returning the dict api/ai.py builds now. api/ai.py ai_coverage becomes a one-line call and enqueue_untagged uses untagged_clause. Add a test asserting coverage.untagged equals the ids enqueue_untagged would pick (large limit) with a quarantined image present.
+**Proposal.** Create services/ai/coverage.py with untagged_clause(library_id=None), built from image_tags.not_quarantined() and has_ai_tags, and coverage() returning the dict api/ai.py builds now. api/ai.py ai_coverage becomes a one-line call and enqueue_untagged uses untagged_clause. Add a test asserting coverage.untagged equals the ids enqueue_untagged would pick (large limit) with a quarantined image present.
 
-**Evidence.** `packages/backend/src/moire/services/ai/ai_jobs.py:197-213`, `packages/backend/src/moire/api/ai.py:204-253`, `packages/backend/src/moire/services/tags/image_tags.py:517-520`, `packages/backend/src/moire/services/images/image_feed.py:129`, `packages/backend/src/moire/services/images/image_feed.py:167`
+**Evidence.** `packages/backend/src/moire/services/ai/jobs.py:197-213`, `packages/backend/src/moire/api/ai.py:204-253`, `packages/backend/src/moire/services/tags/image_tags.py:517-520`, `packages/backend/src/moire/services/images/feed.py:129`, `packages/backend/src/moire/services/images/feed.py:167`
 
 ### S6.5 Job state wording and the cancel adapter are spelled in three UI paths that disagree
 
@@ -1065,7 +1065,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Move queue-all-avatars to an explicit call: once from lifespan when ready() and after the face download completes, and make status() pure. Wrap the globals in a FaceWorker class with the shape of the other managers (resettable in tests). Add fetchFaces/postFaces to lib/ai.ts and use them in CharactersSection. Longer term, split face_detect and prompt_positive_only out of the 'ai' doc so update_ai_settings handles only tagger knobs.
 
-**Evidence.** `packages/backend/src/moire/services/ai/face_detect.py:88-100`, `packages/backend/src/moire/services/ai/face_detect.py:191-199`, `packages/backend/src/moire/services/ai/face_detect.py:286-298`, `packages/backend/src/moire/services/ai/face_detect.py:60-71`, `packages/backend/src/moire/api/ai.py:123-143`, `packages/frontend/src/pages/settings/sections/CharactersSection.tsx:40-58`, `packages/backend/src/moire/services/ai/ai_settings.py:90-100`
+**Evidence.** `packages/backend/src/moire/services/ai/face_detect.py:88-100`, `packages/backend/src/moire/services/ai/face_detect.py:191-199`, `packages/backend/src/moire/services/ai/face_detect.py:286-298`, `packages/backend/src/moire/services/ai/face_detect.py:60-71`, `packages/backend/src/moire/api/ai.py:123-143`, `packages/frontend/src/pages/settings/sections/CharactersSection.tsx:40-58`, `packages/backend/src/moire/services/ai/settings.py:90-100`
 
 ### S6.7 Generic formatters live in domain modules: two formatDuration with different output, formatBytes inside a React context file
 
@@ -1093,16 +1093,16 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Problem.** ai_jobs re-exports DEFAULT_AI_SETTINGS, get_ai_settings and update_ai_settings in __all__ purely as a pass-through, so api/ai.py, api/activity.py and main.py import settings from the job manager module while face_detect and tag_categories import ai_settings. Two import paths for one concept make ai_jobs look like the owner of settings.
 
-**Proposal.** Delete the three names from ai_jobs.__all__ and its import, and change the three callers to import from services.ai.ai_settings. Check tests that import them via ai_jobs (none found in test_ai_jobs.py).
+**Proposal.** Delete the three names from ai_jobs.__all__ and its import, and change the three callers to import from services.ai.settings. Check tests that import them via ai_jobs (none found in test_ai_jobs.py).
 
-**Evidence.** `packages/backend/src/moire/services/ai/ai_jobs.py:17`, `packages/backend/src/moire/services/ai/ai_jobs.py:28-34`, `packages/backend/src/moire/api/ai.py:12-16`, `packages/backend/src/moire/api/activity.py:22`, `packages/backend/src/moire/main.py:14`, `packages/backend/src/moire/services/ai/face_detect.py:31`, `packages/backend/src/moire/services/tags/tag_categories.py:113`
+**Evidence.** `packages/backend/src/moire/services/ai/jobs.py:17`, `packages/backend/src/moire/services/ai/jobs.py:28-34`, `packages/backend/src/moire/api/ai.py:12-16`, `packages/backend/src/moire/api/activity.py:22`, `packages/backend/src/moire/main.py:14`, `packages/backend/src/moire/services/ai/face_detect.py:31`, `packages/backend/src/moire/services/tags/categories.py:113`
 
 **Cross-cutting hints.**
 
 - packages/backend/src/moire/services/metadata/reproject.py:53-62 reads prompt_positive_only from the 'ai' app_settings doc by raw SQL while ai_settings.get_ai_settings() is the owner (an extraction knob stored in tagger settings)
-- packages/backend/src/moire/services/ai/ai_settings.py:68-80 and reproject.py:53-62 are two more app_settings JSON-row readers (relevant to the existing app_settings read/upsert finding)
+- packages/backend/src/moire/services/ai/settings.py:68-80 and reproject.py:53-62 are two more app_settings JSON-row readers (relevant to the existing app_settings read/upsert finding)
 - packages/frontend/src/pages/ImageView.tsx:1200 consumes aiJobLabel; the module-level jobOfImage Map in packages/frontend/src/hooks/useAiTagging.ts:11 survives across images and is cleared only when the job query errors or ends
-- packages/backend/src/moire/services/ai/ai_tagger_download.py:26 DEFAULT_CACHE_DIR '.cache/moire/models' is a second default beside settings.model_cache_dir_path (core/config.py:109), reachable only when cache_dir is empty
+- packages/backend/src/moire/services/ai/tagger_download.py:26 DEFAULT_CACHE_DIR '.cache/moire/models' is a second default beside settings.model_cache_dir_path (core/config.py:109), reachable only when cache_dir is empty
 
 ## S7-prompts
 
@@ -1150,7 +1150,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** In extraction_settings add `@dataclass ExtractionConfig(keywords, positive_only, aliases)` with `load_sync()` (reproject thread) and `async load()` (preview), reading the 'ai' flag via one shared reader. Add `gen_metadata.derive(raw, ruleset, config) -> dict | None` (extract + apply aliases) and have both reproject and rules preview call it. Delete `reproject._prompt_positive_only/_load_aliases` and the duplicated default. Leave the setting's storage location (ai doc) alone; only the read path moves.
 
-**Evidence.** `packages/backend/src/moire/services/metadata/reproject.py:35-62`, `packages/backend/src/moire/services/metadata/reproject.py:165-207`, `packages/backend/src/moire/api/rules.py:372-381`, `packages/backend/src/moire/services/ai/ai_settings.py:27-31`, `packages/backend/src/moire/services/ai/ai_settings.py:74-97`, `packages/backend/src/moire/services/metadata/extraction_settings.py:36-66`
+**Evidence.** `packages/backend/src/moire/services/metadata/reproject.py:35-62`, `packages/backend/src/moire/services/metadata/reproject.py:165-207`, `packages/backend/src/moire/api/rules.py:372-381`, `packages/backend/src/moire/services/ai/settings.py:27-31`, `packages/backend/src/moire/services/ai/settings.py:74-97`, `packages/backend/src/moire/services/metadata/extraction_settings.py:36-66`
 
 ### S7.5 One malformed graph aborts a whole reprojection: extract is not total and the loop has no per-row guard
 
@@ -1180,7 +1180,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Add `services/app_settings.py` with `async read(row) -> dict | None`, `read_sync(row)`, `async write(row, doc)` (upsert replace) and `write_sync`, using the `*_conn/*_tx` helpers. Convert extraction_settings and reproject first (in this slice), then the other modules opportunistically. Interface is four functions; the deletion test says it concentrates the upsert idiom in one place.
 
-**Evidence.** `packages/backend/src/moire/services/metadata/extraction_settings.py:36-66`, `packages/backend/src/moire/services/metadata/extraction_settings.py:85-92`, `packages/backend/src/moire/services/metadata/reproject.py:53-62`, `packages/backend/src/moire/services/ai/ai_settings.py:74-107`, `packages/backend/src/moire/services/tags/tag_settings.py:85-110`, `packages/backend/src/moire/services/onboarding.py:26-44`, `packages/backend/src/moire/services/generate/comfy_settings.py:83-95`, `packages/backend/src/moire/services/tags/tag_migrations.py:47-58`
+**Evidence.** `packages/backend/src/moire/services/metadata/extraction_settings.py:36-66`, `packages/backend/src/moire/services/metadata/extraction_settings.py:85-92`, `packages/backend/src/moire/services/metadata/reproject.py:53-62`, `packages/backend/src/moire/services/ai/settings.py:74-107`, `packages/backend/src/moire/services/tags/settings.py:85-110`, `packages/backend/src/moire/services/onboarding.py:26-44`, `packages/backend/src/moire/services/generate/comfy_settings.py:83-95`, `packages/backend/src/moire/services/tags/migrations.py:47-58`
 
 ### S7.8 Same signatures query inlined in 3 components plus 2 manual fetches; ruleset API sits in lib/gen.ts with raw fetch
 
@@ -1204,7 +1204,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Cross-cutting hints.**
 
-- packages/backend/src/moire/services/tags/tag_settings.py:57-82 and packages/frontend/src/lib/boilerplate.ts:15-24,55-62: the boilerplate entry normalisation (space/underscore, lowercase, bare-* rejection) is implemented on both sides by hand ('matching lives in the frontend'); BoilerplateSection.add re-validates what clean_boilerplate re-validates on save. A shared fixture or returning the server-cleaned list would stop drift.
+- packages/backend/src/moire/services/tags/settings.py:57-82 and packages/frontend/src/lib/boilerplate.ts:15-24,55-62: the boilerplate entry normalisation (space/underscore, lowercase, bare-* rejection) is implemented on both sides by hand ('matching lives in the frontend'); BoilerplateSection.add re-validates what clean_boilerplate re-validates on save. A shared fixture or returning the server-cleaned list would stop drift.
 - packages/backend/src/moire/services/library/scanner.py:60-90 and services/onboarding.py, comfy_settings.py, tag_migrations.py: more copies of the app_settings upsert (see finding 7) outside this slice.
 - packages/frontend/src/lib/promptOutline.ts:28 splitSpans and :159 promptWord are exported but only used inside the module / tests (knip lead at leads.txt:134); de-export splitSpans, keep promptWord only if the board needs it.
 - packages/backend/src/moire/services/metadata/text_eval.py:25 comment 'Literal string nodes: (class_type predicate, widget holding the text)' is stale (it describes _LITERAL_KEYS only). text_eval._text_concat/_show_text and gen_metadata._resolve_text/_is_display/_CONCAT_INPUT are two parallel graph text walkers with separate cycle guards; if they keep growing, fold the concat/display handling into text_eval's handler table (only worth it with a third caller).
@@ -1221,9 +1221,9 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Problem.** One 1505-line file holds five jobs: (a) pure ComfyUI history parsing (outputs_from_history, history_result, model_loaded, run_seconds), (b) output-folder discovery and download (held_by, root_candidates, output_image_id, _place_outputs, _find_output_root, _fetch_missing, _write_atomic), (c) pure batch-input normalization (batch_shape, _parts, _resolve, _characters_input, _character_input, _outfit_input, characters_of, outfit_tags), (d) Generator persistence (load_generator, which even self-heals the builtin row), (e) the GenerationManager poll loop and actions. generation_estimate needs load_generator and batch_shape, so it imports them lazily inside functions (lines 218, 425-426) while generation_jobs imports generation_estimate at module top: an inverted dependency hidden by deferred imports. generation_batches also imports Invalid/Unavailable/load_generator from the manager module just to reach the model.
 
-**Proposal.** Carve out, leaving the manager a thin orchestrator: (1) services/generate/comfy_history.py with the four pure history functions (+ _ENDS); (2) services/generate/generation_outputs.py with the output-placement code (held_by, root_candidates, output_image_id, place_outputs(client, files, settings), fetch_missing); (3) services/generate/generation_inputs.py with batch_shape + the _parts/_resolve/_characters_input family + characters_of/outfit_tags (all pure, no manager); (4) services/generate/generators_store.py with load_generator and the builtin refresh. Errors (Unavailable/Invalid/Rejected) move to a tiny generation_errors.py. Then estimate imports generators_store and generation_inputs at top level with no cycle, and generation_batches imports from the store, not the manager. Keep re-exports in generation_jobs for one step if tests import from it (tests import held_by/root_candidates from generation_jobs).
+**Proposal.** Carve out, leaving the manager a thin orchestrator: (1) services/generate/comfy_history.py with the four pure history functions (+ _ENDS); (2) services/generate/outputs.py with the output-placement code (held_by, root_candidates, output_image_id, place_outputs(client, files, settings), fetch_missing); (3) services/generate/inputs.py with batch_shape + the _parts/_resolve/_characters_input family + characters_of/outfit_tags (all pure, no manager); (4) services/generate/generators_store.py with load_generator and the builtin refresh. Errors (Unavailable/Invalid/Rejected) move to a tiny generation_errors.py. Then estimate imports generators_store and generation_inputs at top level with no cycle, and generation_batches imports from the store, not the manager. Keep re-exports in generation_jobs for one step if tests import from it (tests import held_by/root_candidates from generation_jobs).
 
-**Evidence.** `packages/backend/src/moire/services/generate/generation_jobs.py:86-190`, `packages/backend/src/moire/services/generate/generation_jobs.py:196-278`, `packages/backend/src/moire/services/generate/generation_jobs.py:280-425`, `packages/backend/src/moire/services/generate/generation_jobs.py:428-471`, `packages/backend/src/moire/services/generate/generation_jobs.py:830-940`, `packages/backend/src/moire/services/generate/generation_estimate.py:218`, `packages/backend/src/moire/services/generate/generation_estimate.py:425-426`, `packages/backend/src/moire/services/generate/generation_batches.py:16`
+**Evidence.** `packages/backend/src/moire/services/generate/jobs.py:86-190`, `packages/backend/src/moire/services/generate/jobs.py:196-278`, `packages/backend/src/moire/services/generate/jobs.py:280-425`, `packages/backend/src/moire/services/generate/jobs.py:428-471`, `packages/backend/src/moire/services/generate/jobs.py:830-940`, `packages/backend/src/moire/services/generate/estimate.py:218`, `packages/backend/src/moire/services/generate/estimate.py:425-426`, `packages/backend/src/moire/services/generate/batches.py:16`
 
 ### S8.2 Extract a pure build_batch_inputs from queue_batch (radon D24) and derive the requeue key list from it
 
@@ -1233,7 +1233,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Add `build_batch_inputs(body, gen, settings, *, test) -> BatchPlan(inputs, sizes, seeds, name_words)` (pure, in the generation_inputs module from the previous finding) and `batch_name(body, inputs, gen_name, batch_id)` beside auto_name in generation_compose. queue_batch becomes: require connection, load generator, plan = build_batch_inputs(...), locked insert+submit. Put `REPLAY_KEYS` next to the function that writes inputs and have requeue use it, with a test asserting every key build_batch_inputs persists is in REPLAY_KEYS or explicitly derived (positive_text, negative_text, test, per_request, per_request_asked).
 
-**Evidence.** `packages/backend/src/moire/services/generate/generation_jobs.py:1097-1181`, `packages/backend/src/moire/services/generate/generation_jobs.py:1302-1341`, `packages/backend/src/moire/services/generate/generation_jobs.py:1183-1264`
+**Evidence.** `packages/backend/src/moire/services/generate/jobs.py:1097-1181`, `packages/backend/src/moire/services/generate/jobs.py:1302-1341`, `packages/backend/src/moire/services/generate/jobs.py:1183-1264`
 
 ### S8.3 generation_compose holds a second, weaker prompt parser (prompt_terms, without_terms/_top_level_pieces) beside prompt_parse; escaped-paren auto-name bug
 
@@ -1241,9 +1241,9 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Problem.** CONTEXT says prompt parsing is owned by services/metadata/prompt_parse.py, yet generation_compose re-implements weight/bracket stripping with a regex (_WEIGHT) in prompt_terms and its own bracket-depth scanner in _top_level_pieces (without_terms then calls parse_prompt on each piece anyway). The regex version is wrong on escaped parens: `hu_tao_\(genshin_impact\)` has its trailing `)` stripped by `[)\]]+$`, then backslashes removed, leaving `hu_tao_(genshin_impact` in the batch's auto name. display()/prompt_terms also turn every `_` into a space, ignoring the kaomoji rule (`^_^`) that formatTag and CONTEXT state. without_terms is prompt editing used by remix and generator_setup, not composition, so it is misfiled. The frontend mirrors prompt_terms too (compose.ts:57-70). The tag-weights plan adds a weight reader in reproject and a bumpWeight editor, so this will become a third/fourth place that knows `(x:1.2)` unless consolidated first.
 
-**Proposal.** Reimplement prompt_terms(text, limit) as `[p.text for p in parse_prompt(text) if p.kind == 'tag'][:limit]` (parse_prompt already drops weights/brackets and handles escapes), then display via a shared kaomoji-aware `display_tag` (put it in services/tags/tag_names.py as the backend twin of formatTag). Move without_terms and _top_level_pieces to prompt_parse.py (or a prompt_edit.py) and keep generation_compose to compose_parts/compose/auto_name. Update the frontend promptTerms to the same rule and the shared test cases (compose.test.ts / test_generation_compose.py) with an escaped-paren and a kaomoji case. When the weights session starts, the weight reading belongs in prompt_parse next to this.
+**Proposal.** Reimplement prompt_terms(text, limit) as `[p.text for p in parse_prompt(text) if p.kind == 'tag'][:limit]` (parse_prompt already drops weights/brackets and handles escapes), then display via a shared kaomoji-aware `display_tag` (put it in services/tags/names.py as the backend twin of formatTag). Move without_terms and _top_level_pieces to prompt_parse.py (or a prompt_edit.py) and keep generation_compose to compose_parts/compose/auto_name. Update the frontend promptTerms to the same rule and the shared test cases (compose.test.ts / test_generation_compose.py) with an escaped-paren and a kaomoji case. When the weights session starts, the weight reading belongs in prompt_parse next to this.
 
-**Evidence.** `packages/backend/src/moire/services/generate/generation_compose.py:57-74`, `packages/backend/src/moire/services/generate/generation_compose.py:77-81`, `packages/backend/src/moire/services/generate/generation_compose.py:103-134`, `packages/backend/src/moire/services/metadata/prompt_parse.py:41`, `packages/backend/src/moire/services/metadata/prompt_parse.py:122`, `packages/backend/src/moire/services/generate/remix.py:22`, `packages/backend/src/moire/services/generate/generator_setup.py:25`, `packages/frontend/src/lib/compose.ts:57-70`, `docs/tag-weights-plan.md:1-43`
+**Evidence.** `packages/backend/src/moire/services/generate/compose.py:57-74`, `packages/backend/src/moire/services/generate/compose.py:77-81`, `packages/backend/src/moire/services/generate/compose.py:103-134`, `packages/backend/src/moire/services/metadata/prompt_parse.py:41`, `packages/backend/src/moire/services/metadata/prompt_parse.py:122`, `packages/backend/src/moire/services/generate/remix.py:22`, `packages/backend/src/moire/services/generate/generator_setup.py:25`, `packages/frontend/src/lib/compose.ts:57-70`, `docs/tag-weights-plan.md:1-43`
 
 ### S8.4 api/generate.py is eight routers in one file, with service logic in put_comfyui and quadruplicated error mapping
 
@@ -1263,7 +1263,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Add `generation_batches.batch_exists(id)` (a one-row select) for the 404 check and call generation_batches.get_batch (not the route function) for replies. Give generator_view a lighter `test_status(batch_id)` that reads just the test's request row and outputs instead of the whole batch view with an estimate plan.
 
-**Evidence.** `packages/backend/src/moire/api/generate.py:700-751`, `packages/backend/src/moire/services/generate/generation_batches.py:97-163`, `packages/backend/src/moire/services/generate/generation_batches.py:292-340`, `packages/backend/src/moire/api/generate.py:297-306`
+**Evidence.** `packages/backend/src/moire/api/generate.py:700-751`, `packages/backend/src/moire/services/generate/batches.py:97-163`, `packages/backend/src/moire/services/generate/batches.py:292-340`, `packages/backend/src/moire/api/generate.py:297-306`
 
 ### S8.6 The Generator test gate lives in the 'read side' module and generator_view writes on GET
 
@@ -1273,7 +1273,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Move start_test and a `settle_test(generator_id)` (the flip) into services/generate/generator_test.py. Call settle_test from the manager's _finalize/_sync path for requests of a test batch (or from a tick hook) and keep generator_view purely read-only. Keep behaviour identical for clients; update the integration test that polls GET /generators/{id} to still see ready flip after a tick.
 
-**Evidence.** `packages/backend/src/moire/services/generate/generation_batches.py:1-4`, `packages/backend/src/moire/services/generate/generation_batches.py:240-284`, `packages/backend/src/moire/services/generate/generation_batches.py:292-340`, `packages/backend/src/moire/api/generate.py:297-306`, `packages/backend/src/moire/api/generate.py:400-407`
+**Evidence.** `packages/backend/src/moire/services/generate/batches.py:1-4`, `packages/backend/src/moire/services/generate/batches.py:240-284`, `packages/backend/src/moire/services/generate/batches.py:292-340`, `packages/backend/src/moire/api/generate.py:297-306`, `packages/backend/src/moire/api/generate.py:400-407`
 
 ### S8.7 Request/batch state vocabulary is spelled out in five places
 
@@ -1283,7 +1283,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** One small generation_states.py: UNFINISHED, IN_COMFY, FAILED = ('failed','lost'), RETRYABLE, VISIBLE-excluded 'replaced'; import it in all four modules. Falls out naturally from splitting generation_jobs.
 
-**Evidence.** `packages/backend/src/moire/services/generate/generation_jobs.py:61-62`, `packages/backend/src/moire/services/generate/generation_batches.py:39`, `packages/backend/src/moire/services/generate/generation_batches.py:123`, `packages/backend/src/moire/services/generate/generation_batches.py:405`, `packages/backend/src/moire/services/generate/generation_estimate.py:359`, `packages/backend/src/moire/services/generate/generation_jobs.py:1370`
+**Evidence.** `packages/backend/src/moire/services/generate/jobs.py:61-62`, `packages/backend/src/moire/services/generate/batches.py:39`, `packages/backend/src/moire/services/generate/batches.py:123`, `packages/backend/src/moire/services/generate/batches.py:405`, `packages/backend/src/moire/services/generate/estimate.py:359`, `packages/backend/src/moire/services/generate/jobs.py:1370`
 
 ### S8.8 Cancelled requests render as 'done' frames in the queue card
 
@@ -1293,7 +1293,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Add a `cancelled` branch in _frames returning {'state': 'cancelled', 'thumb': None} (or drop cancelled requests from frames) and have the queue card style it; add a test of active_summary after a single-request cancel.
 
-**Evidence.** `packages/backend/src/moire/services/generate/generation_batches.py:405-422`, `packages/backend/src/moire/services/generate/generation_batches.py:343-402`
+**Evidence.** `packages/backend/src/moire/services/generate/batches.py:405-422`, `packages/backend/src/moire/services/generate/batches.py:343-402`
 
 ### S8.9 Rejected duplicates ComfyRejected, and non-ComfyUI failures are raised as ComfyRejected
 
@@ -1303,7 +1303,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Make Rejected the single type (define it in generation_errors, have ComfyRejected subclass it, or re-raise ComfyRejected as-is and drop the translation). Raise a distinct `GraphInvalid(Rejected)` for the deleted-workflow and GraphError cases so _fail_request can record a truthful type.
 
-**Evidence.** `packages/backend/src/moire/services/generate/generation_jobs.py:77-83`, `packages/backend/src/moire/services/generate/comfy_client.py:45-52`, `packages/backend/src/moire/services/generate/generation_jobs.py:1028-1048`, `packages/backend/src/moire/services/generate/generation_jobs.py:1249-1253`
+**Evidence.** `packages/backend/src/moire/services/generate/jobs.py:77-83`, `packages/backend/src/moire/services/generate/comfy_client.py:45-52`, `packages/backend/src/moire/services/generate/jobs.py:1028-1048`, `packages/backend/src/moire/services/generate/jobs.py:1249-1253`
 
 ### S8.10 Test-only wrappers in generation_estimate and an unused on_state hook in the client
 
@@ -1313,7 +1313,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Delete the two wrappers and point the tests at plan() or the underscore functions (or rename _warm to a public name if the tests really want the ladder alone). Drop on_state from events() and its test, or use it in _ws_loop to set `connected` earlier than the poll.
 
-**Evidence.** `packages/backend/src/moire/services/generate/generation_estimate.py:135-145`, `packages/backend/src/moire/services/generate/comfy_client.py:239-274`, `docs/refactor-pass/leads.txt:27-28`
+**Evidence.** `packages/backend/src/moire/services/generate/estimate.py:135-145`, `packages/backend/src/moire/services/generate/comfy_client.py:239-274`, `docs/refactor-pass/leads.txt:27-28`
 
 **Cross-cutting hints.**
 
@@ -1345,7 +1345,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Make generator_graph the single owner: public `is_link`, `node_inputs(graph, nid)` (always a dict), `upstream(graph, start)`, `node_title`, `STOCK_LORA_LOADERS` plus `stock_lora_nodes(graph) -> [(nid, node)]`, and `SAMPLING_INPUTS`. drop_missing and bypass_loras use node_inputs/upstream. discovery imports only public names. Add `base_settings(graph) -> {size, sampling, checkpoint}` in discovery (built on base_sampler/_latent/model_loader) and have fixed_values and remix.graph_settings call it. Pure move plus rename, existing test_generator_graph/test_generator_discovery cover it.
 
-**Evidence.** `packages/backend/src/moire/services/generate/generator_discovery.py:20-27`, `packages/backend/src/moire/services/generate/generator_discovery.py:56-79`, `packages/backend/src/moire/services/generate/generator_discovery.py:430-446`, `packages/backend/src/moire/services/generate/generator_discovery.py:547-552`, `packages/backend/src/moire/services/generate/generator_setup.py:513-516`, `packages/backend/src/moire/services/generate/generator_graph.py:37-39`, `packages/backend/src/moire/services/generate/generation_jobs.py:414`, `packages/backend/src/moire/services/generate/remix.py:24`, `packages/backend/src/moire/services/generate/remix.py:76-95`, `packages/backend/src/moire/services/generate/generator_graph.py:255-298`
+**Evidence.** `packages/backend/src/moire/services/generate/generator_discovery.py:20-27`, `packages/backend/src/moire/services/generate/generator_discovery.py:56-79`, `packages/backend/src/moire/services/generate/generator_discovery.py:430-446`, `packages/backend/src/moire/services/generate/generator_discovery.py:547-552`, `packages/backend/src/moire/services/generate/generator_setup.py:513-516`, `packages/backend/src/moire/services/generate/generator_graph.py:37-39`, `packages/backend/src/moire/services/generate/jobs.py:414`, `packages/backend/src/moire/services/generate/remix.py:24`, `packages/backend/src/moire/services/generate/remix.py:76-95`, `packages/backend/src/moire/services/generate/generator_graph.py:255-298`
 
 ### S9.3 JsonTree branch toggle opens and closes every sibling branch at once
 
@@ -1433,7 +1433,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 - packages/backend/src/moire/api/rules.py:105-181 holds service-level family/name/file assembly inside the signatures router (see finding 1); the same endpoint's thumb_version.urls and describe_signatures calls are fine.
 - packages/backend/src/moire/services/generate/generator_discovery.py:190 and :257 call gen_metadata._resolve_text (private); already covered by the gen_metadata private-function finding but discovery is a second external caller.
 - packages/frontend/src/pages/RulesPage.test.tsx:3 imports JsonTree from ./RulesPage while the component now lives in components/GraphTree.tsx (works only if RulesPage re-exports it); worth checking the re-export is intentional.
-- packages/backend/src/moire/services/generate/generation_jobs.py:414 hard-codes ('LoraLoader','LoraLoaderModelOnly'), see finding 2.
+- packages/backend/src/moire/services/generate/jobs.py:414 hard-codes ('LoraLoader','LoraLoaderModelOnly'), see finding 2.
 
 ## S10-compose
 
@@ -1570,7 +1570,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Put `STEPS_RANGE = (1, 200)`, `CFG_RANGE = (0, 30)` and `MAX_CHARACTERS = 8` once in generator_graph.py (it already owns SAMPLING and lora_stem). api/generate.py Field(ge=, le=), remix.checked_sampling and generation_jobs import them. Add a test that asserts the frontend constants equal the backend ones by reading them from one place (e.g. serve them in the generators list or comfy models payload) or at minimum a comment-linked test. Delete the duplicate constants.
 
-**Evidence.** `packages/backend/src/moire/services/generate/remix.py:105`, `packages/backend/src/moire/services/generate/remix.py:108`, `packages/backend/src/moire/api/generate.py:107-108`, `packages/frontend/src/components/generate/RunControls.tsx:277`, `packages/frontend/src/components/generate/RunControls.tsx:280`, `packages/backend/src/moire/services/generate/remix.py:29-30`, `packages/backend/src/moire/services/generate/generation_jobs.py:324`, `packages/frontend/src/lib/generateForm.ts`
+**Evidence.** `packages/backend/src/moire/services/generate/remix.py:105`, `packages/backend/src/moire/services/generate/remix.py:108`, `packages/backend/src/moire/api/generate.py:107-108`, `packages/frontend/src/components/generate/RunControls.tsx:277`, `packages/frontend/src/components/generate/RunControls.tsx:280`, `packages/backend/src/moire/services/generate/remix.py:29-30`, `packages/backend/src/moire/services/generate/jobs.py:324`, `packages/frontend/src/lib/generateForm.ts`
 
 ### S11.3 RunControls.tsx is a form-widget grab bag; stemOf (LoRA/checkpoint name rule) lives in it and 5 modules import it
 
@@ -1640,7 +1640,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Make `frames` required in ActiveBatch, delete requestFrames and the `??`, fix the queueClock test that omits frames, delete fixedSeeds and its test, and un-export framesOf/Frame/FrameState (knip flags the same). Keep the frame-state union in one place (QueueFrame in lib/generate.ts); this is also the type to extend for the reported cancelled-frame fix.
 
-**Evidence.** `packages/frontend/src/lib/queueClock.ts:56-61`, `packages/frontend/src/lib/queueClock.ts:48`, `packages/frontend/src/lib/generate.ts:53-54`, `packages/frontend/src/lib/requests.ts:52-55`, `packages/frontend/src/lib/requests.test.ts:41`, `packages/backend/src/moire/services/generate/generation_batches.py:399`, `packages/frontend/src/components/generate/QueueFrames.tsx:7`, `packages/frontend/src/components/generate/QueueFrames.tsx:15-23`
+**Evidence.** `packages/frontend/src/lib/queueClock.ts:56-61`, `packages/frontend/src/lib/queueClock.ts:48`, `packages/frontend/src/lib/generate.ts:53-54`, `packages/frontend/src/lib/requests.ts:52-55`, `packages/frontend/src/lib/requests.test.ts:41`, `packages/backend/src/moire/services/generate/batches.py:399`, `packages/frontend/src/components/generate/QueueFrames.tsx:7`, `packages/frontend/src/components/generate/QueueFrames.tsx:15-23`
 
 **Cross-cutting hints.**
 
@@ -1663,7 +1663,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Add one function in characters.py (or a new character_look module), e.g. `async def look_of(key, names, key_of, rows) -> Look(n, counted, sig_tags, gender, hair_eyes_rows)`, holding the n/total/signature_counts/signature steps, and have both characters.page and recipes._signature call it. Add `tag_index.visible_count(conn)` for the three duplicate count queries. Memoize look_of (and recipes.wardrobe) per key with tag_index.read_derived/store_derived using the generation captured before computing, so no call site invalidates. Let outfits.worn resolve all keys with one _named call (pass the resolved key into default(), skipping the second character_key). Keep the public signatures; tests in test_recipes/test_outfits/test_characters stay valid.
 
-**Evidence.** `packages/backend/src/moire/services/generate/recipes.py:240-276`, `packages/backend/src/moire/services/generate/recipes.py:288-301`, `packages/backend/src/moire/services/characters/characters.py:632-646`, `packages/backend/src/moire/services/characters/characters.py:724-736`, `packages/backend/src/moire/services/characters/outfits.py:151-227`, `packages/backend/src/moire/services/characters/outfits.py:345-376`, `packages/backend/src/moire/services/tags/tag_index.py:104-125`
+**Evidence.** `packages/backend/src/moire/services/generate/recipes.py:240-276`, `packages/backend/src/moire/services/generate/recipes.py:288-301`, `packages/backend/src/moire/services/characters/pages.py:632-646`, `packages/backend/src/moire/services/characters/pages.py:724-736`, `packages/backend/src/moire/services/characters/outfits.py:151-227`, `packages/backend/src/moire/services/characters/outfits.py:345-376`, `packages/backend/src/moire/services/tags/index.py:104-125`
 
 ### S12.2 characters.page computes the character-only look for every plain tag page
 
@@ -1673,7 +1673,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Split page() into `_page_core(conn, key, names, ...)` (detail, cover, with, best, scored, ratings, lora_avg) and `_page_look(conn, ...)` returning {palette, signature, signature_images}. Call _page_look only when detail['category'] == 'character' or meta kind == 'character'; otherwise return palette [], signature [], signature_images 0 so the response shape the frontend types expect stays unchanged. Name the plain-tag use in the docstring or move the plain-tag branch to a small tag_page wrapper, since the module is the Character page owner per CONTEXT.md.
 
-**Evidence.** `packages/backend/src/moire/services/characters/characters.py:611-746`, `packages/backend/src/moire/api/tags.py:258-275`, `packages/frontend/src/pages/CharacterPage.tsx:63-68`, `packages/frontend/src/pages/CharacterPage.tsx:195-198`
+**Evidence.** `packages/backend/src/moire/services/characters/pages.py:611-746`, `packages/backend/src/moire/api/tags.py:258-275`, `packages/frontend/src/pages/CharacterPage.tsx:63-68`, `packages/frontend/src/pages/CharacterPage.tsx:195-198`
 
 ### S12.3 Deleting a hand-made character leaves its outfits, Default edits and hides behind
 
@@ -1683,7 +1683,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** In remove_made, in the same async_tx, also delete t.outfits where character == tag (and their outfit_hidden rows by outfit_id), t.outfit_hidden where character == tag, and t.outfit_defaults where character == tag. Decide for shared outfits (keep with the owner cleared, or delete); simplest is delete all, and say so in the confirm message ('Their outfits go too'). Add a test next to test_made_character_can_be_deleted that saves an outfit first.
 
-**Evidence.** `packages/backend/src/moire/services/characters/characters.py:374-389`, `packages/backend/src/moire/database/schema.py:358-395`, `packages/backend/src/moire/services/characters/outfits.py:467-494`, `packages/frontend/src/components/CharacterEditDialog.tsx:62-70`
+**Evidence.** `packages/backend/src/moire/services/characters/pages.py:374-389`, `packages/backend/src/moire/database/schema.py:358-395`, `packages/backend/src/moire/services/characters/outfits.py:467-494`, `packages/frontend/src/components/CharacterEditDialog.tsx:62-70`
 
 ### S12.4 Tag-add combobox is written twice (AddTagInput, AttireTagInput) with a third weaker canonicalizer in NewCharacterDialog
 
@@ -1723,7 +1723,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Move WearRule, wears_most, rule_of-independent parts and `wears` into a pure module `services/characters/outfit_wear.py` together with `wear_condition(rule) -> sa.ColumnElement` (the SQL, taking t.images/t.image_tags), so both forms live side by side and one parametrised test asserts they agree on a seeded DB. image_feed imports outfit_wear at module top; outfits.wear_rule (the async lookup of an id into a rule) stays in outfits and the feed's _resolved keeps calling it lazily or receives the rules from the router.
 
-**Evidence.** `packages/backend/src/moire/services/characters/outfits.py:101-145`, `packages/backend/src/moire/services/images/image_feed.py:279-297`, `packages/backend/src/moire/services/images/image_feed.py:329-333`, `packages/backend/tests/test_outfits.py:322`
+**Evidence.** `packages/backend/src/moire/services/characters/outfits.py:101-145`, `packages/backend/src/moire/services/images/feed.py:279-297`, `packages/backend/src/moire/services/images/feed.py:329-333`, `packages/backend/tests/test_outfits.py:322`
 
 ### S12.8 Outfit hooks live in component files and OutfitMenu re-implements the outfit queries inline
 
@@ -1741,9 +1741,9 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Problem.** Five jobs share one module: pure colour/signature/gender statistics (COLOURS, colour_of, palette, solo_palette, confident, one_colour_per_slot, reads_solo, signature, gender; about 230 lines, all with no IO), name grouping and hand-made characters, the cached listing with covers and avatars, the page, and the validated override CRUD. It reaches into tag_index's private _pins (line 537) and recipes reaches into its private _named. SOLO_ENOUGH, SCORED_ENOUGH and _BEST are defined mid-file after the functions that use them (solo_palette at line 115 reads SOLO_ENOUGH defined at 608).
 
-**Proposal.** Move the pure statistics into `services/characters/character_look.py` (no sqlalchemy import) with constants at the top, and re-export from characters for existing callers/tests. Make `tag_index.pins(conn, bases)` public and `characters.named(base)` public (rename _named) since recipes and api call them. Keep characters.py for grouping, made characters, listing, page and settings. This is also where the shared look_of from the first finding belongs.
+**Proposal.** Move the pure statistics into `services/characters/look.py` (no sqlalchemy import) with constants at the top, and re-export from characters for existing callers/tests. Make `tag_index.pins(conn, bases)` public and `characters.named(base)` public (rename _named) since recipes and api call them. Keep characters.py for grouping, made characters, listing, page and settings. This is also where the shared look_of from the first finding belongs.
 
-**Evidence.** `packages/backend/src/moire/services/characters/characters.py:28-260`, `packages/backend/src/moire/services/characters/characters.py:300-440`, `packages/backend/src/moire/services/characters/characters.py:441-609`, `packages/backend/src/moire/services/characters/characters.py:611-746`, `packages/backend/src/moire/services/characters/characters.py:749-811`, `packages/backend/src/moire/services/characters/characters.py:537`
+**Evidence.** `packages/backend/src/moire/services/characters/pages.py:28-260`, `packages/backend/src/moire/services/characters/pages.py:300-440`, `packages/backend/src/moire/services/characters/pages.py:441-609`, `packages/backend/src/moire/services/characters/pages.py:611-746`, `packages/backend/src/moire/services/characters/pages.py:749-811`, `packages/backend/src/moire/services/characters/pages.py:537`
 
 ### S12.10 CharactersSection does raw face-status fetches and hosts a Generate setting; test-only and unused exports linger
 
@@ -1758,10 +1758,10 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 **Cross-cutting hints.**
 
 - packages/backend/src/moire/api/tags.py:341-377 set_tag_thumbnail writes tag_meta with raw SQL inside the router (boundary violation, belongs in a tag_index/tag_meta service next to tag_focus.put)
-- packages/backend/src/moire/services/characters/characters.py:537 and packages/backend/src/moire/services/generate/recipes.py:282 call private tag_index._pins and characters._named across modules
+- packages/backend/src/moire/services/characters/pages.py:537 and packages/backend/src/moire/services/generate/recipes.py:282 call private tag_index._pins and characters._named across modules
 - packages/backend/src/moire/services/ai/face_detect.py:285-298 imports characters lazily to queue avatars by calling listing() for its side effect (a cycle workaround: face_detect <-> characters)
 - packages/frontend/src/lib/generate.ts:739-790 outfit/recipe/cover fetch hooks sit in the 800+ line generate.ts; part of the already reported ruleset-in-lib/gen.ts pattern
-- packages/backend/src/moire/services/generate/generation_jobs.py:40 imports clean_tags from outfits (generation depends on the outfits service for a string cleaner; move clean_tags to tag_names)
+- packages/backend/src/moire/services/generate/jobs.py:40 imports clean_tags from outfits (generation depends on the outfits service for a string cleaner; move clean_tags to tag_names)
 - packages/frontend/src/pages/OutfitsPage.tsx:148-164 and packages/frontend/src/components/generate/OutfitCover.tsx:217-230 hand-roll the same segmented radiogroup also present in SortControl, Remix, GenerationsPage (a ui/Segmented component would remove five copies)
 
 ## S13-shell
@@ -1880,4 +1880,4 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 - packages/frontend/src/components/ui/StatCard.tsx:25, TagPanel.tsx:111, TagsPage.tsx:347/548/828, MergeSuggestions.tsx:58 repeat Card's class string ('rounded-xl border border-white/5 bg-surface shadow-panel') instead of using Card.
 - packages/backend/src/moire/services/onboarding.py:30-37 is a ninth copy of the app_settings upsert pattern already reported in S7.
 - packages/frontend/src/hooks/useUnsavedChangesGuard.ts:21 also defaults to window.confirm (same class as the reported useRulesetSession finding).
-- packages/backend/src/moire/services/ai/ai_tagger_download.py:26 keeps DEFAULT_CACHE_DIR='.cache/moire/models', a second spelling of settings.model_cache_dir's default (config.py:184); only a fallback today, since DEFAULT_AI_SETTINGS uses settings.model_cache_dir_path.
+- packages/backend/src/moire/services/ai/tagger_download.py:26 keeps DEFAULT_CACHE_DIR='.cache/moire/models', a second spelling of settings.model_cache_dir's default (config.py:184); only a fallback today, since DEFAULT_AI_SETTINGS uses settings.model_cache_dir_path.

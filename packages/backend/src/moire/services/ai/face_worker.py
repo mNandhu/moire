@@ -15,7 +15,7 @@ from typing import Any
 
 from .. import activity
 from . import face_detect
-from .ai_tagger_download import activity_item
+from .tagger_download import activity_item
 
 logger = logging.getLogger("moire.faces")
 
@@ -65,7 +65,7 @@ class FaceWorker:
         character. A no-op unless detection is on and downloaded."""
         if not await face_detect.ready():
             return
-        from ..characters import characters  # imports this module
+        from ..characters import pages as characters  # imports this module
 
         await characters.listing()  # queues each avatar not looked at yet
 

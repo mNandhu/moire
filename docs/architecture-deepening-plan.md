@@ -26,7 +26,7 @@ HTTPException`) and lives in the router. Untestable without FastAPI; not reusabl
 by a CLI/export. Feed and groups share it only via 14 positional kwargs passed
 twice.
 
-**Solution:** A `services/images/image_feed.py` taking a validated filter object →
+**Solution:** A `services/images/feed.py` taking a validated filter object →
 returns rows (+ the group window-query). Router does HTTP validation → filter
 object → calls it. Projection / `thumb_url` decoration move with it.
 
@@ -89,7 +89,7 @@ a real FS+DB.
 
 ## 5. AI tagger subsystem (two sub-seams): ✅ DONE
 
-**Files:** `services/ai/ai_tagger.py` (766 lines), `api/ai.py:55-74` (status).
+**Files:** `services/ai/tagger.py` (766 lines), `api/ai.py:55-74` (status).
 
 **Problem:** (a) `ai_tagger.py` glues three modules: model download manager,
 ONNX inference (`WDTagger`/`select_tags`), and lifecycle (`TaggerManager`).

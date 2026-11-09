@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from ...services.characters import outfits
-from ...services.tags import tag_categories
+from ...services.tags import categories as tag_categories
 from ...services.library import thumb_version
 
 router = APIRouter()

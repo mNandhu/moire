@@ -19,8 +19,8 @@ import sqlalchemy as sa
 
 from ...database.db import async_conn
 from ...database import schema as t
-from ..tags import image_tags, tag_index, tag_kinds
-from ..images import image_visibility
+from ..tags import image_tags, index as tag_index, kinds as tag_kinds
+from ..images import visibility as image_visibility
 from .comfy_client import ComfyClient, ComfyError, ComfyUnreachable
 from ..metadata.model_names import model_stem
 

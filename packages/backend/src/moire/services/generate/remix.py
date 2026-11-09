@@ -18,16 +18,16 @@ import sqlalchemy as sa
 
 from ...database import schema as t
 from ...database.db import async_conn
-from . import comfy_models, generation_batches, generator_setup, recipes
+from . import comfy_models, batches as generation_batches, generator_setup, recipes
 from ..metadata import gen_raw
-from ..tags import tag_categories
+from ..tags import categories as tag_categories
 from ..metadata.prompt_parse import without_terms
 from ..tags.image_tags import find_image
-from .generation_limits import CFG_RANGE, MAX_CHARACTERS, STEPS_RANGE
+from .limits import CFG_RANGE, MAX_CHARACTERS, STEPS_RANGE
 from .generator_discovery import base_settings
 from ..metadata.model_names import model_stem
 from ..metadata.prompt_parse import parse_prompt
-from ..tags.tag_names import canonical_name
+from ..tags.names import canonical_name
 
 
 # A1111 extra networks written into the prompt (`<lora:name:0.7>`): ComfyUI

@@ -2,11 +2,11 @@
 
 One setting for the whole server (``app_settings`` row "sensitivity_filter"),
 so every device and remote access gets it. Levels are the ones in
-:mod:`services.tags.tag_sensitivity` (0 general .. 3 explicit). The filter is a
+:mod:`services.tags.sensitivity` (0 general .. 3 explicit). The filter is a
 maximum of general, sensitive or questionable; showing everything is "off".
 
 While it is on, an image is shown only when its level is known and within
-the maximum (:mod:`services.images.image_visibility`), and a tag name only when its
+the maximum (:mod:`services.images.visibility`), and a tag name only when its
 own level is (:func:`allowed`). The value is kept in memory, since every
 visibility clause reads it; :func:`load_sync` at startup.
 """
@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 from .. import app_settings
-from . import tag_index, tag_sensitivity
+from . import index as tag_index, sensitivity as tag_sensitivity
 
 _ROW = "sensitivity_filter"
 

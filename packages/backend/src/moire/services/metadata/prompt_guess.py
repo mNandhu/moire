@@ -24,7 +24,7 @@ from functools import lru_cache
 from typing import Any, Iterable, NamedTuple
 
 from .prompt_parse import parse_prompt
-from ..tags.tag_names import canonical_name
+from ..tags.names import canonical_name
 
 DEFAULT_POSITIVE: tuple[str, ...] = (
     "masterpiece",

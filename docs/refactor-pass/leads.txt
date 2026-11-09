@@ -13,21 +13,21 @@ packages/backend/src/moire/models/library.py:46  DEAD? vulture: unused method '_
 packages/backend/src/moire/models/library.py:59  DEAD? vulture: unused method '_drop_blank' (60% confidence)
 packages/backend/src/moire/models/library.py:68  DEAD? vulture: unused class 'Library' (60% confidence)
 packages/backend/src/moire/models/library.py:82  DEAD? vulture: unused method '_strip_quotes' (60% confidence)
-packages/backend/src/moire/services/ai/ai_jobs.py:240  COMPLEXITY PLR0912 Too many branches (13 > 12)
-packages/backend/src/moire/services/ai/ai_jobs.py:240  COMPLEXITY PLR0915 Too many statements (52 > 50)
-packages/backend/src/moire/services/ai/ai_tagger_download.py:268  COMPLEXITY PLR0912 Too many branches (14 > 12)
-packages/backend/src/moire/services/ai/ai_tagger_download.py:268  COMPLEXITY PLR0915 Too many statements (52 > 50)
-packages/backend/src/moire/services/ai/ai_tagger_download.py:59  DEAD? vulture: unused function '_download_if_missing' (60% confidence)
+packages/backend/src/moire/services/ai/jobs.py:240  COMPLEXITY PLR0912 Too many branches (13 > 12)
+packages/backend/src/moire/services/ai/jobs.py:240  COMPLEXITY PLR0915 Too many statements (52 > 50)
+packages/backend/src/moire/services/ai/tagger_download.py:268  COMPLEXITY PLR0912 Too many branches (14 > 12)
+packages/backend/src/moire/services/ai/tagger_download.py:268  COMPLEXITY PLR0915 Too many statements (52 > 50)
+packages/backend/src/moire/services/ai/tagger_download.py:59  DEAD? vulture: unused function '_download_if_missing' (60% confidence)
 packages/backend/src/moire/services/characters/attire.py:329  DEAD? vulture: unused function 'category_of' (60% confidence)
 packages/backend/src/moire/services/characters/attire.py:335  DEAD? vulture: unused function 'all_tags' (60% confidence)
-packages/backend/src/moire/services/characters/characters.py:611  COMPLEXITY radon D(23) page
-packages/backend/src/moire/services/tags/danbooru_tags.py:208  DEAD? vulture: unused function 'reset_for_tests' (60% confidence)
+packages/backend/src/moire/services/characters/pages.py:611  COMPLEXITY radon D(23) page
+packages/backend/src/moire/services/tags/danbooru.py:208  DEAD? vulture: unused function 'reset_for_tests' (60% confidence)
 packages/backend/src/moire/services/ai/face_detect.py:353  DEAD? vulture: unused function 'idle' (60% confidence)
 packages/backend/src/moire/services/metadata/gen_metadata.py:484  COMPLEXITY radon D(28) _resolve_text
-packages/backend/src/moire/services/generate/generation_estimate.py:135  DEAD? vulture: unused function 'warm_estimate' (60% confidence)
-packages/backend/src/moire/services/generate/generation_estimate.py:141  DEAD? vulture: unused function 'load_cost' (60% confidence)
-packages/backend/src/moire/services/generate/generation_jobs.py:1097  COMPLEXITY radon D(24) GenerationManager.queue_batch
-packages/backend/src/moire/services/generate/generation_jobs.py:1502  DEAD? vulture: unused function 'reset_for_tests' (60% confidence)
+packages/backend/src/moire/services/generate/estimate.py:135  DEAD? vulture: unused function 'warm_estimate' (60% confidence)
+packages/backend/src/moire/services/generate/estimate.py:141  DEAD? vulture: unused function 'load_cost' (60% confidence)
+packages/backend/src/moire/services/generate/jobs.py:1097  COMPLEXITY radon D(24) GenerationManager.queue_batch
+packages/backend/src/moire/services/generate/jobs.py:1502  DEAD? vulture: unused function 'reset_for_tests' (60% confidence)
 packages/backend/src/moire/services/generate/generator_discovery.py:205  COMPLEXITY radon D(21) text_inputs
 packages/backend/src/moire/services/generate/generator_discovery.py:376  COMPLEXITY radon D(27) discover
 packages/backend/src/moire/services/generate/generator_discovery.py:516  COMPLEXITY PLR0912 Too many branches (14 > 12)
@@ -38,26 +38,26 @@ packages/backend/src/moire/services/generate/generator_graph.py:255  COMPLEXITY 
 packages/backend/src/moire/services/generate/generator_setup.py:294  COMPLEXITY PLR0912 Too many branches (14 > 12)
 packages/backend/src/moire/services/generate/generator_setup.py:294  COMPLEXITY radon D(29) clean_slots
 packages/backend/src/moire/services/generate/generator_setup.py:462  COMPLEXITY radon D(25) carry_slots
-packages/backend/src/moire/services/images/image_feed.py:195  COMPLEXITY C901 `feed_where` is too complex (36 > 15)
-packages/backend/src/moire/services/images/image_feed.py:195  COMPLEXITY PLR0912 Too many branches (38 > 12)
-packages/backend/src/moire/services/images/image_feed.py:195  COMPLEXITY PLR0915 Too many statements (71 > 50)
-packages/backend/src/moire/services/images/image_feed.py:195  COMPLEXITY radon F(48) feed_where
-packages/backend/src/moire/services/library/library_discover.py:105  DEAD? vulture: unused attribute 'conflict_path' (60% confidence)
-packages/backend/src/moire/services/library/library_discover.py:105  DEAD? vulture: unused attribute 'note' (60% confidence)
-packages/backend/src/moire/services/library/library_discover.py:109  DEAD? vulture: unused attribute 'conflict_path' (60% confidence)
-packages/backend/src/moire/services/library/library_discover.py:109  DEAD? vulture: unused attribute 'note' (60% confidence)
-packages/backend/src/moire/services/library/library_discover.py:116  DEAD? vulture: unused attribute 'conflict_path' (60% confidence)
-packages/backend/src/moire/services/library/library_discover.py:116  DEAD? vulture: unused attribute 'note' (60% confidence)
-packages/backend/src/moire/services/library/library_discover.py:123  DEAD? vulture: unused attribute 'note' (60% confidence)
-packages/backend/src/moire/services/library/library_discover.py:136  DEAD? vulture: unused attribute 'conflict_path' (60% confidence)
-packages/backend/src/moire/services/library/library_discover.py:136  DEAD? vulture: unused attribute 'note' (60% confidence)
-packages/backend/src/moire/services/library/library_discover.py:186  DEAD? vulture: unused attribute 'subdir_count' (60% confidence)
-packages/backend/src/moire/services/library/library_discover.py:187  DEAD? vulture: unused attribute 'loose_image_count' (60% confidence)
-packages/backend/src/moire/services/library/library_discover.py:192  DEAD? vulture: unused attribute 'fell_back_to_root' (60% confidence)
-packages/backend/src/moire/services/library/library_watch.py:110  COMPLEXITY C901 `_write_loop` is too complex (16 > 15)
-packages/backend/src/moire/services/library/library_watch.py:110  COMPLEXITY PLR0912 Too many branches (15 > 12)
-packages/backend/src/moire/services/library/library_watch.py:110  COMPLEXITY radon D(21) _write_loop
-packages/backend/src/moire/services/library/library_watch.py:301  COMPLEXITY PLR0912 Too many branches (14 > 12)
+packages/backend/src/moire/services/images/feed.py:195  COMPLEXITY C901 `feed_where` is too complex (36 > 15)
+packages/backend/src/moire/services/images/feed.py:195  COMPLEXITY PLR0912 Too many branches (38 > 12)
+packages/backend/src/moire/services/images/feed.py:195  COMPLEXITY PLR0915 Too many statements (71 > 50)
+packages/backend/src/moire/services/images/feed.py:195  COMPLEXITY radon F(48) feed_where
+packages/backend/src/moire/services/library/discover.py:105  DEAD? vulture: unused attribute 'conflict_path' (60% confidence)
+packages/backend/src/moire/services/library/discover.py:105  DEAD? vulture: unused attribute 'note' (60% confidence)
+packages/backend/src/moire/services/library/discover.py:109  DEAD? vulture: unused attribute 'conflict_path' (60% confidence)
+packages/backend/src/moire/services/library/discover.py:109  DEAD? vulture: unused attribute 'note' (60% confidence)
+packages/backend/src/moire/services/library/discover.py:116  DEAD? vulture: unused attribute 'conflict_path' (60% confidence)
+packages/backend/src/moire/services/library/discover.py:116  DEAD? vulture: unused attribute 'note' (60% confidence)
+packages/backend/src/moire/services/library/discover.py:123  DEAD? vulture: unused attribute 'note' (60% confidence)
+packages/backend/src/moire/services/library/discover.py:136  DEAD? vulture: unused attribute 'conflict_path' (60% confidence)
+packages/backend/src/moire/services/library/discover.py:136  DEAD? vulture: unused attribute 'note' (60% confidence)
+packages/backend/src/moire/services/library/discover.py:186  DEAD? vulture: unused attribute 'subdir_count' (60% confidence)
+packages/backend/src/moire/services/library/discover.py:187  DEAD? vulture: unused attribute 'loose_image_count' (60% confidence)
+packages/backend/src/moire/services/library/discover.py:192  DEAD? vulture: unused attribute 'fell_back_to_root' (60% confidence)
+packages/backend/src/moire/services/library/watch.py:110  COMPLEXITY C901 `_write_loop` is too complex (16 > 15)
+packages/backend/src/moire/services/library/watch.py:110  COMPLEXITY PLR0912 Too many branches (15 > 12)
+packages/backend/src/moire/services/library/watch.py:110  COMPLEXITY radon D(21) _write_loop
+packages/backend/src/moire/services/library/watch.py:301  COMPLEXITY PLR0912 Too many branches (14 > 12)
 packages/backend/src/moire/services/generate/lora_presets.py:78-87  CLONE 10 lines, same as packages/backend/src/moire/services/generate/prompt_presets.py:96-105
 packages/backend/src/moire/services/generate/lora_presets.py:99-110  CLONE 12 lines, same as packages/backend/src/moire/services/generate/prompt_presets.py:114-125
 packages/backend/src/moire/services/characters/outfits.py:151  COMPLEXITY radon D(22) worn
@@ -78,8 +78,8 @@ packages/backend/src/moire/services/library/scanner.py:502  COMPLEXITY PLR0915 T
 packages/backend/src/moire/services/library/scanner.py:524  COMPLEXITY C901 `_run` is too complex (35 > 15)
 packages/backend/src/moire/services/library/scanner.py:524  COMPLEXITY PLR0912 Too many branches (24 > 12)
 packages/backend/src/moire/services/library/scanner.py:524  COMPLEXITY PLR0915 Too many statements (130 > 50)
-packages/backend/src/moire/services/tags/tag_descriptions.py:62  DEAD? vulture: unused function 'reset_for_tests' (60% confidence)
-packages/backend/src/moire/services/tags/tag_index.py:132  DEAD? vulture: unused function 'reset_for_tests' (60% confidence)
+packages/backend/src/moire/services/tags/descriptions.py:62  DEAD? vulture: unused function 'reset_for_tests' (60% confidence)
+packages/backend/src/moire/services/tags/index.py:132  DEAD? vulture: unused function 'reset_for_tests' (60% confidence)
 packages/backend/src/moire/web_ui.py:69  DEAD? vulture: unused function '_ui_fallback' (60% confidence)
 packages/frontend/package.json  DEAD? knip Unused devDependencies: @vitest/coverage-v8
 packages/frontend/src/components/CharacterEditDialog.tsx:145-172  CLONE 28 lines, same as packages/frontend/src/components/TagEditDialog.tsx:63-89

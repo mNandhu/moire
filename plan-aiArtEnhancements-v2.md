@@ -73,7 +73,7 @@ becomes re-runnable against stored raw with no disk rescan.
    - **No structured extraction here.** Scan stays raw-only.
 
 2. **Reproject pass** (new `services/reproject_jobs.py`, modeled on
-   `services/ai/ai_jobs.py`):
+   `services/ai/jobs.py`):
    - Idempotent. Reads raw from `image_gen_raw`, applies the matching ruleset,
      writes structured `gen.*` + `gen.prompt_terms[]` + `gen.group_id` onto the
      `images` doc.

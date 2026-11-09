@@ -142,7 +142,7 @@ async def test_file_words_skip_tags_common_in_the_library(client, seed):
 
 
 async def test_character_names_come_from_the_tagger_vocab(client, monkeypatch):
-    from moire.services.tags import tag_categories
+    from moire.services.tags import categories as tag_categories
 
     async def fake():
         return tag_categories.vocab({"fern_(sousou_no_frieren)", "nahida"}, set())
@@ -220,7 +220,7 @@ async def test_a_failed_or_empty_read_is_not_kept(client, seed):
 
 
 async def test_no_wait_on_comfyui_when_it_is_down(client, seed, monkeypatch):
-    from moire.services.generate.generation_jobs import get_generation_manager
+    from moire.services.generate.jobs import get_generation_manager
 
     await asyncio.to_thread(_library, seed)
     m = get_generation_manager()

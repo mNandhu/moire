@@ -199,8 +199,8 @@ unchanged.
 - `services/library/scanner.py`: **biggest change.** `bulk_write` upserts → `INSERT ... ON
   CONFLICT` batches through the serialized writer; `reconcile` `delete_many`; library
   progress `update_one`. Pure helpers (`reconcile_stale`, doc-building) unchanged.
-- `services/ai/ai_jobs.py`: find-untagged query + per-doc update → SQL.
-- `services/ai/ai_settings.py`: settings doc get/insert/update → single-row table.
+- `services/ai/jobs.py`: find-untagged query + per-doc update → SQL.
+- `services/ai/settings.py`: settings doc get/insert/update → single-row table.
 - `api/_utils.py`: remove `parse_object_id`.
 
 **Deps / infra / docs**

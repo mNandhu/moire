@@ -4,8 +4,8 @@ import asyncio
 import time
 
 
-from moire.services.library import library_ops
-from moire.services.library import library_watch
+from moire.services.library import ops as library_ops
+from moire.services.library import watch as library_watch
 
 
 async def test_delete_does_not_block_the_loop_on_thread_joins(client, monkeypatch):

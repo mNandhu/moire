@@ -11,11 +11,11 @@ import pytest_asyncio
 from moire.services.generate import (
     comfy_history,
     comfy_settings,
-    generation_errors,
-    generation_jobs,
+    errors as generation_errors,
+    jobs as generation_jobs,
     generator_test,
 )
-from moire.services.generate.generation_jobs import get_generation_manager
+from moire.services.generate.jobs import get_generation_manager
 from moire.services.generate.generators_store import load_generator
 from tests.fake_comfy import FakeComfy
 
@@ -315,7 +315,7 @@ async def test_manager_starts_with_comfyui_down(temp_db):
     ],
 )
 def test_batch_state(states, connected, expected):
-    from moire.services.generate.generation_batches import batch_state
+    from moire.services.generate.batches import batch_state
 
     assert batch_state(states, connected) == expected
 
@@ -629,7 +629,7 @@ async def test_output_folder_can_be_set_by_hand(client, comfy, tmp_path):
 
 
 def test_held_by_is_the_innermost_library(tmp_path):
-    from moire.services.generate.generation_outputs import held_by, root_candidates
+    from moire.services.generate.outputs import held_by, root_candidates
 
     root = tmp_path / "output"
     (root / "Unorganized10").mkdir(parents=True)
@@ -792,7 +792,7 @@ async def test_outputs_are_found_when_the_output_library_comes_back(client, tmp_
 
     from moire.database import schema as t
     from moire.database.db import async_tx
-    from moire.services.generate.generation_outputs import output_image_id
+    from moire.services.generate.outputs import output_image_id
 
     out = tmp_path / "out"
     out.mkdir()
@@ -1056,7 +1056,7 @@ async def test_cancelling_a_batch_that_isnt_there_is_404(client, comfy, seed):
 def test_a_cancelled_request_keeps_the_images_it_made():
     from types import SimpleNamespace
 
-    from moire.services.generate.generation_batches import _frames
+    from moire.services.generate.batches import _frames
 
     q = SimpleNamespace(state="cancelled", images=4)
     frames = _frames(q, [{"thumb_url": "/a"}, {"thumb_url": "/b"}])

@@ -32,7 +32,7 @@ import random
 from dataclasses import dataclass
 from typing import Any
 
-from .generation_limits import SEED_MAX
+from .limits import SEED_MAX
 from ..metadata.model_names import model_stem
 
 Graph = dict[str, dict[str, Any]]

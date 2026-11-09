@@ -36,8 +36,8 @@ from typing import TYPE_CHECKING, Any
 from . import comfy_text, prompt_guess, workflow_identity
 from .model_names import model_stem
 from .prompt_parse import EMBEDDING_TOKEN, parse_prompt
-from ..tags.tag_names import canonical_name
-from ..tags.tag_rules import apply_rule_weights, apply_rules
+from ..tags.names import canonical_name
+from ..tags.rules import apply_rule_weights, apply_rules
 
 if TYPE_CHECKING:
     from .extraction_settings import ExtractionConfig

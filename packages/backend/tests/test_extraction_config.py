@@ -8,7 +8,7 @@ import sqlalchemy as sa
 from moire.database import db
 from moire.database import schema as t
 from moire.services.metadata import extraction_settings, reproject
-from moire.services.tags import tag_kinds
+from moire.services.tags import kinds as tag_kinds
 
 _PARAMS = "masterpiece, blue eyes\nNegative prompt: lowres, blurry\nSteps: 20"
 

@@ -1,7 +1,7 @@
-"""Pure tests for the Danbooru-backed merge suggestions (services/tags/tag_canon.py)."""
+"""Pure tests for the Danbooru-backed merge suggestions (services/tags/canon.py)."""
 
-from moire.services.tags.danbooru_tags import parse
-from moire.services.tags.tag_canon import MIN_POSTS, Resolver, suggest_all
+from moire.services.tags.danbooru import parse
+from moire.services.tags.canon import MIN_POSTS, Resolver, suggest_all
 
 P = MIN_POSTS
 LIST = parse(

@@ -1,6 +1,6 @@
 """Pure tests for the canonical tag spelling."""
 
-from moire.services.tags import tag_names as tn
+from moire.services.tags import names as tn
 
 
 def test_canonical_name_joins_words_with_underscores():

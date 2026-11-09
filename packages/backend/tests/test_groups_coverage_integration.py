@@ -117,7 +117,7 @@ async def test_models_list_counts_and_sorted(client, seed):
 
 
 async def test_tag_untagged_skips_quarantined_like_coverage(client, seed, monkeypatch):
-    from moire.services.ai.ai_jobs import get_ai_job_manager
+    from moire.services.ai.jobs import get_ai_job_manager
 
     seed("L1:a", tags=("1girl",))  # ai-tagged: skipped
     seed("L1:b")  # untagged: queued
@@ -209,7 +209,7 @@ async def test_stats_zone_aliases_and_offset_fallback(client, seed):
 
 
 async def test_tag_untagged_queues_every_image_newest_first(client, seed, monkeypatch):
-    from moire.services.ai.ai_jobs import get_ai_job_manager
+    from moire.services.ai.jobs import get_ai_job_manager
 
     for i in range(250):
         seed(f"L1:{i:03d}", mtime=1000.0 + i)
@@ -233,7 +233,7 @@ async def test_tag_untagged_queues_every_image_newest_first(client, seed, monkey
 async def test_auto_tag_only_runs_when_on_and_skips_what_it_gave_up_on(
     client, seed, monkeypatch
 ):
-    from moire.services.ai import ai_jobs
+    from moire.services.ai import jobs as ai_jobs
     from moire.services.library import scanner
 
     mgr = ai_jobs.AIJobManager()
@@ -269,7 +269,7 @@ async def test_auto_tag_remembers_what_it_gave_up_on_until_the_file_changes(
 ):
     from moire.database import db
     from moire.database import schema as t
-    from moire.services.ai import ai_jobs
+    from moire.services.ai import jobs as ai_jobs
     from moire.services.library import scanner
 
     seed("L1:a", mtime=1.0)
@@ -302,7 +302,7 @@ async def test_auto_tag_remembers_what_it_gave_up_on_until_the_file_changes(
 
 
 async def test_cancelling_a_backlog_run_turns_auto_tag_off(client, seed):
-    from moire.services.ai import ai_jobs
+    from moire.services.ai import jobs as ai_jobs
 
     await client.post("/ai/settings", json={"auto_tag": True})
     mgr = ai_jobs.AIJobManager()  # no worker: the job stays queued
@@ -315,7 +315,7 @@ async def test_cancelling_a_backlog_run_turns_auto_tag_off(client, seed):
 
 
 async def test_cancelling_a_selection_leaves_auto_tag_on(client):
-    from moire.services.ai import ai_jobs
+    from moire.services.ai import jobs as ai_jobs
 
     await client.post("/ai/settings", json={"auto_tag": True})
     mgr = ai_jobs.AIJobManager()
@@ -332,7 +332,7 @@ async def test_status_carries_a_time_estimate(client):
 
 
 async def test_a_long_run_stores_its_rate_for_the_estimate(client):
-    from moire.services.ai import ai_estimate
+    from moire.services.ai import estimate as ai_estimate
 
     await ai_estimate.record("cpu", 2.0, images=5)  # too short to count
     await ai_estimate.record("gpu", 8.0, images=5)

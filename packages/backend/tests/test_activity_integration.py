@@ -115,7 +115,7 @@ def test_reprojecting_ids_never_moves_the_bar_back(monkeypatch):
 
 
 def test_a_download_counts_the_files_already_sized():
-    from moire.services.ai.ai_tagger_download import activity_item as _download
+    from moire.services.ai.tagger_download import activity_item as _download
 
     files = [
         {"name": "model.onnx", "downloaded": 100, "total": 400},

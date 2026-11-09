@@ -8,12 +8,12 @@ from ..database.db import async_conn, async_tx
 from ..database import schema as t
 from ..services.metadata import gen_metadata, gen_raw
 from ..services.tags import image_tags
-from ..services.images import image_feed
-from ..services.tags import tag_index
-from ..services.generate import generation_batches
-from ..services.images import image_delete, image_search
+from ..services.images import feed as image_feed
+from ..services.tags import index as tag_index
+from ..services.generate import batches as generation_batches
+from ..services.images import delete as image_delete, search as image_search
 from ..services.library import thumb_version
-from ..services.images.image_feed import FeedFilter, FeedFilterError
+from ..services.images.feed import FeedFilter, FeedFilterError
 from ..services.tags.image_tags import find_image as _find_image_doc  # type: ignore
 from . import image_facets, image_media
 from ..models.responses import FeedRow, GroupRow, ImageDetail, documents

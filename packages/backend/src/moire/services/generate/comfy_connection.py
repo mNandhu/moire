@@ -11,8 +11,8 @@ from typing import Any
 
 from ...models.library import LibraryIn
 from . import comfy_settings
-from ..library import library_ops
-from .generation_jobs import get_generation_manager
+from ..library import ops as library_ops
+from .jobs import get_generation_manager
 
 
 class SettingsError(ValueError):

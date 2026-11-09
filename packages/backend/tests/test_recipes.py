@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services.characters import characters
-from moire.services.tags import image_tags, tag_categories
+from moire.services.characters import pages as characters
+from moire.services.tags import image_tags, categories as tag_categories
 from moire.services.generate import recipes
 from moire.services.generate.generator_graph import merge_loras
 from moire.services.generate.recipes import LoraUse

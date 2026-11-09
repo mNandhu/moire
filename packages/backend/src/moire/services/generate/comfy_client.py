@@ -1,5 +1,5 @@
 """Thin async client for one ComfyUI server: REST via httpx, events via its
-websocket. No Moiré state here; :mod:`services.generate.generation_jobs` owns that.
+websocket. No Moiré state here; :mod:`services.generate.jobs` owns that.
 
 The optional headers (auth for a proxied ComfyUI) are sent on every request
 and on the websocket handshake. They stay server-side: the browser never talks
@@ -16,7 +16,7 @@ from typing import Any, AsyncIterator, Callable
 
 import httpx
 
-from .generation_errors import Rejected
+from .errors import Rejected
 
 log = logging.getLogger(__name__)
 # The websocket client logs every reconnect attempt at INFO; a ComfyUI that is

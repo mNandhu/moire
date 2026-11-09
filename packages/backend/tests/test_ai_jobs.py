@@ -8,9 +8,9 @@ import pytest
 from PIL import Image
 
 from moire.services import activity
-from moire.services.ai import ai_jobs
-from moire.services.ai.ai_jobs import AIJob, AIJobManager
-from moire.services.ai.ai_tagger import TagParams, TaggerManager
+from moire.services.ai import jobs as ai_jobs
+from moire.services.ai.jobs import AIJob, AIJobManager
+from moire.services.ai.tagger import TagParams, TaggerManager
 
 _RESULT = {"caption": "", "rating": {}, "general_tags": [], "character_tags": []}
 

@@ -7,7 +7,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services.tags import image_tags, tag_kinds
+from moire.services.tags import image_tags, kinds as tag_kinds
 
 
 def _row(image_id: str) -> tuple[dict, list[tuple]]:

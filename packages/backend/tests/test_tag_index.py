@@ -12,7 +12,7 @@ import asyncio
 
 import pytest
 
-from moire.services.tags import image_tags, tag_covers, tag_index
+from moire.services.tags import image_tags, covers as tag_covers, index as tag_index
 
 
 # --- Cache primitives (pure, no DB) -------------------------------------------

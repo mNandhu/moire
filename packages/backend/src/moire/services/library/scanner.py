@@ -10,7 +10,7 @@ from .. import activity
 from ..tags import image_tags
 from ..metadata import workflow_identity
 from . import batch_pool
-from . import library_nesting
+from . import nesting as library_nesting
 from . import scan_reconcile, thumbnailer
 from .scan_writer import ScanWriter, retry
 from .storage_fs import put_thumb, thumb_path
@@ -137,7 +137,7 @@ def nudge_auto_tag() -> None:
     """Images may have arrived: auto-tag (if on) queues them once no scan
     runs. Imported late: the job manager reads ``any_scanning`` from here."""
     try:
-        from ..ai.ai_jobs import get_ai_job_manager
+        from ..ai.jobs import get_ai_job_manager
 
         get_ai_job_manager().nudge()
     except Exception:
@@ -439,7 +439,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
             root_path = _current_root(library_id)
 
             # Leave out the folders of libraries inside this one: their files
-            # are theirs (services/library/library_nesting).
+            # are theirs (services/library/nesting).
             nested = library_nesting.nested_roots(library_id, root_path)
             files, discovered_image_ids, walk_errors = _walk(
                 library_id, root_path, nested

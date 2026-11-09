@@ -22,7 +22,7 @@ from collections.abc import Iterable
 from typing import NamedTuple
 
 from ..characters import attire
-from ..tags.danbooru_tags import ARTIST, CHARACTER, COPYRIGHT, META, TagList
+from ..tags.danbooru import ARTIST, CHARACTER, COPYRIGHT, META, TagList
 
 SECTIONS = (
     "subject",

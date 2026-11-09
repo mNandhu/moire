@@ -375,7 +375,7 @@ async def test_rare_filter_by_ids_matches_the_full_walk(client, seed, monkeypatc
     """A rare tag group or prompt term drives the query by id
     (`_drive_by_rarest`); it must return exactly what the plain walk does,
     page by page, whatever else the filter holds."""
-    from moire.services.images import image_feed
+    from moire.services.images import feed as image_feed
 
     for i in range(12):
         tags = (

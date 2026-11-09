@@ -1,6 +1,6 @@
 """Which tag names are characters in this library: the one definition.
 
-:mod:`services.tags.tag_categories` reads the tagger's word list (listed names and
+:mod:`services.tags.categories` reads the tagger's word list (listed names and
 bare-name candidates); this module adds the library's say: a bare candidate
 counts once most of its visible images also carry its series or full name
 (:func:`tag_categories.confirmed`), and the user's ``characters.kind`` beats
@@ -12,8 +12,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 
 from ...database import schema as t
-from ..images import image_visibility
-from . import tag_categories
+from ..images import visibility as image_visibility
+from . import categories as tag_categories
 
 
 async def character_names(

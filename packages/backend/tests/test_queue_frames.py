@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from moire.services.generate.generation_batches import _frames
+from moire.services.generate.batches import _frames
 
 
 def req(state, images):
@@ -23,7 +23,7 @@ def test_open_and_failed_requests_count_their_images():
 
 
 def test_every_request_state_has_one_place_in_the_vocabulary():
-    from moire.services.generate.generation_states import (
+    from moire.services.generate.states import (
         FAILED,
         IN_COMFY,
         REPLACED,

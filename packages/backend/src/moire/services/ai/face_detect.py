@@ -28,10 +28,10 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ...database.db import async_conn, async_tx
 from ...database import schema as t
-from . import ai_settings
+from . import settings as ai_settings
 from ..library import storage_fs
-from .ai_tagger import resolved_model_target
-from .ai_tagger_download import RemoteFile, get_download_manager, hf_url
+from .tagger import resolved_model_target
+from .tagger_download import RemoteFile, get_download_manager, hf_url
 
 logger = logging.getLogger("moire.faces")
 

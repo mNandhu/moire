@@ -7,7 +7,7 @@ import sqlalchemy as sa
 from moire.database import db
 from moire.database import schema as t
 from moire.services.characters import attire
-from moire.services.tags import tag_index
+from moire.services.tags import index as tag_index
 
 
 async def _row(image_id):
@@ -150,7 +150,7 @@ async def test_bulk_manual_says_how_far_a_failed_edit_got(client, seed, monkeypa
 
 async def test_bulk_manual_takes_a_whole_select_all(client, seed):
     """The cap is Select all's, so any selection it hands out can be edited."""
-    from moire.services.images.image_feed import SELECT_ALL_CAP
+    from moire.services.images.feed import SELECT_ALL_CAP
 
     seed("L1:a", tags=())
     ids = ["L1:a"] + [f"L1:missing{i}" for i in range(SELECT_ALL_CAP - 1)]
@@ -205,7 +205,7 @@ async def test_attire_and_facet_maps_know_the_library_garments(client, seed):
 
 
 async def test_descriptions_serve_the_shipped_file(client, tmp_path, monkeypatch):
-    from moire.services.tags import tag_descriptions
+    from moire.services.tags import descriptions as tag_descriptions
 
     path = tmp_path / "tag_descriptions.json"
     path.write_text(
@@ -221,7 +221,7 @@ async def test_descriptions_serve_the_shipped_file(client, tmp_path, monkeypatch
 
 
 async def test_descriptions_missing_file_is_empty(client, tmp_path, monkeypatch):
-    from moire.services.tags import tag_descriptions
+    from moire.services.tags import descriptions as tag_descriptions
 
     monkeypatch.setattr(tag_descriptions, "PATH", tmp_path / "absent.json")
     tag_descriptions.reset_for_tests()
@@ -232,7 +232,7 @@ async def test_descriptions_missing_file_is_empty(client, tmp_path, monkeypatch)
 
 
 async def test_descriptions_fold_in_aliases_of_described_tags():
-    from moire.services.tags import tag_descriptions
+    from moire.services.tags import descriptions as tag_descriptions
 
     got = tag_descriptions.with_aliases(
         {"closed_eyes": "Both eyes are shut.", "smile": "A smile."},
@@ -246,7 +246,7 @@ async def test_descriptions_fold_in_aliases_of_described_tags():
 
 
 async def test_descriptions_never_start_the_tag_list_download(client, monkeypatch):
-    from moire.services.tags import danbooru_tags
+    from moire.services.tags import danbooru as danbooru_tags
 
     def boom():
         raise AssertionError("descriptions must not fetch Danbooru's list")
@@ -258,7 +258,7 @@ async def test_descriptions_never_start_the_tag_list_download(client, monkeypatc
 async def test_descriptions_merge_is_kept_until_the_alias_map_changes(
     tmp_path, monkeypatch
 ):
-    from moire.services.tags import tag_descriptions
+    from moire.services.tags import descriptions as tag_descriptions
 
     path = tmp_path / "tag_descriptions.json"
     path.write_text('{"descriptions": {"closed_eyes": "Shut."}}')
@@ -287,7 +287,7 @@ async def test_tag_groups_route(client, seed):
 async def test_danbooru_aliases_list_the_library_tags_aliases(
     client, seed, monkeypatch
 ):
-    from moire.services.tags import danbooru_tags
+    from moire.services.tags import danbooru as danbooru_tags
 
     seed(
         "L1:a",

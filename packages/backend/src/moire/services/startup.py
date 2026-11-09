@@ -9,13 +9,18 @@ import sqlalchemy as sa
 
 from ..database import schema as t
 from ..database.db import async_conn, ensure_schema
-from .library import library_nesting, library_watch
-from .tags import sensitivity_filter, tag_index, tag_migrations, tag_sensitivity
-from .ai.ai_jobs import get_ai_job_manager
-from .ai.ai_settings import get_ai_settings
-from .ai.ai_tagger import get_tagger_manager
+from .library import nesting as library_nesting, watch as library_watch
+from .tags import (
+    sensitivity_filter,
+    index as tag_index,
+    migrations as tag_migrations,
+    sensitivity as tag_sensitivity,
+)
+from .ai.jobs import get_ai_job_manager
+from .ai.settings import get_ai_settings
+from .ai.tagger import get_tagger_manager
 from .ai.face_worker import get_face_worker
-from .generate.generation_jobs import get_generation_manager
+from .generate.jobs import get_generation_manager
 from .library.storage_fs import ensure_thumb_root
 
 logger = logging.getLogger("moire")
@@ -30,7 +35,7 @@ async def start() -> None:
     await anyio.to_thread.run_sync(tag_sensitivity.load_overrides_sync)  # type: ignore[attr-defined]
     # The sensitivity filter's maximum, which every visibility clause reads.
     await anyio.to_thread.run_sync(sensitivity_filter.load_sync)  # type: ignore[attr-defined]
-    # One-off data migrations (services/tags/tag_migrations.py), before the AI
+    # One-off data migrations (services/tags/migrations.py), before the AI
     # worker and the watchers can write tags in the new spelling alongside old.
     await anyio.to_thread.run_sync(tag_migrations.run_pending)  # type: ignore[attr-defined]
     # Images an outer library indexed from a library inside it belong to the

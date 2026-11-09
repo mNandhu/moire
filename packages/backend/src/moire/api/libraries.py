@@ -11,7 +11,7 @@ from ..models.library import (
     LibraryUpdate,
 )
 from ..models.responses import LibraryRow, documents
-from ..services.library import library_discover, library_ops
+from ..services.library import discover as library_discover, ops as library_ops
 from ..services.library.scanner import scan_library_async
 
 router = APIRouter()

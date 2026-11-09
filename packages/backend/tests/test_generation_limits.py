@@ -4,7 +4,7 @@ backend's, read from the TS source by path like tests/test_mirrored_vocab.py."""
 import re
 from pathlib import Path
 
-from moire.services.generate import generation_limits as limits
+from moire.services.generate import limits as limits
 
 TS = (
     Path(__file__).resolve().parents[2]

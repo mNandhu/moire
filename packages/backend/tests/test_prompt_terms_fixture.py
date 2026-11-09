@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from moire.services.metadata.prompt_parse import parse_prompt
-from moire.services.tags.tag_names import canonical_name
+from moire.services.tags.names import canonical_name
 
 FIXTURE = json.loads(
     (Path(__file__).parent / "fixtures" / "mirrored" / "prompt_terms.json").read_text(
@@ -42,6 +42,6 @@ AUTO_NAME = json.loads(
 
 @pytest.mark.parametrize("case", AUTO_NAME["cases"], ids=lambda c: repr(c["text"]))
 def test_auto_name_terms_read_the_shared_cases(case):
-    from moire.services.generate.generation_compose import prompt_terms
+    from moire.services.generate.compose import prompt_terms
 
     assert prompt_terms(case["text"], limit=case["limit"]) == case["terms"]

@@ -8,7 +8,7 @@ import time
 import pytest
 
 from moire.core.config import settings
-from moire.services.library import library_watch, scan_incremental, scanner
+from moire.services.library import watch as library_watch, scan_incremental, scanner
 
 
 def _wait(pred, timeout=15.0):

@@ -8,11 +8,11 @@ from pydantic import BaseModel
 from ...services.generate import (
     comfy_connection,
     comfy_models,
-    generation_batches,
-    generation_estimate,
+    batches as generation_batches,
+    estimate as generation_estimate,
 )
-from ...services.library import library_ops
-from ...services.generate.generation_jobs import get_generation_manager
+from ...services.library import ops as library_ops
+from ...services.generate.jobs import get_generation_manager
 
 router = APIRouter()
 

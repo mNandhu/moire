@@ -7,13 +7,13 @@ import asyncio
 
 import sqlalchemy as sa
 
-from moire.services.tags import tag_index
+from moire.services.tags import index as tag_index
 
 FERN = "fern_(sousou_no_frieren)"
 
 
 async def test_made_character_lives_until_images_have_it(client, seed, monkeypatch):
-    from moire.services.tags import tag_categories
+    from moire.services.tags import categories as tag_categories
 
     async def vocab():
         return tag_categories.vocab({FERN}, set())
@@ -66,7 +66,7 @@ async def test_made_character_can_be_deleted(client):
 async def test_making_a_character_twice_or_by_its_full_name_is_refused(
     client, seed, monkeypatch
 ):
-    from moire.services.tags import tag_categories
+    from moire.services.tags import categories as tag_categories
 
     async def vocab():
         return tag_categories.vocab({"furina_(genshin_impact)"}, set())

@@ -17,10 +17,10 @@ import sqlalchemy as sa
 
 from ...database import schema as t
 from ...database.db import async_conn, sync_conn
-from ..ai import ai_settings
+from ..ai import settings as ai_settings
 from .. import app_settings
 from . import prompt_guess
-from ..tags import tag_rules
+from ..tags import rules as tag_rules
 
 _ROW = "extraction"
 
@@ -29,7 +29,7 @@ _ROW = "extraction"
 class ExtractionConfig:
     """What deriving ``gen.*`` reads besides the ruleset: the guessing
     keywords, the positive-only switch (stored with the AI settings) and the
-    merge and split rules (``from -> [to, ...]``, see services/tags/tag_rules.py).
+    merge and split rules (``from -> [to, ...]``, see services/tags/rules.py).
     Reprojection and the rules preview both load it here and derive through
     :func:`services.metadata.gen_metadata.derive`, so they can't disagree."""
 

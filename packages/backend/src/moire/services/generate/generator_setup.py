@@ -23,15 +23,15 @@ from ...database.db import async_conn, async_tx
 from ..characters import attire
 from . import comfy_models
 from ..metadata import gen_metadata, rulesets
-from ..tags import tag_categories
+from ..tags import categories as tag_categories
 from ..metadata import workflow_family
 from ..metadata.model_names import model_stem
 from ..metadata.prompt_parse import without_terms
 from .generator_discovery import check_slots, discover
-from .generation_limits import clamp_per_request
+from .limits import clamp_per_request
 from .generator_graph import SAMPLING, STOCK_LORA_LOADERS
 from ..metadata.prompt_parse import parse_prompt
-from ..tags.tag_names import canonical_name
+from ..tags.names import canonical_name
 
 _PIN = re.compile(r"^prompt\.([^.]+)\.inputs\.([^.]+)$")
 

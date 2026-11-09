@@ -25,11 +25,15 @@ from ...database.db import async_conn, async_tx
 from ...database import schema as t
 from . import attire
 from ..generate import recipes
-from ..tags import tag_categories, tag_detail, tag_views
-from ..tags.tag_hash import hash_tag
+from ..tags import (
+    categories as tag_categories,
+    detail as tag_detail,
+    views as tag_views,
+)
+from ..tags.hash import hash_tag
 from ..tags.image_tags import find_image
 from .outfit_wear import WearRule, wears, wears_most
-from ..tags.tag_names import canonical_name
+from ..tags.names import canonical_name
 
 # Mirrored by the frontend's MAX_OUTFIT_TAGS (lib/outfit.ts; a test checks).
 MAX_TAGS = 40

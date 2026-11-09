@@ -15,9 +15,9 @@ from moire.database import schema as t
 from moire.database.db import async_tx
 
 from moire.services.characters import outfits
-from moire.services.tags import tag_categories
+from moire.services.tags import categories as tag_categories
 from moire.services.characters.outfits import OutfitError
-from moire.services.tags.tag_hash import hash_tag
+from moire.services.tags.hash import hash_tag
 from tests.test_characters import _chars
 from tests.test_generate_integration import comfy, make_ready  # noqa: F401
 from tests.test_recipes import _library

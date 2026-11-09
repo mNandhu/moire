@@ -40,7 +40,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from moire.services.characters import attire  # noqa: E402
-from moire.services.tags.tag_names import canonical_name  # noqa: E402
+from moire.services.tags.names import canonical_name  # noqa: E402
 
 BASE_URL = "https://danbooru.donmai.us"
 ROOT_TITLE = "tag_groups"

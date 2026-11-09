@@ -20,14 +20,14 @@ import sqlalchemy as sa
 from moire.core.config import settings
 from moire.database import db
 from moire.database import schema as t
-from moire.services.ai import ai_estimate
+from moire.services.ai import estimate as ai_estimate
 from moire.services.tags import (
     image_tags,
     sensitivity_filter,
-    tag_index,
-    tag_kinds,
-    tag_sensitivity,
-    tag_views,
+    index as tag_index,
+    kinds as tag_kinds,
+    sensitivity as tag_sensitivity,
+    views as tag_views,
 )
 from moire.services.generate import lora_words
 

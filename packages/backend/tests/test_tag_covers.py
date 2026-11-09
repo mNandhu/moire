@@ -5,7 +5,7 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services.tags import tag_covers, tag_index
+from moire.services.tags import covers as tag_covers, index as tag_index
 
 
 async def _pin(tag):

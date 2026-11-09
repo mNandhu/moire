@@ -92,7 +92,7 @@ test_images/        CI fixtures
 
 ## How it works
 
-- **Storage.** SQLite (`SQLITE_PATH`, default `data/moire.db`) holds images, tags, libraries, characters, generations. The schema is created on startup; there are no schema migrations, only one-off data migrations (`services/tags/tag_migrations.py`). Thumbnails are WebP files under `THUMB_ROOT`. Originals are read from the library folders and never modified.
+- **Storage.** SQLite (`SQLITE_PATH`, default `data/moire.db`) holds images, tags, libraries, characters, generations. The schema is created on startup; there are no schema migrations, only one-off data migrations (`services/tags/migrations.py`). Thumbnails are WebP files under `THUMB_ROOT`. Originals are read from the library folders and never modified.
 - **Media.** Thumbnails and originals are streamed from the filesystem through the API (`/api/v1/images/{id}/thumb`, `/file`, both with HEAD; originals support Range). Thumbnail URLs carry a `?v=` version and are served `immutable`. One port is enough for remote access; put nginx in front for TLS (`deploy/nginx.conf.example`).
 - **Tags.** One ordered `tags` array per image holds AI tags (unprefixed), manual tags (`manual:`) and prompt tags (`prompt:`). Names are stored Danbooru-style with underscores. `services/tags/image_tags.py` is the only writer.
 - **Feed.** Keyset paging on `(sort keys..., _id)`; the server returns the next cursor in `X-Next-Cursor`.

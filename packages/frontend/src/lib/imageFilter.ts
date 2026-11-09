@@ -12,7 +12,7 @@
 // keys can be null follows models/responses.py, held to real rows there.
 
 /** The columns every image payload carries: the feed row
- * (services/images/image_feed.FEED_KEYS, its thumb_key swapped for thumb_url). */
+ * (services/images/feed.FEED_KEYS, its thumb_key swapped for thumb_url). */
 export type ImageFields = {
   _id: string;
   // Never null in practice (the scanner writes every row with one), though
@@ -119,7 +119,7 @@ export const IMAGE_DETAIL_KEYS = keysOf<ImageDetail>()([
 
 type TagLogic = "and" | "or";
 
-/** Feed order; see services/images/image_feed.py `SORTS`. */
+/** Feed order; see services/images/feed.py `SORTS`. */
 export type FeedSort = "newest" | "oldest" | "top";
 const SORTS: readonly FeedSort[] = ["newest", "oldest", "top"];
 
@@ -149,7 +149,7 @@ export type Filters = {
    * `default:<character>`. `outfit:Name` chips in the search box. */
   outfit: string[];
   /** Size presets ("2:3"): the image's shape is any of them. Matched by
-   * ratio, so upscales count (services/images/image_shapes.py). */
+   * ratio, so upscales count (services/images/shapes.py). */
   shape: string[];
   minW?: number;
   maxW?: number;

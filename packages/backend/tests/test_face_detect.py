@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from moire.services.ai import face_detect, face_worker
-from moire.services.tags import tag_categories
+from moire.services.tags import categories as tag_categories
 
 
 @pytest.fixture(autouse=True)
@@ -269,7 +269,7 @@ async def test_the_mtime_migration_replaces_the_cache(client, seed):
 
     from moire.database import db
     from moire.database import schema as t
-    from moire.services.tags import tag_migrations
+    from moire.services.tags import migrations as tag_migrations
 
     seed("L1:a")
     async with db.async_tx() as conn:

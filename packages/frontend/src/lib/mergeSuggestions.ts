@@ -1,6 +1,6 @@
 import type { MergeKind, MergeSuggestion } from "./queries";
 
-/** Shown in this order, most certain first (services/tags/tag_canon.py stages). */
+/** Shown in this order, most certain first (services/tags/canon.py stages). */
 export const KIND_ORDER: readonly MergeKind[] = ["alias", "respell", "colour", "split", "strip"];
 
 export const KIND_LABEL: Record<MergeKind, string> = {

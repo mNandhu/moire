@@ -19,9 +19,9 @@ import sqlalchemy as sa
 from ...database import schema as t
 from ...database.db import sync_conn, sync_tx
 from .. import app_settings
-from ..images import image_delete
-from . import library_nesting
-from ..tags import tag_index
+from ..images import delete as image_delete
+from . import nesting as library_nesting
+from ..tags import index as tag_index
 from .scan_writer import retry
 
 logger = logging.getLogger("moire.scanner")

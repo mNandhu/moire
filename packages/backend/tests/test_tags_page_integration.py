@@ -5,7 +5,11 @@ import sqlalchemy as sa
 
 from moire.database import db
 from moire.database import schema as t
-from moire.services.tags import tag_categories, tag_index, tag_migrations
+from moire.services.tags import (
+    categories as tag_categories,
+    index as tag_index,
+    migrations as tag_migrations,
+)
 
 
 def _chars(*names, **candidates):

@@ -71,7 +71,7 @@ class ImageDetail(FeedRow):
     #: The rating was picked by hand (AI tagging leaves it alone).
     rating_manual: bool | None
     #: Highest sensitivity level among the tags, 0 general .. 3 explicit;
-    #: None without tags (services/tags/tag_sensitivity.py).
+    #: None without tags (services/tags/sensitivity.py).
     tag_level: int | None
     tags: list[str]
     ai: dict[str, Any] | None

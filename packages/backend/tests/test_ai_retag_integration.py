@@ -39,7 +39,7 @@ async def test_plain_tag_keeps_existing_ai_tags(client, seed):
 
 
 async def test_retag_takes_an_image_over_from_the_job_that_still_holds_it(client, seed):
-    from moire.services.ai.ai_jobs import get_ai_job_manager
+    from moire.services.ai.jobs import get_ai_job_manager
 
     seed("L1:c.png", tags=("1girl",), rating="general")
     jm = get_ai_job_manager()

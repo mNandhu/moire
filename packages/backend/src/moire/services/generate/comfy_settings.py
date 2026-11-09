@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from .. import app_settings
-from .generation_limits import clamp_per_request
+from .limits import clamp_per_request
 
 
 ROW_ID = "comfyui"

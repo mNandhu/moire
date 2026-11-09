@@ -1,6 +1,6 @@
 """Merge and split rules applied to prompt terms (pure)."""
 
-from moire.services.tags.tag_rules import apply_rule_weights, apply_rules
+from moire.services.tags.rules import apply_rule_weights, apply_rules
 
 
 def test_apply_rules_maps_dedupes_and_sorts():

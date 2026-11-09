@@ -8,12 +8,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from ...services.generate import (
-    generation_batches,
+    batches as generation_batches,
     generator_setup,
     generator_test,
     remix,
 )
-from ...services.generate.generation_jobs import get_generation_manager
+from ...services.generate.jobs import get_generation_manager
 from ...services.generate.generator_setup import SetupError
 from ...services.generate.generators_store import load_generator
 from .queue_errors import QUEUE_ERRORS, queue_error

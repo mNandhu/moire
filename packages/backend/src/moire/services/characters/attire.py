@@ -28,8 +28,8 @@ from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
 
-from ..tags.tag_hash import hash_tag
-from ..tags.tag_names import canonical_name
+from ..tags.hash import hash_tag
+from ..tags.names import canonical_name
 
 # Danbooru's adult category and groups (keyed by tag_hash.hash_tag of
 # Danbooru's name), and the neutral names the shipped file uses instead
@@ -292,7 +292,7 @@ class Listed(dict):
 def hide_entry(tag: str, info: dict) -> bool:
     """Whether a tag's entry is stored by hash: it has a sensitivity level, or
     sits in one of the adult groups."""
-    from ..tags import tag_sensitivity
+    from ..tags import sensitivity as tag_sensitivity
 
     return tag_sensitivity.level_of(tag) > 0 or info.get("group") in ADULT_GROUPS
 

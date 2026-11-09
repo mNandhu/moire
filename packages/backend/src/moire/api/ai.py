@@ -8,24 +8,24 @@ from PIL import Image
 from pydantic import BaseModel, Field, create_model
 
 
-from ..services.ai import ai_coverage as ai_coverage_service, face_detect, fetch_image
+from ..services.ai import coverage as ai_coverage_service, face_detect, fetch_image
 from ..services.characters import attire
 from ..services.tags import image_tags
-from ..services.ai.ai_settings import (
+from ..services.ai.settings import (
     DEFAULT_AI_SETTINGS,
     get_ai_settings,
     update_ai_settings,
 )
-from ..services.ai import ai_estimate
-from ..services.ai.ai_jobs import get_ai_job_manager
-from ..services.ai.ai_tagger import (
+from ..services.ai import estimate as ai_estimate
+from ..services.ai.jobs import get_ai_job_manager
+from ..services.ai.tagger import (
     TagParams,
     decode_image,
     get_tagger_manager,
     model_status_view,
     resolved_model_target,
 )
-from ..services.ai.ai_tagger_download import get_download_manager
+from ..services.ai.tagger_download import get_download_manager
 from ..services.ai.face_worker import get_face_worker
 
 router = APIRouter()

@@ -7,7 +7,7 @@ belongs in this file.
 ## Concepts
 
 - **Library**: a root directory of images registered for indexing. Owns scan
-  progress state. (`api/libraries.py`, lifecycle in `services/library/library_ops.py`,
+  progress state. (`api/libraries.py`, lifecycle in `services/library/ops.py`,
   `models/library.py`)
 - **Image**: one indexed file. Id is `{library_id}:{path-relative-to-root}`.
 - **Tag**: a label on an image. Three kinds share one `tags` array:
@@ -21,7 +21,7 @@ belongs in this file.
   - **Tag name**: every kind is stored in one canonical spelling, words joined
     by underscores (`blue_eyes`, `hu_tao_(genshin_impact)`), the WD tagger's
     own vocabulary. `blue eyes` and `blue_eyes` are the same tag. Owned by
-    `services/tags/tag_names.py` (`canonical_name`); `image_tags.canonical_tag`
+    `services/tags/names.py` (`canonical_name`); `image_tags.canonical_tag`
     applies it to a prefixed tag. The UI shows underscores as spaces
     (`lib/tags.ts` `formatTag`), and kaomoji (`^_^`) keep theirs.
 - **Tag rename / merge**: renaming a tag onto a new name, or onto an existing
@@ -31,8 +31,8 @@ belongs in this file.
   merge is stored as a **Merge rule** (`tag_rules`, `from -> [to]`, kept one
   hop) that reprojection applies to the extracted terms. A **Split rule** is
   the same row with several targets (`long_white_hair` -> `long_hair`,
-  `white_hair`). Owned by `services/tags/tag_rename.py` (writes) and
-  `services/tags/tag_rules.py` (reads, `apply_rules`); `/tags/rules` in the API,
+  `white_hair`). Owned by `services/tags/rename.py` (writes) and
+  `services/tags/rules.py` (reads, `apply_rules`); `/tags/rules` in the API,
   `useTagRules` in the frontend. Code never calls these *aliases* (that word
   is a Danbooru alias or a character's bare name). Not to be confused with a
   **Ruleset**: what the Rules page (`/rules`, `gen_rulesets`) edits, one
@@ -42,7 +42,7 @@ belongs in this file.
   Danbooru tag, read from Danbooru's list: its alias, a respelling, colour
   plus thing as one tag, a split per describing word, or the colour dropped.
   Only suggested; the user accepts them on the Tags page.
-  (`services/tags/tag_canon.py`)
+  (`services/tags/canon.py`)
 - **Tag-state**: the invariant binding `tags` to its summary flags:
   `has_tags` (any *curatable* tag, meaning a non-`prompt:` tag, so prompt-only images
   stay "Untagged"), `has_ai_tags` (any tag that is *neither* `manual:` nor
@@ -62,7 +62,7 @@ belongs in this file.
   count matches its gallery link. A **pinned cover** belongs to the tag name,
   not to a source (`tag_index.pin_key`). All are memoized with a short TTL
   except `detail`. **Invalidation belongs to the index, not its callers**
-  (`services/tags/tag_index.py`): tag writers dirty it once their transaction has
+  (`services/tags/index.py`): tag writers dirty it once their transaction has
   committed, so a new writer cannot forget to. A cached entry is valid only
   within its TTL *and* its generation, which also means a read that started
   before a write cannot store its stale result afterwards. The mirror of the
@@ -74,7 +74,7 @@ belongs in this file.
   it: most of its visible images also carry the series tag or the full name,
   so ordinary words that happen to be characters (`sunny`, `white_rabbit`)
   don't. No downloaded model, no characters. The user's say on a character
-  page (`characters.kind`) beats the list both ways. (`services/tags/tag_categories.py`;
+  page (`characters.kind`) beats the list both ways. (`services/tags/categories.py`;
   the library check and the one "is a character" rule are
   `services/tags/character_names.py`)
 - **Character page**: one character at `/characters/:tag`, any of its names
@@ -91,8 +91,8 @@ belongs in this file.
   (`@_@`, `closed_eyes`), props and tags the groups can't place, common to a
   few images of one set, aren't a look.
   Few images shows a "may be off" note. The avatar is the tag's cover pin; the
-  `characters` table holds only overrides. (`services/characters/characters.py`; the
-  look statistics in `services/characters/character_look.py`)
+  `characters` table holds only overrides. (`services/characters/pages.py`; the
+  look statistics in `services/characters/look.py`)
 - **Face detection**: an optional anime face model (YOLOv8 nano, ONNX,
   downloaded from Settings > Characters) that finds the face in each
   character's avatar, in a background worker, kept in `image_faces`. Avatars
@@ -175,21 +175,21 @@ belongs in this file.
   `services/library/batch_pool.py`.
 - **Thumbnail**: a WebP render of an image stored on the local filesystem under
   `THUMB_ROOT`. (`services/library/storage_fs.py`)
-- **AI Job**: a queued, cancellable batch tagging unit. (`services/ai/ai_jobs.py`)
+- **AI Job**: a queued, cancellable batch tagging unit. (`services/ai/jobs.py`)
 - **Tagger / Model**: the WD ONNX model. Load/idle-unload lifecycle and the pure
-  inference step `select_tags` live in `services/ai/ai_tagger.py`; model **download**
+  inference step `select_tags` live in `services/ai/tagger.py`; model **download**
   (HuggingFace fetch, progress, cancel) is its own dependency-free module
-  `services/ai/ai_tagger_download.py` (also home to `model_target`, the one place the
+  `services/ai/tagger_download.py` (also home to `model_target`, the one place the
   `(model_repo, cache_dir)` default is resolved). The API's combined model status
   is assembled once by `ai_tagger.model_status_view` so routes don't reach into
   the managers' internals.
 - **AI Settings**: persisted tagger knobs; validation is pure
-  (`ai_settings.clean_settings_patch`). (`services/ai/ai_settings.py`)
+  (`ai_settings.clean_settings_patch`). (`services/ai/settings.py`)
 - **Image feed (backend)**: how an Image filter becomes SQL. A `FeedFilter`
   validates its own inputs on construction (`FeedFilterError` → HTTP 422);
   `feed_where` builds the WHERE clause; `list_feed` / `list_groups` run the
   cursor-paged feed and the batch-collapsed grouped view. The feed and grouped
-  view share one builder so they can never drift. (`services/images/image_feed.py`)
+  view share one builder so they can never drift. (`services/images/feed.py`)
   The grouped view's "batches" are **groups** (`gen.group_id`: same workflow
   signature and positive prompt, so every run of one prompt, whatever the
   checkpoint or Queue press). A Generation batch is narrower, one press of
@@ -212,7 +212,7 @@ belongs in this file.
   section comes from the tag-group list (through the facets) and from
   **Danbooru's tag list**: every Danbooru tag with 20+ posts, its category,
   post count and aliases (`eyes_closed` is `closed_eyes`), downloaded on first use
-  into the model cache and refreshed quarterly (`services/tags/danbooru_tags.py`).
+  into the model cache and refreshed quarterly (`services/tags/danbooru.py`).
   A name in neither list is **unknown**. The aliases serve the board only:
   library tags never go through them. (`services/generate/prompt_board.py`,
   `lib/promptOutline.ts`, `components/generate/PromptBoard.tsx`)

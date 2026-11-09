@@ -20,12 +20,12 @@ from ..database import schema as t
 from ..database.db import async_conn
 from ..services import activity
 from ..services.ai import face_worker
-from ..services.generate import generation_estimate
-from ..services.ai.ai_jobs import get_ai_job_manager
-from ..services.ai.ai_settings import get_ai_settings
-from ..services.ai.ai_tagger import model_status_view, resolved_model_target
-from ..services.ai.ai_tagger_download import activity_item
-from ..services.generate.generation_jobs import get_generation_manager
+from ..services.generate import estimate as generation_estimate
+from ..services.ai.jobs import get_ai_job_manager
+from ..services.ai.settings import get_ai_settings
+from ..services.ai.tagger import model_status_view, resolved_model_target
+from ..services.ai.tagger_download import activity_item
+from ..services.generate.jobs import get_generation_manager
 
 router = APIRouter()
 logger = logging.getLogger("moire.activity")

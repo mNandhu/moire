@@ -3,8 +3,8 @@ folded into its full one, and what the user sets."""
 
 import pytest
 
-from moire.services.characters import character_look, characters
-from moire.services.tags import tag_browse, tag_categories
+from moire.services.characters import look as character_look, pages as characters
+from moire.services.tags import browse as tag_browse, categories as tag_categories
 
 
 def _chars(*names, **candidates):

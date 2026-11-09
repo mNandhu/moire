@@ -12,12 +12,12 @@ import sqlalchemy as sa
 
 from ...database.db import async_conn, async_tx
 from ...database import schema as t
-from . import comfy_models, generation_batches
-from .generation_errors import Invalid, Unavailable
+from . import comfy_models, batches as generation_batches
+from .errors import Invalid, Unavailable
 from .generators_store import load_generator
 
 if TYPE_CHECKING:
-    from .generation_jobs import GenerationManager
+    from .jobs import GenerationManager
 
 
 async def start_test(

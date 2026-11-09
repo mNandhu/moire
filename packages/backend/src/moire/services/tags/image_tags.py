@@ -12,7 +12,7 @@ Conventions enforced here (and nowhere else):
 - ``has_ai_tags``     : True iff ``tags`` has a tag that is neither manual nor prompt.
 - ``has_prompt_tags``: True iff ``tags`` contains at least one ``prompt:`` tag.
 - ``tag_level``       : the highest sensitivity level among the tags
-  (:mod:`services.tags.tag_sensitivity`), NULL when there are none.
+  (:mod:`services.tags.sensitivity`), NULL when there are none.
 - ``rating``          : one of RATINGS. The AI tagger writes its pick and clearing
   AI tags resets it to ``"-"``, unless ``rating_manual``: a rating picked by
   hand stays until the user picks again (Unrated brings the AI's back).
@@ -35,9 +35,9 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from ...database.db import async_conn, async_tx, sync_tx
 from ...database import schema as t
-from ..images import image_visibility
-from . import tag_index, tag_sensitivity
-from .tag_kinds import (
+from ..images import visibility as image_visibility
+from . import index as tag_index, sensitivity as tag_sensitivity
+from .kinds import (
     base_of,
     canonical_tag,
     is_manual,
@@ -653,7 +653,7 @@ async def clear_ai_all() -> tuple[int, int]:
 # --- tag_level after the levels change -----------------------------------------
 #
 # ``tag_level`` is written with the tags (TAG_STATE_COLUMNS); these rewrite it
-# alone, for when the levels themselves changed (services/tags/tag_sensitivity.py).
+# alone, for when the levels themselves changed (services/tags/sensitivity.py).
 # Each returns how many images changed; the caller invalidates the tag index.
 
 _LEVEL_BATCH = 500
@@ -741,8 +741,8 @@ def rewrite_tags_sync(
     extra: dict[str, Any] | None = None,
 ) -> None:
     """Persist a whole new tag array on a caller-owned sync transaction. For
-    one-off data migrations (services/tags/tag_migrations.py) and folding a nested
-    library's copies (services/library/library_nesting.py); like
+    one-off data migrations (services/tags/migrations.py) and folding a nested
+    library's copies (services/library/nesting.py); like
     :func:`replace_prompt_many_sync`, the caller invalidates the tag index."""
     statements, rows = _persist_statements(image_id, new_tags, extra)
     for stmt in statements:
