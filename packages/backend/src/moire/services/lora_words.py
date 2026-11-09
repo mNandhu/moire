@@ -123,13 +123,17 @@ async def _prompt_total() -> int:
     """Distinct prompts in the library, kept until the next tag write (but
     counted at most once a minute): every suggestion measures against it,
     and it is a scan of every prompt tag."""
-    global _last_total
-    gen = tag_index.current_generation()
-    cached = tag_index.read_derived("lora-prompt-total")
-    if cached is not None:
-        return cached
     if _last_total and time.monotonic() - _last_total[0] < _TOTAL_MIN_AGE:
-        return _last_total[1]
+        held = tag_index.peek("derived", _TOTAL_KEY)
+        return _last_total[1] if held is None else held
+    return await tag_index.cached("derived", _TOTAL_KEY, _count_prompts)
+
+
+_TOTAL_KEY = "lora-prompt-total"
+
+
+async def _count_prompts() -> int:
+    global _last_total
     key, tagged, prompt = _prompt_scope()
     async with async_conn() as conn:
         n = (
@@ -139,7 +143,6 @@ async def _prompt_total() -> int:
                 .where(prompt)
             )
         ).scalar_one()
-    tag_index.store_derived("lora-prompt-total", gen, n)
     _last_total = (time.monotonic(), n)
     return n
 

@@ -24,66 +24,6 @@ def test_invalidate_bumps_the_generation():
     assert tag_index.current_generation() == before + 1
 
 
-def test_read_misses_when_the_generation_moved():
-    cache: dict = {}
-    gen = tag_index.current_generation()
-    tag_index._store(cache, "k", gen, [{"_id": "a"}])
-    assert tag_index._read(cache, "k", ttl=999) == [{"_id": "a"}]
-
-    tag_index.invalidate()
-    assert tag_index._read(cache, "k", ttl=999) is None
-
-
-def test_read_misses_once_the_ttl_lapsed():
-    cache: dict = {}
-    gen = tag_index.current_generation()
-    tag_index._store(cache, "k", gen, [{"_id": "a"}])
-    assert tag_index._read(cache, "k", ttl=0.0) is None
-
-
-def test_store_is_discarded_when_a_write_landed_mid_query():
-    """The race the generation counter exists for: a reader captures the
-    generation, a writer invalidates while the query is still running, and the
-    reader must *not* cache its now-stale result."""
-    cache: dict = {}
-    gen = tag_index.current_generation()  # reader starts
-    tag_index.invalidate()  # writer commits mid-query
-    tag_index._store(cache, "k", gen, [{"_id": "stale"}])  # reader finishes
-    assert cache == {}
-
-
-def test_soft_write_keeps_a_build_that_spanned_it():
-    """A bulk job's write landing mid-build must not throw the build away (it
-    did for every image, so the tag list was never cached during a job)."""
-    cache: dict = {}
-    gen = tag_index.current_generation()
-    tag_index.invalidate_soft()
-    tag_index._store(cache, "k", gen, [{"_id": "a"}])
-    assert tag_index._read(cache, "k", ttl=999) == [{"_id": "a"}]
-
-
-def test_soft_write_lets_a_view_lag_only_inside_the_window(monkeypatch):
-    cache: dict = {}
-    gen = tag_index.current_generation()
-    tag_index._store(cache, "k", gen, [{"_id": "a"}])
-    tag_index.invalidate_soft()
-    assert tag_index._read(cache, "k", ttl=999) == [{"_id": "a"}]
-    monkeypatch.setattr(tag_index, "_SOFT_STALE_SECONDS", 0.0)
-    assert tag_index._read(cache, "k", ttl=999) is None
-
-
-def test_derived_values_follow_soft_writes_too(monkeypatch):
-    gen = tag_index.current_generation()
-    tag_index.store_derived("d", gen, 42)
-    tag_index.invalidate_soft()
-    assert tag_index.read_derived("d") == 42
-    monkeypatch.setattr(tag_index, "_SOFT_STALE_SECONDS", 0.0)
-    assert tag_index.read_derived("d") is None
-
-
-# --- cached(): stale while it rebuilds, one build at a time --------------------
-
-
 class _Builder:
     """A build that counts its calls and, with ``gate``, waits to finish."""
 
@@ -102,6 +42,65 @@ class _Builder:
 async def _settle() -> None:
     for _ in range(5):
         await asyncio.sleep(0)
+
+
+async def test_a_view_misses_once_the_generation_moved():
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    tag_index.invalidate()
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+
+
+async def test_a_view_misses_once_its_ttl_lapsed(monkeypatch):
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    monkeypatch.setitem(tag_index._TTLS, "views", 0.0)
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+
+
+async def test_a_build_is_not_kept_when_a_write_landed_mid_query():
+    """The race the generation counter exists for: a write commits while the
+    build's query runs, and its now-stale result must not be cached."""
+    build = _Builder()
+    build.gate = asyncio.Event()
+    first = asyncio.create_task(tag_index.cached("views", "k", build))
+    await _settle()
+    tag_index.invalidate()  # writer commits mid-query
+    build.gate.set()
+    assert await first == [{"_id": "v1"}]
+    assert tag_index._tags_cache == {}
+
+
+async def test_a_soft_write_keeps_a_build_that_spanned_it():
+    """A bulk job's write landing mid-build must not throw the build away (it
+    did for every image, so the tag list was never cached during a job)."""
+    build = _Builder()
+    build.gate = asyncio.Event()
+    first = asyncio.create_task(tag_index.cached("views", "k", build))
+    await _settle()
+    tag_index.invalidate_soft()
+    build.gate.set()
+    await first
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    assert build.calls == 1
+
+
+async def test_a_derived_value_lags_soft_writes_only_inside_the_window(
+    monkeypatch,
+):
+    build = _Builder()
+    await tag_index.cached("derived", "d", build)
+    tag_index.invalidate_soft()
+    assert tag_index.peek("derived", "d") == [{"_id": "v1"}]
+    assert await tag_index.cached("derived", "d", build) == [{"_id": "v1"}]
+    assert build.calls == 1
+    monkeypatch.setattr(tag_index, "_SOFT_STALE_SECONDS", 0.0)
+    await tag_index.cached("derived", "d", build)
+    await _settle()
+    assert build.calls == 2
+
+
+# --- cached(): stale while it rebuilds, one build at a time --------------------
 
 
 async def test_cached_builds_once_then_serves_from_memory():
@@ -192,9 +191,35 @@ async def test_a_failed_background_build_keeps_the_old_view(monkeypatch):
 
     assert await tag_index.cached("views", "k", broken) == [{"_id": "v1"}]
     await _settle()
+    # Not asked again at once (a busy database): served stale meanwhile.
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    await _settle()
+    assert build.calls == 1
+    monkeypatch.setattr(tag_index, "_RETRY_AFTER_FAILURE_SECONDS", 0.0)
     assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
     await _settle()
     assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+
+
+async def test_a_failed_build_is_logged_once(monkeypatch, caplog):
+    """A waiter gets the error raised (the request logs it); only a build
+    nobody awaited is logged here."""
+
+    async def broken() -> list[dict]:
+        raise RuntimeError("db gone")
+
+    with pytest.raises(RuntimeError):
+        await tag_index.cached("views", "k", broken)
+    await _settle()
+    assert "failed" not in caplog.text
+
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    tag_index.invalidate_soft()
+    monkeypatch.setattr(tag_index, "_SOFT_STALE_SECONDS", 0.0)
+    await tag_index.cached("views", "k", broken)
+    await _settle()
+    assert caplog.text.count("tag view build k failed") == 1
 
 
 async def test_valid_rejects_a_value_built_from_old_inputs():
@@ -204,6 +229,70 @@ async def test_valid_rejects_a_value_built_from_old_inputs():
         "derived", "k", build, valid=lambda v: v[0]["_id"] != "v1"
     )
     assert got == [{"_id": "v2"}]
+
+
+async def test_valid_rejects_a_build_under_way_from_old_inputs():
+    """A caller with new inputs (a reloaded vocabulary) that joins a build
+    begun from the old ones gets a build of its own."""
+    build = _Builder()
+    build.gate = asyncio.Event()
+    old = asyncio.create_task(tag_index.cached("derived", "k", build))
+    await _settle()
+    new = asyncio.create_task(
+        tag_index.cached("derived", "k", build, valid=lambda v: v[0]["_id"] != "v1")
+    )
+    await _settle()
+    build.gate.set()
+    assert await old == [{"_id": "v1"}]
+    assert await new == [{"_id": "v2"}]
+
+
+async def test_a_build_from_a_stale_input_is_no_fresher_than_it(monkeypatch):
+    """A view built from another cached view served stale takes that view's
+    age, so lag doesn't stack: it is rebuilt once the input is."""
+    inner = _Builder()
+    await tag_index.cached("views", "inner", inner)
+    tag_index.invalidate_soft()
+    monkeypatch.setattr(tag_index, "_SOFT_STALE_SECONDS", 0.0)
+    inner.gate = asyncio.Event()
+    outer_calls = 0
+
+    async def outer() -> list[dict]:
+        nonlocal outer_calls
+        outer_calls += 1
+        return await tag_index.cached("views", "inner", inner)
+
+    assert await tag_index.cached("views", "outer", outer) == [{"_id": "v1"}]
+    # Stamped with the stale input's read: served stale, rebuilt again.
+    assert await tag_index.cached("views", "outer", outer) == [{"_id": "v1"}]
+    await _settle()
+    assert outer_calls == 2
+    inner.gate.set()
+    await _settle()
+    assert tag_index.peek("views", "inner") == [{"_id": "v2"}]
+
+
+async def test_stale_false_rebuilds_before_answering(monkeypatch):
+    build = _Builder()
+    await tag_index.cached("derived", "n", build)
+    tag_index.invalidate_soft()
+    monkeypatch.setattr(tag_index, "_SOFT_STALE_SECONDS", 0.0)
+    assert await tag_index.cached("derived", "n", build, stale=False) == [{"_id": "v2"}]
+
+
+async def test_a_build_from_an_older_generation_is_not_kept():
+    """``gen``: inputs the caller read before a hard write make a value that
+    is answered but not cached."""
+    gen = tag_index.current_generation()
+    tag_index.invalidate()
+    build = _Builder()
+    assert await tag_index.cached("derived", "k", build, gen=gen) == [{"_id": "v1"}]
+    assert tag_index.peek("derived", "k") is None
+
+
+def test_peek_never_builds():
+    assert tag_index.peek("views", "nothing") is None
+    assert tag_index._inflight == {}
 
 
 async def test_cancel_builds_stops_the_ones_under_way():

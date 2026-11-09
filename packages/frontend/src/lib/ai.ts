@@ -375,8 +375,8 @@ export function postTagUntagged(
   limit: number,
   libraryId?: string,
   { unknown = false }: { unknown?: boolean } = {},
-): Promise<{ job_id: string | null; queued: number }> {
-  return postJson<{ job_id: string | null; queued: number }>("/api/v1/ai/tag-untagged", {
+): Promise<{ job_id: string | null; queued: number; skipped?: number }> {
+  return postJson<{ job_id: string | null; queued: number; skipped?: number }>("/api/v1/ai/tag-untagged", {
     limit,
     ...(libraryId ? { library_id: libraryId } : {}),
     // Only images with no sensitivity level yet (the filter hides them).

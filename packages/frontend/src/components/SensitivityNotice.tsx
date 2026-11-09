@@ -34,10 +34,15 @@ export function UnknownHiddenNotice({ dismissible = false }: { dismissible?: boo
     try {
       const r = await postTagUntagged(unknown, undefined, { unknown: true });
       push(
-        r.queued ? `Queued AI tagging for ${r.queued.toLocaleString()} images` : "Nothing left to tag",
+        r.queued
+          ? `Queued AI tagging for ${r.queued.toLocaleString()} images`
+          : r.skipped
+            ? "Already being tagged"
+            : "Nothing left to tag",
         r.queued ? "success" : "info",
       );
-      // The progress replaces the button now, not at the next idle poll.
+      // The progress replaces the button now, not at the next idle poll (a
+      // job already tagging them takes the banner too).
       void qc.invalidateQueries({ queryKey: BACKGROUND_TASKS_KEY });
     } catch (e) {
       push(`Couldn't start AI tagging: ${errorText(e)}`, "error");

@@ -262,7 +262,7 @@ async def ai_tag_untagged(req: TagUntaggedRequest):
     )
     if job is None:
         return {"job_id": None, "queued": 0}
-    return {"job_id": job.id, "queued": job.total}
+    return {"job_id": job.id, "queued": job.total, "skipped": job.skipped}
 
 
 @router.post("/clear-ai-tags")

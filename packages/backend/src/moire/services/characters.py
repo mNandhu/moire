@@ -102,9 +102,23 @@ async def look_of(
     tagger vocabulary doesn't bump the generation, so the vocabulary it was
     read with is kept beside it."""
     vocab = await tag_categories.load()
-    cached = tag_index.read_derived(f"look:{key}")
-    if cached is not None and cached[0] is vocab:
-        return cached[1]
+
+    async def build() -> tuple[tag_categories.Vocab, Look]:
+        return vocab, await _look(key, names, key_of, rows, vocab)
+
+    _, look = await tag_index.cached(
+        "derived", f"look:{key}", build, valid=lambda v: v[0] is vocab, gen=gen
+    )
+    return look
+
+
+async def _look(
+    key: str,
+    names: list[str],
+    key_of: dict[str, str],
+    rows: list[dict],
+    vocab: tag_categories.Vocab,
+) -> Look:
     ids = tag_detail.image_ids(names)
     it = t.image_tags
     async with async_conn() as conn:
@@ -130,14 +144,12 @@ async def look_of(
         # scene tags at the top and would crowd out hair and eyes.
         limit=len(here),
     )
-    look = Look(
+    return Look(
         n,
         counted,
         tuple((s["tag"], s["count"]) for s in sig),
         character_look.gender(here, counted),
     )
-    tag_index.store_derived(f"look:{key}", gen, (vocab, look))
-    return look
 
 
 def groups(characters: list[str], vocab: tag_categories.Vocab) -> dict[str, list[str]]:

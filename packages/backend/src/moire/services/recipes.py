@@ -279,19 +279,20 @@ async def wardrobe(tag: str) -> dict | None:
     its own lists."""
     gen = tag_index.current_generation()  # before reading what it is made of
     vocab = await tag_categories.load()
-    cached = tag_index.read_derived(f"wardrobe:{tag}")
-    if cached is None or cached[0] is not vocab:
-        found = await character_key(tag)
-        if found is None:
-            return None
-        key, names, key_of, rows = found
+    # Looked up each time (from cached views): a character made by hand
+    # writes no tag, so "not a character" can't be kept until the next write.
+    found = await character_key(tag)
+    if found is None:
+        return None
+    key, names, key_of, rows = found
+
+    async def build() -> tuple[tag_categories.Vocab, tuple]:
         look = await characters.look_of(gen, key, names, key_of, rows)
-        cached = (
-            vocab,
-            (key, tuple(names), look.images, tuple(_split(look)[1])),
-        )
-        tag_index.store_derived(f"wardrobe:{tag}", gen, cached)
-    key, names, count, outfit = cached[1]
+        return vocab, (key, tuple(names), look.images, tuple(_split(look)[1]))
+
+    _, (key, names, count, outfit) = await tag_index.cached(
+        "derived", f"wardrobe:{tag}", build, valid=lambda v: v[0] is vocab, gen=gen
+    )
     return {"tag": key, "names": list(names), "count": count, "outfit": list(outfit)}
 
 

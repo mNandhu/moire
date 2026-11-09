@@ -23,8 +23,9 @@ async def _counts() -> dict:
     no level yet (no rating, and no tags that vouch for one), which the
     filter hides until AI tagging gives it one. Every page header asks, so
     it is kept in the tag index's derived cache, which tag writes, ratings,
-    quarantine and level edits clear."""
-    return await tag_index.cached("derived", "sensitivity-counts", _count)
+    quarantine and level edits clear. Never served past the soft window: the
+    hidden-images banner polls it to follow an AI job."""
+    return await tag_index.cached("derived", "sensitivity-counts", _count, stale=False)
 
 
 async def _count() -> dict:

@@ -46,6 +46,16 @@ def _discard(task: asyncio.Task) -> None:
     task.add_done_callback(lambda t: t.cancelled() or t.exception())
 
 
+def _note_end(job: "AIJob") -> None:
+    """Count ``job`` as ended. One that tagged more than one image, or the
+    images the sensitivity filter hides, also counts as ``ai_job_bulk``: the
+    galleries refetch for those (a level may have shown images), not for an
+    image's own re-tag."""
+    activity.note_ended("ai_job")
+    if job.total > 1 or job.scope == "unknown":
+        activity.note_ended("ai_job_bulk")
+
+
 @dataclass
 class AIJob:
     id: str
@@ -209,11 +219,20 @@ class AIJobManager:
             accepted = unique_ids
         else:
             accepted = []
+            held = set()
             for image_id in unique_ids:
                 if image_id in self._in_flight:
-                    skipped += 1
+                    held.add(image_id)
                     continue
                 accepted.append(image_id)
+            skipped = len(held)
+            if scope and held:
+                # Another job already tags some of these: it does this job's
+                # work, so it answers to the scope too (the hidden-images
+                # banner follows it).
+                for other in self.active_jobs():
+                    if other.scope is None and not held.isdisjoint(other.ids):
+                        other.scope = scope
 
         self._prune()
         job = AIJob(
@@ -233,7 +252,7 @@ class AIJobManager:
         else:
             # Nothing to do; mark as done so UI doesn't show it as queued forever.
             job.status = "done"
-            activity.note_ended("ai_job")
+            _note_end(job)
         return job
 
     async def enqueue_untagged(
@@ -261,7 +280,7 @@ class AIJobManager:
         if job.status == "queued":
             removed = await self._queue.remove(job_id)
             job.status = "cancelled"
-            activity.note_ended("ai_job")
+            _note_end(job)
             self._release(job.ids)
             return removed
 
@@ -360,7 +379,7 @@ class AIJobManager:
                     job.finished_at = time.time()
                     # The tag views lagged this job's writes (bulk=True).
                     image_tags.end_bulk_writes()
-                activity.note_ended("ai_job")
+                _note_end(job)
                 self._release(ids[released:])
 
     def _release(self, ids: list[str]) -> None:

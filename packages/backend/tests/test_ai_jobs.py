@@ -402,3 +402,26 @@ def test_activity_item_names_a_run_for_the_unknown_images():
     job = AIJob(id="j", created_at=0.0, total=3, scope="unknown", ids=["a", "b", "c"])
     assert job.activity_item()["scope"] == "unknown"
     assert "scope" not in AIJob(id="k", created_at=0.0, total=3).activity_item()
+
+
+async def test_a_job_already_tagging_hidden_images_takes_their_scope():
+    """A "Tag them" whose images another job holds queues nothing: that job
+    answers to it, so the hidden-images banner follows its progress."""
+    mgr = AIJobManager()  # no worker: the first job stays queued
+    library = await mgr.enqueue(ids=["a", "b", "c"])
+    other = await mgr.enqueue(ids=["x"])
+    hidden = await mgr.enqueue(ids=["b"], scope="unknown")
+    assert hidden.total == 0 and hidden.skipped == 1
+    assert library.scope == "unknown"
+    assert other.scope is None
+
+
+def test_only_runs_that_may_show_images_count_as_bulk():
+    def ends(job: AIJob) -> int:
+        before = activity.ended().get("ai_job_bulk", 0)
+        ai_jobs._note_end(job)
+        return activity.ended().get("ai_job_bulk", 0) - before
+
+    assert ends(AIJob(id="one", created_at=0.0, total=1)) == 0
+    assert ends(AIJob(id="many", created_at=0.0, total=40)) == 1
+    assert ends(AIJob(id="h", created_at=0.0, total=1, scope="unknown")) == 1

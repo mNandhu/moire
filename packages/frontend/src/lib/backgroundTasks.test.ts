@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { bulkAiJobEnded, unknownAiJob, describeTask, endedKinds, startedKinds, taskPct, type BackgroundTask } from "./backgroundTasks";
+import { unknownAiJob, describeTask, endedKinds, startedKinds, taskPct, type BackgroundTask } from "./backgroundTasks";
 
 const names = (id: string) => ({ A: "sdxl" })[id];
 
@@ -83,15 +83,3 @@ describe("unknownAiJob", () => {
   });
 });
 
-describe("bulkAiJobEnded", () => {
-  const job = (id: string, total: number): BackgroundTask => ({ key: `ai:${id}`, kind: "ai_job", job_id: id, total, done: 0 });
-
-  it("is true when a job of many images is gone", () => {
-    expect(bulkAiJobEnded([job("a", 40)], [])).toBe(true);
-  });
-
-  it("is false for an image's own one-image run, or a job still running", () => {
-    expect(bulkAiJobEnded([job("one", 1)], [])).toBe(false);
-    expect(bulkAiJobEnded([job("a", 40)], [job("a", 40)])).toBe(false);
-  });
-});

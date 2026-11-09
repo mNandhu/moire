@@ -125,8 +125,9 @@ async def character_rows(vocab: tag_categories.Vocab) -> list[dict]:
     """:func:`browse` rows (every source) of the tags that may be characters
     (:func:`character_names.may_be_characters`): the same counts and covers,
     without aggregating the rest of the library unless the Tags page already
-    has. Not cached: the caller caches what it builds from them."""
-    cached = tag_index.read_view("browse:all")
+    has (served stale behind an AI job like the page). Not cached: the caller
+    caches what it builds from them."""
+    cached = tag_index.peek("views", "browse:all")
     async with async_conn() as conn:
         maybe = await character_names.may_be_characters(conn, vocab)
         if cached is not None:

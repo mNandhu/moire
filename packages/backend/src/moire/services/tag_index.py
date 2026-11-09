@@ -41,7 +41,10 @@ rebuilt before answering, like a miss. Concurrent misses of one view share a
 single build, keyed by generation, so a request that follows a hard write never
 joins a build that began before it. An entry's age counts from when its build
 began reading, so a build that spans soft writes is not taken as newer than
-the data it read.
+the data it read; and a build made from other cached views (served stale, or
+read with :func:`peek`) is no newer than the oldest of them, so lag never
+stacks past the window. A view whose build failed is served stale for
+``_RETRY_AFTER_FAILURE_SECONDS`` before it is tried again.
 
 The generation lock is a plain ``threading.Lock`` rather than an ``asyncio``
 one: reprojection invalidates from scanner threads, and every critical section
@@ -51,6 +54,7 @@ here is a dict operation with no await inside it.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 import threading
 import time
@@ -72,12 +76,11 @@ _generation = 0
 # When the last soft write committed (0: none since start).
 _last_soft_write = 0.0
 # Each entry is (read_at, generation, value): read_at is when its build began
-# reading (when it was stored, for the read/store pairs below).
+# reading, or the oldest read_at of the cached views it was made from.
 _tags_cache: dict[str, tuple[float, int, list[dict]]] = {}
 _samples_cache: dict[tuple[str, int], tuple[float, int, list[dict]]] = {}
 # Values derived from every tag (the attire and facet maps): no TTL, only the
 # generation, since they are costly to build and change only with a write.
-# Each entry is (stored_at, generation, value).
 _derived_cache: dict[str, tuple[float, int, Any]] = {}
 
 
@@ -114,73 +117,6 @@ def current_generation() -> int:
         return _generation
 
 
-def _read(
-    cache: dict[Any, tuple[float, int, list[dict]]], key: Any, ttl: float
-) -> list[dict] | None:
-    now = time.time()
-    with _LOCK:
-        entry = cache.get(key)
-        if entry is None:
-            return None
-        stored_at, gen, value = entry
-        if not _fresh(stored_at, gen, now) or (now - stored_at) >= ttl:
-            return None
-        return value
-
-
-def _store(
-    cache: dict[Any, tuple[float, int, list[dict]]],
-    key: Any,
-    gen: int,
-    value: list[dict],
-) -> None:
-    """Store only if no write intervened since ``gen`` was captured."""
-    with _LOCK:
-        if gen != _generation:
-            return
-        cache[key] = (time.time(), gen, value)
-
-
-def read_view(key: str) -> list[dict] | None:
-    """A cached tag view (the tag lists, the Tags page rows, the character
-    list: one TTL, one invalidation), or None when stale."""
-    return _read(_tags_cache, key, _TAGS_TTL_SECONDS)
-
-
-def store_view(key: str, gen: int, value: list[dict]) -> None:
-    """Cache ``value`` under ``key`` unless a write intervened since ``gen``
-    (:func:`current_generation`, read before building it)."""
-    _store(_tags_cache, key, gen, value)
-
-
-def read_samples(key: tuple[str, int]) -> list[dict] | None:
-    """A cached mosaic (``(tag, per)``), on its own longer TTL, or None."""
-    return _read(_samples_cache, key, _SAMPLES_TTL_SECONDS)
-
-
-def store_samples(key: tuple[str, int], gen: int, value: list[dict]) -> None:
-    """Cache a mosaic unless a write intervened since ``gen``."""
-    _store(_samples_cache, key, gen, value)
-
-
-def read_derived(key: str) -> Any:
-    """A value stored with :func:`store_derived`, ``None`` once a write
-    intervened."""
-    with _LOCK:
-        entry = _derived_cache.get(key)
-        if entry is None or not _fresh(entry[0], entry[1], time.time()):
-            return None
-        return entry[2]
-
-
-def store_derived(key: str, gen: int, value: Any) -> None:
-    """Keep ``value`` until the next write, unless one already happened since
-    ``gen`` was captured."""
-    with _LOCK:
-        if gen == _generation:
-            _derived_cache[key] = (time.time(), gen, value)
-
-
 _CACHES: dict[str, dict] = {
     "views": _tags_cache,
     "samples": _samples_cache,
@@ -191,49 +127,84 @@ _TTLS: dict[str, float | None] = {
     "samples": _SAMPLES_TTL_SECONDS,
     "derived": None,
 }
+# How long a view whose build failed is served stale before another build is
+# tried, so a busy database isn't asked again on every request.
+_RETRY_AFTER_FAILURE_SECONDS = 10.0
+
 # Builds under way, by (cache, key, generation). Touched only on the event loop.
 _inflight: dict[tuple[str, Any, int], asyncio.Task] = {}
+# Builds someone awaits: their failure reaches that caller, so isn't logged.
+_awaited: set[asyncio.Task] = set()
+# When the last build of (cache, key) failed.
+_failed_at: dict[tuple[str, Any], float] = {}
+# Inside a build: the read_at of every cached input it took, so its own entry
+# is no newer than the oldest of them (a soft-stale input makes it stale too).
+_inputs: contextvars.ContextVar[list[float] | None] = contextvars.ContextVar(
+    "tag_index_inputs", default=None
+)
 
 
 def _lookup(
     name: str, key: Any, valid: Callable[[Any], bool] | None
-) -> tuple[str, Any]:
-    """("fresh" | "stale" | "miss", value). Stale: only soft writes have
-    passed it, and it is young enough to serve while it rebuilds."""
+) -> tuple[str, Any, float]:
+    """("fresh" | "stale" | "miss", value, read_at). Stale: only soft writes
+    have passed it, and it is young enough to serve while it rebuilds."""
     now = time.time()
     ttl = _TTLS[name]
     with _LOCK:
         entry = _CACHES[name].get(key)
         if entry is None:
-            return "miss", None
+            return "miss", None, 0.0
         read_at, gen, value = entry
         if gen != _generation or (valid is not None and not valid(value)):
-            return "miss", None
+            return "miss", None, 0.0
         age = now - read_at
         if _fresh(read_at, gen, now) and (ttl is None or age < ttl):
-            return "fresh", value
+            return "fresh", value, read_at
         if _last_soft_write > read_at and age < _STALE_MAX_SECONDS:
-            return "stale", value
-        return "miss", None
+            return "stale", value, read_at
+        return "miss", None, 0.0
 
 
-def _build(name: str, key: Any, build: Callable[[], Awaitable[T]]) -> asyncio.Task:
-    """The build of ``key`` for the current generation: the one under way, or
-    a new one, which stores its result unless a hard write lands meanwhile."""
-    with _LOCK:
-        gen = _generation
+def _note_input(read_at: float) -> None:
+    inputs = _inputs.get()
+    if inputs is not None:
+        inputs.append(read_at)
+
+
+def _build(
+    name: str,
+    key: Any,
+    build: Callable[[], Awaitable[T]],
+    gen: int | None,
+    *,
+    replace: bool = False,
+) -> asyncio.Task:
+    """The build of ``key`` for generation ``gen`` (default: the current one):
+    the one under way, or a new one (``replace``: always new), which stores
+    its result unless a hard write lands meanwhile."""
+    if gen is None:
+        with _LOCK:
+            gen = _generation
     slot = (name, key, gen)
     task = _inflight.get(slot)
-    if task is not None and task.get_loop() is asyncio.get_running_loop():
+    if (
+        not replace
+        and task is not None
+        and task.get_loop() is asyncio.get_running_loop()
+    ):
         return task
 
-    async def run() -> T:
-        read_at = time.time()
+    async def run() -> tuple[float, T]:
+        # Its own list (the task copied the caller's context, and with it any
+        # list of the build that started this one).
+        inputs = [time.time()]
+        _inputs.set(inputs)
         value = await build()
         with _LOCK:
             if gen == _generation:
-                _CACHES[name][key] = (read_at, gen, value)
-        return value
+                _CACHES[name][key] = (min(inputs), gen, value)
+        return min(inputs), value
 
     task = asyncio.get_running_loop().create_task(run())
     _inflight[slot] = task
@@ -241,13 +212,30 @@ def _build(name: str, key: Any, build: Callable[[], Awaitable[T]]) -> asyncio.Ta
     def done(t: asyncio.Task) -> None:
         if _inflight.get(slot) is t:
             del _inflight[slot]
-        # Retrieved here so a failed background build is logged, not left to
-        # "exception was never retrieved"; a waiter still gets it raised.
-        if not t.cancelled() and t.exception() is not None:
-            log.warning("tag view build %s failed", key, exc_info=t.exception())
+        awaited = t in _awaited
+        _awaited.discard(t)
+        if t.cancelled():
+            return
+        # Retrieved here either way, so a build nobody awaited is logged, not
+        # left to "exception was never retrieved".
+        exc = t.exception()
+        if exc is None:
+            _failed_at.pop((name, key), None)
+            return
+        _failed_at[(name, key)] = time.time()
+        if not awaited:
+            log.warning("tag view build %s failed", key, exc_info=exc)
 
     task.add_done_callback(done)
     return task
+
+
+async def _await(task: asyncio.Task) -> Any:
+    _awaited.add(task)
+    # Shielded: a request that goes away doesn't cancel a build others share.
+    read_at, value = await asyncio.shield(task)
+    _note_input(read_at)
+    return value
 
 
 async def cached(
@@ -256,20 +244,46 @@ async def cached(
     build: Callable[[], Awaitable[T]],
     *,
     valid: Callable[[T], bool] | None = None,
+    stale: bool = True,
+    gen: int | None = None,
 ) -> T:
     """``key`` from the ``name`` cache ("views", "samples" or "derived"),
     built with ``build`` when missing. Stale-while-revalidate behind soft
-    writes, one build per key at a time; see the module docstring. ``valid``
-    rejects a cached value built from inputs that have since changed (a new
-    tagger vocabulary). The caller must not mutate the value."""
-    state, value = _lookup(name, key, valid)
+    writes, one build per key at a time; see the module docstring.
+
+    ``valid`` rejects a value built from inputs that have since changed (a new
+    tagger vocabulary). ``stale=False``: a soft-stale value is rebuilt before
+    answering, for a count a poll follows. ``gen``: the generation the build's
+    inputs were read in, when the caller read some before calling (it is not
+    stored if a hard write came since). The caller must not mutate the value.
+
+    Called inside another build, a cached input it takes ages the outer
+    entry: a build is never fresher than what it was made from."""
+    state, value, read_at = _lookup(name, key, valid)
     if state == "fresh":
+        _note_input(read_at)
         return value
-    task = _build(name, key, build)
-    if state == "stale":
+    if state == "stale" and stale:
+        failed = _failed_at.get((name, key))
+        if failed is None or time.time() - failed >= _RETRY_AFTER_FAILURE_SECONDS:
+            _build(name, key, build, gen)
+        _note_input(read_at)
         return value
-    # Shielded: a request that goes away doesn't cancel a build others share.
-    return await asyncio.shield(task)
+    value = await _await(_build(name, key, build, gen))
+    if valid is not None and not valid(value):
+        # Joined a build begun from older inputs (before a vocabulary reload).
+        value = await _await(_build(name, key, build, gen, replace=True))
+    return value
+
+
+def peek(name: str, key: Any) -> Any:
+    """``key``'s cached value if one may be served (fresh or soft-stale), else
+    ``None``. Never builds: for a reader that can do with less without it."""
+    state, value, read_at = _lookup(name, key, None)
+    if state == "miss":
+        return None
+    _note_input(read_at)
+    return value
 
 
 async def cancel_builds() -> None:
@@ -292,3 +306,5 @@ def reset_for_tests() -> None:
         _samples_cache.clear()
         _derived_cache.clear()
         _inflight.clear()
+        _awaited.clear()
+        _failed_at.clear()

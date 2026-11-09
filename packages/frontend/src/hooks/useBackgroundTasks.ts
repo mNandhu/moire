@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorText } from "../lib/api";
 import { useToast } from "../components/Toasts";
 import {
-  bulkAiJobEnded,
   endedKinds,
   startedKinds,
   type BackgroundTask,
@@ -86,12 +85,10 @@ export function useRefreshOnFinish() {
       // now show, so the lists refetch (once, at the end: mid-job they would
       // pop in among older images and shift the grid). With the filter off
       // nothing moved, and an image's own one-image run shouldn't refetch
-      // every loaded gallery page either.
+      // every loaded gallery page either: the server counts the runs that
+      // may have (many images, or the hidden ones) as "ai_job_bulk".
       void qc.invalidateQueries({ queryKey: SENSITIVITY_KEY });
-      if (
-        qc.getQueryData<SensitivityState>(SENSITIVITY_KEY)?.max_level &&
-        bulkAiJobEnded(before.items, data.items)
-      )
+      if (qc.getQueryData<SensitivityState>(SENSITIVITY_KEY)?.max_level && ended.has("ai_job_bulk"))
         invalidateFeeds(qc);
     }
     if (ended.has("reproject")) {
