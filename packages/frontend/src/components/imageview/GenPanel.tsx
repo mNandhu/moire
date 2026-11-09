@@ -1,9 +1,10 @@
-import React, { useLayoutEffect, useRef, useState } from "react";
+import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Copy, Workflow } from "lucide-react";
 import { errorText } from "../../lib/api";
+import { cn } from "../../lib/cn";
 import { imageDocKey } from "../../lib/feedCache";
 import { galleryHref } from "../../lib/imageFilter";
 import { fitLines } from "../../lib/fitLines";
@@ -15,6 +16,8 @@ import { BatchStrip } from "./BatchStrip";
 import { stripOf } from "../../lib/batchStrip";
 import { TAB_ACTION, TabActions } from "./TabActions";
 import { Tooltip } from "../ui/Tooltip";
+import { promptSegments } from "../../lib/identityHighlight";
+import { identityFill, useHoveredIdentity, type HoveredIdentity } from "./CharacterHover";
 
 // A small key/value pill for the "Other metadata" row.
 function MetaChip({ label, value }: { label: string; value: React.ReactNode }) {
@@ -97,8 +100,19 @@ const TOGGLE_HEIGHT = 20;
  * it scroll, so a short panel isn't left empty below a clipped prompt nor a
  * full one pushed into scrolling; past that, "Show more". Otherwise 3 lines.
  */
-function PromptBlock({ text, fit = false }: { text: string; fit?: boolean }) {
+function PromptBlock({
+  text,
+  fit = false,
+  highlight,
+}: {
+  text: string;
+  fit?: boolean;
+  /** A pointed-at character's identity tags, to light up in their colour. */
+  highlight?: HoveredIdentity | null;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const segments = useMemo(() => (highlight ? promptSegments(text, highlight.names) : null), [text, highlight]);
+  const lit = !!segments?.some((s) => s.hit);
   const [lines, setLines] = useState<number | null>(fit ? null : 3);
   const panel = React.useContext(PanelFit);
   const block = useRef<HTMLDivElement>(null);
@@ -164,14 +178,31 @@ function PromptBlock({ text, fit = false }: { text: string; fit?: boolean }) {
     <div ref={block}>
       <p
         ref={para}
-        className="text-sm text-neutral-300 whitespace-pre-wrap break-words"
+        className={cn(
+          "text-sm whitespace-pre-wrap break-words transition-colors",
+          lit ? "text-neutral-500" : "text-neutral-300",
+        )}
         style={
           clamped
             ? { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden" }
             : undefined
         }
       >
-        {text}
+        {lit
+          ? segments!.map((s, i) =>
+              s.hit ? (
+                <mark
+                  key={i}
+                  className="rounded-sm text-white"
+                  style={{ backgroundColor: identityFill(highlight!.color), boxShadow: `0 0 0 1px ${highlight!.color}` }}
+                >
+                  {s.text}
+                </mark>
+              ) : (
+                s.text
+              ),
+            )
+          : text}
       </p>
       {(clamped || expanded) && (
         // A block, so it takes exactly TOGGLE_HEIGHT, not a taller line box.
@@ -226,6 +257,7 @@ export function GenPanel({
   genBatch?: number | null;
 }) {
   const { data: remix } = useRemix(imageId, !!gen?.source);
+  const identity = useHoveredIdentity();
   const [resolving, setResolving] = useState<"prompt" | "negative" | null>(null);
   const qc = useQueryClient();
   // The pin re-reads the workflow's images in the background: look again as it lands.
@@ -323,7 +355,7 @@ export function GenPanel({
             </div>
             <CopyButton text={gen.prompt} label="Prompt" />
           </div>
-          <PromptBlock text={gen.prompt} fit />
+          <PromptBlock text={gen.prompt} fit highlight={identity} />
         </div>
       )}
 

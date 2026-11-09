@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Loader2, Pin } from "lucide-react";
 import { cn } from "../lib/cn";
@@ -12,6 +12,7 @@ import { usePinCover } from "../hooks/usePinCover";
 import { SaveOutfitDialog } from "./generate/SaveOutfitDialog";
 import { OutfitMenu } from "./generate/OutfitMenu";
 import { WornOutfits } from "./generate/WornOutfits";
+import { useSetHoveredCharacter } from "./imageview/CharacterHover";
 
 /**
  * The characters in an image, the way a photo app shows the people in one:
@@ -36,6 +37,11 @@ export function ImageCharacters({
   const { push } = useToast();
   // Whose outfit the save dialog is making.
   const [saving, setSaving] = useState<CharacterEntry | null>(null);
+  // Pointing at a character lights up their identity tags in the prompt and
+  // the tag runs. Let go when the image changes: the avatar under the pointer
+  // goes without a mouseleave.
+  const setHovered = useSetHoveredCharacter();
+  useEffect(() => () => setHovered(null), [imageId, setHovered]);
   const here = useMemo(() => {
     const names = new Set((tags ?? []).map(tagName));
     return (characters ?? []).filter((c) => [c.tag, ...c.aliases].some((n) => names.has(n)));
@@ -82,7 +88,15 @@ export function ImageCharacters({
             const isAvatar = c.thumb_image_id === imageId;
             const busy = pinning === c.tag;
             return (
-              <div key={c.tag} className="group relative w-20 max-lg:w-auto max-lg:max-w-[11rem]">
+              <div
+                key={c.tag}
+                className="group relative w-20 max-lg:w-auto max-lg:max-w-[11rem]"
+                // A mouse or the keyboard: a tap has no leave to undo it.
+                onPointerEnter={(e) => e.pointerType === "mouse" && setHovered({ tag: c.tag, color: c.color })}
+                onPointerLeave={(e) => e.pointerType === "mouse" && setHovered(null)}
+                onFocus={(e) => e.target.matches(":focus-visible") && setHovered({ tag: c.tag, color: c.color })}
+                onBlur={() => setHovered(null)}
+              >
                 <Link
                   to={characterHref(c.tag)}
                   className="flex flex-col items-center gap-1.5 text-center max-lg:flex-row max-lg:gap-2 max-lg:text-left"

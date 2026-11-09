@@ -2,6 +2,8 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Tooltip } from "../ui/Tooltip";
 import { useTagMarks } from "../../hooks/useTagMarks";
+import { isIdentityTag } from "../../lib/identityHighlight";
+import { identityFill, useHoveredIdentity } from "./CharacterHover";
 import { characterHref, tagHref } from "../../lib/character";
 import { splitBoilerplate } from "../../lib/boilerplate";
 import { useBoilerplate, useTagFacets } from "../../lib/queries";
@@ -66,6 +68,9 @@ const FACET_ORDER = Object.keys(FACET_LABEL) as Facet[];
 
 // How far a tag outside the picked facet fades.
 const UNPICKED_OPACITY = 0.2;
+
+// How far the rest fade while a pointed-at character's identity tags light up.
+const NOT_IDENTITY_OPACITY = 0.35;
 
 /** A tag group's heading: a quiet caption with its count. With `onPick`,
  * a toggle that fades every other group's tags. */
@@ -137,6 +142,15 @@ export function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.
   // last tag goes, or the layout drops the key, nothing stays faded.
   const picked = chosen && shown.some((t) => facetOf(t.raw) === chosen) ? chosen : null;
   const fade = (raw: string) => (picked && facetOf(raw) !== picked ? UNPICKED_OPACITY : 1);
+  // A character pointed at in the panel: their identity tags light up, the
+  // rest fade (only when some are here, so nothing dims for nothing).
+  const identity = useHoveredIdentity();
+  const lit = identity && shown.some((t) => isIdentityTag(t.raw, identity.names)) ? identity : null;
+  const isLit = (raw: string) => !!lit && isIdentityTag(raw, lit.names);
+  // In the character's own colour, as the prompt's marks.
+  const litStyle = lit
+    ? ({ "--tag-tint": identityFill(lit.color), boxShadow: `inset 0 0 0 1px ${lit.color}` } as React.CSSProperties)
+    : undefined;
   // Facet groups when there is no prompt/AI split to show; one run if every
   // tag lands in the same one (facets still loading, or all "other").
   const byFacet = useMemo(() => {
@@ -168,10 +182,14 @@ export function TagFlow({ tags, trailing }: { tags: FlowTag[]; trailing?: React.
           <Link
             to={tagPageHref(t)}
             className={`rounded px-0.5 -mx-0.5 ${TAG_TINT_CLASS} hover:bg-raised hover:underline ${KIND_TEXT[t.kind]}`}
-            style={{
-              ...tagMarkStyle(t.raw, facetOf(t.raw), PANEL_GROUND, marks),
-              opacity: (unsure(t) ? UNSURE_OPACITY : 1) * fade(t.raw),
-            }}
+            style={
+              isLit(t.raw)
+                ? litStyle
+                : {
+                    ...tagMarkStyle(t.raw, facetOf(t.raw), PANEL_GROUND, marks),
+                    opacity: (unsure(t) ? UNSURE_OPACITY : 1) * fade(t.raw) * (lit ? NOT_IDENTITY_OPACITY : 1),
+                  }
+            }
           >
             {t.label}
             {t.weight != null && (

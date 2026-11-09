@@ -158,3 +158,37 @@ test.describe("at phone width", () => {
     await expect(page.getByRole("button", { name: "Raise details" })).toBeVisible();
   });
 });
+
+test("pointing at a character lights up their identity tags in the prompt and the tags", async ({ page, request }) => {
+  const furina = "furina_(genshin_impact)";
+  const made = await request.post(`${API}/tags/characters`, { data: { tag: furina, name: "Furina" } });
+  expect([200, 409]).toContain(made.status());
+  const recipe = `${API}/generate/recipes/${encodeURIComponent(furina)}`;
+  expect((await request.put(recipe, { data: { added: ["heterochromia"] } })).ok()).toBeTruthy();
+  try {
+    const { _id } = await imageByPath(request, "furina/furina_41.png");
+    await page.goto(viewerUrl(_id));
+    const avatar = page.getByRole("link", { name: /^furina/i });
+    const generation = page.getByRole("tabpanel");
+    await expect(generation.locator("mark", { hasText: "heterochromia" })).toHaveCount(0);
+    await avatar.hover();
+    await expect(generation.locator("mark", { hasText: "heterochromia" })).toBeVisible();
+    await expect(generation.locator("mark", { hasText: /^furina \\\(genshin impact\\\)$/ })).toBeVisible();
+    await page.mouse.move(0, 0);
+    await expect(generation.locator("mark")).toHaveCount(0);
+
+    await page.getByRole("tab", { name: /^Tags/ }).click();
+    const tags = page.getByRole("tabpanel");
+    const tiara = tags.getByRole("link", { name: "tiara", exact: true });
+    // An earlier spec may have AI-tagged it, so tiara may start dimmed.
+    const opacity = async () => Number(await tiara.evaluate((el) => getComputedStyle(el).opacity));
+    await expect(tiara).toBeVisible();
+    const before = await opacity();
+    await avatar.hover();
+    // The rest fade; an identity tag stays whole.
+    await expect.poll(opacity).toBeLessThan(before);
+    await expect(tags.getByRole("link", { name: "heterochromia", exact: true })).toHaveCSS("opacity", "1");
+  } finally {
+    await request.put(recipe, { data: { added: [] } });
+  }
+});

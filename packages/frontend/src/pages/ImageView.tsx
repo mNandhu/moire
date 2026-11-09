@@ -39,6 +39,7 @@ import { ScorePicker } from "../components/ui/ScoreMark";
 import { GenPanel, PanelFit } from "../components/imageview/GenPanel";
 import { RatingEditor } from "../components/imageview/RatingEditor";
 import { DetailTabs } from "../components/imageview/DetailTabs";
+import { CharacterHoverProvider } from "../components/imageview/CharacterHover";
 import { TagsSection } from "../components/imageview/TagsSection";
 
 // Round controls floating over the image stage (back, details, prev/next).
@@ -564,68 +565,70 @@ export default function ImageView() {
               className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable]"
             >
               <PanelFit.Provider value={panelFit}>
-                <div ref={setPanelContent}>
-                  <div className="divide-y divide-line border-b border-line">
-                    {/* Who is in it, first, like a photo app's people */}
-                    <ImageCharacters imageId={data._id} tags={data.tags} quarantined={!!data.quarantined} />
+                <CharacterHoverProvider>
+                  <div ref={setPanelContent}>
+                    <div className="divide-y divide-line border-b border-line">
+                      {/* Who is in it, first, like a photo app's people */}
+                      <ImageCharacters imageId={data._id} tags={data.tags} quarantined={!!data.quarantined} />
 
-                    {/* Curation in one row: rating, score, quarantine. Its
-                        controls say what they are, so the row needs no labels. */}
-                    <div className="flex items-center justify-between gap-2 px-4 py-2.5">
-                      <RatingEditor
-                        id={data._id}
-                        docId={id!}
-                        value={rating}
-                        onDone={refreshImage}
-                      />
-                      <div className="flex items-center gap-1">
-                        <ScorePicker value={score} onSet={applyScore} />
-                        <Tooltip content={quarantined ? "Restore (X)" : "Quarantine (X)"} bubble className="ml-1">
-                          <button
-                            type="button"
-                            onClick={() => void toggleQuarantine()}
-                            aria-pressed={quarantined}
-                            aria-label={quarantined ? "Restore" : "Quarantine"}
-                            className={`p-2 rounded-lg transition-colors ${
-                              quarantined
-                                ? "bg-amber-900/40 text-amber-200 hover:bg-amber-900/60"
-                                : "text-muted hover:text-white hover:bg-raised"
-                            }`}
-                          >
-                            <Ban size={16} />
-                          </button>
-                        </Tooltip>
+                      {/* Curation in one row: rating, score, quarantine. Its
+                          controls say what they are, so the row needs no labels. */}
+                      <div className="flex items-center justify-between gap-2 px-4 py-2.5">
+                        <RatingEditor
+                          id={data._id}
+                          docId={id!}
+                          value={rating}
+                          onDone={refreshImage}
+                        />
+                        <div className="flex items-center gap-1">
+                          <ScorePicker value={score} onSet={applyScore} />
+                          <Tooltip content={quarantined ? "Restore (X)" : "Quarantine (X)"} bubble className="ml-1">
+                            <button
+                              type="button"
+                              onClick={() => void toggleQuarantine()}
+                              aria-pressed={quarantined}
+                              aria-label={quarantined ? "Restore" : "Quarantine"}
+                              className={`p-2 rounded-lg transition-colors ${
+                                quarantined
+                                  ? "bg-amber-900/40 text-amber-200 hover:bg-amber-900/60"
+                                  : "text-muted hover:text-white hover:bg-raised"
+                              }`}
+                            >
+                              <Ban size={16} />
+                            </button>
+                          </Tooltip>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <DetailTabs
-                    hasGen={!!data.gen?.source}
-                    tagCount={shownTagCount}
-                    generation={
-                      <GenPanel
-                        imageId={data._id}
-                        gen={data.gen}
-                        width={data.width ?? undefined}
-                        height={data.height ?? undefined}
-                        onCopyAll={() => void copyWorkflow()}
-                        batchScope={serializeFiltersForPeek(filters)}
-                        thumbUrl={data.thumb_url}
-                        genBatch={data.gen_batch}
-                      />
-                    }
-                    tags={
-                      // Keyed: an AI job belongs to the image it was started on.
-                      <TagsSection
-                        key={data._id}
-                        id={data._id}
-                        onCopyAll={() => void copyAllTags()}
-                        onChange={onTagsChanged}
-                        tags={flowTags}
-                      />
-                    }
-                  />
-                </div>
+                    <DetailTabs
+                      hasGen={!!data.gen?.source}
+                      tagCount={shownTagCount}
+                      generation={
+                        <GenPanel
+                          imageId={data._id}
+                          gen={data.gen}
+                          width={data.width ?? undefined}
+                          height={data.height ?? undefined}
+                          onCopyAll={() => void copyWorkflow()}
+                          batchScope={serializeFiltersForPeek(filters)}
+                          thumbUrl={data.thumb_url}
+                          genBatch={data.gen_batch}
+                        />
+                      }
+                      tags={
+                        // Keyed: an AI job belongs to the image it was started on.
+                        <TagsSection
+                          key={data._id}
+                          id={data._id}
+                          onCopyAll={() => void copyAllTags()}
+                          onChange={onTagsChanged}
+                          tags={flowTags}
+                        />
+                      }
+                    />
+                  </div>
+                </CharacterHoverProvider>
               </PanelFit.Provider>
             </div>
           </>
