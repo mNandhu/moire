@@ -325,6 +325,31 @@ def _warn_if_both_builds() -> None:
     )
 
 
+_CUDART_NAMES = ("libcudart.so.12", "cudart64_12.dll")
+
+
+def _init_cuda_context() -> None:
+    """Create the GPU's CUDA context up front with a ctypes call.
+
+    onnxruntime builds the session with the GIL held the whole time, so the
+    event loop freezes while it runs even from a worker thread. Making the
+    CUDA context is a large part of that on the first load in a process,
+    and ctypes releases the GIL around foreign calls, so doing it here first
+    takes that part out of the freeze. onnxruntime then finds the device's
+    context already made and reuses it. Best effort: if the runtime library
+    can't be found, the session makes the context itself as before."""
+    import ctypes
+
+    for name in _CUDART_NAMES:
+        try:
+            cudart = ctypes.CDLL(name)
+            # cudaFree(NULL) is the usual way to force context creation.
+            cudart.cudaFree(None)
+            return
+        except (OSError, AttributeError):
+            continue
+
+
 def _make_session(ort, onnx_path: str):
     """An inference session on the GPU when the optional ``gpu`` dependency
     group is installed (onnxruntime-gpu plus the CUDA 12 pip wheels), else on
@@ -338,6 +363,7 @@ def _make_session(ort, onnx_path: str):
         # falls back to the CPU.
         if hasattr(ort, "preload_dlls"):
             ort.preload_dlls()
+        _init_cuda_context()
         providers.insert(0, "CUDAExecutionProvider")
     # ORT's CPU worker threads spin-wait between ops by default: several times
     # the CPU for no faster tagging, and the spinning threads starve the API's

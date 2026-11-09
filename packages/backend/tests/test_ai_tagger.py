@@ -258,3 +258,56 @@ def test_download_state_progress_sums_sized_files_once():
     assert st.progress() == (100, 400)
     out = st.as_dict()
     assert (out["done"], out["total"]) == (100, 400)
+
+
+class _FakeOrt:
+    """Just enough of onnxruntime for _make_session."""
+
+    def __init__(self, providers):
+        self._providers = providers
+        self.made_with = None
+
+    def get_available_providers(self):
+        return self._providers
+
+    def preload_dlls(self):
+        pass
+
+    class SessionOptions:
+        def add_session_config_entry(self, key, value):
+            pass
+
+    def InferenceSession(self, path, *, sess_options, providers):
+        self.made_with = providers
+        ort = self
+
+        class _Session:
+            def get_providers(self):
+                return ort.made_with
+
+        return _Session()
+
+
+def test_make_session_inits_cuda_context_only_on_gpu(monkeypatch):
+    import ctypes
+
+    from moire.services import ai_tagger
+
+    opened: list[str] = []
+
+    def fake_cdll(name):
+        opened.append(name)
+        raise OSError(name)
+
+    monkeypatch.setattr(ctypes, "CDLL", fake_cdll)
+
+    # CPU build: the CUDA runtime is never touched.
+    cpu = _FakeOrt(["CPUExecutionProvider"])
+    ai_tagger._make_session(cpu, "m.onnx")
+    assert opened == [] and cpu.made_with == ["CPUExecutionProvider"]
+
+    # GPU build whose CUDA runtime can't be opened: still makes the session.
+    gpu = _FakeOrt(["CUDAExecutionProvider", "CPUExecutionProvider"])
+    ai_tagger._make_session(gpu, "m.onnx")
+    assert opened == list(ai_tagger._CUDART_NAMES)
+    assert gpu.made_with == ["CUDAExecutionProvider", "CPUExecutionProvider"]
