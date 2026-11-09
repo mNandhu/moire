@@ -187,6 +187,10 @@ class AIJobManager:
         self._auto_skip: set[str] = set()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._auto_task: asyncio.Task | None = None
+        # Cancel on an auto-tag job pauses auto-tag until the setting is
+        # switched on again (or the process restarts): otherwise the next
+        # scan or new file would queue the whole backlog straight back.
+        self._auto_paused = False
 
     def start(self) -> None:
         self._loop = asyncio.get_running_loop()
@@ -261,7 +265,7 @@ class AIJobManager:
                 # work, so it answers to the scope too (the hidden-images
                 # banner follows it).
                 for other in self.active_jobs():
-                    if other.scope is None and not held.isdisjoint(other.ids):
+                    if other.scope in (None, "auto") and not held.isdisjoint(other.ids):
                         other.scope = scope
 
         self._prune()
@@ -316,7 +320,9 @@ class AIJobManager:
         for running scans: the one that ends nudges again."""
         from . import scanner  # scanner nudges this module: import late
 
-        if not (await get_ai_settings()).get("auto_tag") or scanner.any_scanning():
+        if self._auto_paused or scanner.any_scanning():
+            return None
+        if not (await get_ai_settings()).get("auto_tag"):
             return None
         stmt = (
             sa.select(t.images.c._id)
@@ -332,6 +338,10 @@ class AIJobManager:
         if not ids:
             return None
         return await self.enqueue(ids=ids, scope="auto")
+
+    def resume_auto(self) -> None:
+        """Auto-tag was switched on: a pause from a cancelled run ends."""
+        self._auto_paused = False
 
     def nudge(self) -> None:
         """Run :meth:`auto_tag` shortly: new images may have arrived. Safe
@@ -362,6 +372,8 @@ class AIJobManager:
         job = self._jobs.get(job_id)
         if not job:
             return False
+        if job.scope == "auto" and job.status in _ACTIVE:
+            self._auto_paused = True
 
         # If queued, remove from queue immediately.
         if job.status == "queued":

@@ -73,6 +73,7 @@ Skipping at any point lands in the gallery, with whatever was done so far.
 - [x] Turning it on queues **every** untagged image: `enqueue_untagged` takes no limit by default. Explicit-id jobs (an image's own re-tag) are `urgent` and run between the images of a long run, so they don't wait behind the backlog.
 - [x] Auto-tag new images: a scan ending or a watcher ingest calls `AIJobManager.nudge()`; a few seconds later `auto_tag()` queues the untagged images no job holds (scope `auto`), once no scan is running.
 - [x] Survive restarts: startup nudges auto-tag, which queues the untagged images again.
+- [x] Cancel on an auto-tag run pauses auto-tag until the switch is turned on again or the process restarts (`AIJobManager._auto_paused`).
 - [ ] Don't loop on images the tagger can't tag (unreadable, or no tags above the thresholds). Done for one process: auto-tag skips the ids in `AIJobManager._auto_skip`. Still open: a stored "tagged, nothing found" or failed state, so a restart (or a run by hand) doesn't try them again.
 - [x] Order: newest first by file `mtime` (what the user looks at first).
 - [x] Onboarding step UI: switch (off by default), CPU vs GPU time for this library, GPU callout.

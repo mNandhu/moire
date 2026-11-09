@@ -458,3 +458,21 @@ async def test_an_image_the_tagger_finds_nothing_in_is_left_to_auto_tag(monkeypa
     monkeypatch.setattr(mgr, "_tag_one", nothing_for_empty)
     await _run(mgr, ["ok", "empty", "bad"])
     assert mgr._auto_skip == {"empty", "bad"}
+
+
+async def test_tag_them_takes_over_an_auto_tag_job_holding_its_images():
+    mgr = AIJobManager()  # no worker: the auto job stays queued
+    auto = await mgr.enqueue(ids=["a", "b"], scope="auto")
+    again = await mgr.enqueue(ids=["a"], scope="unknown")
+    assert again.total == 0 and again.skipped == 1
+    # The hidden-images banner follows the job doing its work.
+    assert auto.scope == "unknown"
+
+
+async def test_cancelling_an_auto_tag_run_pauses_auto_tag(monkeypatch):
+    mgr = AIJobManager()
+    auto = await mgr.enqueue(ids=["a"], scope="auto")
+    await mgr.cancel(auto.id)
+    assert await mgr.auto_tag() is None  # paused: no settings read needed
+    mgr.resume_auto()
+    assert mgr._auto_paused is False

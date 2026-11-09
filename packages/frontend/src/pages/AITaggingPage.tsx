@@ -223,8 +223,19 @@ function TaggingPanel() {
                   / {cov.total.toLocaleString()}
                 </span>
               </div>
-              <div className="text-sm text-muted tabular-nums">
-                {coveragePct(cov.ai_tagged, cov.total)}% AI-tagged
+              <div className="text-right text-sm text-muted tabular-nums">
+                <div>{coveragePct(cov.ai_tagged, cov.total)}% AI-tagged</div>
+                {remaining > 0 && (
+                  <div className="text-xs text-faint">
+                    {remaining.toLocaleString()} left
+                    {taggingSeconds(remaining, est) != null && (
+                      <>
+                        {" · "}
+                        <Estimate images={remaining} est={est} />
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <CoverageBar tagged={cov.ai_tagged} total={cov.total} />
