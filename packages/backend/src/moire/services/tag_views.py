@@ -33,26 +33,22 @@ from . import (
     tag_rename,
 )
 
-_maps_lock = asyncio.Lock()
-
 
 async def library_bases() -> list[str]:
     """Every tag name the library's images carry, prefix dropped. Kept until
     the next tag write."""
-    gen = tag_index.current_generation()
-    cached = tag_index.read_derived("library-bases")
-    if cached is not None:
-        return cached
+    return await tag_index.cached("derived", "library-bases", _library_bases)
+
+
+async def _library_bases() -> list[str]:
     async with async_conn() as conn:
-        bases = [
+        return [
             b
             for b in (
                 await conn.execute(sa.select(t.image_tags.c.base).distinct())
             ).scalars()
             if b
         ]
-    tag_index.store_derived("library-bases", gen, bases)
-    return bases
 
 
 async def tag_maps() -> tuple[dict[str, str], dict[str, str], dict]:
@@ -61,25 +57,26 @@ async def tag_maps() -> tuple[dict[str, str], dict[str, str], dict]:
     included). Classifying ~10k names takes tens of milliseconds, so they are
     built together in a thread and kept until a tag write or a new
     vocabulary."""
-    async with _maps_lock:
-        gen = tag_index.current_generation()
-        vocab = await tag_categories.load()
-        cached = tag_index.read_derived("tag-maps")
-        if cached is not None and cached[0] is vocab.general:
-            return cached[1], cached[2], cached[3]
+    vocab = await tag_categories.load()
+
+    async def build():
         library = await library_bases()
         names = list(dict.fromkeys([*vocab.general, *library]))
-        attire_map, facet_map, groups = await asyncio.to_thread(
-            lambda: (
-                attire.attire_tags(names),
-                attire.facets(names),
-                attire.library_groups(library),
-            )
+        return (
+            vocab.general,
+            *await asyncio.to_thread(
+                lambda: (
+                    attire.attire_tags(names),
+                    attire.facets(names),
+                    attire.library_groups(library),
+                )
+            ),
         )
-        tag_index.store_derived(
-            "tag-maps", gen, (vocab.general, attire_map, facet_map, groups)
-        )
-        return attire_map, facet_map, groups
+
+    _, attire_map, facet_map, groups = await tag_index.cached(
+        "derived", "tag-maps", build, valid=lambda v: v[0] is vocab.general
+    )
+    return attire_map, facet_map, groups
 
 
 async def library_aliases() -> dict[str, list[str]]:
@@ -88,18 +85,21 @@ async def library_aliases() -> dict[str, list[str]]:
     (``anime_screenshot``). An alias the library also carries as a tag of
     its own is left out: it suggests itself. Never starts the list's
     download. Kept until a tag write or a new list."""
-    gen = tag_index.current_generation()
     tags = await danbooru_tags.load_present()
-    cached = tag_index.read_derived("library-aliases")
-    if cached is not None and cached[0] is tags:
-        return cached[1]
-    library = frozenset(await library_bases())
-    out: dict[str, list[str]] = {}
-    for alias, tag in tags.aliases.items():
-        if tag in library and alias not in library and alias != tag:
-            out.setdefault(tag, []).append(alias)
-    tag_index.store_derived("library-aliases", gen, (tags, out))
-    return out
+
+    async def build():
+        library = frozenset(await library_bases())
+        out: dict[str, list[str]] = {}
+        for alias, tag in tags.aliases.items():
+            if tag in library and alias not in library and alias != tag:
+                out.setdefault(tag, []).append(alias)
+        return tags, out
+
+    return (
+        await tag_index.cached(
+            "derived", "library-aliases", build, valid=lambda v: v[0] is tags
+        )
+    )[1]
 
 
 async def place(names: list[str]) -> dict:
@@ -123,18 +123,24 @@ async def board_offers() -> dict[str, list[list]]:
     """``section -> [[tag, posts], ...]``: what each prompt-board section can
     suggest, the library's tags among them. Kept until a tag write or until
     Danbooru's list or the vocabulary changes."""
-    gen = tag_index.current_generation()
     tags = await danbooru_tags.load()
     vocab = await tag_categories.load()
-    cached = tag_index.read_derived("board-offers")
-    if cached is not None and cached[0] is tags and cached[1] is vocab:
-        return cached[2]
-    bases = await library_bases()
-    out = await asyncio.to_thread(
-        prompt_board.offers, vocab.general, tags, vocab.names, bases
-    )
-    tag_index.store_derived("board-offers", gen, (tags, vocab, out))
-    return out
+
+    async def build():
+        bases = await library_bases()
+        out = await asyncio.to_thread(
+            prompt_board.offers, vocab.general, tags, vocab.names, bases
+        )
+        return tags, vocab, out
+
+    return (
+        await tag_index.cached(
+            "derived",
+            "board-offers",
+            build,
+            valid=lambda v: v[0] is tags and v[1] is vocab,
+        )
+    )[2]
 
 
 # --- What the routes serve: the views above, without hidden tag names --------

@@ -31,6 +31,18 @@ does not bump the generation, so a build that spans it is still stored, and a
 cached view stays readable for up to ``_SOFT_STALE_SECONDS`` past a soft write.
 The writer owns ending it: a hard :func:`invalidate` when the bulk run ends.
 
+Serving stale, building once
+----------------------------
+Views read through :func:`cached` go further. A view that soft writes have
+made stale (past the window, no hard write since) is still served at once,
+and one background build replaces it: a page open during a job answers from
+memory instead of waiting seconds per view. Past ``_STALE_MAX_SECONDS`` it is
+rebuilt before answering, like a miss. Concurrent misses of one view share a
+single build, keyed by generation, so a request that follows a hard write never
+joins a build that began before it. An entry's age counts from when its build
+began reading, so a build that spans soft writes is not taken as newer than
+the data it read.
+
 The generation lock is a plain ``threading.Lock`` rather than an ``asyncio``
 one: reprojection invalidates from scanner threads, and every critical section
 here is a dict operation with no await inside it.
@@ -38,20 +50,29 @@ here is a dict operation with no await inside it.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import threading
 import time
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import Any, TypeVar
+
+log = logging.getLogger(__name__)
+T = TypeVar("T")
 
 _TAGS_TTL_SECONDS = 30.0
 _SAMPLES_TTL_SECONDS = 60.0
 # How stale a view may get behind soft writes (a bulk job), see the docstring.
 _SOFT_STALE_SECONDS = 15.0
+# How old a soft-stale view may be and still be served while it rebuilds.
+_STALE_MAX_SECONDS = 120.0
 
 _LOCK = threading.Lock()
 _generation = 0
 # When the last soft write committed (0: none since start).
 _last_soft_write = 0.0
-# Each entry is (stored_at, generation, value).
+# Each entry is (read_at, generation, value): read_at is when its build began
+# reading (when it was stored, for the read/store pairs below).
 _tags_cache: dict[str, tuple[float, int, list[dict]]] = {}
 _samples_cache: dict[tuple[str, int], tuple[float, int, list[dict]]] = {}
 # Values derived from every tag (the attire and facet maps): no TTL, only the
@@ -160,6 +181,107 @@ def store_derived(key: str, gen: int, value: Any) -> None:
             _derived_cache[key] = (time.time(), gen, value)
 
 
+_CACHES: dict[str, dict] = {
+    "views": _tags_cache,
+    "samples": _samples_cache,
+    "derived": _derived_cache,
+}
+_TTLS: dict[str, float | None] = {
+    "views": _TAGS_TTL_SECONDS,
+    "samples": _SAMPLES_TTL_SECONDS,
+    "derived": None,
+}
+# Builds under way, by (cache, key, generation). Touched only on the event loop.
+_inflight: dict[tuple[str, Any, int], asyncio.Task] = {}
+
+
+def _lookup(
+    name: str, key: Any, valid: Callable[[Any], bool] | None
+) -> tuple[str, Any]:
+    """("fresh" | "stale" | "miss", value). Stale: only soft writes have
+    passed it, and it is young enough to serve while it rebuilds."""
+    now = time.time()
+    ttl = _TTLS[name]
+    with _LOCK:
+        entry = _CACHES[name].get(key)
+        if entry is None:
+            return "miss", None
+        read_at, gen, value = entry
+        if gen != _generation or (valid is not None and not valid(value)):
+            return "miss", None
+        age = now - read_at
+        if _fresh(read_at, gen, now) and (ttl is None or age < ttl):
+            return "fresh", value
+        if _last_soft_write > read_at and age < _STALE_MAX_SECONDS:
+            return "stale", value
+        return "miss", None
+
+
+def _build(name: str, key: Any, build: Callable[[], Awaitable[T]]) -> asyncio.Task:
+    """The build of ``key`` for the current generation: the one under way, or
+    a new one, which stores its result unless a hard write lands meanwhile."""
+    with _LOCK:
+        gen = _generation
+    slot = (name, key, gen)
+    task = _inflight.get(slot)
+    if task is not None and task.get_loop() is asyncio.get_running_loop():
+        return task
+
+    async def run() -> T:
+        read_at = time.time()
+        value = await build()
+        with _LOCK:
+            if gen == _generation:
+                _CACHES[name][key] = (read_at, gen, value)
+        return value
+
+    task = asyncio.get_running_loop().create_task(run())
+    _inflight[slot] = task
+
+    def done(t: asyncio.Task) -> None:
+        if _inflight.get(slot) is t:
+            del _inflight[slot]
+        # Retrieved here so a failed background build is logged, not left to
+        # "exception was never retrieved"; a waiter still gets it raised.
+        if not t.cancelled() and t.exception() is not None:
+            log.warning("tag view build %s failed", key, exc_info=t.exception())
+
+    task.add_done_callback(done)
+    return task
+
+
+async def cached(
+    name: str,
+    key: Any,
+    build: Callable[[], Awaitable[T]],
+    *,
+    valid: Callable[[T], bool] | None = None,
+) -> T:
+    """``key`` from the ``name`` cache ("views", "samples" or "derived"),
+    built with ``build`` when missing. Stale-while-revalidate behind soft
+    writes, one build per key at a time; see the module docstring. ``valid``
+    rejects a cached value built from inputs that have since changed (a new
+    tagger vocabulary). The caller must not mutate the value."""
+    state, value = _lookup(name, key, valid)
+    if state == "fresh":
+        return value
+    task = _build(name, key, build)
+    if state == "stale":
+        return value
+    # Shielded: a request that goes away doesn't cancel a build others share.
+    return await asyncio.shield(task)
+
+
+async def cancel_builds() -> None:
+    """Stop the builds under way (shutdown: before the database closes)."""
+    loop = asyncio.get_running_loop()
+    tasks = [t for t in _inflight.values() if t.get_loop() is loop]
+    _inflight.clear()
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+
 def reset_for_tests() -> None:
     """Drop all cached state and the generation counter."""
     global _generation, _last_soft_write
@@ -169,3 +291,4 @@ def reset_for_tests() -> None:
         _tags_cache.clear()
         _samples_cache.clear()
         _derived_cache.clear()
+        _inflight.clear()

@@ -13,6 +13,7 @@ from . import (
     library_nesting,
     library_watch,
     sensitivity_filter,
+    tag_index,
     tag_migrations,
     tag_sensitivity,
 )
@@ -100,3 +101,5 @@ async def stop() -> None:
     await get_generation_manager().stop()
     await get_ai_job_manager().stop()
     await get_tagger_manager().stop()
+    # Tag view builds a request left running in the background.
+    await tag_index.cancel_builds()

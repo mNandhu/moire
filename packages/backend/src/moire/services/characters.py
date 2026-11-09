@@ -309,11 +309,7 @@ async def listing() -> list[dict]:
     view shows as the people in a picture. Cached with the tag lists; the
     avatar crops are read fresh, since the face detector fills them in the
     background and can be switched off."""
-    rows = tag_index.read_view("characters")
-    if rows is None:
-        gen = tag_index.current_generation()
-        rows = await _listing()
-        tag_index.store_view("characters", gen, rows)
+    rows = await tag_index.cached("views", "characters", _listing)
     avatars = await _avatars([r["thumb_image_id"] for r in rows])
     # Fresh dicts and lists per call: the cached rows are shared.
     return [

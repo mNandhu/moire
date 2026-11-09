@@ -44,11 +44,20 @@ async def list_tags(
     shows count, and tags it hides are left out (so a tag whose images are
     all hidden goes too)."""
     cache_key = f"m{int(include_manual)}:p{int(include_prompt)}:s{int(merge_sources)}"
-    cached = tag_index.read_view(cache_key)
-    if cached is not None:
-        return cached
+    return await tag_index.cached(
+        "views",
+        cache_key,
+        lambda: _list_tags(
+            include_manual=include_manual,
+            include_prompt=include_prompt,
+            merge_sources=merge_sources,
+        ),
+    )
 
-    gen = tag_index.current_generation()
+
+async def _list_tags(
+    *, include_manual: bool, include_prompt: bool, merge_sources: bool
+) -> list[dict]:
     filtering = sensitivity_filter.max_level() is not None
 
     # Merge mode (gallery search): collapse the three sources of each tag into
@@ -72,7 +81,6 @@ async def list_tags(
             for r in rows
             if r.base and sensitivity_filter.allowed(r.base)
         ]
-        tag_index.store_view(cache_key, gen, merged)
         return merged
 
     # AI tags are primary (no prefix). Manual tags are `manual:<tag>`, prompt-
@@ -94,7 +102,6 @@ async def list_tags(
         for r in rows
         if sensitivity_filter.allowed(r.tag)
     ]
-    tag_index.store_view(cache_key, gen, result)
     return result
 
 
@@ -103,17 +110,15 @@ async def browse(source: str = "all") -> list[dict]:
     merged (``source`` keeps only one): distinct images, character or general,
     when it was last used (newest file time) and its cover (the image its
     mosaic leads with)."""
-    cache_key = f"browse:{source}"
-    cached = tag_index.read_view(cache_key)
-    if cached is not None:
-        return cached
 
-    gen = tag_index.current_generation()
-    # Only the images the filter shows count (``_browse``), and the tags it
-    # hides are left out.
-    result = [r for r in await _browse(source) if sensitivity_filter.allowed(r["tag"])]
-    tag_index.store_view(cache_key, gen, result)
-    return result
+    async def build() -> list[dict]:
+        # Only the images the filter shows count (``_browse``), and the tags it
+        # hides are left out.
+        return [
+            r for r in await _browse(source) if sensitivity_filter.allowed(r["tag"])
+        ]
+
+    return await tag_index.cached("views", f"browse:{source}", build)
 
 
 async def character_rows(vocab: tag_categories.Vocab) -> list[dict]:

@@ -226,13 +226,10 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
     look alike), then the batches again. Rows
     carry ``_id``/``width``/``height``/``blurhash``; the route decorates them
     with the thumb URL."""
-    cache_key = (tag, per)
-    cached = tag_index.read_samples(cache_key)
-    if cached is not None:
-        return cached
+    return await tag_index.cached("samples", (tag, per), lambda: _samples(tag, per))
 
-    gen = tag_index.current_generation()
 
+async def _samples(tag: str, per: int) -> list[dict]:
     cols = (
         t.images.c._id,
         t.images.c.gen_group_id,
@@ -327,7 +324,6 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
         }
         for d in out
     ]
-    tag_index.store_samples(cache_key, gen, samples)
     return samples
 
 

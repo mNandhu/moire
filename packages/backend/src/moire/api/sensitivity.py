@@ -24,10 +24,10 @@ async def _counts() -> dict:
     filter hides until AI tagging gives it one. Every page header asks, so
     it is kept in the tag index's derived cache, which tag writes, ratings,
     quarantine and level edits clear."""
-    gen = tag_index.current_generation()
-    cached = tag_index.read_derived("sensitivity-counts")
-    if cached is not None:
-        return cached
+    return await tag_index.cached("derived", "sensitivity-counts", _count)
+
+
+async def _count() -> dict:
     level = image_visibility.image_level().label("level")
     async with async_conn() as conn:
         rows = (
@@ -45,9 +45,7 @@ async def _counts() -> dict:
             unknown += n
         else:
             by_level[tag_sensitivity.LEVELS[lv]] += n
-    counts = {"unknown": unknown, "by_level": by_level}
-    tag_index.store_derived("sensitivity-counts", gen, counts)
-    return counts
+    return {"unknown": unknown, "by_level": by_level}
 
 
 @router.get("")

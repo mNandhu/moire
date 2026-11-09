@@ -8,6 +8,8 @@ silently skipped it.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from moire.services import image_tags, tag_covers, tag_index
@@ -77,6 +79,142 @@ def test_derived_values_follow_soft_writes_too(monkeypatch):
     assert tag_index.read_derived("d") == 42
     monkeypatch.setattr(tag_index, "_SOFT_STALE_SECONDS", 0.0)
     assert tag_index.read_derived("d") is None
+
+
+# --- cached(): stale while it rebuilds, one build at a time --------------------
+
+
+class _Builder:
+    """A build that counts its calls and, with ``gate``, waits to finish."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.gate: asyncio.Event | None = None
+
+    async def __call__(self) -> list[dict]:
+        self.calls += 1
+        n = self.calls
+        if self.gate is not None:
+            await self.gate.wait()
+        return [{"_id": f"v{n}"}]
+
+
+async def _settle() -> None:
+    for _ in range(5):
+        await asyncio.sleep(0)
+
+
+async def test_cached_builds_once_then_serves_from_memory():
+    build = _Builder()
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    assert build.calls == 1
+
+
+async def test_concurrent_misses_share_one_build():
+    build = _Builder()
+    build.gate = asyncio.Event()
+    waiting = [
+        asyncio.create_task(tag_index.cached("views", "k", build)) for _ in range(3)
+    ]
+    await _settle()
+    build.gate.set()
+    assert await asyncio.gather(*waiting) == [[{"_id": "v1"}]] * 3
+    assert build.calls == 1
+
+
+async def test_soft_stale_view_is_served_while_one_build_replaces_it(monkeypatch):
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    tag_index.invalidate_soft()
+    monkeypatch.setattr(tag_index, "_SOFT_STALE_SECONDS", 0.0)
+    build.gate = asyncio.Event()
+    # Answered at once with the old view, twice, with one rebuild started.
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    build.gate.set()
+    await _settle()
+    assert build.calls == 2
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+
+
+async def test_a_view_too_old_is_rebuilt_before_answering(monkeypatch):
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    tag_index.invalidate_soft()
+    monkeypatch.setattr(tag_index, "_SOFT_STALE_SECONDS", 0.0)
+    monkeypatch.setattr(tag_index, "_STALE_MAX_SECONDS", 0.0)
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+
+
+async def test_a_hard_write_is_never_answered_from_older_data():
+    """A request after a hard write must not get the view, nor join a build,
+    from before it."""
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    build.gate = asyncio.Event()
+    tag_index.invalidate_soft()
+    tag_index.invalidate()
+    early = asyncio.create_task(tag_index.cached("views", "k", build))
+    await _settle()
+    tag_index.invalidate()  # lands while the build above runs
+    late = asyncio.create_task(tag_index.cached("views", "k", build))
+    await _settle()
+    build.gate.set()
+    assert await early == [{"_id": "v2"}]
+    assert await late == [{"_id": "v3"}]
+
+
+async def test_a_build_spanning_soft_writes_ages_from_when_it_began(monkeypatch):
+    """Its age counts from its read, not its store: a write it may have
+    missed still makes it stale once the window passes."""
+    build = _Builder()
+    build.gate = asyncio.Event()
+    first = asyncio.create_task(tag_index.cached("views", "k", build))
+    await _settle()
+    tag_index.invalidate_soft()  # lands mid-build
+    build.gate.set()
+    assert await first == [{"_id": "v1"}]
+    monkeypatch.setattr(tag_index, "_SOFT_STALE_SECONDS", 0.0)
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    await _settle()
+    assert build.calls == 2
+
+
+async def test_a_failed_background_build_keeps_the_old_view(monkeypatch):
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    tag_index.invalidate_soft()
+    monkeypatch.setattr(tag_index, "_SOFT_STALE_SECONDS", 0.0)
+
+    async def broken() -> list[dict]:
+        raise RuntimeError("db gone")
+
+    assert await tag_index.cached("views", "k", broken) == [{"_id": "v1"}]
+    await _settle()
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    await _settle()
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+
+
+async def test_valid_rejects_a_value_built_from_old_inputs():
+    build = _Builder()
+    await tag_index.cached("derived", "k", build)
+    got = await tag_index.cached(
+        "derived", "k", build, valid=lambda v: v[0]["_id"] != "v1"
+    )
+    assert got == [{"_id": "v2"}]
+
+
+async def test_cancel_builds_stops_the_ones_under_way():
+    build = _Builder()
+    build.gate = asyncio.Event()
+    waiting = asyncio.create_task(tag_index.cached("views", "k", build))
+    await _settle()
+    await tag_index.cancel_builds()
+    with pytest.raises(asyncio.CancelledError):
+        await waiting
+    assert tag_index._inflight == {}
 
 
 # --- Writers dirty the index (integration) ------------------------------------
