@@ -13,6 +13,7 @@ import { Dot } from "../components/onboarding/parts";
 import { errorText } from "../lib/api";
 import { cn } from "../lib/cn";
 import { getSettings } from "../lib/generate";
+import { AI_STATUS_KEY, fetchAiStatus, postAiSettingsPatch } from "../lib/ai";
 import { discoverLibraries } from "../lib/libraryPlan";
 import {
   ONBOARDING_KEY,
@@ -136,6 +137,11 @@ function Setup({ info, onLeave }: { info: OnboardingInfo | undefined; onLeave: (
   // Step 2
   const [comfy, setComfy] = useState<ComfyState>({ address: "", phase: "idle" });
   const [workflows, setWorkflows] = useState<WorkflowRead | null>(null);
+
+  // Step 3: saved on Open Moiré, so Back and Skip leave it as it was.
+  const [autoTag, setAutoTag] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const { data: aiStatus } = useQuery({ queryKey: AI_STATUS_KEY, queryFn: ({ signal }) => fetchAiStatus(signal) });
   useEffect(() => {
     let live = true;
     getSettings()
@@ -214,13 +220,24 @@ function Setup({ info, onLeave }: { info: OnboardingInfo | undefined; onLeave: (
     if (at === 0) {
       if (await createLibraries()) go(1);
     } else if (at === 1) go(2);
-    else onLeave("done");
+    else {
+      if (autoTag) {
+        setFinishing(true);
+        try {
+          // Tags what is indexed once the scans end, then each new image.
+          await postAiSettingsPatch({ auto_tag: true });
+        } catch {
+          /* the AI Tagging page has the same switch */
+        }
+      }
+      onLeave("done");
+    }
   };
 
   const summaries = [
     folderSummary(folders, split),
     reached < 1 ? "Optional" : comfySummary(comfy, workflows),
-    reached < 2 ? "Optional" : "Off",
+    reached < 2 ? "Optional" : autoTag ? "On" : "Off",
   ];
 
   const nextLabel =
@@ -316,7 +333,16 @@ function Setup({ info, onLeave }: { info: OnboardingInfo | undefined; onLeave: (
           {at === 1 && (
             <ComfyStep comfy={comfy} setComfy={setComfy} workflows={workflows} setWorkflows={setWorkflows} />
           )}
-          {at === 2 && <TaggingStep images={images} capped={capped} checkout={info?.checkout ?? false} />}
+          {at === 2 && (
+            <TaggingStep
+              images={images}
+              capped={capped}
+              checkout={info?.checkout ?? false}
+              on={autoTag}
+              onChange={setAutoTag}
+              estimate={aiStatus?.estimate}
+            />
+          )}
           {at === 0 && createError && (
             <p role="alert" className="mt-4 max-w-[620px] whitespace-pre-wrap text-[13px] text-red-300">
               Some folders couldn't be added:
@@ -335,7 +361,7 @@ function Setup({ info, onLeave }: { info: OnboardingInfo | undefined; onLeave: (
             )}
             <Button
               variant="primary"
-              disabled={(at === 0 && (!folders.length || counting)) || creating}
+              disabled={(at === 0 && (!folders.length || counting)) || creating || finishing}
               onClick={() => void next()}
             >
               {nextLabel}

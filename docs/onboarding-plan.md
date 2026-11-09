@@ -69,18 +69,18 @@ Skipping at any point lands in the gallery, with whatever was done so far.
 
 ## Phase 3: AI tagging and auto-tag
 
-- [ ] Setting `auto_tag` (default off) in `DEFAULT_AI_SETTINGS` (`services/ai_settings.py`). Turning it on in onboarding or Settings › AI Tagging sets it.
-- [ ] **Deferred, blocks enabling the switch.** Turning it on queues **every** untagged image. `enqueue_untagged` caps at `limit=200` today; the backlog needs to run in batches until nothing is left.
-- [ ] Auto-tag new images: after the scanner or the folder watcher indexes new images, queue them for tagging when `auto_tag` is on.
-- [ ] Survive restarts: AI jobs live only in memory (`AIJobManager._jobs`). On startup, if `auto_tag` is on, queue the untagged images again.
-- [ ] Don't loop on images the tagger can't tag (unreadable, or no tags above the thresholds): `has_ai_tags` stays false for them, so a resume or batch would pick them up forever. Record a "tagged, nothing found" or failed state.
-- [ ] Order: newest first by file `mtime` (what the user looks at first). `enqueue_untagged` orders by `_id` today.
+- [x] Setting `auto_tag` (default off) in `DEFAULT_AI_SETTINGS` (`services/ai_settings.py`). Turning it on in onboarding (saved on Open Moiré) or with the switch on the AI Tagging page sets it.
+- [x] Turning it on queues **every** untagged image: `enqueue_untagged` takes no limit by default. Explicit-id jobs (an image's own re-tag) are `urgent` and run between the images of a long run, so they don't wait behind the backlog.
+- [x] Auto-tag new images: a scan ending or a watcher ingest calls `AIJobManager.nudge()`; a few seconds later `auto_tag()` queues the untagged images no job holds (scope `auto`), once no scan is running.
+- [x] Survive restarts: startup nudges auto-tag, which queues the untagged images again.
+- [ ] Don't loop on images the tagger can't tag (unreadable, or no tags above the thresholds). Done for one process: auto-tag skips the ids in `AIJobManager._auto_skip`. Still open: a stored "tagged, nothing found" or failed state, so a restart (or a run by hand) doesn't try them again.
+- [x] Order: newest first by file `mtime` (what the user looks at first).
 - [x] Onboarding step UI: switch (off by default), CPU vs GPU time for this library, GPU callout.
-- [x] Ship the switch **disabled** for now, with a short note that tagging can be run from the AI Tagging page. Remove the disabled state when the deferred batching item is done.
+- [x] Switch enabled (it shipped disabled until the backlog could run whole).
 - [x] Time estimate from the documented rates (CPU ~0.6 images/s in a real job, GPU ~0.1 s an image on a GTX 1650, see `docs/perf-findings.md`), in `lib/onboarding.ts`.
-- [ ] Later: measure a few images on this machine once the model is loaded, instead of quoting someone else's hardware.
+- [x] Measured rate: a run of 20+ images stores its rate per device (`services/ai_estimate.py`, app_settings row `ai_rate`); `/ai/status` `estimate` serves it, else the documented rate for the device. The AI Tagging page shows it for the backlog and each library.
 - [ ] GPU detection:
-  - [ ] Which build is running: `session.get_providers()` / installed `onnxruntime-gpu`.
+  - [x] Which build is running: the session's providers once loaded, else `get_available_providers()` (`WDTagger.device`). On the GPU build the step drops the CPU/GPU bars and the GPU callout.
   - [ ] Whether an NVIDIA GPU is present when the CPU build is running (for example `nvidia-smi` on PATH). Until then the step shows the recommendation to everyone ("Have an NVIDIA GPU?") without claiming one was found.
   - [x] Install command by install type, from `IS_CHECKOUT`: `uv tool install --reinstall "moire-studio[gpu]"` for an installed copy, the `UV_NO_GROUP=cpu … --group gpu` command from the README for a checkout.
 - [ ] Sidebar activity shows tagging progress after the scan.

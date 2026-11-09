@@ -8,8 +8,11 @@ import {
 import { useToast } from "../components/Toasts";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useAiStatus } from "./useAiStatus";
+import { useQueryClient } from "@tanstack/react-query";
 import type { AIStatus, AiJob } from "../lib/ai";
 import {
+  AI_STATUS_KEY,
+  postAiSettingsPatch,
   cancelJobMessage,
   postAiJobCancel,
   postClearAiTags,
@@ -36,14 +39,16 @@ export type AiController = {
   isModelLoading: boolean;
   latestJob: LatestJob;
   progressPct: number;
-  untaggedLimit: number;
-  setUntaggedLimit: (n: number) => void;
+  /** Auto-tag is on: new images are tagged as they arrive. */
+  autoTag: boolean;
+  setAutoTag: (on: boolean) => Promise<void>;
   loadModel: () => Promise<void>;
   cancelModelLoad: () => Promise<void>;
   cancelModelDownload: () => Promise<void>;
   unloadModel: () => Promise<void>;
-  /** Tag up to `untaggedLimit` images without AI tags, in one library or all. */
-  runUntagged: (libraryId?: string) => Promise<void>;
+  /** Tag the images without AI tags, in one library or all: every one, or
+   * the newest `limit`. */
+  runUntagged: (libraryId?: string, limit?: number | null) => Promise<void>;
   clearAllAiTags: () => Promise<void>;
   cancelJob: (jobId: string) => Promise<void>;
 };
@@ -52,7 +57,7 @@ function useAiControllerState(): AiController {
   const { push } = useToast();
   const confirm = useConfirm();
   const [running, setRunning] = useState(false);
-  const [untaggedLimit, setUntaggedLimit] = useState(200);
+  const qc = useQueryClient();
 
   // AI status is a shared polled query; cadence derives from isStatusBusy.
   const { data: status } = useAiStatus();
@@ -137,14 +142,26 @@ function useAiControllerState(): AiController {
       "Failed to unload model"
     );
 
-  const runUntagged = (libraryId?: string) =>
+  const runUntagged = (libraryId?: string, limit: number | null = null) =>
     runCommand(
-      () => postTagUntagged(untaggedLimit, libraryId),
+      () => postTagUntagged(limit, libraryId),
       (r) =>
         r.queued
-          ? [`Queued AI tagging for ${r.queued} images`, "success"]
+          ? [`Queued AI tagging for ${r.queued.toLocaleString()} images`, "success"]
           : ["No images are missing AI tags", "info"],
       "Failed to start job"
+    );
+
+  const autoTag = Boolean(status?.settings?.auto_tag);
+  const setAutoTag = (on: boolean) =>
+    runCommand(
+      async () => {
+        const saved = await postAiSettingsPatch({ auto_tag: on });
+        qc.setQueryData<AIStatus | undefined>(AI_STATUS_KEY, (d) => (d ? { ...d, settings: saved } : d));
+        void qc.invalidateQueries({ queryKey: AI_STATUS_KEY });
+      },
+      () => null,
+      "Failed to change auto-tag"
     );
 
   const clearAllAiTags = async () => {
@@ -170,8 +187,8 @@ function useAiControllerState(): AiController {
     isModelLoading,
     latestJob,
     progressPct,
-    untaggedLimit,
-    setUntaggedLimit,
+    autoTag,
+    setAutoTag,
     loadModel,
     cancelModelLoad,
     cancelModelDownload,

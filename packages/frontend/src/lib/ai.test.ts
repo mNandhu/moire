@@ -24,6 +24,8 @@ import {
   postModelUnload,
   postTagUntagged,
   saveAiSettings,
+  taggingSeconds,
+  aboutDuration,
   type AIStatus,
 } from "./ai";
 
@@ -156,6 +158,12 @@ describe("AI commands", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids: ["a", "b"] }),
     });
+  });
+
+  it("postTagUntagged without a limit asks for every image", async () => {
+    const spy = mockFetch({ job_id: null, queued: 0 });
+    await postTagUntagged(null);
+    expect(spy.mock.calls[0][1]).toMatchObject({ body: JSON.stringify({}) });
   });
 
   it("postTagUntagged sends the limit", async () => {
@@ -315,5 +323,20 @@ describe("imageFileName", () => {
     expect(imageFileName("lib1:renders/2024-01-01 12:30:45.png")).toBe("2024-01-01 12:30:45.png");
     expect(imageFileName("lib1:a\\b\\c.png")).toBe("c.png");
     expect(imageFileName("lib1:top.png")).toBe("top.png");
+  });
+});
+
+describe("taggingSeconds", () => {
+  const est = { device: "cpu" as const, seconds_per_image: 2, measured: false };
+  it("scales the per-image rate", () => {
+    expect(taggingSeconds(30, est)).toBe(60);
+  });
+  it("has nothing to say without a rate or images", () => {
+    expect(taggingSeconds(30, undefined)).toBeNull();
+    expect(taggingSeconds(0, est)).toBeNull();
+  });
+  it("words it roughly", () => {
+    expect(aboutDuration(60)).toBe("about 1 min");
+    expect(aboutDuration(3 * 3600)).toBe("about 3 h");
   });
 });

@@ -2,7 +2,7 @@
 // the frontend sees them. Status predicates are pure (the test surface); the
 // polling cadence that used to be hand-rolled in three places now derives from
 // them. See CONTEXT.md › AI Job, Tagger / Model, AI Settings.
-import { formatDuration } from "./format";
+import { formatDuration, roughDuration } from "./format";
 import { api, apiJson } from "./api";
 
 
@@ -19,6 +19,16 @@ export type AISettings = {
   prompt_positive_only: boolean;
   /** Crop character avatars to the face, once the face model is downloaded. */
   face_detect: boolean;
+  /** Tag new images as they arrive, and the backlog when switched on. */
+  auto_tag: boolean;
+};
+
+/** How long tagging takes here: the rate a run measured on this machine,
+ * else the documented one for the device the tagger runs on. */
+export type AiEstimate = {
+  device: "cpu" | "gpu";
+  seconds_per_image: number;
+  measured: boolean;
 };
 
 /** The face detector that crops character avatars: its model download and
@@ -74,6 +84,7 @@ export type AIStatus = {
     repo?: string | null;
     last_used?: number;
     idle_unload_s?: number;
+    device?: "cpu" | "gpu";
   };
   model_load?: {
     status: string;
@@ -97,6 +108,8 @@ export type AIStatus = {
     }>;
   };
   jobs: { recent: AiJob[]; queue_depth: number };
+  /** Absent from older backends. */
+  estimate?: AiEstimate;
   settings: AISettings;
 };
 
@@ -229,6 +242,17 @@ export function jobThroughput(job: Pick<AiJob, "rate" | "eta_s" | "elapsed_s">):
   if (job.eta_s != null) parts.push(job.eta_s < 1 ? "almost done" : `${formatDuration(job.eta_s)} left`);
   else if (job.elapsed_s != null) parts.push(formatDuration(job.elapsed_s));
   return parts.join(" · ");
+}
+
+/** Seconds to AI-tag `images` at the estimated rate; null without one. */
+export function taggingSeconds(images: number, est: AiEstimate | undefined | null): number | null {
+  if (!est || !(est.seconds_per_image > 0) || images <= 0) return null;
+  return images * est.seconds_per_image;
+}
+
+/** "about 3 min", "about 2.4 h": rough on purpose (the rate varies). */
+export function aboutDuration(seconds: number): string {
+  return `about ${roughDuration(seconds)}`;
 }
 
 export type LibraryCoverageRow = AiLibraryCoverage & { name: string; untagged: number; pct: number };
@@ -370,18 +394,24 @@ export function postFaces(command: "download" | "download-cancel"): Promise<Face
   return api<FaceStatus>(`/api/v1/ai/faces/${command}`, POST);
 }
 
-/** Queue AI tagging for up to `limit` images that have no AI tags yet. */
+/** Queue AI tagging for the images that have no AI tags yet, newest first:
+ * all of them, or the newest `limit`. */
 export function postTagUntagged(
-  limit: number,
+  limit: number | null,
   libraryId?: string,
   { unknown = false }: { unknown?: boolean } = {},
 ): Promise<{ job_id: string | null; queued: number; skipped?: number }> {
   return postJson<{ job_id: string | null; queued: number; skipped?: number }>("/api/v1/ai/tag-untagged", {
-    limit,
+    ...(limit != null ? { limit } : {}),
     ...(libraryId ? { library_id: libraryId } : {}),
     // Only images with no sensitivity level yet (the filter hides them).
     ...(unknown ? { unknown } : {}),
   });
+}
+
+/** Change some AI settings, leaving the rest; returns them all. */
+export function postAiSettingsPatch(patch: Partial<AISettings>): Promise<AISettings> {
+  return postJson<AISettings>("/api/v1/ai/settings", patch);
 }
 
 /** Remove AI tags + AI metadata from every image (manual tags are kept). */

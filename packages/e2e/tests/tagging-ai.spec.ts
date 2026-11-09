@@ -22,16 +22,25 @@ test("AI tagging a few images of one library", async ({ page, request }) => {
   const fixturesBefore = ofFixtures(await aiTagged()).length;
 
   await page.goto("/ai-tagging");
-  await page.getByLabel("Most images to tag in one run").fill("3");
-  // The fixture library's own row: that library only.
+  // The fixture library's own row: that library only, all of its untagged
+  // images. Three are enough here, so the run is cancelled after them.
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "images", exact: true }) });
   await row.getByRole("button", { name: "Tag" }).click();
 
-  await expect.poll(async () => (await aiTagged()).length, { timeout: 240_000, intervals: [2000] }).toBe(before + 3);
-  expect(ofFixtures(await aiTagged())).toHaveLength(fixturesBefore + 3);
+  await expect.poll(async () => (await aiTagged()).length, { timeout: 240_000, intervals: [2000] }).toBeGreaterThanOrEqual(before + 3);
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect.poll(async () => {
+    const jobs = (await (await request.get(`${API}/ai/jobs?limit=1`)).json()) as { status: string }[];
+    return jobs[0]?.status;
+  }, { timeout: 60_000 }).toBe("cancelled");
+
+  // The run took only the fixture library's images.
+  const after = (await aiTagged()).length;
+  expect(after).toBeGreaterThanOrEqual(before + 3);
+  expect(ofFixtures(await aiTagged())).toHaveLength(fixturesBefore + (after - before));
 
   await page.goto("/tags");
-  await expect(page.getByRole("link", { name: `AI tagged ${before + 3} images AI-tagged` })).toBeVisible();
+  await expect(page.getByRole("link", { name: `AI tagged ${after} images AI-tagged` })).toBeVisible();
 });
 
 test("New character: a picture fills identity and Default outfit", async ({ page }) => {

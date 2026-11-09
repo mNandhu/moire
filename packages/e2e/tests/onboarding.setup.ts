@@ -24,6 +24,13 @@ setup("onboarding adds a library and connects ComfyUI", async ({ page, request }
   await page.getByRole("button", { name: "Continue", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "AI tagging" })).toBeVisible();
+  // Left off: the sandbox runs the real CPU tagger, which the AI specs drive.
+  const autoTag = page.getByRole("switch", { name: /Tag images with AI/ });
+  await expect(autoTag).toBeEnabled();
+  await autoTag.click();
+  await expect(page.getByRole("navigation", { name: "Setup steps" }).getByText("On", { exact: true })).toBeVisible();
+  await autoTag.click();
+  await expect(autoTag).toHaveAttribute("aria-checked", "false");
   await page.getByRole("button", { name: "Open Moiré", exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
 
