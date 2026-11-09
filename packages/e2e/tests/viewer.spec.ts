@@ -168,7 +168,8 @@ test("pointing at a character lights up their identity tags in the prompt and th
   try {
     const { _id } = await imageByPath(request, "furina/furina_41.png");
     await page.goto(viewerUrl(_id));
-    const avatar = page.getByRole("link", { name: /^furina/i });
+    // The avatar: the Tags tab links the same name to its tag page.
+    const avatar = page.locator(`a[href="/characters/${furina}"]`);
     const generation = page.getByRole("tabpanel");
     await expect(generation.locator("mark", { hasText: "heterochromia" })).toHaveCount(0);
     await avatar.hover();
