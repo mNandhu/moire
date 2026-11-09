@@ -58,8 +58,10 @@ async def start() -> None:
 
 
 async def _start_ai() -> None:
-    # Start internal AI job worker
+    # Start internal AI job worker; with auto-tag on, it picks up what was
+    # left untagged when the process last stopped.
     get_ai_job_manager().start()
+    get_ai_job_manager().nudge()
     idle_unload_s = None
     try:
         s = await get_ai_settings()

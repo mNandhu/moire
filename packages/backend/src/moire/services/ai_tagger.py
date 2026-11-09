@@ -231,6 +231,21 @@ class WDTagger:
     def loaded(self) -> bool:
         return self._session is not None
 
+    @property
+    def device(self) -> str:
+        """ "gpu" when tagging runs on CUDA, else "cpu": the loaded session's
+        own providers, or before a load, the ones this onnxruntime build has
+        (a GPU build whose CUDA libraries fail to load still says "gpu" until
+        a session is made)."""
+        if self._session is not None:
+            providers = self._session.get_providers()
+        else:
+            try:
+                providers = rt.get_available_providers() if rt is not None else []
+            except Exception:
+                providers = []
+        return "gpu" if "CUDAExecutionProvider" in providers else "cpu"
+
     def unload(self) -> None:
         # Best-effort: drop references so Python can GC.
         self._session = None
@@ -353,6 +368,7 @@ class TaggerManager:
         return {
             "loaded": self._tagger.loaded,
             "repo": self._tagger.repo,
+            "device": self._tagger.device,
             "last_used": self._last_used,
             "idle_unload_s": self._idle_unload_s,
         }

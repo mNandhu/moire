@@ -179,6 +179,7 @@ def _run_watch(w: _Watch) -> None:
                     if not _wait_stable(path, w.stop_event):
                         continue
                     scan_incremental.ingest_single_file(w.library_id, w.root, path)
+                    scanner.nudge_auto_tag()
             except Exception:
                 logger.exception(
                     "watch event failed library=%s change=%s path=%s",

@@ -32,6 +32,9 @@ DEFAULT_AI_SETTINGS: dict[str, Any] = {
     # Crop character avatars to the face once the face model is downloaded
     # (services/face_detect.py). On by default: it does nothing until then.
     "face_detect": True,
+    # Tag images with AI as they arrive (after a scan, or a file the watcher
+    # picks up), and the ones still untagged when it is switched on.
+    "auto_tag": False,
 }
 
 
@@ -77,6 +80,8 @@ def clean_settings_patch(patch: dict[str, Any]) -> dict[str, Any]:
         clean["prompt_positive_only"] = bool(clean["prompt_positive_only"])
     if "face_detect" in clean:
         clean["face_detect"] = bool(clean["face_detect"])
+    if "auto_tag" in clean:
+        clean["auto_tag"] = bool(clean["auto_tag"])
 
     return clean
 
@@ -117,4 +122,8 @@ async def update_ai_settings(patch: dict[str, Any]) -> dict[str, Any]:
     # tag lists and character list carry.
     if any(before.get(k) != after.get(k) for k in ("model_repo", "cache_dir")):
         tag_index.invalidate()
+    if after.get("auto_tag") and not before.get("auto_tag"):
+        from .ai_jobs import get_ai_job_manager
+
+        get_ai_job_manager().nudge()
     return after

@@ -205,3 +205,77 @@ async def test_stats_zone_aliases_and_offset_fallback(client, seed):
         "/images/stats", params={"days": 3660, "tz": "Mars/Olympus", "tz_offset": 330}
     )
     assert [r["day"] for r in fallback.json()["activity"]] == ["2026-03-02"]
+
+
+async def test_tag_untagged_queues_every_image_newest_first(client, seed, monkeypatch):
+    from moire.services.ai_jobs import get_ai_job_manager
+
+    for i in range(250):
+        seed(f"L1:{i:03d}", mtime=1000.0 + i)
+
+    queued: list[list[str]] = []
+
+    async def fake_enqueue(self, *, ids, force=False, scope=None, urgent=False):
+        queued.append(ids)
+        return None
+
+    monkeypatch.setattr(type(get_ai_job_manager()), "enqueue", fake_enqueue)
+    # No limit: the whole backlog, not a first 200.
+    await client.post("/ai/tag-untagged", json={})
+    assert len(queued[0]) == 250
+    assert queued[0][:2] == ["L1:249", "L1:248"]
+    # A limit still takes the newest files.
+    await client.post("/ai/tag-untagged", json={"limit": 3})
+    assert queued[1] == ["L1:249", "L1:248", "L1:247"]
+
+
+async def test_auto_tag_only_runs_when_on_and_skips_what_it_gave_up_on(
+    client, seed, monkeypatch
+):
+    from moire.services import ai_jobs, scanner
+
+    mgr = ai_jobs.AIJobManager()
+    seed("L1:a", mtime=1.0)
+    seed("L1:b", mtime=2.0)
+    seed("L1:c", mtime=3.0)
+    seed("L1:done", tags=("1girl",))
+
+    queued: list[tuple[list[str], str | None]] = []
+
+    async def fake_enqueue(*, ids, force=False, scope=None, urgent=False):
+        queued.append((ids, scope))
+        return None
+
+    monkeypatch.setattr(mgr, "enqueue", fake_enqueue)
+    assert await mgr.auto_tag() is None and queued == []  # off by default
+
+    await client.post("/ai/settings", json={"auto_tag": True})
+    monkeypatch.setattr(scanner, "any_scanning", lambda: True)
+    await mgr.auto_tag()
+    assert queued == []  # waits for the scan to end
+
+    monkeypatch.setattr(scanner, "any_scanning", lambda: False)
+    mgr._in_flight["L1:c"] += 1  # another job holds it
+    mgr._auto_skip.add("L1:a")  # failed earlier
+    await mgr.auto_tag()
+    assert queued == [(["L1:b"], "auto")]
+
+
+async def test_status_carries_a_time_estimate(client):
+    body = (await client.get("/ai/status")).json()
+    est = body["estimate"]
+    assert est["device"] in ("cpu", "gpu")
+    assert est["seconds_per_image"] > 0 and est["measured"] is False
+
+
+async def test_a_long_run_stores_its_rate_for_the_estimate(client):
+    from moire.services import ai_estimate
+
+    await ai_estimate.record("cpu", 2.0, images=5)  # too short to count
+    await ai_estimate.record("gpu", 8.0, images=5)
+    est = await ai_estimate.estimate()
+    assert est["measured"] is False
+
+    await ai_estimate.record(est["device"], 4.0, images=ai_estimate.MIN_IMAGES)
+    est = await ai_estimate.estimate()
+    assert est["measured"] is True and est["seconds_per_image"] == 0.25

@@ -14,7 +14,7 @@ from PIL import Image
 
 from ..database.db import async_conn
 from ..database import schema as t
-from . import activity, ai_coverage, image_tags, image_visibility
+from . import activity, ai_coverage, ai_estimate, image_tags, image_visibility
 from .ai_settings import get_ai_settings
 from .ai_tagger import (
     PreparedImage,
@@ -33,6 +33,9 @@ _KEEP_FINISHED = 50
 # An ended job younger than this is kept past the cap, so a client still
 # polling it sees its final status rather than a 404.
 _KEEP_RECENT_S = 600.0
+# Auto-tag waits this long after a nudge, so a burst of new files (the
+# watcher ingests them one at a time) queues one job, not one each.
+_AUTO_DELAY_S = 3.0
 
 __all__ = [
     "AIJobManager",
@@ -77,7 +80,11 @@ class AIJob:
     finished_at: float | None = None
     # "unknown": queued for the images the sensitivity filter hides as having
     # no level yet (the gallery banner follows that job, not any other).
+    # "auto": queued by auto-tag for images that arrived since.
     scope: str | None = None
+    # Named images (an image's own re-tag, a selection): run between the
+    # images of a long run instead of waiting for it to end.
+    urgent: bool = False
     # The work list. Kept off the API view (hundreds of ids per poll).
     ids: list[str] = field(default_factory=list, repr=False)
 
@@ -148,6 +155,15 @@ class _JobQueue:
                 await self._cv.wait()
             return self._dq.popleft()
 
+    def pop_urgent(self) -> AIJob | None:
+        """Take the oldest queued urgent job, if any (no await: the worker
+        calls it between images)."""
+        for i, j in enumerate(self._dq):
+            if j.urgent:
+                del self._dq[i]
+                return j
+        return None
+
     async def remove(self, job_id: str) -> bool:
         async with self._cv:
             for i, j in enumerate(self._dq):
@@ -165,15 +181,24 @@ class AIJobManager:
         # Prevent queueing the same image many times across jobs.
         # Claims per image id, held from enqueue until that image is processed.
         self._in_flight: Counter[str] = Counter()
-        # Jobs that have ended, however: the activity poll compares it to
-        # notice a job that came and went between two polls.
+        # Images that failed, or that the tagger found nothing in, since the
+        # process started: auto-tag leaves them out so it doesn't queue them
+        # again after every scan (a run started by hand still includes them).
+        self._auto_skip: set[str] = set()
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._auto_task: asyncio.Task | None = None
 
     def start(self) -> None:
+        self._loop = asyncio.get_running_loop()
         if self._worker_task is None or self._worker_task.done():
             self._worker_task = asyncio.create_task(self._worker_loop())
 
     async def stop(self) -> None:
         """Cancel the worker (a running job is abandoned with the process)."""
+        auto, self._auto_task = self._auto_task, None
+        if auto is not None and not auto.done():
+            auto.cancel()
+        self._loop = None
         task, self._worker_task = self._worker_task, None
         if task is not None and not task.done():
             task.cancel()
@@ -206,7 +231,12 @@ class AIJobManager:
         return self._jobs.get(job_id)
 
     async def enqueue(
-        self, *, ids: list[str], force: bool = False, scope: str | None = None
+        self,
+        *,
+        ids: list[str],
+        force: bool = False,
+        scope: str | None = None,
+        urgent: bool = False,
     ) -> AIJob:
         job_id = uuid.uuid4().hex
 
@@ -241,6 +271,7 @@ class AIJobManager:
             total=len(accepted),
             skipped=skipped,
             scope=scope,
+            urgent=urgent,
             ids=list(accepted),
         )
         self._jobs[job_id] = job
@@ -256,20 +287,76 @@ class AIJobManager:
         return job
 
     async def enqueue_untagged(
-        self, *, limit: int = 200, library_id: str | None = None, unknown: bool = False
+        self,
+        *,
+        limit: int | None = None,
+        library_id: str | None = None,
+        unknown: bool = False,
     ) -> AIJob | None:
+        """Queue the images without AI tags, newest file first; ``limit``
+        None queues every one of them."""
         # A run tags the set /ai/coverage counted (ai_coverage.untagged_clause);
         # ``unknown``: only those with no sensitivity level yet, which the
         # sensitivity filter hides until tagged.
         stmt = sa.select(t.images.c._id).where(ai_coverage.untagged_clause(library_id))
         if unknown:
             stmt = stmt.where(image_visibility.image_level().is_(None))
-        stmt = stmt.order_by(t.images.c._id.desc()).limit(int(limit))
+        stmt = stmt.order_by(t.images.c.mtime.desc(), t.images.c._id.desc())
+        if limit is not None:
+            stmt = stmt.limit(max(1, int(limit)))
         async with async_conn() as conn:
             ids = [row._id for row in (await conn.execute(stmt)).fetchall()]
         if not ids:
             return None
         return await self.enqueue(ids=ids, scope="unknown" if unknown else None)
+
+    async def auto_tag(self) -> AIJob | None:
+        """With the ``auto_tag`` setting on, queue every image without AI
+        tags that no job holds yet and auto-tag hasn't given up on. Waits
+        for running scans: the one that ends nudges again."""
+        from . import scanner  # scanner nudges this module: import late
+
+        if not (await get_ai_settings()).get("auto_tag") or scanner.any_scanning():
+            return None
+        stmt = (
+            sa.select(t.images.c._id)
+            .where(ai_coverage.untagged_clause())
+            .order_by(t.images.c.mtime.desc(), t.images.c._id.desc())
+        )
+        async with async_conn() as conn:
+            ids = [
+                row._id
+                for row in (await conn.execute(stmt)).fetchall()
+                if row._id not in self._in_flight and row._id not in self._auto_skip
+            ]
+        if not ids:
+            return None
+        return await self.enqueue(ids=ids, scope="auto")
+
+    def nudge(self) -> None:
+        """Run :meth:`auto_tag` shortly: new images may have arrived. Safe
+        from any thread (the scanner and the watcher call it from theirs);
+        nudges within ``_AUTO_DELAY_S`` of each other share one run."""
+        loop = self._loop
+        if loop is None or loop.is_closed():
+            return
+        try:
+            loop.call_soon_threadsafe(self._schedule_auto)
+        except RuntimeError:  # the loop closed in between
+            pass
+
+    def _schedule_auto(self) -> None:
+        if self._auto_task is not None and not self._auto_task.done():
+            return
+
+        async def _later() -> None:
+            await asyncio.sleep(_AUTO_DELAY_S)
+            try:
+                await self.auto_tag()
+            except Exception:
+                logger.exception("Auto-tag could not queue the new images")
+
+        self._auto_task = asyncio.create_task(_later())
 
     async def cancel(self, job_id: str) -> bool:
         job = self._jobs.get(job_id)
@@ -299,88 +386,106 @@ class AIJobManager:
             # Job might have been cancelled before worker picked it up.
             if job.status == "cancelled":
                 continue
+            await self._run_job(job)
 
-            job.status = "running"
-            ids = job.ids
-            released = 0  # ids[:released] are processed and their claims dropped
+    async def _run_urgent(self) -> None:
+        """Run the urgent jobs queued meanwhile, between two images of a long
+        run, so an image's own re-tag doesn't wait hours behind it."""
+        while (job := self._queue.pop_urgent()) is not None:
+            if job.status != "cancelled":
+                await self._run_job(job, nested=True)
+
+    async def _run_job(self, job: AIJob, *, nested: bool = False) -> None:
+        job.status = "running"
+        ids = job.ids
+        released = 0  # ids[:released] are processed and their claims dropped
+        try:
+            settings = await get_ai_settings()
+            # Startup sets the idle timeout best-effort; a failed read
+            # there must not pin the default for the process lifetime.
+            get_tagger_manager().set_idle_unload_s(
+                int(settings.get("idle_unload_s", 0) or 0)
+            )
+            model = resolved_model_target(settings)
             try:
-                settings = await get_ai_settings()
-                # Startup sets the idle timeout best-effort; a failed read
-                # there must not pin the default for the process lifetime.
-                get_tagger_manager().set_idle_unload_s(
-                    int(settings.get("idle_unload_s", 0) or 0)
-                )
-                model = resolved_model_target(settings)
-                try:
-                    ready = await self._prepare_model(job, *model)
-                except Exception as e:
-                    logger.warning("AI tagging could not load the model: %s", e)
-                    job.status = "error"
-                    job.error = str(e)
-                    job.failed = len(ids)
-                    continue
-                if not ready:
-                    job.status = "cancelled"
-                    continue
-                job.phase = "tagging"
-                job.started_at = time.time()
-
-                # Read + decode of the next image overlaps inference on the
-                # current one; `pending` is the load for ids[i].
-                pending: asyncio.Task | None = None
-                try:
-                    for i, image_id in enumerate(ids):
-                        if job.cancel_requested:
-                            job.status = "cancelled"
-                            break
-                        job.current = image_id
-                        load = pending or asyncio.create_task(
-                            self._load_image(image_id)
-                        )
-                        pending = (
-                            asyncio.create_task(self._load_image(ids[i + 1]))
-                            if i + 1 < len(ids)
-                            else None
-                        )
-                        try:
-                            img = await load
-                            await self._tag_one(
-                                image_id=image_id,
-                                image=img,
-                                settings=settings,
-                                model=model,
-                                # One image (its own re-tag) is an edit the user
-                                # waits on; only a run of many lags the views.
-                                bulk=job.total > 1,
-                            )
-                            job.done += 1
-                        except Exception as e:
-                            logger.warning("AI tagging failed for %s: %s", image_id, e)
-                            job.failed += 1
-                            job.errors.append({"image_id": image_id, "error": str(e)})
-                        self._release([image_id])
-                        released = i + 1
-                finally:
-                    if pending is not None:
-                        _discard(pending)
-
-                if job.status != "cancelled":
-                    job.status = "done" if job.failed == 0 else "error"
+                ready = await self._prepare_model(job, *model)
             except Exception as e:
-                # Outside the per-image guard (settings read, setup): fail this
-                # job, keep the worker alive for the next.
-                logger.exception("AI job %s failed", job.id)
+                logger.warning("AI tagging could not load the model: %s", e)
                 job.status = "error"
                 job.error = str(e)
-                job.failed += len(ids) - released
+                job.failed = len(ids)
+                return
+            if not ready:
+                job.status = "cancelled"
+                return
+            job.phase = "tagging"
+            job.started_at = time.time()
+
+            # Read + decode of the next image overlaps inference on the
+            # current one; `pending` is the load for ids[i].
+            pending: asyncio.Task | None = None
+            try:
+                for i, image_id in enumerate(ids):
+                    if not nested and i > 0:
+                        await self._run_urgent()
+                    if job.cancel_requested:
+                        job.status = "cancelled"
+                        break
+                    job.current = image_id
+                    load = pending or asyncio.create_task(self._load_image(image_id))
+                    pending = (
+                        asyncio.create_task(self._load_image(ids[i + 1]))
+                        if i + 1 < len(ids)
+                        else None
+                    )
+                    try:
+                        img = await load
+                        found = await self._tag_one(
+                            image_id=image_id,
+                            image=img,
+                            settings=settings,
+                            model=model,
+                            # One image (its own re-tag) is an edit the user
+                            # waits on; only a run of many lags the views.
+                            bulk=job.total > 1,
+                        )
+                        if found is False:
+                            self._auto_skip.add(image_id)
+                        job.done += 1
+                    except Exception as e:
+                        logger.warning("AI tagging failed for %s: %s", image_id, e)
+                        job.failed += 1
+                        job.errors.append({"image_id": image_id, "error": str(e)})
+                        self._auto_skip.add(image_id)
+                    self._release([image_id])
+                    released = i + 1
             finally:
-                job.current = None
-                if job.started_at is not None:
-                    job.finished_at = time.time()
+                if pending is not None:
+                    _discard(pending)
+
+            if job.status != "cancelled":
+                job.status = "done" if job.failed == 0 else "error"
+        except Exception as e:
+            # Outside the per-image guard (settings read, setup): fail this
+            # job, keep the worker alive for the next.
+            logger.exception("AI job %s failed", job.id)
+            job.status = "error"
+            job.error = str(e)
+            job.failed += len(ids) - released
+        finally:
+            job.current = None
+            if job.started_at is not None:
+                job.finished_at = time.time()
+                if job.total > 1:
                     # The tag views lagged this job's writes (bulk=True).
                     image_tags.end_bulk_writes()
-                _note_end(job)
-                self._release(ids[released:])
+                    rate = job.throughput().get("rate")
+                    if rate:
+                        await ai_estimate.record(
+                            ai_estimate.current_device(), rate, job.done
+                        )
+            _note_end(job)
+            self._release(ids[released:])
 
     def _release(self, ids: list[str]) -> None:
         """Drop one claim per id, so an id another job also holds stays claimed."""
@@ -446,7 +551,8 @@ class AIJobManager:
         settings: dict[str, Any],
         model: tuple[str, str],
         bulk: bool,
-    ) -> None:
+    ) -> bool:
+        """Tag one image; False if the tagger found nothing to tag it with."""
         model_repo, cache_dir = model
         params = TagParams.from_settings(settings)
 
@@ -483,6 +589,7 @@ class AIJobManager:
             rating=rating_label,
             bulk=bulk,
         )
+        return bool(ai_tags)
 
 
 _ai_job_manager: AIJobManager | None = None

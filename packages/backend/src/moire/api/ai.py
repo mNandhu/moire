@@ -20,6 +20,7 @@ from ..services.ai_settings import (
     get_ai_settings,
     update_ai_settings,
 )
+from ..services import ai_estimate
 from ..services.ai_jobs import get_ai_job_manager
 from ..services.ai_tagger import (
     TagParams,
@@ -51,7 +52,8 @@ class TagRequest(BaseModel):
 
 
 class TagUntaggedRequest(BaseModel):
-    limit: int = 200
+    #: None (the default) queues every image without AI tags.
+    limit: int | None = Field(default=None, ge=1)
     library_id: str | None = None
     #: Only images with no sensitivity level yet (hidden as unknown).
     unknown: bool = False
@@ -85,6 +87,7 @@ async def ai_status():
             "recent": [j.public() for j in jm.list_jobs(limit=10)],
             "queue_depth": jm.queue_depth(),
         },
+        "estimate": await ai_estimate.estimate(),
         "settings": s,
     }
 
@@ -168,7 +171,7 @@ async def ai_tag(req: TagRequest):
             await image_tags.clear_ai(image_id)
     # An image another job still holds is skipped: that job tags it after
     # the clear (a job releases each image once it has tagged it).
-    job = await jm.enqueue(ids=req.ids, force=bool(req.force))
+    job = await jm.enqueue(ids=req.ids, force=bool(req.force), urgent=True)
     return {"job_id": job.id, "queued": job.total, "skipped": job.skipped}
 
 

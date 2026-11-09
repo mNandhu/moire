@@ -425,3 +425,36 @@ def test_only_runs_that_may_show_images_count_as_bulk():
     assert ends(AIJob(id="one", created_at=0.0, total=1)) == 0
     assert ends(AIJob(id="many", created_at=0.0, total=40)) == 1
     assert ends(AIJob(id="h", created_at=0.0, total=1, scope="unknown")) == 1
+
+
+async def test_an_urgent_job_runs_between_the_images_of_a_long_one(monkeypatch):
+    events: list[str] = []
+    mgr = _job_manager(monkeypatch, events)
+    worker = asyncio.create_task(mgr._worker_loop())
+    bulk = await mgr.enqueue(ids=[f"b{i}" for i in range(6)])
+    try:
+        while "tag-start:b1" not in events:
+            await asyncio.sleep(0.005)
+        one = await mgr.enqueue(ids=["mine"], urgent=True)
+        for _ in range(500):
+            if bulk.status == "done":
+                break
+            await asyncio.sleep(0.01)
+    finally:
+        worker.cancel()
+
+    assert one.status == "done" and bulk.status == "done" and bulk.done == 6
+    # The re-tag didn't wait for the run to end.
+    assert events.index("tag-end:mine") < events.index("tag-start:b5")
+    assert not mgr._in_flight
+
+
+async def test_an_image_the_tagger_finds_nothing_in_is_left_to_auto_tag(monkeypatch):
+    mgr = _job_manager(monkeypatch, [], fail_load={"bad"})
+
+    async def nothing_for_empty(*, image_id, image, settings, model, bulk):
+        return image_id != "empty"
+
+    monkeypatch.setattr(mgr, "_tag_one", nothing_for_empty)
+    await _run(mgr, ["ok", "empty", "bad"])
+    assert mgr._auto_skip == {"empty", "bad"}

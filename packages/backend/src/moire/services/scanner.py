@@ -127,6 +127,23 @@ def is_scanning(library_id: str) -> bool:
         return library_id in _current_scans
 
 
+def any_scanning() -> bool:
+    """Whether a full scan is running in any library."""
+    with _scan_lock:
+        return bool(_current_scans)
+
+
+def nudge_auto_tag() -> None:
+    """Images may have arrived: auto-tag (if on) queues them once no scan
+    runs. Imported late: the job manager reads ``any_scanning`` from here."""
+    try:
+        from .ai_jobs import get_ai_job_manager
+
+        get_ai_job_manager().nudge()
+    except Exception:
+        logger.debug("Could not nudge auto-tag", exc_info=True)
+
+
 @dataclass
 class _ScanResult:
     image_id: str
@@ -535,6 +552,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
                 _scan_threads.pop(library_id, None)
                 again = library_id in _rescan_after
                 _rescan_after.discard(library_id)
+            nudge_auto_tag()
             if again:
                 # The scan ended (cancelled) because the library moved; it
                 # reads the new path itself once it has a slot.
