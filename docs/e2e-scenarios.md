@@ -12,7 +12,7 @@ Scenarios worth testing end to end, for the Playwright suite in `packages/e2e` (
 - Tags page: a tag's panel and its Open in gallery link, closing the panel (`tag-panel.spec.ts`)
 - New character: identity tags complete from the library's tags and a typed one is kept without Enter; arrowing down the suggestions keeps the highlighted row in view; a picture link to a private address is refused; a link pasted in the Tag field goes to the tagger; Generate's Edit tags dialog opens the character page; a picked character no character has shows Not found and Queue says Character not found until it is removed (`new-character.spec.ts`)
 - Sensitivity filter: the header shield hiding images above the level, the "hidden until AI-tagged" banner, its Tag them swapped for the job's progress and Cancel while it runs, the sidebar's background work list cancelling the job, a direct link to a hidden image saying so, and back to everything; adding, changing and removing a tag level in Settings (`sensitivity.spec.ts`)
-- AI tagging: the real WD tagger on one library's row from the AI Tagging page, cancelled after three images, and on a picture in New character, filling identity and Default outfit (`tagging-ai.spec.ts`); the onboarding AI tagging switch turning on and off (`onboarding.setup.ts`)
+- AI tagging: the real WD tagger on one library's row from the AI Tagging page, cancelled after three images, and on a picture in New character, filling identity and Default outfit (`tagging-ai.spec.ts`); the run box's count becoming the run's limit, none for every image left (`ai-tagging-page.spec.ts`); the onboarding AI tagging switch turning on and off (`onboarding.setup.ts`)
 
 ## Still to cover
 

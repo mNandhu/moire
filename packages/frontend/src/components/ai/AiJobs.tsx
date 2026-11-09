@@ -1,4 +1,6 @@
+import { X } from "lucide-react";
 import { Section } from "../ui/Card";
+import { Tooltip } from "../ui/Tooltip";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { ProgressBar } from "../ui/ProgressBar";
@@ -55,13 +57,17 @@ export function ActiveJob({ job }: { job: AiJob }) {
           {label} · {processed.toLocaleString()} of {job.total.toLocaleString()}
           {job.failed > 0 && <span className="text-red-300"> · {job.failed} failed</span>}
         </span>
-        <Button
-          size="sm"
-          onClick={() => cancelJob(job.id)}
-          disabled={running || job.status === "cancelling"}
-        >
-          Cancel
-        </Button>
+        <Tooltip content="Cancel" bubble>
+          <Button
+            size="iconSm"
+            variant="ghost"
+            onClick={() => cancelJob(job.id)}
+            disabled={running || job.status === "cancelling"}
+            aria-label="Cancel tagging"
+          >
+            <X size={16} />
+          </Button>
+        </Tooltip>
       </div>
       <ProgressBar value={progressPct} aria-label="Tagging progress" />
       {(speed || job.current) && (

@@ -28,7 +28,7 @@ test("AI tagging a few images of one library", async ({ page, request }) => {
   await row.getByRole("button", { name: "Tag" }).click();
 
   await expect.poll(async () => (await aiTagged()).length, { timeout: 240_000, intervals: [2000] }).toBeGreaterThanOrEqual(before + 3);
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel tagging" }).click();
   await expect.poll(async () => {
     const jobs = (await (await request.get(`${API}/ai/jobs?limit=1`)).json()) as { status: string }[];
     return jobs[0]?.status;

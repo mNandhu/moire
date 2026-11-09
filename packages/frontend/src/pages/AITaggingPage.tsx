@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
+import { CheckCircle2, ChevronDown, Sparkles } from "lucide-react";
 import { PageHeader, PageBody } from "../components/ui/PageHeader";
 import { Section } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
-import { DropdownMenu } from "../components/ui/DropdownMenu";
+import { Input } from "../components/ui/Input";
 import { ProgressBar } from "../components/ui/ProgressBar";
 import { Switch } from "../components/ui/Switch";
 import { Tooltip } from "../components/ui/Tooltip";
@@ -18,7 +18,6 @@ import {
   type AiEstimate,
   type AiLibraryCoverage,
 } from "../lib/ai";
-import { cn } from "../lib/cn";
 import { libraryPageHref, useAiCoverage, useLibraries } from "../lib/queries";
 import { AiControllerProvider, useAiController } from "../hooks/useAiController";
 import { ModelStatusLine } from "../components/ai/ModelStatus";
@@ -27,50 +26,6 @@ import { ActiveJob, RecentJobs, ResetAiTags } from "../components/ai/AiJobs";
 /** A thin AI-coverage bar shared by the global stat and per-library rows. */
 function CoverageBar({ tagged, total }: { tagged: number; total: number }) {
   return <ProgressBar value={coveragePct(tagged, total)} />;
-}
-
-// PROTOTYPE: the run control in three versions, picked with ?variant= and the
-// yellow chip. Delete the chip and the losers once one is chosen.
-const VARIANTS = [
-  { id: "all", name: "Tag all" },
-  { id: "split", name: "Tag all + newest menu" },
-  { id: "chips", name: "Amount chips" },
-] as const;
-type VariantId = (typeof VARIANTS)[number]["id"];
-
-function useVariant(): [VariantId, (v: VariantId) => void] {
-  const [params, setParams] = useSearchParams();
-  const raw = params.get("variant");
-  const id = VARIANTS.some((v) => v.id === raw) ? (raw as VariantId) : "all";
-  const set = (v: VariantId) =>
-    setParams(
-      (p) => {
-        const next = new URLSearchParams(p);
-        next.set("variant", v);
-        return next;
-      },
-      { replace: true },
-    );
-  return [id, set];
-}
-
-function VariantChip() {
-  const [id, set] = useVariant();
-  const i = VARIANTS.findIndex((v) => v.id === id);
-  const step = (d: number) => set(VARIANTS[(i + d + VARIANTS.length) % VARIANTS.length].id);
-  return (
-    <div className="fixed left-1/2 top-16 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full bg-yellow-300 px-1.5 py-1 text-xs font-medium text-neutral-900 shadow-lg">
-      <button type="button" aria-label="Previous variant" className="rounded-full p-1 hover:bg-yellow-200" onClick={() => step(-1)}>
-        <ChevronLeft size={14} />
-      </button>
-      <span className="min-w-[11rem] text-center tabular-nums">
-        {i + 1}/{VARIANTS.length} · {VARIANTS[i].name}
-      </span>
-      <button type="button" aria-label="Next variant" className="rounded-full p-1 hover:bg-yellow-200" onClick={() => step(1)}>
-        <ChevronRight size={14} />
-      </button>
-    </div>
-  );
 }
 
 const DEVICE = { cpu: "CPU", gpu: "GPU" } as const;
@@ -89,91 +44,47 @@ function Estimate({ images, est, device = false }: { images: number; est: AiEsti
   );
 }
 
-const NEWEST = [100, 1000];
+/** Digits only, so a pasted "1,000" reads as 1000; empty is null. */
+function parseCount(text: string): number | null {
+  const digits = text.replace(/\D/g, "");
+  return digits ? Number(digits) : null;
+}
 
-/** Start a run over the images without AI tags: the whole backlog by default. */
+/**
+ * Start a run over the images without AI tags, newest first: "Tag [2,511] of
+ * 2,511 images". The box starts at the whole backlog and follows it until
+ * edited; its estimate follows the box.
+ */
 function RunControl({ remaining, est }: { remaining: number; est: AiEstimate | undefined }) {
-  const [variant] = useVariant();
   const { running, runUntagged } = useAiController();
-  const [amount, setAmount] = useState<number | null>(null);
-  const newest = NEWEST.filter((n) => n < remaining);
-  const tagAll = (
-    <Button variant="primary" onClick={() => void runUntagged()} disabled={running}>
-      <Sparkles size={16} />
-      Tag all {remaining.toLocaleString()} {remaining === 1 ? "image" : "images"}
-    </Button>
-  );
-  const time = (
-    <span className="text-sm text-muted tabular-nums">
-      <Estimate images={remaining} est={est} device />
-    </span>
-  );
-
-  if (variant === "split") {
-    return (
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-px">
-          {tagAll}
-          {newest.length > 0 && (
-            <DropdownMenu
-              aria-label="Tag fewer"
-              variant="primary"
-              icon={<ChevronDown size={16} />}
-              items={newest.map((n) => {
-                const secs = taggingSeconds(n, est);
-                return {
-                  label: `Tag the newest ${n.toLocaleString()}`,
-                  hint: secs != null ? <span className="tabular-nums text-faint">{aboutDuration(secs)}</span> : undefined,
-                  onClick: () => void runUntagged(undefined, n),
-                };
-              })}
-            />
-          )}
-        </div>
-        {time}
-      </div>
-    );
-  }
-
-  if (variant === "chips") {
-    const chosen = amount != null && amount < remaining ? amount : null;
-    const count = chosen ?? remaining;
-    const options = [...newest.map((n) => ({ n, label: n.toLocaleString() })), { n: null, label: "All" }];
-    return (
-      <div className="flex flex-wrap items-center gap-3">
-        <div role="radiogroup" aria-label="How many to tag" className="flex rounded-lg border border-line bg-sunken p-0.5">
-          {options.map((o) => (
-            <button
-              key={o.label}
-              type="button"
-              role="radio"
-              aria-checked={chosen === o.n}
-              onClick={() => setAmount(o.n)}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-xs tabular-nums text-muted hover:text-neutral-100",
-                chosen === o.n && "bg-raised text-neutral-100",
-              )}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-        <Button variant="primary" onClick={() => void runUntagged(undefined, chosen)} disabled={running}>
-          <Sparkles size={16} />
-          Tag {chosen == null ? "all " : ""}
-          {count.toLocaleString()} {count === 1 ? "image" : "images"}
-        </Button>
-        <span className="text-sm text-muted tabular-nums">
+  const [typed, setTyped] = useState<string | null>(null);
+  const asked = typed == null ? remaining : parseCount(typed);
+  const count = asked == null ? 0 : Math.min(asked, remaining);
+  // The whole backlog goes without a limit, so images that arrive meanwhile join it.
+  const limit = count >= remaining ? null : count;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <Button variant="primary" onClick={() => void runUntagged(undefined, limit)} disabled={running || count < 1}>
+        <Sparkles size={16} />
+        Tag
+      </Button>
+      <label className="flex items-center gap-2 text-sm text-muted tabular-nums">
+        <Input
+          inputMode="numeric"
+          className="h-8 w-24 text-right tabular-nums"
+          value={typed ?? remaining.toLocaleString()}
+          onChange={(e) => setTyped(e.target.value.replace(/[^\d,]/g, ""))}
+          onFocus={(e) => e.target.select()}
+          onBlur={() => typed != null && setTyped(count >= remaining ? null : count.toLocaleString())}
+          aria-label="Images to tag"
+        />
+        of {remaining.toLocaleString()} {remaining === 1 ? "image" : "images"}
+      </label>
+      {count > 0 && (
+        <span className="text-sm text-faint tabular-nums">
           <Estimate images={count} est={est} device />
         </span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      {tagAll}
-      {time}
+      )}
     </div>
   );
 }
@@ -326,6 +237,7 @@ function LibraryCoverage({
                 className="h-7 px-2"
                 onClick={() => void runUntagged(l.library_id)}
                 disabled={running}
+                aria-label={`Tag ${l.name}`}
               >
                 <Sparkles size={12} /> Tag
               </Button>
@@ -359,7 +271,6 @@ function LibraryCoverage({
 export default function AITaggingPage() {
   return (
     <AiControllerProvider>
-      <VariantChip />
       <PageHeader
         title="AI Tagging"
         description="Tag images with a local WD tagger model."
