@@ -125,6 +125,5 @@ async def update_ai_settings(patch: dict[str, Any]) -> dict[str, Any]:
     if after.get("auto_tag") and not before.get("auto_tag"):
         from .ai_jobs import get_ai_job_manager
 
-        get_ai_job_manager().resume_auto()
         get_ai_job_manager().nudge()
     return after

@@ -269,6 +269,7 @@ describe("aiJobPhaseLabel / cancelJobMessage", () => {
 
   it("answers a cancel request one way", () => {
     expect(cancelJobMessage(true)).toEqual(["Cancellation requested", "success"]);
+    expect(cancelJobMessage(true, true)).toEqual(["Cancelled, and auto-tag is off", "success"]);
     expect(cancelJobMessage(false)).toEqual(["Job already finished", "info"]);
   });
 });

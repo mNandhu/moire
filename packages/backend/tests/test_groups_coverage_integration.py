@@ -138,7 +138,6 @@ async def test_tag_untagged_skips_quarantined_like_coverage(client, seed, monkey
 
 
 async def test_stats_counts_images_per_local_day_and_quarantine(client, seed):
-    import time
 
     now = time.time()
     # Two on one day, one a day later, one far outside the window.
@@ -258,9 +257,69 @@ async def test_auto_tag_only_runs_when_on_and_skips_what_it_gave_up_on(
 
     monkeypatch.setattr(scanner, "any_scanning", lambda: False)
     mgr._in_flight["L1:c"] += 1  # another job holds it
-    mgr._auto_skip["L1:a"] = time.time()  # failed earlier
+    mgr._skip_new.add("L1:a")  # failed earlier
+    await mgr._flush_skip()
     await mgr.auto_tag()
     assert queued == [(["L1:b"], "auto")]
+
+
+async def test_auto_tag_remembers_what_it_gave_up_on_until_the_file_changes(
+    client, seed, monkeypatch
+):
+    from moire.database import db
+    from moire.database import schema as t
+    from moire.services import ai_jobs, scanner
+
+    seed("L1:a", mtime=1.0)
+    seed("L1:b", mtime=2.0)
+    await client.post("/ai/settings", json={"auto_tag": True})
+    monkeypatch.setattr(scanner, "any_scanning", lambda: False)
+    first = ai_jobs.AIJobManager()
+    first._skip_new.update({"L1:a", "L1:b"})
+    await first._flush_skip()
+
+    # A restart: a new manager reads the list back.
+    mgr = ai_jobs.AIJobManager()
+    queued: list[list[str]] = []
+
+    async def fake_enqueue(*, ids, **_):
+        queued.append(ids)
+
+    monkeypatch.setattr(mgr, "enqueue", fake_enqueue)
+    await mgr.auto_tag()
+    assert queued == []
+
+    # The file changed (written again): it gets another go.
+    with db.sync_tx() as conn:
+        conn.execute(
+            t.images.update().where(t.images.c._id == "L1:b").values(mtime=5.0)
+        )
+    await mgr.auto_tag()
+    assert queued == [["L1:b"]]
+    assert set(mgr._auto_skip) == {"L1:a"}
+
+
+async def test_cancelling_a_backlog_run_turns_auto_tag_off(client, seed):
+    from moire.services import ai_jobs
+
+    await client.post("/ai/settings", json={"auto_tag": True})
+    mgr = ai_jobs.AIJobManager()  # no worker: the job stays queued
+    auto = await mgr.enqueue(ids=["L1:a", "L1:b"], scope="auto", backlog=True)
+    # "Tag them" took it over: still the backlog run auto-tag would requeue.
+    await mgr.enqueue(ids=["L1:a"], scope="unknown")
+    assert auto.scope == "unknown"
+    await mgr.cancel(auto.id)
+    assert (await client.get("/ai/settings")).json()["auto_tag"] is False
+
+
+async def test_cancelling_a_selection_leaves_auto_tag_on(client):
+    from moire.services import ai_jobs
+
+    await client.post("/ai/settings", json={"auto_tag": True})
+    mgr = ai_jobs.AIJobManager()
+    picked = await mgr.enqueue(ids=["L1:a"], urgent=True)
+    await mgr.cancel(picked.id)
+    assert (await client.get("/ai/settings")).json()["auto_tag"] is True
 
 
 async def test_status_carries_a_time_estimate(client):

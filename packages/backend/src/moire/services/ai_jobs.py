@@ -14,8 +14,15 @@ from PIL import Image
 
 from ..database.db import async_conn
 from ..database import schema as t
-from . import activity, ai_coverage, ai_estimate, image_tags, image_visibility
-from .ai_settings import get_ai_settings
+from . import (
+    activity,
+    ai_coverage,
+    ai_estimate,
+    app_settings,
+    image_tags,
+    image_visibility,
+)
+from .ai_settings import get_ai_settings, update_ai_settings
 from .ai_tagger import (
     PreparedImage,
     TagParams,
@@ -36,9 +43,10 @@ _KEEP_RECENT_S = 600.0
 # Auto-tag waits this long after a nudge, so a burst of new files (the
 # watcher ingests them one at a time) queues one job, not one each.
 _AUTO_DELAY_S = 3.0
-# How long auto-tag leaves an image alone after it failed or got no tags: a
-# file read half-written gets another go, a broken one isn't retried per scan.
-_AUTO_SKIP_S = 15 * 60.0
+# The app_settings row of images auto-tag gave up on: id -> the file's mtime
+# then. Kept across restarts; an image whose file changes gets another go.
+_SKIP_ROW = "ai_auto_skip"
+_CHUNK = 500
 
 __all__ = [
     "AIJobManager",
@@ -190,11 +198,13 @@ class AIJobManager:
         # Prevent queueing the same image many times across jobs.
         # Claims per image id, held from enqueue until that image is processed.
         self._in_flight: Counter[str] = Counter()
-        # Images that failed, or that the tagger found nothing in, since the
-        # process started: auto-tag leaves them out so it doesn't queue them
-        # again after every scan (a run started by hand still includes them).
-        # Image id -> when it was given up on (see _AUTO_SKIP_S).
-        self._auto_skip: dict[str, float] = {}
+        # Images that failed, or that the tagger found nothing in: auto-tag
+        # leaves them out until their file changes, so it doesn't queue them
+        # again after every scan or restart (a run started by hand still
+        # includes them). Id -> mtime, loaded from _SKIP_ROW on first use.
+        self._auto_skip: dict[str, float | None] | None = None
+        # Given up on in a job still running: stored, with mtimes, at its end.
+        self._skip_new: set[str] = set()
         # Ids an urgent job took over from a job already holding them: that
         # job skips them when it gets there instead of tagging them twice.
         self._taken: set[str] = set()
@@ -202,10 +212,6 @@ class AIJobManager:
         self._auto_again = False
         self._loop: asyncio.AbstractEventLoop | None = None
         self._auto_task: asyncio.Task | None = None
-        # Cancel on an auto-tag job pauses auto-tag until the setting is
-        # switched on again (or the process restarts): otherwise the next
-        # scan or new file would queue the whole backlog straight back.
-        self._auto_paused = False
 
     def start(self) -> None:
         self._loop = asyncio.get_running_loop()
@@ -317,7 +323,9 @@ class AIJobManager:
         """The images a run tags, newest file first: the set /ai/coverage
         counts (ai_coverage.untagged_clause). ``unknown``: only those with no
         sensitivity level yet, which the sensitivity filter hides."""
-        stmt = sa.select(t.images.c._id).where(ai_coverage.untagged_clause(library_id))
+        stmt = sa.select(t.images.c._id, t.images.c.mtime).where(
+            ai_coverage.untagged_clause(library_id)
+        )
         if unknown:
             stmt = stmt.where(image_visibility.image_level().is_(None))
         return stmt.order_by(t.images.c.mtime.desc(), t.images.c._id.desc())
@@ -338,8 +346,6 @@ class AIJobManager:
             ids = [row._id for row in (await conn.execute(stmt)).fetchall()]
         if not ids:
             return None
-        # Tagging asked for by hand: a pause from a cancelled run is over.
-        self._auto_paused = False
         return await self.enqueue(
             ids=ids, scope="unknown" if unknown else None, backlog=True
         )
@@ -350,25 +356,58 @@ class AIJobManager:
         for running scans: the one that ends nudges again."""
         from . import scanner  # scanner nudges this module: import late
 
-        if self._auto_paused or scanner.any_scanning():
+        if scanner.any_scanning():
             return None
         if not (await get_ai_settings()).get("auto_tag"):
             return None
-        cutoff = time.time() - _AUTO_SKIP_S
-        self._auto_skip = {k: at for k, at in self._auto_skip.items() if at > cutoff}
+        skip = await self._skip_list()
         async with async_conn() as conn:
-            ids = [
-                row._id
-                for row in (await conn.execute(self._untagged_ids())).fetchall()
-                if row._id not in self._in_flight and row._id not in self._auto_skip
-            ]
+            rows = (await conn.execute(self._untagged_ids())).fetchall()
+        # Still untagged and the same file: still given up on. The rest
+        # (tagged by hand since, changed, deleted) drop off the list.
+        kept = {
+            r._id: r.mtime for r in rows if r._id in skip and skip[r._id] == r.mtime
+        }
+        if len(kept) != len(skip):
+            await self._store_skip(kept)
+        ids = [
+            r._id for r in rows if r._id not in self._in_flight and r._id not in kept
+        ]
         if not ids:
             return None
         return await self.enqueue(ids=ids, scope="auto", backlog=True)
 
-    def resume_auto(self) -> None:
-        """Auto-tag was switched on: a pause from a cancelled run ends."""
-        self._auto_paused = False
+    async def _skip_list(self) -> dict[str, float | None]:
+        if self._auto_skip is None:
+            try:
+                self._auto_skip = dict(await app_settings.read(_SKIP_ROW) or {})
+            except Exception:
+                logger.debug("Could not read the auto-tag skip list", exc_info=True)
+                return {}
+        return self._auto_skip
+
+    async def _store_skip(self, skip: dict[str, float | None]) -> None:
+        self._auto_skip = skip
+        try:
+            await app_settings.write(_SKIP_ROW, skip)
+        except Exception:
+            logger.debug("Could not store the auto-tag skip list", exc_info=True)
+
+    async def _flush_skip(self) -> None:
+        """Add the images given up on since the last flush, with their
+        file's mtime now."""
+        new, self._skip_new = list(self._skip_new), set()
+        if not new:
+            return
+        skip = dict(await self._skip_list())
+        async with async_conn() as conn:
+            for i in range(0, len(new), _CHUNK):
+                stmt = sa.select(t.images.c._id, t.images.c.mtime).where(
+                    t.images.c._id.in_(new[i : i + _CHUNK])
+                )
+                for r in (await conn.execute(stmt)).fetchall():
+                    skip[r._id] = r.mtime
+        await self._store_skip(skip)
 
     def nudge(self) -> None:
         """Run :meth:`auto_tag` shortly: new images may have arrived. Safe
@@ -407,7 +446,9 @@ class AIJobManager:
         if not job:
             return False
         if job.backlog and job.status in _ACTIVE:
-            self._auto_paused = True
+            # Auto-tag would queue the backlog straight back at the next
+            # scan or new file: cancelling it turns auto-tag off.
+            await self._turn_auto_tag_off()
 
         # If queued, remove from queue immediately.
         if job.status == "queued":
@@ -425,6 +466,14 @@ class AIJobManager:
 
         # done/error/cancelled -> can't cancel
         return False
+
+    @staticmethod
+    async def _turn_auto_tag_off() -> None:
+        try:
+            if (await get_ai_settings()).get("auto_tag"):
+                await update_ai_settings({"auto_tag": False})
+        except Exception:
+            logger.warning("Could not turn auto-tag off", exc_info=True)
 
     async def _worker_loop(self) -> None:
         while True:
@@ -520,13 +569,13 @@ class AIJobManager:
                             bulk=job.total > 1,
                         )
                         if found is False:
-                            self._auto_skip[image_id] = time.time()
+                            self._skip_new.add(image_id)
                         job.done += 1
                     except Exception as e:
                         logger.warning("AI tagging failed for %s: %s", image_id, e)
                         job.failed += 1
                         job.errors.append({"image_id": image_id, "error": str(e)})
-                        self._auto_skip[image_id] = time.time()
+                        self._skip_new.add(image_id)
                     if job.urgent and self._in_flight[image_id] > 1:
                         # Another job still holds it: that one skips it.
                         self._taken.add(image_id)
@@ -547,6 +596,10 @@ class AIJobManager:
             job.failed += len(ids) - released
         finally:
             job.current = None
+            try:
+                await self._flush_skip()
+            except Exception:
+                logger.debug("Could not store the auto-tag skip list", exc_info=True)
             if job.started_at is not None:
                 job.finished_at = time.time()
                 # A nested job's writes are part of the run around it, which

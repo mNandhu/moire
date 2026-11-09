@@ -457,8 +457,14 @@ async def test_an_image_the_tagger_finds_nothing_in_is_left_to_auto_tag(monkeypa
         return image_id != "empty"
 
     monkeypatch.setattr(mgr, "_tag_one", nothing_for_empty)
+    flushed: list[set[str]] = []
+
+    async def flush():
+        flushed.append(set(mgr._skip_new))
+
+    monkeypatch.setattr(mgr, "_flush_skip", flush)
     await _run(mgr, ["ok", "empty", "bad"])
-    assert set(mgr._auto_skip) == {"empty", "bad"}
+    assert flushed == [{"empty", "bad"}]
 
 
 async def test_tag_them_takes_over_an_auto_tag_job_holding_its_images():
@@ -468,25 +474,6 @@ async def test_tag_them_takes_over_an_auto_tag_job_holding_its_images():
     assert again.total == 0 and again.skipped == 1
     # The hidden-images banner follows the job doing its work.
     assert auto.scope == "unknown"
-
-
-async def test_cancelling_an_auto_tag_run_pauses_auto_tag(monkeypatch):
-    mgr = AIJobManager()
-    auto = await mgr.enqueue(ids=["a", "b"], scope="auto", backlog=True)
-    # "Tag them" took it over: still the backlog run auto-tag would requeue.
-    await mgr.enqueue(ids=["a"], scope="unknown")
-    assert auto.scope == "unknown"
-    await mgr.cancel(auto.id)
-    assert await mgr.auto_tag() is None  # paused: no settings read needed
-    mgr.resume_auto()
-    assert mgr._auto_paused is False
-
-
-async def test_cancelling_a_selection_leaves_auto_tag_alone():
-    mgr = AIJobManager()
-    picked = await mgr.enqueue(ids=["a"], urgent=True)
-    await mgr.cancel(picked.id)
-    assert mgr._auto_paused is False
 
 
 async def test_an_urgent_job_takes_over_images_a_long_run_holds(monkeypatch):

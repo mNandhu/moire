@@ -34,6 +34,15 @@ function TaggingForm() {
     <div className="space-y-5">
       {settings ? (
         <>
+          <Section title="New images">
+            <Checkbox
+              id="ai_auto_tag"
+              checked={settings.auto_tag}
+              onChange={(v) => setSettings({ ...settings, auto_tag: v })}
+              label="Auto-tag new images"
+            />
+          </Section>
+
           <Section
             title="Thresholds"
             description="Minimum confidence for a tag to be kept, and a cap per image."

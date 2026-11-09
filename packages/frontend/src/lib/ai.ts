@@ -214,8 +214,10 @@ export function aiJobPhaseLabel(job: Pick<AiJob, "status" | "phase">): string {
 
 /** The toast for a cancel request's answer: `ok` is false when the job had
  * already ended. One wording for every place that cancels a job. */
-export function cancelJobMessage(ok: boolean): [string, "success" | "info"] {
-  return ok ? ["Cancellation requested", "success"] : ["Job already finished", "info"];
+export function cancelJobMessage(ok: boolean, autoTagOff = false): [string, "success" | "info"] {
+  if (!ok) return ["Job already finished", "info"];
+  // Auto-tag would queue the same images again: the cancel turned it off.
+  return [autoTagOff ? "Cancelled, and auto-tag is off" : "Cancellation requested", "success"];
 }
 
 
@@ -362,8 +364,8 @@ export function postAiTagImageUrl(url: string, signal?: AbortSignal): Promise<Im
 
 /** Request cancellation of an AI tagging job. Returns whether the backend
  * accepted the request (false if the job already finished). */
-export function postAiJobCancel(id: string): Promise<{ ok: boolean }> {
-  return api<{ ok: boolean }>(
+export function postAiJobCancel(id: string): Promise<{ ok: boolean; auto_tag_off?: boolean }> {
+  return api<{ ok: boolean; auto_tag_off?: boolean }>(
     `/api/v1/ai/jobs/${encodeURIComponent(id)}/cancel`,
     POST
   );

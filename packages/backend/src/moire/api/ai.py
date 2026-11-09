@@ -296,11 +296,14 @@ async def ai_get_job(job_id: str):
 @router.post("/jobs/{job_id}/cancel")
 async def ai_cancel_job(job_id: str):
     jm = get_ai_job_manager()
+    was_on = bool((await get_ai_settings()).get("auto_tag"))
     ok = await jm.cancel(job_id)
     j = jm.get_job(job_id)
     return {
         "ok": ok,
         "job": (j.public() if j else None),
+        # Cancelling a run over the backlog turns auto-tag off (ai_jobs.cancel).
+        "auto_tag_off": was_on and not (await get_ai_settings()).get("auto_tag"),
     }
 
 

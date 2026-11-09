@@ -54,7 +54,9 @@ test("Tag them shows the job's progress in the banner, and the activity list can
   await banner.getByRole("button", { name: "Tag them" }).click();
 
   // While it runs the banner follows it: no second Tag them, a Cancel instead.
-  await expect(banner.getByRole("button", { name: "Cancel" })).toBeVisible();
+  // The first job loads the tagger, which can hold the activity poll for
+  // several seconds (CUDA start-up).
+  await expect(banner.getByRole("button", { name: "Cancel" })).toBeVisible({ timeout: 30_000 });
   await expect(banner.getByRole("button", { name: "Tag them" })).toHaveCount(0);
 
   // The sidebar's background work list stops it too.

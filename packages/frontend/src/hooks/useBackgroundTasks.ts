@@ -9,7 +9,7 @@ import {
   type EndedCounts,
 } from "../lib/backgroundTasks";
 import { AI_COVERAGE_KEY, LIBRARIES_KEY, TAGS_KEY } from "../lib/queries";
-import { AI_STATUS_KEY, postAiJobCancel } from "../lib/ai";
+import { AI_STATUS_KEY, cancelJobMessage, postAiJobCancel } from "../lib/ai";
 import { SENSITIVITY_KEY } from "../lib/queries/sensitivity";
 import type { SensitivityState } from "../lib/sensitivity";
 import { TAG_SAMPLES_KEY } from "../lib/tagSamples";
@@ -115,7 +115,11 @@ export function useCancelAiJob() {
     async (jobId: string) => {
       setCancelling(jobId);
       try {
-        await postAiJobCancel(jobId);
+        const r = await postAiJobCancel(jobId);
+        if (r.auto_tag_off) {
+          push(cancelJobMessage(true, true)[0], "success");
+          void qc.invalidateQueries({ queryKey: AI_STATUS_KEY });
+        }
       } catch (e) {
         push(`Couldn't cancel AI tagging: ${errorText(e)}`, "error");
       } finally {

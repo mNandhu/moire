@@ -29,3 +29,23 @@ test("the AI Tagging run box sends how many to tag", async ({ page }) => {
   await box.fill("");
   await expect(page.getByRole("button", { name: "Tag", exact: true })).toBeDisabled();
 });
+
+// Settings saves auto-tag with the rest of the AI settings. The save is
+// answered here: switching it on for real would start tagging the sandbox.
+test("Settings saves the auto-tag switch", async ({ page }) => {
+  let saved: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/ai/settings", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    saved = route.request().postDataJSON();
+    await route.fulfill({ json: saved });
+  });
+
+  await page.goto("/settings?section=tagging");
+  const box = page.getByRole("checkbox", { name: "Auto-tag new images" });
+  await expect(box).not.toBeChecked();
+  await box.focus();
+  await page.keyboard.press("Space");
+  await expect(box).toBeChecked();
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect.poll(() => saved?.auto_tag).toBe(true);
+});

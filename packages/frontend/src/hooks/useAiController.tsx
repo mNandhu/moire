@@ -100,8 +100,12 @@ function useAiControllerState(): AiController {
 
   const cancelJob = (jobId: string) =>
     runCommand(
-      () => postAiJobCancel(jobId),
-      (r) => cancelJobMessage(r.ok),
+      async () => {
+        const r = await postAiJobCancel(jobId);
+        if (r.auto_tag_off) void qc.invalidateQueries({ queryKey: AI_STATUS_KEY });
+        return r;
+      },
+      (r) => cancelJobMessage(r.ok, r.auto_tag_off),
       "Failed to cancel"
     );
 
