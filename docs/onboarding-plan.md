@@ -48,9 +48,9 @@ Skipping at any point lands in the gallery, with whatever was done so far.
 - [x] `onboarding` value in `app_settings` (pending / done / skipped), read and written through `services/onboarding.py`, served at `GET`/`PUT /api/v1/onboarding` (with version, data folder, host name and install type for the page). No row plus existing libraries reads as done.
 - [x] Route guard in `RootRoutes.tsx`: a fresh install (no libraries, onboarding not done) opens `/welcome`. Existing databases never see it; a failed check opens the app as usual.
 - [x] Landing page: logo lockup, line, Set up / Skip buttons, footer with version and data folder.
-- [x] Ring background component, `components/onboarding/RingBackground.tsx` (canvas, pointer lean, colour wash with grain), shared by landing and setup. Static under reduced motion.
+- [x] Ring background component, `features/onboarding/components/RingBackground.tsx` (canvas, pointer lean, colour wash with grain), shared by landing and setup. Static under reduced motion.
 - [x] Setup shell (`pages/WelcomePage.tsx`): step list with summaries, form pane, footer with scan progress and Back / Continue / Open Moiré.
-- [x] Image folders step (`components/onboarding/FoldersStep.tsx`). Shares `discoverLibraries` and `errorText` with `AddLibraryDialog`; the path rules are pure functions in `lib/onboarding.ts`.
+- [x] Image folders step (`features/onboarding/components/FoldersStep.tsx`). Shares `discoverLibraries` and `errorText` with `AddLibraryDialog`; the path rules are pure functions in `features/onboarding/lib/onboarding.ts`.
   - [x] Validate before adding: full path (accept `/` and `\`), not already listed, reachable. Errors inline under the field.
   - [x] Paste of several lines adds each valid path.
   - [x] Show image counts from `discover` ("5,000+" when capped).
@@ -63,7 +63,7 @@ Skipping at any point lands in the gallery, with whatever was done so far.
 ## Phase 2: ComfyUI step
 
 - [x] Address field with Connect / Disconnect, reusing the ComfyUI settings service (`services/generate/comfy_settings.py`). States: checking, connected, nothing answered.
-- [x] Saved workflows: folder picker (`<input webkitdirectory>`) and drop zone, reusing `parseWorkflowFile` and `importWorkflowFiles` from `lib/workflows.ts` and `POST /rules/workflow-files`.
+- [x] Saved workflows: folder picker (`<input webkitdirectory>`) and drop zone, reusing `parseWorkflowFile` and `importWorkflowFiles` from `features/metadata/lib/workflows.ts` and `POST /rules/workflow-files`.
 - [x] Show what was read: workflow names and node counts, files skipped, or "no workflows in that folder".
 - [x] Step summary in the rail ("Connected · 7 workflows").
 
@@ -78,7 +78,7 @@ Skipping at any point lands in the gallery, with whatever was done so far.
 - [x] Order: newest first by file `mtime` (what the user looks at first).
 - [x] Onboarding step UI: switch (off by default), CPU vs GPU time for this library, GPU callout.
 - [x] Switch enabled (it shipped disabled until the backlog could run whole).
-- [x] Time estimate from the documented rates (CPU ~0.6 images/s in a real job, GPU ~0.1 s an image on a GTX 1650, see `docs/perf-findings.md`), in `lib/onboarding.ts`.
+- [x] Time estimate from the documented rates (CPU ~0.6 images/s in a real job, GPU ~0.1 s an image on a GTX 1650, see `docs/perf-findings.md`), in `features/onboarding/lib/onboarding.ts`.
 - [x] Measured rate: a run of 20+ images stores its rate per device (`services/ai/estimate.py`, app_settings row `ai_rate`); `/ai/status` `estimate` serves it, else the documented rate for the device. The AI Tagging page shows it for the backlog and each library.
 - [ ] GPU detection:
   - [x] Which build is running: the session's providers once loaded, else `get_available_providers()` (`WDTagger.device`). On the GPU build the step drops the CPU/GPU bars and the GPU callout.
@@ -95,4 +95,4 @@ Skipping at any point lands in the gallery, with whatever was done so far.
 
 - [x] Backend: `onboarding` setting round trip (`tests/test_onboarding_integration.py`).
 - [ ] Backend: auto-tag queues new images only when on; startup resume; no requeue loop on untaggable images.
-- [x] Frontend: path validation (`lib/onboarding.test.ts`); route guard (`RootRoutes.onboarding.test.tsx`); folder step and library creation (`pages/WelcomePage.test.tsx`).
+- [x] Frontend: path validation (`features/onboarding/lib/onboarding.test.ts`); route guard (`RootRoutes.onboarding.test.tsx`); folder step and library creation (`pages/WelcomePage.test.tsx`).

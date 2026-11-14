@@ -9,46 +9,46 @@ test-optimizations.js: test-optimizations.js
 Unused devDependencies (1)
 package.json: @vitest/coverage-v8
 Unused exports (30)
-src/components/ErrorScreen.tsx: ErrorPanel
-src/components/ShortcutOverlay.tsx: ShortcutOverlay
-src/components/Sidebar.tsx: SEARCH_KEYS
-src/components/TagPanel.tsx: TagImages
-src/components/generate/BatchResults.tsx: Tile, NoImageMark
-src/components/generate/CharacterBlock.tsx: GenderPick
+src/app/components/ErrorScreen.tsx: ErrorPanel
+src/app/components/ShortcutOverlay.tsx: ShortcutOverlay
+src/app/components/Sidebar.tsx: SEARCH_KEYS
+src/features/tags/components/TagPanel.tsx: TagImages
+src/features/generate/components/BatchResults.tsx: Tile, NoImageMark
+src/features/generate/components/CharacterBlock.tsx: GenderPick
 src/components/generate/ChipInput.tsx: ChipInput
-src/components/generate/OutfitCover.tsx: coverCaption
-src/components/generate/QueueFrames.tsx: framesOf, Frame
-src/components/generate/Remix.tsx: useRemixWorkflow
+src/features/characters/components/outfits/OutfitCover.tsx: coverCaption
+src/features/generate/components/QueueFrames.tsx: framesOf, Frame
+src/features/generate/components/Remix.tsx: useRemixWorkflow
 src/components/ui/ScoreMark.tsx: MARKER_DIGIT
 src/components/ui/index.ts: ButtonAnchor, Section, Field, Skeleton, Spinner, MobileNavContext, StatCard
 src/hooks/useDocumentTitle.ts: APP_NAME
-src/hooks/useImageFeed.ts: imageFeedKey
-src/hooks/useImageLoadSlot.ts: imageLoadQueue
-src/lib/bulk.ts: DEFAULT_CONCURRENCY
-src/lib/character.ts: FEW_IMAGES
-src/lib/compose.ts: EMBEDDING_PREFIX
-src/lib/eta.ts: OVERRUN, FILL_CAP
-src/lib/feedCache.ts: IMAGE_FEED_PREFIX
-src/lib/generate.ts: waitingForScan
-src/lib/generatorSetup.ts: pathLabel
-src/lib/mergeSuggestions.ts: KIND_ORDER
-src/lib/onboarding.ts: isFullPath
-src/lib/promptOutline.ts: splitSpans, promptWord
+src/features/images/hooks/useImageFeed.ts: imageFeedKey
+src/features/images/hooks/useImageLoadSlot.ts: imageLoadQueue
+src/features/images/lib/bulk.ts: DEFAULT_CONCURRENCY
+src/features/characters/lib/character.ts: FEW_IMAGES
+src/features/generate/lib/compose.ts: EMBEDDING_PREFIX
+src/features/generate/lib/eta.ts: OVERRUN, FILL_CAP
+src/features/images/lib/feedCache.ts: IMAGE_FEED_PREFIX
+src/features/generate/lib/generate.ts: waitingForScan
+src/features/generate/lib/generatorSetup.ts: pathLabel
+src/features/tags/lib/mergeSuggestions.ts: KIND_ORDER
+src/features/onboarding/lib/onboarding.ts: isFullPath
+src/features/generate/lib/prompt/promptOutline.ts: splitSpans, promptWord
 src/lib/queries.ts: TAG_FACETS_KEY, TAG_GROUPS_KEY
 src/lib/shortcuts.ts: SHORTCUT_GROUPS
-src/lib/tagColour.ts: CHIP_GROUND
-src/lib/tagGroups.ts: categoryLabel
-src/pages/settings/registry.tsx: SETTINGS_GROUPS
+src/features/tags/lib/tagColour.ts: CHIP_GROUND
+src/features/tags/lib/tagGroups.ts: categoryLabel
+src/features/settings/components/registry.tsx: SETTINGS_GROUPS
 Unused exported types (12)
-src/components/ConfirmDialog.tsx: ConfirmTone, ConfirmOptions
-src/components/generate/PromptBoard.tsx: LayerTag
-src/components/generate/QueueFrames.tsx: FrameState
+src/components/ui/ConfirmDialog.tsx: ConfirmTone, ConfirmOptions
+src/features/generate/components/PromptBoard.tsx: LayerTag
+src/features/generate/components/QueueFrames.tsx: FrameState
 src/components/ui/index.ts: ButtonProps, PageWidth
-src/lib/backgroundTasks.ts: TaskKind
-src/lib/countTags.ts: CountMark
-src/lib/generate.ts: Progress, GeneratorTest, OutputRef, GeneratorOrigin, NodeRef, FoundPrompt, RequestState, RequestError, LoraPick
-src/lib/imageFilter.ts: TagLogic
-src/lib/libraryPlan.ts: CandidateStatus
-src/lib/tagBrowse.ts: TagCategory
-src/lib/workflows.ts: WorkflowVersion
-src/pages/settings/registry.tsx: SettingsGroup
+src/features/activity/lib/backgroundTasks.ts: TaskKind
+src/features/tags/lib/countTags.ts: CountMark
+src/features/generate/lib/generate.ts: Progress, GeneratorTest, OutputRef, GeneratorOrigin, NodeRef, FoundPrompt, RequestState, RequestError, LoraPick
+src/features/images/lib/imageFilter.ts: TagLogic
+src/features/library/lib/libraryPlan.ts: CandidateStatus
+src/features/tags/lib/tagBrowse.ts: TagCategory
+src/features/metadata/lib/workflows.ts: WorkflowVersion
+src/features/settings/components/registry.tsx: SettingsGroup

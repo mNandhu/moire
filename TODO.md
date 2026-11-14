@@ -23,7 +23,7 @@ ComfyUI's workflow mapping so it only gets built once.
   - Tweak before sending: seed (re-roll), prompt edits, batch size; remember
     which image a generation came from
   - Send the image's original prompt verbatim (prose included); never rebuild
-    it from tags. `toPromptText` (`lib/tags.ts`) is only for tag-built text
+    it from tags. `toPromptText` (`features/tags/lib/tags.ts`) is only for tag-built text
   - Record the real generation time when Moiré queues a job (see Known
     issues: mtime). This is the only reliable source we get
   - Remixer, on top of the integration: a built-in page to make images by

@@ -31,7 +31,7 @@ So the weight stays out of the tag string and is stored beside it.
 ## Proposed shape
 
 1. **Extraction (`services/metadata/prompt_parse.py`, used by `reproject.py`).** Read each prompt term's weight while it is being extracted. Count `(x:1.2)` as 1.2, each `(...)` layer as ×1.1 and each `[...]` layer as ÷1.1, and give a group's members the group's weight. Decide `{...}` at the start (×1.05 as in A1111, or 1.0); today the backend treats `{}` as a group and the frontend does not.
-   - **Correction (refactor pass, 2026-10-22):** this rule does not exist anywhere yet. `lib/promptOutline.ts` `unwrap` / `readTerm` read only an explicit `:w` (or the enclosing group's), never ×1.1 per layer, and ignore `{}`. So there is nothing to port. Define the rule once, backend first, in `prompt_parse` (`_scan` already tracks the bracket stack, but `_clean` drops the weight, `Piece` is only `(text, kind)` and `tokenize_prompt` reduces pieces to a set of names). Then make `readTerm` compute the same thing. Put the cases in one shared JSON fixture (e.g. `packages/backend/tests/fixtures/prompt_weights.json`) read by both `test_prompt_parse.py` and a `promptOutline` vitest.
+   - **Correction (refactor pass, 2026-10-22):** this rule does not exist anywhere yet. `features/generate/lib/prompt/promptOutline.ts` `unwrap` / `readTerm` read only an explicit `:w` (or the enclosing group's), never ×1.1 per layer, and ignore `{}`. So there is nothing to port. Define the rule once, backend first, in `prompt_parse` (`_scan` already tracks the bracket stack, but `_clean` drops the weight, `Piece` is only `(text, kind)` and `tokenize_prompt` reduces pieces to a set of names). Then make `readTerm` compute the same thing. Put the cases in one shared JSON fixture (e.g. `packages/backend/tests/fixtures/prompt_weights.json`) read by both `test_prompt_parse.py` and a `promptOutline` vitest.
 2. **Storage.** Add `prompt_weights` (JSON `{tag: weight}`, only for weights other than 1) on `images`, or as a `weight` column on `image_tags` rows with `base` set to the prompt tag. The `image_tags` column is better if we want "images where smile > 1.2" filters later. The JSON column is simpler if we only display weights. Choose one at the start of the session.
    - No migration machinery: the data isn't critical. Drop the DB, or run a reproject ("re-read prompts") after the schema change.
    - Writes go only through `services/tags/image_tags.py` (the single-writer rule).
@@ -43,7 +43,7 @@ So the weight stays out of the tag string and is stored beside it.
 5. **Generate, Prompt card: Ctrl+Up and Ctrl+Down.** Do this first slice in the frontend only.
    - With a selection, or the caret inside a term, Ctrl+Up raises its weight and Ctrl+Down lowers it, in steps of 0.05 (ComfyUI's step).
    - It wraps the text as `(term:1.05)`, removes the wrapper when the weight returns to 1, and keeps the selection on the term.
-   - Make it a pure helper in `lib/promptEdit.ts` (`bumpWeight(text, start, end, delta) -> {text, start, end}`) with tests, wired into `PromptInput.tsx`'s `onKeyDown`.
+   - Make it a pure helper in `features/generate/lib/prompt/promptEdit.ts` (`bumpWeight(text, start, end, delta) -> {text, start, end}`) with tests, wired into `PromptInput.tsx`'s `onKeyDown`.
    - Add the keys to `lib/shortcuts.ts` (a "Generate" group).
 
 ## Prerequisites from the refactor pass (2026-10-22)

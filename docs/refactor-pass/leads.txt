@@ -82,68 +82,68 @@ packages/backend/src/moire/services/tags/descriptions.py:62  DEAD? vulture: unus
 packages/backend/src/moire/services/tags/index.py:132  DEAD? vulture: unused function 'reset_for_tests' (60% confidence)
 packages/backend/src/moire/web_ui.py:69  DEAD? vulture: unused function '_ui_fallback' (60% confidence)
 packages/frontend/package.json  DEAD? knip Unused devDependencies: @vitest/coverage-v8
-packages/frontend/src/components/CharacterEditDialog.tsx:145-172  CLONE 28 lines, same as packages/frontend/src/components/TagEditDialog.tsx:63-89
-packages/frontend/src/components/CharacterEditDialog.tsx:149-175  CLONE 27 lines, same as packages/frontend/src/components/TagEditDialog.tsx:67-91
-packages/frontend/src/components/ConfirmDialog.tsx  DEAD? knip Unused exported types: ConfirmTone, ConfirmOptions
-packages/frontend/src/components/ErrorScreen.tsx  DEAD? knip Unused exports: ErrorPanel
-packages/frontend/src/components/RenameTagDialog.tsx:115-124  CLONE 10 lines, same as packages/frontend/src/components/generate/ChipInput.tsx:83-92
-packages/frontend/src/components/ShortcutOverlay.tsx  DEAD? knip Unused exports: ShortcutOverlay
-packages/frontend/src/components/Sidebar.tsx  DEAD? knip Unused exports: SEARCH_KEYS
-packages/frontend/src/components/TagEditDialog.tsx:63-89  CLONE 28 lines, same as packages/frontend/src/components/CharacterEditDialog.tsx:145-172
-packages/frontend/src/components/TagEditDialog.tsx:67-91  CLONE 27 lines, same as packages/frontend/src/components/CharacterEditDialog.tsx:149-175
-packages/frontend/src/components/TagPanel.tsx  DEAD? knip Unused exports: TagImages
-packages/frontend/src/components/TagPanel.tsx:360-430  CLONE 71 lines, same as packages/frontend/src/pages/CharacterPage.tsx:288-332
-packages/frontend/src/components/TagPanel.tsx:409-423  CLONE 15 lines, same as packages/frontend/src/pages/CharacterPage.tsx:313-327
-packages/frontend/src/components/TagSearchInput.tsx:98-107  CLONE 10 lines, same as packages/frontend/src/components/generate/RunControls.tsx:187-195
-packages/frontend/src/components/generate/BatchResults.tsx  DEAD? knip Unused exports: Tile, NoImageMark
-packages/frontend/src/components/generate/CharacterBlock.tsx  DEAD? knip Unused exports: GenderPick
-packages/frontend/src/components/generate/CharacterBlock.tsx:252-276  CLONE 25 lines, same as packages/frontend/src/components/generate/Outfit.tsx:156-181
+packages/frontend/src/features/characters/components/CharacterEditDialog.tsx:145-172  CLONE 28 lines, same as packages/frontend/src/features/characters/components/TagEditDialog.tsx:63-89
+packages/frontend/src/features/characters/components/CharacterEditDialog.tsx:149-175  CLONE 27 lines, same as packages/frontend/src/features/characters/components/TagEditDialog.tsx:67-91
+packages/frontend/src/components/ui/ConfirmDialog.tsx  DEAD? knip Unused exported types: ConfirmTone, ConfirmOptions
+packages/frontend/src/app/components/ErrorScreen.tsx  DEAD? knip Unused exports: ErrorPanel
+packages/frontend/src/features/tags/components/RenameTagDialog.tsx:115-124  CLONE 10 lines, same as packages/frontend/src/components/generate/ChipInput.tsx:83-92
+packages/frontend/src/app/components/ShortcutOverlay.tsx  DEAD? knip Unused exports: ShortcutOverlay
+packages/frontend/src/app/components/Sidebar.tsx  DEAD? knip Unused exports: SEARCH_KEYS
+packages/frontend/src/features/characters/components/TagEditDialog.tsx:63-89  CLONE 28 lines, same as packages/frontend/src/features/characters/components/CharacterEditDialog.tsx:145-172
+packages/frontend/src/features/characters/components/TagEditDialog.tsx:67-91  CLONE 27 lines, same as packages/frontend/src/features/characters/components/CharacterEditDialog.tsx:149-175
+packages/frontend/src/features/tags/components/TagPanel.tsx  DEAD? knip Unused exports: TagImages
+packages/frontend/src/features/tags/components/TagPanel.tsx:360-430  CLONE 71 lines, same as packages/frontend/src/pages/CharacterPage.tsx:288-332
+packages/frontend/src/features/tags/components/TagPanel.tsx:409-423  CLONE 15 lines, same as packages/frontend/src/pages/CharacterPage.tsx:313-327
+packages/frontend/src/features/tags/components/TagSearchInput.tsx:98-107  CLONE 10 lines, same as packages/frontend/src/components/generate/RunControls.tsx:187-195
+packages/frontend/src/features/generate/components/BatchResults.tsx  DEAD? knip Unused exports: Tile, NoImageMark
+packages/frontend/src/features/generate/components/CharacterBlock.tsx  DEAD? knip Unused exports: GenderPick
+packages/frontend/src/features/generate/components/CharacterBlock.tsx:252-276  CLONE 25 lines, same as packages/frontend/src/features/characters/components/outfits/Outfit.tsx:156-181
 packages/frontend/src/components/generate/ChipInput.tsx  DEAD? knip Unused exports: ChipInput
 packages/frontend/src/components/generate/ChipInput.tsx:72-83  CLONE 12 lines, same as packages/frontend/src/components/generate/RunControls.tsx:186-195
-packages/frontend/src/components/generate/ChipInput.tsx:83-92  CLONE 10 lines, same as packages/frontend/src/components/RenameTagDialog.tsx:115-124
-packages/frontend/src/components/generate/Layers.tsx:214-235  CLONE 22 lines, same as packages/frontend/src/components/generate/StyleLayer.tsx:99-120
-packages/frontend/src/components/generate/Outfit.tsx:156-181  CLONE 25 lines, same as packages/frontend/src/components/generate/CharacterBlock.tsx:252-276
-packages/frontend/src/components/generate/OutfitCover.tsx  DEAD? knip Unused exports: coverCaption
-packages/frontend/src/components/generate/PromptBoard.tsx  DEAD? knip Unused exported types: LayerTag
-packages/frontend/src/components/generate/QueueFrames.tsx  DEAD? knip Unused exported types: FrameState
-packages/frontend/src/components/generate/QueueFrames.tsx  DEAD? knip Unused exports: framesOf, Frame
-packages/frontend/src/components/generate/Remix.tsx  DEAD? knip Unused exports: useRemixWorkflow
+packages/frontend/src/components/generate/ChipInput.tsx:83-92  CLONE 10 lines, same as packages/frontend/src/features/tags/components/RenameTagDialog.tsx:115-124
+packages/frontend/src/features/generate/components/Layers.tsx:214-235  CLONE 22 lines, same as packages/frontend/src/features/generate/components/StyleLayer.tsx:99-120
+packages/frontend/src/features/characters/components/outfits/Outfit.tsx:156-181  CLONE 25 lines, same as packages/frontend/src/features/generate/components/CharacterBlock.tsx:252-276
+packages/frontend/src/features/characters/components/outfits/OutfitCover.tsx  DEAD? knip Unused exports: coverCaption
+packages/frontend/src/features/generate/components/PromptBoard.tsx  DEAD? knip Unused exported types: LayerTag
+packages/frontend/src/features/generate/components/QueueFrames.tsx  DEAD? knip Unused exported types: FrameState
+packages/frontend/src/features/generate/components/QueueFrames.tsx  DEAD? knip Unused exports: framesOf, Frame
+packages/frontend/src/features/generate/components/Remix.tsx  DEAD? knip Unused exports: useRemixWorkflow
 packages/frontend/src/components/generate/RunControls.tsx:186-195  CLONE 12 lines, same as packages/frontend/src/components/generate/ChipInput.tsx:72-83
-packages/frontend/src/components/generate/RunControls.tsx:187-195  CLONE 10 lines, same as packages/frontend/src/components/TagSearchInput.tsx:98-107
-packages/frontend/src/components/generate/StyleLayer.tsx:99-120  CLONE 22 lines, same as packages/frontend/src/components/generate/Layers.tsx:214-235
+packages/frontend/src/components/generate/RunControls.tsx:187-195  CLONE 10 lines, same as packages/frontend/src/features/tags/components/TagSearchInput.tsx:98-107
+packages/frontend/src/features/generate/components/StyleLayer.tsx:99-120  CLONE 22 lines, same as packages/frontend/src/features/generate/components/Layers.tsx:214-235
 packages/frontend/src/components/ui/ScoreMark.tsx  DEAD? knip Unused exports: MARKER_DIGIT
 packages/frontend/src/components/ui/index.ts  DEAD? knip Unused exported types: ButtonProps, PageWidth
 packages/frontend/src/components/ui/index.ts  DEAD? knip Unused exports: ButtonAnchor, Section, Field, Skeleton, Spinner, MobileNavContext, StatCard
 packages/frontend/src/hooks/useDocumentTitle.ts  DEAD? knip Unused exports: APP_NAME
-packages/frontend/src/hooks/useImageFeed.ts  DEAD? knip Unused exports: imageFeedKey
-packages/frontend/src/hooks/useImageLoadSlot.ts  DEAD? knip Unused exports: imageLoadQueue
-packages/frontend/src/lib/backgroundTasks.ts  DEAD? knip Unused exported types: TaskKind
-packages/frontend/src/lib/bulk.ts  DEAD? knip Unused exports: DEFAULT_CONCURRENCY
-packages/frontend/src/lib/character.ts  DEAD? knip Unused exports: FEW_IMAGES
-packages/frontend/src/lib/compose.ts  DEAD? knip Unused exports: EMBEDDING_PREFIX
-packages/frontend/src/lib/countTags.ts  DEAD? knip Unused exported types: CountMark
-packages/frontend/src/lib/eta.ts  DEAD? knip Unused exports: OVERRUN, FILL_CAP
-packages/frontend/src/lib/feedCache.ts  DEAD? knip Unused exports: IMAGE_FEED_PREFIX
-packages/frontend/src/lib/generate.ts  DEAD? knip Unused exported types: Progress, GeneratorTest, OutputRef, GeneratorOrigin, NodeRef, FoundPrompt, RequestState, RequestError, LoraPick
-packages/frontend/src/lib/generate.ts  DEAD? knip Unused exports: waitingForScan
-packages/frontend/src/lib/generatorSetup.ts  DEAD? knip Unused exports: pathLabel
-packages/frontend/src/lib/imageFilter.ts  DEAD? knip Unused exported types: TagLogic
-packages/frontend/src/lib/libraryPlan.ts  DEAD? knip Unused exported types: CandidateStatus
-packages/frontend/src/lib/mergeSuggestions.ts  DEAD? knip Unused exports: KIND_ORDER
-packages/frontend/src/lib/onboarding.ts  DEAD? knip Unused exports: isFullPath
-packages/frontend/src/lib/promptOutline.ts  DEAD? knip Unused exports: splitSpans, promptWord
+packages/frontend/src/features/images/hooks/useImageFeed.ts  DEAD? knip Unused exports: imageFeedKey
+packages/frontend/src/features/images/hooks/useImageLoadSlot.ts  DEAD? knip Unused exports: imageLoadQueue
+packages/frontend/src/features/activity/lib/backgroundTasks.ts  DEAD? knip Unused exported types: TaskKind
+packages/frontend/src/features/images/lib/bulk.ts  DEAD? knip Unused exports: DEFAULT_CONCURRENCY
+packages/frontend/src/features/characters/lib/character.ts  DEAD? knip Unused exports: FEW_IMAGES
+packages/frontend/src/features/generate/lib/compose.ts  DEAD? knip Unused exports: EMBEDDING_PREFIX
+packages/frontend/src/features/tags/lib/countTags.ts  DEAD? knip Unused exported types: CountMark
+packages/frontend/src/features/generate/lib/eta.ts  DEAD? knip Unused exports: OVERRUN, FILL_CAP
+packages/frontend/src/features/images/lib/feedCache.ts  DEAD? knip Unused exports: IMAGE_FEED_PREFIX
+packages/frontend/src/features/generate/lib/generate.ts  DEAD? knip Unused exported types: Progress, GeneratorTest, OutputRef, GeneratorOrigin, NodeRef, FoundPrompt, RequestState, RequestError, LoraPick
+packages/frontend/src/features/generate/lib/generate.ts  DEAD? knip Unused exports: waitingForScan
+packages/frontend/src/features/generate/lib/generatorSetup.ts  DEAD? knip Unused exports: pathLabel
+packages/frontend/src/features/images/lib/imageFilter.ts  DEAD? knip Unused exported types: TagLogic
+packages/frontend/src/features/library/lib/libraryPlan.ts  DEAD? knip Unused exported types: CandidateStatus
+packages/frontend/src/features/tags/lib/mergeSuggestions.ts  DEAD? knip Unused exports: KIND_ORDER
+packages/frontend/src/features/onboarding/lib/onboarding.ts  DEAD? knip Unused exports: isFullPath
+packages/frontend/src/features/generate/lib/prompt/promptOutline.ts  DEAD? knip Unused exports: splitSpans, promptWord
 packages/frontend/src/lib/queries.ts  DEAD? knip Unused exports: TAG_FACETS_KEY, TAG_GROUPS_KEY
 packages/frontend/src/lib/shortcuts.ts  DEAD? knip Unused exports: SHORTCUT_GROUPS
-packages/frontend/src/lib/tagBrowse.ts  DEAD? knip Unused exported types: TagCategory
-packages/frontend/src/lib/tagColour.ts  DEAD? knip Unused exports: CHIP_GROUND
-packages/frontend/src/lib/tagGroups.ts  DEAD? knip Unused exports: categoryLabel
-packages/frontend/src/lib/workflows.ts  DEAD? knip Unused exported types: WorkflowVersion
-packages/frontend/src/pages/CharacterPage.tsx:288-332  CLONE 71 lines, same as packages/frontend/src/components/TagPanel.tsx:360-430
-packages/frontend/src/pages/CharacterPage.tsx:313-327  CLONE 15 lines, same as packages/frontend/src/components/TagPanel.tsx:409-423
-packages/frontend/src/pages/settings/registry.tsx  DEAD? knip Unused exported types: SettingsGroup
-packages/frontend/src/pages/settings/registry.tsx  DEAD? knip Unused exports: SETTINGS_GROUPS
-packages/frontend/src/pages/settings/sections/BoilerplateSection.tsx:1-12  CLONE 12 lines, same as packages/frontend/src/pages/settings/sections/PromptGuessSection.tsx:2-13
-packages/frontend/src/pages/settings/sections/BoilerplateSection.tsx:181-198  CLONE 18 lines, same as packages/frontend/src/pages/settings/sections/PromptGuessSection.tsx:118-139
-packages/frontend/src/pages/settings/sections/PromptGuessSection.tsx:118-139  CLONE 18 lines, same as packages/frontend/src/pages/settings/sections/BoilerplateSection.tsx:181-198
-packages/frontend/src/pages/settings/sections/PromptGuessSection.tsx:2-13  CLONE 12 lines, same as packages/frontend/src/pages/settings/sections/BoilerplateSection.tsx:1-12
+packages/frontend/src/features/tags/lib/tagBrowse.ts  DEAD? knip Unused exported types: TagCategory
+packages/frontend/src/features/tags/lib/tagColour.ts  DEAD? knip Unused exports: CHIP_GROUND
+packages/frontend/src/features/tags/lib/tagGroups.ts  DEAD? knip Unused exports: categoryLabel
+packages/frontend/src/features/metadata/lib/workflows.ts  DEAD? knip Unused exported types: WorkflowVersion
+packages/frontend/src/pages/CharacterPage.tsx:288-332  CLONE 71 lines, same as packages/frontend/src/features/tags/components/TagPanel.tsx:360-430
+packages/frontend/src/pages/CharacterPage.tsx:313-327  CLONE 15 lines, same as packages/frontend/src/features/tags/components/TagPanel.tsx:409-423
+packages/frontend/src/features/settings/components/registry.tsx  DEAD? knip Unused exported types: SettingsGroup
+packages/frontend/src/features/settings/components/registry.tsx  DEAD? knip Unused exports: SETTINGS_GROUPS
+packages/frontend/src/features/settings/components/sections/BoilerplateSection.tsx:1-12  CLONE 12 lines, same as packages/frontend/src/features/settings/components/sections/PromptGuessSection.tsx:2-13
+packages/frontend/src/features/settings/components/sections/BoilerplateSection.tsx:181-198  CLONE 18 lines, same as packages/frontend/src/features/settings/components/sections/PromptGuessSection.tsx:118-139
+packages/frontend/src/features/settings/components/sections/PromptGuessSection.tsx:118-139  CLONE 18 lines, same as packages/frontend/src/features/settings/components/sections/BoilerplateSection.tsx:181-198
+packages/frontend/src/features/settings/components/sections/PromptGuessSection.tsx:2-13  CLONE 12 lines, same as packages/frontend/src/features/settings/components/sections/BoilerplateSection.tsx:1-12
 packages/frontend/test-optimizations.js  DEAD? knip Unused files: test-optimizations.js

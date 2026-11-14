@@ -727,7 +727,7 @@ code { font-family: var(--mono); font-size: 0.92em; }
     S.trying = true; S.comfyError = false; renderComfy();
     setTimeout(() => { S.trying = false; S.comfyConnected = S.comfyRunning; S.comfyError = !S.comfyRunning; renderComfy(); }, 800);
   };
-  // Same test as lib/workflows.ts parseWorkflowFile: an editor-format graph
+  // Same test as features/metadata/lib/workflows.ts parseWorkflowFile: an editor-format graph
   // with a string id and a nodes array.
   function parseWorkflow(text) {
     try {

@@ -53,7 +53,7 @@
       "packages/backend/src/moire/services/metadata/prompt_parse.py:122",
       "packages/backend/src/moire/services/generate/remix.py:22",
       "packages/backend/src/moire/services/generate/generator_setup.py:25",
-      "packages/frontend/src/lib/compose.ts:57-70",
+      "packages/frontend/src/features/generate/lib/compose.ts:57-70",
       "docs/tag-weights-plan.md:1-43"
      ],
      "problem": "CONTEXT says prompt parsing is owned by services/metadata/prompt_parse.py, yet generation_compose re-implements weight/bracket stripping with a regex (_WEIGHT) in prompt_terms and its own bracket-depth scanner in _top_level_pieces (without_terms then calls parse_prompt on each piece anyway). The regex version is wrong on escaped parens: `hu_tao_\\(genshin_impact\\)` has its trailing `)` stripped by `[)\\]]+$`, then backslashes removed, leaving `hu_tao_(genshin_impact` in the batch's auto name. display()/prompt_terms also turn every `_` into a space, ignoring the kaomoji rule (`^_^`) that formatTag and CONTEXT state. without_terms is prompt editing used by remix and generator_setup, not composition, so it is misfiled. The frontend mirrors prompt_terms too (compose.ts:57-70). The tag-weights plan adds a weight reader in reproject and a bumpWeight editor, so this will become a third/fourth place that knows `(x:1.2)` unless consolidated first.",
@@ -190,7 +190,7 @@
    ],
    "cross_cutting_hints": [
     "packages/backend/src/moire/services/characters/outfits.py: clean_tags is imported into generation_jobs and re-validated in _outfit_input; confirm the router's OutfitIn max_length and the service agree (api/generate.py:79).",
-    "packages/frontend/src/lib/compose.ts:57-70 and packages/frontend/src/lib/batchName.ts mirror generation_compose.prompt_terms/auto_name; change them together with the backend (tag-weights path via lib/promptOutline.ts unwrap/readTerm).",
+    "packages/frontend/src/features/generate/lib/compose.ts:57-70 and packages/frontend/src/features/generate/lib/batchName.ts mirror generation_compose.prompt_terms/auto_name; change them together with the backend (tag-weights path via features/generate/lib/prompt/promptOutline.ts unwrap/readTerm).",
     "packages/backend/src/moire/services/generate/comfy_models.py:32-44 calls client.object_info per class on every refresh and generation_jobs._node_info reads the whole /object_info separately; worth checking whether they could share one cached read.",
     "packages/backend/src/moire/api/activity.py:107 reads get_generation_manager() state directly (manager.progress/started), another consumer of the manager internals beside api/generate.py:283.",
     "packages/backend/src/moire/services/library/batch_pool.py is used only by scanner.py:673 (generic, fine) but CONTEXT lists it under Scan, outside the generation slice; no change needed."
@@ -212,7 +212,7 @@
       "packages/frontend/src/pages/ImageView.tsx:2100-2166"
      ],
      "problem": "One 2166-line file holds the page (a ~930-line component with about 25 hooks), DetailTabs, TagsSection, AddTags, TagFlow, PromptBlock (ResizeObserver fitting), GenPanel, BatchStrip and RatingEditor. The page body alone fuses commit-on-decode, neighbour preload, feed paging, keyboard, swipe, the phone sheet drag machine and curation. No test touches it, and the tag-weights work (weights on tag runs and the Prompt tab) must edit TagFlow and tagDetail inside this file.",
-     "proposal": "Cut along existing seams, in this order. (1) Move TagFlow, GroupHeading, KIND_TEXT/KIND_NOUN, tagDetail, UNSURE_*, GROUPS, RUN_TEXT, PANEL_GROUND to components/imageview/TagFlow.tsx (about 280 lines); tag weights edit only this. (2) Move PromptBlock, PanelFit, GuessedBadge, GenPanel, ResourceRow, MetaChip, CopyButton to components/imageview/GenPanel.tsx. (3) Move BatchStrip and RatingEditor to their own files. (4) Extract hooks: useImageStepper(filters, routeId) returning {displayId, pending, index, list, goPrev, goNext, hasMore}, which owns the commit-on-decode effect, preload effect, page-ahead effects and navigateToImage (lines 246-263, 369-574); and useDetailsSheet(phone) returning {infoOpen, setInfoOpen, sheet, setSheet, dragY, sheetDrag, asideRef}, which owns lines 141-215 with snapSheet. ImageView then reads as layout plus wiring at about 450 lines. Pure move, no behaviour change.",
+     "proposal": "Cut along existing seams, in this order. (1) Move TagFlow, GroupHeading, KIND_TEXT/KIND_NOUN, tagDetail, UNSURE_*, GROUPS, RUN_TEXT, PANEL_GROUND to features/images/components/viewer/TagFlow.tsx (about 280 lines); tag weights edit only this. (2) Move PromptBlock, PanelFit, GuessedBadge, GenPanel, ResourceRow, MetaChip, CopyButton to features/images/components/viewer/GenPanel.tsx. (3) Move BatchStrip and RatingEditor to their own files. (4) Extract hooks: useImageStepper(filters, routeId) returning {displayId, pending, index, list, goPrev, goNext, hasMore}, which owns the commit-on-decode effect, preload effect, page-ahead effects and navigateToImage (lines 246-263, 369-574); and useDetailsSheet(phone) returning {infoOpen, setInfoOpen, sheet, setSheet, dragY, sheetDrag, asideRef}, which owns lines 141-215 with snapSheet. ImageView then reads as layout plus wiring at about 450 lines. Pure move, no behaviour change.",
      "size": "M",
      "risk": "low",
      "leverage": 5,
@@ -228,10 +228,10 @@
       "packages/frontend/src/pages/ImageView.tsx:315-335",
       "packages/frontend/src/pages/ImageView.tsx:2117-2135",
       "packages/frontend/src/pages/AllImagesPage.tsx:602-619",
-      "packages/frontend/src/lib/feedCache.ts:144-176"
+      "packages/frontend/src/features/images/lib/feedCache.ts:144-176"
      ],
      "problem": "Score in ImageView (applyScore), rating in RatingEditor, and score in AllImagesPage.triageScore each hand-write the same sequence: cancelQueries on the doc key, patchImageEverywhere, await the API, patch again to beat a racing refetch, undo on failure. The 're-patch on success' trick is only explained in comments, so a fourth writer (e.g. a weight edit) will omit it. Note AllImagesPage's version skips cancelQueries, so the three already differ.",
-     "proposal": "Add to lib/feedCache.ts (or lib/imageMutations.ts) `async function writeImageField(qc, id, fields: Partial<ImageDoc>, write: () => Promise<unknown>, docId = id): Promise<void>` that does cancelQueries, patchImageEverywhere, await write, re-patch, and on throw calls undo and rethrows. Callers keep only their toast and refresh. One test in feedCache.test.ts covers the race and undo for all three.",
+     "proposal": "Add to features/images/lib/feedCache.ts (or features/images/lib/imageMutations.ts) `async function writeImageField(qc, id, fields: Partial<ImageDoc>, write: () => Promise<unknown>, docId = id): Promise<void>` that does cancelQueries, patchImageEverywhere, await write, re-patch, and on throw calls undo and rethrows. Callers keep only their toast and refresh. One test in feedCache.test.ts covers the race and undo for all three.",
      "size": "S",
      "risk": "low",
      "leverage": 4,
@@ -244,18 +244,18 @@
      "title": "Character query hooks live in a component file imported by 10 modules",
      "kind": "boundary",
      "evidence": [
-      "packages/frontend/src/components/ImageCharacters.tsx:18-45",
-      "packages/frontend/src/App.tsx:11",
-      "packages/frontend/src/components/TagPanel.tsx:17",
-      "packages/frontend/src/components/SearchPalette.tsx:8",
-      "packages/frontend/src/components/NewCharacterDialog.tsx:10",
-      "packages/frontend/src/components/generate/CharacterBlock.tsx:9",
+      "packages/frontend/src/features/images/components/viewer/ImageCharacters.tsx:18-45",
+      "packages/frontend/src/app/App.tsx:11",
+      "packages/frontend/src/features/tags/components/TagPanel.tsx:17",
+      "packages/frontend/src/app/components/SearchPalette.tsx:8",
+      "packages/frontend/src/features/characters/components/NewCharacterDialog.tsx:10",
+      "packages/frontend/src/features/generate/components/CharacterBlock.tsx:9",
       "packages/frontend/src/pages/TagsPage.tsx:51",
       "packages/frontend/src/pages/OutfitsPage.tsx:7",
       "packages/frontend/src/pages/CharacterPage.tsx:12",
       "packages/frontend/src/pages/GeneratePage.tsx:23"
      ],
-     "problem": "charactersQuery, useCharacters, usePrefetchCharacters and useCharacterLookup are shared server-state, which lib/queries.ts exists for (its header says so), yet they sit in components/ImageCharacters.tsx. TagPanel, five pages, App and generate/* import a view component to get a hook, creating component-to-component and page-to-component dependencies and pulling the component's heavy imports (SaveOutfitDialog, WornOutfits) into each. ImageCharacters.tsx also imports TAGS_KEY from lib/queries, so the split is half done.",
+     "problem": "charactersQuery, useCharacters, usePrefetchCharacters and useCharacterLookup are shared server-state, which lib/queries.ts exists for (its header says so), yet they sit in features/images/components/viewer/ImageCharacters.tsx. TagPanel, five pages, App and generate/* import a view component to get a hook, creating component-to-component and page-to-component dependencies and pulling the component's heavy imports (SaveOutfitDialog, WornOutfits) into each. ImageCharacters.tsx also imports TAGS_KEY from lib/queries, so the split is half done.",
      "proposal": "Move the four exports plus charactersQuery into lib/queries.ts (or lib/characterQueries.ts re-exported from queries), keeping names. Update the 10 import lines. ImageCharacters.tsx keeps only the component and its skeleton. ImageCharacters.test.tsx keeps passing since the component still exports ImageCharacters.",
      "size": "S",
      "risk": "low",
@@ -269,9 +269,9 @@
      "title": "TagPanel doubles as a shared-widget module; image grid and Made-with block cloned in CharacterPage",
      "kind": "dedupe",
      "evidence": [
-      "packages/frontend/src/components/TagPanel.tsx:230-273",
-      "packages/frontend/src/components/TagPanel.tsx:301-367",
-      "packages/frontend/src/components/TagPanel.tsx:374-443",
+      "packages/frontend/src/features/tags/components/TagPanel.tsx:230-273",
+      "packages/frontend/src/features/tags/components/TagPanel.tsx:301-367",
+      "packages/frontend/src/features/tags/components/TagPanel.tsx:374-443",
       "packages/frontend/src/pages/CharacterPage.tsx:11",
       "packages/frontend/src/pages/CharacterPage.tsx:46",
       "packages/frontend/src/pages/CharacterPage.tsx:260-267",
@@ -279,8 +279,8 @@
       "packages/frontend/src/pages/CharacterPage.tsx:481-535",
       "docs/refactor-pass/leads.txt:95-96"
      ],
-     "problem": "jscpd flags TagPanel 360-430 against CharacterPage 288-332: TagImages and CharacterPage.Images are the same pinnable thumbnail grid with open-in-viewer, PendingVeil, PinButton and More button (differing only in columns, page size, noun). The LoRA/Embedding/Workflow ChipRow block is a second parallel copy (TagPanel 230-273 vs CharacterPage 481-535), as is the open-image navigate (TagPanel 396-399 vs CharacterPage useOpenImage). CharacterPage imports Chip, ChipRow and MonthChart from TagPanel, so a panel file is the library for a page. galleryHref is defined three times (TagPanel:40, CharacterPage:46, lib/search.ts:80). knip also flags TagImages as an unused export.",
-     "proposal": "Create components/tagstats/ with PinnableImageGrid({filters, pinned, noun, onPin(id,unpin), pageSize, cols}) (absorbs TagImages, CharacterPage.Images and useOpenImage, which becomes a hook in hooks/useOpenImage.ts), MadeWithChips({loras, embeddings, workflows, baseFilter, share}) and move Chip, ChipRow, MonthChart there. Put one galleryHref(patch) in lib/imageFilter.ts and use it in all three places. TagPanel and CharacterPage then import from tagstats/. Keep CharacterPage's extra lora tooltip as a render prop or title formatter on the lora entries.",
+     "problem": "jscpd flags TagPanel 360-430 against CharacterPage 288-332: TagImages and CharacterPage.Images are the same pinnable thumbnail grid with open-in-viewer, PendingVeil, PinButton and More button (differing only in columns, page size, noun). The LoRA/Embedding/Workflow ChipRow block is a second parallel copy (TagPanel 230-273 vs CharacterPage 481-535), as is the open-image navigate (TagPanel 396-399 vs CharacterPage useOpenImage). CharacterPage imports Chip, ChipRow and MonthChart from TagPanel, so a panel file is the library for a page. galleryHref is defined three times (TagPanel:40, CharacterPage:46, app/lib/search.ts:80). knip also flags TagImages as an unused export.",
+     "proposal": "Create components/tagstats/ with PinnableImageGrid({filters, pinned, noun, onPin(id,unpin), pageSize, cols}) (absorbs TagImages, CharacterPage.Images and useOpenImage, which becomes a hook in features/images/hooks/useOpenImage.ts), MadeWithChips({loras, embeddings, workflows, baseFilter, share}) and move Chip, ChipRow, MonthChart there. Put one galleryHref(patch) in features/images/lib/imageFilter.ts and use it in all three places. TagPanel and CharacterPage then import from tagstats/. Keep CharacterPage's extra lora tooltip as a render prop or title formatter on the lora entries.",
      "size": "M",
      "risk": "low",
      "leverage": 3,
@@ -293,10 +293,10 @@
      "title": "countTags re-implements prompt term splitting and weight stripping beside promptOutline",
      "kind": "dedupe",
      "evidence": [
-      "packages/frontend/src/lib/countTags.ts:44-54",
-      "packages/frontend/src/lib/countTags.ts:71-97",
-      "packages/frontend/src/lib/promptOutline.ts:28-60",
-      "packages/frontend/src/lib/promptOutline.ts:62-135",
+      "packages/frontend/src/features/tags/lib/countTags.ts:44-54",
+      "packages/frontend/src/features/tags/lib/countTags.ts:71-97",
+      "packages/frontend/src/features/generate/lib/prompt/promptOutline.ts:28-60",
+      "packages/frontend/src/features/generate/lib/prompt/promptOutline.ts:62-135",
       "packages/frontend/src/pages/GeneratePage.tsx:70",
       "docs/tag-weights-plan.md:21"
      ],
@@ -352,13 +352,13 @@
      "title": "imageMutations holds tag and character writes, contradicting its 'per-image' contract; JSON boilerplate repeated",
      "kind": "naming",
      "evidence": [
-      "packages/frontend/src/lib/imageMutations.ts:1-9",
-      "packages/frontend/src/lib/imageMutations.ts:61-82",
-      "packages/frontend/src/lib/imageMutations.ts:98-136",
-      "packages/frontend/src/lib/imageMutations.ts:12-23"
+      "packages/frontend/src/features/images/lib/imageMutations.ts:1-9",
+      "packages/frontend/src/features/images/lib/imageMutations.ts:61-82",
+      "packages/frontend/src/features/images/lib/imageMutations.ts:98-136",
+      "packages/frontend/src/features/images/lib/imageMutations.ts:12-23"
      ],
      "problem": "CONTEXT.md defines imageMutations as 'every write the UI can make to one Image', mirroring services/tags/image_tags.py. Half the file is not that: setTagThumbnail, clearTagThumbnail, updateCharacter, setTagFocus, createCharacter, deleteCharacter and bulkManualTags write tag or character state or many images. Also setTagThumbnail has two stacked doc comments (the first is stale), and 5 functions repeat headers+JSON.stringify by hand while only post() factors it out (post can't do PATCH/PUT). The header comment narrates history ('were split three ways').",
-     "proposal": "Split into lib/imageMutations.ts (rating, score, quarantine, purge, applyTags, removeTags, bulkManualTags) and lib/tagMutations.ts (thumbnail, focus, character CRUD); update 6 or so import sites. Generalise post to `send(method, url, body?)` so the PATCH/PUT/DELETE ones shrink to one line each. Trim the history-style header and the duplicate docstring.",
+     "proposal": "Split into features/images/lib/imageMutations.ts (rating, score, quarantine, purge, applyTags, removeTags, bulkManualTags) and features/tags/lib/tagMutations.ts (thumbnail, focus, character CRUD); update 6 or so import sites. Generalise post to `send(method, url, body?)` so the PATCH/PUT/DELETE ones shrink to one line each. Trim the history-style header and the duplicate docstring.",
      "size": "S",
      "risk": "low",
      "leverage": 2,
@@ -393,10 +393,10 @@
      "title": "Two hand-rolled localStorage external stores for view prefs (useTagMarks vs DETAIL_TAB_KEY)",
      "kind": "dedupe",
      "evidence": [
-      "packages/frontend/src/hooks/useTagMarks.ts:329-376",
+      "packages/frontend/src/features/tags/hooks/useTagMarks.ts:329-376",
       "packages/frontend/src/pages/ImageView.tsx:1052-1061",
       "packages/frontend/src/pages/ImageView.tsx:1096-1106",
-      "packages/frontend/src/hooks/useDensity.ts"
+      "packages/frontend/src/features/images/hooks/useDensity.ts"
      ],
      "problem": "useTagMarks implements read/write/subscribe/storage-event sync with try/catch around localStorage; DetailTabs repeats the try/catch read/write by hand with useState (so it does not sync across tabs and a second consumer would diverge), and useDensity (S1) is a likely third. Each copy re-solves the private-mode failure case.",
      "proposal": "Add hooks/useLocalPref.ts: `createLocalPref<T>(key, parse, default)` returning {use(), set()} built on useSyncExternalStore with the storage listener, and port useTagMarks (keeping its exported setTagMarks and test) and DetailTabs' tab choice to it. Only worth doing if useDensity confirms a third caller; verify before starting.",
@@ -412,10 +412,10 @@
    "cross_cutting_hints": [
     "packages/frontend/src/pages/AllImagesPage.tsx:602-619 repeats the optimistic score recipe and has a global-keydown handler with the same missing modifier guard (S1 should check).",
     "packages/frontend/src/lib/queries.ts:69 hand-builds an /api/v1/images/:id/ URL like ImageView does; an imageUrl(id, suffix) helper could serve both.",
-    "packages/frontend/src/hooks/useDensity.ts: check whether it is a third localStorage external-store copy next to useTagMarks.",
+    "packages/frontend/src/features/images/hooks/useDensity.ts: check whether it is a third localStorage external-store copy next to useTagMarks.",
     "packages/frontend/src/pages/CharacterPage.tsx:44 RATING_ORDER and :46 galleryHref duplicate lib-level concepts (rating set, gallery link builder).",
-    "packages/frontend/src/lib/countTags.ts is a Generate-page concern living in an ImageView slice; S-slice for GeneratePage should own its test review.",
-    "packages/frontend/src/components/ImageCharacters.tsx:70-74 filters characters by tag names in the component; same name-matching rule probably exists in lib/character.ts and services/characters/pages.py (S3/S4 could check for drift).",
+    "packages/frontend/src/features/tags/lib/countTags.ts is a Generate-page concern living in an ImageView slice; S-slice for GeneratePage should own its test review.",
+    "packages/frontend/src/features/images/components/viewer/ImageCharacters.tsx:70-74 filters characters by tag names in the component; same name-matching rule probably exists in features/characters/lib/character.ts and services/characters/pages.py (S3/S4 could check for drift).",
     "packages/frontend/src/pages/ImageView.tsx:1413 hardcodes PANEL_GROUND #15141c, a copy of the tailwind surface token; lib/tagColour.tagMarkStyle takes it as a parameter so any theme change breaks outline colours silently."
    ]
   },
@@ -536,8 +536,8 @@
      "evidence": [
       "packages/backend/src/moire/services/images/feed.py:70-81",
       "packages/backend/src/moire/database/schema.py:499-511",
-      "packages/frontend/src/lib/imageFilter.ts:236-255",
-      "CLAUDE.md (Frontend layout, hooks/useImageFeed bullet)"
+      "packages/frontend/src/features/images/lib/imageFilter.ts:236-255",
+      "CLAUDE.md (Frontend layout, features/images/hooks/useImageFeed bullet)"
      ],
      "problem": "The feed's order expressions must match the expression indexes character for character for SQLite to use them. They are written once in image_feed.py (SORT_KEY, SCORE_KEY) and again in schema.py (_recent, _score, _newest, _top), kept equal by comment only, and no test checks it. Separately, the frontend no longer has nextCursorOf: the server builds the cursor and the client reads X-Next-Cursor. CLAUDE.md still says SORTS and nextCursorOf must agree, so the documented agreement point is gone and the real invariant (SORTS vs schema indexes) is undocumented.",
      "proposal": "Define the key expressions once in database/schema.py (SORT_RECENT, SORT_SCORE) and import them in image_feed.py for SORT_KEY/SCORE_KEY. Add a test that runs EXPLAIN QUERY PLAN on the newest/oldest/top first page and asserts the ix_images_* index is used. Update CLAUDE.md to say the cursor is server-built and the agreement is SORTS vs schema.py.",
@@ -594,11 +594,11 @@
      "title": "Native window.confirm still reachable through useRulesetSession default in ResolvePromptDialog",
      "kind": "invariant",
      "evidence": [
-      "packages/frontend/src/hooks/useRulesetSession.ts:58-59",
-      "packages/frontend/src/hooks/useRulesetSession.ts:75-78",
-      "packages/frontend/src/components/ResolvePromptDialog.tsx:43-49",
+      "packages/frontend/src/features/metadata/hooks/useRulesetSession.ts:58-59",
+      "packages/frontend/src/features/metadata/hooks/useRulesetSession.ts:75-78",
+      "packages/frontend/src/features/metadata/components/ResolvePromptDialog.tsx:43-49",
       "packages/frontend/src/hooks/useUnsavedChangesGuard.ts:20-21",
-      "packages/frontend/src/components/ConfirmDialog.tsx:103-106"
+      "packages/frontend/src/components/ui/ConfirmDialog.tsx:103-106"
      ],
      "problem": "CLAUDE.md bans browser-drawn menus and Dialog.tsx notes that native confirm() was replaced. useRulesetSession defaults confirmDiscard to a window.confirm wrapper, and ResolvePromptDialog calls useRulesetSession without passing confirmDiscard (RulesPage passes useConfirm). Discarding unsaved ruleset edits in the resolve dialog therefore shows the native browser dialog. useUnsavedChangesGuard has the same default, but all three callers pass confirm.",
      "proposal": "Make confirmDiscard required in useRulesetSession (and confirmLeave in useUnsavedChangesGuard), drop both native fallbacks, and pass useConfirm() from ResolvePromptDialog. The compiler then prevents any future caller from reaching window.confirm.",
@@ -617,7 +617,7 @@
      "evidence": [
       "packages/backend/src/moire/api/tags.py:515-523",
       "packages/frontend/src/lib/queries.ts",
-      "packages/frontend/src/lib/imageMutations.ts"
+      "packages/frontend/src/features/images/lib/imageMutations.ts"
      ],
      "problem": "The route's own comment says 'Deprecated route retained for convenience; internal AI tagging is implemented under /ai/*'. grep of packages/frontend/src for 'tags/ai/' finds nothing, and the AI jobs router already enqueues the same job. It is a second spelling of an existing operation under the wrong router (a tags router doing ai_jobs work).",
      "proposal": "Delete the route and its local import of get_ai_job_manager; if a test references it, point the test at the /ai/ endpoint.",
@@ -646,8 +646,8 @@
      "kind": "drift",
      "evidence": [
       "docs/tag-weights-plan.md:25",
-      "packages/frontend/src/lib/promptOutline.ts:77-90",
-      "packages/frontend/src/lib/promptOutline.ts:104-131",
+      "packages/frontend/src/features/generate/lib/prompt/promptOutline.ts:77-90",
+      "packages/frontend/src/features/generate/lib/prompt/promptOutline.ts:104-131",
       "packages/backend/src/moire/services/metadata/prompt_parse.py:160-266",
       "packages/backend/src/moire/services/metadata/prompt_parse.py:269-284",
       "packages/backend/src/moire/services/metadata/gen_metadata.py:243-257"
@@ -670,12 +670,12 @@
      "title": "Three more ad-hoc prompt splitters in the frontend duplicate promptOutline",
      "kind": "dedupe",
      "evidence": [
-      "packages/frontend/src/lib/promptRepeats.ts:11-58",
-      "packages/frontend/src/lib/promptOutline.ts:28-51",
-      "packages/frontend/src/lib/compose.ts:49-61",
-      "packages/frontend/src/lib/promptEdit.ts:10-21",
-      "packages/frontend/src/components/generate/PromptInput.tsx:6",
-      "packages/frontend/src/components/generate/PromptRepeats.tsx:5"
+      "packages/frontend/src/features/generate/lib/prompt/promptRepeats.ts:11-58",
+      "packages/frontend/src/features/generate/lib/prompt/promptOutline.ts:28-51",
+      "packages/frontend/src/features/generate/lib/compose.ts:49-61",
+      "packages/frontend/src/features/generate/lib/prompt/promptEdit.ts:10-21",
+      "packages/frontend/src/features/generate/components/PromptInput.tsx:6",
+      "packages/frontend/src/features/generate/components/PromptRepeats.tsx:5"
      ],
      "problem": "promptOutline.splitSpans, promptRepeats.topTerms, compose.promptTerms and promptEdit.termAt each re-implement 'split a prompt at commas/newlines while respecting groups' with different rules: topTerms nests `([{`, `<lora:..>` and skips escapes; splitSpans nests only `([`, no `<>`; compose.promptTerms does not nest at all (a comma inside `(a, b:1.2)` splits it and a regex strips brackets); termAt ignores groups. keyOf in promptRepeats and readTerm in promptOutline both derive a tag name from written text with different canonicalisation (canonicalName vs lowercase+underscore). A prompt that parses one way in the board and another way in the repeat-remover is a drift bug waiting to happen, and bumpWeight (plan step 5) would add a fifth.",
      "proposal": "Make `promptOutline.promptTerms` the one frontend term model: add `top: boolean` (not inside a group, no weight/bracket) and `key: string` (canonicalName+lowercase) to PromptTerm, and a `separatorsBetween(text, terms)` helper. Re-express prefixRepeats/tagRepeats/withoutTerms over `promptTerms(text).filter(t => t.top)` (withoutTerms keeps its separator logic but reads spans from terms), and make compose.promptTerms (limit 2, batch auto-name) `promptTerms(text).filter(kind tag).slice(0,limit).map(t => t.written)`. Leave termAt (caret-local, intentionally lenient) but have bumpWeight use promptTerms spans. Add `{}` and `<lora>` cases to promptOutline.test.ts before moving anything.",
@@ -796,19 +796,19 @@
      "invariants_touched": []
     },
     {
-     "title": "Same signatures query inlined in 3 components plus 2 manual fetches; ruleset API sits in lib/gen.ts with raw fetch",
+     "title": "Same signatures query inlined in 3 components plus 2 manual fetches; ruleset API sits in features/metadata/lib/gen.ts with raw fetch",
      "kind": "boundary",
      "evidence": [
-      "packages/frontend/src/lib/gen.ts:79-139",
+      "packages/frontend/src/features/metadata/lib/gen.ts:79-139",
       "packages/frontend/src/lib/api.ts:1-11",
-      "packages/frontend/src/components/TagPanel.tsx:70-74",
+      "packages/frontend/src/features/tags/components/TagPanel.tsx:70-74",
       "packages/frontend/src/pages/CharacterPage.tsx:435-439",
       "packages/frontend/src/pages/AllImagesPage.tsx:145-150",
       "packages/frontend/src/pages/RulesPage.tsx:122-129",
-      "packages/frontend/src/components/ResolvePromptDialog.tsx:67"
+      "packages/frontend/src/features/metadata/components/ResolvePromptDialog.tsx:67"
      ],
      "problem": "lib/api.ts says `api<T>()` is the one fetch-JSON helper, but gen.ts defines its own private `getJson` and four more hand-rolled fetch+ok-check blocks (saveRuleset, deleteRuleset, previewRuleset, fetchWorkflow). The `[\"rules-signatures\"]` useQuery with `staleTime: 60_000` is copy-pasted in TagPanel, CharacterPage and AllImagesPage (string key repeated, one with `enabled`), while RulesPage and ResolvePromptDialog call fetchSignatures() imperatively into local state, so they never share the cache and RulesPage's edits do not refresh the other three. The file name `gen.ts` also hides that it is mostly the Rules API (GenMeta is the only 'gen' content).",
-     "proposal": "Move the ruleset/signature/workflow functions and their types (Ruleset, RuleFields, SignatureRow, PreviewResult, WorkflowPayload, workflowClipboardText) to `lib/rules.ts` over `api()`; keep GenMeta in gen.ts. Add `useSignatures({enabled})` plus `SIGNATURES_KEY` to lib/queries (like TAG_SETTINGS_KEY) and use it in the three components; have saveRuleset/deleteRuleset callers invalidate the key. Update gen.test.ts and the useRulesetSession mock path.",
+     "proposal": "Move the ruleset/signature/workflow functions and their types (Ruleset, RuleFields, SignatureRow, PreviewResult, WorkflowPayload, workflowClipboardText) to `features/metadata/lib/rules.ts` over `api()`; keep GenMeta in gen.ts. Add `useSignatures({enabled})` plus `SIGNATURES_KEY` to lib/queries (like TAG_SETTINGS_KEY) and use it in the three components; have saveRuleset/deleteRuleset callers invalidate the key. Update gen.test.ts and the useRulesetSession mock path.",
      "size": "S",
      "risk": "low",
      "leverage": 3,
@@ -823,14 +823,14 @@
      "title": "BoilerplateSection and PromptGuessSection are the same chip-list editor written twice",
      "kind": "dedupe",
      "evidence": [
-      "packages/frontend/src/pages/settings/sections/BoilerplateSection.tsx:26-28",
-      "packages/frontend/src/pages/settings/sections/BoilerplateSection.tsx:41-96",
-      "packages/frontend/src/pages/settings/sections/BoilerplateSection.tsx:190-196",
-      "packages/frontend/src/pages/settings/sections/PromptGuessSection.tsx:19-20",
-      "packages/frontend/src/pages/settings/sections/PromptGuessSection.tsx:121-205"
+      "packages/frontend/src/features/settings/components/sections/BoilerplateSection.tsx:26-28",
+      "packages/frontend/src/features/settings/components/sections/BoilerplateSection.tsx:41-96",
+      "packages/frontend/src/features/settings/components/sections/BoilerplateSection.tsx:190-196",
+      "packages/frontend/src/features/settings/components/sections/PromptGuessSection.tsx:19-20",
+      "packages/frontend/src/features/settings/components/sections/PromptGuessSection.tsx:121-205"
      ],
      "problem": "Both implement: `sameList`, draft-state seeded from server via useEffect, `dirty` + useUnsavedChangesGuard, a pill list with a remove X button (identical class strings), a comma-separated add form, a Reset to defaults / Save changes footer with identical markup, and the save toast flow. PromptGuessSection even has the pills inside a `KeywordList` subcomponent while BoilerplateSection inlines the same thing. A third chip-list setting would be a third copy. (The entry normalisation rules differ and legitimately stay per-section.)",
-     "proposal": "Extract `components/settings/ChipListEditor.tsx` (props: entries, onChange, normalize(piece) -> string | null, label, placeholder, renderChip?) and `components/settings/SaveBar.tsx` (dirty, saving, atDefaults, onReset, onSave), plus `lib/lists.ts` `sameList`. Both sections shrink to their query hook, normalizer and preview. Keep `hooks/useUnsavedChangesGuard` as is.",
+     "proposal": "Extract `features/settings/components/ChipListEditor.tsx` (props: entries, onChange, normalize(piece) -> string | null, label, placeholder, renderChip?) and `features/settings/components/SaveBar.tsx` (dirty, saving, atDefaults, onReset, onSave), plus `features/settings/lib/lists.ts` `sameList`. Both sections shrink to their query hook, normalizer and preview. Keep `hooks/useUnsavedChangesGuard` as is.",
      "size": "S",
      "risk": "low",
      "leverage": 2,
@@ -841,12 +841,12 @@
     }
    ],
    "cross_cutting_hints": [
-    "packages/backend/src/moire/services/tags/settings.py:57-82 and packages/frontend/src/lib/boilerplate.ts:15-24,55-62: the boilerplate entry normalisation (space/underscore, lowercase, bare-* rejection) is implemented on both sides by hand ('matching lives in the frontend'); BoilerplateSection.add re-validates what clean_boilerplate re-validates on save. A shared fixture or returning the server-cleaned list would stop drift.",
+    "packages/backend/src/moire/services/tags/settings.py:57-82 and packages/frontend/src/features/tags/lib/boilerplate.ts:15-24,55-62: the boilerplate entry normalisation (space/underscore, lowercase, bare-* rejection) is implemented on both sides by hand ('matching lives in the frontend'); BoilerplateSection.add re-validates what clean_boilerplate re-validates on save. A shared fixture or returning the server-cleaned list would stop drift.",
     "packages/backend/src/moire/services/library/scanner.py:60-90 and services/onboarding.py, comfy_settings.py, tag_migrations.py: more copies of the app_settings upsert (see finding 7) outside this slice.",
-    "packages/frontend/src/lib/promptOutline.ts:28 splitSpans and :159 promptWord are exported but only used inside the module / tests (knip lead at leads.txt:134); de-export splitSpans, keep promptWord only if the board needs it.",
+    "packages/frontend/src/features/generate/lib/prompt/promptOutline.ts:28 splitSpans and :159 promptWord are exported but only used inside the module / tests (knip lead at leads.txt:134); de-export splitSpans, keep promptWord only if the board needs it.",
     "packages/backend/src/moire/services/metadata/text_eval.py:25 comment 'Literal string nodes: (class_type predicate, widget holding the text)' is stale (it describes _LITERAL_KEYS only). text_eval._text_concat/_show_text and gen_metadata._resolve_text/_is_display/_CONCAT_INPUT are two parallel graph text walkers with separate cycle guards; if they keep growing, fold the concat/display handling into text_eval's handler table (only worth it with a third caller).",
     "packages/backend/src/moire/services/generate/generator_discovery.py:190,257,504 calls the private gen_metadata._resolve_text (see finding 6).",
-    "packages/frontend/src/pages/settings/sections/PromptTagsSection.tsx:20 uses Checkbox `hint=` and several sections use long description/helper paragraphs; memory rule 'no UI subtext' may apply, worth a pass in the settings area owner's slice."
+    "packages/frontend/src/features/settings/components/sections/PromptTagsSection.tsx:20 uses Checkbox `hint=` and several sections use long description/helper paragraphs; memory rule 'no UI subtext' may apply, worth a pass in the settings area owner's slice."
    ]
   },
   {
@@ -861,10 +861,10 @@
       "packages/backend/src/moire/services/ai/jobs.py:160-195",
       "packages/backend/src/moire/services/ai/jobs.py:306-313",
       "packages/backend/src/moire/services/ai/jobs.py:220-229",
-      "packages/frontend/src/lib/ai.ts:270-275",
-      "packages/frontend/src/hooks/useAiTagging.ts:76-78"
+      "packages/frontend/src/features/ai/lib/ai.ts:270-275",
+      "packages/frontend/src/features/ai/hooks/useAiTagging.ts:76-78"
      ],
-     "problem": "`_in_flight` holds every id of a job until the whole job ends (ai_jobs.py:311-313), not until that image is tagged. `/tag` with `retag` first runs `image_tags.clear_ai` on each id, then calls `enqueue(force=req.force)`. The frontend never sends `force` (lib/ai.ts:270-275). Scenario: a 200-image 'tag untagged' job is at image 150, and the user re-tags image 5, which that job already tagged. clear_ai wipes its AI tags and rating, enqueue counts the id as skipped, and the 0-total job is marked done at once. useAiTagging then toasts 'AI tagging completed', and the image is left with no AI tags. `_in_flight` is also a set, not a refcount. A forced job overlapping another job loses its claim when the first job ends, and cancelling a queued job (ai_jobs.py:226-228) releases ids that another job still holds.",
+     "problem": "`_in_flight` holds every id of a job until the whole job ends (ai_jobs.py:311-313), not until that image is tagged. `/tag` with `retag` first runs `image_tags.clear_ai` on each id, then calls `enqueue(force=req.force)`. The frontend never sends `force` (features/ai/lib/ai.ts:270-275). Scenario: a 200-image 'tag untagged' job is at image 150, and the user re-tags image 5, which that job already tagged. clear_ai wipes its AI tags and rating, enqueue counts the id as skipped, and the 0-total job is marked done at once. useAiTagging then toasts 'AI tagging completed', and the image is left with no AI tags. `_in_flight` is also a set, not a refcount. A forced job overlapping another job loses its claim when the first job ends, and cancelling a queued job (ai_jobs.py:226-228) releases ids that another job still holds.",
      "proposal": "Two fixes, each small. (1) In `_worker_loop`, discard each id from `_in_flight` right after its `_tag_one` (or its failure), so 'in flight' means 'not yet processed'. Leave only the unprocessed tail to the `finally`. (2) In `api/ai.py` `ai_tag`, pass `force=True` whenever `req.retag` is set, because a retag has already destroyed state and must run. Optionally make `_in_flight` a `collections.Counter` so overlapping forced jobs release correctly.",
      "size": "S",
      "risk": "low",
@@ -921,8 +921,8 @@
       "packages/backend/src/moire/services/ai/face_detect.py:283",
       "packages/backend/src/moire/api/activity.py:78-94",
       "packages/backend/src/moire/api/activity.py:107-134",
-      "packages/frontend/src/hooks/useBackgroundTasks.ts:50-75",
-      "packages/frontend/src/pages/settings/sections/CharactersSection.tsx:49-55"
+      "packages/frontend/src/features/activity/hooks/useBackgroundTasks.ts:50-75",
+      "packages/frontend/src/features/settings/components/sections/CharactersSection.tsx:49-55"
      ],
      "problem": "activity.py already owns an `_ended` per-kind counter. Next to it are three hand-rolled ones: `scanner._scans_ended`, `AIJobManager.finished` (incremented by hand at three exit paths) and `face_detect.drains`. The router merges all four by hand (api/activity.py:129-134). It also builds each item by reading internals: `job.image_ids()`, `job.throughput()`, `manager.started`, `manager.current`, `face_detect.progress()` and the `drains` global. Downloads have no ended count at all. So CharactersSection keeps its own busy-to-idle effect (49-55) to refresh TAGS_KEY when the face model arrives, duplicating what `useRefreshOnFinish` does centrally for the other kinds.",
      "proposal": "Deepen services/activity.py with `note_ended(kind: str) -> None` (thread-safe, same `_ended` dict). Scanner, ai_jobs and face_detect call it instead of keeping their own counters. ModelDownloadManager `_runner` calls it in its `finally` with kind `model_download` or `face_download` (pass the kind through `start`). Delete `_scans_ended`/`scans_ended`, `AIJobManager.finished` and `face_detect.drains`; the router's `ended` becomes `activity.ended()`. Move the per-mechanism item projection beside its state, following the `model_status_view` precedent: `AIJob.activity_item()`, and `face_detect.activity_items(cache_dir)`. Frontend: add `face_download` to the TAGS_KEY kinds in useRefreshOnFinish and delete CharactersSection's wasBusy effect.",
@@ -963,12 +963,12 @@
      "kind": "dedupe",
      "evidence": [
       "packages/backend/src/moire/api/activity.py:30-41",
-      "packages/frontend/src/pages/settings/sections/ModelSection.tsx:35-38",
-      "packages/frontend/src/pages/settings/sections/CharactersSection.tsx:62-65",
+      "packages/frontend/src/features/settings/components/sections/ModelSection.tsx:35-38",
+      "packages/frontend/src/features/settings/components/sections/CharactersSection.tsx:62-65",
       "packages/backend/src/moire/services/ai/tagger_download.py:98-117"
      ],
      "problem": "The activity router's `_download` sums bytes over only the files whose size is known, a rule test_activity_integration pins down. ModelSection and CharactersSection each re-sum all files from `as_dict().files`, counting a null total as 0. They also compute pct by hand rather than with `taskPct`. The tagger and face downloads share one ModelDownloadManager, yet three readers derive progress from its raw per-file list, and the numbers can disagree between the sidebar and the settings page.",
-     "proposal": "Move `_download`'s rule into `ModelDownloadState.progress() -> tuple[int, int] | None` and emit it from `as_dict()` as top-level `done`/`total`. api/activity.py then just forwards them. Both settings sections read `dl.done`/`dl.total` and use `taskPct` from lib/backgroundTasks.ts (or a `downloadPct` beside it, with a test) instead of their own reduces.",
+     "proposal": "Move `_download`'s rule into `ModelDownloadState.progress() -> tuple[int, int] | None` and emit it from `as_dict()` as top-level `done`/`total`. api/activity.py then just forwards them. Both settings sections read `dl.done`/`dl.total` and use `taskPct` from features/activity/lib/backgroundTasks.ts (or a `downloadPct` beside it, with a test) instead of their own reduces.",
      "size": "S",
      "risk": "low",
      "leverage": 3,
@@ -1087,8 +1087,8 @@
    "cross_cutting_hints": [
     "packages/backend/src/moire/api/libraries.py:131-170 + services/library/scanner.py:615-630: a library deleted mid-scan can get orphan image rows and thumbnails. `images.library_id` has no FK to libraries (schema.py), `cancel_scan` waits only 0.5 s, `_on_complete` can still flush a batch after cancel, and the ThreadPoolExecutor exit waits for running workers that call `put_thumb` after `delete_by_prefix`. `_commit_batch` never checks that the library still exists.",
     "packages/backend/src/moire/api/libraries.py:131-170: `remove_library` assembles the delete transaction inline in the router (boundary). A `services/libraries.delete_library` would own cancel, stop, delete and invalidate.",
-    "packages/frontend/src/lib/backgroundTasks.ts:10-25: `kind: TaskKind | string` widens to plain string, so the TaskKind union checks nothing (knip also flags TaskKind as unused).",
-    "packages/frontend/src/hooks/useAiTagging.ts:37-44 + hooks/useBackgroundTasks.ts:24-31 + hooks/useAiStatus.ts:12-19: an open image's AI job is polled through /ai/jobs/:id (1.5 s) and /activity (1.5 s), and /ai/status (2 s) when the settings page is open, all carrying the same status, done and total. useAiTagging could read the active job from the activity items and fetch /ai/jobs/:id only once at the end for its error.",
+    "packages/frontend/src/features/activity/lib/backgroundTasks.ts:10-25: `kind: TaskKind | string` widens to plain string, so the TaskKind union checks nothing (knip also flags TaskKind as unused).",
+    "packages/frontend/src/features/ai/hooks/useAiTagging.ts:37-44 + features/activity/hooks/useBackgroundTasks.ts:24-31 + features/ai/hooks/useAiStatus.ts:12-19: an open image's AI job is polled through /ai/jobs/:id (1.5 s) and /activity (1.5 s), and /ai/status (2 s) when the settings page is open, all carrying the same status, done and total. useAiTagging could read the active job from the activity items and fetch /ai/jobs/:id only once at the end for its error.",
     "packages/backend/src/moire/api/activity.py:107-127: the 'generate' item appears whenever ComfyUI's whole queue is non-empty (`queue_remaining` includes other clients' prompts), so the sidebar can say 'Generating' when Moire queued nothing.",
     "packages/backend/src/moire/services/generate/jobs.py:86-91 vs services/library/storage_fs.py: a second atomic-write helper; check whether storage_fs's can take a dot-prefixed staging name."
    ]

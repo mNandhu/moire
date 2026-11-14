@@ -68,13 +68,13 @@ Ruled out: no HEAD per tile (1 GET/tile measured); thumbs cached `immutable` 1y;
 re-renders only the toggled tile; `content-visibility:auto` deliberately not proposed.
 
 ### G1. Infinite-scroll sentinel has no prefetch margin
-- Where: `packages/frontend/src/pages/AllImagesPage.tsx:503-517`; `PAGE_LIMIT = 100` in `lib/imageFilter.ts:116`.
+- Where: `packages/frontend/src/pages/AllImagesPage.tsx:503-517`; `PAGE_LIMIT = 100` in `features/images/lib/imageFilter.ts:116`.
 - Evidence: observer created with no `root`/`rootMargin`. Fast scroll waited 3-6 s of 8 s at page ends; with a 3000px margin, 0-3.3 s.
 - Fix: `root: getScrollContainer()`, `rootMargin: "0px 0px 3000px 0px"` (root must be the scroll element, same trap as `useImageLoadSlot.ts`). Optionally PAGE_LIMIT 200.
 - Repro: `scratchpad/gallery/scroll_bench.py` + `prototype.patch`, `start.sh`, `prod.sh`.
 
 ### G2. BlurHash decode cost
-- Where: `packages/frontend/src/components/ImageThumbnail.tsx:10` (`BLUR_PX = 64`).
+- Where: `packages/frontend/src/features/images/components/ImageThumbnail.tsx:10` (`BLUR_PX = 64`).
 - Evidence: decode 10.3 ms @64px, 2.4 ms @32px, 0.47 ms @16px. Virtualized tiles remount constantly, each pays again.
 - Fix: `BLUR_PX = 16` or `32`; optional small LRU keyed by hash.
 - Repro: `scratchpad/gallery/bench-layout.mjs`.
@@ -86,7 +86,7 @@ re-renders only the toggled tile; `content-visibility:auto` deliberately not pro
 - Repro: `scratchpad/gallery/thumbdims.py`.
 
 ### G4. Grid re-renders every scroll frame
-- Where: `packages/frontend/src/components/VirtualizedGrid.tsx:99-105`.
+- Where: `packages/frontend/src/features/images/components/VirtualizedGrid.tsx:99-105`.
 - Fix: only setState when first/last visible row changes. Inferred <1 ms/frame; low priority.
 
 ### G5. `openTile` re-created on each page append

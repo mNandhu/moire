@@ -106,7 +106,7 @@ on internal shape changes.
 ## 6. Frontend: shared API + consistent seams (locality/DRY, not depth): ✅ DONE
 
 **Files:** 5 pages each define their own `api<T>()` (`AllImagesPage`,
-`LibrariesPage`, `AITaggingPage`, `OverviewPage`, `TagsPage`); `lib/gen.ts` has
+`LibrariesPage`, `AITaggingPage`, `OverviewPage`, `TagsPage`); `features/metadata/lib/gen.ts` has
 private `getJson`/`postJson` not exported; query keys hand-written as
 `["images"]` while `imageFeedKey()` exists unused; `AllImagesPage` raw-fetches
 `/api/ai/tag` though `useAiTagging` already wraps that seam.
@@ -119,16 +119,16 @@ private `getJson`/`postJson` not exported; query keys hand-written as
 ## 7. Frontend: strand pure logic + state out of the monster pages: ◑ PARTIAL
 
 Done: pure logic extracted to `lib/` with colocated tests:
-`lib/rating.ts` (`pickRating`, `ratingBadgeClass`), `lib/tags.ts` (`formatTag`),
+`lib/rating.ts` (`pickRating`, `ratingBadgeClass`), `features/tags/lib/tags.ts` (`formatTag`),
 `lib/blurhash.ts` (`accentFromBlurhash`), `lib/imageFilter.hasActiveFilter`, and
 `lib/dom.ts` (`isFormField`, the 3× copy-paste, now one). Plus `useSelectionMode`
-(`hooks/useSelectionMode.ts`), the selection-Set + mode + toggle/clear +
+(`features/images/hooks/useSelectionMode.ts`), the selection-Set + mode + toggle/clear +
 auto-clear-on-exit, with a `renderHook` test.
 
 Deferred (deliberately): `useGridFocus`. It wraps focusedIndex + scroll-into-view
 + DOM focus, whose correctness is interaction behaviour a unit test can't cover
 and which can't be verified here without running the app. Worth doing when the app
-can be exercised live; the index math is already pure (`lib/gridNav`).
+can be exercised live; the index math is already pure (`features/images/lib/gridNav`).
 
 **Files:** `pages/ImageView.tsx` (1028), `pages/AllImagesPage.tsx` (820).
 
