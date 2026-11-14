@@ -193,3 +193,33 @@ test("pointing at a character lights up their identity tags in the prompt and th
     await request.put(recipe, { data: { added: [] } });
   }
 });
+
+test("the filmstrip opens an image, scrubs, and hides", async ({ page, request }) => {
+  const { _id } = await imageByPath(request, "furina/furina_41.png");
+  await page.goto(viewerUrl(_id));
+  const strip = page.getByRole("navigation", { name: "Filmstrip" });
+  await expect(strip.locator('[aria-current="true"]')).toHaveAccessibleName("furina_41.png");
+
+  // Newest first: furina_41, furina_63, shinobu_23.
+  await strip.getByRole("button", { name: "furina_63.png" }).click();
+  await expect(page.getByText("furina_63.png", { exact: true })).toBeVisible();
+  await expect(strip.locator('[aria-current="true"]')).toHaveAccessibleName("furina_63.png");
+
+  // Dragging the strip left moves on through the feed.
+  const box = (await strip.boundingBox())!;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + box.width / 2, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 44, y, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.getByText("shinobu_23.png", { exact: true })).toBeVisible();
+
+  // F hides it, and the choice survives a reload; the corner button brings it back.
+  await page.keyboard.press("f");
+  await expect(strip).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Show filmstrip" })).toBeVisible();
+  await expect(strip).toHaveCount(0);
+  await page.getByRole("button", { name: "Show filmstrip" }).click();
+  await expect(strip).toBeVisible();
+});

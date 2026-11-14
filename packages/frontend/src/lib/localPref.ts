@@ -13,6 +13,7 @@
  *   tags:marks                   useTagMarks: JSON {outlines, tints}
  *   moire.tags.view              TagsPage: "grid" | "list"
  *   imageView:tab                ImageView: "generation" | "tags"
+ *   imageView:filmstrip          ImageView: filmstrip shown ("1"/"0")
  *   viewer:outfits-open          WornOutfits: panel open ("1"/"0")
  *   moire.generate.boardFolded   PromptBoard: board folded ("1"/"0")
  *   generate:output-cleared-at   OutputFeed: newest batch's created_at when cleared, and the queued ones kept (JSON)

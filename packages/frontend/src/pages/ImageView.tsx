@@ -13,7 +13,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { errorText } from "../lib/api";
 import { isHiddenBySensitivity } from "../lib/queries/sensitivity";
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Ban, Download, EyeOff, FolderOpen, PanelRight } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Ban, Download, EyeOff, FolderOpen, GalleryHorizontal, PanelRight } from "lucide-react";
 import { imageFileUrl } from "../lib/media";
 import { useToast } from "../components/Toasts";
 import { ImageCharacters } from "../components/ImageCharacters";
@@ -41,6 +41,8 @@ import { RatingEditor } from "../components/imageview/RatingEditor";
 import { DetailTabs } from "../components/imageview/DetailTabs";
 import { CharacterHoverProvider } from "../components/imageview/CharacterHover";
 import { TagsSection } from "../components/imageview/TagsSection";
+import { FILMSTRIP_ROOM, FilmStrip } from "../components/imageview/FilmStrip";
+import { useLocalPref } from "../hooks/useLocalPref";
 
 // Round controls floating over the image stage (back, details, prev/next).
 const OVERLAY_BTN =
@@ -76,8 +78,9 @@ export default function ImageView() {
   // Image filter carried in the URL, drives the shared Image feed so the
   // pages the gallery already fetched are reused here (no separate paging code).
   const filters = useMemo(() => parseFilters(searchParams), [searchParams]);
-  const { id, shown, pending, index, list, fileUrl, goPrev, goNext, goBack, hasMore } =
+  const { id, shown, pending, index, list, fileUrl, goPrev, goNext, goBack, hasMore, jumpTo, loadMore } =
     useImageStepper(filters, routeId);
+  const [stripOn, setStripOn] = useLocalPref("imageView:filmstrip", true);
   // Current image document (full doc with tags/rating); refetched after edits.
   const { data, refetch, dataUpdatedAt, error } = useQuery({
     queryKey: imageDocKey(id!),
@@ -190,6 +193,13 @@ export default function ImageView() {
           e.preventDefault();
           if (isPrevImage(e.key)) goPrev();
           else goNext();
+        },
+      },
+      {
+        ...IMAGE.filmstrip,
+        run: (e) => {
+          e.preventDefault();
+          setStripOn((on) => !on);
         },
       },
       {
@@ -318,6 +328,8 @@ export default function ImageView() {
   const busy = pending || !imgLoaded;
   const stageW = shown?.width ?? data?.width;
   const stageH = shown?.height ?? data?.height;
+  // On a phone the open details sheet covers the strip's place.
+  const stripShown = stripOn && index >= 0 && !(phone && infoOpen);
 
   return (
     <div
@@ -332,7 +344,9 @@ export default function ImageView() {
       <div
         className="flex-1 h-full flex items-center justify-center relative overflow-hidden [container-type:size] transition-[padding] duration-300 ease-out"
         // The image sits above the resting sheet, not under it.
-        style={phone && infoOpen ? { paddingBottom: SHEET_PEEK } : undefined}
+        style={
+          phone && infoOpen ? { paddingBottom: SHEET_PEEK } : stripShown ? { paddingBottom: FILMSTRIP_ROOM } : undefined
+        }
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
@@ -470,6 +484,27 @@ export default function ImageView() {
             <ChevronRight />
           </button>
         </div>
+        {stripShown && (
+          <div className="absolute inset-x-0 bottom-0 z-40 flex items-center px-2" style={{ height: FILMSTRIP_ROOM }}>
+            <FilmStrip
+              items={list}
+              index={index}
+              onPick={jumpTo}
+              hasMore={hasMore}
+              loadMore={loadMore}
+            />
+          </div>
+        )}
+        {/* Strip toggle: quiet, in the corner; F does the same. */}
+        <button
+          onClick={() => setStripOn((on) => !on)}
+          className="absolute bottom-2 right-2 z-50 rounded p-1 text-white/30 transition-colors hover:text-white/80"
+          aria-label={stripOn ? "Hide filmstrip" : "Show filmstrip"}
+          aria-pressed={stripOn}
+          title={`${stripOn ? "Hide" : "Show"} filmstrip (F)`}
+        >
+          <GalleryHorizontal className="h-4 w-4" />
+        </button>
       </div>
       {/* Details sidebar: docked on desktop, slide-over drawer on mobile */}
       <aside

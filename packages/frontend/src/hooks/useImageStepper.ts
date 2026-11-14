@@ -306,6 +306,10 @@ export function useImageStepper(filters: Filters, routeId: string | undefined) {
   }, [list, stepFrom, stepTo, hasNextPage]);
 
   const hasMore = feed.hasNextPage;
+  // The filmstrip pages the feed as it is scrubbed toward the loaded end.
+  const loadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  return { id, shown, pending, index, list, fileUrl, goPrev, goNext, goBack, hasMore };
+  return { id, shown, pending, index, list, fileUrl, goPrev, goNext, goBack, hasMore, jumpTo: stepTo, loadMore };
 }

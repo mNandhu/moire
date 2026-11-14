@@ -72,6 +72,7 @@ export const IMAGE = {
   score: { keys: DIGITS_0_5, label: "0 – 5", desc: "Score it" },
   quarantine: { keys: QUARANTINE_KEYS, label: "X / Del", desc: "Quarantine (or restore) it" },
   back: { keys: ["Escape"], label: "Esc", desc: "Back to the gallery" },
+  filmstrip: { keys: ["f", "F"], label: "F", desc: "Show or hide the filmstrip" },
 } satisfies Record<string, ShortcutSpec>;
 
 /** Whether a step key goes back (the rest go forward). */
