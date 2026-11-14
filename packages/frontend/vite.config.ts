@@ -1,9 +1,14 @@
 /// <reference types="vitest/config" />
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    // `@/` is src/: imports read the same from any depth.
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+  },
   build: {
     // The backend serves the built UI from here (src/moire/web_ui.py), so a packaged
     // Moiré is one process. Gitignored; `uv build` still includes it.

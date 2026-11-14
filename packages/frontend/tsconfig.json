@@ -12,7 +12,8 @@
     "jsx": "react-jsx",
   "types": ["vite/client"],
   "strict": true,
-  "forceConsistentCasingInFileNames": true
+  "forceConsistentCasingInFileNames": true,
+  "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src"]
 }
