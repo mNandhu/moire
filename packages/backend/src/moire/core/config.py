@@ -107,6 +107,10 @@ class Settings(BaseSettings):
     log_file_max_bytes: int = 10 * 1024 * 1024
     log_file_backups: int = 5
 
+    # Ask PyPI once a day whether a newer Moiré is out (services/update_check.py).
+    # False turns it off for good, whatever Settings says.
+    update_check: bool = True
+
     rate_limit_enabled: bool = False
     rate_limit_rescan_per_minute: int = 1
 

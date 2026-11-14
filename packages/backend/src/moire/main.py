@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api import activity, libraries, images, tags, ai, rules, generate, onboarding
-from .api import sensitivity
+from .api import sensitivity, version
 from .core.config import API_PREFIX
 from .core.logging_setup import setup_logging
 from .core.middleware import GZipExceptMedia, RescanRateLimit, SlowRequestLog
@@ -69,6 +69,7 @@ api.include_router(generate.router, prefix="/generate", tags=["generate"])
 api.include_router(activity.router, prefix="/activity", tags=["activity"])
 api.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])
 api.include_router(sensitivity.router, prefix="/sensitivity", tags=["sensitivity"])
+api.include_router(version.router, prefix="/version", tags=["version"])
 app.include_router(api)
 # Last, so its catch-all route never shadows an API route.
 mount_web_ui(app)

@@ -22,6 +22,7 @@ from .ai.tagger import get_tagger_manager
 from .ai.face_worker import get_face_worker
 from .generate.jobs import get_generation_manager
 from .library.storage_fs import ensure_thumb_root
+from .update_check import checker as update_checker
 
 logger = logging.getLogger("moire")
 
@@ -54,6 +55,8 @@ async def start() -> None:
     # ComfyUI generation: reconnects and reconciles unfinished requests in the
     # background, so a ComfyUI that is down never delays startup.
     get_generation_manager().start()
+    # Asks PyPI for a newer release at most once a day, in the background.
+    update_checker.start()
 
 
 async def _start_ai() -> None:
@@ -99,6 +102,7 @@ async def _start_watchers() -> None:
 async def stop() -> None:
     # Joins each watcher thread and waits on the watcher process: off the loop.
     await anyio.to_thread.run_sync(library_watch.stop_all)  # type: ignore[attr-defined]
+    await update_checker.stop()
     await get_generation_manager().stop()
     await get_ai_job_manager().stop()
     await get_tagger_manager().stop()

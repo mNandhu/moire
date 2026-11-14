@@ -30,6 +30,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 FROM python:3.12-slim-bookworm AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
+    MOIRE_INSTALL=docker \
     PYTHONDONTWRITEBYTECODE=1 \
     MOIRE_HOME=/data \
     SQLITE_PATH=/data/moire.db \

@@ -13,6 +13,7 @@ dependencies = [
   "pillow",
   "python-dotenv",
   "httpx",
+  "packaging",
   "numpy>=2.4.0,<3.0",
   "pydantic-settings>=2.14.1",
   "watchfiles>=1.0",
