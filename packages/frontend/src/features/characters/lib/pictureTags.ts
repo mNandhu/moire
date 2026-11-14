@@ -3,7 +3,7 @@
  */
 
 /** Most tags one picture puts in a list (as the recipe's own signature caps). */
-export const PICTURE_TAG_LIMIT = 12;
+const PICTURE_TAG_LIMIT = 12;
 
 /**
  * `current` with the previous picture's tags swapped for the next one's:

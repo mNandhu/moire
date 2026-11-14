@@ -8,7 +8,7 @@ import { imageUrl } from "@/lib/media";
 import { viewerTimeZone } from "@/features/overview/lib/activity";
 import { fetchAiCoverage } from "@/features/ai/lib/ai";
 
-export const THUMB_URL_KEY = ["thumb-url"] as const;
+const THUMB_URL_KEY = ["thumb-url"] as const;
 
 /** The versioned thumbnail URL of an image known only by id (a cover picked
  * in a dialog, the image a remix came from); lists carry theirs. */

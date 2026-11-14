@@ -31,7 +31,7 @@ export const BOXES: { key: BoxKey; label: string; expected?: boolean; always?: b
 // Boxes a tag can be typed into.
 export const ADDABLE = new Set<BoxKey>(["subject", "hair", "eyes", "expression", "body", "attire", "pose", "framing", "background", "lighting", "style", "other"]);
 // Boxes a Clear empties: the typed-into ones and the not-Danbooru ones.
-export const CLEARABLE = new Set<BoxKey>([...ADDABLE, "library", "unknown"]);
+const CLEARABLE = new Set<BoxKey>([...ADDABLE, "library", "unknown"]);
 
 /** One of a layer's tags. `onToggle` strikes it out (or brings it back)
  * where the layer keeps it: a recipe's identity, an outfit pick. */
@@ -61,7 +61,7 @@ export function layerTerm(t: LayerTag): PromptTerm & Pick<Placed, "dropped" | "s
   return { name: t.tag.toLowerCase(), written: t.tag.replace(/_/g, " "), kind: "tag", start: -1, end: -1, nameStart: -1, nameEnd: -1, grouped: false, dropped: t.dropped, self: t.self, onToggle: t.onToggle };
 }
 
-export function boxOf(t: PromptTerm, place: TagPlace | undefined, boilerplate: (n: string) => boolean): BoxKey {
+function boxOf(t: PromptTerm, place: TagPlace | undefined, boilerplate: (n: string) => boolean): BoxKey {
   if (t.kind === "lora" || t.kind === "embedding") return "resources";
   if (t.kind === "prose" || t.kind === "noise") return "prose";
   if (boilerplate(t.name) || boilerplate(place?.alias_of ?? "")) return "quality";

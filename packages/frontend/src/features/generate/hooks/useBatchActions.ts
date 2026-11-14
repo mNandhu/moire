@@ -42,7 +42,7 @@ export function useCancelBatch(id: number, { onGone }: { onGone?: () => void } =
 }
 
 /** A mutation on one request of a batch: its answer goes to `onChanged`, a failure to a toast. */
-export function useRequestAction<V = void>(fn: (v: V) => Promise<Batch | undefined>, onChanged: (b?: Batch) => void) {
+function useRequestAction<V = void>(fn: (v: V) => Promise<Batch | undefined>, onChanged: (b?: Batch) => void) {
   const toast = useToast();
   return useMutation({
     mutationFn: fn,

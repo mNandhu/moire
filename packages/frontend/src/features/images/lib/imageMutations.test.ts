@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyTags,
-  purgeImage,
-  removeTags,
   setQuarantine,
   setRating,
   setScore,
@@ -36,7 +34,6 @@ describe("per-image mutations", () => {
       "quarantine",
       { quarantined: true },
     ],
-    ["purgeImage", () => purgeImage("L1:a.jpg"), "purge", { confirm: true }],
   ])("%s posts to /%s with its body", async (_n, call, suffix, body) => {
     const spy = mockFetch();
     await call();
@@ -60,12 +57,6 @@ describe("per-image mutations", () => {
       ...JSON_POST,
       body: JSON.stringify(["cat", "dog"]),
     });
-  });
-
-  it("removeTags posts the bare tag array", async () => {
-    const spy = mockFetch();
-    await removeTags("L1:a.jpg", ["cat"]);
-    expect(spy.mock.calls[0][0]).toBe("/api/v1/tags/remove/L1%3Aa.jpg");
   });
 
   it("setRating resolves to the rating the server stored", async () => {

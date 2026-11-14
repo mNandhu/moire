@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import type { CharacterEntry } from "./character";
 import { TAGS_KEY } from "@/features/tags/lib/queries";
 
-export const charactersQuery = {
+const charactersQuery = {
   queryKey: [...TAGS_KEY, "characters"],
   queryFn: ({ signal }: { signal: AbortSignal }) => api<CharacterEntry[]>("/api/v1/tags/characters", { signal }),
   staleTime: 60_000,

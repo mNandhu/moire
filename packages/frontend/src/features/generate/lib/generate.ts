@@ -29,7 +29,7 @@ export type ComfySettings = {
 
 export const HEADER_MASK = "••••";
 
-export type Progress = { value: number; max: number; node?: string } | null;
+type Progress = { value: number; max: number; node?: string } | null;
 
 export type ActiveBatch = {
   _id: number;
@@ -508,7 +508,7 @@ export const PRESETS_KEY = [...GEN_KEY, "presets"] as const;
 export const LORA_PRESETS_KEY = [...GEN_KEY, "lora-presets"] as const;
 export const recipeKey = (tag: string) => [...GEN_KEY, "recipe", tag] as const;
 export const OUTFITS_KEY = [...GEN_KEY, "outfits"] as const;
-export const outfitsKey = (character: string | null) => [...OUTFITS_KEY, "list", character ?? ""] as const;
+const outfitsKey = (character: string | null) => [...OUTFITS_KEY, "list", character ?? ""] as const;
 export const defaultOutfitKey = (character: string) => [...OUTFITS_KEY, "default", character] as const;
 export const generatorDiscoverKey = (sourceKey: string | null) => [...GEN_KEY, "discover", sourceKey] as const;
 export const generatorSetupKey = (id: string | undefined) => [...GEN_KEY, "setup", id] as const;
@@ -763,7 +763,7 @@ export function useLoraWords(name: string | null, { describe = false } = {}) {
 
 /** A character's recipe. No retry once the server says there is no such
  * character: asking again would only keep the page waiting. */
-export const recipeQuery = (tag: string) => ({
+const recipeQuery = (tag: string) => ({
   queryKey: recipeKey(tag),
   queryFn: ({ signal }: { signal: AbortSignal }) => api<Recipe>(`${BASE}/recipes/${encodeURIComponent(tag)}`, { signal }),
   retry: retryUnlessNotFound,
@@ -779,7 +779,7 @@ export function useRecipe(tag: string | null) {
 }
 
 /** Every saved outfit, or one character's list (own and shared). */
-export const fetchOutfits = (character: string | null, signal?: AbortSignal) =>
+const fetchOutfits = (character: string | null, signal?: AbortSignal) =>
   api<Outfit[]>(`${BASE}/outfits${character ? `?character=${encodeURIComponent(character)}` : ""}`, { signal });
 
 export const outfitsQuery = (character: string | null = null) => ({

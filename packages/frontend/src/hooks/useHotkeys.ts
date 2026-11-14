@@ -38,7 +38,7 @@ export type HotkeyOptions = {
 };
 
 /** Whether `e` passes the modifier rule of `mods`. */
-export function modsAllow(e: KeyboardEvent, mods: Hotkey["mods"] = "none"): boolean {
+function modsAllow(e: KeyboardEvent, mods: Hotkey["mods"] = "none"): boolean {
   if (mods === "any") return true;
   if (mods === "ctrl") return !e.altKey;
   return !hasModifier(e);

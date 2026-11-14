@@ -2,7 +2,7 @@ import { RATINGS, type Rating } from "@/lib/rating";
 
 /** The highest level the Global Sensitivity Filter can be set to; showing
  * everything is "off" (null). Mirrors the backend's sensitivity_filter.CHOICES. */
-export const FILTER_LEVELS = ["general", "sensitive", "questionable"] as const;
+const FILTER_LEVELS = ["general", "sensitive", "questionable"] as const;
 export type FilterLevel = (typeof FILTER_LEVELS)[number];
 
 /** GET /sensitivity: the setting, and images by level (out of quarantine). */
@@ -34,7 +34,7 @@ export const FILTER_OPTIONS = [
 
 export const TAG_LEVEL_OPTIONS = RATINGS.map((r) => ({ value: r, label: r }));
 
-export function isFilterLevel(s: string): s is FilterLevel {
+function isFilterLevel(s: string): s is FilterLevel {
   return (FILTER_LEVELS as readonly string[]).includes(s);
 }
 

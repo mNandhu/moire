@@ -20,7 +20,7 @@ import { IMAGE_FEED_PREFIX, IMAGE_GROUPS_PREFIX, imageDocKey, type FeedPage } fr
 
 // The cache keys live with the fetchers (imageApi.ts); re-exported for
 // the readers that patch through here.
-export { IMAGE_DOC_PREFIX, IMAGE_FEED_PREFIX, IMAGE_GROUPS_PREFIX, imageDocKey } from "./imageApi";
+export { IMAGE_DOC_PREFIX, imageDocKey } from "./imageApi";
 
 /**
  * Replace a query's data *without* touching its freshness. `setQueryData`

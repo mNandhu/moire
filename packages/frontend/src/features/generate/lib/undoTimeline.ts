@@ -11,7 +11,7 @@ export type TimelineStep = { kind: "form" } | { kind: "action"; action: UndoActi
 export type Timeline = { past: TimelineStep[]; future: TimelineStep[] };
 
 /** Most steps kept. */
-export const TIMELINE_LIMIT = 200;
+const TIMELINE_LIMIT = 200;
 
 export const emptyTimeline = (): Timeline => ({ past: [], future: [] });
 

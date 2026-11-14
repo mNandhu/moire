@@ -31,20 +31,11 @@ export function setQuarantine(
   return post(imageUrl(id, "quarantine"), { quarantined });
 }
 
-/** Irreversible: deletes the original file from disk as well as all records. */
-export function purgeImage(id: string): Promise<unknown> {
-  return post(imageUrl(id, "purge"), { confirm: true });
-}
-
 // --- Tags ---------------------------------------------------------------------
 
 /** Apply manual tags (the backend adds the `manual:` prefix). */
 export function applyTags(id: string, tags: string[]): Promise<unknown> {
   return post(`/api/v1/tags/apply/${encodeURIComponent(id)}`, tags);
-}
-
-export function removeTags(id: string, tags: string[]): Promise<unknown> {
-  return post(`/api/v1/tags/remove/${encodeURIComponent(id)}`, tags);
 }
 
 /** Add/remove manual tags (bare names) on many images (applied in chunks). */

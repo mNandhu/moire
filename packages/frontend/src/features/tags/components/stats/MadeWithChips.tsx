@@ -4,7 +4,7 @@ import { galleryHref, type Filters } from "@/features/images/lib/imageFilter";
 import type { TagWorkflow } from "@/features/tags/lib/tagBrowse";
 import { Tooltip } from "@/components/ui/Tooltip";
 
-export function ChipRow({ label, children }: { label: string; children: ReactNode }) {
+function ChipRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 items-start">
       <span className="text-xs text-faint leading-6">{label}</span>
@@ -13,7 +13,7 @@ export function ChipRow({ label, children }: { label: string; children: ReactNod
   );
 }
 
-export function Chip({ to, detail, label, share }: { to: string; detail: string; label: string; share: string }) {
+function Chip({ to, detail, label, share }: { to: string; detail: string; label: string; share: string }) {
   return (
     <Tooltip content={`${label}: ${detail}`} bubble className="max-w-full">
       <Link

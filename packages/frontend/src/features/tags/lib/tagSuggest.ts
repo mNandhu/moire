@@ -17,7 +17,7 @@ export type AliasesOf = (tag: string) => readonly string[] | undefined;
 
 const bareName = (id: string) => tagName(id.startsWith(ANY_PREFIX) ? id.slice(ANY_PREFIX.length) : id);
 
-export const MAX_SUGGESTIONS = 8;
+const MAX_SUGGESTIONS = 8;
 // Rows kept for loras and embeddings when tags also match: they rank below
 // tags, but a long tag list mustn't hide them.
 const RESOURCE_ROWS = 2;

@@ -366,7 +366,7 @@ export type GalleryNames = {
 
 /** The gallery's name for `f`, or undefined while a name it needs (a
  * library's, a Generation batch's) is not known. */
-export function galleryName(f: Filters, names: GalleryNames = {}): string | undefined {
+function galleryName(f: Filters, names: GalleryNames = {}): string | undefined {
   if (f.quarantined) return "Quarantined Images";
   if (f.groupId) return "Batch Images";
   if (f.genBatch != null) return names.batch?.(f.genBatch);

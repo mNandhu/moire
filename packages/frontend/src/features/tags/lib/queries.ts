@@ -207,7 +207,7 @@ export function useMergeSuggestions() {
   });
 }
 
-export const TAG_DESCRIPTIONS_KEY = ["tag-descriptions"] as const;
+const TAG_DESCRIPTIONS_KEY = ["tag-descriptions"] as const;
 
 /** `tag -> one-sentence description` for the tagger's general tags: a file
  * shipped with the app (and its Danbooru aliases). Not under TAGS_KEY,

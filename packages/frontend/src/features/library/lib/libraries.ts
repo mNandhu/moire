@@ -90,7 +90,7 @@ export function feedNeedsRefetch(prev: Library[] | undefined, next: Library[]): 
   return next.some((l) => !!l.last_event_at && l.last_event_at !== seen.get(l._id));
 }
 
-export function fetchLibraries(signal?: AbortSignal): Promise<Library[]> {
+function fetchLibraries(signal?: AbortSignal): Promise<Library[]> {
   return api<Library[]>("/api/v1/libraries", { signal });
 }
 
@@ -129,7 +129,7 @@ export function useOnLibrariesRead(
 /** The one rule after any library write: the list refetches, and so does
  * everything built from the images (feeds, tag counts, stats, facets), or the
  * gallery would serve stale results, a removed library's images included. */
-export function invalidateLibraryData(qc: QueryClient) {
+function invalidateLibraryData(qc: QueryClient) {
   void qc.invalidateQueries({ queryKey: LIBRARIES_KEY });
   invalidateFeeds(qc);
 }

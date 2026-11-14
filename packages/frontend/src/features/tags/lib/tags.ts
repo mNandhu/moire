@@ -102,7 +102,7 @@ export function tagQueryText(q: string): string {
 export type PromptWeights = Readonly<Record<string, number>>;
 
 /** A tag's prompt weight on an image, if it was prompted at one other than 1. */
-export function weightOf(raw: string, weights?: PromptWeights | null): number | undefined {
+function weightOf(raw: string, weights?: PromptWeights | null): number | undefined {
   return weights?.[tagName(raw).toLowerCase()];
 }
 
