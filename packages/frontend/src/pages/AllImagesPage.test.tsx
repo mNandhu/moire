@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
-import { ToastProvider } from "../components/Toasts";
+import { ToastProvider } from "@/components/ui/Toasts";
 import AllImagesPage from "./AllImagesPage";
-import { ShortcutHelp } from "../components/ShortcutOverlay";
+import { ShortcutHelp } from "@/app/components/ShortcutOverlay";
 
 // Opening a tile navigates; spying on the router hook is the cheapest way to
 // assert that without mounting the ImageView route.

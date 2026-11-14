@@ -1,11 +1,11 @@
-import { Section } from "../../../components/ui/Card";
+import { Section } from "@/components/ui/Card";
 import { ModelSection } from "./ModelSection";
-import { AiControllerProvider } from "../../../hooks/useAiController";
-import { Button } from "../../../components/ui/Button";
-import { Input, Field } from "../../../components/ui/Input";
-import { Checkbox } from "../../../components/ui/Checkbox";
-import { useAiController } from "../../../hooks/useAiController";
-import { useAiSettingsForm } from "../useAiSettingsForm";
+import { AiControllerProvider } from "@/features/ai/hooks/useAiController";
+import { Button } from "@/components/ui/Button";
+import { Input, Field } from "@/components/ui/Input";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { useAiController } from "@/features/ai/hooks/useAiController";
+import { useAiSettingsForm } from "@/features/ai/hooks/useAiSettingsForm";
 
 /** Save changes: off while the model card is busy (a load would read the
  * settings being replaced). */

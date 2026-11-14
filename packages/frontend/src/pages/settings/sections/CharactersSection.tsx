@@ -1,15 +1,15 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { Section } from "../../../components/ui/Card";
-import { Button } from "../../../components/ui/Button";
-import { Checkbox } from "../../../components/ui/Checkbox";
-import { ProgressBar } from "../../../components/ui/ProgressBar";
-import { FACES_KEY, postFaces } from "../../../lib/ai";
-import { TAGS_KEY } from "../../../lib/queries";
-import { taskPct } from "../../../lib/backgroundTasks";
-import { formatBytes } from "../../../lib/format";
-import { useAiSettingsForm } from "../useAiSettingsForm";
-import { useFaceStatus } from "../../../hooks/useFaceStatus";
+import { Section } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { FACES_KEY, postFaces } from "@/features/ai/lib/ai";
+import { TAGS_KEY } from "@/features/tags/lib/queries";
+import { taskPct } from "@/features/activity/lib/backgroundTasks";
+import { formatBytes } from "@/lib/format";
+import { useAiSettingsForm } from "@/features/ai/hooks/useAiSettingsForm";
+import { useFaceStatus } from "@/features/ai/hooks/useFaceStatus";
 
 /**
  * Character avatars: the optional face detector that crops them to the

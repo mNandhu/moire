@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, Loader2, Trash2 } from "lucide-react";
-import { Button, Card, EmptyState, PageBody, PageHeader, Tooltip } from "../components/ui";
-import { SetupForm } from "../components/workflow-setup/SetupForm";
-import { SourceStep } from "../components/workflow-setup/SourceStep";
-import { TestStep } from "../components/workflow-setup/TestStep";
+import { Button, Card, EmptyState, PageBody, PageHeader, Tooltip } from "@/components/ui";
+import { SetupForm } from "@/features/generate/components/workflow-setup/SetupForm";
+import { SourceStep } from "@/features/generate/components/workflow-setup/SourceStep";
+import { TestStep } from "@/features/generate/components/workflow-setup/TestStep";
 import {
   GENERATORS_KEY,
   createGenerator,
@@ -21,12 +21,12 @@ import {
   useGenerators,
   type GeneratorSlots,
   type GeneratorSourceIn,
-} from "../lib/generate";
-import { defaultName, workflowOrigin } from "../lib/generatorSetup";
-import { errorText } from "../lib/api";
-import { useConfirm } from "../components/ConfirmDialog";
-import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { useToast } from "../components/Toasts";
+} from "@/features/generate/lib/generate";
+import { defaultName, workflowOrigin } from "@/features/generate/lib/generatorSetup";
+import { errorText } from "@/lib/api";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useToast } from "@/components/ui/Toasts";
 
 /** A short stable hash of a string: an uploaded graph's cache key. */
 function hashOf(text: string): string {

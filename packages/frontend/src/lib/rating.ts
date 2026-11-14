@@ -1,4 +1,4 @@
-import type { ImageDetail } from "./imageFilter";
+import type { ImageDetail } from "@/features/images/lib/imageFilter";
 
 /** The ratings an image can have, mildest first; "-" is unrated. Mirrors the
  * backend's image_tags.RATINGS (tests/test_mirrored_vocab.py). */

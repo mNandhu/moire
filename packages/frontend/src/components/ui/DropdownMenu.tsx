@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useDismiss } from "../../hooks/useDismiss";
+import { useDismiss } from "@/hooks/useDismiss";
 import { ChevronDown } from "lucide-react";
-import { cn } from "../../lib/cn";
+import { cn } from "@/lib/cn";
 import { Button } from "./Button";
-import { useKeepInViewport } from "../../hooks/useKeepInViewport";
+import { useKeepInViewport } from "@/hooks/useKeepInViewport";
 
 export type DropdownItem = {
   label: string;

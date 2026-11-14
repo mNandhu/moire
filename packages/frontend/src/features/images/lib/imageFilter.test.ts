@@ -1,0 +1,451 @@
+import { describe, it, expect } from "vitest";
+import payloads from "../../../../../backend/tests/fixtures/mirrored/image_payloads.json";
+import {
+  DEFAULT_FILTERS,
+  activeFilterChips,
+  parseFilters,
+  serializeFilters,
+  hasActiveFilter,
+  type Filters,
+  hasClearableFilter,
+  withoutFilters,
+  galleryHref,
+  imageHref,
+  normalizeFilters,
+  IMAGE_FIELD_KEYS,
+  FEED_ITEM_KEYS,
+  IMAGE_DETAIL_KEYS,
+  enterGroup,
+  leaveGroup,
+  leaveGroupLabel,
+  galleryTitle,
+  isGroupedView,
+  toggleGrouping,
+} from "./imageFilter";
+
+const roundTrip = (f: Filters): Filters =>
+  parseFilters(serializeFilters(f));
+
+describe("Image filter URL round-trip", () => {
+  it("preserves the default (empty) filter", () => {
+    expect(roundTrip(DEFAULT_FILTERS)).toEqual(DEFAULT_FILTERS);
+  });
+
+  it("preserves a fully-populated filter", () => {
+    const f: Filters = {
+      tags: ["1girl", "solo"],
+      logic: "or",
+      libraryId: "lib123",
+      noTags: false,
+      noAiTags: true,
+      aiTagged: false,
+      quarantined: true,
+      promptTerms: ["cyberpunk", "neon"],
+      promptLogic: "or",
+      model: "sdxl",
+      lora: ["detail_xl", "NahidaXL"],
+      embedding: ["lazypos"],
+      outfit: ["o1", "default:nahida"],
+      shape: ["2:3", "3:4"],
+      minW: 512,
+      maxW: 2048,
+      minH: 768,
+      maxH: undefined,
+      group: true,
+      groupId: "abc123",
+      workflow: "wf1",
+      sort: "oldest",
+    };
+    expect(roundTrip(f)).toEqual(f);
+  });
+
+  it("preserves tag order", () => {
+    const f: Filters = { ...DEFAULT_FILTERS, tags: ["b", "a", "c"] };
+    expect(roundTrip(f).tags).toEqual(["b", "a", "c"]);
+  });
+});
+
+describe("parseFilters", () => {
+  it("defaults logic to 'and' for missing/invalid values", () => {
+    expect(parseFilters(new URLSearchParams()).logic).toBe("and");
+    expect(parseFilters(new URLSearchParams("logic=bogus")).logic).toBe("and");
+  });
+
+  it("reads the no_tags / no_ai_tags toggles", () => {
+    const f = parseFilters(new URLSearchParams("no_tags=1&no_ai_tags=1"));
+    expect(f.noTags).toBe(true);
+    expect(f.noAiTags).toBe(true);
+  });
+
+  it("reads ai_tagged, unless a no-tags toggle contradicts it", () => {
+    expect(parseFilters(new URLSearchParams("ai_tagged=1")).aiTagged).toBe(true);
+    expect(parseFilters(new URLSearchParams("ai_tagged=1&no_ai_tags=1")).aiTagged).toBe(false);
+    const sp = serializeFilters({ ...DEFAULT_FILTERS, aiTagged: true });
+    expect(sp.get("ai_tagged")).toBe("1");
+    expect(serializeFilters({ ...DEFAULT_FILTERS, aiTagged: true, noTags: true }).has("ai_tagged")).toBe(false);
+  });
+
+  it("migrates the legacy singular `tag` param", () => {
+    const f = parseFilters(new URLSearchParams("tag=cat&tag=dog"));
+    expect(f.tags).toEqual(["cat", "dog"]);
+    // re-serializing emits the modern `tags` param
+    expect(serializeFilters(f).getAll("tags")).toEqual(["cat", "dog"]);
+    expect(serializeFilters(f).getAll("tag")).toEqual([]);
+  });
+
+  it("prefers `tags` over legacy `tag` when both present", () => {
+    const f = parseFilters(new URLSearchParams("tags=new&tag=old"));
+    expect(f.tags).toEqual(["new"]);
+  });
+});
+
+describe("serializeFilters", () => {
+  it("omits falsy/default values", () => {
+    const sp = serializeFilters(DEFAULT_FILTERS);
+    expect(sp.has("library_id")).toBe(false);
+    expect(sp.has("no_tags")).toBe(false);
+    expect(sp.has("no_ai_tags")).toBe(false);
+  });
+
+  it("never includes pagination params", () => {
+    const sp = serializeFilters({ ...DEFAULT_FILTERS, tags: ["x"] });
+    expect(sp.has("cursor")).toBe(false);
+    expect(sp.has("limit")).toBe(false);
+  });
+});
+
+describe("sort", () => {
+  it("round-trips, leaves the default out of the URL, and isn't a filter", () => {
+    const top = { ...DEFAULT_FILTERS, sort: "top" as const };
+    expect(roundTrip(top)).toEqual(top);
+    expect(serializeFilters(DEFAULT_FILTERS).has("sort")).toBe(false);
+    expect(parseFilters(new URLSearchParams("sort=bogus")).sort).toBe("newest");
+    expect(hasActiveFilter(top)).toBe(false);
+    expect(activeFilterChips(top)).toEqual([]);
+  });
+});
+
+describe("workflow filter", () => {
+  it("round-trips a family or a version through the URL", () => {
+    const fam = { ...DEFAULT_FILTERS, workflow: "49a0c942" };
+    expect(roundTrip(fam)).toEqual(fam);
+    const ver = { ...DEFAULT_FILTERS, workflowSig: "abc123" };
+    expect(roundTrip(ver)).toEqual(ver);
+    expect(serializeFilters(fam).get("workflow")).toBe("49a0c942");
+    expect(hasActiveFilter(ver)).toBe(true);
+  });
+
+  it("names the chip and clears both keys", () => {
+    const [chip] = activeFilterChips(
+      { ...DEFAULT_FILTERS, workflowSig: "abc" },
+      undefined,
+      (k) => (k.workflowSig === "abc" ? "RemoteQ · Oct 3" : undefined),
+    );
+    expect(chip.label).toBe("Workflow: RemoteQ · Oct 3");
+    expect(chip.without.workflowSig).toBeUndefined();
+  });
+});
+
+describe("hasActiveFilter", () => {
+  it("is false for the default (empty) filter", () => {
+    expect(hasActiveFilter(DEFAULT_FILTERS)).toBe(false);
+  });
+
+  it("is true when any axis is set", () => {
+    expect(hasActiveFilter({ ...DEFAULT_FILTERS, tags: ["cat"] })).toBe(true);
+    expect(hasActiveFilter({ ...DEFAULT_FILTERS, libraryId: "L1" })).toBe(true);
+    expect(hasActiveFilter({ ...DEFAULT_FILTERS, noTags: true })).toBe(true);
+    expect(hasActiveFilter({ ...DEFAULT_FILTERS, minW: 100 })).toBe(true);
+    expect(hasActiveFilter({ ...DEFAULT_FILTERS, groupId: "g" })).toBe(true);
+  });
+
+  it("ignores the grouped-view toggle (group) which is not a filter", () => {
+    expect(hasActiveFilter({ ...DEFAULT_FILTERS, group: true })).toBe(false);
+  });
+});
+
+describe("activeFilterChips", () => {
+  const f = (patch: Partial<typeof DEFAULT_FILTERS>) => ({ ...DEFAULT_FILTERS, ...patch });
+
+  it("is empty for the default feed, and ignores search tags", () => {
+    expect(activeFilterChips(DEFAULT_FILTERS)).toEqual([]);
+    expect(activeFilterChips(f({ tags: ["cat", "dog"] }))).toEqual([]);
+  });
+
+  it("labels each active filter and removes only that one", () => {
+    const filters = f({ noTags: true, quarantined: true, model: "sdxl" });
+    const chips = activeFilterChips(filters);
+    expect(chips.map((c) => c.label)).toEqual(["Untagged", "Quarantined", "Model: sdxl"]);
+    const untagged = chips[0].without;
+    expect(untagged.noTags).toBe(false);
+    expect(untagged.quarantined).toBe(true);
+    expect(untagged.model).toBe("sdxl");
+  });
+
+  it("resolves the library name, falling back to the id", () => {
+    expect(activeFilterChips(f({ libraryId: "L1" }), () => "scary")[0].label).toBe("Library: scary");
+    expect(activeFilterChips(f({ libraryId: "L1" }))[0].label).toBe("Library: L1");
+  });
+
+  it("only shows OR mode when it changes the result", () => {
+    expect(activeFilterChips(f({ logic: "or", tags: ["a"] }))).toEqual([]);
+    const [chip] = activeFilterChips(f({ logic: "or", tags: ["a", "b"] }));
+    expect(chip.label).toBe("Match any of 2 tags");
+    expect(chip.without.logic).toBe("and");
+    expect(chip.without.tags).toEqual(["a", "b"]);
+  });
+
+  it("gives each prompt term its own chip", () => {
+    const chips = activeFilterChips(f({ promptTerms: ["neon", "rain"] }));
+    expect(chips.map((c) => c.label)).toEqual(["Prompt: neon", "Prompt: rain"]);
+    expect(chips[0].without.promptTerms).toEqual(["rain"]);
+  });
+
+  it("collapses a size range into one chip that clears both bounds", () => {
+    expect(activeFilterChips(f({ minW: 512 }))[0].label).toBe("Width ≥ 512");
+    expect(activeFilterChips(f({ maxH: 900 }))[0].label).toBe("Height ≤ 900");
+    const [w] = activeFilterChips(f({ minW: 512, maxW: 1024 }));
+    expect(w.label).toBe("Width 512–1024");
+    expect(w.without.minW).toBeUndefined();
+    expect(w.without.maxW).toBeUndefined();
+  });
+
+  it("shows the chosen size presets as one chip", () => {
+    const [c] = activeFilterChips(f({ shape: ["2:3", "3:4"] }));
+    expect(c.label).toBe("Size: 2:3, 3:4");
+    expect(c.without.shape).toEqual([]);
+  });
+});
+
+
+describe("withoutFilters", () => {
+  it("clears the panel's filters but keeps the search, tab, order and grouping", () => {
+    const f: Filters = {
+      ...DEFAULT_FILTERS,
+      tags: ["tokitou_muichirou"],
+      logic: "or",
+      libraryId: "lib1",
+      sort: "top",
+      group: true,
+      noAiTags: true,
+      model: "sdxl",
+      embedding: ["lazypos"],
+    };
+    expect(withoutFilters(f)).toEqual({
+      ...DEFAULT_FILTERS,
+      tags: ["tokitou_muichirou"],
+      // embeddings are search terms too: they stay
+      embedding: ["lazypos"],
+      logic: "or",
+      libraryId: "lib1",
+      sort: "top",
+      group: true,
+    });
+    expect(hasClearableFilter(f)).toBe(true);
+    expect(hasClearableFilter(withoutFilters(f))).toBe(false);
+  });
+});
+
+
+describe("lora filter", () => {
+  it("reads an old single-lora link", () => {
+    expect(parseFilters(new URLSearchParams("lora=detail_xl")).lora).toEqual(["detail_xl"]);
+  });
+});
+
+describe("galleryHref", () => {
+  it("links the gallery with the patch over the default filter", () => {
+    const href = galleryHref({ noAiTags: true });
+    expect(href.startsWith("/?")).toBe(true);
+    expect(parseFilters(new URLSearchParams(href.slice(2)))).toEqual({ ...DEFAULT_FILTERS, noAiTags: true });
+  });
+
+  it("round-trips every list axis", () => {
+    const patch = { tags: ["1girl"], lora: ["detail xl"], outfit: ["o1"], workflowSig: "abc" };
+    expect(parseFilters(new URLSearchParams(galleryHref(patch).slice(2)))).toEqual({ ...DEFAULT_FILTERS, ...patch });
+  });
+});
+
+describe("imageHref", () => {
+  it("encodes the id and carries the filter", () => {
+    const href = imageHref("L1:a/b c.png", { ...DEFAULT_FILTERS, tags: ["x"] });
+    expect(href.startsWith("/image/L1%3Aa%2Fb%20c.png?")).toBe(true);
+    expect(new URLSearchParams(href.split("?")[1]).getAll("tags")).toEqual(["x"]);
+  });
+
+  it("takes a query string already built", () => {
+    expect(imageHref("a", "group_id=g")).toBe("/image/a?group_id=g");
+  });
+
+  it("has no query without a filter", () => {
+    expect(imageHref("a")).toBe("/image/a");
+    expect(imageHref("a", "")).toBe("/image/a");
+  });
+});
+
+describe("normalizeFilters", () => {
+  it("drops aiTagged beside noTags / noAiTags", () => {
+    expect(normalizeFilters({ ...DEFAULT_FILTERS, aiTagged: true, noTags: true }).aiTagged).toBe(false);
+    expect(normalizeFilters({ ...DEFAULT_FILTERS, aiTagged: true, noAiTags: true }).aiTagged).toBe(false);
+    expect(normalizeFilters({ ...DEFAULT_FILTERS, aiTagged: true }).aiTagged).toBe(true);
+  });
+
+  it("lets a workflow version replace a workflow family", () => {
+    const f = normalizeFilters({ ...DEFAULT_FILTERS, workflow: "fam", workflowSig: "sig" });
+    expect(f.workflow).toBeUndefined();
+    expect(f.workflowSig).toBe("sig");
+  });
+
+  it("repairs a hand-typed URL on parse, and returns a consistent filter untouched", () => {
+    const f = parseFilters(new URLSearchParams("workflow=fam&workflow_sig=sig&ai_tagged=1&no_tags=1"));
+    expect(f).toMatchObject({ workflow: undefined, workflowSig: "sig", aiTagged: false, noTags: true });
+    expect(normalizeFilters(f)).toBe(f);
+  });
+
+  it("makes the chips ignore a contradicted aiTagged", () => {
+    const f = { ...DEFAULT_FILTERS, aiTagged: true, noTags: true };
+    expect(activeFilterChips(f).map((c) => c.key)).toEqual(["noTags"]);
+  });
+});
+
+// One sample per Filters key, none equal to the default. A key added to
+// Filters without a sample here fails the first test; one without a codec
+// line fails the round trip.
+const SAMPLES: Record<keyof Filters, Partial<Filters>> = {
+  tags: { tags: ["a", "b"] },
+  logic: { logic: "or" },
+  libraryId: { libraryId: "L1" },
+  noTags: { noTags: true },
+  noAiTags: { noAiTags: true },
+  aiTagged: { aiTagged: true },
+  quarantined: { quarantined: true },
+  promptTerms: { promptTerms: ["x"] },
+  promptLogic: { promptTerms: ["x"], promptLogic: "or" },
+  model: { model: "m" },
+  lora: { lora: ["l"] },
+  embedding: { embedding: ["e"] },
+  outfit: { outfit: ["o"] },
+  shape: { shape: ["2:3"] },
+  minW: { minW: 1 },
+  maxW: { maxW: 2 },
+  minH: { minH: 3 },
+  maxH: { maxH: 4 },
+  group: { group: true },
+  groupId: { groupId: "g" },
+  genBatch: { genBatch: 120 },
+  workflow: { workflow: "w" },
+  workflowSig: { workflowSig: "s" },
+  sort: { sort: "top" },
+};
+
+describe("every Filters key", () => {
+  it("has a sample", () => {
+    expect(Object.keys(SAMPLES).sort()).toEqual(Object.keys(DEFAULT_FILTERS).sort());
+  });
+
+  it.each(Object.keys(SAMPLES) as (keyof Filters)[])("round-trips through the URL: %s", (key) => {
+    const f: Filters = { ...DEFAULT_FILTERS, ...SAMPLES[key] };
+    expect(roundTrip(f)).toEqual(f);
+    expect(serializeFilters(f).toString()).not.toBe(serializeFilters(DEFAULT_FILTERS).toString());
+  });
+
+  it("counts as an active filter unless it is a view setting", () => {
+    const view = new Set<keyof Filters>(["logic", "group", "sort"]);
+    for (const key of Object.keys(SAMPLES) as (keyof Filters)[]) {
+      const f: Filters = { ...DEFAULT_FILTERS, ...SAMPLES[key] };
+      expect([key, hasActiveFilter(f)]).toEqual([key, !view.has(key)]);
+    }
+  });
+});
+
+describe("image payload types", () => {
+  // The backend pins each payload's keys in this snapshot
+  // (test_image_payload_keys_integration.py); each type names exactly those.
+  const sorted = (keys: readonly string[]) => [...keys].sort();
+
+  it("ImageFields is the feed row", () => {
+    expect(sorted(IMAGE_FIELD_KEYS)).toEqual(sorted(payloads.feed));
+  });
+
+  it("FeedItem is the grouped row (the feed row plus its batch)", () => {
+    expect(sorted(FEED_ITEM_KEYS)).toEqual(sorted(payloads.group));
+  });
+
+  it("ImageDetail is the single-image row", () => {
+    expect(sorted(IMAGE_DETAIL_KEYS)).toEqual(sorted(payloads.detail));
+  });
+});
+
+describe("a Generation batch in the URL", () => {
+  it("reads only a positive whole id", () => {
+    expect(parseFilters(new URLSearchParams("gen_batch=120")).genBatch).toBe(120);
+    for (const bad of ["0", "-1", "1.5", "x", ""]) {
+      expect(parseFilters(new URLSearchParams(`gen_batch=${bad}`)).genBatch).toBeUndefined();
+    }
+  });
+
+  it("is a removable chip, named when the name is known", () => {
+    const f = { ...DEFAULT_FILTERS, genBatch: 120 };
+    const [chip] = activeFilterChips(f, undefined, undefined, (id) => (id === 120 ? "hu tao" : undefined));
+    expect(chip.label).toBe("Batch: hu tao");
+    expect(chip.without.genBatch).toBeUndefined();
+    expect(activeFilterChips(f)[0].label).toBe("Batch: #120");
+  });
+
+  it("goes when the filters are cleared", () => {
+    expect(withoutFilters({ ...DEFAULT_FILTERS, genBatch: 120 }).genBatch).toBeUndefined();
+  });
+});
+
+describe("into and out of a group", () => {
+  it("leaves to the view it was opened from, grouped or not", () => {
+    const grouped = { ...DEFAULT_FILTERS, group: true, tags: ["cat"] };
+    const inside = enterGroup(grouped, "g");
+    expect(inside).toMatchObject({ group: true, groupId: "g" });
+    expect(leaveGroup(inside)).toEqual(grouped);
+    // A direct link into a group, grouping off: back to the flat gallery.
+    const flat = { ...DEFAULT_FILTERS, groupId: "g" };
+    expect(leaveGroup(flat)).toEqual(DEFAULT_FILTERS);
+  });
+
+  it("names where it leaves to, never a batches page", () => {
+    const names = {
+      library: (id: string) => (id === "L1" ? "Renders" : undefined),
+      batch: (id: number) => (id === 7 ? "hu tao" : undefined),
+    };
+    const back = (f: Filters) => leaveGroupLabel(f, names);
+    expect(back({ ...DEFAULT_FILTERS, group: true, groupId: "g" })).toBe("Back to All Images");
+    expect(back({ ...DEFAULT_FILTERS, groupId: "g", tags: ["cat"] })).toBe("Back to Filtered Images");
+    expect(back({ ...DEFAULT_FILTERS, groupId: "g", libraryId: "L1" })).toBe("Back to Renders");
+    expect(back({ ...DEFAULT_FILTERS, groupId: "g", quarantined: true })).toBe("Back to Quarantined Images");
+    // Inside a Generation batch's stack: back to that batch, by its name.
+    expect(back({ ...DEFAULT_FILTERS, groupId: "g", genBatch: 7 })).toBe("Back to hu tao");
+  });
+
+  it("says only Back while the name it needs is loading, never a wrong one", () => {
+    expect(leaveGroupLabel({ ...DEFAULT_FILTERS, groupId: "g", libraryId: "L1" })).toBe("Back");
+    expect(leaveGroupLabel({ ...DEFAULT_FILTERS, groupId: "g", genBatch: 7 })).toBe("Back");
+  });
+});
+
+describe("the grouping toggle", () => {
+  it("shows the setting inside a batch too, and flipping it leaves the batch", () => {
+    const inside = enterGroup({ ...DEFAULT_FILTERS, group: true }, "g");
+    expect(isGroupedView(inside)).toBe(false);
+    expect(toggleGrouping(inside)).toEqual(DEFAULT_FILTERS);
+    // Grouping off (a direct link into a batch): the toggle turns it on.
+    expect(toggleGrouping({ ...DEFAULT_FILTERS, groupId: "g" })).toEqual({ ...DEFAULT_FILTERS, group: true });
+    expect(isGroupedView({ ...DEFAULT_FILTERS, group: true })).toBe(true);
+  });
+});
+
+describe("galleryTitle", () => {
+  it("names the view, plainly until a name loads", () => {
+    expect(galleryTitle(DEFAULT_FILTERS)).toBe("All Images");
+    expect(galleryTitle({ ...DEFAULT_FILTERS, group: true })).toBe("All Images");
+    expect(galleryTitle({ ...DEFAULT_FILTERS, groupId: "g" })).toBe("Batch Images");
+    expect(galleryTitle({ ...DEFAULT_FILTERS, genBatch: 3 })).toBe("Batch Images");
+    expect(galleryTitle({ ...DEFAULT_FILTERS, genBatch: 3 }, { batch: () => "hu tao" })).toBe("hu tao");
+    expect(galleryTitle({ ...DEFAULT_FILTERS, libraryId: "gone" })).toBe("Library Images");
+  });
+});

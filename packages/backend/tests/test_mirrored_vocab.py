@@ -15,11 +15,11 @@ from moire.services.characters import attire, look as character_look
 from moire.services.tags import canon as tag_canon, categories as tag_categories
 from moire.services.tags.names import KAOMOJIS, canonical_name
 
-LIB = Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib"
+SRC = Path(__file__).resolve().parents[2] / "frontend" / "src"
 
 
 def _src(name: str) -> str:
-    return (LIB / name).read_text(encoding="utf-8")
+    return (SRC / name).read_text(encoding="utf-8")
 
 
 def _block(src: str, opener: str) -> str:
@@ -35,7 +35,7 @@ def _quoted(block: str) -> list[str]:
 
 
 def test_colour_table_matches():
-    block = _block(_src("tagColour.ts"), "const COLOURS")
+    block = _block(_src("features/tags/lib/tagColour.ts"), "const COLOURS")
     ts = {
         name: tuple(int(n) for n in nums)
         for name, *nums in re.findall(
@@ -49,7 +49,7 @@ def test_colour_table_matches():
 
 
 def test_multicolour_tags_match():
-    block = _block(_src("tagColour.ts"), "const MULTICOLOUR")
+    block = _block(_src("features/tags/lib/tagColour.ts"), "const MULTICOLOUR")
     py = set().union(*character_look.MULTICOLOUR.values())
     assert set(_quoted(block)) == py
 
@@ -83,12 +83,12 @@ def test_character_parts_read_the_shared_cases(case):
 
 
 def test_kaomojis_match():
-    block = _block(_src("tags.ts"), "const KAOMOJIS")
+    block = _block(_src("features/tags/lib/tags.ts"), "const KAOMOJIS")
     assert set(_quoted(block)) == set(KAOMOJIS)
 
 
 def test_facets_match():
-    src = _src("tagColour.ts")
+    src = _src("features/tags/lib/tagColour.ts")
     union = re.search(r"export type Facet = ([^;]+);", src)
     assert union
     assert tuple(_quoted(union.group(1))) == attire.FACETS
@@ -101,10 +101,14 @@ def test_merge_kinds_match():
     kinds = set()
     for line in re.findall(r"Suggestion\(.*", Path(tag_canon.__file__).read_text()):
         kinds |= set(re.findall(r'"([a-z]+)"', line))
-    order = re.search(r"KIND_ORDER[^=]*= \[([^\]]*)\]", _src("mergeSuggestions.ts"))
+    order = re.search(
+        r"KIND_ORDER[^=]*= \[([^\]]*)\]", _src("features/tags/lib/mergeSuggestions.ts")
+    )
     assert order
     assert set(_quoted(order.group(1))) == kinds
-    union = re.search(r"export type MergeKind = ([^;]+);", _src("queries/tags.ts"))
+    union = re.search(
+        r"export type MergeKind = ([^;]+);", _src("features/tags/lib/queries.ts")
+    )
     assert union
     assert set(_quoted(union.group(1))) == kinds
 
@@ -112,7 +116,7 @@ def test_merge_kinds_match():
 def test_canonical_name_rule_matches():
     # The TS twin is one expression; pin its shape, and the Python behaviour it
     # must reproduce.
-    src = _src("tags.ts")
+    src = _src("features/tags/lib/tags.ts")
     fn = src[src.index("export function canonicalName") :].split("\n}\n")[0]
     assert 'startsWith("<")' in fn and r"replace(/\s+/g, " in fn and '"_"' in fn
     assert canonical_name("  blue   eyes ") == "blue_eyes"
@@ -122,7 +126,7 @@ def test_canonical_name_rule_matches():
 def test_ai_settings_keys_match():
     from moire.services.ai.settings import DEFAULT_AI_SETTINGS
 
-    block = _block(_src("ai.ts"), "export type AISettings")
+    block = _block(_src("features/ai/lib/ai.ts"), "export type AISettings")
     ts = set(re.findall(r"^\s+(\w+): ", block, re.M))
     assert ts == set(DEFAULT_AI_SETTINGS)
 
@@ -130,14 +134,16 @@ def test_ai_settings_keys_match():
 def test_ratings_match():
     from moire.services.tags.image_tags import RATINGS
 
-    block = _block(_src("rating.ts"), "export const RATINGS")
+    block = _block(_src("lib/rating.ts"), "export const RATINGS")
     assert ("-", *_quoted(block)) == RATINGS
 
 
 def test_board_sections_match():
     from moire.services.generate.prompt_board import SECTIONS
 
-    union = re.search(r"export type BoardSection =([^;]+);", _src("queries/board.ts"))
+    union = re.search(
+        r"export type BoardSection =([^;]+);", _src("features/generate/lib/queries.ts")
+    )
     assert union
     assert tuple(_quoted(union.group(1))) == SECTIONS
 
@@ -145,7 +151,7 @@ def test_board_sections_match():
 def test_feed_sorts_match():
     from moire.services.images.feed import SORTS
 
-    src = _src("imageFilter.ts")
+    src = _src("features/images/lib/imageFilter.ts")
     union = re.search(r"export type FeedSort = ([^;]+);", src)
     assert union
     assert tuple(_quoted(union.group(1))) == tuple(SORTS)
@@ -153,7 +159,9 @@ def test_feed_sorts_match():
     assert listed
     assert tuple(_quoted(listed.group(1))) == tuple(SORTS)
     # The sort switch offers every order.
-    block = _block(_src("../components/SortControl.tsx"), "export const SORT_OPTIONS")
+    block = _block(
+        _src("features/images/components/SortControl.tsx"), "export const SORT_OPTIONS"
+    )
     assert tuple(re.findall(r'value: "(\w+)"', block)) == tuple(SORTS)
 
 
@@ -165,7 +173,7 @@ def test_thumb_sizes_match():
     # helper that is gone.
     code = "\n".join(
         line
-        for line in _src("media.ts").splitlines()
+        for line in _src("lib/media.ts").splitlines()
         if not line.lstrip().startswith(("//", "*", "/*"))
     )
     assert set(re.findall(r"size=(\w+)", code)) == set(get_args(ThumbSize))

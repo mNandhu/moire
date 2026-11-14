@@ -1,9 +1,9 @@
 import { useSearchParams } from "react-router-dom";
-import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { cn } from "../lib/cn";
-import { SETTINGS_SECTIONS } from "./settings/registry";
-import { AiSettingsFormProvider } from "./settings/useAiSettingsForm";
-import { PageHeader, PageBody } from "../components/ui/PageHeader";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { cn } from "@/lib/cn";
+import { SETTINGS_SECTIONS } from "@/pages/settings/registry";
+import { AiSettingsFormProvider } from "@/features/ai/hooks/useAiSettingsForm";
+import { PageHeader, PageBody } from "@/components/ui/PageHeader";
 
 export default function SettingsPage() {
   const [params, setParams] = useSearchParams();

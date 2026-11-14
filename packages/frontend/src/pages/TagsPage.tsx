@@ -1,29 +1,21 @@
 import { useCallback, useMemo, useState } from "react";
-import { useLocalPref } from "../hooks/useLocalPref";
+import { useLocalPref } from "@/hooks/useLocalPref";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Tag as TagIcon, Search, GitMerge, LayoutGrid, List, UserPlus, Wand2, Sparkles } from "lucide-react";
-import { PageHeader, PageBody } from "../components/ui/PageHeader";
-import { EmptyState } from "../components/ui/EmptyState";
-import { Button, ButtonLink } from "../components/ui/Button";
-import { DropdownMenu } from "../components/ui/DropdownMenu";
-import { Input } from "../components/ui/Input";
-import { cn } from "../lib/cn";
-import { EVERYWHERE } from "../lib/shortcuts";
-import { galleryHref } from "../lib/imageFilter";
-import {
-  useAiCoverage,
-  useBoilerplate,
-  useTagAggregate,
-  useTagRules,
-  useTagBrowse,
-  useTagDescriptions,
-  useTagGroups,
-  useMergeSuggestions,
-  type TagAgg,
-} from "../lib/queries";
-import { descriptionKey } from "../lib/tags";
-import { useHotkeys } from "../hooks/useHotkeys";
-import { useTagRuleActions } from "../hooks/useTagRuleActions";
+import { PageHeader, PageBody } from "@/components/ui/PageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { DropdownMenu } from "@/components/ui/DropdownMenu";
+import { Input } from "@/components/ui/Input";
+import { cn } from "@/lib/cn";
+import { EVERYWHERE } from "@/lib/shortcuts";
+import { galleryHref } from "@/features/images/lib/imageFilter";
+import { useAiCoverage } from "@/features/images/lib/queries";
+import { useBoilerplate } from "@/features/tags/lib/settingsQueries";
+import { useTagAggregate, useTagRules, useTagBrowse, useTagDescriptions, useTagGroups, useMergeSuggestions, type TagAgg } from "@/features/tags/lib/queries";
+import { descriptionKey } from "@/features/tags/lib/tags";
+import { useHotkeys } from "@/hooks/useHotkeys";
+import { useTagRuleActions } from "@/features/tags/hooks/useTagRuleActions";
 import {
   SORT_LABEL,
   SOURCE_LABEL,
@@ -34,17 +26,17 @@ import {
   type TagSort,
   type TagSource,
   type TagView,
-} from "../lib/tagBrowse";
-import { RenameTagDialog } from "../components/RenameTagDialog";
-import { MergeSuggestions } from "../components/MergeSuggestions";
-import { MergeRules } from "../components/MergeRules";
-import { LoadingGrid, SpecialTile, TagSection, type Describe } from "../components/tags/TagCards";
-import { TagPanel } from "../components/TagPanel";
-import { useCharacters } from "../lib/queries";
-import { NewCharacterDialog } from "../components/NewCharacterDialog";
-import { Picker } from "../components/ui/Picker";
-import { groupHref, groupLabel, groupOf, groupOptions } from "../lib/tagGroups";
-import { characterHref } from "../lib/character";
+} from "@/features/tags/lib/tagBrowse";
+import { RenameTagDialog } from "@/features/tags/components/RenameTagDialog";
+import { MergeSuggestions } from "@/features/tags/components/MergeSuggestions";
+import { MergeRules } from "@/features/tags/components/MergeRules";
+import { LoadingGrid, SpecialTile, TagSection, type Describe } from "@/features/tags/components/TagCards";
+import { TagPanel } from "@/features/tags/components/TagPanel";
+import { useCharacters } from "@/features/characters/lib/queries";
+import { NewCharacterDialog } from "@/features/characters/components/NewCharacterDialog";
+import { Picker } from "@/components/ui/Picker";
+import { groupHref, groupLabel, groupOf, groupOptions } from "@/features/tags/lib/tagGroups";
+import { characterHref } from "@/features/characters/lib/character";
 
 const VIEW_KEY = "moire.tags.view";
 

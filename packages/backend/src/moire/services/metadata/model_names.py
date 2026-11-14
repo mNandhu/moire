@@ -1,5 +1,5 @@
 """The one rule for naming a model file (LoRA, checkpoint, embedding) by its
-stem. Pure; the frontend's ``stemOf`` (lib/modelNames.ts) mirrors it."""
+stem. Pure; the frontend's ``stemOf`` (features/metadata/lib/modelNames.ts) mirrors it."""
 
 from __future__ import annotations
 

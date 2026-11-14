@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { cn } from "../../lib/cn";
+import { cn } from "@/lib/cn";
 
 const OPEN_DELAY = 250;
 // Long enough to move the pointer from the trigger onto the tip (it may hold a link).

@@ -1,19 +1,19 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { Section } from "../../../components/ui/Card";
-import { Badge } from "../../../components/ui/Badge";
-import { Button } from "../../../components/ui/Button";
-import { Input } from "../../../components/ui/Input";
-import { Picker } from "../../../components/ui/Picker";
-import { useToast } from "../../../components/Toasts";
-import { filterOptions, useSetFilterLevel } from "../../../components/SensitivityControl";
-import { UnknownHiddenNotice } from "../../../components/SensitivityNotice";
-import { errorText } from "../../../lib/api";
-import { formatTag } from "../../../lib/tags";
-import { RATINGS, type Rating } from "../../../lib/rating";
-import { setTagLevel, useSensitivity, useTagLevels } from "../../../lib/queries/sensitivity";
-import { fromOption, TAG_LEVEL_OPTIONS, toOption, type TagLevel } from "../../../lib/sensitivity";
+import { Section } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Picker } from "@/components/ui/Picker";
+import { useToast } from "@/components/ui/Toasts";
+import { filterOptions, useSetFilterLevel } from "@/features/tags/components/SensitivityControl";
+import { UnknownHiddenNotice } from "@/features/tags/components/SensitivityNotice";
+import { errorText } from "@/lib/api";
+import { formatTag } from "@/features/tags/lib/tags";
+import { RATINGS, type Rating } from "@/lib/rating";
+import { setTagLevel, useSensitivity, useTagLevels } from "@/features/tags/lib/sensitivityQueries";
+import { fromOption, TAG_LEVEL_OPTIONS, toOption, type TagLevel } from "@/features/tags/lib/sensitivity";
 
 const LEVEL_NAMES: Record<Rating, string> = {
   general: "General",

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, type RefObject } from "react";
-import { nudgeIntoView } from "../lib/viewportFit";
+import { nudgeIntoView } from "@/lib/viewportFit";
 
 /** The area a popover can actually be seen in: no scrollbar, no on-screen
  * keyboard. */

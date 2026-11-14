@@ -1,6 +1,6 @@
-import { Section } from "../../../components/ui/Card";
-import { Checkbox } from "../../../components/ui/Checkbox";
-import { setTagMarks, useTagMarks } from "../../../hooks/useTagMarks";
+import { Section } from "@/components/ui/Card";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { setTagMarks, useTagMarks } from "@/features/tags/hooks/useTagMarks";
 
 /**
  * How tag lists mark tags: hair and eye colours as outlines, and a tint per

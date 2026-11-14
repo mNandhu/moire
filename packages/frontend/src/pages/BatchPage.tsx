@@ -1,20 +1,20 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
-import { Badge, Button, ButtonLink, PageBody, PageHeader } from "../components/ui";
-import { InlineRename } from "../components/InlineRename";
-import { batchStats, shownImages, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
-import { StepListContext, useStepList } from "../lib/stepList";
-import { durationWords } from "../lib/format";
-import { leftLabel } from "../lib/eta";
-import { renameBatch, requeueBatch, useBatch, type Batch } from "../lib/generate";
-import { useBatchChanged, useCancelBatch, useRetryFailed } from "../hooks/useBatchActions";
-import { saveDraft } from "../lib/generateDraft";
-import { formFromBatch } from "../lib/remixForm";
-import { BatchInputs } from "../components/generate/BatchInputs";
-import { BatchResults } from "../components/generate/BatchResults";
-import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { useToast } from "../components/Toasts";
+import { Badge, Button, ButtonLink, PageBody, PageHeader } from "@/components/ui";
+import { InlineRename } from "@/components/ui/InlineRename";
+import { batchStats, shownImages, stateTone, STATE_LABEL, whenLabel } from "@/features/generate/lib/batches";
+import { StepListContext, useStepList } from "@/lib/stepList";
+import { durationWords } from "@/lib/format";
+import { leftLabel } from "@/features/generate/lib/eta";
+import { renameBatch, requeueBatch, useBatch, type Batch } from "@/features/generate/lib/generate";
+import { useBatchChanged, useCancelBatch, useRetryFailed } from "@/features/generate/hooks/useBatchActions";
+import { saveDraft } from "@/features/generate/lib/generateDraft";
+import { formFromBatch } from "@/features/generate/lib/remixForm";
+import { BatchInputs } from "@/features/generate/components/BatchInputs";
+import { BatchResults } from "@/features/generate/components/BatchResults";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useToast } from "@/components/ui/Toasts";
 
 function NameHeading({ b, onSaved }: { b: Batch; onSaved: (b: Batch) => void }) {
   const toast = useToast();

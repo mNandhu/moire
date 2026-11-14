@@ -117,7 +117,7 @@ body {
   }
 }
 
-/* Welcome page background (components/onboarding/RingBackground). The masks
+/* Welcome page background (features/onboarding/components/RingBackground). The masks
  * fade the rings out toward the form; the wash is a faint light in the
  * colours generated images tend to have, dithered by the grain. */
 .ring-bg {

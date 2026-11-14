@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, RefreshCw, Settings2, X } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { Section } from "../../../components/ui/Card";
-import { Badge, Button, Checkbox, Input, Picker, Tooltip } from "../../../components/ui";
-import { ComfyStatusLine } from "../../../components/generate/ComfyStatusLine";
-import { TestBadge } from "../../../components/generate/TestBadge";
+import { Section } from "@/components/ui/Card";
+import { Badge, Button, Checkbox, Input, Picker, Tooltip } from "@/components/ui";
+import { ComfyStatusLine } from "@/features/generate/components/ComfyStatusLine";
+import { TestBadge } from "@/features/generate/components/TestBadge";
 import {
   GEN_KEY,
   HEADER_MASK,
@@ -20,9 +20,9 @@ import {
   useGenerators,
   type ComfySettings,
   type LoraMatch,
-} from "../../../lib/generate";
-import { useToast } from "../../../components/Toasts";
-import { PER_REQUEST_MAX } from "../../../lib/generationLimits";
+} from "@/features/generate/lib/generate";
+import { useToast } from "@/components/ui/Toasts";
+import { PER_REQUEST_MAX } from "@/features/generate/lib/generationLimits";
 
 type HeaderRow = { name: string; value: string };
 

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { KEY_SET, useLocalPref } from "./useLocalPref";
-import { readLocalPref, writeLocalPref } from "../lib/localPref";
+import { readLocalPref, writeLocalPref } from "@/lib/localPref";
 
 afterEach(() => {
   vi.restoreAllMocks();

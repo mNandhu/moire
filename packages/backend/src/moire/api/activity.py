@@ -3,7 +3,7 @@ indicator: scans, model downloads and loads, AI tagging, face finding,
 re-reading prompts, deleting libraries and generating.
 
 Each item is ``{key, kind, library_id?, done?, total?, unit?, phase?}``; the
-frontend words them (``lib/backgroundTasks.ts``). ``ended`` counts, per kind,
+frontend words them (``features/activity/lib/backgroundTasks.ts``). ``ended`` counts, per kind,
 the work that has ended since the server started, so the UI can refresh after
 work that came and went between two polls.
 """

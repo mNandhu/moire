@@ -8,19 +8,21 @@ import {
   Plus,
   Loader2,
 } from "lucide-react";
-import { StatCard } from "../components/ui/StatCard";
-import { PageHeader, PageBody } from "../components/ui/PageHeader";
-import { ButtonLink } from "../components/ui/Button";
-import { Card } from "../components/ui/Card";
-import { Badge } from "../components/ui/Badge";
-import { useAiStatus } from "../hooks/useAiStatus";
-import { coveragePct, isActiveJob } from "../lib/ai";
-import { ProgressBar } from "../components/ui/ProgressBar";
-import { useAiCoverage, useImageStats, useLibraries, useTagAggregate } from "../lib/queries";
-import { ActivityChart } from "../components/overview/ActivityChart";
-import { RecentImages } from "../components/overview/RecentImages";
-import { ToReview } from "../components/overview/ToReview";
-import { isManual } from "../lib/tags";
+import { StatCard } from "@/components/ui/StatCard";
+import { PageHeader, PageBody } from "@/components/ui/PageHeader";
+import { ButtonLink } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { useAiStatus } from "@/features/ai/hooks/useAiStatus";
+import { coveragePct, isActiveJob } from "@/features/ai/lib/ai";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { useAiCoverage, useImageStats } from "@/features/images/lib/queries";
+import { useLibraries } from "@/features/library/lib/libraries";
+import { useTagAggregate } from "@/features/tags/lib/queries";
+import { ActivityChart } from "@/features/overview/components/ActivityChart";
+import { RecentImages } from "@/features/overview/components/RecentImages";
+import { ToReview } from "@/features/overview/components/ToReview";
+import { isManual } from "@/features/tags/lib/tags";
 
 export default function OverviewPage() {
   const libsQuery = useLibraries();

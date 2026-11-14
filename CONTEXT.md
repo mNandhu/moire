@@ -23,7 +23,7 @@ belongs in this file.
     own vocabulary. `blue eyes` and `blue_eyes` are the same tag. Owned by
     `services/tags/names.py` (`canonical_name`); `image_tags.canonical_tag`
     applies it to a prefixed tag. The UI shows underscores as spaces
-    (`lib/tags.ts` `formatTag`), and kaomoji (`^_^`) keep theirs.
+    (`features/tags/lib/tags.ts` `formatTag`), and kaomoji (`^_^`) keep theirs.
 - **Tag rename / merge**: renaming a tag onto a new name, or onto an existing
   one (a merge). The kind is kept. AI tags are never renamed (fixed,
   deterministic vocabulary). Manual tags are rewritten once
@@ -98,7 +98,7 @@ belongs in this file.
   character's avatar, in a background worker, kept in `image_faces`. Avatars
   crop to it; a centre the user sets wins. Several faces: the largest
   confident one, so a hand-set centre fixes shared images.
-  (`services/ai/face_detect.py`, `lib/character.ts` `avatarCrop`)
+  (`services/ai/face_detect.py`, `features/characters/lib/character.ts` `avatarCrop`)
 - **Rating**: one of `-`, `general`, `sensitive`, `questionable`, `explicit`.
   Normalized in one place (`image_tags.normalize_rating`) and written only
   through `image_tags.set_rating` (with `set_score` / `set_quarantine` for the
@@ -215,7 +215,7 @@ belongs in this file.
   into the model cache and refreshed quarterly (`services/tags/danbooru.py`).
   A name in neither list is **unknown**. The aliases serve the board only:
   library tags never go through them. (`services/generate/prompt_board.py`,
-  `lib/promptOutline.ts`, `components/generate/PromptBoard.tsx`)
+  `features/generate/lib/prompt/promptOutline.ts`, `features/generate/components/PromptBoard.tsx`)
 - **Outfit**: a named set of attire tags saved from an image (that image is
   its thumbnail), for the character it was saved under, or shared with all
   characters. User-made; suggested groupings come later.
@@ -244,8 +244,8 @@ belongs in this file.
   image reached the library. The UI calls it a **workflow** (one that is set
   up to run in Generate): the same ComfyUI workflow the extraction rules and
   the gallery filter list, at a later stage. "Generator" stays the code and
-  API name. In code, `workflow_family` / `lib/workflows.ts` are the families
-  (editor graph ids); `lib/generatorRunBar.ts` is the Generators' run bar.
+  API name. In code, `workflow_family` / `features/metadata/lib/workflows.ts` are the families
+  (editor graph ids); `features/generate/lib/generatorRunBar.ts` is the Generators' run bar.
 - **ComfyUI connection**: the one ComfyUI server Moiré queues on. Its
   installed LoRAs are matched to an image's LoRA names by file name, folders
   and extension ignored, so a recipe can say when a LoRA isn't installed.
@@ -264,36 +264,36 @@ belongs in this file.
 - **Image filter**: the criteria selecting which Images the gallery shows:
   tags + match logic (`and`/`or`), library, and the `no_tags`/`no_ai_tags`
   toggles. Its URL round-trip is pure: `parseFilters` / `serializeFilters`
-  (`lib/imageFilter.ts`) are the single source of truth, so the URL and the
+  (`features/images/lib/imageFilter.ts`) are the single source of truth, so the URL and the
   query never drift.
 - **Tag kinds (frontend)**: the `manual:` / `prompt:` / `any:` prefixes and the
-  predicates over them live once in `lib/tags.ts` (`isManual`, `isPrompt`,
+  predicates over them live once in `features/tags/lib/tags.ts` (`isManual`, `isPrompt`,
   `isAiTag`, `partitionTags`, `formatTag`, `formatSearchTag`), mirroring the
   backend's `image_tags` helpers. They were hardcoded in five components.
 - **Per-image mutations**: every write the UI can make to one Image (rating,
   score, quarantine, purge, apply/remove tags, tag thumbnail) goes through
-  `lib/imageMutations.ts` over the shared `lib/api` client, the client-side
+  `features/images/lib/imageMutations.ts` over the shared `lib/api` client, the client-side
   mirror of `services/tags/image_tags.py`. Their feed-cache consequences live in
-  `lib/feedCache.ts`, which patches *every* cached feed rather than one exact
+  `features/images/lib/feedCache.ts`, which patches *every* cached feed rather than one exact
   key, since an Image can be cached under several filters.
-- **Load slot**: a thumbnail's permission to fetch. `hooks/useImageLoadSlot.ts`
+- **Load slot**: a thumbnail's permission to fetch. `features/images/hooks/useImageLoadSlot.ts`
   owns the global concurrency limit and the per-tile lifecycle (enqueue-once,
   token-matched release, unmount/stale-src guards). Leaked slots silently stop
   every later thumbnail from loading, so the invariants are code, not comments.
 - **Tags page**: one entry per tag name (sources merged; the Source filter
   narrows to one), characters in their own section, grid or list. Clicking a
-  tag opens its panel (`components/TagPanel.tsx`): its images (each opens in
+  tag opens its panel (`features/tags/components/TagPanel.tsx`): its images (each opens in
   the viewer over the page; a pin sets the cover), use over time, the loras
   and workflows it was made with, and related tags. Characters show as one
   picture, other tags as a 2x2 mosaic. The
-  page's sorting, sectioning and gallery links are pure (`lib/tagBrowse.ts`).
+  page's sorting, sectioning and gallery links are pure (`features/tags/lib/tagBrowse.ts`).
 - **Ruleset edit session**: the loaded-vs-edited state of one signature's
   extraction Ruleset: one definition of dirty, and the load/save/delete
-  transitions that reset the baseline (`hooks/useRulesetSession.ts`). The exits
+  transitions that reset the baseline (`features/metadata/hooks/useRulesetSession.ts`). The exits
   a page can't intercept itself (tab close, in-app navigation) are guarded off
   the same flag by `hooks/useUnsavedChangesGuard.ts`.
 - **Image feed**: the cursor-paged stream of Images matching an Image filter.
-  One shared query (`hooks/useImageFeed.ts`, TanStack `useInfiniteQuery` keyed
+  One shared query (`features/images/hooks/useImageFeed.ts`, TanStack `useInfiniteQuery` keyed
   by the filter); the gallery (`AllImagesPage`) and `ImageView` read the same
   cache, so paging done in one is visible to the other. Ordered newest first
   by file mtime (the generation-time proxy; a copy or move can reset it), or

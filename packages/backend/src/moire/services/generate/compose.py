@@ -2,8 +2,8 @@
 
 Positive = Base + Character + Outfit + Extra; negative = Base + Extra. Base is
 free text written as-is; the chip blocks hold canonical tag names (underscores)
-or ``embedding:name`` words. Mirrors the frontend's ``lib/compose.ts`` (which
-previews the same text) and ``lib/tags.ts`` ``toPromptText`` escaping.
+or ``embedding:name`` words. Mirrors the frontend's ``features/generate/lib/compose.ts`` (which
+previews the same text) and ``features/tags/lib/tags.ts`` ``toPromptText`` escaping.
 """
 
 from __future__ import annotations

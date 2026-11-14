@@ -1,14 +1,14 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { History, ImageOff, Layers, Loader2, Search } from "lucide-react";
-import { QueueFrames } from "../components/generate/QueueFrames";
-import { Badge, EmptyState, Input, PageBody, PageHeader } from "../components/ui";
-import { batchLine, coverAspect, dayLabel, phaseOf, type Phase, scrubIndex, stateTone, STATE_LABEL, whenLabel } from "../lib/batches";
-import { queueRoles } from "../lib/queueClock";
-import { useBatches, useComfyStatus, type BatchSummary } from "../lib/generate";
-import { cn } from "../lib/cn";
-import { fuzzyRank } from "../lib/fuzzy";
-import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { QueueFrames } from "@/features/generate/components/QueueFrames";
+import { Badge, EmptyState, Input, PageBody, PageHeader } from "@/components/ui";
+import { batchLine, coverAspect, dayLabel, phaseOf, type Phase, scrubIndex, stateTone, STATE_LABEL, whenLabel } from "@/features/generate/lib/batches";
+import { queueRoles } from "@/features/generate/lib/queueClock";
+import { useBatches, useComfyStatus, type BatchSummary } from "@/features/generate/lib/generate";
+import { cn } from "@/lib/cn";
+import { fuzzyRank } from "@/lib/fuzzy";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 type Show = "all" | "running" | "failed";
 

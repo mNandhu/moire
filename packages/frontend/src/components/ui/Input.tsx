@@ -1,5 +1,5 @@
 import React from "react";
-import { cn } from "../../lib/cn";
+import { cn } from "@/lib/cn";
 
 const FIELD =
   "w-full h-9 rounded-lg bg-canvas border border-line px-3 text-sm text-neutral-100 placeholder:text-faint hover:border-line-strong focus:border-brand-500/70 transition-colors";

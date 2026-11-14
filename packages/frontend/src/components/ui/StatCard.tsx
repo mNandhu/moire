@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { cn } from "../../lib/cn";
+import { cn } from "@/lib/cn";
 import { Skeleton } from "./Skeleton";
 
 /** Single metric tile for the overview: icon, big number, label. */

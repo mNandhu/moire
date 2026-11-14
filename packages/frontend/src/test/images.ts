@@ -1,4 +1,4 @@
-import type { FeedItem, ImageDetail } from "../lib/imageFilter";
+import type { FeedItem, ImageDetail } from "@/features/images/lib/imageFilter";
 
 // Whole image payloads for tests, with every key the wire always sends. No
 // cast: a key added to the types fails here until it gets a default.

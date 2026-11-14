@@ -1,10 +1,10 @@
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useDismiss } from "../../hooks/useDismiss";
+import { useDismiss } from "@/hooks/useDismiss";
 import { Check, ChevronDown, Search } from "lucide-react";
-import { cn } from "../../lib/cn";
-import { fuzzyRank } from "../../lib/fuzzy";
-import { useKeepInViewport } from "../../hooks/useKeepInViewport";
+import { cn } from "@/lib/cn";
+import { fuzzyRank } from "@/lib/fuzzy";
+import { useKeepInViewport } from "@/hooks/useKeepInViewport";
 
 export type PickerOption = {
   value: string;

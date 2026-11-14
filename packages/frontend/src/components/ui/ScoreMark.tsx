@@ -1,4 +1,4 @@
-import { cn } from "../../lib/cn";
+import { cn } from "@/lib/cn";
 
 /**
  * An image's 1-5 score as a hand-written amber digit, the way prints get

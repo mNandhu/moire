@@ -1,4 +1,4 @@
-import { cn } from "../../lib/cn";
+import { cn } from "@/lib/cn";
 
 /**
  * The Moiré mark: two offset sets of concentric rings. Where they cross, the

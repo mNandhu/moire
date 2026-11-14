@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { VirtualizedGrid } from "../components/VirtualizedGrid";
-import { GallerySkeleton } from "../components/GallerySkeleton";
-import { DensityControl } from "../components/DensityControl";
-import { openShortcutHelp } from "../lib/shortcuts";
-import { useToast } from "../components/Toasts";
-import { BulkTagDialog } from "../components/BulkTagDialog";
+import { VirtualizedGrid } from "@/features/images/components/VirtualizedGrid";
+import { GallerySkeleton } from "@/features/images/components/GallerySkeleton";
+import { DensityControl } from "@/features/images/components/DensityControl";
+import { openShortcutHelp } from "@/lib/shortcuts";
+import { useToast } from "@/components/ui/Toasts";
+import { BulkTagDialog } from "@/features/images/components/BulkTagDialog";
 import { Keyboard, ImageOff, ArrowLeft, FolderSearch, Plus, Wand2 } from "lucide-react";
-import { AddLibraryDialog } from "../components/AddLibraryDialog";
+import { AddLibraryDialog } from "@/features/library/components/AddLibraryDialog";
 import {
   DEFAULT_FILTERS,
   serializeFilters,
@@ -25,37 +25,37 @@ import {
   leaveGroupLabel,
   toggleGrouping,
   type GalleryNames,
-} from "../lib/imageFilter";
-import { useBatchList } from "../lib/generate";
-import { fetchImageIds } from "../lib/imageApi";
-import { PageHeader } from "../components/ui/PageHeader";
-import { LibraryScopeTabs } from "../components/LibraryScopeTabs";
-import { workflowFilterName } from "../lib/workflows";
-import { ambientPalette } from "../lib/blurhash";
-import { applyAmbient } from "../lib/ambient";
-import { feedNeedsRefetch, useLibraries, useOnLibrariesRead } from "../lib/libraries";
-import { Button, ButtonLink } from "../components/ui/Button";
-import { EmptyState } from "../components/ui/EmptyState";
-import { UnknownHiddenNotice } from "../components/SensitivityNotice";
-import { ActiveFilterChips, GalleryFilterPanel } from "../components/GalleryFilterPanel";
-import { GalleryToolbar } from "../components/GalleryToolbar";
-import { useFilters } from "../hooks/useFilters";
-import { useFilterOptions } from "../hooks/useFilterOptions";
-import { useGalleryShortcuts } from "../hooks/useGalleryShortcuts";
-import { useTriage } from "../hooks/useTriage";
-import { useBulkActions } from "../hooks/useBulkActions";
-import { useSelectionMode } from "../hooks/useSelectionMode";
-import { useDensity } from "../hooks/useDensity";
+} from "@/features/images/lib/imageFilter";
+import { useBatchList } from "@/features/generate/lib/generate";
+import { fetchImageIds } from "@/features/images/lib/imageApi";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { LibraryScopeTabs } from "@/features/images/components/LibraryScopeTabs";
+import { workflowFilterName } from "@/features/metadata/lib/workflows";
+import { ambientPalette } from "@/lib/blurhash";
+import { applyAmbient } from "@/lib/ambient";
+import { feedNeedsRefetch, useLibraries, useOnLibrariesRead } from "@/features/library/lib/libraries";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { UnknownHiddenNotice } from "@/features/tags/components/SensitivityNotice";
+import { ActiveFilterChips, GalleryFilterPanel } from "@/features/images/components/GalleryFilterPanel";
+import { GalleryToolbar } from "@/features/images/components/GalleryToolbar";
+import { useFilters } from "@/features/images/hooks/useFilters";
+import { useFilterOptions } from "@/features/images/hooks/useFilterOptions";
+import { useGalleryShortcuts } from "@/features/images/hooks/useGalleryShortcuts";
+import { useTriage } from "@/features/images/hooks/useTriage";
+import { useBulkActions } from "@/features/images/hooks/useBulkActions";
+import { useSelectionMode } from "@/features/images/hooks/useSelectionMode";
+import { useDensity } from "@/features/images/hooks/useDensity";
 import {
   useImageFeed,
   useImageGroups,
-} from "../hooks/useImageFeed";
-import { useScrollRestoration } from "../hooks/useScrollRestoration";
-import { PAGE_LIMIT } from "../lib/imageFilter";
-import { FETCH_AHEAD_PX } from "../lib/masonryLayout";
-import { errorText } from "../lib/api";
-import { useDismiss } from "../hooks/useDismiss";
-import { withBackgroundLocation } from "../lib/backgroundLocation";
+} from "@/features/images/hooks/useImageFeed";
+import { useScrollRestoration } from "@/features/images/hooks/useScrollRestoration";
+import { PAGE_LIMIT } from "@/features/images/lib/imageFilter";
+import { FETCH_AHEAD_PX } from "@/features/images/lib/masonryLayout";
+import { errorText } from "@/lib/api";
+import { useDismiss } from "@/hooks/useDismiss";
+import { withBackgroundLocation } from "@/lib/backgroundLocation";
 
 /** `f` without its library scope (a tab, not a filter). */
 const withoutLibrary = (f: Filters): Filters => ({ ...f, libraryId: undefined });

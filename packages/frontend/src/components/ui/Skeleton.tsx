@@ -1,4 +1,4 @@
-import { cn } from "../../lib/cn";
+import { cn } from "@/lib/cn";
 
 /** Shimmering placeholder block. Compose to mock real layout while loading. */
 export function Skeleton({ className }: { className?: string }) {

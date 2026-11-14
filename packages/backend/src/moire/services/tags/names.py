@@ -6,7 +6,7 @@ Tags are stored Danbooru-style, with underscores between words
 prompt extraction, manual adds) and every reader that takes a tag from the
 user (feed filter, prompt-term search, tag routes) passes names through
 :func:`canonical_name` first. The UI shows underscores as spaces; that is a
-display concern only (``lib/tags.ts`` ``formatTag``).
+display concern only (``features/tags/lib/tags.ts`` ``formatTag``).
 
 Pure and dependency-free, so the pure prompt parser can share it with the
 tag-state owner (:mod:`services.tags.image_tags`) without importing the database.
@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 
 # WD tagger vocabulary entries whose underscore is part of the face, not a word
-# separator. Displayed as-is (never as spaces); mirrored in `lib/tags.ts`.
+# separator. Displayed as-is (never as spaces); mirrored in `features/tags/lib/tags.ts`.
 KAOMOJIS = frozenset(
     {
         "0_0",
@@ -59,7 +59,7 @@ def canonical_name(name: str) -> str:
 def display_tag(name: str) -> str:
     """The display form of a tag name: underscores read as spaces, except in a
     kaomoji, whose underscore is part of the face. Backend twin of
-    ``lib/tags.ts`` ``formatTag``."""
+    ``features/tags/lib/tags.ts`` ``formatTag``."""
     return name if name in KAOMOJIS else name.replace("_", " ")
 
 

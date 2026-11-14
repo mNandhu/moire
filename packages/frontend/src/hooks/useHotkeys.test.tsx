@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { OverlayOpenContext } from "../lib/backgroundLocation";
+import { OverlayOpenContext } from "@/lib/backgroundLocation";
 import { useHotkeys, type Hotkey, type HotkeyOptions } from "./useHotkeys";
 
 function press(key: string, init: KeyboardEventInit = {}, target: EventTarget = document.body) {

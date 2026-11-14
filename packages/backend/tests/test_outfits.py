@@ -28,7 +28,13 @@ HU = "hu_tao_(genshin_impact)"
 def test_the_frontend_takes_as_many_outfit_tags():
     # Like test_mirrored_vocab: read the TS constant by path.
     src = (
-        Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "outfit.ts"
+        Path(__file__).resolve().parents[2]
+        / "frontend"
+        / "src"
+        / "features"
+        / "characters"
+        / "lib"
+        / "outfit.ts"
     ).read_text(encoding="utf-8")
     found = re.search(r"export const MAX_OUTFIT_TAGS = (\d+);", src)
     assert found and int(found.group(1)) == outfits.MAX_TAGS

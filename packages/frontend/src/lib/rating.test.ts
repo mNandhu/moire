@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { pickRating, ratingBadgeClass, ratingDotClass } from "./rating";
-import { imageDetail as doc } from "../test/images";
+import { imageDetail as doc } from "@/test/images";
 
 describe("pickRating", () => {
   it("prefers the explicit rating when set", () => {

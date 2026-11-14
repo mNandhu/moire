@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { hasModifier, isFormField } from "../lib/dom";
-import { useOverlayOpen } from "../lib/backgroundLocation";
+import { hasModifier, isFormField } from "@/lib/dom";
+import { useOverlayOpen } from "@/lib/backgroundLocation";
 
 /**
  * One global keydown listener with the guards every shortcut handler used to

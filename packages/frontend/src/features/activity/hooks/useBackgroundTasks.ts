@@ -1,0 +1,135 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api, errorText } from "@/lib/api";
+import { useToast } from "@/components/ui/Toasts";
+import {
+  endedKinds,
+  startedKinds,
+  type BackgroundTask,
+  type EndedCounts,
+} from "@/features/activity/lib/backgroundTasks";
+import { AI_COVERAGE_KEY } from "@/features/images/lib/queries";
+import { LIBRARIES_KEY } from "@/features/library/lib/libraries";
+import { TAGS_KEY } from "@/features/tags/lib/queries";
+import { AI_STATUS_KEY, cancelJobMessage, postAiJobCancel } from "@/features/ai/lib/ai";
+import { SENSITIVITY_KEY } from "@/features/tags/lib/sensitivityQueries";
+import type { SensitivityState } from "@/features/tags/lib/sensitivity";
+import { TAG_SAMPLES_KEY } from "@/features/tags/lib/tagSamples";
+import { IMAGE_DOC_PREFIX, invalidateFeeds } from "@/features/images/lib/feedCache";
+
+export const BACKGROUND_TASKS_KEY = ["activity"] as const;
+const BUSY_MS = 1500;
+const IDLE_MS = 5000;
+
+type Activity = { items: BackgroundTask[]; ended: EndedCounts };
+
+// Defaults for a reply without them (an older backend).
+async function fetchActivity(signal?: AbortSignal): Promise<Activity> {
+  const r = await api<Partial<Activity>>("/api/v1/activity", { signal });
+  return { items: Array.isArray(r?.items) ? r.items : [], ended: r?.ended ?? {} };
+}
+
+function useActivity<T>(select: (a: Activity) => T) {
+  return useQuery({
+    queryKey: BACKGROUND_TASKS_KEY,
+    queryFn: ({ signal }) => fetchActivity(signal),
+    refetchInterval: (q) => (q.state.data?.items.length ? BUSY_MS : IDLE_MS),
+    staleTime: 0,
+    select,
+  });
+}
+
+const selectItems = (a: Activity) => a.items;
+const selectAll = (a: Activity) => a;
+
+/** What the server is doing in the background; fast polls while busy. Any
+ * number of readers share the one poll. */
+export function useBackgroundTasks() {
+  return useActivity(selectItems);
+}
+
+/** Work that changes the library list when it starts or ends. */
+const LIBRARY_WORK = ["scan", "delete", "fold"];
+
+/**
+ * Mounted once (App): when background work ends, the data it changed is
+ * refetched wherever it's shown, whichever page started it or is open now.
+ */
+export function useRefreshOnFinish() {
+  const qc = useQueryClient();
+  const { data } = useActivity(selectAll);
+  const prev = useRef<Activity | null>(null);
+  useEffect(() => {
+    if (!data) return;
+    const before = prev.current;
+    prev.current = data;
+    if (!before) return;
+    const started = startedKinds(before.items, data.items);
+    const ended = endedKinds(before.ended, data.ended);
+    const any = (kinds: string[]) => kinds.some((k) => started.has(k) || ended.has(k));
+    if (any(LIBRARY_WORK)) {
+      void qc.invalidateQueries({ queryKey: LIBRARIES_KEY });
+    }
+    if (LIBRARY_WORK.some((k) => ended.has(k))) {
+      // A scan, delete or fold changed which images exist: every image cache
+      // refetches (tag counts included), on whatever page is open. `ended`
+      // counts, so work that started and ended between polls, or while the
+      // tab was hidden, still shows up here.
+      invalidateFeeds(qc);
+      void qc.invalidateQueries({ queryKey: TAG_SAMPLES_KEY });
+    }
+    if (ended.has("ai_job")) {
+      // The open image's doc (ImageView) and every cached one: their tags changed.
+      void qc.invalidateQueries({ queryKey: IMAGE_DOC_PREFIX });
+      void qc.invalidateQueries({ queryKey: AI_COVERAGE_KEY });
+      void qc.invalidateQueries({ queryKey: AI_STATUS_KEY });
+      // Tagging gave hidden images a level: under the sensitivity filter some
+      // now show, so the lists refetch (once, at the end: mid-job they would
+      // pop in among older images and shift the grid). With the filter off
+      // nothing moved, and an image's own one-image run shouldn't refetch
+      // every loaded gallery page either: the server counts the runs that
+      // may have (many images, or the hidden ones) as "ai_job_bulk".
+      void qc.invalidateQueries({ queryKey: SENSITIVITY_KEY });
+      if (qc.getQueryData<SensitivityState>(SENSITIVITY_KEY)?.max_level && ended.has("ai_job_bulk"))
+        invalidateFeeds(qc);
+    }
+    if (ended.has("reproject")) {
+      // Prompt tags were re-derived: the open image and the gallery show them.
+      void qc.invalidateQueries({ queryKey: IMAGE_DOC_PREFIX });
+      invalidateFeeds(qc);
+      void qc.invalidateQueries({ queryKey: TAG_SAMPLES_KEY });
+    }
+    // Library work's and a reprojection's tag refresh is in invalidateFeeds above.
+    if (["ai_job", "faces", "face_download"].some((k) => ended.has(k))) {
+      void qc.invalidateQueries({ queryKey: TAGS_KEY });
+      void qc.invalidateQueries({ queryKey: TAG_SAMPLES_KEY });
+    }
+  }, [data, qc]);
+}
+
+/** Cancel an AI job from anywhere it shows (the activity list, a banner);
+ * the activity poll is asked again at once so it drops out. */
+export function useCancelAiJob() {
+  const qc = useQueryClient();
+  const { push } = useToast();
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const cancel = useCallback(
+    async (jobId: string) => {
+      setCancelling(jobId);
+      try {
+        const r = await postAiJobCancel(jobId);
+        if (r.auto_tag_off) {
+          push(cancelJobMessage(true, true)[0], "success");
+          void qc.invalidateQueries({ queryKey: AI_STATUS_KEY });
+        }
+      } catch (e) {
+        push(`Couldn't cancel AI tagging: ${errorText(e)}`, "error");
+      } finally {
+        setCancelling(null);
+        void qc.invalidateQueries({ queryKey: BACKGROUND_TASKS_KEY });
+      }
+    },
+    [qc, push],
+  );
+  return { cancel, cancelling };
+}

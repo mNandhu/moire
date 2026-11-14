@@ -2,20 +2,20 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sparkles, Wand2 } from "lucide-react";
-import { ButtonLink, EmptyState, PageBody, PageHeader } from "../components/ui";
-import { bareTagPool } from "../lib/tags";
-import { stemOf } from "../lib/modelNames";
-import { ComfyStatusLine } from "../components/generate/ComfyStatusLine";
-import { WorkflowPicker } from "../components/generate/WorkflowPicker";
-import { RemixStrip, type RemixState } from "../components/generate/Remix";
-import { blockedReason, countModeOf, defaultBatchSize, forWorkflow, runBarOf } from "../lib/generatorRunBar";
-import { useCharacters } from "../lib/queries";
-import { useNextEstimate } from "../components/generate/NextBatch";
-import { QueueDeck } from "../components/generate/QueueDeck";
-import { OutputFeed } from "../components/generate/OutputFeed";
-import { PositiveLayers } from "../components/generate/PositiveLayers";
-import { RunBar } from "../components/generate/RunBar";
-import { autoBatchName } from "../lib/batchName";
+import { ButtonLink, EmptyState, PageBody, PageHeader } from "@/components/ui";
+import { bareTagPool } from "@/features/tags/lib/tags";
+import { stemOf } from "@/features/metadata/lib/modelNames";
+import { ComfyStatusLine } from "@/features/generate/components/ComfyStatusLine";
+import { WorkflowPicker } from "@/features/generate/components/WorkflowPicker";
+import { RemixStrip, type RemixState } from "@/features/generate/components/Remix";
+import { blockedReason, countModeOf, defaultBatchSize, forWorkflow, runBarOf } from "@/features/generate/lib/generatorRunBar";
+import { useCharacters } from "@/features/characters/lib/queries";
+import { useNextEstimate } from "@/features/generate/components/NextBatch";
+import { QueueDeck } from "@/features/generate/components/QueueDeck";
+import { OutputFeed } from "@/features/generate/components/OutputFeed";
+import { PositiveLayers } from "@/features/generate/components/PositiveLayers";
+import { RunBar } from "@/features/generate/components/RunBar";
+import { autoBatchName } from "@/features/generate/lib/batchName";
 import {
   MODELS_KEY,
   OUTFITS_KEY,
@@ -37,29 +37,29 @@ import {
   type CharacterInput,
   type NodeError,
   type Recipe,
-} from "../lib/generate";
-import { nameWords, onLoras, previewText, toParts, toEstimateBody, toQueueBody, type GenerateForm } from "../lib/generateForm";
-import { loadDraft, rekeyCast, saveDraft } from "../lib/generateDraft";
-import { settleFresh, switchWorkflow } from "../lib/composerEdits";
-import { boardLayersOf } from "../lib/boardLayers";
-import { rejectedFields } from "../lib/sampling";
-import { checkCountTags, countRanges, expectedTags, fixCountTags, followCast, type Kind } from "../lib/countTags";
-import type { CountMode } from "../lib/requests";
-import { PromptInput, type PromptFlash } from "../components/generate/PromptInput";
-import { characterPageQuery, useTagAggregate } from "../lib/queries";
-import { characterColours, displayName, mixColours } from "../lib/character";
-import { useAmbientTint } from "../lib/ambient";
-import { characterInput, characterTags } from "../lib/recipe";
-import { outfitInput, pickOf, wornTags, type OutfitPick } from "../lib/outfit";
-import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { useToast } from "../components/Toasts";
-import { useUndoHistory } from "../hooks/useUndoHistory";
-import { useHotkeys } from "../hooks/useHotkeys";
-import { undoKey } from "../lib/undoHistory";
-import { dropFuture, emptyTimeline, pushStep, takeRedo, takeUndo, type Timeline, type UndoAction } from "../lib/undoTimeline";
-import { UndoActionContext } from "../lib/undoActions";
-import { isTextEntry } from "../lib/dom";
-import { GENERATE } from "../lib/shortcuts";
+} from "@/features/generate/lib/generate";
+import { nameWords, onLoras, previewText, toParts, toEstimateBody, toQueueBody, type GenerateForm } from "@/features/generate/lib/generateForm";
+import { loadDraft, rekeyCast, saveDraft } from "@/features/generate/lib/generateDraft";
+import { settleFresh, switchWorkflow } from "@/features/generate/lib/composerEdits";
+import { boardLayersOf } from "@/features/generate/lib/boardLayers";
+import { rejectedFields } from "@/features/generate/lib/sampling";
+import { checkCountTags, countRanges, expectedTags, fixCountTags, followCast, type Kind } from "@/features/tags/lib/countTags";
+import type { CountMode } from "@/features/generate/lib/requests";
+import { PromptInput, type PromptFlash } from "@/features/generate/components/PromptInput";
+import { characterPageQuery, useTagAggregate } from "@/features/tags/lib/queries";
+import { characterColours, displayName, mixColours } from "@/features/characters/lib/character";
+import { useAmbientTint } from "@/lib/ambient";
+import { characterInput, characterTags } from "@/features/generate/lib/recipe";
+import { outfitInput, pickOf, wornTags, type OutfitPick } from "@/features/characters/lib/outfit";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useToast } from "@/components/ui/Toasts";
+import { useUndoHistory } from "@/features/generate/hooks/useUndoHistory";
+import { useHotkeys } from "@/hooks/useHotkeys";
+import { undoKey } from "@/features/generate/lib/undoHistory";
+import { dropFuture, emptyTimeline, pushStep, takeRedo, takeUndo, type Timeline, type UndoAction } from "@/features/generate/lib/undoTimeline";
+import { UndoActionContext } from "@/features/generate/lib/undoActions";
+import { isTextEntry } from "@/lib/dom";
+import { GENERATE } from "@/lib/shortcuts";
 
 const NO_STRINGS: string[] = [];
 

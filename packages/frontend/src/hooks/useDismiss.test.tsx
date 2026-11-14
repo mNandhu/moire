@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useRef } from "react";
-import { Dialog } from "../components/ui/Dialog";
+import { Dialog } from "@/components/ui/Dialog";
 import { useDismiss } from "./useDismiss";
 
 function Popover({ open, onClose, escape }: { open: boolean; onClose: () => void; escape?: boolean }) {

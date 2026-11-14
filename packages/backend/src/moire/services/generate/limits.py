@@ -1,5 +1,5 @@
 """Generation limits kept once. Pure. The frontend mirrors them in
-``lib/generationLimits.ts`` (tests/test_mirrored_vocab.py keeps the two equal);
+``features/generate/lib/generationLimits.ts`` (tests/test_mirrored_vocab.py keeps the two equal);
 the API's field bounds, the remix check, the queue and the settings clamp all
 read them from here."""
 

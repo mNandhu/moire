@@ -1,21 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Section } from "../../../components/ui/Card";
-import { Skeleton } from "../../../components/ui/Skeleton";
-import { useToast } from "../../../components/Toasts";
-import { useConfirm } from "../../../components/ConfirmDialog";
-import { ChipListEditor } from "../../../components/settings/ChipListEditor";
-import { SaveBar } from "../../../components/settings/SaveBar";
-import { useUnsavedChangesGuard } from "../../../hooks/useUnsavedChangesGuard";
-import {
-  GUESS_KEYWORDS_KEY,
-  saveGuessKeywords,
-  useGuessKeywords,
-} from "../../../lib/queries";
-import { canonicalName, formatTag } from "../../../lib/tags";
-import { errorText } from "../../../lib/api";
-import { sameList } from "../../../lib/lists";
+import { Section } from "@/components/ui/Card";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toasts";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { ChipListEditor } from "@/features/settings/components/ChipListEditor";
+import { SaveBar } from "@/features/settings/components/SaveBar";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
+import { GUESS_KEYWORDS_KEY, saveGuessKeywords, useGuessKeywords } from "@/features/tags/lib/settingsQueries";
+import { canonicalName, formatTag } from "@/features/tags/lib/tags";
+import { errorText } from "@/lib/api";
+import { sameList } from "@/features/settings/lib/lists";
 
 /** Stored keyword form (mirrors prompt_guess.keyword_key on the backend). */
 const keywordKey = (entry: string) => canonicalName(entry).toLowerCase();

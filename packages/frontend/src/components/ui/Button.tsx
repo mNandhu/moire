@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, type LinkProps } from "react-router-dom";
-import { cn } from "../../lib/cn";
+import { cn } from "@/lib/cn";
 
 type Variant =
   | "primary"

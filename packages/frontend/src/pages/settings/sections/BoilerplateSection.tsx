@@ -1,22 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Section } from "../../../components/ui/Card";
-import { Skeleton } from "../../../components/ui/Skeleton";
-import { useToast } from "../../../components/Toasts";
-import { useConfirm } from "../../../components/ConfirmDialog";
-import { ChipListEditor } from "../../../components/settings/ChipListEditor";
-import { SaveBar } from "../../../components/settings/SaveBar";
-import { useUnsavedChangesGuard } from "../../../hooks/useUnsavedChangesGuard";
-import {
-  TAG_SETTINGS_KEY,
-  saveTagSettings,
-  useTagAggregate,
-  useTagSettings,
-} from "../../../lib/queries";
-import { compileBoilerplate, normalizeTagName } from "../../../lib/boilerplate";
-import { formatTag } from "../../../lib/tags";
-import { sameList } from "../../../lib/lists";
-import { errorText } from "../../../lib/api";
+import { Section } from "@/components/ui/Card";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toasts";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { ChipListEditor } from "@/features/settings/components/ChipListEditor";
+import { SaveBar } from "@/features/settings/components/SaveBar";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
+import { TAG_SETTINGS_KEY, saveTagSettings, useTagSettings } from "@/features/tags/lib/settingsQueries";
+import { useTagAggregate } from "@/features/tags/lib/queries";
+import { compileBoilerplate, normalizeTagName } from "@/features/tags/lib/boilerplate";
+import { formatTag } from "@/features/tags/lib/tags";
+import { sameList } from "@/features/settings/lib/lists";
+import { errorText } from "@/lib/api";
 
 const PREVIEW = 30;
 

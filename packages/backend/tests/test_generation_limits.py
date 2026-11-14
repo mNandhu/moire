@@ -1,4 +1,4 @@
-"""The frontend's generation limits (lib/generationLimits.ts) must equal the
+"""The frontend's generation limits (features/generate/lib/generationLimits.ts) must equal the
 backend's, read from the TS source by path like tests/test_mirrored_vocab.py."""
 
 import re
@@ -10,6 +10,8 @@ TS = (
     Path(__file__).resolve().parents[2]
     / "frontend"
     / "src"
+    / "features"
+    / "generate"
     / "lib"
     / "generationLimits.ts"
 )

@@ -1,7 +1,7 @@
-import { Section } from "../../../components/ui/Card";
-import { Button } from "../../../components/ui/Button";
-import { Checkbox } from "../../../components/ui/Checkbox";
-import { useAiSettingsForm } from "../useAiSettingsForm";
+import { Section } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { useAiSettingsForm } from "@/features/ai/hooks/useAiSettingsForm";
 
 export function PromptTagsSection() {
   const { settings, setSettings, saving, save } = useAiSettingsForm();

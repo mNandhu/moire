@@ -1,7 +1,7 @@
-import { Button } from "../../../components/ui/Button";
-import { DownloadProgress } from "../../../components/ai/ModelStatus";
-import { useAiController } from "../../../hooks/useAiController";
-import { useAiSettingsForm } from "../useAiSettingsForm";
+import { Button } from "@/components/ui/Button";
+import { DownloadProgress } from "@/features/ai/components/ModelStatus";
+import { useAiController } from "@/features/ai/hooks/useAiController";
+import { useAiSettingsForm } from "@/features/ai/hooks/useAiSettingsForm";
 
 /** Settings: model state with the manual preload/unload controls. */
 export function ModelSection() {

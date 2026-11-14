@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
-import { readLocalPref, subscribeLocalPref, writeLocalPref } from "../lib/localPref";
+import { readLocalPref, subscribeLocalPref, writeLocalPref } from "@/lib/localPref";
 
 export type LocalPrefCodec<T> = {
   /** Stored text to a value; throw or return `undefined` for "unusable", which reads as the default. */

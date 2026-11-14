@@ -5,7 +5,7 @@ nothing about the image ("masterpiece", "best quality", "score_9"). The
 frontend folds them away and ranks them last; search and filters are
 unaffected. Entries match a tag's name from any source (AI, manual, prompt);
 ``*`` is a wildcard, and spaces and underscores are interchangeable (matching
-lives in the frontend's lib/boilerplate.ts).
+lives in the frontend's features/tags/lib/boilerplate.ts).
 
 Stored in the ``app_settings`` row "tags". Until the user saves a list, the
 defaults apply, so improving the defaults reaches everyone who hasn't

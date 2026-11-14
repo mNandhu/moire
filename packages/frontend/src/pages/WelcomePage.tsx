@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { writeLocalPref } from "../lib/localPref";
+import { writeLocalPref } from "@/lib/localPref";
 import { Check } from "lucide-react";
-import { Button } from "../components/ui/Button";
-import { MoireMark } from "../components/ui/Logo";
-import { RingBackground } from "../components/onboarding/RingBackground";
-import { FoldersStep, folderSummary, type FolderEntry } from "../components/onboarding/FoldersStep";
-import { ComfyStep, comfySummary, type ComfyState, type WorkflowRead } from "../components/onboarding/ComfyStep";
-import { TaggingStep } from "../components/onboarding/TaggingStep";
-import { Dot } from "../components/onboarding/parts";
-import { errorText } from "../lib/api";
-import { cn } from "../lib/cn";
-import { getSettings } from "../lib/generate";
-import { AI_STATUS_KEY, fetchAiStatus, postAiSettingsPatch } from "../lib/ai";
-import { discoverLibraries } from "../lib/libraryPlan";
+import { Button } from "@/components/ui/Button";
+import { MoireMark } from "@/components/ui/Logo";
+import { RingBackground } from "@/features/onboarding/components/RingBackground";
+import { FoldersStep, folderSummary, type FolderEntry } from "@/features/onboarding/components/FoldersStep";
+import { ComfyStep, comfySummary, type ComfyState, type WorkflowRead } from "@/features/onboarding/components/ComfyStep";
+import { TaggingStep } from "@/features/onboarding/components/TaggingStep";
+import { Dot } from "@/features/onboarding/components/parts";
+import { errorText } from "@/lib/api";
+import { cn } from "@/lib/cn";
+import { getSettings } from "@/features/generate/lib/generate";
+import { AI_STATUS_KEY, fetchAiStatus, postAiSettingsPatch } from "@/features/ai/lib/ai";
+import { discoverLibraries } from "@/features/library/lib/libraryPlan";
 import {
   ONBOARDING_KEY,
   SHORTCUT_HINT_KEY,
@@ -26,9 +26,9 @@ import {
   sourceTotals,
   type OnboardingInfo,
   type OnboardingStatus,
-} from "../lib/onboarding";
-import { LIBRARIES_KEY, SCAN_POLL_MS, useLibraries, useLibraryWrites } from "../lib/libraries";
-import { useDocumentTitle } from "../hooks/useDocumentTitle";
+} from "@/features/onboarding/lib/onboarding";
+import { LIBRARIES_KEY, SCAN_POLL_MS, useLibraries, useLibraryWrites } from "@/features/library/lib/libraries";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 const STEPS = [
   { id: "folders", title: "Image folders", optional: false },

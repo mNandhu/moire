@@ -1,4 +1,4 @@
-import { cn } from "../../lib/cn";
+import { cn } from "@/lib/cn";
 
 /**
  * The app's one progress bar: a thin raised track with a brand fill. A real

@@ -1,0 +1,82 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { UndoActionContext } from "@/features/generate/lib/undoActions";
+import type { UndoAction } from "@/features/generate/lib/undoTimeline";
+import { ToastProvider } from "@/components/ui/Toasts";
+import type { Output } from "@/features/generate/lib/generate";
+import { setQuarantine, setScore } from "@/features/images/lib/imageMutations";
+import { ResultTile } from "./ResultTile";
+
+vi.mock("@/features/images/lib/imageMutations", () => ({
+  setQuarantine: vi.fn(async () => undefined),
+  setScore: vi.fn(async () => undefined),
+}));
+
+const out = { image_id: "lib:a.png", in_library: true, thumb_url: "/t/a", quarantined: false, score: 0 } as unknown as Output;
+
+function tile(o: Output = out, onUndo?: (a: UndoAction) => void) {
+  const { container } = render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter>
+        <ToastProvider>
+          <UndoActionContext.Provider value={onUndo ?? null}>
+            <ResultTile out={o} ratio={1} onChanged={() => undefined} />
+          </UndoActionContext.Provider>
+        </ToastProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  return container.querySelector<HTMLElement>("[aria-keyshortcuts]")!;
+}
+
+describe("ResultTile keys", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("records a rejection for the page's undo, which restores it", async () => {
+    const recorded: UndoAction[] = [];
+    fireEvent.keyDown(tile(out, (a) => recorded.push(a)), { key: "x" });
+    await vi.waitFor(() => expect(recorded).toHaveLength(1));
+    await recorded[0].undo();
+    expect(setQuarantine).toHaveBeenLastCalledWith("lib:a.png", false);
+    await recorded[0].redo();
+    expect(setQuarantine).toHaveBeenLastCalledWith("lib:a.png", true);
+  });
+
+  it("keeps, rejects and scores with bare keys", () => {
+    const el = tile();
+    fireEvent.keyDown(el, { key: "x" });
+    expect(setQuarantine).toHaveBeenLastCalledWith("lib:a.png", true);
+    fireEvent.keyDown(el, { key: "4" });
+    expect(setScore).toHaveBeenLastCalledWith("lib:a.png", 4);
+    fireEvent.keyDown(tile({ ...out, quarantined: true } as Output), { key: "k" });
+    expect(setQuarantine).toHaveBeenLastCalledWith("lib:a.png", false);
+  });
+
+  it("records nothing for a reject that changes nothing, or a second X in flight", async () => {
+    const recorded: UndoAction[] = [];
+    fireEvent.keyDown(tile({ ...out, quarantined: true } as Output, (a) => recorded.push(a)), { key: "x" });
+    const el = tile(out, (a) => recorded.push(a));
+    fireEvent.keyDown(el, { key: "x" });
+    fireEvent.keyDown(el, { key: "x" });
+    await vi.waitFor(() => expect(recorded).toHaveLength(1));
+    expect(setQuarantine).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves Ctrl, Cmd and Alt combinations to the browser", () => {
+    const el = tile();
+    fireEvent.keyDown(el, { key: "x", ctrlKey: true });
+    fireEvent.keyDown(el, { key: "k", metaKey: true });
+    fireEvent.keyDown(el, { key: "3", ctrlKey: true });
+    fireEvent.keyDown(el, { key: "3", altKey: true });
+    expect(setQuarantine).not.toHaveBeenCalled();
+    expect(setScore).not.toHaveBeenCalled();
+  });
+
+  it("takes no score while rejected", () => {
+    const el = tile({ ...out, quarantined: true } as Output);
+    fireEvent.keyDown(el, { key: "2" });
+    expect(setScore).not.toHaveBeenCalled();
+  });
+});

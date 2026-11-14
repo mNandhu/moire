@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
-import { useBoilerplate, useDanbooruAliases } from "../lib/queries";
-import { rankSuggestions, suggestKeyAction, type TagSuggestion } from "../lib/tagSuggest";
-import { formatTag } from "../lib/tags";
+import { useBoilerplate } from "@/features/tags/lib/settingsQueries";
+import { useDanbooruAliases } from "@/features/tags/lib/queries";
+import { rankSuggestions, suggestKeyAction, type TagSuggestion } from "@/features/tags/lib/tagSuggest";
+import { formatTag } from "@/features/tags/lib/tags";
 
 const NONE: TagSuggestion[] = [];
 

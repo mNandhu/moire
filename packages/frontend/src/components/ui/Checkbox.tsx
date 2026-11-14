@@ -1,6 +1,6 @@
 import React from "react";
 import { Check } from "lucide-react";
-import { cn } from "../../lib/cn";
+import { cn } from "@/lib/cn";
 
 /**
  * Brand-styled checkbox with an optional label + hint. Controlled via

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useRulesetSession } from "../hooks/useRulesetSession";
-import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
+import { useRulesetSession } from "@/features/metadata/hooks/useRulesetSession";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { Workflow, MousePointerClick } from "lucide-react";
-import { PageHeader, PageBody } from "../components/ui/PageHeader";
+import { PageHeader, PageBody } from "@/components/ui/PageHeader";
 import { useQueryClient } from "@tanstack/react-query";
-import { EmptyState } from "../components/ui/EmptyState";
-import { Skeleton } from "../components/ui/Skeleton";
-import { useToast } from "../components/Toasts";
-import { useConfirm } from "../components/ConfirmDialog";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toasts";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import {
   FIELD_LABEL,
   type RuleField,
@@ -17,15 +17,15 @@ import {
   guessMarks as guessMarksOf,
   useSignatures,
   previewRuleset,
-} from "../lib/rules";
-import type { GenMeta } from "../lib/gen";
-import { fetchImage } from "../lib/imageApi";
-import { groupWorkflows } from "../lib/workflows";
-import { useGenerators } from "../lib/generate";
-import { WorkflowFamilyList } from "../components/rules/WorkflowFamilyList";
-import { RuleEditor } from "../components/rules/RuleEditor";
-import { GraphPanel } from "../components/rules/GraphPanel";
-import { errorText } from "../lib/api";
+} from "@/features/metadata/lib/rules";
+import type { GenMeta } from "@/features/metadata/lib/gen";
+import { fetchImage } from "@/features/images/lib/imageApi";
+import { groupWorkflows } from "@/features/metadata/lib/workflows";
+import { useGenerators } from "@/features/generate/lib/generate";
+import { WorkflowFamilyList } from "@/features/metadata/components/WorkflowFamilyList";
+import { RuleEditor } from "@/features/metadata/components/RuleEditor";
+import { GraphPanel } from "@/features/metadata/components/GraphPanel";
+import { errorText } from "@/lib/api";
 
 export default function RulesPage() {
   const { push } = useToast();

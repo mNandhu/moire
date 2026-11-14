@@ -1,8 +1,8 @@
 import React, { createContext, useContext } from "react";
-import { cn } from "../../lib/cn";
-import { useDocumentTitle } from "../../hooks/useDocumentTitle";
+import { cn } from "@/lib/cn";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { MoireMark } from "./Logo";
-import { SensitivityControl } from "../SensitivityControl";
+import { SensitivityControl } from "@/features/tags/components/SensitivityControl";
 
 /**
  * How wide a page's content runs. Forms and lists read best capped; browsers

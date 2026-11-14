@@ -1,4 +1,4 @@
-import { cn } from "../../lib/cn";
+import { cn } from "@/lib/cn";
 
 const SIZES = {
   sm: { track: "h-4 w-7", knob: "left-0.5 top-0.5 h-3 w-3", on: "translate-x-3" },

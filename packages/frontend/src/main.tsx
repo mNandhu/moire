@@ -6,10 +6,10 @@ import "@fontsource/caveat-brush/latin-400.css";
 import "./index.css";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import RootRoutes from "./RootRoutes";
-import { ToastProvider } from "./components/Toasts";
-import { ConfirmProvider } from "./components/ConfirmDialog";
-import { RouteError } from "./components/ErrorScreen";
+import RootRoutes from "@/app/RootRoutes";
+import { ToastProvider } from "@/components/ui/Toasts";
+import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
+import { RouteError } from "@/app/components/ErrorScreen";
 
 const router = createBrowserRouter([
   { path: "*", element: <RootRoutes />, errorElement: <RouteError /> },

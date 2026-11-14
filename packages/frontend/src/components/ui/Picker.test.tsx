@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { Picker } from "./Picker";
-import { fuzzyScore } from "../../lib/fuzzy";
+import { fuzzyScore } from "@/lib/fuzzy";
 
 const embeddings = ["badhandv4", "lazypos", "negativeXL_D", "easynegative", "fFaceDetail", "bad-hands-5", "zPDXL3", "CyberRealistic_Negative-neg", "lazyneg"].map(
   (n) => ({ value: n, label: n, hint: "3" }),

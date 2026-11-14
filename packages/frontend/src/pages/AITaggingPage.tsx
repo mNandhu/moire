@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, ChevronDown, Sparkles } from "lucide-react";
-import { PageHeader, PageBody } from "../components/ui/PageHeader";
-import { Section } from "../components/ui/Card";
-import { Button } from "../components/ui/Button";
-import { Input } from "../components/ui/Input";
-import { ProgressBar } from "../components/ui/ProgressBar";
-import { Switch } from "../components/ui/Switch";
-import { Tooltip } from "../components/ui/Tooltip";
+import { PageHeader, PageBody } from "@/components/ui/PageHeader";
+import { Section } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { Switch } from "@/components/ui/Switch";
+import { Tooltip } from "@/components/ui/Tooltip";
 import {
   aboutDuration,
   coveragePct,
@@ -17,11 +17,12 @@ import {
   taggingSeconds,
   type AiEstimate,
   type AiLibraryCoverage,
-} from "../lib/ai";
-import { libraryPageHref, useAiCoverage, useLibraries } from "../lib/queries";
-import { AiControllerProvider, useAiController } from "../hooks/useAiController";
-import { ModelStatusLine } from "../components/ai/ModelStatus";
-import { ActiveJob, RecentJobs, ResetAiTags } from "../components/ai/AiJobs";
+} from "@/features/ai/lib/ai";
+import { libraryPageHref, useLibraries } from "@/features/library/lib/libraries";
+import { useAiCoverage } from "@/features/images/lib/queries";
+import { AiControllerProvider, useAiController } from "@/features/ai/hooks/useAiController";
+import { ModelStatusLine } from "@/features/ai/components/ModelStatus";
+import { ActiveJob, RecentJobs, ResetAiTags } from "@/features/ai/components/AiJobs";
 
 /** A thin AI-coverage bar shared by the global stat and per-library rows. */
 function CoverageBar({ tagged, total }: { tagged: number; total: number }) {

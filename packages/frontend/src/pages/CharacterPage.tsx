@@ -1,34 +1,36 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { BookOpen, Copy, ExternalLink, Pencil, Tag as TagIcon, UserRound, Wand2 } from "lucide-react";
-import { PageHeader } from "../components/ui/PageHeader";
-import { Button, ButtonAnchor, ButtonLink } from "../components/ui/Button";
-import { ScoreMark } from "../components/ui/ScoreMark";
-import { Skeleton } from "../components/ui/Skeleton";
-import { EmptyState } from "../components/ui/EmptyState";
-import { useToast } from "../components/Toasts";
-import { MadeWithChips } from "../components/tagstats/MadeWithChips";
-import { MonthChart } from "../components/tagstats/MonthChart";
-import { PinnableImageGrid } from "../components/tagstats/PinnableImageGrid";
-import { useOpenImage } from "../hooks/useOpenImage";
-import { useCharacters } from "../lib/queries";
-import { CharacterEditDialog } from "../components/CharacterEditDialog";
-import { TagEditDialog } from "../components/TagEditDialog";
-import { CharacterAvatar } from "../components/CharacterAvatar";
-import { CharacterOutfits } from "../components/generate/CharacterOutfits";
-import { useComfyModels, useRecipe } from "../lib/generate";
-import { loadDraft, saveDraft } from "../lib/generateDraft";
-import { withCharacter } from "../lib/remixForm";
-import { cn } from "../lib/cn";
-import { useAmbientTint } from "../lib/ambient";
-import { useSignatures } from "../lib/rules";
-import { galleryHref } from "../lib/imageFilter";
-import { useBoilerplate, useCharacterPage, useTagDescription, useTagDetail, useTagPlaces } from "../lib/queries";
-import { danbooruWikiUrl, formatTag, onDanbooru, toPromptText } from "../lib/tags";
-import { useChipBorderStyle } from "../hooks/useTagMarks";
-import { tagWorkflows } from "../lib/tagBrowse";
-import { formatUsedRange, groupWorkflows } from "../lib/workflows";
-import { RATINGS } from "../lib/rating";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Button, ButtonAnchor, ButtonLink } from "@/components/ui/Button";
+import { ScoreMark } from "@/components/ui/ScoreMark";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { useToast } from "@/components/ui/Toasts";
+import { MadeWithChips } from "@/features/tags/components/stats/MadeWithChips";
+import { MonthChart } from "@/features/tags/components/stats/MonthChart";
+import { PinnableImageGrid } from "@/features/tags/components/stats/PinnableImageGrid";
+import { useOpenImage } from "@/features/images/hooks/useOpenImage";
+import { useCharacters } from "@/features/characters/lib/queries";
+import { CharacterEditDialog } from "@/features/characters/components/CharacterEditDialog";
+import { TagEditDialog } from "@/features/characters/components/TagEditDialog";
+import { CharacterAvatar } from "@/features/characters/components/CharacterAvatar";
+import { CharacterOutfits } from "@/features/characters/components/outfits/CharacterOutfits";
+import { useComfyModels, useRecipe } from "@/features/generate/lib/generate";
+import { loadDraft, saveDraft } from "@/features/generate/lib/generateDraft";
+import { withCharacter } from "@/features/generate/lib/remixForm";
+import { cn } from "@/lib/cn";
+import { useAmbientTint } from "@/lib/ambient";
+import { useSignatures } from "@/features/metadata/lib/rules";
+import { galleryHref } from "@/features/images/lib/imageFilter";
+import { useBoilerplate } from "@/features/tags/lib/settingsQueries";
+import { useCharacterPage, useTagDescription, useTagDetail } from "@/features/tags/lib/queries";
+import { useTagPlaces } from "@/features/generate/lib/queries";
+import { danbooruWikiUrl, formatTag, onDanbooru, toPromptText } from "@/features/tags/lib/tags";
+import { useChipBorderStyle } from "@/features/tags/hooks/useTagMarks";
+import { tagWorkflows } from "@/features/tags/lib/tagBrowse";
+import { formatUsedRange, groupWorkflows } from "@/features/metadata/lib/workflows";
+import { RATINGS } from "@/lib/rating";
 import {
   characterColours,
   characterFilters,
@@ -37,8 +39,8 @@ import {
   fewImagesNote,
   tagHref,
   type CharacterPage as Character,
-} from "../lib/character";
-import { Tooltip } from "../components/ui/Tooltip";
+} from "@/features/characters/lib/character";
+import { Tooltip } from "@/components/ui/Tooltip";
 
 const PAGE = 48;
 const SIGNATURE = 16;

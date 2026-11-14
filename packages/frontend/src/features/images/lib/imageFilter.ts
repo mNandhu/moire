@@ -1,0 +1,498 @@
+// Image filter: the criteria selecting which Images the gallery shows, plus
+// its pure URL round-trip. parseFilters / serializeFilters are the single
+// source of truth so the URL and the Image feed query never drift. The
+// fetchers that send a filter live in features/images/lib/imageApi.ts; the search box's
+// terms in features/tags/lib/searchTerms.ts.
+//
+// See CONTEXT.md › Frontend › Image filter.
+
+// The three image payloads. The backend pins their key sets in
+// tests/fixtures/mirrored/image_payloads.json, and imageFilter.test.ts holds
+// the key lists below (which tsc holds to the types) to that file. Which
+// keys can be null follows models/responses.py, held to real rows there.
+
+/** The columns every image payload carries: the feed row
+ * (services/images/feed.FEED_KEYS, its thumb_key swapped for thumb_url). */
+export type ImageFields = {
+  _id: string;
+  // Never null in practice (the scanner writes every row with one), though
+  // the column and the model allow it.
+  path: string;
+  width: number | null;
+  height: number | null;
+  // Ready-to-use thumbnail URL: the API streaming route
+  // (`/api/v1/images/{id}/thumb?v=`, versioned). Lets the grid render <img src> with no per-tile
+  // resolve request. See services/library/thumb_version.py.
+  thumb_url: string;
+  // Compact blurred-preview hash; decoded to an instant placeholder so tiles
+  // never show a grey loading skeleton. See services/library/blurhash.py.
+  blurhash: string | null;
+  // Null, not undefined, when unset: the nullable fields come straight from
+  // SQL columns.
+  rating: string | null;
+  // 0-5 quality score (distinct from `rating`, the content-safety axis).
+  score: number | null;
+  // DB-only curation flag; quarantined images leave the default feed.
+  quarantined: boolean | null;
+  // File modification time (epoch seconds): the feed's newest-first sort key
+  // and half of its cursor. Null for rows scanned without one.
+  mtime: number | null;
+  // Summary flag maintained by services/tags/image_tags.py. The grid draws an
+  // "untagged" marker from it so an un-AI-tagged image is visible at a glance.
+  has_ai_tags: boolean | null;
+};
+
+/** A gallery tile: a feed row (GET /images), or a grouped-view row
+ * (GET /images/groups) standing for its batch. */
+export type FeedItem = ImageFields & {
+  // Batch grouping (grouped view only): the representative's group + member
+  // count. group_count > 1 means this tile stands for a batch of variations.
+  group_id?: string | null;
+  group_count?: number;
+};
+
+/** The single-image document (GET /images/{id}): the whole row. */
+export type ImageDetail = ImageFields & {
+  library_id: string;
+  size: number | null;
+  tags: string[];
+  // Structured generation metadata (extracted from embedded AI-art data).
+  gen: import("@/features/metadata/lib/gen").GenMeta | null;
+  /** The Generation batch a Moiré output came from (one press of Queue). */
+  gen_batch: number | null;
+  ai:
+    | (import("@/features/tags/lib/tags").AiTagMeta & {
+        rating?: Record<string, number>;
+      })
+    | null;
+  /** The rating was picked by hand (AI tagging leaves it alone). */
+  rating_manual: boolean | null;
+  /** Highest sensitivity level among the tags, 0 general .. 3 explicit; null without tags. */
+  tag_level: number | null;
+  // Unused by the UI; typed so the field list matches the wire.
+  ctime: number | null;
+  thumb_key: string | null;
+  has_tags: boolean | null;
+  has_prompt_tags: boolean | null;
+};
+
+/** `keys` as given, when they name every key of `T`: tsc rejects a list that
+ * misses one, so a runtime list can stand in for the type in tests. */
+const keysOf =
+  <T>() =>
+  <const K extends readonly (keyof T)[]>(
+    keys: K & (Exclude<keyof T, K[number]> extends never ? unknown : { missing: Exclude<keyof T, K[number]> }),
+  ): K =>
+    keys;
+
+export const IMAGE_FIELD_KEYS = keysOf<ImageFields>()([
+  "_id",
+  "path",
+  "width",
+  "height",
+  "thumb_url",
+  "blurhash",
+  "rating",
+  "score",
+  "quarantined",
+  "mtime",
+  "has_ai_tags",
+]);
+
+export const FEED_ITEM_KEYS = keysOf<FeedItem>()([...IMAGE_FIELD_KEYS, "group_id", "group_count"]);
+
+export const IMAGE_DETAIL_KEYS = keysOf<ImageDetail>()([
+  ...IMAGE_FIELD_KEYS,
+  "library_id",
+  "size",
+  "tags",
+  "gen",
+  "gen_batch",
+  "ai",
+  "ctime",
+  "thumb_key",
+  "has_tags",
+  "has_prompt_tags",
+  "rating_manual",
+  "tag_level",
+]);
+
+type TagLogic = "and" | "or";
+
+/** Feed order; see services/images/feed.py `SORTS`. */
+export type FeedSort = "newest" | "oldest" | "top";
+const SORTS: readonly FeedSort[] = ["newest", "oldest", "top"];
+
+export type Filters = {
+  tags: string[];
+  logic: TagLogic;
+  libraryId?: string;
+  noTags: boolean;
+  noAiTags: boolean;
+  /** Only images with AI tags; ignored beside noTags / noAiTags. */
+  aiTagged: boolean;
+  // View only quarantined images instead of the default (quarantine-excluded)
+  // feed. Off = default feed (quarantined hidden).
+  quarantined: boolean;
+  // Generation-metadata search: prompt terms (tokenized), checkpoint model,
+  // and dimension bounds. promptTerms match against gen.prompt_terms.
+  promptTerms: string[];
+  promptLogic: TagLogic;
+  model?: string;
+  /** Loras the image used, every one (gen.loras). Search terms: they show
+   * as `lora:name` chips in the search box (see searchTerms). */
+  lora: string[];
+  /** Embeddings either of its prompts used, every one (gen.embeddings);
+   * `embedding:name` chips in the search box. */
+  embedding: string[];
+  /** Outfits the image wears, each (most of its tags): saved outfit ids, or
+   * `default:<character>`. `outfit:Name` chips in the search box. */
+  outfit: string[];
+  /** Size presets ("2:3"): the image's shape is any of them. Matched by
+   * ratio, so upscales count (services/images/shapes.py). */
+  shape: string[];
+  minW?: number;
+  maxW?: number;
+  minH?: number;
+  maxH?: number;
+  // Batch grouping: `group` is the grouping setting (the grouped view, and the
+  // saved choice); `groupId` drills into one batch's members, shown ungrouped.
+  // Both can be set: a drill from the grouped view keeps `group`, so leaving
+  // it goes back there. The view is grouped only with `group` and no
+  // `groupId` (`isGroupedView`).
+  group: boolean;
+  groupId?: string;
+  /** One Generation batch's images (one press of Queue), by its id: what
+   * its batch page shows. Narrower than a group, which is every run of the
+   * same prompt and workflow. */
+  genBatch?: number;
+  // Workflow: a whole family (its editor-graph id, every version Rules groups
+  // under it) or one version (its signature). One or the other.
+  workflow?: string;
+  workflowSig?: string;
+  // How the feed is ordered. An order, not a filter: never a chip, never
+  // makes the feed "filtered".
+  sort: FeedSort;
+};
+
+export const DEFAULT_FILTERS: Filters = {
+  tags: [],
+  logic: "and",
+  libraryId: undefined,
+  noTags: false,
+  noAiTags: false,
+  aiTagged: false,
+  quarantined: false,
+  promptTerms: [],
+  promptLogic: "and",
+  model: undefined,
+  lora: [],
+  embedding: [],
+  outfit: [],
+  shape: [],
+  minW: undefined,
+  maxW: undefined,
+  minH: undefined,
+  maxH: undefined,
+  group: false,
+  groupId: undefined,
+  genBatch: undefined,
+  workflow: undefined,
+  workflowSig: undefined,
+  sort: "newest",
+};
+
+/** Default page size for the Image feed. */
+export const PAGE_LIMIT = 100;
+
+/**
+ * `f` with its mutually exclusive axes made consistent: `aiTagged` is
+ * dropped beside `noTags` / `noAiTags` (the server rejects the pair), and a
+ * workflow version (`workflowSig`) replaces a workflow family. The one place
+ * these rules live: parse and serialize apply it, so a hand-built URL is
+ * repaired and no call site repeats the rule.
+ */
+export function normalizeFilters(f: Filters): Filters {
+  const aiTagged = f.aiTagged && !f.noTags && !f.noAiTags;
+  const workflow = f.workflowSig ? undefined : f.workflow;
+  if (aiTagged === f.aiTagged && workflow === f.workflow) return f;
+  return { ...f, aiTagged, workflow };
+}
+
+/**
+ * Read an Image filter out of URL search params.
+ *
+ * Back-compat: accepts the legacy singular `tag` param as well as `tags`.
+ * serializeFilters always emits `tags`, so simply re-pushing a parsed filter
+ * migrates a legacy URL; no separate migration step needed.
+ */
+export function parseFilters(sp: URLSearchParams): Filters {
+  const tags = sp.getAll("tags");
+  const legacy = sp.getAll("tag");
+  const logic = sp.get("logic");
+  return normalizeFilters({
+    tags: tags.length ? tags : legacy,
+    logic: logic === "or" ? "or" : "and",
+    libraryId: sp.get("library_id") || undefined,
+    noTags: sp.get("no_tags") === "1",
+    noAiTags: sp.get("no_ai_tags") === "1",
+    aiTagged: sp.get("ai_tagged") === "1",
+    quarantined: sp.get("quarantined") === "1",
+    promptTerms: sp.getAll("pterms"),
+    promptLogic: sp.get("plogic") === "or" ? "or" : "and",
+    model: sp.get("model") || undefined,
+    lora: sp.getAll("lora").filter(Boolean),
+    embedding: sp.getAll("embedding").filter(Boolean),
+    outfit: sp.getAll("outfit").filter(Boolean),
+    shape: sp.getAll("shape").filter(Boolean),
+    minW: numOrUndef(sp.get("min_w")),
+    maxW: numOrUndef(sp.get("max_w")),
+    minH: numOrUndef(sp.get("min_h")),
+    maxH: numOrUndef(sp.get("max_h")),
+    group: sp.get("group") === "1",
+    groupId: sp.get("group_id") || undefined,
+    genBatch: batchIdOrUndef(sp.get("gen_batch")),
+    workflow: sp.get("workflow") || undefined,
+    workflowSig: sp.get("workflow_sig") || undefined,
+    sort: SORTS.find((x) => x === sp.get("sort")) ?? "newest",
+  });
+}
+
+function batchIdOrUndef(v: string | null): number | undefined {
+  const n = numOrUndef(v);
+  return n != null && Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
+function numOrUndef(v: string | null): number | undefined {
+  if (v == null || v === "") return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * Serialize an Image filter to URL search params (filter params only, no
+ * pagination cursor/limit). Used both for pushing the gallery URL and for
+ * carrying the filter when navigating to ImageView.
+ */
+export function serializeFilters(f: Filters): URLSearchParams {
+  const filters = normalizeFilters(f);
+  const sp = new URLSearchParams();
+  filters.tags.forEach((t) => sp.append("tags", t));
+  if (filters.logic) sp.set("logic", filters.logic);
+  if (filters.libraryId) sp.set("library_id", filters.libraryId);
+  if (filters.noTags) sp.set("no_tags", "1");
+  if (filters.noAiTags) sp.set("no_ai_tags", "1");
+  if (filters.aiTagged) sp.set("ai_tagged", "1");
+  if (filters.quarantined) sp.set("quarantined", "1");
+  filters.promptTerms.forEach((t) => sp.append("pterms", t));
+  if (filters.promptTerms.length && filters.promptLogic)
+    sp.set("plogic", filters.promptLogic);
+  if (filters.model) sp.set("model", filters.model);
+  filters.lora.forEach((n) => sp.append("lora", n));
+  filters.embedding.forEach((n) => sp.append("embedding", n));
+  filters.outfit.forEach((n) => sp.append("outfit", n));
+  filters.shape.forEach((s) => sp.append("shape", s));
+  if (filters.minW != null) sp.set("min_w", String(filters.minW));
+  if (filters.maxW != null) sp.set("max_w", String(filters.maxW));
+  if (filters.minH != null) sp.set("min_h", String(filters.minH));
+  if (filters.maxH != null) sp.set("max_h", String(filters.maxH));
+  if (filters.group) sp.set("group", "1");
+  if (filters.groupId) sp.set("group_id", filters.groupId);
+  if (filters.genBatch != null) sp.set("gen_batch", String(filters.genBatch));
+  if (filters.workflow) sp.set("workflow", filters.workflow);
+  if (filters.workflowSig) sp.set("workflow_sig", filters.workflowSig);
+  if (filters.sort && filters.sort !== "newest") sp.set("sort", filters.sort);
+  return sp;
+}
+
+/** The gallery showing `patch` over the default filter: the one way to link
+ * into it, so a renamed URL param cannot strand a link. */
+export function galleryHref(patch: Partial<Filters> = {}): string {
+  const qs = serializeFilters({ ...DEFAULT_FILTERS, ...patch }).toString();
+  return qs ? `/?${qs}` : "/";
+}
+
+/** One image's page, carrying the gallery filter (or a query string already
+ * built from one) so stepping walks the same feed. */
+export function imageHref(id: string, filters?: Filters | string): string {
+  const qs = typeof filters === "string" ? filters : filters ? serializeFilters(filters).toString() : "";
+  return `/image/${encodeURIComponent(id)}${qs ? `?${qs}` : ""}`;
+}
+
+/**
+ * Query string for the batch-peek fetch (see useBatchScrub): every active
+ * filter except `group`/`group_id`, which the peek sets itself to scope to
+ * one batch's members. Without this, the peek fetched a batch's members
+ * unfiltered while the grouped feed picks each batch's *representative*
+ * honoring the active filter: under a tag or quarantine filter those can
+ * disagree, so hovering could swap the tile to a different image than the
+ * one it was showing at rest.
+ */
+export function serializeFiltersForPeek(filters: Filters): string {
+  const sp = serializeFilters(filters);
+  sp.delete("group");
+  sp.delete("group_id");
+  return sp.toString();
+}
+
+/** Into one group of the grouped view: its members, ungrouped. `group`
+ * stays as it was, so `leaveGroup` goes back to the view it was opened from. */
+export function enterGroup(f: Filters, groupId: string): Filters {
+  return { ...f, groupId };
+}
+
+/** Out of a group's members, back to the gallery with the same filters:
+ * grouped if it was (or if grouping is the saved choice, on a direct link). */
+export function leaveGroup(f: Filters): Filters {
+  return { ...f, groupId: undefined };
+}
+
+/** Whether the gallery shows batches (one tile each) rather than images. */
+export function isGroupedView(f: Filters): boolean {
+  return f.group && !f.groupId;
+}
+
+/** The grouping toggle: flips the setting and, inside a batch, leaves it
+ * for the gallery grouped (or not) as the toggle now says. */
+export function toggleGrouping(f: Filters): Filters {
+  return { ...f, group: !f.group, groupId: undefined };
+}
+
+/** Resolvers for the names a gallery title can need. */
+export type GalleryNames = {
+  library?: (id: string) => string | undefined;
+  batch?: (id: number) => string | undefined;
+};
+
+/** The gallery's name for `f`, or undefined while a name it needs (a
+ * library's, a Generation batch's) is not known. */
+export function galleryName(f: Filters, names: GalleryNames = {}): string | undefined {
+  if (f.quarantined) return "Quarantined Images";
+  if (f.groupId) return "Batch Images";
+  if (f.genBatch != null) return names.batch?.(f.genBatch);
+  if (f.libraryId) return names.library?.(f.libraryId);
+  return hasActiveFilter(f) ? "Filtered Images" : "All Images";
+}
+
+/** The gallery's title for `f`: its name, or a plain one until that loads. */
+export function galleryTitle(f: Filters, names: GalleryNames = {}): string {
+  const name = galleryName(f, names);
+  if (name) return name;
+  return f.genBatch != null ? "Batch Images" : "Library Images";
+}
+
+/** The label of the control leaving a batch's members: named for where it
+ * goes, or plain "Back" until that name is known. */
+export function leaveGroupLabel(f: Filters, names: GalleryNames = {}): string {
+  const name = galleryName(leaveGroup(f), names);
+  return name ? `Back to ${name}` : "Back";
+}
+
+/** Whether any filter axis is set (vs the empty default feed): whatever the
+ * URL codec writes beyond the view settings (match logic, order, grouping),
+ * so a new axis counts as soon as it is serialized. */
+export function hasActiveFilter(f: Filters): boolean {
+  const sp = serializeFilters({ ...f, sort: DEFAULT_FILTERS.sort, group: false });
+  sp.delete("logic");
+  return sp.toString() !== "";
+}
+
+/**
+ * `f` with its filters cleared: what "Clear filters" means everywhere. The
+ * search (tags, loras, embeddings), the library tab, the order and the
+ * grouping aren't filters the viewer set in the panel, so they stay.
+ */
+export function withoutFilters(f: Filters): Filters {
+  return {
+    ...DEFAULT_FILTERS,
+    tags: f.tags,
+    lora: f.lora,
+    embedding: f.embedding,
+    outfit: f.outfit,
+    logic: f.logic,
+    libraryId: f.libraryId,
+    sort: f.sort,
+    group: f.group,
+    groupId: f.groupId,
+  };
+}
+
+/** Whether `f` has anything for "Clear filters" to clear. */
+export function hasClearableFilter(f: Filters): boolean {
+  return serializeFilters(withoutFilters(f)).toString() !== serializeFilters(f).toString();
+}
+
+export type FilterChip = {
+  /** Stable React key. */
+  key: string;
+  label: string;
+  /** The filters with just this one removed. */
+  without: Filters;
+};
+
+function rangeLabel(name: string, min?: number, max?: number): string {
+  if (min != null && max != null) return `${name} ${min}–${max}`;
+  if (min != null) return `${name} ≥ ${min}`;
+  return `${name} ≤ ${max}`;
+}
+
+/**
+ * The active filters as removable chips, for showing state while the filter
+ * panel is closed. Search terms (tags, loras, embeddings) are left out (the
+ * search input already shows them as chips), as are batch grouping and drill-in, which have their own
+ * toggle and back control (`leaveGroup`). `libraryName` resolves an id to a
+ * display name; `workflowName` does the same for a workflow family id or a
+ * version signature; `batchName` names a Generation batch.
+ */
+export function activeFilterChips(
+  filters: Filters,
+  libraryName: (id: string) => string | undefined = () => undefined,
+  workflowName: (key: { workflow?: string; workflowSig?: string }) => string | undefined = () =>
+    undefined,
+  batchName: (id: number) => string | undefined = () => undefined,
+): FilterChip[] {
+  const f = normalizeFilters(filters);
+  const chips: FilterChip[] = [];
+  const add = (key: string, label: string, patch: Partial<Filters>) =>
+    chips.push({ key, label, without: { ...f, ...patch } });
+
+  if (f.genBatch != null) {
+    add("genBatch", `Batch: ${batchName(f.genBatch) ?? `#${f.genBatch}`}`, { genBatch: undefined });
+  }
+  if (f.libraryId) {
+    add("library", `Library: ${libraryName(f.libraryId) ?? f.libraryId}`, { libraryId: undefined });
+  }
+  if (f.logic === "or" && f.tags.length > 1) {
+    add("logic", `Match any of ${f.tags.length} tags`, { logic: "and" });
+  }
+  if (f.noTags) add("noTags", "Untagged", { noTags: false });
+  if (f.noAiTags) add("noAiTags", "No AI tags", { noAiTags: false });
+  if (f.aiTagged) add("aiTagged", "AI tagged", { aiTagged: false });
+  if (f.quarantined) add("quarantined", "Quarantined", { quarantined: false });
+  for (const term of f.promptTerms) {
+    add(`prompt:${term}`, `Prompt: ${term}`, {
+      promptTerms: f.promptTerms.filter((t) => t !== term),
+    });
+  }
+  if (f.promptLogic === "or" && f.promptTerms.length > 1) {
+    add("promptLogic", `Match any of ${f.promptTerms.length} prompt terms`, {
+      promptLogic: "and",
+    });
+  }
+  if (f.workflow || f.workflowSig) {
+    const name = workflowName({ workflow: f.workflow, workflowSig: f.workflowSig });
+    add("workflow", `Workflow: ${name ?? "selected"}`, {
+      workflow: undefined,
+      workflowSig: undefined,
+    });
+  }
+  if (f.model) add("model", `Model: ${f.model}`, { model: undefined });
+  if (f.shape.length) add("shape", `Size: ${f.shape.join(", ")}`, { shape: [] });
+  if (f.minW != null || f.maxW != null) {
+    add("width", rangeLabel("Width", f.minW, f.maxW), { minW: undefined, maxW: undefined });
+  }
+  if (f.minH != null || f.maxH != null) {
+    add("height", rangeLabel("Height", f.minH, f.maxH), { minH: undefined, maxH: undefined });
+  }
+  return chips;
+}

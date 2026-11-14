@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useLocalPref, KEY_SET } from "../hooks/useLocalPref";
+import { useLocalPref, KEY_SET } from "@/hooks/useLocalPref";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   CheckSquare,
@@ -16,35 +16,35 @@ import {
   EyeOff,
   MoreHorizontal,
 } from "lucide-react";
-import { useToast } from "../components/Toasts";
-import { PageHeader, PageBody } from "../components/ui/PageHeader";
-import { DropdownMenu } from "../components/ui/DropdownMenu";
-import { ProgressBar } from "../components/ui/ProgressBar";
-import { Card } from "../components/ui/Card";
-import { Dialog } from "../components/ui/Dialog";
-import { AddLibraryDialog } from "../components/AddLibraryDialog";
-import { useConfirm } from "../components/ConfirmDialog";
-import { Button, ButtonLink } from "../components/ui/Button";
-import { Checkbox } from "../components/ui/Checkbox";
-import { Input, Field } from "../components/ui/Input";
-import { Skeleton, Spinner } from "../components/ui/Skeleton";
-import { EmptyState } from "../components/ui/EmptyState";
-import { errorText } from "../lib/api";
+import { useToast } from "@/components/ui/Toasts";
+import { PageHeader, PageBody } from "@/components/ui/PageHeader";
+import { DropdownMenu } from "@/components/ui/DropdownMenu";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { Card } from "@/components/ui/Card";
+import { Dialog } from "@/components/ui/Dialog";
+import { AddLibraryDialog } from "@/features/library/components/AddLibraryDialog";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { Input, Field } from "@/components/ui/Input";
+import { Skeleton, Spinner } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { errorText } from "@/lib/api";
 import {
   libraryGalleryHref,
   scanProblem,
   useLibraries,
   useLibraryWrites,
   type Library,
-} from "../lib/libraries";
-import { cn } from "../lib/cn";
+} from "@/features/library/lib/libraries";
+import { cn } from "@/lib/cn";
 import {
   buildLibraryTree,
   countLibraries,
   librariesUnder,
   pathToLibrary,
   type LibraryTreeNode,
-} from "../lib/libraryTree";
+} from "@/features/library/lib/libraryTree";
 
 const COLLAPSED_KEY = "libraries:collapsedFolders";
 const NO_KEYS: Set<string> = new Set();

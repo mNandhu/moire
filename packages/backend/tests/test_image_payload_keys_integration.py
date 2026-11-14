@@ -55,5 +55,5 @@ async def test_image_payload_keys_match_snapshot(client, seed):
     want = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
     assert got == want, (
         "image payload keys changed: rerun with MOIRE_UPDATE_SNAPSHOTS=1 and "
-        "update the types in frontend src/lib/imageFilter.ts"
+        "update the types in frontend src/features/images/lib/imageFilter.ts"
     )

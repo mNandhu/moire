@@ -11,44 +11,45 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { errorText } from "../lib/api";
-import { isHiddenBySensitivity } from "../lib/queries/sensitivity";
+import { errorText } from "@/lib/api";
+import { isHiddenBySensitivity } from "@/features/tags/lib/sensitivityQueries";
 import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Ban, Download, EyeOff, FolderOpen, GalleryHorizontal, PanelRight } from "lucide-react";
-import { imageFileUrl } from "../lib/media";
-import { useToast } from "../components/Toasts";
-import { ImageCharacters } from "../components/ImageCharacters";
-import { parseFilters, serializeFiltersForPeek } from "../lib/imageFilter";
-import { fetchImage } from "../lib/imageApi";
-import { IMAGE_DOC_STALE_MS, useImageStepper } from "../hooks/useImageStepper";
-import { fetchWorkflow, workflowClipboardText } from "../lib/rules";
+import { imageFileUrl } from "@/lib/media";
+import { useToast } from "@/components/ui/Toasts";
+import { ImageCharacters } from "@/features/images/components/viewer/ImageCharacters";
+import { parseFilters, serializeFiltersForPeek } from "@/features/images/lib/imageFilter";
+import { fetchImage } from "@/features/images/lib/imageApi";
+import { IMAGE_DOC_STALE_MS, useImageStepper } from "@/features/images/hooks/useImageStepper";
+import { fetchWorkflow, workflowClipboardText } from "@/features/metadata/lib/rules";
 import {
   setScore as apiSetScore,
   setQuarantine as apiSetQuarantine,
-} from "../lib/imageMutations";
-import { accentFromBlurhash } from "../lib/blurhash";
-import { pickRating } from "../lib/rating";
-import { tagFlow, toPromptText } from "../lib/tags";
-import { splitBoilerplate } from "../lib/boilerplate";
-import { libraryPageHref, useBoilerplate, useLibraries } from "../lib/queries";
-import { useHotkeys } from "../hooks/useHotkeys";
-import { SHEET_PEEK, useDetailsSheet } from "../hooks/useDetailsSheet";
-import { IMAGE, isPrevImage } from "../lib/shortcuts";
-import { useMediaQuery } from "../hooks/useMediaQuery";
-import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { ScorePicker } from "../components/ui/ScoreMark";
-import { GenPanel, PanelFit } from "../components/imageview/GenPanel";
-import { RatingEditor } from "../components/imageview/RatingEditor";
-import { DetailTabs } from "../components/imageview/DetailTabs";
-import { CharacterHoverProvider } from "../components/imageview/CharacterHover";
-import { TagsSection } from "../components/imageview/TagsSection";
-import { FILMSTRIP_ROOM, FilmStrip } from "../components/imageview/FilmStrip";
-import { useLocalPref } from "../hooks/useLocalPref";
+} from "@/features/images/lib/imageMutations";
+import { accentFromBlurhash } from "@/lib/blurhash";
+import { pickRating } from "@/lib/rating";
+import { tagFlow, toPromptText } from "@/features/tags/lib/tags";
+import { splitBoilerplate } from "@/features/tags/lib/boilerplate";
+import { libraryPageHref, useLibraries } from "@/features/library/lib/libraries";
+import { useBoilerplate } from "@/features/tags/lib/settingsQueries";
+import { useHotkeys } from "@/hooks/useHotkeys";
+import { SHEET_PEEK, useDetailsSheet } from "@/features/images/hooks/useDetailsSheet";
+import { IMAGE, isPrevImage } from "@/lib/shortcuts";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { ScorePicker } from "@/components/ui/ScoreMark";
+import { GenPanel, PanelFit } from "@/features/images/components/viewer/GenPanel";
+import { RatingEditor } from "@/features/images/components/viewer/RatingEditor";
+import { DetailTabs } from "@/features/images/components/viewer/DetailTabs";
+import { CharacterHoverProvider } from "@/features/images/components/viewer/CharacterHover";
+import { TagsSection } from "@/features/images/components/viewer/TagsSection";
+import { FILMSTRIP_ROOM, FilmStrip } from "@/features/images/components/viewer/FilmStrip";
+import { useLocalPref } from "@/hooks/useLocalPref";
 
 // Round controls floating over the image stage (back, details, prev/next).
 const OVERLAY_BTN =
   "p-2 rounded-full bg-black/45 border border-white/10 text-white/80 hover:text-white hover:bg-black/65 disabled:opacity-30 disabled:pointer-events-none transition-colors duration-150";
-import { imageDocKey, invalidateFeeds, syncFeedsFromDoc, writeImageFields } from "../lib/feedCache";
-import { Tooltip } from "../components/ui/Tooltip";
+import { imageDocKey, invalidateFeeds, syncFeedsFromDoc, writeImageFields } from "@/features/images/lib/feedCache";
+import { Tooltip } from "@/components/ui/Tooltip";
 
 export default function ImageView() {
   // `routeId` is where the URL points; `id` is the image actually on screen

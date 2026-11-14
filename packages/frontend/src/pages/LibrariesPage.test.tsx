@@ -2,7 +2,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ToastProvider } from "../components/Toasts";
+import { ToastProvider } from "@/components/ui/Toasts";
 import LibrariesPage from "./LibrariesPage";
 
 const SLOW = { timeout: 10_000 };
