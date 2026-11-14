@@ -81,6 +81,9 @@ export default function ImageView() {
   const { id, shown, pending, index, list, fileUrl, goPrev, goNext, goBack, hasMore, jumpTo, loadMore } =
     useImageStepper(filters, routeId);
   const [stripOn, setStripOn] = useLocalPref("imageView:filmstrip", true);
+  // Somewhere for a strip: the image is in the list, and on a phone the open
+  // details sheet doesn't cover the strip's place.
+  const stripPossible = index >= 0 && !(phone && infoOpen);
   // Current image document (full doc with tags/rating); refetched after edits.
   const { data, refetch, dataUpdatedAt, error } = useQuery({
     queryKey: imageDocKey(id!),
@@ -199,6 +202,8 @@ export default function ImageView() {
         ...IMAGE.filmstrip,
         run: (e) => {
           e.preventDefault();
+          // Held down, F would flicker the strip on and off.
+          if (e.repeat || !stripPossible) return;
           setStripOn((on) => !on);
         },
       },
@@ -329,7 +334,7 @@ export default function ImageView() {
   const stageW = shown?.width ?? data?.width;
   const stageH = shown?.height ?? data?.height;
   // On a phone the open details sheet covers the strip's place.
-  const stripShown = stripOn && index >= 0 && !(phone && infoOpen);
+  const stripShown = stripOn && stripPossible;
 
   return (
     <div
@@ -484,27 +489,29 @@ export default function ImageView() {
             <ChevronRight />
           </button>
         </div>
-        {stripShown && (
-          <div className="absolute inset-x-0 bottom-0 z-40 flex items-center px-2" style={{ height: FILMSTRIP_ROOM }}>
-            <FilmStrip
-              items={list}
-              index={index}
-              onPick={jumpTo}
-              hasMore={hasMore}
-              loadMore={loadMore}
-            />
+        {stripPossible && (
+          <div
+            className="absolute bottom-0 right-0 z-40 flex items-center gap-1 pl-2 pr-1"
+            style={stripShown ? { left: 0, height: FILMSTRIP_ROOM } : { height: 32 }}
+          >
+            {stripShown && (
+              <div className="min-w-0 flex-1">
+                <FilmStrip items={list} index={index} onPick={jumpTo} loadMore={loadMore} />
+              </div>
+            )}
+            {/* Strip toggle: quiet, beside the strip, never over a tile; F does the same. */}
+            <Tooltip content={`${stripOn ? "Hide" : "Show"} filmstrip (F)`} bubble side="up" className="shrink-0">
+              <button
+                onClick={() => setStripOn((on) => !on)}
+                className="rounded p-1 text-white/30 transition-colors hover:text-white/80"
+                aria-label={stripOn ? "Hide filmstrip" : "Show filmstrip"}
+                aria-pressed={stripOn}
+              >
+                <GalleryHorizontal className="h-4 w-4" />
+              </button>
+            </Tooltip>
           </div>
         )}
-        {/* Strip toggle: quiet, in the corner; F does the same. */}
-        <button
-          onClick={() => setStripOn((on) => !on)}
-          className="absolute bottom-2 right-2 z-50 rounded p-1 text-white/30 transition-colors hover:text-white/80"
-          aria-label={stripOn ? "Hide filmstrip" : "Show filmstrip"}
-          aria-pressed={stripOn}
-          title={`${stripOn ? "Hide" : "Show"} filmstrip (F)`}
-        >
-          <GalleryHorizontal className="h-4 w-4" />
-        </button>
       </div>
       {/* Details sidebar: docked on desktop, slide-over drawer on mobile */}
       <aside

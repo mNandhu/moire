@@ -194,7 +194,7 @@ test("pointing at a character lights up their identity tags in the prompt and th
   }
 });
 
-test("the filmstrip opens an image, scrubs, and hides", async ({ page, request }) => {
+test("the filmstrip opens an image, scrubs by drag and wheel, and hides", async ({ page, request }) => {
   const { _id } = await imageByPath(request, "furina/furina_41.png");
   await page.goto(viewerUrl(_id));
   const strip = page.getByRole("navigation", { name: "Filmstrip" });
@@ -211,8 +211,14 @@ test("the filmstrip opens an image, scrubs, and hides", async ({ page, request }
   await page.mouse.move(box.x + box.width / 2, y);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 - 44, y, { steps: 8 });
+  // Only the strip moves mid-drag; the image opens on release.
+  await expect(page.getByText("furina_63.png", { exact: true })).toBeVisible();
   await page.mouse.up();
   await expect(page.getByText("shinobu_23.png", { exact: true })).toBeVisible();
+
+  // The wheel scrubs too: one tile back.
+  await page.mouse.wheel(0, -88);
+  await expect(page.getByText("furina_63.png", { exact: true })).toBeVisible();
 
   // F hides it, and the choice survives a reload; the corner button brings it back.
   await page.keyboard.press("f");
