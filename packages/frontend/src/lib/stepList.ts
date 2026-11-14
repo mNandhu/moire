@@ -1,9 +1,8 @@
 import { createContext, useEffect, useRef, useSyncExternalStore } from "react";
 import type { Location } from "react-router-dom";
-import type { FeedItem } from "@/features/images/lib/imageFilter";
 
 /** What ImageView needs of an image it can step to. */
-export type StepItem = Pick<FeedItem, "_id" | "width" | "height"> & { thumb_url: string | null };
+export type StepItem = { _id: string; width: number | null; height: number | null; thumb_url: string | null };
 
 /** A page's step list: its name in the store below and the images now. */
 export type StepList = { name: string; items: StepItem[] };

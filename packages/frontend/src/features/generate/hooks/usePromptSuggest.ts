@@ -6,7 +6,7 @@ import { replaceTerm, termAt, type Term } from "@/features/generate/lib/prompt/p
 import { toPromptText } from "@/features/tags/lib/tags";
 import type { TagSuggestion } from "@/features/tags/lib/tagSuggest";
 import { useDismiss } from "@/hooks/useDismiss";
-import { useSuggestNav, useTagMatches } from "@/hooks/useSuggestNav";
+import { useSuggestNav, useTagMatches } from "@/features/tags/hooks/useSuggestNav";
 import { embeddingWord, isEmbedding } from "@/features/generate/lib/compose";
 
 const LIST_W = 320;

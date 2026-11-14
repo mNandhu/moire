@@ -67,6 +67,9 @@ jobs:
       - name: ESLint
         run: pnpm -C packages/frontend lint
 
+      - name: Knip (unused files, exports, dependencies)
+        run: pnpm -C packages/frontend knip
+
       - name: Vitest
         run: pnpm -C packages/frontend test
 

@@ -28,7 +28,7 @@ import {
 } from "@/features/images/lib/imageFilter";
 import { useBatchList } from "@/features/generate/lib/generate";
 import { fetchImageIds } from "@/features/images/lib/imageApi";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/app/components/PageHeader";
 import { LibraryScopeTabs } from "@/features/images/components/LibraryScopeTabs";
 import { workflowFilterName } from "@/features/metadata/lib/workflows";
 import { ambientPalette } from "@/lib/blurhash";

@@ -9,7 +9,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/StatCard";
-import { PageHeader, PageBody } from "@/components/ui/PageHeader";
+import { PageHeader, PageBody } from "@/app/components/PageHeader";
 import { ButtonLink } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";

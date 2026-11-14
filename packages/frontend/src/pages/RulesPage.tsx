@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useRulesetSession } from "@/features/metadata/hooks/useRulesetSession";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { Workflow, MousePointerClick } from "lucide-react";
-import { PageHeader, PageBody } from "@/components/ui/PageHeader";
+import { PageHeader, PageBody } from "@/app/components/PageHeader";
 import { useQueryClient } from "@tanstack/react-query";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";

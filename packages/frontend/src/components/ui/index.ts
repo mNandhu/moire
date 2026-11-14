@@ -3,7 +3,6 @@ export { Card } from "./Card";
 export { Input } from "./Input";
 export { Checkbox } from "./Checkbox";
 export { Badge } from "./Badge";
-export { PageHeader, PageBody } from "./PageHeader";
 export { EmptyState } from "./EmptyState";
 export { ProgressBar } from "./ProgressBar";
 export { DropdownMenu } from "./DropdownMenu";

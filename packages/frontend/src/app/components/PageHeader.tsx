@@ -1,7 +1,7 @@
 import React, { createContext, useContext } from "react";
 import { cn } from "@/lib/cn";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import { MoireMark } from "./Logo";
+import { MoireMark } from "@/components/ui/Logo";
 import { SensitivityControl } from "@/features/tags/components/SensitivityControl";
 
 /**

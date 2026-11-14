@@ -1,7 +1,8 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
-import { Badge, Button, ButtonLink, PageBody, PageHeader } from "@/components/ui";
+import { Badge, Button, ButtonLink } from "@/components/ui";
+import { PageBody, PageHeader } from "@/app/components/PageHeader";
 import { InlineRename } from "@/components/ui/InlineRename";
 import { batchStats, shownImages, stateTone, STATE_LABEL, whenLabel } from "@/features/generate/lib/batches";
 import { StepListContext, useStepList } from "@/lib/stepList";

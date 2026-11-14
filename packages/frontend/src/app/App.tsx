@@ -8,7 +8,7 @@ import { useShellKeyScroll } from "@/app/hooks/useShellKeyScroll";
 import { Sidebar } from "@/app/components/Sidebar";
 import { SearchPalette } from "@/app/components/SearchPalette";
 import { PageErrorBoundary } from "@/app/components/ErrorScreen";
-import { MobileNavContext } from "@/components/ui/PageHeader";
+import { MobileNavContext } from "@/app/components/PageHeader";
 import { cn } from "@/lib/cn";
 import { EVERYWHERE } from "@/lib/shortcuts";
 import { restoreAmbient } from "@/lib/ambient";

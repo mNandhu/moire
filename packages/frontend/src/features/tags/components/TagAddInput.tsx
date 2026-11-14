@@ -3,7 +3,7 @@ import { useTagAggregate } from "@/features/tags/lib/queries";
 import { bareTagPool, canonicalName } from "@/features/tags/lib/tags";
 import type { TagSuggestion } from "@/features/tags/lib/tagSuggest";
 import { cn } from "@/lib/cn";
-import { useSuggestNav, useTagMatches } from "@/hooks/useSuggestNav";
+import { useSuggestNav, useTagMatches } from "@/features/tags/hooks/useSuggestNav";
 import { TagSuggestList } from "./TagSuggestList";
 
 /**

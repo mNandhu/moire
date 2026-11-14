@@ -10,7 +10,7 @@ import { formatSearchTag } from "@/features/tags/lib/tags";
 import { TagSuggestList } from "./TagSuggestList";
 import { resourceLabel, type TagSuggestion } from "@/features/tags/lib/tagSuggest";
 import { useDismiss } from "@/hooks/useDismiss";
-import { useSuggestNav, useTagMatches } from "@/hooks/useSuggestNav";
+import { useSuggestNav, useTagMatches } from "@/features/tags/hooks/useSuggestNav";
 
 export type { TagSuggestion };
 

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sparkles, Wand2 } from "lucide-react";
-import { ButtonLink, EmptyState, PageBody, PageHeader } from "@/components/ui";
+import { ButtonLink, EmptyState } from "@/components/ui";
+import { PageBody, PageHeader } from "@/app/components/PageHeader";
 import { bareTagPool } from "@/features/tags/lib/tags";
 import { stemOf } from "@/features/metadata/lib/modelNames";
 import { ComfyStatusLine } from "@/features/generate/components/ComfyStatusLine";

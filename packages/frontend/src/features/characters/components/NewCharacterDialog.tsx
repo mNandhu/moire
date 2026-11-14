@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/Toasts";
 import { useCharacters } from "@/features/characters/lib/queries";
 import { TagSuggestList } from "@/features/tags/components/TagSuggestList";
 import { TagAddInput } from "@/features/tags/components/TagAddInput";
-import { useSuggestNav, useTagMatches } from "@/hooks/useSuggestNav";
+import { useSuggestNav, useTagMatches } from "@/features/tags/hooks/useSuggestNav";
 import { cn } from "@/lib/cn";
 import { characterHref, characterName, displayName } from "@/features/characters/lib/character";
 import { canonicalName, unescapeParens } from "@/features/tags/lib/tags";

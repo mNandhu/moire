@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useLocalPref } from "@/hooks/useLocalPref";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Tag as TagIcon, Search, GitMerge, LayoutGrid, List, UserPlus, Wand2, Sparkles } from "lucide-react";
-import { PageHeader, PageBody } from "@/components/ui/PageHeader";
+import { PageHeader, PageBody } from "@/app/components/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { DropdownMenu } from "@/components/ui/DropdownMenu";

@@ -4,7 +4,7 @@ import { GitMerge, Pencil } from "lucide-react";
 import { Dialog, DialogFooter } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { TagSuggestList } from "./TagSuggestList";
-import { useSuggestNav, useTagMatches } from "@/hooks/useSuggestNav";
+import { useSuggestNav, useTagMatches } from "@/features/tags/hooks/useSuggestNav";
 import type { TagAgg } from "@/features/tags/lib/queries";
 import { formatTag, isPrompt, planRename, renameOptions } from "@/features/tags/lib/tags";
 

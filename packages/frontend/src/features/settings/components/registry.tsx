@@ -1,13 +1,13 @@
 import type { LucideIcon } from "lucide-react";
 import { Tags, FileText, EyeOff, Wand2, UserRound, Plug, Palette, ShieldCheck } from "lucide-react";
-import { TaggingSection } from "@/pages/settings/sections/TaggingSection";
-import { PromptTagsSection } from "@/pages/settings/sections/PromptTagsSection";
-import { BoilerplateSection } from "@/pages/settings/sections/BoilerplateSection";
-import { PromptGuessSection } from "@/pages/settings/sections/PromptGuessSection";
-import { CharactersSection } from "@/pages/settings/sections/CharactersSection";
-import { ComfySection } from "@/pages/settings/sections/ComfySection";
-import { TagColoursSection } from "@/pages/settings/sections/TagColoursSection";
-import { SensitivitySection } from "@/pages/settings/sections/SensitivitySection";
+import { TaggingSection } from "./sections/TaggingSection";
+import { PromptTagsSection } from "./sections/PromptTagsSection";
+import { BoilerplateSection } from "./sections/BoilerplateSection";
+import { PromptGuessSection } from "./sections/PromptGuessSection";
+import { CharactersSection } from "./sections/CharactersSection";
+import { ComfySection } from "./sections/ComfySection";
+import { TagColoursSection } from "./sections/TagColoursSection";
+import { SensitivitySection } from "./sections/SensitivitySection";
 
 /**
  * One settings page section: a tab + the panel it renders.

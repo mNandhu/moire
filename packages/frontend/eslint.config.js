@@ -31,4 +31,28 @@ export default tseslint.config(
     files: ["src/features/tags/lib/tags.ts"],
     rules: { "no-restricted-syntax": "off" },
   },
+  // Layering: shared code (components/ui, hooks, lib) knows no domain, and a
+  // feature never reaches up into the shell or a page.
+  {
+    files: ["src/components/**", "src/hooks/**", "src/lib/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            { group: ["@/features/*", "@/app/*", "@/pages/*"], message: "Shared code can't depend on a feature, the app shell or a page; move it into that feature." },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/features/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: [{ group: ["@/app/*", "@/pages/*"], message: "A feature can't depend on the app shell or a page." }] },
+      ],
+    },
+  },
 );

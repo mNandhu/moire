@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { BookOpen, Copy, ExternalLink, Pencil, Tag as TagIcon, UserRound, Wand2 } from "lucide-react";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/app/components/PageHeader";
 import { Button, ButtonAnchor, ButtonLink } from "@/components/ui/Button";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import { Skeleton } from "@/components/ui/Skeleton";

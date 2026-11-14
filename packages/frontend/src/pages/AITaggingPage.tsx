@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, ChevronDown, Sparkles } from "lucide-react";
-import { PageHeader, PageBody } from "@/components/ui/PageHeader";
+import { PageHeader, PageBody } from "@/app/components/PageHeader";
 import { Section } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";

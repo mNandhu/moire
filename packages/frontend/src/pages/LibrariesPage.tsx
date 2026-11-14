@@ -17,7 +17,7 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toasts";
-import { PageHeader, PageBody } from "@/components/ui/PageHeader";
+import { PageHeader, PageBody } from "@/app/components/PageHeader";
 import { DropdownMenu } from "@/components/ui/DropdownMenu";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Card } from "@/components/ui/Card";

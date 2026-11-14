@@ -37,7 +37,7 @@ Brief: Moiré is a pnpm monorepo with a FastAPI backend (Python, MongoDB, MinIO)
 - Fetch with "/api/..."; vite.config.ts proxies to backend.
 - Media URL resolution (src/lib/media.ts): HEAD to detect JSON; if JSON, GET to extract { url }; else use endpoint (browser follows 307 redirects).
 - Infinite scroll & filters (pages/AllImagesPage.tsx): cursor-based by \_id; filters synced to URL; shortcuts: S toggle selection, F focus search, N toggle no-tags.
-- Stable grid (components/GalleryGrid.tsx): compute row spans from width/height to prevent reflow.
+- Stable grid (features/images/components/VirtualizedGrid.tsx + features/images/lib/masonryLayout.ts): compute row spans from width/height to prevent reflow.
 
 ## Conventions & gotchas
 
@@ -80,4 +80,4 @@ Use mcp_upstash_conte_get-library-docs with library IDs like:
 - /pydantic/pydantic (data validation)
 ```
 
-Reference: packages/backend/src/main.py, api/{images,libraries,tags}.py, services/{scanner,storage_minio}.py; packages/frontend/src/{pages,components,lib}. Also see .github/prompts/tech_guide.md for context, and CHANGELOG.md for recent changes, and .github/prompt/user_requirements.md for user needs.
+Reference: packages/backend/src/main.py, api/{images,libraries,tags}.py, services/{scanner,storage_minio}.py; packages/frontend/src/{app,pages,features,components,hooks,lib}. Also see .github/prompts/tech_guide.md for context, and CHANGELOG.md for recent changes, and .github/prompt/user_requirements.md for user needs.

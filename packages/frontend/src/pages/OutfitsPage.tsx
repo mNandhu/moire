@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Search, Shirt } from "lucide-react";
-import { Badge, Button, DropdownMenu, EmptyState, Input, PageBody, PageHeader } from "@/components/ui";
+import { Badge, Button, DropdownMenu, EmptyState, Input } from "@/components/ui";
+import { PageBody, PageHeader } from "@/app/components/PageHeader";
 import { Picker, type PickerOption } from "@/components/ui/Picker";
 import { CharacterAvatar } from "@/features/characters/components/CharacterAvatar";
 import { useCharacterLookup } from "@/features/characters/lib/queries";
