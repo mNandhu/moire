@@ -21,6 +21,7 @@
  *   rules:collapsedWorkflows     RulesPage: JSON array of workflow keys
  *   onboarding:shortcut-hint     one-shot flag set by first-run setup
  *   ambient:palette              lib/ambient: last wash palette, JSON array
+ *   update:dismissed             UpdateNotice: the release "Later" hid
  */
 
 const memory = new Map<string, string>();

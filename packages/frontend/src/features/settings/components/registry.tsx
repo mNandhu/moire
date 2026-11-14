@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Tags, FileText, EyeOff, Wand2, UserRound, Plug, Palette, ShieldCheck } from "lucide-react";
+import { Tags, FileText, EyeOff, Wand2, UserRound, Plug, Palette, ShieldCheck, Info } from "lucide-react";
 import { TaggingSection } from "./sections/TaggingSection";
 import { PromptTagsSection } from "./sections/PromptTagsSection";
 import { BoilerplateSection } from "./sections/BoilerplateSection";
@@ -8,6 +8,7 @@ import { CharactersSection } from "./sections/CharactersSection";
 import { ComfySection } from "./sections/ComfySection";
 import { TagColoursSection } from "./sections/TagColoursSection";
 import { SensitivitySection } from "./sections/SensitivitySection";
+import { AboutSection } from "@/features/update/components/AboutSection";
 
 /**
  * One settings page section: a tab + the panel it renders.
@@ -80,5 +81,11 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "ComfyUI",
     icon: Plug,
     Component: ComfySection,
+  },
+  {
+    id: "about",
+    label: "About",
+    icon: Info,
+    Component: AboutSection,
   },
 ];

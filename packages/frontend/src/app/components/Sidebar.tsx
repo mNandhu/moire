@@ -9,6 +9,7 @@ import { MoireMark } from "@/components/ui/Logo";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { ActivityIndicator } from "@/features/activity/components/ActivityIndicator";
 import { BackButton } from "./HistoryButtons";
+import { UpdateNotice } from "@/features/update/components/UpdateNotice";
 
 type Status = string;
 
@@ -188,6 +189,7 @@ export function Sidebar({
             </div>
           </CollapsedTip>
         )}
+        <UpdateNotice collapsed={collapsed} />
         <NavButton {...SETTINGS_PAGE} collapsed={collapsed} />
       </div>
     </aside>
