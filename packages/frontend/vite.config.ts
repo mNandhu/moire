@@ -28,6 +28,9 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
+    // jsdom workers are memory-heavy; the default (one per core) can exhaust RAM
+    // on a full run. A fixed cap keeps the suite's footprint bounded.
+    maxWorkers: 4,
   },
   server: {
     port: 5173,
