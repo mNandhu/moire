@@ -14,6 +14,7 @@ Scenarios worth testing end to end, for the Playwright suite in `packages/e2e` (
 - Sensitivity filter: the header shield hiding images above the level, the "hidden until AI-tagged" banner, its Tag them swapped for the job's progress and Cancel while it runs, the sidebar's background work list cancelling the job, a direct link to a hidden image saying so, and back to everything; adding, changing and removing a tag level in Settings (`sensitivity.spec.ts`)
 - AI tagging: the real WD tagger on one library's row from the AI Tagging page, cancelled after three images, and on a picture in New character, filling identity and Default outfit (`tagging-ai.spec.ts`); the run box's count becoming the run's limit, none for every image left, and Settings saving the auto-tag switch (`ai-tagging-page.spec.ts`); the onboarding AI tagging switch turning on and off (`onboarding.setup.ts`)
 - Update notice: the sidebar's Update available row with the command and What's new link, Later hiding it across a reload, Settings > About showing the version, the update and the last check, the check switch, and a source checkout showing no check (`update-notice.spec.ts`)
+- Settings tabs: the ones past the row's width under More, More naming the open one (`settings-tabs.spec.ts`)
 
 ## Still to cover
 

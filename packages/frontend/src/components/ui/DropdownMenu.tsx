@@ -27,6 +27,7 @@ export function DropdownMenu({
   variant = "secondary",
   footer,
   trigger,
+  below = false,
   onOpenChange,
 }: {
   label?: React.ReactNode;
@@ -45,6 +46,9 @@ export function DropdownMenu({
   /** A whole element as the trigger (a card): a click anywhere on it opens
    * the menu beside it, on its right (its left when there's no room). */
   trigger?: React.ReactNode;
+  /** With `trigger`: open under it, right-aligned, like the button menus
+   * (a tab's "More"), instead of beside it. */
+  below?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -56,7 +60,7 @@ export function DropdownMenu({
   // A card's menu: beside it, on the side with room.
   const [onLeft, setOnLeft] = useState(false);
   const toggle = () => {
-    if (trigger && !open && ref.current) {
+    if (trigger && !below && !open && ref.current) {
       setOnLeft(ref.current.getBoundingClientRect().right + 280 > window.innerWidth);
     }
     setOpen((v) => !v);
@@ -108,7 +112,10 @@ export function DropdownMenu({
               toggle();
             }
           }}
-          className="cursor-pointer rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+          className={cn(
+            "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-brand-400",
+            below ? "rounded-md" : "rounded-xl",
+          )}
         >
           {trigger}
         </div>
@@ -149,8 +156,8 @@ export function DropdownMenu({
           role="menu"
           className={cn(
             "absolute z-50 rounded-lg border border-line-strong bg-raised shadow-panel py-1",
-            trigger ? (onLeft ? "right-full top-2 mr-2" : "left-full top-2 ml-2") : "right-0 top-full mt-1",
-            footer || trigger || items.some((x) => x.group) ? "w-max min-w-[16rem] max-w-[min(24rem,calc(100vw-16px))]" : "min-w-[180px]",
+            trigger && !below ? (onLeft ? "right-full top-2 mr-2" : "left-full top-2 ml-2") : "right-0 top-full mt-1",
+            footer || (trigger && !below) || items.some((x) => x.group) ? "w-max min-w-[16rem] max-w-[min(24rem,calc(100vw-16px))]" : "min-w-[180px]",
           )}
         >
           {items.map((item, i) => (

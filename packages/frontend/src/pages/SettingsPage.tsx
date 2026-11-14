@@ -1,7 +1,7 @@
 import { useSearchParams } from "react-router-dom";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import { cn } from "@/lib/cn";
 import { SETTINGS_SECTIONS } from "@/features/settings/components/registry";
+import { SettingsTabs } from "@/features/settings/components/SettingsTabs";
 import { AiSettingsFormProvider } from "@/features/ai/hooks/useAiSettingsForm";
 import { PageHeader, PageBody } from "@/app/components/PageHeader";
 
@@ -28,31 +28,7 @@ export default function SettingsPage() {
     <>
       <PageHeader title="Settings" />
       <PageBody className="space-y-5">
-        <nav
-          className="flex gap-1 border-b border-line -mt-1 overflow-x-auto [scrollbar-width:none]"
-          aria-label="Settings sections"
-        >
-          {SETTINGS_SECTIONS.map((section) => {
-            const Icon = section.icon;
-            const on = section.id === active.id;
-            return (
-              <button
-                key={section.id}
-                onClick={() => selectSection(section.id)}
-                aria-current={on ? "page" : undefined}
-                className={cn(
-                  "relative md:-mb-px shrink-0 whitespace-nowrap inline-flex items-center gap-2 px-3 py-2.5 text-sm border-b-2 transition-colors",
-                  on
-                    ? "border-brand-400 text-neutral-50 font-medium"
-                    : "border-transparent text-muted hover:text-neutral-100",
-                )}
-              >
-                <Icon size={16} className="shrink-0" />
-                {section.label}
-              </button>
-            );
-          })}
-        </nav>
+        <SettingsTabs sections={SETTINGS_SECTIONS} active={active} onSelect={selectSection} />
         {active.description && (
           <p className="text-sm text-muted">{active.description}</p>
         )}
