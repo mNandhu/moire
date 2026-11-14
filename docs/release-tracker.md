@@ -16,11 +16,11 @@ What has to happen before Moiré is published (PyPI `moire-studio`, first `vX.Y.
 ## CI
 
 - [x] **R6** Proper CI on every push and PR: today `ci.yml` is only a Docker compose smoke test. Add jobs for `uv run pytest`, `ruff check` + `ruff format --check`, frontend `pnpm test`, `tsc -b`, `eslint`, and `pnpm version:check`; cache uv and pnpm. E2E (R3) as its own job. (1ada532, dfd154b; first green run 2026-10-28, run 40633622992)
-- [ ] **R7** Release workflow end to end: `release.yml` builds the wheel and a GitHub Release but stays off until `RELEASE_ENABLED` is `true`. Dry-run it on a test tag; check the wheel carries the built UI and installs with `uv tool install "moire-studio[cpu]"` on Linux, Windows and macOS.
+- [ ] **R7** Release workflow end to end: `release.yml` builds the wheel and a GitHub Release but stays off until `RELEASE_ENABLED` is `true`. Dry-run it on a test tag; check the wheel carries the built UI and installs with `uv tool install "moire-studio[cpu]"` on Linux, Windows and macOS. While installed, check the update notice's upgrade command on each (`services/update_check.py` `install_kind`): `uv tool` on Windows and macOS too (found by its `uv-receipt.toml`), pipx, plain pip, and Docker (`MOIRE_INSTALL=docker`). Only uv on Linux and a checkout are tested so far.
 
 ## Versioning and publishing
 
-- [ ] **R8** Versioning: semver from `0.1.0`, one version across `pyproject.toml`, `uv.lock` and both `package.json` (`pnpm version:set` / `version:check`, the `moire-release` skill). Decide what the first public version is and turn `[Unreleased]` in `CHANGELOG.md` into it.
+- [ ] **R8** Versioning: semver from `0.1.0`, one version across `pyproject.toml`, `uv.lock` and both `package.json` (`pnpm version:set` / `version:check`, the `moire-release` skill). Decide what the first public version is and turn `[Unreleased]` in `CHANGELOG.md` into it. The unreleased Tagify-era `0.1.0`/`0.1.1` entries are gone from the CHANGELOG, so `0.1.0` is free for the first release.
 - [ ] **R9** Publish to PyPI: reserve `moire-studio`, set up trusted publishing (OIDC) from `release.yml`, try TestPyPI first, then the real upload from a tag.
 
 ## Docs
