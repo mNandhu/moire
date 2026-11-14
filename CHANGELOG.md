@@ -10,6 +10,7 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 
 - Single-port mode: `pnpm build` writes the UI into the backend, which then serves it, so Moiré runs as one process on one port (http://localhost:8000).
 - `moire` command: install with `uv tool install "moire-studio[cpu]"` (or `[gpu]`), then `moire run` starts Moiré and `moire paths` shows where its data lives. An installed copy keeps its data in the OS app-data folder; set `MOIRE_HOME` to move it. A source checkout still uses `<repo>/data`.
+- Update notice: once a day Moiré asks PyPI whether a newer version is out, and shows "Update available" in the sidebar (with the upgrade command and a link to what's new) and in the terminal. Settings has a new About tab with the version and a switch to turn the check off; `UPDATE_CHECK=false` turns it off for good. A source checkout never checks.
 - Release tooling: one version across `pyproject.toml`, `uv.lock` and both `package.json` files (`pnpm version:set`, `pnpm version:check`), and a release workflow that builds the app wheel for a `vX.Y.Z` tag. The workflow stays off until the `RELEASE_ENABLED` repository variable is `true`.
 
 ### Changed

@@ -162,6 +162,8 @@ uv tool upgrade moire-studio
 
 The database updates itself on the next start, so there is no migration to run. With Docker, run `git pull` and `docker compose up --build`, and the data volume carries over.
 
+Moiré tells you when a new version is out: an "Update available" line in the sidebar and in the terminal. To know, it asks PyPI once a day for the list of `moire-studio` releases; nothing about your computer or your images is sent. Turn it off under Settings > About, or for good with `UPDATE_CHECK=false` in your `.env`. A source checkout never checks.
+
 ## Custom workflows and the Rules page
 
 Moiré parses standard ComfyUI graphs by itself, but a workflow with unusual nodes can come through with the prompt or model empty. On the Rules page, pick that workflow, point each field at the node it comes from, check the preview and save. Moiré then re-reads every image from that workflow in every library.
