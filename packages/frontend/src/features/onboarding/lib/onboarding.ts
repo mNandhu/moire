@@ -9,7 +9,6 @@ export type OnboardingStatus = "pending" | "done" | "skipped";
 
 export type OnboardingInfo = {
   status: OnboardingStatus;
-  version: string;
   /** Where Moiré keeps its database and thumbnails. */
   data_dir: string;
   /** The machine the server runs on: folder paths are read there. */

@@ -20,7 +20,7 @@ function stubFetch(onboarding: unknown, ok = true) {
   );
 }
 
-const info = (status: string) => ({ status, version: "1.0.0", data_dir: "/data", host: "pc", checkout: false });
+const info = (status: string) => ({ status, data_dir: "/data", host: "pc", checkout: false });
 
 function Where() {
   return <div data-testid="where">{useLocation().pathname}</div>;

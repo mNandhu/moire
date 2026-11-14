@@ -32,8 +32,9 @@ beforeEach(() => {
       calls.push({ url, method, body });
       const json = (v: unknown) => new Response(JSON.stringify(v), { status: 200 });
       if (url.endsWith("/onboarding")) {
-        return json({ status: "pending", version: "1.2.3", data_dir: "/data", host: "pc", checkout: false });
+        return json({ status: "pending", data_dir: "/data", host: "pc", checkout: false });
       }
+      if (url.endsWith("/version")) return json({ current: "1.2.3", update_available: false });
       if (url.endsWith("/libraries/discover")) {
         const p = (body as { paths: string[] }).paths[0];
         return json({ sources: [source(p, !p.includes("missing"))] });

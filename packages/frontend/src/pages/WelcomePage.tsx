@@ -29,6 +29,7 @@ import {
 } from "@/features/onboarding/lib/onboarding";
 import { LIBRARIES_KEY, SCAN_POLL_MS, useLibraries, useLibraryWrites } from "@/features/library/lib/libraries";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useVersionStatus } from "@/features/update/lib/version";
 
 const STEPS = [
   { id: "folders", title: "Image folders", optional: false },
@@ -92,6 +93,7 @@ function Landing({
   onStart: () => void;
   onSkip: () => void;
 }) {
+  const { data: version } = useVersionStatus();
   return (
     <section className="absolute inset-0 grid place-items-center p-6 text-center" aria-labelledby="h-land">
       <div className="grid animate-fade-in justify-items-center">
@@ -112,7 +114,7 @@ function Landing({
         </div>
       </div>
       <div className="absolute inset-x-0 bottom-5 px-6 text-xs text-faint [&_code]:text-[11.5px] [&_code]:text-muted">
-        {info && <>Version {info.version} · </>}
+        {version && <>Version {version.current} · </>}
         <DataNote info={info} />
       </div>
     </section>

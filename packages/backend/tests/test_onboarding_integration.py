@@ -14,7 +14,6 @@ async def test_fresh_database_is_pending(client):
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "pending"
-    assert body["version"]
     assert body["data_dir"]
 
 
