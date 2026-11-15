@@ -112,7 +112,7 @@ def test_read_thumb_reads_binary_mode(temp_db, monkeypatch):
 @pytest.mark.asyncio
 async def test_purged_row_with_no_stored_key_loses_its_file(client, temp_db, seed):
     from moire.database.db import sync_tx
-    from moire.services import image_delete
+    from moire.services.images import delete as image_delete
 
     storage_fs.put_thumb("L1", "L1:a.png", _webp())
     seed("L1:a.png")  # thumb_key NULL, as after a failed rethumb
@@ -126,7 +126,7 @@ async def test_purged_row_with_no_stored_key_loses_its_file(client, temp_db, see
 async def test_failed_rethumb_removes_the_old_picture(
     client, temp_db, tmp_path, monkeypatch
 ):
-    from moire.services import scanner, thumbnailer
+    from moire.services.library import scanner, thumbnailer
 
     src = tmp_path / "a.png"
     src.write_bytes(b"not an image")
