@@ -8,7 +8,7 @@ was OOM-killed (2026-10-19)**: the script paths below are a record of what was m
 Status: `open` (found, not verified) · `verified` (re-checked by parent) · `chosen` · `done` · `dropped`
 Effort: S (hours) · M (a day or so) · L (more)
 
-> **Nov 2026:** a full re-benchmark (API/DB, frontend, scan, AI, combined writers) is in `docs/perf-benchmark-2026-11.md`, findings N1-N34.
+> **Nov 2026:** a full re-benchmark (API/DB, frontend, scan, AI, combined writers) is in `docs/perf-benchmark-2026-11.md`, findings N1-N34, with the work tracker at its end.
 
 ## Summary
 

@@ -210,14 +210,59 @@ Code read, matching what the agents described:
 - **Auto-tag on ingest:** 3.4-4.6 s, mostly the fixed 3 s debounce and the watcher's quiet window.
 - **RSS:** 1.2-1.35 GB with the model loaded. VRAM 0.6-1.1 GB, 63 MiB after idle unload.
 
-## Suggested order
+## Tracker
 
-1. **Quick, independent wins:**
-   - N1, N10 (frontend CSS and fade)
-   - N4, N6, N7 (reprojection memory, invalidation, WAL limit)
-   - N8, N9, N14, N21 (single queries)
-   - N18 (face-detector threads)
-2. **The tag-view cost** (N2, then N3 and N11): this cuts the cost of most of the 30k pain at once.
-3. **Reprojection out of the API process** (N5), plus N15, N16 and N31.
-4. **Watcher batching** (N13), grouped view (N12), AI write-behind (N17).
-5. The frontend medium items (N20, N25) and the rest as convenient.
+The work list for these findings, in the suggested order. Tick an item when it lands, with its commit, and set its row's Status in the tables above to `done` (or `dropped`, with the reason). Measure before and after with the matching `bench/` suite (`bench/README.md`).
+
+### 1. Quick, independent wins
+- [ ] N1: Tailwind `space-y`/`divide` sibling selectors (gallery fast scroll)
+- [ ] N10: 500 ms thumbnail fade (LCP)
+- [ ] N4: reprojection reads raws in pages, not one `fetchall`
+- [ ] N6: reprojection soft-invalidates per batch, hard once at the end
+- [ ] N7: `journal_size_limit` plus `wal_checkpoint(TRUNCATE)` after big writes
+- [ ] N8: sensitivity filter tests the visible-image set once, not per tag row
+- [ ] N9: cache tag detail and compute its image ids once
+- [ ] N14: `_RARE` scales with library size; `/images/ids` takes the id path
+- [ ] N18: face detector at 4 threads, no spin-wait
+- [ ] N21: merge suggestions use a `prompt:` range on the covering index
+
+### 2. Tag-view cost
+- [ ] N2: one-pass tags browse (prototype `bench/api/onepass_browse.py`, output identical); later, stored per-tag stats
+- [ ] N3: keep serving the stale view while rebuilding after a hard invalidation
+- [ ] N11: scale the soft-rebuild window with build cost during AI jobs
+
+### 3. Reprojection
+- [ ] N5: run it outside the API process, or page and yield
+- [ ] N15: skip unchanged rows before decoding their raw
+- [ ] N16: post-scan reprojection only for the ids the scan wrote
+- [ ] N31: shorter reprojection write transactions (derive outside, ~50 rows a commit)
+
+### 4. Writers
+- [ ] N13: watcher ingests in batches
+- [ ] N12: grouped view walks the recency index with a cursor
+- [ ] N17: AI job writes behind the next inference
+- [ ] N33: face writes batched or routed through the AI write-behind
+- [ ] N32: cap scan and face-detector threads while another heavy writer runs
+- [ ] N34: give memory back after jobs and scans (ORT arena on unload, `malloc_trim`)
+
+### 5. Smaller backend items
+- [ ] N19: no event-loop freeze on model load (GPU: load at start, skip idle unload)
+- [ ] N22: tag samples start from the tag's own rows
+- [ ] N23: deep `sort=top` pages split on the score tie
+- [ ] N24: typing hotspots (palette number formatting, fuzzy normalization, Tags filter)
+- [ ] N26: one scan at a time, or one shared pool
+- [ ] N27: cache the linear endpoints (`/ai/coverage`, loras, embeddings, sizes, rules signatures)
+
+### 6. Frontend medium items
+- [ ] N20: boot not serialized behind onboarding; defer non-critical queries
+- [ ] N25: image view step without re-rendering the gallery underneath
+- [ ] N28: main bundle (Settings sections out of `SearchPalette`)
+- [ ] N29: fewer render hops per tile; no `alt` boxes for unloaded tiles
+- [ ] N30: `srcset` for the small thumbnail tier on DPR-1 desktops
+
+### Follow-ups
+- [ ] T5: cheaper tile mount and earlier first fetch (`docs/perf-findings.md`, T5 section). Re-measure on a quiet box with `bench/web`, then decide.
+- [ ] Find why reprojection got slower since Oct (real DB, no change: 5.1 -> 7.9 s).
+- [ ] Find the possible D5 regressions: feed `limit=1000` 18 -> 45.6 ms, warm browse 24 -> 64 ms (suspect: the per-row thumbnail stat behind versioned URLs).
+- [ ] Measure a 30k-raw forced reprojection overlapping an AI job (only 5.2k raws were measured).
+- [x] T1-T3 thumbnail work: merged to main 2026-11-15 (`09af796..a5773a1`). Thumbnails 470 -> 2,050 req/s; blank tiles at 15k px/s: going down 94% -> 21-37%, coming back up 29% -> 0%.
