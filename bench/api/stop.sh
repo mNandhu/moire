@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# usage: stop.sh <pid>...
+for p in "$@"; do kill "$p" 2>/dev/null; done
