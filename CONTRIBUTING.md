@@ -50,10 +50,11 @@ pnpm -C packages/frontend test                                 # vitest
 pnpm -C packages/frontend build                                # tsc -b + vite build
 pnpm e2e                                                       # build the UI, then the Playwright e2e suite
 pnpm -C packages/e2e test tests/gallery.spec.ts               # one e2e spec (needs a built UI)
-pnpm perf                                                      # backend perf benchmark
 pnpm version:check                                             # one version across all manifests
 ./scripts/test-docker.sh                                       # Docker smoke test over ./test_images
 ```
+
+Performance benchmarks (API/DB, browser, scan, AI tagging, combined load) live in `bench/`; see `bench/README.md`.
 
 A husky pre-commit hook runs ruff and eslint on staged files. Generate-related tests use a fake ComfyUI (`packages/backend/tests/fake_comfy.py`); never point tests at a real server.
 

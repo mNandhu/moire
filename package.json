@@ -18,7 +18,6 @@
         "dev:backend": "node scripts/uv-backend.mjs run uvicorn moire.main:app --reload --port 8000",
         "dev:frontend": "pnpm -C packages/frontend dev",
         "dev": "concurrently -c auto -n backend,frontend \"pnpm dev:backend\" \"pnpm dev:frontend\"",
-        "perf": "node scripts/uv-backend.mjs run python tests/perf_benchmark.py",
         "e2e": "pnpm build && pnpm -C packages/e2e test",
         "prepare": "husky || true"
     },
