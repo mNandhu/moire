@@ -455,15 +455,18 @@ async def test_route_decorates_samples_with_the_thumb_url(client, seed):
 @pytest.mark.asyncio
 async def test_reprojection_batch_dirties_the_index(temp_db, seed):
     """Reprojection owns its own sync transaction and runs on scanner threads, so
-    it invalidates per committed batch rather than per image."""
+    it dirties the index per committed batch rather than per image: softly,
+    its run invalidating once at the end (tests/test_reproject_bulk.py)."""
     from moire.services.metadata import reproject
 
     seed("L1:a.jpg", tags=("cat",))
     before = tag_index.current_generation()
+    tag_index._last_soft_write = 0.0
 
-    reproject._flush_batch([("L1:a.jpg", {"prompt_terms": ["masterpiece"]})])
+    assert reproject._flush_batch([("L1:a.jpg", {"prompt_terms": ["masterpiece"]})])
 
-    assert tag_index.current_generation() > before
+    assert tag_index.current_generation() == before
+    assert tag_index._last_soft_write > 0
 
 
 # --- Deletions cascade away join rows, so they move the counts too -------------

@@ -163,6 +163,20 @@ _session_lock = threading.Lock()
 _session: tuple[str, Any, float] | None = None
 
 
+# A few intra-op threads run this small model as fast as all of them, and
+# ORT's workers spin-wait between ops by default: with every core spinning it
+# took ~12 cores for the same 41 ms per image and starved the scan and tagger.
+_THREADS = 4
+
+
+def _session_options(ort):
+    opts = ort.SessionOptions()
+    opts.intra_op_num_threads = min(_THREADS, os.cpu_count() or 1)
+    opts.add_session_config_entry("session.intra_op.allow_spinning", "0")
+    opts.add_session_config_entry("session.inter_op.allow_spinning", "0")
+    return opts
+
+
 def _load(cache_dir: str):
     global _session
     model, threshold = files(cache_dir)
@@ -171,7 +185,9 @@ def _load(cache_dir: str):
             import onnxruntime as ort
 
             sess = ort.InferenceSession(
-                model.dst_path, providers=["CPUExecutionProvider"]
+                model.dst_path,
+                sess_options=_session_options(ort),
+                providers=["CPUExecutionProvider"],
             )
             with open(threshold.dst_path, encoding="utf-8") as f:
                 thr = float(json.load(f)["threshold"])

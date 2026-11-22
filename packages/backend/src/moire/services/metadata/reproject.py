@@ -16,11 +16,12 @@ from __future__ import annotations
 import json
 import logging
 import threading
-from collections.abc import Callable, Iterable
+from contextlib import contextmanager
+from collections.abc import Callable, Iterable, Iterator
 
 import sqlalchemy as sa
 
-from ...database.db import sync_conn, sync_tx
+from ...database.db import checkpoint_wal, sync_conn, sync_tx
 from ...database import schema as t
 from .. import activity
 from . import extraction_settings, gen_metadata
@@ -31,6 +32,8 @@ from ..tags.kinds import to_prompt
 logger = logging.getLogger("moire.reproject")
 
 _BATCH = 200
+# Raw rows read per query (each page its own short read, see _raw_pages).
+_PAGE = 500
 
 
 def _load_rulesets() -> dict[str, dict]:
@@ -42,12 +45,13 @@ def _load_rulesets() -> dict[str, dict]:
     return {r.sig: (r.doc or {}) for r in rows}
 
 
-def _flush_batch(batch: list[tuple[str, dict]], *, force: bool = False) -> None:
+def _flush_batch(batch: list[tuple[str, dict]], *, force: bool = False) -> bool:
     """Persist one batch of ``(image_id, gen)`` results in a single small tx,
     one statement per table for the whole batch. Rows whose stored ``gen``
     and tags already match are not written (most of a full reprojection
     after a settings change), unless ``force``: a migration that added a
-    derived table needs every row rebuilt even when ``gen`` is unchanged."""
+    derived table needs every row rebuilt even when ``gen`` is unchanged.
+    Returns whether it wrote anything."""
     ids = [image_id for image_id, _ in batch]
     with sync_tx() as conn:
         current = {
@@ -74,10 +78,14 @@ def _flush_batch(batch: list[tuple[str, dict]], *, force: bool = False) -> None:
         if gens:
             _write_gens(conn, gens)
         tagged = image_tags.replace_prompt_many_sync(conn, tag_items, force=force)
-    # This batch owns its transaction, so it owns the post-commit invalidation of
-    # the derived tag aggregation, once per batch, not once per image.
-    if gens or tagged:
-        tag_index.invalidate()
+    # This batch owns its transaction, so it owns the post-commit dirtying of
+    # the derived tag aggregation. Soft, like the AI job's writes: a hard
+    # invalidate per batch would rebuild every view per batch. The run ends
+    # its writes with one hard invalidate (:func:`_run_writes`).
+    wrote = bool(gens or tagged)
+    if wrote:
+        tag_index.invalidate_soft()
+    return wrote
 
 
 def _write_gens(conn, gens: list[tuple[str, dict]]) -> None:
@@ -148,10 +156,60 @@ _run_lock = threading.Lock()
 _ID_CHUNK = 500
 
 
+class _Run:
+    """One run's tag writes: whether any batch wrote."""
+
+    wrote = False
+
+
+@contextmanager
+def _run_writes(*, checkpoint: bool = True) -> Iterator[_Run]:
+    """One run's batches dirty the tag views softly; the run ends them with
+    one hard invalidate, on error and cancel too, if any batch wrote, and
+    (``checkpoint``) truncates the WAL its writes grew."""
+    run = _Run()
+    try:
+        yield run
+    finally:
+        if run.wrote:
+            image_tags.end_bulk_writes()
+            if checkpoint:
+                checkpoint_wal()
+
+
 def busy() -> bool:
     """Whether a reprojection is running now. A hint only: callers that must
     not wait take the lock without blocking instead (the ``try_`` paths)."""
     return _run_lock.locked()
+
+
+def _raw_pages(where) -> Iterator[sa.Row]:
+    """Every raw row matching ``where``, read a page at a time: a full run
+    never holds them all (several GB at 30k images), and each page is its own
+    short read, so no read transaction spans the run and pins the WAL. Keyset
+    on ``rowid``: every raw index ends in it, so each page is an index range
+    with no sort (``_id`` order would sort the whole match per page), and the
+    scanner's upsert keeps a row's rowid."""
+    rowid = sa.literal_column("image_gen_raw.rowid")
+    last = 0
+    while True:
+        with sync_conn() as conn:
+            page = conn.execute(
+                sa.select(
+                    rowid.label("rid"),
+                    t.image_gen_raw.c._id,
+                    t.image_gen_raw.c.library_id,
+                    t.image_gen_raw.c.workflow_sig,
+                    t.image_gen_raw.c.raw,
+                )
+                .where(where, rowid > last)
+                .order_by(rowid)
+                .limit(_PAGE)
+            ).fetchall()
+        yield from page
+        if len(page) < _PAGE:
+            return
+        last = page[-1].rid
 
 
 def _reproject_where(
@@ -164,34 +222,34 @@ def _reproject_where(
     """Recompute ``gen.*`` for every raw row matching ``where``. Returns how
     many were derived (written or already up to date). ``task`` shows the
     progress. Waits for any other run to finish first."""
-    with _run_lock:
-        return _derive_where(where, force=force, task=task, count_total=count_total)
+    with _run_lock, _run_writes() as run:
+        return _derive_where(
+            where, force=force, task=task, count_total=count_total, run=run
+        )
 
 
 def _derive_where(
-    where, *, force: bool, task: activity.Task | None, count_total: bool
+    where, *, force: bool, task: activity.Task | None, count_total: bool, run: _Run
 ) -> int:
     rulesets = _load_rulesets()
     config = extraction_settings.load_sync()
 
-    with sync_conn() as conn:
-        raws = (
-            conn.execute(
-                sa.select(
-                    t.image_gen_raw.c._id,
-                    t.image_gen_raw.c.library_id,
-                    t.image_gen_raw.c.workflow_sig,
-                    t.image_gen_raw.c.raw,
-                ).where(where)
-            )
-        ).fetchall()
     if task is not None and count_total:
-        task.add_total(len(raws))
+        with sync_conn() as conn:
+            task.add_total(
+                conn.execute(
+                    sa.select(sa.func.count()).select_from(t.image_gen_raw).where(where)
+                ).scalar_one()
+            )
 
     updated = 0
     batch: list[tuple[str, dict]] = []
-    for row in raws:
+    for row in _raw_pages(where):
         if task is not None:
+            if count_total and task.total is not None and task.done >= task.total:
+                # A row written after the count (the pages read past it):
+                # grow the total so the bar never passes 100%.
+                task.add_total(1)
             task.advance()
         raw_doc = {
             "_id": row._id,
@@ -210,11 +268,11 @@ def _derive_where(
             continue
         batch.append((row._id, g))
         if len(batch) >= _BATCH:
-            _flush_batch(batch, force=force)
+            run.wrote |= _flush_batch(batch, force=force)
             updated += len(batch)
             batch = []
     if batch:
-        _flush_batch(batch, force=force)
+        run.wrote |= _flush_batch(batch, force=force)
         updated += len(batch)
     return updated
 
@@ -242,12 +300,15 @@ def reproject_image(image_id: str) -> int:
         _defer([image_id])
         return 0
     try:
-        return _derive_where(
-            t.image_gen_raw.c._id == image_id,
-            force=False,
-            task=None,
-            count_total=True,
-        )
+        # One image's write: no checkpoint per watcher event.
+        with _run_writes(checkpoint=False) as run:
+            return _derive_where(
+                t.image_gen_raw.c._id == image_id,
+                force=False,
+                task=None,
+                count_total=True,
+                run=run,
+            )
     finally:
         _run_lock.release()
 
@@ -261,8 +322,8 @@ def reproject_ids(
     """Recompute ``gen.*`` for specific images (after a merge-rule change),
     holding the run lock for the whole list. ``recheck``: see
     :func:`_with_recheck`."""
-    with _run_lock:
-        return _derive_ids(_with_recheck(image_ids, recheck), task)
+    with _run_lock, _run_writes() as run:
+        return _derive_ids(_with_recheck(image_ids, recheck), task, run)
 
 
 def _with_recheck(
@@ -278,7 +339,7 @@ def _with_recheck(
     return sorted(set(image_ids).union(recheck()))
 
 
-def _derive_ids(image_ids: list[str], task: activity.Task | None) -> int:
+def _derive_ids(image_ids: list[str], task: activity.Task | None, run: _Run) -> int:
     """:func:`reproject_ids`' work; the caller holds :data:`_run_lock`.
     Settings are re-read per chunk (:func:`_derive_where`), inside the lock."""
     # The whole run's size up front, so the bar never jumps back a chunk at
@@ -294,6 +355,7 @@ def _derive_ids(image_ids: list[str], task: activity.Task | None) -> int:
             force=False,
             task=task,
             count_total=False,
+            run=run,
         )
         if task is not None:
             task.advance(len(chunk) - (task.done - before))
@@ -334,8 +396,10 @@ def try_reproject_ids_tracked(
         image_ids = _with_recheck(image_ids, recheck)
         if not image_ids:
             return 0
-        with activity.track("reproject") as task:
-            return _derive_ids(image_ids, task)
+        # Inline in a request (a rename): never a WAL checkpoint here, which
+        # could copy other writers' frames while the user waits.
+        with _run_writes(checkpoint=False) as run, activity.track("reproject") as task:
+            return _derive_ids(image_ids, task, run)
     finally:
         _run_lock.release()
 

@@ -295,3 +295,17 @@ async def test_a_batch_cover_skips_hidden_outputs(client, seed):
     batches = (await client.get("/generate/batches")).json()
     assert len(batches) == 1 and len(batches[0]["thumbs"]) == 1
     assert None not in batches[0]["thumbs"]
+
+
+async def test_tag_detail_is_cached_per_filter_state(client, seed):
+    _library(seed)
+    params = {"tag": "1girl"}
+    everything = (await client.get("/tags/detail", params=params)).json()
+    assert (await client.get("/tags/detail", params=params)).json() == everything
+
+    await _set(client, "sensitive")
+    filtered = (await client.get("/tags/detail", params=params)).json()
+    assert filtered["count"] == everything["count"] - 1  # not the cached count
+
+    await _set(client, None)
+    assert (await client.get("/tags/detail", params=params)).json() == everything

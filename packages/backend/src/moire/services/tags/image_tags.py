@@ -769,7 +769,8 @@ def replace_prompt_many_sync(
     statement instead of three per image.
     Deliberately does *not* invalidate the tag index: the caller owns the
     transaction, so only the caller knows when the write became visible
-    (:func:`services.metadata.reproject._flush_batch` does, once per batch).
+    (:func:`services.metadata.reproject._flush_batch` does, softly per batch,
+    and its run hard once at the end).
     """
     changed: list[tuple[str, list[str]]] = []
     for image_id, current, prompt_tags in items:

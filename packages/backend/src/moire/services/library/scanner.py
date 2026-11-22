@@ -4,7 +4,7 @@ from pathlib import Path
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from ...database.db import sync_conn, sync_tx
+from ...database.db import checkpoint_wal, sync_conn, sync_tx
 from ...database import schema as t
 from .. import activity
 from ..tags import image_tags
@@ -565,6 +565,9 @@ def scan_library_async(library_id: str, root: str) -> dict:
                 _scan_threads.pop(library_id, None)
                 again = library_id in _rescan_after
                 _rescan_after.discard(library_id)
+            # Truncate the WAL the scan grew (busy if a reprojection it
+            # started is writing: that run checkpoints when it ends).
+            checkpoint_wal()
             nudge_auto_tag()
             if again:
                 # The scan ended (cancelled) because the library moved; it

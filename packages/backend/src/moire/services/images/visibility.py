@@ -78,10 +78,12 @@ def visible():
 
 
 def visible_tag_rows(it=None):
-    """``EXISTS`` for an ``image_tags`` row (``it``, the table or an alias of
-    it) whose image is visible: what the Tags page counts."""
+    """Restrict an ``image_tags`` row (``it``, the table or an alias of it) to
+    a visible image: what the Tags page counts. An uncorrelated ``IN``, so
+    SQLite works the visible ids out once into an ephemeral index instead of
+    looking the image up (and evaluating the level CASE) for every tag row."""
     it = t.image_tags if it is None else it
-    return sa.exists(sa.select(1).where(t.images.c._id == it.c.image_id, visible()))
+    return it.c.image_id.in_(sa.select(t.images.c._id).where(visible()))
 
 
 def in_view(quarantined: int | None):

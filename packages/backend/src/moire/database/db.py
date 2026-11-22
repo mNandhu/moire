@@ -14,7 +14,9 @@ transaction holds the file lock long enough to exhaust ``busy_timeout`` and surf
 from __future__ import annotations
 
 import asyncio
+import logging
 import threading
+from pathlib import Path
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 
@@ -30,6 +32,16 @@ from sqlalchemy.ext.asyncio import (
 
 from ..core.config import settings
 from .schema import RETIRED_INDEXES, metadata
+
+logger = logging.getLogger("moire.db")
+
+# Where the WAL settles once a checkpoint resets it. Without a limit SQLite
+# reuses the file at its peak size (GBs after a reprojection with readers).
+_WAL_SIZE_LIMIT = 64 * 1024 * 1024
+# How long a TRUNCATE checkpoint waits for readers and writers. It holds the
+# write lock while it waits, so the app's writes would wait as long: short,
+# and a busy result is fine (journal_size_limit still bounds the file).
+_CHECKPOINT_BUSY_MS = 100
 
 _async_engine: AsyncEngine | None = None
 _sync_engine: Engine | None = None
@@ -47,6 +59,7 @@ def _apply_pragmas(dbapi_conn, _record) -> None:
     cur.execute(f"PRAGMA busy_timeout={int(settings.sqlite_busy_timeout_ms)}")
     cur.execute("PRAGMA foreign_keys=ON")
     cur.execute("PRAGMA synchronous=NORMAL")
+    cur.execute(f"PRAGMA journal_size_limit={_WAL_SIZE_LIMIT}")
     cur.close()
 
 
@@ -99,6 +112,40 @@ def sync_tx() -> Iterator[Connection]:
     with _sync_write_lock:
         with get_sync_engine().begin() as conn:
             yield conn
+
+
+def checkpoint_wal(*, min_bytes: int = _WAL_SIZE_LIMIT) -> None:
+    """Fold the WAL into the database and truncate it to zero bytes, after a
+    big write (a scan, an AI job, a reprojection run). Blocking: call it from
+    a sync thread, never on the event loop (``asyncio.to_thread``), and never
+    inside :func:`sync_tx`. Gives up after a short wait when a reader or
+    writer is busy, without retrying; never raises.
+
+    A WAL under ``min_bytes`` is left alone (one ``stat``): small runs and
+    no-change rescans don't take the write lock for nothing, and SQLite
+    reuses a small WAL from its start anyway."""
+    try:
+        wal = Path(f"{settings.sqlite_file}-wal")
+        if min_bytes > 0 and (not wal.exists() or wal.stat().st_size < min_bytes):
+            return
+        with _sync_write_lock, get_sync_engine().connect() as conn:
+            cur = conn.connection.dbapi_connection.cursor()
+            try:
+                cur.execute(f"PRAGMA busy_timeout={_CHECKPOINT_BUSY_MS}")
+                busy, log, done = cur.execute(
+                    "PRAGMA wal_checkpoint(TRUNCATE)"
+                ).fetchone()
+            finally:
+                # Back to the configured wait before the pool hands it out.
+                cur.execute(
+                    f"PRAGMA busy_timeout={int(settings.sqlite_busy_timeout_ms)}"
+                )
+                cur.close()
+        logger.debug(
+            "WAL checkpoint: busy=%s, %s frames, %s checkpointed", busy, log, done
+        )
+    except Exception:
+        logger.debug("WAL checkpoint failed", exc_info=True)
 
 
 def _add_missing_columns(conn) -> None:
@@ -163,6 +210,7 @@ __all__ = [
     "async_tx",
     "sync_conn",
     "sync_tx",
+    "checkpoint_wal",
     "ensure_schema",
     "ensure_schema_sync",
     "reset_engines",

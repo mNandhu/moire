@@ -54,27 +54,27 @@ Scanning (68-92 img/s, CPU-bound, scales to all cores), AI tagging (7-7.75 img/s
 
 | ID | Area | Finding | Gain | Effort | Status |
 |----|------|---------|------|--------|--------|
-| N1 | Frontend | Tailwind v3 `space-y`/`divide` sibling selectors restyle the whole grid on every tile mount | Fast scroll at 15k px/s: blank tiles 95% -> 1%; 10k px/s 49 -> 58 fps; 4x-throttled phone 23 -> 38 fps | S-M | open |
+| N1 | Frontend | Tailwind v3 `space-y`/`divide` sibling selectors restyle the whole grid on every tile mount | Fast scroll at 15k px/s: blank tiles 95% -> 1%; 10k px/s 49 -> 58 fps; 4x-throttled phone 23 -> 38 fps | S-M | done |
 | N2 | Tags | Tags browse cold is one 4.4 s statement at 30k (D4 still open); character page, recipes and outfit routes run it first | One-pass rewrite prototyped: 4.3 -> 2.5 s, output identical. Stored per-tag stats would go further (L) | S-M | open |
 | N3 | Tags | Hard invalidations land on the next viewer: AI job end, each single re-tag (twice), each reprojection batch | Next browse 4.5-4.8 s, characters 1.2-3 s at 30k -> served stale while rebuilding | M | open |
-| N4 | Reproject | `_derive_where` `fetchall()`s every gen-raw row | Peak RSS 3.8 GB -> paged; memory is never returned today | S | open |
+| N4 | Reproject | `_derive_where` `fetchall()`s every gen-raw row | Peak RSS 3.8 GB -> paged; memory is never returned today | S | done |
 | N5 | Reproject | Runs as a thread in the API process: GIL convoy | Reads at 10 req/s: p50 17 ms -> 4 s, /health stalls up to 7 s, even with nothing written | M | open |
-| N6 | Reproject | Hard `tag_index.invalidate()` per 200-row batch | 151 invalidations -> 237 rebuilds (824 s of build time); run 178 s vs 77 s alone | S | open |
-| N7 | DB | WAL has no size limit and is never truncated | 2.7 GB during reprojection with readers; 63-113 MB after jobs and scans | S | open |
-| N8 | Sensitivity | With the filter on, tag counts run a correlated EXISTS per `image_tags` row | Cold `/tags` 5.8 s -> ~0.3-1.4 s at 30k (34x slower than filter off today) | S | open |
-| N9 | Tags | Tag detail is never cached and recomputes its image-id subquery ~10 times | Dense tag 2.9 s every call -> ~2 s cold, ~0 warm | S | open |
-| N10 | Frontend | 500 ms thumbnail fade (`ImageThumbnail.tsx:42`, `:147`) | LCP 888 -> 396 ms | S | open |
+| N6 | Reproject | Hard `tag_index.invalidate()` per 200-row batch | 151 invalidations -> 237 rebuilds (824 s of build time); run 178 s vs 77 s alone | S | done |
+| N7 | DB | WAL has no size limit and is never truncated | 2.7 GB during reprojection with readers; 63-113 MB after jobs and scans | S | done |
+| N8 | Sensitivity | With the filter on, tag counts run a correlated EXISTS per `image_tags` row | Cold `/tags` 5.8 s -> ~0.3-1.4 s at 30k (34x slower than filter off today) | S | done |
+| N9 | Tags | Tag detail is never cached and recomputes its image-id subquery ~10 times | Dense tag 2.9 s every call -> ~2 s cold, ~0 warm | S | done |
+| N10 | Frontend | 500 ms thumbnail fade (`ImageThumbnail.tsx:42`, `:147`) | LCP 888 -> 396 ms | S | done |
 | N11 | AI | Soft-rebuild window fixed at 15 s during jobs | ~100 s of view-build CPU per 1,000 images at 30k; scale the window with build cost | S-M | open |
 | N12 | Feed | Grouped (batch) view re-aggregates everything on every page, offset paged | 326 ms per page at 30k -> ~12 ms (rewrite tested unfiltered) | M | open |
 | N13 | Library | Watcher ingests strictly one file at a time (0.5 s stability wait each, invalidation each) | 100 dropped files: 60 s -> ~1-2 s | M | open |
-| N14 | Feed | `_RARE`=300 is too low at 30k; `/images/ids` never uses the id path | 301 matches 82 -> ~5 ms; ids 100 -> 2-5 ms | S | open |
+| N14 | Feed | `_RARE`=300 is too low at 30k; `/images/ids` never uses the id path | 301 matches 82 -> ~5 ms; ids 100 -> 2-5 ms | S | done |
 | N15 | Reproject | No-change run still decodes all raws (`workflow` is 68% of bytes) | 30 s -> a few s at 30k | M | open |
 | N16 | Scan | Post-scan reprojection covers the whole library, not the written ids | 10%-touched rescan 2.7 -> 0.9 s | S | open |
 | N17 | AI | DB write runs serially after each inference | 7 -> 8.5-9 img/s | S-M | open |
-| N18 | AI | Face detector session spins all 12 threads | Same 41 ms/img on 3 cores instead of 12 | S | open |
+| N18 | AI | Face detector session spins all 12 threads | Same 41 ms/img on 3 cores instead of 12 | S | done |
 | N19 | AI | Model load freezes the event loop 0.4-0.9 s (job start, after idle unload, first re-tag) | Load at startup on GPU, skip idle unload there | S | open |
 | N20 | Frontend | Boot is serialized behind onboarding; the feed competes with 14 eager queries | First tile 319 -> ~200 ms (est.) | M | open |
-| N21 | Tags | Merge suggestions `LIKE 'prompt:%'` reads every row | 1.2-1.6 s -> ~0.1 s cold | S | open |
+| N21 | Tags | Merge suggestions `LIKE 'prompt:%'` reads every row | 1.2-1.6 s -> ~0.1 s cold | S | done |
 | N22 | Tags | Tag samples scan all images once per tag | 60 tags 1.16 s -> ~0.3 s cold | S | open |
 | N23 | Feed | Deep `sort=top` pages still grow with depth when scores tie (D2 gap) | Page 140: 54 -> ~5 ms | S | open |
 | N24 | Frontend | Typing hotspots: palette `toLocaleString` per item, fuzzy re-normalizes, Tags filter sync | Worst key ~95 -> ~30 ms | S | open |
@@ -215,16 +215,42 @@ Code read, matching what the agents described:
 The work list for these findings, in the suggested order. Tick an item when it lands, with its commit, and set its row's Status in the tables above to `done` (or `dropped`, with the reason). Measure before and after with the matching `bench/` suite (`bench/README.md`).
 
 ### 1. Quick, independent wins
-- [ ] N1: Tailwind `space-y`/`divide` sibling selectors (gallery fast scroll)
-- [ ] N10: 500 ms thumbnail fade (LCP)
-- [ ] N4: reprojection reads raws in pages, not one `fetchall`
-- [ ] N6: reprojection soft-invalidates per batch, hard once at the end
-- [ ] N7: `journal_size_limit` plus `wal_checkpoint(TRUNCATE)` after big writes
-- [ ] N8: sensitivity filter tests the visible-image set once, not per tag row
-- [ ] N9: cache tag detail and compute its image ids once
-- [ ] N14: `_RARE` scales with library size; `/images/ids` takes the id path
-- [ ] N18: face detector at 4 threads, no spin-wait
-- [ ] N21: merge suggestions use a `prompt:` range on the covering index
+- [x] N1: Tailwind `space-y`/`divide` sibling selectors (gallery fast scroll) (`bdc97cc`)
+- [x] N10: 500 ms thumbnail fade (LCP) (`84b173d`)
+- [x] N4: reprojection reads raws in pages, not one `fetchall` (`761574e`)
+- [x] N6: reprojection soft-invalidates per batch, hard once at the end (`7b8daf3`)
+- [x] N7: `journal_size_limit` plus `wal_checkpoint(TRUNCATE)` after big writes (`3de898e`)
+- [x] N8: sensitivity filter tests the visible-image set once, not per tag row (`9848fb6`)
+- [x] N9: cache tag detail and compute its image ids once (`8cdd6a8, 79efc5c`)
+- [x] N14: `_RARE` scales with library size; `/images/ids` takes the id path (`b9137d1`)
+- [x] N18: face detector at 4 threads, no spin-wait (`ff183ff`)
+- [x] N21: merge suggestions use a `prompt:` range on the covering index (`293622f`)
+
+#### Section 1 results (2026-11-22)
+
+Before (`0bb93d9`) and after (`c9fe948`), same session, one suite at a time, nothing else running (load 1.3-3.8). 30k is the `syn` dataset.
+
+| finding | measure | before | after |
+|---|---|---|---|
+| N1, N10 | boot LCP, desktop (median of 7) | 900 ms | 556 ms (150 ms fade; no fade measured 396) |
+| N1 | fast scroll 15k px/s: fps / blank tiles / blank frames | 41 / 6% / 17% | 58 / 0% / 0.2% |
+| N1 | scroll 10k px/s: fps / p95 frame | 50 / 26 ms | 60 / 18 ms |
+| N1 | phone, 4x CPU, 10k px/s: fps / blank tiles | 15 / 40% | 20 / 10% |
+| N8 | `/tags` merged, filter on, cold (30k) | 5,578 ms | 401 ms |
+| N9 | tag detail, dense tag: cold / repeat (30k) | 2,794 / 2,798 ms | 2,475 / 0 ms |
+| N21 | merge suggestions, cold (30k) | 1,194 ms | 499 ms (the grouping SQL is 0.09 s; the rest is other statements) |
+| N14 | feed, 301-match tag / `/images/ids` same tag (30k) | 71 / 102 ms | 10 / 7 ms |
+| N4 | forced reprojection, 30k, alone: peak RSS / RSS after | 3,810 / 1,710 MB | 352 / 334 MB |
+| N6 | same run: hard invalidations | 145 | 1 |
+| N4-N7 | forced 30k reprojection with reads at 10 req/s: reads p95 / browse p50 | 8.3 s / 5.9 s | 0.43 s / 0.11 s |
+| N6 | same: view rebuilds (build CPU) | 236 (815 s) | 18 (48 s) |
+| N7 | same: WAL peak / at the end | 2,487 / 2,487 MB | 182 / 0 MB |
+| N4-N7 | same: run time / server RSS peak / `/health` max | 165 s / 4.1 GB / 3.7 s | 106 s / 0.46 GB / 0.66 s |
+
+- N18 was not re-measured: it applies the setting `bench/ai/face_spin.py` measured (same speed on 3 cores instead of 12).
+- N9: a dense tag is still ~2.5 s cold; most of it is the related-tags count. Repeat views are cached.
+- N21: the 1.2 s -> 0.1 s estimate covered the grouping statement only; the remaining ~0.4 s is in the other statements of `shown_merge_suggestions`.
+- No regressions seen: `/tags` filter off 553 -> 555 ms, browse 4.3 -> 4.6 s (within this run's load drift), dense-tag feed 4 -> 5 ms (one extra `max(rowid)` read).
 
 ### 2. Tag-view cost
 - [ ] N2: one-pass tags browse (prototype `bench/api/onepass_browse.py`, output identical); later, stored per-tag stats

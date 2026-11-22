@@ -414,11 +414,33 @@ async def test_rare_filter_by_ids_matches_the_full_walk(client, seed, monkeypatc
         {"tags": ["rare"], "sort": "top"},
         {"tags": ["rare"], "sort": "oldest"},
     ]
+
+    async def all_ids(**params):
+        return (await client.get("/images/ids", params=params)).json()["ids"]
+
     driven = [await walk(**f) for f in filters]
-    monkeypatch.setattr(image_feed, "_RARE", -1)  # never drive by id
+    driven_ids = [await all_ids(**f) for f in filters]
+    monkeypatch.setattr(
+        image_feed, "_rare_cap", lambda *a, **k: -1
+    )  # never drive by id
     walked = [await walk(**f) for f in filters]
+    walked_ids = [await all_ids(**f) for f in filters]
     assert driven == walked
+    assert driven_ids == walked_ids
+    assert all(driven_ids[:6])
     assert all(driven[:6])  # every filter matched something
+
+
+def test_rare_cap_scales_with_the_library():
+    from moire.services.images.feed import _rare_cap
+
+    assert _rare_cap(0, all_rows=False) == 300
+    assert _rare_cap(3_900, all_rows=False) == 437
+    # 30k: past the old fixed 300, short of where the walk wins (~1700)
+    assert 301 < _rare_cap(30_000, all_rows=False) < 1700
+    # a full id list reads every match: the id path holds far longer
+    assert _rare_cap(30_000, all_rows=True) == 10_000
+    assert _rare_cap(30_000, all_rows=True) > _rare_cap(30_000, all_rows=False)
 
 
 def _gen_batch(conn, outputs: list[str], *, test: bool = False) -> int:

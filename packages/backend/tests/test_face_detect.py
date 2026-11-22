@@ -287,3 +287,12 @@ async def test_the_mtime_migration_replaces_the_cache(client, seed):
                 lambda c: sa.inspect(c).get_columns("image_faces")
             )
         ]
+
+
+def test_session_options_cap_threads_and_disable_spinning():
+    import onnxruntime as ort
+
+    opts = face_detect._session_options(ort)
+    assert 1 <= opts.intra_op_num_threads <= 4
+    assert opts.get_session_config_entry("session.intra_op.allow_spinning") == "0"
+    assert opts.get_session_config_entry("session.inter_op.allow_spinning") == "0"

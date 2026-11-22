@@ -5,14 +5,18 @@ One small query per panel section."""
 
 from __future__ import annotations
 
+import json
+
 import sqlalchemy as sa
 
 from ...database.db import async_conn
 from ...database import schema as t
 from . import (
     character_names,
+    sensitivity_filter,
     categories as tag_categories,
     covers as tag_covers,
+    index as tag_index,
     kinds as tag_kinds,
 )
 from ..images import visibility as image_visibility
@@ -20,9 +24,19 @@ from .browse import source_clause
 
 _RELATED = 40
 
+# The panel's image set, worked out once per request into a temp table of the
+# connection that reads it: every section filters by it, and recomputing it
+# for each (a dense tag has tens of thousands of rows) cost most of the time.
+_IDS = sa.Table(
+    "detail_ids",
+    sa.MetaData(),
+    sa.Column("image_id", sa.Text, primary_key=True),
+    prefixes=["TEMPORARY"],
+)
+
 
 def image_ids(bases: list[str], source: str = "all"):
-    """The visible images carrying any of ``bases``, as a subquery."""
+    """The visible images carrying any of ``bases``, as a select."""
     it = t.image_tags
     return (
         sa.select(it.c.image_id)
@@ -32,7 +46,6 @@ def image_ids(bases: list[str], source: str = "all"):
             image_visibility.visible_tag_rows(it),
         )
         .distinct()
-        .scalar_subquery()
     )
 
 
@@ -204,24 +217,44 @@ async def detail(
     at) or tagged with besides. ``aliases`` are
     other names of the same thing (a character's bare name), counted as one.
     Related tags come untrimmed (``_RELATED``) so the caller can drop its
-    boilerplate and still have some left."""
+    boilerplate and still have some left.
+
+    Cached in :mod:`services.tags.index`, keyed by everything the answer
+    depends on: the names, the source and the sensitivity filter's maximum."""
+    key = json.dumps(
+        ["detail", base, list(aliases), source, sensitivity_filter.max_level()]
+    )
+    return await tag_index.cached("views", key, lambda: _detail(base, source, aliases))
+
+
+async def _detail(base: str, source: str, aliases: tuple[str, ...]) -> dict | None:
     bases = [base, *aliases]
-    ids = image_ids(bases, source)
-    in_ids = t.images.c._id.in_(ids)
     vocab = await tag_categories.load()  # a file read: before taking a connection
     async with async_conn() as conn:
-        span = await _span(conn, in_ids)
-        if not span[0]:
-            return None
-        sources = await _sources(conn, bases)
-        months = await _months(conn, in_ids)
-        loras = await _loras(conn, ids)
-        embeddings = await _embeddings(conn, ids)
-        workflows = await _workflows(conn, in_ids)
-        weights = await _weights(conn, ids, bases)
-        related = await _related(conn, ids, bases)
-        pin = (await tag_covers.pins(conn, {base})).get(base)
-        characters = await character_names.character_names(conn, vocab, {base})
+        # The temp table lives on this pooled connection: always dropped, so
+        # the next request to reuse the connection starts clean.
+        await conn.exec_driver_sql("DROP TABLE IF EXISTS temp.detail_ids")
+        await conn.execute(sa.schema.CreateTable(_IDS))
+        try:
+            await conn.execute(
+                sa.insert(_IDS).from_select(["image_id"], image_ids(bases, source))
+            )
+            ids = sa.select(_IDS.c.image_id)
+            in_ids = t.images.c._id.in_(ids)
+            span = await _span(conn, in_ids)
+            if not span[0]:
+                return None
+            sources = await _sources(conn, bases)
+            months = await _months(conn, in_ids)
+            loras = await _loras(conn, ids)
+            embeddings = await _embeddings(conn, ids)
+            workflows = await _workflows(conn, in_ids)
+            weights = await _weights(conn, ids, bases)
+            related = await _related(conn, ids, bases)
+            pin = (await tag_covers.pins(conn, {base})).get(base)
+            characters = await character_names.character_names(conn, vocab, {base})
+        finally:
+            await conn.exec_driver_sql("DROP TABLE IF EXISTS temp.detail_ids")
 
     return {
         "tag": base,

@@ -8,7 +8,8 @@ belongs to this module, not to its callers.** Tag-state writers dirty the
 index through :func:`invalidate` once their transaction has committed; see
 :mod:`services.tags.image_tags` (which owns every async tag write) and
 :func:`services.metadata.reproject._flush_batch` (which owns its own sync transaction
-and so invalidates per batch). Routers never reach for the cache.
+and so soft-invalidates per batch, its run invalidating once at the end, see
+below). Routers never reach for the cache.
 
 This module imports nothing else from the app, so every writer can import it.
 
@@ -26,7 +27,8 @@ Bulk background writes
 A bulk AI job writes an image every fraction of a second, and building the
 tag list takes seconds, so with a hard :func:`invalidate` per image no view
 would ever be cached while a job runs (each build is discarded on store and
-every page load rebuilds). Such writers call :func:`invalidate_soft` instead: it
+every page load rebuilds). A reprojection run's batches are the same. Such
+writers call :func:`invalidate_soft` instead: it
 does not bump the generation, so a build that spans it is still stored, and a
 cached view stays readable for up to ``_SOFT_STALE_SECONDS`` past a soft write.
 The writer owns ending it: a hard :func:`invalidate` when the bulk run ends.

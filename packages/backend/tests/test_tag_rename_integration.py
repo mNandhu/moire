@@ -530,7 +530,7 @@ async def test_a_rule_change_reaches_images_a_run_in_flight_writes_after_it(
     def paused_flush(batch, **kw):
         read.set()
         release.wait(5)
-        flush(batch, **kw)
+        return flush(batch, **kw)
 
     monkeypatch.setattr(reproject, "_flush_batch", paused_flush)
     th = threading.Thread(target=reproject.reproject_library, args=("L1",))

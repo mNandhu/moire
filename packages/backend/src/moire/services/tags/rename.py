@@ -303,7 +303,8 @@ async def _apply(affected: set[str], queries: list[_Query]) -> bool:
             reproject.reproject_ids_async(ids, recheck=recheck)
     finally:
         # The rule write itself (moved cover pins, characters) is committed
-        # by now; a background run invalidates again per batch as it writes.
+        # by now. A background run dirties the views softly per batch and
+        # refreshes them in full when it ends.
         tag_index.invalidate()
     return background
 
@@ -370,6 +371,11 @@ def _forget_suggestions() -> None:
     _suggested = None
 
 
+# The first string past every `prompt:` tag (';' follows ':'): a range the tag
+# index can seek, where LIKE reads every row.
+_PROMPT_END = tag_kinds.PROMPT_PREFIX[:-1] + chr(ord(tag_kinds.PROMPT_PREFIX[-1]) + 1)
+
+
 async def merge_suggestions() -> dict:
     """Prompt tags in the library that Danbooru names otherwise, read by
     :mod:`tag_canon`, most used first. Left out: tags with a rule already,
@@ -389,18 +395,22 @@ async def merge_suggestions() -> dict:
     async with async_conn() as conn:
         rows = (
             await conn.execute(
-                sa.select(it.c.base, sa.func.count().label("n"))
-                .where(it.c.tag.like(f"{tag_kinds.PROMPT_PREFIX}%"))
-                .group_by(it.c.base)
+                sa.select(it.c.tag, sa.func.count().label("n"))
+                .where(
+                    it.c.tag >= tag_kinds.PROMPT_PREFIX,
+                    it.c.tag < _PROMPT_END,
+                )
+                .group_by(it.c.tag)
             )
         ).fetchall()
         rules = await tag_rules.load_dated(conn)
-    characters = await _characters_among({r.base for r in rows})
+    characters = await _characters_among({tag_kinds.base_of(r.tag) for r in rows})
     ruled = set(rules) | {x for to, _ in rules.values() for x in to}
     counts = {
-        r.base: r.n
+        tag_kinds.base_of(r.tag): r.n
         for r in rows
-        if r.base not in ruled and r.base.lower() not in characters
+        if tag_kinds.base_of(r.tag) not in ruled
+        and tag_kinds.base_of(r.tag).lower() not in characters
     }
     found = await anyio.to_thread.run_sync(tag_canon.suggest_all, list(counts), tags)
     out = {

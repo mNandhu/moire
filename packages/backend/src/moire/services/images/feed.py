@@ -353,7 +353,7 @@ def feed_where(f: FeedFilter):
     return sa.and_(*conds) if conds else sa.true()
 
 
-async def _resolved(conn, f: FeedFilter) -> FeedFilter:
+async def _resolved(conn, f: FeedFilter, *, all_rows: bool = False) -> FeedFilter:
     """``f`` with its workflow family expanded to signatures: one small lookup
     up front, so the page query filters on a plain indexed ``IN`` list."""
     if f.workflow_id and f.family_sigs is None:
@@ -372,17 +372,44 @@ async def _resolved(conn, f: FeedFilter) -> FeedFilter:
             had = set(f.driver_ids)
             ids = tuple(i for i in ids if i in had)
         f = replace(f, gen_batch_ids=ids, driver_ids=ids)
-    return await _drive_by_rarest(conn, f)
+    return await _drive_by_rarest(conn, f, all_rows=all_rows)
 
 
 # Below this many matches, fetching a tag's ids first beats walking `images`
-# in sort order with an EXISTS probe per row. Measured break-even was ~350
-# matches on a 3.9k-image library and ~1300 on 30k; past it the id list
-# costs more (about 10 ms per 1000 ids) than the walk it replaces.
-_RARE = 300
+# in sort order with an EXISTS probe per row. A page walk stops after `limit`
+# matches, so it reads about limit * N / m rows (~3 us each) while the id list
+# costs ~6.5 us per id: break-even m^2 ~ 100 * N, i.e. ~1700 at 30k (measured
+# 350 at 3.9k, ~1300 at an earlier 30k run). The cap is a conservative
+# 7 * sqrt(N), never under _RARE_FLOOR. A fixed 300 left a tag with 301
+# matches on 30k walking every row: 82 ms against 18 ms for 299.
+_RARE_FLOOR = 300
+_RARE_PER_ROOT = 7
+# The id list (`list_ids`) must read every match, so the walk always costs a
+# full N probes (~3 us each, ~100 ms at 30k) and the list wins up to about
+# 0.47 * N matches; a third of N stays clear of the crossover.
+_RARE_IDS_SHARE = 3
 
 
-async def _drive_by_rarest(conn, f: FeedFilter) -> FeedFilter:
+def _rare_cap(n_images: int, *, all_rows: bool) -> int:
+    """The match count up to which a tag group drives the query by id.
+    ``all_rows``: the caller reads every match (`list_ids`), not one page."""
+    if all_rows:
+        return max(_RARE_FLOOR, n_images // _RARE_IDS_SHARE)
+    return max(_RARE_FLOOR, round(_RARE_PER_ROOT * math.sqrt(n_images)))
+
+
+async def _image_count_estimate(conn) -> int:
+    """An O(1) stand-in for the row count (the top rowid; deletions leave gaps,
+    which only makes the cap a little generous)."""
+    top = await conn.execute(
+        sa.select(sa.func.max(sa.literal_column("rowid"))).select_from(t.images)
+    )
+    return int(top.scalar() or 0)
+
+
+async def _drive_by_rarest(
+    conn, f: FeedFilter, *, all_rows: bool = False
+) -> FeedFilter:
     """``f`` driven by the ids of its rarest tag group or prompt term, when
     that is rare. SQLite walks ``images`` in sort order and probes each row's
     EXISTS filters, so a tag on 30 of 30k images costs a full walk; an
@@ -396,6 +423,9 @@ async def _drive_by_rarest(conn, f: FeedFilter) -> FeedFilter:
     if f.plogic == "and":
         for term in _pterms(f):
             groups.append((t.image_gen_terms, t.image_gen_terms.c.term, [term]))
+    if not groups:
+        return f
+    cap = _rare_cap(await _image_count_estimate(conn), all_rows=all_rows)
     best: list[str] | None = None
     for tbl, col, vals in groups:
         # Distinct ids, capped: one query both sizes the group and, when it
@@ -406,11 +436,11 @@ async def _drive_by_rarest(conn, f: FeedFilter) -> FeedFilter:
                     sa.select(tbl.c.image_id)
                     .where(col.in_(vals))
                     .distinct()
-                    .limit(_RARE + 1)
+                    .limit(cap + 1)
                 )
             ).scalars()
         )
-        if len(ids) <= _RARE and (best is None or len(ids) < len(best)):
+        if len(ids) <= cap and (best is None or len(ids) < len(best)):
             best = ids
             if len(ids) <= 1:
                 break  # can't get rarer; skip probing the other groups
@@ -427,7 +457,7 @@ SELECT_ALL_CAP = 20_000
 async def list_ids(f: FeedFilter, *, limit: int) -> list[str]:
     """Every image ``f`` matches (up to ``limit``), in feed order."""
     async with async_conn() as conn:
-        f = await _resolved(conn, f)
+        f = await _resolved(conn, f, all_rows=True)
         keys, _ = SORTS[f.sort]
         stmt = (
             sa.select(t.images.c._id)

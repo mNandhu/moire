@@ -12,7 +12,7 @@ from typing import Any
 import sqlalchemy as sa
 from PIL import Image
 
-from ...database.db import async_conn
+from ...database.db import async_conn, checkpoint_wal
 from ...database import schema as t
 from .. import activity, app_settings
 from . import coverage as ai_coverage, estimate as ai_estimate
@@ -501,6 +501,7 @@ class AIJobManager:
         job.status = "running"
         ids = job.ids
         released = 0  # ids[:released] are processed and their claims dropped
+        checkpoint = False  # truncate the WAL once the run is wrapped up
         try:
             if nested is not None:
                 settings, model = nested
@@ -603,6 +604,7 @@ class AIJobManager:
                 if job.total > 1 and nested is None:
                     # The tag views lagged this job's writes (bulk=True).
                     image_tags.end_bulk_writes()
+                    checkpoint = True
                     # Images tagged a second, failures and urgent jobs left
                     # out: a failure is quick, and neither is tagging.
                     own = job.finished_at - job.started_at - job.nested_s
@@ -612,6 +614,10 @@ class AIJobManager:
                         )
             _note_end(job)
             self._release(ids[released:])
+            if checkpoint:
+                # Last, off the event loop: a cancel at this await must not
+                # skip the bookkeeping above.
+                await asyncio.to_thread(checkpoint_wal)
 
     def _release(self, ids: list[str]) -> None:
         """Drop one claim per id, so an id another job also holds stays claimed."""
