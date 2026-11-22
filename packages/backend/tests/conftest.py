@@ -30,6 +30,12 @@ from moire.services.tags import (
     views as tag_views,
 )
 from moire.services.generate import lora_words
+from moire.services.metadata import derive_worker
+
+# Reprojection derives in-thread under test: tests patch `gen_metadata` in
+# this process, which a worker process wouldn't see. The worker's own tests
+# turn it back on (test_reproject_worker.py).
+derive_worker.ENABLED = False
 
 
 @pytest.fixture(scope="session", autouse=True)

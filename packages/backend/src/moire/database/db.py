@@ -173,6 +173,14 @@ def _create_all(conn) -> None:
             conn.execute(CreateIndex(index, if_not_exists=True))
     for name in RETIRED_INDEXES:
         conn.execute(sa.text(f'DROP INDEX IF EXISTS "{name}"'))
+    # The raw revision counter starts above every revision already stored
+    # (a DB from before it), once: it only grows after that.
+    conn.execute(
+        sa.text(
+            "INSERT OR IGNORE INTO gen_raw_revision (id, rev) "
+            "SELECT 1, coalesce(max(raw_rev), 0) FROM image_gen_derived"
+        )
+    )
 
 
 async def ensure_schema() -> None:

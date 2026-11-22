@@ -58,7 +58,7 @@ Scanning (68-92 img/s, CPU-bound, scales to all cores), AI tagging (7-7.75 img/s
 | N2 | Tags | Tags browse cold is one 4.4 s statement at 30k (D4 still open); character page, recipes and outfit routes run it first | One-pass rewrite prototyped: 4.3 -> 2.5 s, output identical. Stored per-tag stats would go further (L) | S-M | done |
 | N3 | Tags | Hard invalidations land on the next viewer: AI job end, each single re-tag (twice), each reprojection batch | Next browse 4.5-4.8 s, characters 1.2-3 s at 30k -> served stale while rebuilding | M | done |
 | N4 | Reproject | `_derive_where` `fetchall()`s every gen-raw row | Peak RSS 3.8 GB -> paged; memory is never returned today | S | done |
-| N5 | Reproject | Runs as a thread in the API process: GIL convoy | Reads at 10 req/s: p50 17 ms -> 4 s, /health stalls up to 7 s, even with nothing written | M | open |
+| N5 | Reproject | Runs as a thread in the API process: GIL convoy | Reads at 10 req/s: p50 17 ms -> 4 s, /health stalls up to 7 s, even with nothing written | M | done |
 | N6 | Reproject | Hard `tag_index.invalidate()` per 200-row batch | 151 invalidations -> 237 rebuilds (824 s of build time); run 178 s vs 77 s alone | S | done |
 | N7 | DB | WAL has no size limit and is never truncated | 2.7 GB during reprojection with readers; 63-113 MB after jobs and scans | S | done |
 | N8 | Sensitivity | With the filter on, tag counts run a correlated EXISTS per `image_tags` row | Cold `/tags` 5.8 s -> ~0.3-1.4 s at 30k (34x slower than filter off today) | S | done |
@@ -68,8 +68,8 @@ Scanning (68-92 img/s, CPU-bound, scales to all cores), AI tagging (7-7.75 img/s
 | N12 | Feed | Grouped (batch) view re-aggregates everything on every page, offset paged | 326 ms per page at 30k -> ~12 ms (rewrite tested unfiltered) | M | open |
 | N13 | Library | Watcher ingests strictly one file at a time (0.5 s stability wait each, invalidation each) | 100 dropped files: 60 s -> ~1-2 s | M | open |
 | N14 | Feed | `_RARE`=300 is too low at 30k; `/images/ids` never uses the id path | 301 matches 82 -> ~5 ms; ids 100 -> 2-5 ms | S | done |
-| N15 | Reproject | No-change run still decodes all raws (`workflow` is 68% of bytes) | 30 s -> a few s at 30k | M | open |
-| N16 | Scan | Post-scan reprojection covers the whole library, not the written ids | 10%-touched rescan 2.7 -> 0.9 s | S | open |
+| N15 | Reproject | No-change run still decodes all raws (`workflow` is 68% of bytes) | 30 s -> a few s at 30k | M | done |
+| N16 | Scan | Post-scan reprojection covers the whole library, not the written ids | 10%-touched rescan 2.7 -> 0.9 s | S | done |
 | N17 | AI | DB write runs serially after each inference | 7 -> 8.5-9 img/s | S-M | open |
 | N18 | AI | Face detector session spins all 12 threads | Same 41 ms/img on 3 cores instead of 12 | S | done |
 | N19 | AI | Model load freezes the event loop 0.4-0.9 s (job start, after idle unload, first re-tag) | Load at startup on GPU, skip idle unload there | S | open |
@@ -103,7 +103,7 @@ New findings, beyond the solo ones above:
 
 | ID | Finding | Gain | Effort | Status |
 |----|---------|------|--------|--------|
-| N31 | **A reprojection batch holds SQLite's write lock for 0.4-1.5 s.** The AI job's per-image write (on its serial path, N17) waits behind it, and tagging drops 70-85% for the length of any reprojection, including the automatic post-scan one. | Commit ~50 rows with derive done outside the transaction, plus N17 write-behind | S-M | open |
+| N31 | **A reprojection batch holds SQLite's write lock for 0.4-1.5 s.** The AI job's per-image write (on its serial path, N17) waits behind it, and tagging drops 70-85% for the length of any reprojection, including the automatic post-scan one. | Commit ~50 rows with derive done outside the transaction, plus N17 write-behind | S-M | done |
 | N32 | **CPU-heavy writers saturate all 12 threads and starve the GPU.** Scan pool (12) + face detector (spinning) + readers keep 10.5-10.8 cores busy: GPU use 72% -> 40%, tagger prefetch 51 -> 182 ms, face detection 105 -> 256 ms. | N18 + N26, and cap threads while another heavy writer runs | S | open |
 | N33 | **The async write lock serialises face writes and tagger writes.** Lock wait p95 112 ms, max 1.75 s. | Batch face writes, or route them through the AI write-behind | S | open |
 | N34 | **Process memory only ratchets up.** 127 MB at boot, ~550 MB after a scan, ~1.85 GB after a job. Idle unload frees VRAM but only 24 MB of RSS (ORT/CUDA host arenas, glibc). A forced 30k reprojection on top would reach ~5.5 GB. | Free the ORT arena on unload, `malloc_trim` after scans/jobs, plus N4 | M | open |
@@ -273,10 +273,30 @@ Before `06ccbd5`, after `23ad3ed`, 30k `syn`, back to back (load 2-3). `bench/ap
 - Trade-off: a one-image re-tag no longer makes the Tags page wait; its counts trail by one build. Clearing the AI tags of a job that then never writes reaches the views after the soft window.
 
 ### 3. Reprojection
-- [ ] N5: run it outside the API process, or page and yield
-- [ ] N15: skip unchanged rows before decoding their raw
-- [ ] N16: post-scan reprojection only for the ids the scan wrote
-- [ ] N31: shorter reprojection write transactions (derive outside, ~50 rows a commit)
+- [x] N5: raw decode and derive run in one spawned worker process (`42e7d1b`, `b158328`, `278bae3`); in-thread fallback for small pages, tests, and a worker that can't start or dies. Yielding the GIL per row was tried first: it halved the tail but stayed far above idle
+- [x] N15: a run skips rows whose inputs are unchanged, before reading their raw (`f59c509`): a stamp in `image_gen_derived` per row (ruleset, extraction settings, merge/split rules, `DERIVE_VERSION`), conditional on the raw revision read. Forced and id-targeted runs never skip; the manual library endpoint now runs forced (`e49a00b`)
+- [x] N16: post-scan reprojection covers only the ids the scan wrote plus underived rows, or the whole library past half of it (`f78b97d`)
+- [x] N31: writes are planned outside the transaction and committed ~50 rows at a time, re-read inside; diffs instead of rebuilds for `image_tags` and terms (`935fcc5`)
+
+#### Section 3 results (2026-11-22)
+
+Before `cb0df78`, after `278bae3`, 30k `syn` (load 2-3), one suite at a time.
+
+| finding | measure | before | after |
+|---|---|---|---|
+| N15 | no-change reprojection, alone | 29.3 s | 0.06 s |
+| N15 | no-change run with readers at 10 req/s: reads p50 / p95, browse max | 147 / 1,170 ms, 7.4 s | nothing read (0.2 s) |
+| N5, N31 | forced run, alone | 77 s | 69 s |
+| N5, N31 | settings flip, alone | 87.5 s | 26 s |
+| N31 | write transaction hold, forced: mean / max | 343 / 1,017 ms | 32 / 99 ms |
+| N5 | forced run with readers: thumbnail p95, feed p95, all p50 / p95 | 339, 487, 27 / 449 ms | 11, 28, 9 / 107 ms |
+| N5 | same: `/health` p95 / max, run time | 75 / 666 ms, 103 s | 18 / 73 ms, 91 s |
+| N16 | 567-file library, 10% touched: post-scan reprojection | 1.9 s | 0.46 s |
+
+- N31 alone made the forced run slower (77 -> 100 s: four times the commits); N5's worker took it back below the old time.
+- The worker is ~100 MB while it runs and exits after 120 s idle, or with the server (even a killed one).
+- Reviewed (/code-review medium), fixes `bb4b7f9..3553c3b`: a small rescan also derives raws left unstamped (a cut-off run); raw revisions come from a counter that never repeats (a deleted and re-added image can't inherit a stamp); diff inserts ignore a stray join row instead of failing the chunk forever; rows with nothing to write are re-checked inside the stamping transaction; a stale idle timer can't stop the worker; a worker that fails twice is given up on until restart. Numbers re-run after: unchanged.
+- Trade-off: an extraction code change reaches existing rows only through a `DERIVE_VERSION` bump or a forced migration entry (CLAUDE.md gotcha). A rule edit makes the next broad run re-derive everything once.
 
 ### 4. Writers
 - [ ] N13: watcher ingests in batches

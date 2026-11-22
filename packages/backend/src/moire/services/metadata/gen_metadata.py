@@ -200,6 +200,16 @@ def gen_raw_from_embedded(info: Any, user_comment: Any = None) -> dict | None:
 # stamp, so a bump makes the next scan of each library recapture everything.
 CAPTURE_VERSION = 1
 
+# Bump when what :func:`derive` makes of an unchanged raw changes (a parser
+# or extraction fix). It is part of reprojection's skip stamp, so a bump makes
+# the next library or full reprojection re-derive every row; without one, a
+# non-forced run skips rows whose raw, ruleset and settings are unchanged.
+# (A reprojection-only migration entry, run forced, reaches them too.)
+# A change to how terms are mirrored into prompt: tags (`tags/kinds.py`
+# `to_prompt`/`base_of`, `image_tags.with_replaced_prompt`) needs a bump too: the stamp
+# skips the rows before their tags are compared.
+DERIVE_VERSION = 1
+
 
 def read_gen_raw(img: Any) -> dict | None:
     """Capture the ``image_gen_raw`` doc from an open PIL image.

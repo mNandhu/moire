@@ -12,6 +12,8 @@ def test_expected_tables_exist():
         "image_gen_terms",
         "libraries",
         "image_gen_raw",
+        "image_gen_derived",
+        "gen_raw_revision",
         "tag_meta",
         "characters",
         "image_faces",

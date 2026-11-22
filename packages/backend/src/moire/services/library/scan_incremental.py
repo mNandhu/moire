@@ -61,9 +61,7 @@ def ingest_single_file(library_id: str, root_path: Path, path: Path) -> bool:
             if gen_raw_doc is not None:
                 gen_raw_doc = {**gen_raw_doc, "_id": stored}
         if gen_raw_doc is not None:
-            conn.execute(
-                scanner.gen_raw_upsert_stmt(), scanner.gen_raw_values(gen_raw_doc)
-            )
+            scanner.write_gen_raws(conn, [scanner.gen_raw_values(gen_raw_doc)])
         conn.execute(scanner.image_upsert_stmt(), scanner.image_upsert_values(doc))
         _touch_library(conn, library_id, indexed_delta=0 if stored else 1)
     # A brand-new row carries no gen data to reproject over, but a modified

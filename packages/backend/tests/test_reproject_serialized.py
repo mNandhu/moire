@@ -78,7 +78,7 @@ async def test_spawned_runs_are_joinable_and_tracked(seed, monkeypatch):
     monkeypatch.setattr(
         reproject,
         "reproject_library",
-        lambda lid, *, workflow_sig, task: calls.append(
+        lambda lid, *, workflow_sig, task, force=False: calls.append(
             ("lib", lid, workflow_sig, task.library_id)
         ),
     )

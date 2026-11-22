@@ -27,10 +27,12 @@ they never assemble SQL.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Iterator
 
 import sqlalchemy as sa
 from sqlalchemy import Connection
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from ...database.db import async_conn, async_tx, sync_tx
@@ -790,22 +792,69 @@ def replace_prompt_many_sync(
     statement instead of three per image.
     Deliberately does *not* invalidate the tag index: the caller owns the
     transaction, so only the caller knows when the write became visible
-    (:func:`services.metadata.reproject._flush_batch` does, softly per batch,
+    (:func:`services.metadata.reproject._flush_batch` does, softly per commit,
     and its run hard once at the end).
     """
-    changed: list[tuple[str, list[str]]] = []
-    for image_id, current, prompt_tags in items:
-        new = with_replaced_prompt(current, prompt_tags)
-        if force or new != current:
-            changed.append((image_id, new))
-    if not changed:
-        return 0
+    return write_prompt_plans_sync(
+        conn,
+        [p for item in items if (p := plan_prompt_write(*item, force=force))],
+        force=force,
+    )
+
+
+@dataclass(frozen=True)
+class PromptWrite:
+    """One image's planned ``prompt:`` tag replacement: worked out from the
+    tags it was planned against (``current``), valid while they are still
+    the stored ones. Planning is pure, so a caller can do it before its
+    transaction and re-plan inside only what changed meanwhile."""
+
+    image_id: str
+    current: list[str]
+    params: dict[str, Any]
+    # The derived join rows to drop and add (only the difference: the rows
+    # are exactly the distinct tags of ``current``).
+    drop: list[str]
+    add: list[dict[str, str]]
+    rows: list[dict[str, str]]
+
+
+def plan_prompt_write(
+    image_id: str, current: list[str], prompt_tags: list[str], *, force: bool = False
+) -> PromptWrite | None:
+    """The write that puts ``prompt_tags`` on an image whose tags are
+    ``current``, or None when its tag array comes out the same (unless
+    ``force``)."""
+    new = with_replaced_prompt(current, prompt_tags)
+    if not force and new == current:
+        return None
+    have, want = set(current), set(new)
     # Bind names carry a ``b_`` prefix: one equal to a column name collides
     # with that column in ``update().values()``.
-    params = [
-        {"b_id": image_id, **{f"b_{k}": v for k, v in tag_state_values(new).items()}}
-        for image_id, new in changed
-    ]
+    params = {
+        "b_id": image_id,
+        **{f"b_{k}": v for k, v in tag_state_values(new).items()},
+    }
+    rows = _tag_rows(image_id, new)
+    return PromptWrite(
+        image_id=image_id,
+        current=list(current),
+        params=params,
+        drop=sorted(have - want),
+        add=[r for r in rows if r["tag"] not in have],
+        rows=rows,
+    )
+
+
+def write_prompt_plans_sync(
+    conn: Connection, plans: list[PromptWrite], *, force: bool = False
+) -> int:
+    """Apply planned writes on a caller-owned sync transaction whose stored
+    tags are each plan's ``current`` (the caller checks). Only the changed
+    join rows are touched, unless ``force`` rebuilds them all (a migration
+    that changed how join rows are made). Returns how many were written."""
+    if not plans:
+        return 0
     conn.execute(
         sa.update(t.images)
         .where(t.images.c._id == sa.bindparam("b_id"))
@@ -815,14 +864,29 @@ def replace_prompt_many_sync(
                 for k in TAG_STATE_COLUMNS
             }
         ),
-        params,
+        [p.params for p in plans],
     )
-    conn.execute(
-        sa.delete(t.image_tags).where(
-            t.image_tags.c.image_id.in_([image_id for image_id, _ in changed])
+    if force:
+        conn.execute(
+            sa.delete(t.image_tags).where(
+                t.image_tags.c.image_id.in_([p.image_id for p in plans])
+            )
         )
-    )
-    rows = [row for image_id, new in changed for row in _tag_rows(image_id, new)]
+        rows = [row for p in plans for row in p.rows]
+    else:
+        drops = [{"b_id": p.image_id, "b_tag": tag} for p in plans for tag in p.drop]
+        if drops:
+            conn.execute(
+                sa.delete(t.image_tags).where(
+                    t.image_tags.c.image_id == sa.bindparam("b_id"),
+                    t.image_tags.c.tag == sa.bindparam("b_tag"),
+                ),
+                drops,
+            )
+        rows = [row for p in plans for row in p.add]
     if rows:
-        conn.execute(sa.insert(t.image_tags), rows)
-    return len(changed)
+        # The diff comes from the stored JSON: a join row it lacks (drift)
+        # is kept, not a failed insert that rolls the caller's chunk back
+        # on every run. ``base`` follows from ``tag``, so the row is right.
+        conn.execute(sqlite_insert(t.image_tags).on_conflict_do_nothing(), rows)
+    return len(plans)

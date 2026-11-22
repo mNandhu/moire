@@ -66,7 +66,7 @@ def image_upsert_stmt():
     )
 
 
-def gen_raw_upsert_stmt():
+def _gen_raw_upsert_stmt():
     stmt = sqlite_insert(t.image_gen_raw)
     return stmt.on_conflict_do_update(
         index_elements=[t.image_gen_raw.c._id],
@@ -75,6 +75,45 @@ def gen_raw_upsert_stmt():
             "workflow_sig": stmt.excluded.workflow_sig,
             "raw": stmt.excluded.raw,
         },
+    )
+
+
+def _gen_raw_rev_stmt():
+    # Every write gives the raw a revision it never had (a missing stamp row
+    # reads as 0) and clears the skip stamp, so reprojection re-derives the
+    # row and can't stamp a raw it never read (services/metadata/reproject.py).
+    stmt = sqlite_insert(t.image_gen_derived).values(
+        _id=sa.bindparam("b_id"), raw_rev=sa.bindparam("b_rev"), derive_key=None
+    )
+    return stmt.on_conflict_do_update(
+        index_elements=[t.image_gen_derived.c._id],
+        set_={"raw_rev": stmt.excluded.raw_rev, "derive_key": None},
+    )
+
+
+# The next raw revision: one counter for every row, so a raw deleted (its
+# stamp row with it) and written again still gets a revision it never had.
+_NEXT_REV = sa.text(
+    "INSERT INTO gen_raw_revision (id, rev) VALUES (1, 1) "
+    "ON CONFLICT(id) DO UPDATE SET rev = rev + 1"
+)
+_READ_REV = sa.text("SELECT rev FROM gen_raw_revision WHERE id = 1")
+
+
+def write_gen_raws(conn, rows: list[dict]) -> None:
+    """Upsert raw-gen rows (:func:`gen_raw_values` shape) on the caller's
+    sync transaction. The only way to write ``image_gen_raw``: each write
+    also gives the rows a new revision and clears their reprojection skip
+    stamps. One revision per call is enough: it is new to each of them."""
+    if not rows:
+        return
+    stmt = _gen_raw_upsert_stmt()
+    for row in rows:
+        conn.execute(stmt, row)
+    conn.execute(_NEXT_REV)
+    rev = conn.execute(_READ_REV).scalar_one()
+    conn.execute(
+        _gen_raw_rev_stmt(), [{"b_id": row["_id"], "b_rev": rev} for row in rows]
     )
 
 
@@ -368,10 +407,7 @@ def _commit_batch(imgs: list[dict], raws: list[dict]) -> None:
     # raw-gen rows commit together.
     def _do_flush():
         with sync_tx() as conn:
-            if raws:
-                stmt = gen_raw_upsert_stmt()
-                for row in raws:
-                    conn.execute(stmt, row)
+            write_gen_raws(conn, raws)
             if imgs:
                 stmt = image_upsert_stmt()
                 for row in imgs:
@@ -380,9 +416,20 @@ def _commit_batch(imgs: list[dict], raws: list[dict]) -> None:
     retry(_do_flush, attempts=3, base_delay_s=0.2)
 
 
-def _after_scan(library_id: str, *, wrote_any: bool) -> None:
+# A scan leaving more than this share of the library's raws to derive reprojects
+# the whole library: its paged read of the raw table beats looking up that many ids
+# in 500-id chunks, and a first scan (every raw new) always lands here.
+_LIBRARY_REPROJECT_SHARE = 0.5
+
+
+def _after_scan(library_id: str, *, written_raw_ids: set[str]) -> None:
     """Follow-ups that must not fail the scan: fold nested copies, then derive
-    gen.* from the raw just captured."""
+    gen.* from the raw just captured.
+
+    ``written_raw_ids``: images whose raw generation data this scan wrote (new
+    or modified files; a touched file is reopened and its raw rewritten even
+    when identical, so it is included and the reprojection's own unchanged-row
+    skip handles it). Skipped rows kept their gen data."""
     # Fold any outer library's copies of files into their innermost library:
     # this one's own (now that it has indexed them and finished), or those of
     # the libraries inside it. A no-op without nesting.
@@ -393,20 +440,24 @@ def _after_scan(library_id: str, *, wrote_any: bool) -> None:
 
     # Spawned in its own thread so the scan slot frees immediately (a long
     # reproject must not make the library look "still scanning" / block a
-    # rescan). Skipped rows kept their gen data, so with nothing rewritten
-    # only rows a reprojection never reached (one cut off by a restart) need
-    # deriving.
+    # rescan). Only the rows this scan wrote raw for, plus rows a reprojection
+    # never reached (one cut off by a restart, or raws an earlier scan
+    # rewrote that were never derived: their stamp is cleared), need deriving.
     try:
         from ..metadata.reproject import (
             reproject_ids_async,
             reproject_library_async,
             underived_ids,
+            unstamped_ids,
         )
 
-        if wrote_any:
+        stale = written_raw_ids | set(unstamped_ids(library_id))
+        # A library run derives exactly the stale rows too, by a paged read;
+        # it also takes an upgraded DB's first rescan (no row stamped yet).
+        if stale and _mostly_rewritten(library_id, len(stale)):
             reproject_library_async(library_id)
-        elif pending := underived_ids(library_id):
-            reproject_ids_async(pending)
+        elif ids := sorted(stale | set(underived_ids(library_id))):
+            reproject_ids_async(ids)
     except Exception:
         # Reprojection is re-runnable via the manual endpoint.
         logger.warning(
@@ -414,6 +465,16 @@ def _after_scan(library_id: str, *, wrote_any: bool) -> None:
             library_id,
             exc_info=True,
         )
+
+
+def _mostly_rewritten(library_id: str, written: int) -> bool:
+    with sync_conn() as conn:
+        total = conn.execute(
+            sa.select(sa.func.count())
+            .select_from(t.image_gen_raw)
+            .where(t.image_gen_raw.c.library_id == library_id)
+        ).scalar_one()
+    return written > total * _LIBRARY_REPROJECT_SHARE
 
 
 def scan_library_async(library_id: str, root: str) -> dict:
@@ -479,7 +540,15 @@ def scan_library_async(library_id: str, root: str) -> dict:
             )
             last_progress_write = time.monotonic()
 
-            writer = ScanWriter(_commit_batch, batch_size=200)
+            # Image ids whose raw gen data was committed. Filled by the
+            # writer's sink, which only the (single) completion thread drives.
+            written_raw_ids: set[str] = set()
+
+            def _commit(imgs: list[dict], raws: list[dict]) -> None:
+                _commit_batch(imgs, raws)
+                written_raw_ids.update(r["_id"] for r in raws)
+
+            writer = ScanWriter(_commit, batch_size=200)
             failed_ids: list[str] = []
 
             def _on_complete(res, exc) -> None:
@@ -548,7 +617,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
                     "scan_error": scan_note,
                 },
             )
-            _after_scan(library_id, wrote_any=bool(writer.indexed))
+            _after_scan(library_id, written_raw_ids=written_raw_ids)
         except _Cancelled:
             logger.info("Scan cancelled for library %s", library_id)
             _lib_set(library_id, {"scanning": False, "scan_error": "cancelled"})

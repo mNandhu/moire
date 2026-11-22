@@ -62,7 +62,8 @@ async def rescan_library(library_id: str):
 
 @router.post("/{library_id}/reproject")
 async def reproject_library_endpoint(library_id: str):
-    """Re-derive structured gen.* for a library from stored raw (no disk rescan)."""
+    """Re-derive structured gen.* for a library from stored raw (no disk rescan).
+    Forced: a repair, so rows whose inputs look unchanged are rewritten too."""
     async with async_conn() as conn:
         found = (
             await conn.execute(
@@ -73,7 +74,7 @@ async def reproject_library_endpoint(library_id: str):
         raise HTTPException(status_code=404, detail="Library not found")
     from ..services.metadata.reproject import reproject_library_async
 
-    reproject_library_async(library_id)
+    reproject_library_async(library_id, force=True)
     return {"reproject": library_id, "started": True}
 
 

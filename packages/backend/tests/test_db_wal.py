@@ -132,8 +132,8 @@ def test_a_reprojection_run_checkpoints_once(temp_db, seed, monkeypatch, checkpo
     assert reproject.reproject_all() == 3
     assert checkpoints == [1]
 
-    # Nothing written: nothing to checkpoint.
-    assert reproject.reproject_all() == 3
+    # Nothing stale, nothing written: nothing to checkpoint.
+    assert reproject.reproject_all() == 0
     assert checkpoints == [1]
 
 

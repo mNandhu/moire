@@ -132,6 +132,39 @@ image_gen_raw = sa.Table(
     sa.Column("raw", sa.JSON),
 )
 
+# Reprojection's skip stamp for each raw row, kept narrow beside it so a run
+# can tell which raws to decode without reading them (a column added to
+# `image_gen_raw` would sit after the big `raw` value in the record).
+# `raw_rev` names the scanner's last write of the raw (a missing row is 0): a
+# value of `gen_raw_revision`, so it differs from every earlier one, across a
+# row deleted and written again too; `derive_key` is the fingerprint of the
+# inputs the stored `gen` was derived with (services/metadata/reproject.py
+# `_fingerprint`), cleared by every write.
+image_gen_derived = sa.Table(
+    "image_gen_derived",
+    metadata,
+    sa.Column(
+        "_id",
+        _BINARY,
+        sa.ForeignKey("image_gen_raw._id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("raw_rev", sa.Integer, nullable=False, server_default="0"),
+    sa.Column("derive_key", sa.Text),
+)
+
+# One row (`id` 1): the last raw revision handed out. Only ever grows (a per-row
+# count would restart when a deleted image's raw is written again, and a run
+# that read the old raw could stamp the new one). Seeded at startup above any
+# `raw_rev` already stored (database/db.py `_create_all`); bumped once per
+# `scanner.write_gen_raws` call.
+gen_raw_revision = sa.Table(
+    "gen_raw_revision",
+    metadata,
+    sa.Column("id", sa.Integer, primary_key=True),
+    sa.Column("rev", sa.Integer, nullable=False),
+)
+
 # Per-tag display overrides (pinned mosaic thumbnail). Keyed by the tag id.
 tag_meta = sa.Table(
     "tag_meta",

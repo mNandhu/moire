@@ -181,7 +181,9 @@ def test_a_run_that_writes_nothing_does_not_invalidate(
     reproject.reproject_all()
     calls.clear()
 
-    assert reproject.reproject_all() == 7  # derived, all already up to date
+    assert reproject.reproject_all() == 0  # every stamp current: none read
+    # Id-targeted runs derive anyway; all already up to date.
+    assert reproject.reproject_ids([i for i, _ in _IDS]) == 7
     assert reproject.reproject_image("L1:a") == 1
 
     assert calls == []

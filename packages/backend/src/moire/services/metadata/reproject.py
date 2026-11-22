@@ -13,6 +13,7 @@ lock held briefly (see :mod:`database.db` writer discipline).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import threading
@@ -20,11 +21,12 @@ from contextlib import contextmanager
 from collections.abc import Callable, Iterable, Iterator
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ...database.db import checkpoint_wal, sync_conn, sync_tx
 from ...database import schema as t
 from .. import activity
-from . import extraction_settings, gen_metadata
+from . import derive_worker, extraction_settings, gen_metadata
 from ..tags import image_tags
 from ..tags import index as tag_index
 from ..tags.kinds import to_prompt
@@ -45,53 +47,306 @@ def _load_rulesets() -> dict[str, dict]:
     return {r.sig: (r.doc or {}) for r in rows}
 
 
-def _flush_batch(batch: list[tuple[str, dict]], *, force: bool = False) -> bool:
-    """Persist one batch of ``(image_id, gen)`` results in a single small tx,
-    one statement per table for the whole batch. Rows whose stored ``gen``
-    and tags already match are not written (most of a full reprojection
-    after a settings change), unless ``force``: a migration that added a
-    derived table needs every row rebuilt even when ``gen`` is unchanged.
-    Returns whether it wrote anything."""
-    ids = [image_id for image_id, _ in batch]
-    with sync_tx() as conn:
-        current = {
+# --- Skip stamps ----------------------------------------------------------------
+#
+# `gen_metadata.derive(raw, ruleset, config)` is pure, so a row whose raw,
+# ruleset and config are what its stored `gen` was derived from comes out the
+# same: a library, by-signature or full run skips it in SQL, before its raw is
+# read. Each derived row is stamped (`image_gen_derived.derive_key`) with the
+# fingerprint of those inputs; the scanner's raw writes clear the stamp and
+# give `raw_rev` a value it never had (`gen_raw_revision`, even across a row
+# deleted and written again), and a stamp only lands while `raw_rev` is still
+# the one the run read with the raw, so a raw rewritten mid-run is derived
+# again next run.
+# Id-targeted runs (watcher, deferred, rule changes, resumed libraries) and
+# forced runs never skip; they stamp what they derive.
+
+
+def _fingerprint(
+    ruleset: dict | None, config: extraction_settings.ExtractionConfig
+) -> str:
+    doc = {
+        "v": gen_metadata.DERIVE_VERSION,
+        "ruleset": ruleset or None,
+        "positive_only": config.positive_only,
+        "keywords": [
+            sorted(config.keywords.positive),
+            sorted(config.keywords.negative),
+        ],
+        # In the key on purpose: a stamp then always names every input, so no
+        # missed or cut-off rule reprojection can hide behind a matching one.
+        "rules": config.rules,
+    }
+    blob = json.dumps(doc, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha1(blob.encode()).hexdigest()[:20]
+
+
+class _Keys:
+    """One run's expected stamp per workflow signature: the rulesets and
+    config it derives with, so a setting saved mid-run can't be stamped onto
+    a row derived with the old one."""
+
+    def __init__(self, rulesets: dict[str, dict], config) -> None:
+        self.default = _fingerprint(None, config)
+        self.by_sig = {
+            sig: _fingerprint(doc, config) for sig, doc in rulesets.items() if doc
+        }
+
+    def of(self, sig: str | None) -> str:
+        return self.by_sig.get(sig, self.default) if sig is not None else self.default
+
+    def stale(self):
+        """SQL: the raw row's stamp is not this run's key for its signature."""
+        expected = (
+            sa.case(
+                self.by_sig, value=t.image_gen_raw.c.workflow_sig, else_=self.default
+            )
+            if self.by_sig
+            else sa.literal(self.default)
+        )
+        return t.image_gen_derived.c.derive_key.is_distinct_from(expected)
+
+
+_STAMP = sa.text(
+    "INSERT INTO image_gen_derived (_id, raw_rev, derive_key) "
+    "SELECT _id, :rev, :key FROM image_gen_raw WHERE _id = :id "
+    "ON CONFLICT(_id) DO UPDATE SET derive_key = excluded.derive_key "
+    "WHERE image_gen_derived.raw_rev = excluded.raw_rev"
+)
+
+
+def _stamp(conn, stamps: list[tuple[str, int, str]]) -> None:
+    """Stamp ``(image_id, raw_rev read, key)`` rows, each only while its raw
+    is still the revision that was read (and still exists)."""
+    if stamps:
+        conn.execute(
+            _STAMP, [{"id": i, "rev": rev, "key": key} for i, rev, key in stamps]
+        )
+
+
+# One raw row's result: its id, the derived gen as stored (a JSON round trip,
+# :func:`derive_worker.derive_rows`; None: nothing derivable), and the stamp
+# to write with it.
+_Item = tuple[str, "dict | None", int, str]
+
+
+def _flush_batch(batch: list[_Item], *, force: bool = False) -> bool:
+    """Persist one batch of derived results and stamp every row of it, in
+    short write transactions (:func:`_chunks`: tens of milliseconds each).
+    Rows whose stored ``gen`` and tags already match are not written (most
+    of a full reprojection after a settings change), unless ``force``: a
+    migration that added a derived table needs every row rebuilt even when
+    ``gen`` is unchanged. Returns whether it wrote anything besides stamps.
+
+    ``batch`` holds gens as stored (:func:`derive_worker.derive_rows`).
+    What can happen outside the write lock does: a read of the stored
+    ``gen`` and tags, and planning each write against them. Each write
+    transaction reads them again for the rows it writes and re-plans any
+    whose tags changed meanwhile (a concurrent AI or manual tag write), so
+    reprojection never writes over one."""
+    with sync_conn() as conn:
+        before = {
             r._id: r
             for r in conn.execute(
                 sa.select(t.images.c._id, t.images.c.gen, t.images.c.tags).where(
-                    t.images.c._id.in_(ids)
+                    t.images.c._id.in_([i for i, *_ in batch])
                 )
             )
         }
-        gens: list[tuple[str, dict]] = []
-        tag_items: list[tuple[str, list[str], list[str]]] = []
-        for image_id, g in batch:
-            row = current.get(image_id)
-            if row is None:
-                continue  # deleted since the raws were read
-            # As stored (JSON round trip), so tuples compare equal to lists.
-            g = json.loads(json.dumps(g))
-            if force or g != row.gen:
-                gens.append((image_id, g))
-            # Mirror the extracted terms into prompt: tags (keeping AI + manual).
-            prompt_tags = [to_prompt(term) for term in (g.get("prompt_terms") or [])]
-            tag_items.append((image_id, list(row.tags or []), prompt_tags))
-        if gens:
-            _write_gens(conn, gens)
-        tagged = image_tags.replace_prompt_many_sync(conn, tag_items, force=force)
-    # This batch owns its transaction, so it owns the post-commit dirtying of
-    # the derived tag aggregation. Soft, like the AI job's writes: a hard
-    # invalidate per batch would rebuild every view per batch. The run ends
-    # its writes with one hard invalidate (:func:`_run_writes`).
-    wrote = bool(gens or tagged)
-    if wrote:
-        tag_index.invalidate_soft()
+    writes: list[_Write] = []
+    # Nothing derivable: stamped as is, so the row isn't read again until an
+    # input changes.
+    underivable: list[tuple[str, int, str]] = []
+    # Nothing to write against ``before``: stamped too, after a re-check.
+    unchanged: list[_Write] = []
+    for image_id, g, rev, key in batch:
+        row = before.get(image_id)
+        if row is None:
+            continue  # deleted since the raws were read
+        stamp = (image_id, rev, key)
+        if g is None:
+            underivable.append(stamp)
+        elif (planned := _plan(image_id, g, row, force=force)) is None:
+            unchanged.append(_Write(stamp, g, list(row.tags or []), None, 0))
+        else:
+            writes.append(_Write(stamp, *planned))
+    wrote = False
+    first = True
+    chunks = list(_chunks(writes))
+    if not chunks and (underivable or unchanged):
+        chunks = [[]]  # one transaction for the stamps alone
+    for chunk in chunks:
+        with sync_tx() as conn:
+            chunk_wrote = bool(chunk) and _write_chunk(conn, chunk, force=force)
+            if first:
+                _stamp(conn, underivable)
+                chunk_wrote |= _stamp_unchanged(conn, unchanged)
+                first = False
+        # Each commit owns the post-commit dirtying of the derived tag
+        # aggregation. Soft, like the AI job's writes: a hard invalidate per
+        # commit would rebuild every view each time. The run ends its writes
+        # with one hard invalidate (:func:`_run_writes`).
+        if chunk_wrote:
+            tag_index.invalidate_soft()
+            wrote = True
     return wrote
 
 
-def _write_gens(conn, gens: list[tuple[str, dict]]) -> None:
+def _stamp_unchanged(conn, unchanged: list[_Write]) -> bool:
+    """Stamp rows planned as nothing to write, on the caller's write
+    transaction, once their ``gen`` and tags are checked again: a tag write
+    since the plan (one that dropped prompt tags) would otherwise be stamped
+    over, and no later non-forced run would read the row. A changed row is
+    written (:func:`_write_chunk` re-plans it). Returns whether it wrote."""
+    if not unchanged:
+        return False
+    current = {
+        r._id: r
+        for r in conn.execute(
+            sa.select(t.images.c._id, t.images.c.gen, t.images.c.tags).where(
+                t.images.c._id.in_([w.stamp[0] for w in unchanged])
+            )
+        )
+    }
+    stamps: list[tuple[str, int, str]] = []
+    changed: list[_Write] = []
+    for w in unchanged:
+        row = current.get(w.stamp[0])
+        if row is None:
+            continue  # deleted since it was planned
+        if row.gen == w.gen and list(row.tags or []) == w.tags:
+            stamps.append(w.stamp)
+        else:
+            changed.append(w)
+    _stamp(conn, stamps)
+    return bool(changed) and _write_chunk(conn, changed, force=False)
+
+
+# One write transaction's size: at most this many images, and it closes once
+# their planned row operations (join rows dropped or added, about 10 us each
+# with their indexes) reach the budget. The AI job's per-image write waits
+# behind each one, so it is kept to tens of milliseconds: an image's first
+# derive with ~120 prompt terms and ~40 AI tags is ~300 operations.
+_WRITE = 50
+_WRITE_OPS = 3000
+
+
+def _chunks(writes: list[_Write]) -> Iterator[list[_Write]]:
+    chunk: list[_Write] = []
+    ops = 0
+    for w in writes:
+        chunk.append(w)
+        ops += w.ops
+        if len(chunk) >= _WRITE or ops >= _WRITE_OPS:
+            yield chunk
+            chunk, ops = [], 0
+    if chunk:
+        yield chunk
+
+
+def _prompt_tags(g: dict) -> list[str]:
+    # Mirror the extracted terms into prompt: tags (keeping AI + manual).
+    return [to_prompt(term) for term in (g.get("prompt_terms") or [])]
+
+
+def _plan(image_id: str, g: dict, row, *, force: bool):
+    """``(gen, tags planned against, tag write, row operations)`` for a row whose stored
+    ``gen`` and tags are ``row``'s, or None when nothing is to be written."""
+    tags = list(row.tags or [])
+    tag_write = image_tags.plan_prompt_write(
+        image_id, tags, _prompt_tags(g), force=force
+    )
+    gen_changed = force or g != row.gen
+    if not gen_changed and tag_write is None:
+        return None
+    ops = 1
+    if tag_write is not None:
+        ops += (
+            len(tag_write.drop) + len(tag_write.add)
+            if not force
+            else 2 * len(tag_write.rows)
+        )
+    if gen_changed:
+        new_w = _term_weights(g)
+        if force or not isinstance(row.gen, dict):
+            ops += 2 * len(new_w)
+        else:
+            old_w = _term_weights(row.gen)
+            ops += sum(1 for k, v in new_w.items() if old_w.get(k) != v)
+            ops += sum(1 for k, v in old_w.items() if new_w.get(k) != v)
+    return g, tags, tag_write, ops
+
+
+class _Write:
+    """One row's planned write: its stamp, derived ``gen``, the tags its tag
+    write was planned against, that write (None: tags already match), and
+    about how many row operations it costs."""
+
+    __slots__ = ("stamp", "gen", "tags", "tag_write", "ops")
+
+    def __init__(self, stamp, gen, tags, tag_write, ops):
+        self.stamp, self.gen, self.tags = stamp, gen, tags
+        self.tag_write, self.ops = tag_write, ops
+
+
+def _write_chunk(conn, chunk: list[_Write], *, force: bool) -> bool:
+    """Write and stamp ``chunk`` on the caller's write transaction, against
+    the ``gen`` and tags stored now. Returns whether it wrote."""
+    current = {
+        r._id: r
+        for r in conn.execute(
+            sa.select(t.images.c._id, t.images.c.gen, t.images.c.tags).where(
+                t.images.c._id.in_([w.stamp[0] for w in chunk])
+            )
+        )
+    }
+    gens: list[tuple[str, dict, dict | None]] = []
+    tag_writes: list[image_tags.PromptWrite] = []
+    stamps: list[tuple[str, int, str]] = []
+    for w in chunk:
+        image_id = w.stamp[0]
+        row = current.get(image_id)
+        if row is None:
+            continue  # deleted since it was planned
+        stamps.append(w.stamp)
+        if force or w.gen != row.gen:
+            gens.append((image_id, w.gen, row.gen))
+        tag_write = w.tag_write
+        stored = list(row.tags or [])
+        if stored != w.tags:  # a tag write landed since the plan: plan again
+            tag_write = image_tags.plan_prompt_write(
+                image_id, stored, _prompt_tags(w.gen), force=force
+            )
+        if tag_write is not None:
+            tag_writes.append(tag_write)
+    if gens:
+        _write_gens(conn, gens, force=force)
+    tagged = image_tags.write_prompt_plans_sync(conn, tag_writes, force=force)
+    _stamp(conn, stamps)
+    return bool(gens or tagged)
+
+
+def _term_weights(g: dict | None) -> dict[str, float]:
+    """``image_gen_terms`` for a stored gen: ``{term: weight}``."""
+    g = g if isinstance(g, dict) else {}
+    weights = g.get("prompt_weights") or {}
+    return {
+        term: weights.get(term, 1.0)
+        for term in dict.fromkeys(g.get("prompt_terms") or [])
+    }
+
+
+def _same_list(g: dict, old: dict | None, key: str) -> bool:
+    return isinstance(old, dict) and (old.get(key) or []) == (g.get(key) or [])
+
+
+def _write_gens(
+    conn, gens: list[tuple[str, dict, dict | None]], *, force: bool = False
+) -> None:
     """``gen``, its promoted columns and its derived rows (prompt terms,
-    loras, embeddings) for a batch of images."""
-    ids = [image_id for image_id, _ in gens]
+    loras, embeddings) for ``(image_id, gen, stored gen)`` items. Only the
+    derived rows that differ from the stored gen's are touched, unless
+    ``force`` rebuilds them all (a migration that added a derived table)."""
     conn.execute(
         sa.update(t.images)
         .where(t.images.c._id == sa.bindparam("b_id"))
@@ -111,35 +366,76 @@ def _write_gens(conn, gens: list[tuple[str, dict]]) -> None:
                 "b_group": g.get("group_id"),
                 "b_prompt": g.get("prompt"),
             }
-            for image_id, g in gens
+            for image_id, g, _ in gens
         ],
     )
-    for table in (t.image_gen_terms, t.image_loras, t.image_embeddings):
-        conn.execute(sa.delete(table).where(table.c.image_id.in_(ids)))
-    terms = [
-        {
-            "image_id": image_id,
-            "term": term,
-            "weight": (g.get("prompt_weights") or {}).get(term, 1.0),
-        }
-        for image_id, g in gens
-        for term in dict.fromkeys(g.get("prompt_terms") or [])
-    ]
+    # Prompt terms: only the changed ones (a settings change renames a few
+    # terms of each image; rewriting all of them is most of the cost). An
+    # image never derived before (no stored gen) is rebuilt whole.
+    rebuild: list[str] = []
+    drop_terms: list[dict] = []
+    terms: list[dict] = []
+    for image_id, g, old in gens:
+        new_w = _term_weights(g)
+        if force or not isinstance(old, dict):
+            rebuild.append(image_id)
+            old_w = {}
+        else:
+            old_w = _term_weights(old)
+        drop_terms += [
+            {"b_id": image_id, "b_term": term}
+            for term, w in old_w.items()
+            if new_w.get(term) != w
+        ]
+        terms += [
+            {"image_id": image_id, "term": term, "weight": w}
+            for term, w in new_w.items()
+            if old_w.get(term) != w
+        ]
+    if rebuild:
+        conn.execute(
+            sa.delete(t.image_gen_terms).where(
+                t.image_gen_terms.c.image_id.in_(rebuild)
+            )
+        )
+    if drop_terms:
+        conn.execute(
+            sa.delete(t.image_gen_terms).where(
+                t.image_gen_terms.c.image_id == sa.bindparam("b_id"),
+                t.image_gen_terms.c.term == sa.bindparam("b_term"),
+            ),
+            drop_terms,
+        )
+    # LoRAs and embeddings: few per image, rebuilt where they differ.
+    by_id = {i: g for i, g, _ in gens}
+    lora_ids = [i for i, g, old in gens if force or not _same_list(g, old, "loras")]
+    emb_ids = [i for i, g, old in gens if force or not _same_list(g, old, "embeddings")]
+    for table, ids in ((t.image_loras, lora_ids), (t.image_embeddings, emb_ids)):
+        if ids:
+            conn.execute(sa.delete(table).where(table.c.image_id.in_(ids)))
     loras = [
-        {"image_id": image_id, "name": lo["name"], "strength": lo.get("strength")}
-        for image_id, g in gens
-        for lo in g.get("loras") or []
+        {"image_id": i, "name": lo["name"], "strength": lo.get("strength")}
+        for i in lora_ids
+        for lo in by_id[i].get("loras") or []
     ]
     embeddings = [
-        {"image_id": image_id, "name": e["name"], "negative": bool(e.get("negative"))}
-        for image_id, g in gens
-        for e in g.get("embeddings") or []
+        {"image_id": i, "name": e["name"], "negative": bool(e.get("negative"))}
+        for i in emb_ids
+        for e in by_id[i].get("embeddings") or []
     ]
-    for table, rows in (
-        (t.image_gen_terms, terms),
-        (t.image_loras, loras),
-        (t.image_embeddings, embeddings),
-    ):
+    if terms:
+        # The diff comes from the stored gen: a term row it lacks (drift)
+        # takes the new weight, not a failed insert that rolls the chunk
+        # back on every run. LoRAs and embeddings are rebuilt per image.
+        stmt = sqlite_insert(t.image_gen_terms)
+        conn.execute(
+            stmt.on_conflict_do_update(
+                index_elements=[t.image_gen_terms.c.image_id, t.image_gen_terms.c.term],
+                set_={"weight": stmt.excluded.weight},
+            ),
+            terms,
+        )
+    for table, rows in ((t.image_loras, loras), (t.image_embeddings, embeddings)):
         if rows:
             conn.execute(sa.insert(table), rows)
 
@@ -157,24 +453,26 @@ _ID_CHUNK = 500
 
 
 class _Run:
-    """One run's tag writes: whether any batch wrote."""
+    """One run's writes: whether any batch wrote gen or tags, and whether any
+    stamped (the first run after an upgrade stamps every row)."""
 
     wrote = False
+    stamped = False
 
 
 @contextmanager
 def _run_writes(*, checkpoint: bool = True) -> Iterator[_Run]:
     """One run's batches dirty the tag views softly; the run ends them with
     one hard invalidate, on error and cancel too, if any batch wrote, and
-    (``checkpoint``) truncates the WAL its writes grew."""
+    (``checkpoint``) truncates the WAL its writes (stamps too) grew."""
     run = _Run()
     try:
         yield run
     finally:
         if run.wrote:
             image_tags.end_bulk_writes()
-            if checkpoint:
-                checkpoint_wal()
+        if checkpoint and (run.wrote or run.stamped):
+            checkpoint_wal()
 
 
 def busy() -> bool:
@@ -183,13 +481,29 @@ def busy() -> bool:
     return _run_lock.locked()
 
 
+def _raws_from():
+    """``image_gen_raw`` with each row's skip stamp (none: revision 0)."""
+    return t.image_gen_raw.outerjoin(
+        t.image_gen_derived, t.image_gen_derived.c._id == t.image_gen_raw.c._id
+    )
+
+
 def _raw_pages(where) -> Iterator[sa.Row]:
+    """Every raw row matching ``where`` (:func:`_raw_page_lists`, flat)."""
+    for page in _raw_page_lists(where):
+        yield from page
+
+
+def _raw_page_lists(where) -> Iterator[list[sa.Row]]:
     """Every raw row matching ``where``, read a page at a time: a full run
     never holds them all (several GB at 30k images), and each page is its own
     short read, so no read transaction spans the run and pins the WAL. Keyset
     on ``rowid``: every raw index ends in it, so each page is an index range
     with no sort (``_id`` order would sort the whole match per page), and the
-    scanner's upsert keeps a row's rowid."""
+    scanner's upsert keeps a row's rowid. ``where`` may test the stamp
+    (:meth:`_Keys.stale`): a skipped row's raw is never read. ``raw`` is
+    the JSON text, decoded where it is derived (:mod:`derive_worker`), so a
+    page read costs the API process no Python work per byte."""
     rowid = sa.literal_column("image_gen_raw.rowid")
     last = 0
     while True:
@@ -200,13 +514,16 @@ def _raw_pages(where) -> Iterator[sa.Row]:
                     t.image_gen_raw.c._id,
                     t.image_gen_raw.c.library_id,
                     t.image_gen_raw.c.workflow_sig,
-                    t.image_gen_raw.c.raw,
+                    sa.func.coalesce(t.image_gen_derived.c.raw_rev, 0).label("rev"),
+                    sa.type_coerce(t.image_gen_raw.c.raw, sa.Text).label("raw"),
                 )
+                .select_from(_raws_from())
                 .where(where, rowid > last)
                 .order_by(rowid)
                 .limit(_PAGE)
             ).fetchall()
-        yield from page
+        if page:
+            yield page
         if len(page) < _PAGE:
             return
         last = page[-1].rid
@@ -219,76 +536,165 @@ def _reproject_where(
     task: activity.Task | None = None,
     count_total: bool = True,
 ) -> int:
-    """Recompute ``gen.*`` for every raw row matching ``where``. Returns how
-    many were derived (written or already up to date). ``task`` shows the
-    progress. Waits for any other run to finish first."""
+    """Recompute ``gen.*`` for every raw row matching ``where`` whose stamp
+    is stale (every row when ``force``). Returns how many were derived
+    (written or already up to date). ``task`` shows the progress. Waits for
+    any other run to finish first."""
     with _run_lock, _run_writes() as run:
         return _derive_where(
-            where, force=force, task=task, count_total=count_total, run=run
+            where,
+            force=force,
+            skip=not force,
+            task=task,
+            count_total=count_total,
+            run=run,
         )
 
 
 def _derive_where(
-    where, *, force: bool, task: activity.Task | None, count_total: bool, run: _Run
+    where,
+    *,
+    force: bool,
+    skip: bool,
+    task: activity.Task | None,
+    count_total: bool,
+    run: _Run,
 ) -> int:
+    """Derive the raw rows matching ``where``; ``skip``: only those whose
+    stamp is not this run's key (in SQL, before any raw is read)."""
     rulesets = _load_rulesets()
     config = extraction_settings.load_sync()
+    keys = _Keys(rulesets, config)
+    if skip:
+        where = sa.and_(where, keys.stale())
 
     if task is not None and count_total:
+        # Through the same filter as the pages, so the bar counts what is read.
         with sync_conn() as conn:
             task.add_total(
                 conn.execute(
-                    sa.select(sa.func.count()).select_from(t.image_gen_raw).where(where)
+                    sa.select(sa.func.count()).select_from(_raws_from()).where(where)
                 ).scalar_one()
             )
 
-    updated = 0
-    batch: list[tuple[str, dict]] = []
-    for row in _raw_pages(where):
-        if task is not None:
-            if count_total and task.total is not None and task.done >= task.total:
-                # A row written after the count (the pages read past it):
-                # grow the total so the bar never passes 100%.
-                task.add_total(1)
-            task.advance()
-        raw_doc = {
-            "_id": row._id,
-            "library_id": row.library_id,
-            "workflow_sig": row.workflow_sig,
-            **(row.raw or {}),
-        }
-        ruleset = rulesets.get(row.workflow_sig)
-        try:
-            g = gen_metadata.derive(raw_doc, ruleset, config)
-        except Exception as e:
-            # One hostile graph must not leave every later row underived.
-            logger.warning("Reprojection skipped %s: %r", row._id, e)
-            continue
-        if g is None:
-            continue
-        batch.append((row._id, g))
-        if len(batch) >= _BATCH:
-            run.wrote |= _flush_batch(batch, force=force)
-            updated += len(batch)
-            batch = []
-    if batch:
-        run.wrote |= _flush_batch(batch, force=force)
-        updated += len(batch)
-    return updated
+    # Each page is derived while the previous one is written: sent to the
+    # worker process (:mod:`derive_worker`), then the page before it flushed
+    # while the worker works. A page the worker can't take (small, or the
+    # worker failed) is derived here.
+    state = _Derive(rulesets, config, keys, task, count_total, force, run)
+    pending: _Page | None = None
+    derive_worker.run_started()
+    try:
+        for rows in _raw_page_lists(where):
+            page = state.submit(rows)
+            if pending is not None:
+                state.collect(pending)
+            pending = page
+        if pending is not None:
+            state.collect(pending)
+        state.flush()
+    finally:
+        derive_worker.run_ended()
+    return state.updated
+
+
+class _Page:
+    """One raw page on its way: its rows and the worker's answer (None:
+    derive it here)."""
+
+    __slots__ = ("rows", "future")
+
+    def __init__(self, rows: list[derive_worker.Row], future) -> None:
+        self.rows, self.future = rows, future
+
+
+class _Derive:
+    """One :func:`_derive_where` pass: derives pages (in the worker or
+    here), and batches the results into :func:`_flush`."""
+
+    def __init__(self, rulesets, config, keys, task, count_total, force, run):
+        self.rulesets, self.config, self.keys = rulesets, config, keys
+        self.task, self.count_total = task, count_total
+        self.force, self.run = force, run
+        self.stamps: dict[str, tuple[int, str]] = {}
+        self.batch: list[_Item] = []
+        self.updated = 0
+        # Set once the worker fails: the rest of this pass derives here.
+        self.in_thread = False
+
+    def submit(self, page: list[sa.Row]) -> _Page:
+        rows = [(r._id, r.library_id, r.workflow_sig, r.raw) for r in page]
+        for r in page:
+            self.stamps[r._id] = (r.rev, self.keys.of(r.workflow_sig))
+        future = None
+        if not self.in_thread and derive_worker.use(len(rows)):
+            try:
+                future = derive_worker.submit(rows, self.rulesets, self.config)
+            except derive_worker.Unavailable:
+                self.in_thread = True
+        return _Page(rows, future)
+
+    def collect(self, page: _Page) -> None:
+        results = None
+        if page.future is not None:
+            try:
+                results = page.future.result()
+            except Exception as e:
+                # The worker died or the page didn't make the trip. One
+                # failure per pass: a page sent before it fails with it.
+                if not self.in_thread:
+                    derive_worker.broken(e)
+                self.in_thread = True
+        if results is None:
+            results = derive_worker.derive_rows(page.rows, self.rulesets, self.config)
+        task = self.task
+        for image_id, g, err in results:
+            if task is not None:
+                if (
+                    self.count_total
+                    and task.total is not None
+                    and task.done >= task.total
+                ):
+                    # A row written after the count (the pages read past
+                    # it): grow the total so the bar never passes 100%.
+                    task.add_total(1)
+                task.advance()
+            rev, key = self.stamps.pop(image_id)
+            if err is not None:
+                # Not stamped: it is tried again next run.
+                logger.warning("Reprojection skipped %s: %s", image_id, err)
+                continue
+            self.batch.append((image_id, g, rev, key))
+            if len(self.batch) >= _BATCH:
+                self.flush()
+
+    def flush(self) -> None:
+        if self.batch:
+            self.updated += _flush(self.batch, force=self.force, run=self.run)
+            self.batch = []
+
+
+def _flush(batch: list[_Item], *, force: bool, run: _Run) -> int:
+    """:func:`_flush_batch` for a run; returns how many rows derived a gen."""
+    run.wrote |= _flush_batch(batch, force=force)
+    run.stamped = True
+    return sum(1 for _, g, *_ in batch if g is not None)
 
 
 def reproject_library(
     library_id: str,
     *,
     workflow_sig: str | None = None,
+    force: bool = False,
     task: activity.Task | None = None,
 ) -> int:
     """Recompute ``gen.*`` for one library's images (optionally scoped to a single
-    workflow signature)."""
+    workflow signature). ``force``: every row, current stamps too (the manual
+    endpoint, a repair)."""
     where = t.image_gen_raw.c.library_id == library_id
     if workflow_sig is not None:
         where = sa.and_(where, t.image_gen_raw.c.workflow_sig == workflow_sig)
-    return _reproject_where(where, task=task)
+    return _reproject_where(where, force=force, task=task)
 
 
 def reproject_image(image_id: str) -> int:
@@ -305,6 +711,7 @@ def reproject_image(image_id: str) -> int:
             return _derive_where(
                 t.image_gen_raw.c._id == image_id,
                 force=False,
+                skip=False,
                 task=None,
                 count_total=True,
                 run=run,
@@ -353,6 +760,7 @@ def _derive_ids(image_ids: list[str], task: activity.Task | None, run: _Run) -> 
         updated += _derive_where(
             t.image_gen_raw.c._id.in_(chunk),
             force=False,
+            skip=False,
             task=task,
             count_total=False,
             run=run,
@@ -421,7 +829,7 @@ def _spawn(
 
 
 def reproject_library_async(
-    library_id: str, *, workflow_sig: str | None = None
+    library_id: str, *, workflow_sig: str | None = None, force: bool = False
 ) -> threading.Thread:
     """Fire-and-forget reprojection of a library (manual endpoint, post-scan)."""
     return _spawn(
@@ -429,6 +837,7 @@ def reproject_library_async(
         reproject_library,
         library_id,
         workflow_sig=workflow_sig,
+        force=force,
         library_id=library_id,
     )
 
@@ -477,6 +886,25 @@ def underived_ids(library_id: str) -> list[str]:
                     # SQL NULL or a JSON null: never derived.
                     sa.func.coalesce(sa.func.json_type(t.images.c.gen), "null")
                     == "null",
+                )
+            ).scalars()
+        )
+
+
+def unstamped_ids(library_id: str) -> list[str]:
+    """Raws of a library with no skip stamp: rewritten (which clears it) and
+    not derived since. A post-scan run cut off by a restart, a cancelled
+    scan's committed batches or lost deferred ids leave them, and only a run
+    that names them (or a library run) would derive them again. One index
+    range on the library plus a primary-key probe per row."""
+    with sync_conn() as conn:
+        return list(
+            conn.execute(
+                sa.select(t.image_gen_raw.c._id)
+                .select_from(_raws_from())
+                .where(
+                    t.image_gen_raw.c.library_id == library_id,
+                    t.image_gen_derived.c.derive_key.is_(None),
                 )
             ).scalars()
         )

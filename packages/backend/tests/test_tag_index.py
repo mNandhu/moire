@@ -757,7 +757,7 @@ async def test_reprojection_batch_dirties_the_index(temp_db, seed):
     before = tag_index.current_generation()
     tag_index._last_soft_write = 0.0
 
-    assert reproject._flush_batch([("L1:a.jpg", {"prompt_terms": ["masterpiece"]})])
+    assert reproject._flush_batch([("L1:a.jpg", {"prompt_terms": ["masterpiece"]}, 0, "k")])
 
     assert tag_index.current_generation() == before
     assert tag_index._last_soft_write > 0

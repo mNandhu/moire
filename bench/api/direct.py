@@ -40,6 +40,10 @@ args = ap.parse_args()
 ds = (BENCH / args.dataset).resolve()
 benv.setup(ds / "moire.db", ds / "thumbs")
 
+from moire.database.db import ensure_schema_sync  # noqa: E402
+
+ensure_schema_sync()  # a copied DB may predate newer tables
+
 from sqlalchemy import event  # noqa: E402
 
 from moire.database.db import get_async_engine  # noqa: E402

@@ -21,6 +21,7 @@ from .ai.settings import get_ai_settings
 from .ai.tagger import get_tagger_manager
 from .ai.face_worker import get_face_worker
 from .generate.jobs import get_generation_manager
+from .metadata import derive_worker
 from .library.storage_fs import ensure_thumb_root
 from .update_check import checker as update_checker
 
@@ -106,5 +107,7 @@ async def stop() -> None:
     await get_generation_manager().stop()
     await get_ai_job_manager().stop()
     await get_tagger_manager().stop()
+    # Reprojection's worker process (a run still going finishes in-thread).
+    derive_worker.shutdown()
     # Tag view builds a request left running in the background.
     await tag_index.cancel_builds()

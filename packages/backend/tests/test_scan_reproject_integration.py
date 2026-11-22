@@ -162,8 +162,9 @@ async def test_unchanged_rows_are_skipped_unless_forced(temp_db, seed):
     assert before
     with db.sync_tx() as conn:  # as if image_gen_terms were a new, empty table
         conn.execute(sa.delete(t.image_gen_terms))
-    assert reproject.reproject_all() == 1
-    assert term_count() == 0  # unchanged gen: skipped
+    assert reproject.reproject_all() == 0  # stamp current: not even read
+    assert reproject.reproject_ids([image_id]) == 1
+    assert term_count() == 0  # derived again, but unchanged gen: not written
     reproject.reproject_all(force=True)
     assert term_count() == before
 
@@ -399,6 +400,9 @@ async def test_rescan_skips_unchanged_files_and_rebuilds_on_change(
     monkeypatch.setattr(
         reproject, "reproject_library_async", lambda lid: reprojected.append(lid)
     )
+    monkeypatch.setattr(
+        reproject, "reproject_ids_async", lambda ids: reprojected.extend(ids)
+    )
 
     async def rescan() -> None:
         opened.clear()
@@ -427,7 +431,8 @@ async def test_rescan_skips_unchanged_files_and_rebuilds_on_change(
     delete_thumb((await _img(f"{lib_id}:b.png")).thumb_key)
     await rescan()
     assert sorted(opened) == ["a.png", "b.png"]
-    assert reprojected == [lib_id]
+    # None of the three carries generation data, so nothing needs deriving.
+    assert reprojected == []
     assert (await _img(f"{lib_id}:a.png")).mtime == st.st_mtime + 10
 
     # New thumbnail settings rebuild every file once.
@@ -559,6 +564,77 @@ async def test_rescan_resumes_a_reprojection_cut_off(client, tmp_path, monkeypat
     await client.post(f"/libraries/{lib_id}/rescan")
     _wait_scan(lib_id)
     assert resumed == [[image_id]]
+
+
+async def test_rescan_reprojects_only_the_rows_it_wrote(
+    client, tmp_path, monkeypatch
+):
+    """A first scan derives the whole library; a rescan touching a few files
+    derives just those (plus underived rows), and a mostly rewritten library
+    takes the whole-library run again."""
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    names = [f"g{i}.png" for i in range(6)]
+    for name in names:
+        _write_png(lib_dir / name, parameters="a cat\nSteps: 20, Model: sdxl")
+    _write_png(lib_dir / "plain.png")
+
+    whole: list[str] = []
+    some: list[list[str]] = []
+    monkeypatch.setattr(reproject, "reproject_library_async", whole.append)
+    monkeypatch.setattr(reproject, "reproject_ids_async", some.append)
+
+    resp = await client.post("/libraries", json={"path": str(lib_dir)})
+    lib_id = resp.json()["_id"]
+    _wait_scan(lib_id)
+    assert whole == [lib_id] and some == []  # first scan: every raw is new
+
+    # The patched runs never derive anything; mark every row derived (and
+    # stamped) before each rescan so only its own writes show up below.
+    def derive_all() -> None:
+        with db.sync_tx() as conn:
+            conn.execute(
+                sa.update(t.images)
+                .where(t.images.c.library_id == lib_id)
+                .values(gen={"model": "sdxl"})
+            )
+            conn.execute(sa.update(t.image_gen_derived).values(derive_key="k"))
+
+    def touch(name: str) -> None:
+        st = os.stat(lib_dir / name)
+        os.utime(lib_dir / name, (st.st_atime, st.st_mtime + 10))
+
+    async def rescan() -> None:
+        whole.clear()
+        some.clear()
+        await client.post(f"/libraries/{lib_id}/rescan")
+        _wait_scan(lib_id)
+        derive_all()
+
+    derive_all()
+    touch("g1.png")
+    touch("plain.png")  # reopened, but has no raw to derive from
+    await rescan()
+    assert whole == []
+    assert some == [[f"{lib_id}:g1.png"]]
+
+    # Touched files plus an underived row (a reprojection cut off by a restart).
+    touch("g2.png")
+    with db.sync_tx() as conn:
+        conn.execute(
+            sa.update(t.images)
+            .where(t.images.c._id == f"{lib_id}:g5.png")
+            .values(gen=None)
+        )
+    await rescan()
+    assert whole == []
+    assert some == [[f"{lib_id}:g2.png", f"{lib_id}:g5.png"]]
+
+    for name in names[:4]:
+        touch(name)
+    await rescan()
+    assert whole == [lib_id]  # 4 of 6 raws rewritten: more than half
+    assert some == []
 
 
 def test_full_reprojections_coalesce(monkeypatch):
