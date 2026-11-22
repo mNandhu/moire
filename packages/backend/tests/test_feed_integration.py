@@ -267,8 +267,9 @@ async def test_cursor_pagination_walks_every_row_once_in_order(client, seed):
         if not page:
             break
         seen.extend(it["_id"] for it in page)
-        cursor = resp.headers["X-Next-Cursor"]
-        if len(page) < 10:
+        cursor = resp.headers.get("X-Next-Cursor")
+        if cursor is None:  # a short page is the last
+            assert len(page) < 10
             break
 
     assert seen == expected  # each row once, stable desc order across pages

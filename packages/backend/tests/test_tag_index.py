@@ -660,6 +660,32 @@ async def test_bulk_replace_ai_lags_until_the_run_ends(temp_db, client, seed):
 
 
 @pytest.mark.asyncio
+async def test_replace_ai_many_writes_a_batch_in_one_go(
+    temp_db, client, seed, monkeypatch
+):
+    """The AI job's write-behind stores a few images per transaction; an
+    image gone meanwhile is skipped, the rest still land."""
+    seed("L1:a.jpg", tags=("cat",))
+    seed("L1:b.jpg", tags=("manual:mine",))
+    calls: list[bool] = []
+    original = tag_index.invalidate_soft
+    monkeypatch.setattr(
+        tag_index, "invalidate_soft", lambda: (calls.append(True), original())[1]
+    )
+    await image_tags.replace_ai_many(
+        [
+            image_tags.AIWrite("L1:a.jpg", ["dog"], {}, "general"),
+            image_tags.AIWrite("L1:gone.jpg", ["owl"], {}, "general"),
+            image_tags.AIWrite("L1:b.jpg", ["fox"], {}, "sensitive"),
+        ],
+        bulk=True,
+    )
+    assert calls == [True]  # one dirtying for the batch
+    image_tags.end_bulk_writes()
+    assert await _counts(client) == {"dog": 1, "fox": 1, "manual:mine": 1}
+
+
+@pytest.mark.asyncio
 async def test_a_strict_end_of_bulk_writes_is_seen_at_once(temp_db, client, seed):
     """A reprojection run ends strict: the next reader waits for the views."""
     seed("L1:a.jpg", tags=("cat",))

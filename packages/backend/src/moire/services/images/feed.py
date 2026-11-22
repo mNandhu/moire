@@ -18,6 +18,7 @@ import math
 from dataclasses import dataclass, replace
 
 import sqlalchemy as sa
+from sqlalchemy.sql.util import ClauseAdapter
 
 from ...database.db import async_conn
 from ...database import schema as t
@@ -468,18 +469,10 @@ async def list_ids(f: FeedFilter, *, limit: int) -> list[str]:
         return list((await conn.execute(stmt)).scalars())
 
 
-async def list_feed(
-    f: FeedFilter, *, cursor: str | None, limit: int, offset: int
-) -> tuple[list[dict], str | None]:
-    """The cursor-paged feed in ``f.sort`` order (see :data:`SORTS`): rows
-    after ``cursor``, plus the cursor for the page after these (None when the
-    page is empty)."""
-    async with async_conn() as conn:
-        f = await _resolved(conn, f)
+def _paged(stmt, f: FeedFilter, *, cursor: str | None, limit: int, offset: int):
+    """``stmt`` (rows of ``images``) as one page in ``f.sort`` order: the rows
+    after ``cursor`` (or ``offset`` rows in, without one), ``limit`` of them."""
     keys, desc = SORTS[f.sort]
-    stmt = sa.select(
-        *FEED_COLUMNS, *(k.label(f"sort_{i}") for i, k in enumerate(keys))
-    ).where(feed_where(f))
     if cursor:
         values, image_id = parse_cursor(cursor, f.sort)
         row = sa.tuple_(*keys, t.images.c._id)
@@ -493,63 +486,119 @@ async def list_feed(
     stmt = stmt.order_by(*_directed([*keys, t.images.c._id], f.sort)).limit(limit)
     if not cursor and offset:
         stmt = stmt.offset(offset)
+    return stmt
+
+
+async def list_feed(
+    f: FeedFilter, *, cursor: str | None, limit: int, offset: int
+) -> tuple[list[dict], str | None]:
+    """The cursor-paged feed in ``f.sort`` order (see :data:`SORTS`): rows
+    after ``cursor``, plus the cursor for the page after these (None when the
+    page is empty)."""
+    async with async_conn() as conn:
+        f = await _resolved(conn, f)
+    keys = SORTS[f.sort][0]
+    stmt = sa.select(
+        *FEED_COLUMNS, *(k.label(f"sort_{i}") for i, k in enumerate(keys))
+    ).where(feed_where(f))
+    stmt = _paged(stmt, f, cursor=cursor, limit=limit, offset=offset)
     async with async_conn() as conn:
         rows = [dict(r._mapping) for r in (await conn.execute(stmt)).fetchall()]
-    next_cursor = encode_cursor(rows[-1], f.sort) if rows else None
+    # A short page is the last: no cursor (the client pages on it alone).
+    next_cursor = encode_cursor(rows[-1], f.sort) if len(rows) >= limit else None
     return [{k: r[k] for k in FEED_KEYS} for r in rows], next_cursor
 
 
-async def list_groups(f: FeedFilter, *, offset: int, limit: int) -> list[dict]:
-    """Batch-collapsed view: images sharing a ``gen_group_id`` fold into one entry
-    (the member first in ``f.sort`` order is the representative, plus a count).
-    Ungrouped images stand alone. Grouping is a full aggregation, so it spans
-    page boundaries. Batches order by their representative."""
-    # Ungrouped images key on their own _id so each stands alone (never a single
-    # giant "null" bucket). Window functions count + pick the representative in
-    # one pass, spanning page boundaries.
+def _sort_row(f: FeedFilter, table) -> tuple[list, sa.ColumnElement]:
+    """``table``'s (an alias of ``images``, or the table) sort keys under
+    ``f.sort`` and the full order row (sort keys..., _id)."""
+    adapt = ClauseAdapter(table).traverse
+    keys = [adapt(k) for k in SORTS[f.sort][0]]
+    return keys, sa.tuple_(*keys, table.c._id)
+
+
+# Each sort's batch index (schema.py): the batch, then the sort's own keys.
+_GROUP_INDEX = {
+    "newest": "ix_images_group_recent",
+    "oldest": "ix_images_group_recent",
+    "top": "ix_images_group_top",
+}
+
+
+def _group_head(f: FeedFilter):
+    """The row is its batch's representative under ``f``: ungrouped, or no
+    member of its batch that matches ``f`` sorts before it. Each probe seeks
+    ``ix_images_group_*`` at the batch and the row's own sort key, so the walk
+    decides a row from its earlier members only, never the whole set."""
+    g = t.images.alias("g")
+    desc = SORTS[f.sort][1]
+    g_keys, g_row = _sort_row(f, g)
+    keys, row = _sort_row(f, t.images)
+    # The range on the leading key is implied by the row compare; it is what
+    # lets SQLite seek the index (it won't from a row value).
+    if desc:
+        before = sa.and_(g_row > row, g_keys[0] >= keys[0])
+    else:
+        before = sa.and_(g_row < row, g_keys[0] <= keys[0])
+    earlier = (
+        sa.select(1)
+        .select_from(g)
+        .where(
+            g.c.gen_group_id == t.images.c.gen_group_id,
+            before,
+            ClauseAdapter(g).traverse(feed_where(f)),
+        )
+        # Pinned: the filter's own indexed terms (a library, a rare tag's id
+        # list) tie with it for the planner, and a probe on one of those
+        # reads everything before the row instead of its batch.
+        .with_hint(g, f"INDEXED BY {_GROUP_INDEX[f.sort]}", "sqlite")
+    )
+    return sa.or_(t.images.c.gen_group_id.is_(None), ~sa.exists(earlier))
+
+
+async def list_groups(
+    f: FeedFilter, *, cursor: str | None, limit: int, offset: int = 0
+) -> tuple[list[dict], str | None]:
+    """Batch-collapsed view: images sharing a ``gen_group_id`` fold into one
+    entry (the member first in ``f.sort`` order is the representative, plus
+    the count of members matching ``f``). Ungrouped images stand alone.
+    Batches order by their representative and page like :func:`list_feed`:
+    the page walks the feed's sort index keeping only each batch's first
+    member (:func:`_group_head`), so a batch whose members span pages still
+    shows once, and the cursor is the last representative's (see
+    :func:`encode_cursor`)."""
     async with async_conn() as conn:
         f = await _resolved(conn, f)
-    gkey = sa.func.coalesce(t.images.c.gen_group_id, t.images.c._id)
-    sub = (
-        sa.select(
-            *FEED_COLUMNS,
-            t.images.c.gen_group_id.label("group_id"),
-            sa.func.row_number()
-            .over(
-                partition_by=gkey,
-                order_by=_directed([*SORTS[f.sort][0], t.images.c._id], f.sort),
-            )
-            .label("rn"),
-            sa.func.count().over(partition_by=gkey).label("group_count"),
-            *(k.label(f"sort_{i}") for i, k in enumerate(SORTS[f.sort][0])),
-        )
-        .where(feed_where(f))
-        .subquery()
-    )
-    stmt = (
-        sa.select(sub)
-        .where(sub.c.rn == 1)
-        .order_by(
-            *_directed(
-                [
-                    *(sub.c[f"sort_{i}"] for i in range(len(SORTS[f.sort][0]))),
-                    sub.c._id,
-                ],
-                f.sort,
-            )
-        )
-        .offset(offset)
-        .limit(limit)
-    )
+    keys = SORTS[f.sort][0]
+    where = feed_where(f)
+    stmt = sa.select(
+        *FEED_COLUMNS,
+        t.images.c.gen_group_id.label("group_id"),
+        *(k.label(f"sort_{i}") for i, k in enumerate(keys)),
+    ).where(where, _group_head(f))
+    stmt = _paged(stmt, f, cursor=cursor, limit=limit, offset=offset)
     async with async_conn() as conn:
-        rows = (await conn.execute(stmt)).fetchall()
-    out = []
-    for r in rows:
-        out.append(
-            {
-                **{k: getattr(r, k) for k in FEED_KEYS},
-                "group_id": r.group_id,
-                "group_count": r.group_count,
-            }
-        )
-    return out
+        rows = [dict(r._mapping) for r in (await conn.execute(stmt)).fetchall()]
+        # This page's batches' counts: every member matching the filter,
+        # whichever page it would sort onto.
+        gids = list({r["group_id"] for r in rows} - {None})
+        counts: dict[str, int] = {}
+        if gids:
+            counted = await conn.execute(
+                sa.select(t.images.c.gen_group_id, sa.func.count())
+                .where(t.images.c.gen_group_id.in_(gids), where)
+                .group_by(t.images.c.gen_group_id)
+                .with_hint(t.images, "INDEXED BY ix_images_group_recent", "sqlite")
+            )
+            counts = {gid: n for gid, n in counted}
+    # A short page is the last: no cursor (the client pages on it alone).
+    next_cursor = encode_cursor(rows[-1], f.sort) if len(rows) >= limit else None
+    out = [
+        {
+            **{k: r[k] for k in FEED_KEYS},
+            "group_id": r["group_id"],
+            "group_count": counts.get(r["group_id"], 1),
+        }
+        for r in rows
+    ]
+    return out, next_cursor

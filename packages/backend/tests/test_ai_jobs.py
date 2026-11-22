@@ -11,6 +11,7 @@ from moire.services import activity
 from moire.services.ai import jobs as ai_jobs
 from moire.services.ai.jobs import AIJob, AIJobManager
 from moire.services.ai.tagger import TagParams, TaggerManager
+from moire.services.tags.image_tags import AIWrite
 
 _RESULT = {"caption": "", "rating": {}, "general_tags": [], "character_tags": []}
 
@@ -52,9 +53,21 @@ async def test_predict_image_does_not_block_event_loop(monkeypatch):
     assert ticks >= 10
 
 
+def _ai_write(image_id: str, tags: list[str] | None = None) -> AIWrite:
+    return AIWrite(image_id, ["t"] if tags is None else tags, {}, "general")
+
+
 def _job_manager(
-    monkeypatch, events: list[str], *, fail_load: frozenset[str] = frozenset()
+    monkeypatch,
+    events: list[str],
+    *,
+    fail_load: frozenset[str] = frozenset(),
+    fail_write: frozenset[str] = frozenset(),
+    write_s: float = 0.0,
+    written: list[list[str]] | None = None,
 ):
+    """A job manager with fake image loads, inference and DB writes, each
+    logged to ``events``. ``written`` collects each write transaction's ids."""
     mgr = AIJobManager()
 
     async def fake_load(image_id: str):
@@ -65,10 +78,22 @@ def _job_manager(
         events.append(f"load-end:{image_id}")
         return Image.new("RGBA", (4, 4))
 
-    async def fake_tag_one(*, image_id: str, image, settings, model, bulk):
+    async def fake_infer(*, image_id: str, image, settings, model):
         events.append(f"tag-start:{image_id}")
         await asyncio.sleep(0.05)
         events.append(f"tag-end:{image_id}")
+        return _ai_write(image_id)
+
+    async def fake_write(writes: list[AIWrite], *, bulk: bool):
+        ids = ",".join(w.image_id for w in writes)
+        events.append(f"write-start:{ids}")
+        await asyncio.sleep(write_s)
+        if fail_write.intersection(w.image_id for w in writes):
+            events.append(f"write-fail:{ids}")
+            raise RuntimeError("database is locked")
+        events.append(f"write-end:{ids}")
+        if written is not None:
+            written.append([w.image_id for w in writes])
 
     async def fake_settings():
         return {}
@@ -76,8 +101,17 @@ def _job_manager(
     async def model_ready(job, repo, cache_dir):
         return True
 
+    async def no_db(*_a, **_kw):
+        return None
+
+    # The job's end stores its skip list and rate: no DB in these tests (a
+    # worker cancelled inside an aiosqlite call can hang the loop's close).
+    monkeypatch.setattr(mgr, "_flush_skip", no_db)
+    monkeypatch.setattr(ai_jobs.ai_estimate, "record", no_db)
+    monkeypatch.setattr(ai_jobs, "checkpoint_wal", lambda: None)
     monkeypatch.setattr(mgr, "_load_image", fake_load)
-    monkeypatch.setattr(mgr, "_tag_one", fake_tag_one)
+    monkeypatch.setattr(mgr, "_infer_one", fake_infer)
+    monkeypatch.setattr(mgr, "_write_tags", fake_write)
     monkeypatch.setattr(mgr, "_prepare_model", model_ready)
     monkeypatch.setattr(ai_jobs, "get_ai_settings", fake_settings)
     return mgr
@@ -454,10 +488,10 @@ async def test_an_urgent_job_runs_between_the_images_of_a_long_one(monkeypatch):
 async def test_an_image_the_tagger_finds_nothing_in_is_left_to_auto_tag(monkeypatch):
     mgr = _job_manager(monkeypatch, [], fail_load={"bad"})
 
-    async def nothing_for_empty(*, image_id, image, settings, model, bulk):
-        return image_id != "empty"
+    async def nothing_for_empty(*, image_id, image, settings, model):
+        return _ai_write(image_id, [] if image_id == "empty" else None)
 
-    monkeypatch.setattr(mgr, "_tag_one", nothing_for_empty)
+    monkeypatch.setattr(mgr, "_infer_one", nothing_for_empty)
     flushed: list[set[str]] = []
 
     async def flush():
@@ -529,9 +563,9 @@ async def test_the_recorded_rate_leaves_out_failures_and_urgent_jobs(monkeypatch
     async def record(device, rate, images):
         recorded.append((rate, images))
 
+    mgr = _job_manager(monkeypatch, [], fail_load=frozenset({"bad"}))
     monkeypatch.setattr(ai_jobs.ai_estimate, "record", record)
     monkeypatch.setattr(ai_jobs.ai_estimate, "current_device", lambda: "cpu")
-    mgr = _job_manager(monkeypatch, [], fail_load=frozenset({"bad"}))
     job = await mgr.enqueue(ids=["a", "b", "bad"])
     job.nested_s = 0.0
     await mgr._run_job(job)
@@ -605,3 +639,176 @@ async def test_a_plain_one_image_job_that_fails_leaves_the_views_be(monkeypatch)
     mgr = _job_manager(monkeypatch, [], fail_load={"a"})
     await _run(mgr, ["a"])
     assert ends == []
+
+
+# --- The write-behind: DB writes run behind the next inference ------------------
+
+
+def _at(events: list[str], kind: str, image_id: str) -> int:
+    """Index of the first ``kind`` event naming ``image_id`` (a batched
+    write names several)."""
+    for i, e in enumerate(events):
+        name, _, ids = e.partition(":")
+        if name == kind and image_id in ids.split(","):
+            return i
+    raise ValueError(f"no {kind} for {image_id}: {events}")
+
+
+async def test_writes_run_behind_the_next_inference(monkeypatch):
+    events: list[str] = []
+    written: list[list[str]] = []
+    mgr = _job_manager(monkeypatch, events, write_s=0.1, written=written)
+    job = await _run(mgr, ["a", "b", "c", "d", "e"])
+
+    assert job.status == "done" and job.done == 5
+    # b's inference doesn't wait for a's write.
+    assert _at(events, "tag-start", "b") < _at(events, "write-end", "a")
+    # Writes slower than inference back up and go a few to a transaction.
+    assert sorted(i for w in written for i in w) == ["a", "b", "c", "d", "e"]
+    assert any(len(w) > 1 for w in written)
+    assert not mgr._in_flight
+
+
+async def test_inference_waits_once_the_write_queue_is_full(monkeypatch):
+    monkeypatch.setattr(ai_jobs, "_WRITE_DEPTH", 2)
+    monkeypatch.setattr(ai_jobs, "_WRITE_BATCH", 1)
+    events: list[str] = []
+    mgr = _job_manager(monkeypatch, events, write_s=0.2)
+    job = await _run(mgr, [f"i{n}" for n in range(7)])
+
+    assert job.status == "done" and job.done == 7
+    # At no point are more than depth (queued) + 1 (waiting to queue)
+    # inferred images ahead of the writes begun.
+    inferred = started = worst = 0
+    for e in events:
+        if e.startswith("tag-end:"):
+            inferred += 1
+        elif e.startswith("write-start:"):
+            started += 1
+        worst = max(worst, inferred - started)
+    assert worst == 3
+
+
+async def test_the_job_ends_after_its_last_write(monkeypatch):
+    events: list[str] = []
+    mgr = _job_manager(monkeypatch, events, write_s=0.1)
+    statuses: list[str] = []
+    fake_write = mgr._write_tags
+
+    async def write(writes, *, bulk):
+        statuses.extend(j.status for j in mgr._jobs.values())
+        await fake_write(writes, bulk=bulk)
+
+    monkeypatch.setattr(mgr, "_write_tags", write)
+    monkeypatch.setattr(
+        ai_jobs.image_tags,
+        "end_bulk_writes",
+        lambda *, refresh=False: events.append(f"end-bulk:{refresh}"),
+    )
+    noted: list[str] = []
+    real_note = ai_jobs._note_end
+    monkeypatch.setattr(
+        ai_jobs, "_note_end", lambda job: (noted.append(events[-1]), real_note(job))
+    )
+    job = await _run(mgr, ["a", "b", "c"])
+
+    assert job.status == "done" and job.done == 3
+    assert set(statuses) == {"running"}
+    last_write = max(i for i, e in enumerate(events) if e.startswith("write-end:"))
+    assert events.index("end-bulk:True") > last_write
+    assert noted == ["end-bulk:True"]
+
+
+async def test_cancel_keeps_the_inferred_images_and_ends_after_their_writes(
+    monkeypatch,
+):
+    events: list[str] = []
+    written: list[list[str]] = []
+    mgr = _job_manager(monkeypatch, events, write_s=0.2, written=written)
+    worker = asyncio.create_task(mgr._worker_loop())
+    job = await mgr.enqueue(ids=["a", "b", "c", "d", "e"])
+    seen_cancelling = False
+    try:
+        while "tag-end:b" not in events:
+            await asyncio.sleep(0.005)
+        await mgr.cancel(job.id)
+        for _ in range(200):
+            if job.status == "cancelled":
+                break
+            seen_cancelling |= job.status == "cancelling"
+            await asyncio.sleep(0.01)
+        ended_at = len(events)
+        await asyncio.sleep(0.3)
+    finally:
+        worker.cancel()
+
+    assert job.status == "cancelled" and seen_cancelling
+    stored = [i for w in written for i in w]
+    inferred = [e.split(":")[1] for e in events if e.startswith("tag-end:")]
+    # Every image inferred before the cancel is stored and counted.
+    assert sorted(stored) == sorted(inferred) and job.done == len(inferred) >= 2
+    # Nothing written after the job reported its end.
+    assert len(events) == ended_at
+    assert not mgr._in_flight
+
+
+async def test_a_failed_write_fails_its_image_only(monkeypatch):
+    events: list[str] = []
+    written: list[list[str]] = []
+    mgr = _job_manager(
+        monkeypatch, events, write_s=0.2, written=written, fail_write={"b"}
+    )
+    job = await _run(mgr, ["a", "b", "c", "d"])
+
+    assert job.status == "error"
+    assert (job.done, job.failed) == (3, 1)
+    assert [e["image_id"] for e in job.errors] == ["b"]
+    assert sorted(i for w in written for i in w) == ["a", "c", "d"]
+    # b went in a batch with another image: the batch failed, then each
+    # was stored on its own.
+    assert any(e.startswith("write-fail:") and "," in e for e in events)
+    assert not mgr._in_flight
+
+
+async def test_a_failed_write_is_left_to_auto_tag(monkeypatch):
+    mgr = _job_manager(monkeypatch, [], fail_write={"b"})
+    flushed: list[set[str]] = []
+
+    async def flush():
+        flushed.append(set(mgr._skip_new))
+
+    monkeypatch.setattr(mgr, "_flush_skip", flush)
+    await _run(mgr, ["a", "b"])
+    assert flushed == [{"b"}]
+
+
+async def test_queued_writes_land_before_an_urgent_job(monkeypatch):
+    events: list[str] = []
+    mgr = _job_manager(monkeypatch, events, write_s=0.1)
+    worker = asyncio.create_task(mgr._worker_loop())
+    bulk = await mgr.enqueue(ids=[f"b{i}" for i in range(4)])
+    try:
+        while "tag-start:b1" not in events:
+            await asyncio.sleep(0.005)
+        one = await mgr.enqueue(ids=["mine"], urgent=True)
+        for _ in range(500):
+            if bulk.status == "done":
+                break
+            await asyncio.sleep(0.01)
+    finally:
+        worker.cancel()
+
+    assert one.status == "done" and bulk.status == "done" and bulk.done == 4
+    assert _at(events, "write-end", "b1") < events.index("tag-start:mine")
+
+
+async def test_stopping_the_worker_leaves_no_write_running(monkeypatch):
+    events: list[str] = []
+    mgr = _job_manager(monkeypatch, events, write_s=0.5)
+    mgr.start()
+    await mgr.enqueue(ids=["a", "b", "c"])
+    while not any(e.startswith("write-start:") for e in events):
+        await asyncio.sleep(0.005)
+    await mgr.stop()
+    assert not [t for t in asyncio.all_tasks() if t.get_name() == "ai-write-behind"]
+    assert not any(e.startswith("write-end:") for e in events)

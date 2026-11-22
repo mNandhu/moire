@@ -19,6 +19,14 @@ from .tagger_download import activity_item
 
 logger = logging.getLogger("moire.faces")
 
+# How many images' faces one write transaction stores.
+_STORE_BATCH = 8
+# The detector is unloaded (its session and the heap it grew given back)
+# after this long with nothing queued. Avatars are queued a few at a time
+# as characters are listed: unloading after every short run would reload
+# the model (and run a full gc) on every listing.
+IDLE_UNLOAD_S = 120.0
+
 
 class FaceWorker:
     def __init__(self) -> None:
@@ -28,6 +36,7 @@ class FaceWorker:
         self._batch = 0
         self._task: asyncio.Task | None = None
         self._avatars: asyncio.Task | None = None
+        self._unload: asyncio.Task | None = None
 
     @property
     def pending(self) -> int:
@@ -45,20 +54,66 @@ class FaceWorker:
         self._batch += len(set(fresh) - self._pending)
         self._pending.update(fresh)
         if self._pending and (self._task is None or self._task.done()):
+            self._cancel_unload()
             self._task = asyncio.create_task(self._drain(), name="face-detect")
 
+    def _cancel_unload(self) -> None:
+        if self._unload is not None and not self._unload.done():
+            self._unload.cancel()
+        self._unload = None
+
+    async def _unload_when_idle(self) -> None:
+        await asyncio.sleep(IDLE_UNLOAD_S)
+        if self._pending or (self._task is not None and not self._task.done()):
+            return
+        await asyncio.to_thread(face_detect.unload)
+
     async def _drain(self) -> None:
-        cache_dir = await face_detect.model_cache_dir()
+        # Images looked at but not stored yet: still pending (the progress
+        # counts an image once stored), their rows in `rows`. Stored a batch
+        # at a time, so the worker takes SQLite's writer slot once per
+        # _STORE_BATCH images, not once each (an AI job's writes wait on it).
+        held: set[str] = set()
+        rows: list[dict] = []
         try:
-            while self._pending:
-                image_id = next(iter(self._pending))
+            cache_dir = await face_detect.model_cache_dir()
+            while True:
+                image_id = next((i for i in self._pending if i not in held), None)
+                if image_id is None or len(held) >= _STORE_BATCH:
+                    await self._store(rows, held)
+                    rows, held = [], set()
+                    if image_id is None:
+                        if not self._pending:
+                            return
+                        continue
+                held.add(image_id)
                 try:
-                    await face_detect.detect_and_store(image_id, cache_dir)
-                finally:
-                    # Counted as pending until stored.
-                    self._pending.discard(image_id)
+                    row = await face_detect.look(image_id, cache_dir)
+                except Exception:
+                    # Not stored: queued again the next time it is listed.
+                    logger.exception("Face detection failed for %s", image_id)
+                    continue
+                if row is not None:
+                    rows.append(row)
         finally:
+            self._pending -= held
             activity.note_ended("faces")
+            if not self._pending:
+                # Nothing awaits here: a queue() landing now sees this task
+                # done and starts a new drain.
+                self._cancel_unload()
+                self._unload = asyncio.create_task(
+                    self._unload_when_idle(), name="face-unload"
+                )
+
+    async def _store(self, rows: list[dict], held: set[str]) -> None:
+        try:
+            await face_detect.store(rows)
+        except Exception:
+            # Left unchecked: queued again the next time they are listed.
+            logger.exception("Storing %d found faces failed", len(rows))
+        finally:
+            self._pending -= held
 
     async def queue_avatars(self) -> None:
         """Every current avatar, so they are cropped before anyone opens a

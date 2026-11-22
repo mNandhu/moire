@@ -2,8 +2,8 @@
 
 Hybrid model (see docs/phase-functional-features.md #4): this module gives the
 "near real-time" half: a `watchfiles` thread per watched library that feeds
-single-file adds/modifies/deletes to `scan_incremental.ingest_single_file` /
-`scan_incremental.remove_single_image`. The "periodic reconciliation" half is just the
+bursts of adds/modifies/deletes to `scan_incremental.ingest_files` /
+`scan_incremental.remove_images`. The "periodic reconciliation" half is just the
 existing full `scan_library_async`, re-run on a timer here as a backstop for
 events a watcher misses (network shares, drives that don't deliver
 inotify/ReadDirectoryChanges reliably, the process being down when a change
@@ -13,11 +13,12 @@ The watching itself (`watchfiles`, which debounces bursts into batches) runs
 in one child process, `watch_proc`: watchfiles holds the GIL while it walks a
 new root, which froze the server for the whole walk (10 to 30 s at boot with
 dozens of libraries on a slow mount); `watch_child.ChildWatcher` keeps it
-alive. One thread per library here takes that library's batches off a queue. Debounced batches still name files that may be
-mid-write (a generator tool still streaming bytes to disk); `_wait_stable`
-re-reads size across a short quiet window before ingesting, and gives up
-(leaving the row for the next reconciliation pass) after a bounded number of
-attempts rather than blocking the watcher thread indefinitely.
+alive. One thread per library here takes that library's batches off a queue.
+Debounced batches still name files that may be mid-write (a generator tool
+still streaming bytes to disk), so a changed file waits in a pending set until
+its size and mtime hold for one stability window. The whole set shares that
+wait: every file that held still is ingested together as one batch, and a file
+still growing stays pending for a later pass.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from __future__ import annotations
 import itertools
 import logging
 import queue
+import stat
 import sys
 import threading
 import time
@@ -115,35 +117,138 @@ _child = ChildWatcher(
 )
 
 
-def _wait_stable(path: Path, stop_event: threading.Event) -> bool:
-    """Block (briefly) until `path`'s size stops changing, or give up.
+# A file's (size, mtime_ns) and when the watcher last saw it change.
+_Seen = tuple[tuple[int, int], float]
 
-    Returns False if the file vanished, never stabilized, or a stop was
-    requested mid-wait (library deleted / watching disabled), callers treat
-    all three as "skip, the periodic reconciliation will catch it eventually"
-    (a live stop propagates immediately rather than blocking shutdown for the
-    full stability window).
-    """
-    window_s = max(0.05, settings.watch_stability_window_ms / 1000.0)
-    attempts = max(1, settings.watch_stability_max_attempts)
-    last_size = -1
-    for _ in range(attempts):
-        if stop_event.is_set():
-            return False
+
+def _snapshot(path: Path) -> tuple[int, int] | None:
+    """(size, mtime_ns) of a regular file, None if it is gone or not a file."""
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    if not stat.S_ISREG(st.st_mode):
+        return None
+    return st.st_size, st.st_mtime_ns
+
+
+def _window_s() -> float:
+    return max(0.05, settings.watch_stability_window_ms / 1000.0)
+
+
+def _take_stable(pending: dict[Path, _Seen | None], window_s: float) -> list[Path]:
+    """Re-stat every pending file; pop and return those that held their size
+    and mtime for a full window. A file still changing stays pending with its
+    new snapshot (retried on a later pass, never dropped); one that vanished
+    is dropped (its delete event, if any, removes the row)."""
+    now = time.monotonic()
+    ready: list[Path] = []
+    for path, seen in list(pending.items()):
+        sig = _snapshot(path)
+        if sig is None:
+            del pending[path]
+        elif seen is None or seen[0] != sig:
+            pending[path] = (sig, now)
+        elif now - seen[1] >= window_s:
+            del pending[path]
+            ready.append(path)
+    return ready
+
+
+def _next_wait(pending: dict[Path, _Seen | None], window_s: float) -> float | None:
+    """How long the watch thread may block for new events: until the oldest
+    pending file's window ends, or indefinitely with nothing pending."""
+    if not pending:
+        return None
+    if any(seen is None for seen in pending.values()):
+        return 0.0
+    oldest = min(seen[1] for seen in pending.values() if seen is not None)
+    due = oldest + window_s - time.monotonic()
+    # Overdue only while a scan holds the files back: look again in a
+    # window, not in a busy loop for the whole scan.
+    return due if due > 0 else window_s
+
+
+def _note_changes(
+    w: _Watch, changes: set[tuple[Change, str]], pending: dict[Path, _Seen | None]
+) -> list[str]:
+    """Sort one merged batch by what is on disk now (a merged set has lost
+    the events' order, so a delete-then-recreate reads as an add): files to
+    wait on go into ``pending`` (a fresh event restarts their window),
+    vanished paths come back as image ids to remove."""
+    gone: list[str] = []
+    for raw_path in {p for _c, p in changes}:
+        path = Path(raw_path)
+        if thumbnailer.is_ignored(path):
+            continue
+        # A library inside this one watches its own folder.
+        if library_nesting.owned_by_nested(w.library_id, w.root, path):
+            continue
+        if path.is_file():
+            if thumbnailer.is_image(path):
+                pending[path] = None
+        elif not path.exists():
+            pending.pop(path, None)
+            try:
+                gone.append(scanner.image_id_for(w.library_id, w.root, path))
+            except ValueError:
+                logger.debug("watch path outside its root: %s", raw_path)
+    return gone
+
+
+def _process(
+    w: _Watch,
+    changes: set[tuple[Change, str]],
+    pending: dict[Path, _Seen | None],
+    window_s: float,
+) -> None:
+    """Apply one merged batch: removals at once, then every pending file that
+    has held still for a window, ingested together."""
+    if scanner.is_scanning(w.library_id):
+        # A full scan already reflects (or will reflect) disk state as of its
+        # own walk; let it own these events instead of racing it. Files
+        # already pending wait for it to end (an upsert after it is harmless).
+        return
+    gone = _note_changes(w, changes, pending) if changes else []
+    if gone:
         try:
-            size = path.stat().st_size
-        except OSError:
-            return False
-        if size == last_size:
-            return True
-        last_size = size
-        stop_event.wait(window_s)
-    return False
+            scan_incremental.remove_images(w.library_id, gone)
+        except Exception:
+            logger.exception(
+                "watch removal failed library=%s count=%d", w.library_id, len(gone)
+            )
+    ready = _take_stable(pending, window_s)
+    if not ready or w.stop_event.is_set() or scanner.is_scanning(w.library_id):
+        # Not lost: a stop ends the watch, and a scan started meanwhile walks
+        # these files itself.
+        return
+    try:
+        written = scan_incremental.ingest_files(
+            w.library_id,
+            w.root,
+            sorted(ready),
+            is_cancelled=lambda: (
+                w.stop_event.is_set() or scanner.is_scanning(w.library_id)
+            ),
+        )
+    except Exception:
+        logger.exception(
+            "watch ingest failed library=%s count=%d", w.library_id, len(ready)
+        )
+        return
+    if written:
+        scanner.nudge_auto_tag()
 
 
 def _run_watch(w: _Watch) -> None:
+    # Files seen changing that have not yet held still for a window.
+    pending: dict[Path, _Seen | None] = {}
     while True:
-        changes = w.queue.get()
+        window_s = _window_s()
+        try:
+            changes = w.queue.get(timeout=_next_wait(pending, window_s))
+        except queue.Empty:
+            changes = set()  # a pending file's window is up
         # Merge batches that queued up during a slow ingest, as watchfiles
         # did in-process, so a file rewritten in a burst is ingested once.
         while changes is not None:
@@ -154,39 +259,10 @@ def _run_watch(w: _Watch) -> None:
             changes = None if more is None else changes | more
         if changes is None or w.stop_event.is_set():
             break
-        for change, raw_path in changes:
-            if w.stop_event.is_set():
-                break
-            if scanner.is_scanning(w.library_id):
-                # A full scan already reflects (or will reflect) disk state
-                # as of its own walk; let it own this pass instead of racing
-                # it. Checked per-change (not once per debounced batch) so a
-                # scan that starts mid-batch still stops the rest of it.
-                continue
-            path = Path(raw_path)
-            if thumbnailer.is_ignored(path):
-                continue
-            # A library inside this one watches its own folder.
-            if library_nesting.owned_by_nested(w.library_id, w.root, path):
-                continue
-            try:
-                if change == Change.deleted:
-                    image_id = scanner.image_id_for(w.library_id, w.root, path)
-                    scan_incremental.remove_single_image(w.library_id, image_id)
-                else:
-                    if not path.is_file() or not thumbnailer.is_image(path):
-                        continue
-                    if not _wait_stable(path, w.stop_event):
-                        continue
-                    scan_incremental.ingest_single_file(w.library_id, w.root, path)
-                    scanner.nudge_auto_tag()
-            except Exception:
-                logger.exception(
-                    "watch event failed library=%s change=%s path=%s",
-                    w.library_id,
-                    change,
-                    raw_path,
-                )
+        try:
+            _process(w, changes, pending, window_s)
+        except Exception:
+            logger.exception("watch batch failed library=%s", w.library_id)
 
 
 def _schedule_reconcile(w: _Watch) -> None:

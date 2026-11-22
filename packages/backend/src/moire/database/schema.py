@@ -594,9 +594,15 @@ RETIRED_INDEXES = (
     "ix_images_gen_workflow_sig",
     "ix_image_tags_tag",
     "ix_image_tags_base",
+    # Superseded by ix_images_group_recent (same leading column).
+    "ix_images_gen_group_id",
 )
 
-sa.Index("ix_images_gen_group_id", images.c.gen_group_id)
+# The grouped view's probe (feed.list_groups): a batch's members in feed
+# order, so "does a member sort before this row" seeks to the row's own key.
+# The leading column alone serves every other lookup by batch.
+sa.Index("ix_images_group_recent", images.c.gen_group_id, *_newest)
+sa.Index("ix_images_group_top", images.c.gen_group_id, *_top)
 # Covering (x, image_id): tag counts and `$in` lookups read the index alone.
 sa.Index("ix_image_tags_tag_img", image_tags.c.tag, image_tags.c.image_id)
 sa.Index("ix_image_tags_base_img", image_tags.c.base, image_tags.c.image_id)

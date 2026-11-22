@@ -30,10 +30,23 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from sqlalchemy.dialects.sqlite.base import SQLiteCompiler
+
 from ..core.config import settings
 from .schema import RETIRED_INDEXES, metadata
 
 logger = logging.getLogger("moire.db")
+
+
+def _from_hint(self, table, text):
+    return text
+
+
+# Table hints render as written, so `select.with_hint(tbl, "INDEXED BY ix",
+# "sqlite")` pins a probe to its index where SQLite's planner, with no
+# statistics (there is no ANALYZE), would tie it with another one.
+# SQLAlchemy's SQLite compiler otherwise drops them.
+SQLiteCompiler.get_from_hint_text = _from_hint  # type: ignore[method-assign]
 
 # Where the WAL settles once a checkpoint resets it. Without a limit SQLite
 # reuses the file at its peak size (GBs after a reprojection with readers).

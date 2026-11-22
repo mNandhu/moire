@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import type { FeedItem, ImageDetail } from "./imageFilter";
+import type { ImageDetail } from "./imageFilter";
 import { feedItem, imageDetail } from "@/test/images";
 import type { FeedPage } from "./imageApi";
 import {
@@ -133,34 +133,41 @@ describe("removeImagesFromFeeds", () => {
     // groups cache now, not when the later invalidation lands.
     const qc = seededClient();
     qc.setQueryData(["image-groups", 60, {}], {
-      pages: [[doc("a"), doc("c")], [doc("b")]],
-      pageParams: [0, 60],
+      pages: [
+        { items: [doc("a"), doc("c")], next: "0|c" },
+        { items: [doc("b")], next: "0|b" },
+      ],
+      pageParams: [null, "0|c"],
     });
 
     removeImagesFromFeeds(qc, ["a", "b"]);
 
-    const groups = qc.getQueryData(["image-groups", 60, {}]) as { pages: FeedItem[][] };
-    expect(groups.pages.map((p) => p.map((d) => d._id))).toEqual([["c"], []]);
+    expect(pagesOf(qc, ["image-groups", 60, {}]).map((p) => p.map((d) => d._id))).toEqual([["c"], []]);
+    // The server cursors stay: the next page starts where it did.
+    const pages = (qc.getQueryData(["image-groups", 60, {}]) as { pages: FeedPage[] }).pages;
+    expect(pages.map((p) => p.next)).toEqual(["0|c", "0|b"]);
   });
 
   it("keeps a batch tile for the refetch to re-pick", () => {
     const qc = seededClient();
     qc.setQueryData(["image-groups", 60, {}], {
-      pages: [[{ ...doc("a"), group_count: 12 }, doc("c")]],
-      pageParams: [0],
+      pages: [{ items: [{ ...doc("a"), group_count: 12 }, doc("c")], next: "0|c" }],
+      pageParams: [null],
     });
 
     removeImagesFromFeeds(qc, ["a", "c"]);
 
-    const groups = qc.getQueryData(["image-groups", 60, {}]) as { pages: FeedItem[][] };
-    expect(groups.pages.map((p) => p.map((d) => d._id))).toEqual([["a"]]);
+    expect(pagesOf(qc, ["image-groups", 60, {}]).map((p) => p.map((d) => d._id))).toEqual([["a"]]);
   });
 });
 
 describe("syncFeedsFromDoc", () => {
   it("copies tile fields from the open image's doc into every feed and the grouped view", () => {
     const qc = seededClient();
-    qc.setQueryData(["image-groups", 60, {}], { pages: [[doc("a")]], pageParams: [0] });
+    qc.setQueryData(["image-groups", 60, {}], {
+      pages: [{ items: [doc("a")], next: "0|a" }],
+      pageParams: [null],
+    });
     syncFeedsFromDoc(
       qc,
       imageDetail({ _id: "a", score: 4, rating: "explicit", has_ai_tags: true, tags: ["ignored"] }),
@@ -171,8 +178,7 @@ describe("syncFeedsFromDoc", () => {
       // Only tile fields travel; the full doc's tags stay out of the feed.
       expect("tags" in pagesOf(qc, key)[0][0]).toBe(false);
     }
-    const groups = qc.getQueryData(["image-groups", 60, {}]) as { pages: FeedItem[][] };
-    expect(groups.pages[0][0].score).toBe(4);
+    expect(pagesOf(qc, ["image-groups", 60, {}])[0][0].score).toBe(4);
   });
 
   it("leaves pages untouched when nothing changed", () => {

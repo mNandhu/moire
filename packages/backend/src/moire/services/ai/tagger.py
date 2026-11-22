@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import gc
 import logging
 import csv
 import os
@@ -13,6 +14,7 @@ from typing import Any
 import numpy as np
 from PIL import Image
 
+from ...core import memory
 from ...core.config import settings as app_settings
 from .tagger_download import (
     download_wd_tagger,
@@ -246,12 +248,25 @@ class WDTagger:
                 providers = []
         return "gpu" if "CUDAExecutionProvider" in providers else "cpu"
 
-    def unload(self) -> None:
-        # Best-effort: drop references so Python can GC.
+    def drop(self) -> None:
+        """Drop every reference to the model (cheap; no memory handed back)."""
         self._session = None
         self._labels = None
         self._target_size = None
         self._repo = None
+
+    @staticmethod
+    def release_memory() -> None:
+        """Hand the dropped session's host memory back: its CPU arena sits in
+        glibc's heap and stays in RSS until trimmed (the CUDA libraries stay
+        mapped, so the process keeps that part). Slow on a big heap: call it
+        off the event loop."""
+        gc.collect()
+        memory.trim()
+
+    def unload(self) -> None:
+        self.drop()
+        self.release_memory()
 
     async def load(self, model_repo: str, *, cache_dir: str) -> None:
         if rt is None:
@@ -533,7 +548,10 @@ class TaggerManager:
 
     async def unload(self) -> None:
         async with self._lock:
-            self._tagger.unload()
+            self._tagger.drop()
+        # A full gc and malloc_trim can take a while on a big heap: not on
+        # the event loop.
+        await asyncio.to_thread(self._tagger.release_memory)
 
     def input_size(self) -> int | None:
         """The loaded model's square input side, else None."""

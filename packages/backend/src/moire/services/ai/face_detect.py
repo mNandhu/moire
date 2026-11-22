@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import gc
 import logging
 import os
 import threading
@@ -26,6 +27,7 @@ import numpy as np
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+from ...core import memory
 from ...database.db import async_conn, async_tx
 from ...database import schema as t
 from . import settings as ai_settings
@@ -195,6 +197,15 @@ def _load(cache_dir: str):
         return _session[1], _session[2]
 
 
+def unload() -> None:
+    """Drop the detector's session and give its host memory back."""
+    global _session
+    with _session_lock:
+        _session = None
+    gc.collect()
+    memory.trim()
+
+
 def detect(image_path: str, cache_dir: str):
     """The avatar face in an image file, ``(cx, cy, w, h, conf)`` fractions,
     or ``None``. Blocking: run it in a thread."""
@@ -273,9 +284,21 @@ async def detect_now(image_id: str) -> None:
 
 
 async def detect_and_store(image_id: str, cache_dir: str) -> None:
-    """Look at one image and remember the answer. An image that can't be
-    read, or makes the model fail, is remembered as having no face, so it
-    isn't tried again until its file changes."""
+    """Look at one image and remember the answer at once (:func:`look`,
+    :func:`store`)."""
+    row = await look(image_id, cache_dir)
+    if row is not None:
+        await store([row])
+
+
+_FACE_COLUMNS = ("cx", "cy", "w", "h", "conf", "model", "mtime")
+
+
+async def look(image_id: str, cache_dir: str) -> dict[str, Any] | None:
+    """Look at one image: its ``image_faces`` row to :func:`store`, or None
+    if the image is gone. An image that can't be read, or makes the model
+    fail, gets a no-face row, so it isn't tried again until its file
+    changes."""
     async with async_conn() as conn:
         row = (
             await conn.execute(
@@ -293,17 +316,39 @@ async def detect_and_store(image_id: str, cache_dir: str) -> None:
             face = await asyncio.to_thread(detect, str(path), cache_dir)
         except Exception:
             logger.exception("Face detection failed for %s", image_id)
-    values = {
+    return {
+        "image_id": image_id,
         **dict(zip(("cx", "cy", "w", "h", "conf"), face or (None,) * 5)),
         "model": MODEL,
         "mtime": row.mtime,
     }
+
+
+async def store(rows: list[dict[str, Any]]) -> None:
+    """Remember what :func:`look` found, a batch in one transaction (the
+    worker's: one short hold of the writer slot for several images, not one
+    each). An image deleted since it was looked at is left out."""
+    if not rows:
+        return
     async with async_tx() as conn:
-        stmt = sqlite_insert(t.image_faces).values(image_id=image_id, **values)
+        ids = [r["image_id"] for r in rows]
+        alive = set(
+            (
+                await conn.execute(
+                    sa.select(t.images.c._id).where(t.images.c._id.in_(ids))
+                )
+            ).scalars()
+        )
+        rows = [r for r in rows if r["image_id"] in alive]
+        if not rows:
+            return
+        stmt = sqlite_insert(t.image_faces)
         await conn.execute(
             stmt.on_conflict_do_update(
-                index_elements=[t.image_faces.c.image_id], set_=values
-            )
+                index_elements=[t.image_faces.c.image_id],
+                set_={c: stmt.excluded[c] for c in _FACE_COLUMNS},
+            ),
+            rows,
         )
 
 

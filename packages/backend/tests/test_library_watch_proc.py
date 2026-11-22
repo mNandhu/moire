@@ -31,12 +31,12 @@ def ingested(monkeypatch):
     seen: list[tuple[str, str]] = []
     got = threading.Event()
 
-    def fake_ingest(library_id, _root, path):
-        seen.append((library_id, path.name))
+    def fake_ingest(library_id, _root, paths, **_kw):
+        seen.extend((library_id, p.name) for p in paths)
         got.set()
-        return True
+        return len(paths)
 
-    monkeypatch.setattr(scan_incremental, "ingest_single_file", fake_ingest)
+    monkeypatch.setattr(scan_incremental, "ingest_files", fake_ingest)
     monkeypatch.setattr(scanner, "is_scanning", lambda _id: False)
     yield seen, got
     library_watch.stop_all()
@@ -135,8 +135,8 @@ def test_batches_queued_during_an_ingest_are_merged(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(
         scan_incremental,
-        "ingest_single_file",
-        lambda _lib, _root, p: calls.append(p.name),
+        "ingest_files",
+        lambda _lib, _root, ps, **_kw: calls.extend(p.name for p in ps),
     )
     (tmp_path / "a.png").write_bytes(b"x")
     w = library_watch._Watch("W1", tmp_path)

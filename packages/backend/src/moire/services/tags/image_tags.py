@@ -357,16 +357,28 @@ async def _mutate_tags(
     the one read-modify-write path behind every high-level tag intent. No-op if
     the image is unknown. ``bulk``, ``refresh``: see :func:`_dirty_tag_index`."""
     async with async_tx() as conn:
-        resolved = await resolve_image_id(conn, image_id)
-        if resolved is None:
+        if not await _mutate_in(conn, image_id, transform, extra=extra):
             return
-        current = (
-            await conn.execute(
-                sa.select(t.images.c.tags).where(t.images.c._id == resolved)
-            )
-        ).scalar() or []
-        await _persist(conn, resolved, transform(current), extra=extra)
     _dirty_tag_index(bulk=bulk, refresh=refresh)
+
+
+async def _mutate_in(
+    conn: AsyncConnection,
+    image_id: str,
+    transform: Callable[[list[str]], list[str]],
+    *,
+    extra: dict[str, Any] | None = None,
+) -> bool:
+    """:func:`_mutate_tags` inside the caller's transaction; False if the
+    image is unknown (nothing written)."""
+    resolved = await resolve_image_id(conn, image_id)
+    if resolved is None:
+        return False
+    current = (
+        await conn.execute(sa.select(t.images.c.tags).where(t.images.c._id == resolved))
+    ).scalar() or []
+    await _persist(conn, resolved, transform(current), extra=extra)
+    return True
 
 
 async def apply_manual(image_id: str, tags: list[str]) -> None:
@@ -553,6 +565,18 @@ async def rename_manual(old: str, new: str) -> int:
     return changed
 
 
+@dataclass(frozen=True)
+class AIWrite:
+    """One image's tagger result, as :func:`replace_ai_many` stores it: the
+    AI tags (replacing the old ones), the tagger metadata and its rating
+    label."""
+
+    image_id: str
+    ai_tags: list[str]
+    ai_meta: dict[str, Any]
+    rating: str
+
+
 async def replace_ai(
     image_id: str,
     *,
@@ -561,18 +585,32 @@ async def replace_ai(
     rating: str,
     bulk: bool = False,
 ) -> None:
-    """``bulk``: written by a background job, which calls
+    """One image's :func:`replace_ai_many`."""
+    await replace_ai_many([AIWrite(image_id, ai_tags, ai_meta, rating)], bulk=bulk)
+
+
+async def replace_ai_many(writes: list[AIWrite], *, bulk: bool = False) -> None:
+    """Replace the AI tags of a few images in one transaction (an AI job's
+    write-behind batches them; keep it to a handful, the writer slot is held
+    for all of them). Manual and prompt tags stay; an unknown image is
+    skipped. All or nothing: a failure rolls every image back.
+
+    ``bulk``: written by a background job, which calls
     :func:`end_bulk_writes` when it ends. Otherwise one image's AI tagging,
     whose image view reads the image's own tags: the tag views are refreshed
     (served the previous ones while they rebuild), not dropped, unless the
     sensitivity filter is on (the image may now be hidden)."""
-    await _mutate_tags(
-        image_id,
-        lambda current: with_replaced_ai(current, ai_tags),
-        extra={"ai": ai_meta, "rating": _ai_rating(rating)},
-        bulk=bulk,
-        refresh=not bulk,
-    )
+    if not writes:
+        return
+    async with async_tx() as conn:
+        for w in writes:
+            await _mutate_in(
+                conn,
+                w.image_id,
+                lambda current, tags=w.ai_tags: with_replaced_ai(current, tags),
+                extra={"ai": w.ai_meta, "rating": _ai_rating(w.rating)},
+            )
+    _dirty_tag_index(bulk=bulk, refresh=not bulk)
 
 
 async def clear_ai(image_id: str) -> None:

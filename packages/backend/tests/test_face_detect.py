@@ -83,6 +83,70 @@ async def test_avatars_get_their_face_in_the_background(
     assert len(looked) == 1  # looked at once, remembered after
 
 
+async def test_the_worker_stores_faces_a_batch_at_a_time(
+    client, seed, monkeypatch, tmp_path
+):
+    ids = [f"L1:{n}" for n in range(11)]
+    for i in ids:
+        seed(i, thumb_key=f"k/{i}")
+    monkeypatch.setattr(face_detect, "downloaded", lambda cache_dir: True)
+    monkeypatch.setattr(face_detect, "detect", lambda *a: (0.4, 0.3, 0.2, 0.2, 0.9))
+    monkeypatch.setattr(
+        face_detect.storage_fs, "thumb_path", lambda key: Path(tmp_path / key)
+    )
+    monkeypatch.setattr(face_worker, "_STORE_BATCH", 4)
+    batches: list[int] = []
+    real_store = face_detect.store
+
+    async def store(rows):
+        batches.append(len(rows))
+        await real_store(rows)
+
+    monkeypatch.setattr(face_detect, "store", store)
+    worker = face_worker.get_face_worker()
+    await worker.queue(ids)
+    await worker.idle()
+
+    assert batches == [4, 4, 3]
+    assert not worker._pending and worker.progress() == (0, 0)
+    assert len(await face_detect.faces_for(ids)) == 11
+
+
+async def test_a_failed_face_store_leaves_the_batch_unchecked(
+    client, seed, monkeypatch, tmp_path
+):
+    ids = ["L1:a", "L1:b"]
+    for i in ids:
+        seed(i, thumb_key=f"k/{i}")
+    monkeypatch.setattr(face_detect, "downloaded", lambda cache_dir: True)
+    monkeypatch.setattr(face_detect, "detect", lambda *a: None)
+    monkeypatch.setattr(
+        face_detect.storage_fs, "thumb_path", lambda key: Path(tmp_path / key)
+    )
+
+    async def locked(rows):
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(face_detect, "store", locked)
+    worker = face_worker.get_face_worker()
+    await worker.queue(ids)
+    await worker.idle()
+    assert not worker._pending
+    assert await face_detect.unchecked(ids) == ids  # tried again next time
+
+
+async def test_storing_faces_skips_an_image_deleted_meanwhile(client, seed):
+    seed("L1:a", thumb_key="k/a")
+    row = {"cx": 0.4, "cy": 0.3, "w": 0.2, "h": 0.2, "conf": 0.9}
+    row.update(model=face_detect.MODEL, mtime=None)
+    await face_detect.store(
+        [{"image_id": "L1:gone", **row}, {"image_id": "L1:a", **row}]
+    )
+    assert await face_detect.faces_for(["L1:a", "L1:gone"]) == {
+        "L1:a": (0.4, 0.3, 0.2, 0.2)
+    }
+
+
 async def test_nothing_runs_until_switched_on_and_downloaded(client, seed, monkeypatch):
     monkeypatch.setattr(tag_categories, "load", _chars("frieren"))
     seed("L1:a", tags=("frieren",), thumb_key="k/a")

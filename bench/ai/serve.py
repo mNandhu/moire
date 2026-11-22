@@ -108,18 +108,20 @@ if __name__ == "__main__":
 
     ai_jobs.AIJobManager._load_image = _load_image
 
-    _o_tag_one = ai_jobs.AIJobManager._tag_one
+    # "tag_one": one image's inference step (its DB write runs behind it,
+    # timed as "write" below).
+    _o_infer_one = ai_jobs.AIJobManager._infer_one
 
 
-    async def _tag_one(self, **kw):
+    async def _infer_one(self, **kw):
         t0 = time.time()
         try:
-            return await _o_tag_one(self, **kw)
+            return await _o_infer_one(self, **kw)
         finally:
             AI["tag_one"].append((t0, time.time() - t0))
 
 
-    ai_jobs.AIJobManager._tag_one = _tag_one
+    ai_jobs.AIJobManager._infer_one = _infer_one
 
     _o_predict = ai_tagger.WDTagger.predict
 
@@ -147,21 +149,22 @@ if __name__ == "__main__":
 
     ai_tagger.WDTagger.load = _load_model
 
-    _o_replace = image_tags.replace_ai
+    # Every AI tag write (the job's batches, and replace_ai) goes through
+    # replace_ai_many: one "write" per transaction, one "commits" per image.
+    _o_replace = image_tags.replace_ai_many
 
 
-    async def _replace_ai(image_id, *, ai_tags, **kw):
+    async def _replace_ai_many(writes, **kw):
         t0 = time.time()
-        try:
-            return await _o_replace(image_id, ai_tags=ai_tags, **kw)
-        finally:
-            t1 = time.time()
-            AI["write"].append((t0, t1 - t0))
-            _pairs[0] += len(ai_tags)
-            AI["commits"].append((t1, _pairs[0], image_id))
+        await _o_replace(writes, **kw)
+        t1 = time.time()
+        AI["write"].append((t0, t1 - t0))
+        for w in writes:
+            _pairs[0] += len(w.ai_tags)
+            AI["commits"].append((t1, _pairs[0], w.image_id))
 
 
-    image_tags.replace_ai = _replace_ai
+    image_tags.replace_ai_many = _replace_ai_many
 
     _o_detect = face_detect.detect
 

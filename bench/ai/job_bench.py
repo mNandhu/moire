@@ -292,12 +292,11 @@ async def main():
             "max": round(max(gaps), 1),
             "over_20ms": sum(g > 20 for g in gaps),
         }
-    if ai["tag_one"] and ai["predict_thread"] and ai["write"]:
+    # tag_one is inference only: the DB write runs behind it (write-behind).
+    if ai["tag_one"] and ai["predict_thread"]:
         other = [
-            t1[1] - p[1] - w[1]
-            for t1, p, w in zip(
-                sorted(ai["tag_one"]), sorted(ai["predict_thread"]), sorted(ai["write"])
-            )
+            t1[1] - p[1]
+            for t1, p in zip(sorted(ai["tag_one"]), sorted(ai["predict_thread"]))
         ]
         st["tag_one_overhead_ms(lock+to_thread+params)"] = round(
             statistics.mean(other) * 1000, 1

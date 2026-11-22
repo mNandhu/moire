@@ -12,6 +12,7 @@ from typing import Any
 import sqlalchemy as sa
 from PIL import Image
 
+from ...core import memory
 from ...database.db import async_conn, checkpoint_wal
 from ...database import schema as t
 from .. import activity, app_settings
@@ -43,6 +44,11 @@ _AUTO_DELAY_S = 3.0
 # then. Kept across restarts; an image whose file changes gets another go.
 _SKIP_ROW = "ai_auto_skip"
 _CHUNK = 500
+# The write-behind: how many tagged images may wait for their DB write
+# before inference waits for it (memory stays bounded: tags, not pixels),
+# and how many of those one write transaction takes at most.
+_WRITE_DEPTH = 4
+_WRITE_BATCH = 8
 
 __all__ = [
     "AIJobManager",
@@ -154,6 +160,126 @@ class AIJob:
         return {**out, **self.throughput()}
 
 
+@dataclass
+class _Tagged:
+    """An inferred image waiting for its write: its place in the job's
+    list and what to store (no pixels: the queue's memory is its tags)."""
+
+    index: int
+    write: image_tags.AIWrite
+    found: bool
+
+
+class _WriteBehind:
+    """One job's AI tag writes, behind its inference: the tagging loop
+    queues each inferred image and goes on to the next while a single
+    writer task stores them, a few per transaction when they back up.
+    ``put`` waits once ``_WRITE_DEPTH`` are queued (backpressure).
+    ``write(batch, bulk=...)`` stores a batch, all or nothing;
+    ``on_written(item)`` / ``on_failed(item, error)`` run once per image,
+    in order, after its transaction ends."""
+
+    _STOP = object()
+
+    def __init__(self, write, on_written, on_failed, *, bulk: bool) -> None:
+        self._write = write
+        self._on_written = on_written
+        self._on_failed = on_failed
+        self._bulk = bulk
+        self._q: asyncio.Queue = asyncio.Queue(maxsize=_WRITE_DEPTH)
+        self._task = asyncio.create_task(self._run(), name="ai-write-behind")
+        self._closed = False
+
+    def _check(self) -> None:
+        # A dead writer would leave put() and close() waiting forever.
+        if self._task.done():
+            self._task.result()  # its error, or CancelledError
+            raise RuntimeError("the AI tag writer stopped")
+
+    async def put(self, item: object) -> None:
+        self._check()
+        put = asyncio.ensure_future(self._q.put(item))
+        while not put.done():
+            await asyncio.wait({put, self._task}, return_when=asyncio.FIRST_COMPLETED)
+            if not put.done() and self._task.done():
+                put.cancel()
+                self._check()
+
+    async def flush(self) -> None:
+        """Wait until everything queued so far is stored (or failed)."""
+        self._check()
+        join = asyncio.ensure_future(self._q.join())
+        try:
+            await asyncio.wait({join, self._task}, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            if not join.done():
+                join.cancel()
+        self._check()
+
+    async def close(self) -> None:
+        """Store what is queued, then stop the writer. Idempotent."""
+        if self._closed:
+            return
+        self._closed = True
+        await self.put(self._STOP)
+        await self._task
+
+    async def abort(self) -> None:
+        """Stop the writer now, dropping what is queued (the worker is being
+        cancelled): a write in progress rolls back."""
+        self._closed = True
+        if not self._task.done():
+            self._task.cancel()
+        with contextlib.suppress(BaseException):
+            await self._task
+
+    async def _run(self) -> None:
+        while True:
+            first = await self._q.get()
+            batch = [first]
+            while len(batch) < _WRITE_BATCH and not self._q.empty():
+                batch.append(self._q.get_nowait())
+            stop = self._STOP in batch
+            batch = [b for b in batch if b is not self._STOP]
+            try:
+                if batch:
+                    await self._store(batch)
+            finally:
+                for _ in range(len(batch) + stop):
+                    self._q.task_done()
+            if stop:
+                return
+
+    async def _store(self, batch: list[_Tagged]) -> None:
+        try:
+            await self._write([b.write for b in batch], bulk=self._bulk)
+        except Exception as e:
+            if len(batch) == 1:
+                self._settle(batch[0], e)
+                return
+            # One image's row may be the bad one: store the rest one by one.
+            for item in batch:
+                try:
+                    await self._write([item.write], bulk=self._bulk)
+                except Exception as e1:
+                    self._settle(item, e1)
+                else:
+                    self._settle(item, None)
+            return
+        for item in batch:
+            self._settle(item, None)
+
+    def _settle(self, item: _Tagged, error: Exception | None) -> None:
+        try:
+            if error is None:
+                self._on_written(item)
+            else:
+                self._on_failed(item, error)
+        except Exception:
+            # Bookkeeping must not kill the writer (the job would hang).
+            logger.exception("AI job bookkeeping failed for %s", item.write.image_id)
+
+
 class _JobQueue:
     """A tiny cancellable async queue.
 
@@ -177,6 +303,9 @@ class _JobQueue:
             while not self._dq:
                 await self._cv.wait()
             return self._dq.popleft()
+
+    def has_urgent(self) -> bool:
+        return any(j.urgent for j in self._dq)
 
     def pop_urgent(self) -> AIJob | None:
         """Take the oldest queued urgent job, if any (no await: the worker
@@ -494,12 +623,20 @@ class AIJobManager:
             await self._run_job(job)
 
     async def _run_urgent(
-        self, outer: AIJob, run: tuple[dict[str, Any], tuple[str, str]]
+        self,
+        outer: AIJob,
+        run: tuple[dict[str, Any], tuple[str, str]],
+        writer: _WriteBehind,
     ) -> None:
         """Run the urgent jobs queued meanwhile, between two images of a long
         run, so an image's own re-tag doesn't wait hours behind it. They use
         the long run's settings and model: a model change mid-run would
         otherwise swap the model back and forth."""
+        if not self._queue.has_urgent():
+            return
+        # The run's queued writes land first: an older result must not land
+        # over an urgent re-tag of the same image.
+        await writer.flush()
         while (job := self._queue.pop_urgent()) is not None:
             if job.status != "cancelled":
                 began = time.time()
@@ -514,8 +651,38 @@ class AIJobManager:
     ) -> None:
         job.status = "running"
         ids = job.ids
-        released = 0  # ids[:released] are processed and their claims dropped
+        # Indexes into ids that are processed and their claims dropped. Not
+        # a prefix: a failed image is settled at once, while the images
+        # before it may still wait for their write.
+        finished: set[int] = set()
         checkpoint = False  # truncate the WAL once the run is wrapped up
+        cancelled = False
+        writer: _WriteBehind | None = None
+
+        def finish(i: int) -> None:
+            image_id = ids[i]
+            if job.urgent and self._in_flight[image_id] > 1:
+                # Another job still holds it: that one skips it.
+                self._taken.add(image_id)
+            self._release([image_id])
+            finished.add(i)
+
+        def failed(i: int, e: Exception) -> None:
+            logger.warning("AI tagging failed for %s: %s", ids[i], e)
+            job.failed += 1
+            job.errors.append({"image_id": ids[i], "error": str(e)})
+            self._skip_new.add(ids[i])
+            finish(i)
+
+        def written(item: _Tagged) -> None:
+            if not item.found:
+                self._skip_new.add(ids[item.index])
+            if job.total == 1:
+                # Its write refreshed the views (bulk=False).
+                job.cleared = False
+            job.done += 1
+            finish(item.index)
+
         try:
             if nested is not None:
                 settings, model = nested
@@ -541,15 +708,26 @@ class AIJobManager:
             job.phase = "tagging"
             job.started_at = time.time()
 
+            # Each image's DB write runs behind the next one's inference.
+            # Only a run of many lags the views; one image (its own re-tag)
+            # refreshes them at once.
+            writer = _WriteBehind(
+                self._write_tags,
+                written,
+                lambda item, e: failed(item.index, e),
+                bulk=job.total > 1,
+            )
             # Read + decode of the next image overlaps inference on the
             # current one; `pending` is the load for ids[i].
             pending: asyncio.Task | None = None
             try:
                 for i, image_id in enumerate(ids):
                     if nested is None and i > 0:
-                        await self._run_urgent(job, (settings, model))
+                        await self._run_urgent(job, (settings, model), writer)
                     if job.cancel_requested:
-                        job.status = "cancelled"
+                        # The images already inferred are still stored (the
+                        # close below): the job ends once they are.
+                        cancelled = True
                         break
                     if not job.urgent and image_id in self._taken:
                         # An urgent job tagged it meanwhile.
@@ -558,8 +736,7 @@ class AIJobManager:
                             _discard(pending)
                             pending = None
                         job.done += 1
-                        self._release([image_id])
-                        released = i + 1
+                        finish(i)
                         continue
                     job.current = image_id
                     load = pending or asyncio.create_task(self._load_image(image_id))
@@ -570,44 +747,45 @@ class AIJobManager:
                     )
                     try:
                         img = await load
-                        found = await self._tag_one(
+                        write = await self._infer_one(
                             image_id=image_id,
                             image=img,
                             settings=settings,
                             model=model,
-                            # Only a run of many lags the views; one image
-                            # (its own re-tag) refreshes them at once.
-                            bulk=job.total > 1,
                         )
-                        if found is False:
-                            self._skip_new.add(image_id)
-                        if job.total == 1:
-                            # Its write refreshed the views (bulk=False).
-                            job.cleared = False
-                        job.done += 1
                     except Exception as e:
-                        logger.warning("AI tagging failed for %s: %s", image_id, e)
-                        job.failed += 1
-                        job.errors.append({"image_id": image_id, "error": str(e)})
-                        self._skip_new.add(image_id)
-                    if job.urgent and self._in_flight[image_id] > 1:
-                        # Another job still holds it: that one skips it.
-                        self._taken.add(image_id)
-                    self._release([image_id])
-                    released = i + 1
+                        failed(i, e)
+                        continue
+                    # Waits only while _WRITE_DEPTH writes are queued.
+                    await writer.put(_Tagged(i, write, found=bool(write.ai_tags)))
             finally:
                 if pending is not None:
                     _discard(pending)
+            # Every write lands (or fails) before the job counts as ended.
+            await writer.close()
 
-            if job.status != "cancelled":
+            if cancelled:
+                job.status = "cancelled"
+            else:
                 job.status = "done" if job.failed == 0 else "error"
+        except asyncio.CancelledError:
+            # The worker is stopping: drop the queued writes with it, so none
+            # runs on after the job.
+            if writer is not None:
+                await writer.abort()
+            raise
         except Exception as e:
             # Outside the per-image guard (settings read, setup): fail this
             # job, keep the worker alive for the next.
             logger.exception("AI job %s failed", job.id)
+            if writer is not None:
+                try:
+                    await writer.close()
+                except Exception:
+                    await writer.abort()
             job.status = "error"
             job.error = str(e)
-            job.failed += len(ids) - released
+            job.failed += len(ids) - len(finished)
         finally:
             job.current = None
             try:
@@ -633,11 +811,15 @@ class AIJobManager:
                             ai_estimate.current_device(), job.done / own, job.done
                         )
             _note_end(job)
-            self._release(ids[released:])
+            self._release([x for i, x in enumerate(ids) if i not in finished])
             if checkpoint:
                 # Last, off the event loop: a cancel at this await must not
                 # skip the bookkeeping above.
                 await asyncio.to_thread(checkpoint_wal)
+            if nested is None and job.total > 1 and not self._queue.qsize():
+                # The run's decoded images and tensors are freed, but glibc
+                # keeps the pages (a long job ratchets RSS toward gigabytes).
+                await asyncio.to_thread(memory.trim)
 
     def _release(self, ids: list[str]) -> None:
         """Drop one claim per id, so an id another job also holds stays claimed."""
@@ -696,16 +878,16 @@ class AIJobManager:
 
         return await asyncio.to_thread(_read)
 
-    async def _tag_one(
+    async def _infer_one(
         self,
         *,
         image_id: str,
         image: Image.Image | PreparedImage,
         settings: dict[str, Any],
         model: tuple[str, str],
-        bulk: bool,
-    ) -> bool:
-        """Tag one image; False if the tagger found nothing to tag it with."""
+    ) -> image_tags.AIWrite:
+        """Run the tagger on one image: what to store for it (the job's
+        write-behind stores it, :meth:`_write_tags`)."""
         model_repo, cache_dir = model
         params = TagParams.from_settings(settings)
 
@@ -720,9 +902,6 @@ class AIJobManager:
         character_tags = [t for (t, _p) in (result.get("character_tags") or [])]
         ai_tags = list(dict.fromkeys([*general_tags, *character_tags]))
 
-        rating_label = image_tags.ai_rating_label(result.get("rating"))
-
-        now = time.time()
         ai_meta: dict[str, Any] = {
             "model_repo": model_repo,
             "caption": result.get("caption") or "",
@@ -731,21 +910,40 @@ class AIJobManager:
             "character_tags": result.get("character_tags") or [],
             "general_thresh": params.general_thresh,
             "character_thresh": params.character_thresh,
-            "updated_at": now,
+            "updated_at": time.time(),
         }
-
-        # Replace prior AI tags with the new set, preserving manual tags.
-        await image_tags.replace_ai(
-            image_id,
+        return image_tags.AIWrite(
+            image_id=image_id,
             ai_tags=ai_tags,
             ai_meta=ai_meta,
-            rating=rating_label,
-            bulk=bulk,
+            rating=image_tags.ai_rating_label(result.get("rating")),
         )
-        return bool(ai_tags)
+
+    @staticmethod
+    async def _write_tags(writes: list[image_tags.AIWrite], *, bulk: bool) -> None:
+        """Store inferred images, replacing their prior AI tags (manual and
+        prompt tags stay), in one transaction."""
+        await image_tags.replace_ai_many(writes, bulk=bulk)
 
 
 _ai_job_manager: AIJobManager | None = None
+
+
+def heavy_active() -> bool:
+    """Whether tagging or face detection is running now, for work that should
+    leave it cores (the scan's pool). A hint, read from any thread."""
+    from .face_worker import get_face_worker
+
+    if get_face_worker().pending:
+        return True
+    mgr = _ai_job_manager
+    if mgr is None:
+        return False
+    try:
+        running = [j for j in list(mgr._jobs.values()) if j.status == "running"]
+    except RuntimeError:  # the dict changed under the copy
+        return True
+    return any(j.total > 1 for j in running)
 
 
 def get_ai_job_manager() -> AIJobManager:

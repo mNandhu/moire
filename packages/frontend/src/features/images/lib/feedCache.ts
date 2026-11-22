@@ -33,13 +33,25 @@ function patchData<T>(query: Query, next: T): void {
   if (next !== query.state.data) query.setState({ data: next });
 }
 
+// The feed and the grouped view page alike: items plus the server's cursor.
 type FeedData = InfiniteData<FeedPage>;
-type GroupsData = InfiniteData<FeedItem[]>;
 
 const feedQueries = (qc: QueryClient) =>
   qc.getQueryCache().findAll({ queryKey: IMAGE_FEED_PREFIX });
 const groupQueries = (qc: QueryClient) =>
   qc.getQueryCache().findAll({ queryKey: IMAGE_GROUPS_PREFIX });
+const feedAndGroupQueries = (qc: QueryClient) => [...feedQueries(qc), ...groupQueries(qc)];
+
+/** Apply `keep` to each page's items of `q`, writing only what changed. */
+function patchPages(q: Query, keep: (items: FeedItem[]) => FeedItem[]): void {
+  const old = q.state.data as FeedData | undefined;
+  if (!old) return;
+  const pages = old.pages.map((p) => {
+    const items = keep(p.items);
+    return items === p.items ? p : { ...p, items };
+  });
+  if (pages.some((p, i) => p !== old.pages[i])) patchData(q, { ...old, pages });
+}
 
 /**
  * Apply `mut` to the pages of every cached Image feed. `mut` sees each page's
@@ -81,21 +93,10 @@ export function patchImageInFeeds(
 ): void {
   const inPage = (page: FeedItem[]) =>
     hasImage(page, id) ? page.map((d) => (d._id === id ? patch(d) : d)) : page;
-  for (const q of feedQueries(qc)) {
+  for (const q of feedAndGroupQueries(qc)) {
     const old = q.state.data as FeedData | undefined;
     if (!old || !old.pages.some((p) => hasImage(p.items, id)) || !when(q)) continue;
-    const pages = old.pages.map((p) => {
-      const items = inPage(p.items);
-      return items === p.items ? p : { ...p, items };
-    });
-    if (pages.some((p, i) => p !== old.pages[i])) patchData(q, { ...old, pages });
-  }
-  // The grouped view's pages are plain arrays of batch representatives.
-  for (const q of groupQueries(qc)) {
-    const old = q.state.data as GroupsData | undefined;
-    if (!old || !old.pages.some((p) => hasImage(p, id)) || !when(q)) continue;
-    const pages = old.pages.map(inPage);
-    if (pages.some((p, i) => p !== old.pages[i])) patchData(q, { ...old, pages });
+    patchPages(q, inPage);
   }
 }
 
@@ -147,12 +148,8 @@ function writesOf(qc: QueryClient): Map<string, FieldWrites> {
 
 /** The image as the first cached feed or grouped view holding it has it. */
 function cachedTile(qc: QueryClient, id: string): FeedItem | undefined {
-  for (const q of feedQueries(qc)) {
+  for (const q of feedAndGroupQueries(qc)) {
     const hit = (q.state.data as FeedData | undefined)?.pages.flatMap((p) => p.items).find((d) => d._id === id);
-    if (hit) return hit;
-  }
-  for (const q of groupQueries(qc)) {
-    const hit = (q.state.data as GroupsData | undefined)?.pages.flat().find((d) => d._id === id);
     if (hit) return hit;
   }
   return undefined;
@@ -258,19 +255,14 @@ export function removeImagesFromFeeds(
   const keep = (page: FeedItem[]) =>
     page.some((d) => drop.has(d._id)) ? page.filter((d) => !drop.has(d._id)) : page;
   patchFeeds(qc, (pages) => pages.map(keep));
-  // The grouped view holds plain arrays of representatives. A batch tile stands
-  // for its other members too, so only a single-image tile goes; the refetch
-  // that follows picks a batch's new representative and count.
+  // The grouped view holds batch representatives. A batch tile stands for its
+  // other members too, so only a single-image tile goes; the refetch that
+  // follows picks a batch's new representative and count.
   const keepGroup = (page: FeedItem[]) =>
     page.some((d) => drop.has(d._id) && (d.group_count ?? 1) <= 1)
       ? page.filter((d) => !drop.has(d._id) || (d.group_count ?? 1) > 1)
       : page;
-  for (const q of groupQueries(qc)) {
-    const old = q.state.data as GroupsData | undefined;
-    if (!old) continue;
-    const pages = old.pages.map(keepGroup);
-    if (pages.some((p, i) => p !== old.pages[i])) patchData(q, { ...old, pages });
-  }
+  for (const q of groupQueries(qc)) patchPages(q, keepGroup);
 }
 
 /** The image view's batch strip: a batch's members under the viewer's filters.

@@ -4,6 +4,7 @@ from pathlib import Path
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+from ...core import memory
 from ...database.db import checkpoint_wal, sync_conn, sync_tx
 from ...database import schema as t
 from .. import activity
@@ -310,6 +311,30 @@ def process_image(
         )
 
 
+def scan_workers() -> int:
+    """Threads decoding files for a scan (or a watcher batch). Scanning is
+    I/O + CPU heavy and competes with API traffic, so keep auto-concurrency
+    conservative. While tagging or face detection runs the pool takes about
+    half the cores, so the tagger's decoding and prefetch keep the rest (a
+    full pool starved the GPU: 72% busy down to 40%)."""
+    cores = cpu_count() or 4
+    default_workers = max(2, min(16, cores))
+    cap = settings.scanner_max_workers
+    workers = default_workers if not cap or cap <= 0 else min(default_workers, cap)
+    if _ai_job_active():
+        workers = min(workers, max(2, cores // 2))
+    return workers
+
+
+def _ai_job_active() -> bool:
+    from ..ai.jobs import heavy_active
+
+    try:
+        return heavy_active()
+    except Exception:
+        return False
+
+
 class _Cancelled(Exception):
     """The scan was cancelled (or its library deleted while it was queued)."""
 
@@ -527,13 +552,7 @@ def scan_library_async(library_id: str, root: str) -> dict:
             stamp = thumbnailer.thumb_stamp()
             known = _load_known(library_id, stamp)
 
-            # Scanning is I/O + CPU heavy and competes with API traffic, so
-            # keep auto-concurrency conservative.
-            default_workers = max(2, min(16, (cpu_count() or 4)))
-            cap = settings.scanner_max_workers
-            workers = (
-                default_workers if not cap or cap <= 0 else min(default_workers, cap)
-            )
+            workers = scan_workers()
             progress_interval_s = max(
                 0.1,
                 settings.scan_progress_update_ms / 1000.0,
@@ -628,6 +647,8 @@ def scan_library_async(library_id: str, root: str) -> dict:
             if has_slot:
                 _scan_slots.release()
             activity.note_ended("scan")
+            # The scan's decode buffers are freed but glibc holds the pages.
+            memory.trim()
             with _scan_lock:
                 _current_scans.discard(library_id)
                 _cancel_scans.discard(library_id)

@@ -72,10 +72,10 @@ class Settings(BaseSettings):
 
     # Filesystem watcher (near-real-time incremental indexing).
     watch_enabled_default: bool = True
-    # Quiet period a changed file must hold its size for before it's read (avoids
-    # ingesting a file mid-write from ComfyUI/A1111/etc).
+    # Quiet period a changed file must hold its size and mtime for before it's
+    # read (avoids ingesting a file mid-write from ComfyUI/A1111/etc). A burst
+    # of files shares one window; a file still growing waits for a later one.
     watch_stability_window_ms: int = 500
-    watch_stability_max_attempts: int = 6
     # watchfiles' own debounce: how long a burst of events on one path is
     # coalesced before it's delivered as a single batch.
     watch_debounce_ms: int = 800

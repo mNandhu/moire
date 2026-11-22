@@ -33,8 +33,9 @@ export function useImageFeed(
       fetchImagesPage(filters, { cursor: pageParam, limit, signal }),
     initialPageParam: null as string | null,
     // A short page means the end; otherwise page on the server's cursor.
-    getNextPageParam: (lastPage: FeedPage) =>
-      lastPage.items.length >= limit ? (lastPage.next ?? undefined) : undefined,
+    // The server sends no cursor after its last page. Not the page's length:
+    // a removal patched into a cached page shortens it without ending the list.
+    getNextPageParam: (lastPage: FeedPage) => lastPage.next ?? undefined,
   });
 
   const items = useMemo<FeedItem[]>(
@@ -46,8 +47,9 @@ export function useImageFeed(
 }
 
 /**
- * The grouped (batch-collapsed) view of the feed. Offset-paged; each item is a
- * batch representative carrying `group_count`. Same filter shape as the feed.
+ * The grouped (batch-collapsed) view of the feed. Cursor-paged like the feed;
+ * each item is a batch representative carrying `group_count`. Same filter
+ * shape as the feed.
  */
 export function useImageGroups(
   filters: Filters,
@@ -58,14 +60,25 @@ export function useImageGroups(
     queryKey: [...IMAGE_GROUPS_PREFIX, limit, filters] as const,
     enabled,
     queryFn: ({ pageParam, signal }) =>
-      fetchGroupsPage(filters, { offset: pageParam, limit, signal }),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage: FeedItem[], allPages) =>
-      lastPage.length >= limit ? allPages.length * limit : undefined,
+      fetchGroupsPage(filters, { cursor: pageParam, limit, signal }),
+    initialPageParam: null as string | null,
+    // The server sends no cursor after its last page. Not the page's length:
+    // a removal patched into a cached page shortens it without ending the list.
+    getNextPageParam: (lastPage: FeedPage) => lastPage.next ?? undefined,
   });
 
   const items = useMemo<FeedItem[]>(
-    () => query.data?.pages.flat() ?? [],
+    // A batch whose head stopped matching between page fetches (tagged
+    // under an Untagged filter) heads a later page too: show it once.
+    () => {
+      const seen = new Set<string>();
+      return (query.data?.pages.flatMap((p) => p.items) ?? []).filter((it) => {
+        const key = it.group_id ?? it._id;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    },
     [query.data],
   );
 

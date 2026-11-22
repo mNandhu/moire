@@ -50,6 +50,36 @@ The app is fast at 5k images. At 30k, three things hurt:
 
 Scanning (68-92 img/s, CPU-bound, scales to all cores), AI tagging (7-7.75 img/s, GPU-bound), media serving and normal feed paging are all in good shape.
 
+## What's faster so far
+
+Plain summary of the fixes made from this report, updated as each section lands. "30k" is the 30,000-image test library; times are before -> after. Details and caveats are in each section's results table under Tracker.
+
+**Gallery and pages**
+- App opens faster: largest paint 900 -> 556 ms.
+- Fast scrolling no longer shows blank tiles: 6% -> 0% at 15k px/s, 41 -> 58 fps. On a phone, 40% -> 10% blank.
+- Batch (grouped) view: each page 299 -> 5 ms, and a page deep in the list 385 -> 6 ms.
+- Feed filtered by a rare tag: 71 -> 10 ms.
+
+**Tags pages (30k)**
+- Tags page with the sensitivity filter on: 5.6 s -> 0.4 s.
+- Tags browse, first load: 4.6 -> 2.9 s. Character page: 7.8 -> 6.2 s.
+- Opening a tag a second time: 2.8 s -> instant (cached).
+- Merge suggestions: 1.2 -> 0.5 s.
+- After an AI job ends, the Tags and Characters pages show at once (were 4.7 s and 2.9 s) and refresh in the background.
+
+**Background work no longer makes the app sluggish (30k)**
+- While prompt tags are re-extracted, page loads stay fast: slowest 5% of requests 8.3 s -> 0.1 s, thumbnails 339 -> 11 ms.
+- Re-extraction memory: 4.1 GB -> 0.46 GB, and the database's write log 2.5 GB -> 0.
+- Re-extraction with nothing changed: 29 s -> 0.06 s. After a settings change: 88 -> 26 s.
+- Rescanning a library with 10% of files touched: tag update 1.9 -> 0.46 s.
+- Dropping 100 images into a watched folder: 62 s -> 2 s until they all show (4 s with prompt tags).
+
+**AI tagging and memory**
+- AI tagging: 7.2 -> 8.5 images/s (database writes no longer wait in line behind each image).
+- Tagging while a scan and face detection run at the same time: 6.3 -> 8.0 images/s overall, and during the scan itself 4.2 -> 8.2 (the GPU is kept busy 88% of the time instead of 43%). The scan in that case takes longer (26 -> 41 s for 1,334 files); a scan on its own is unchanged.
+- Page loads during that scan: slowest 5% 460 -> 173 ms.
+- Memory after a scan and a 600-image tagging job: 1.5 GB -> 1.0 GB.
+
 ## Ranked findings
 
 | ID | Area | Finding | Gain | Effort | Status |
@@ -65,12 +95,12 @@ Scanning (68-92 img/s, CPU-bound, scales to all cores), AI tagging (7-7.75 img/s
 | N9 | Tags | Tag detail is never cached and recomputes its image-id subquery ~10 times | Dense tag 2.9 s every call -> ~2 s cold, ~0 warm | S | done |
 | N10 | Frontend | 500 ms thumbnail fade (`ImageThumbnail.tsx:42`, `:147`) | LCP 888 -> 396 ms | S | done |
 | N11 | AI | Soft-rebuild window fixed at 15 s during jobs | ~100 s of view-build CPU per 1,000 images at 30k; scale the window with build cost | S-M | done |
-| N12 | Feed | Grouped (batch) view re-aggregates everything on every page, offset paged | 326 ms per page at 30k -> ~12 ms (rewrite tested unfiltered) | M | open |
-| N13 | Library | Watcher ingests strictly one file at a time (0.5 s stability wait each, invalidation each) | 100 dropped files: 60 s -> ~1-2 s | M | open |
+| N12 | Feed | Grouped (batch) view re-aggregates everything on every page, offset paged | 326 ms per page at 30k -> ~12 ms (rewrite tested unfiltered) | M | done |
+| N13 | Library | Watcher ingests strictly one file at a time (0.5 s stability wait each, invalidation each) | 100 dropped files: 60 s -> ~1-2 s | M | done |
 | N14 | Feed | `_RARE`=300 is too low at 30k; `/images/ids` never uses the id path | 301 matches 82 -> ~5 ms; ids 100 -> 2-5 ms | S | done |
 | N15 | Reproject | No-change run still decodes all raws (`workflow` is 68% of bytes) | 30 s -> a few s at 30k | M | done |
 | N16 | Scan | Post-scan reprojection covers the whole library, not the written ids | 10%-touched rescan 2.7 -> 0.9 s | S | done |
-| N17 | AI | DB write runs serially after each inference | 7 -> 8.5-9 img/s | S-M | open |
+| N17 | AI | DB write runs serially after each inference | 7 -> 8.5-9 img/s | S-M | done |
 | N18 | AI | Face detector session spins all 12 threads | Same 41 ms/img on 3 cores instead of 12 | S | done |
 | N19 | AI | Model load freezes the event loop 0.4-0.9 s (job start, after idle unload, first re-tag) | Load at startup on GPU, skip idle unload there | S | open |
 | N20 | Frontend | Boot is serialized behind onboarding; the feed competes with 14 eager queries | First tile 319 -> ~200 ms (est.) | M | open |
@@ -104,9 +134,9 @@ New findings, beyond the solo ones above:
 | ID | Finding | Gain | Effort | Status |
 |----|---------|------|--------|--------|
 | N31 | **A reprojection batch holds SQLite's write lock for 0.4-1.5 s.** The AI job's per-image write (on its serial path, N17) waits behind it, and tagging drops 70-85% for the length of any reprojection, including the automatic post-scan one. | Commit ~50 rows with derive done outside the transaction, plus N17 write-behind | S-M | done |
-| N32 | **CPU-heavy writers saturate all 12 threads and starve the GPU.** Scan pool (12) + face detector (spinning) + readers keep 10.5-10.8 cores busy: GPU use 72% -> 40%, tagger prefetch 51 -> 182 ms, face detection 105 -> 256 ms. | N18 + N26, and cap threads while another heavy writer runs | S | open |
-| N33 | **The async write lock serialises face writes and tagger writes.** Lock wait p95 112 ms, max 1.75 s. | Batch face writes, or route them through the AI write-behind | S | open |
-| N34 | **Process memory only ratchets up.** 127 MB at boot, ~550 MB after a scan, ~1.85 GB after a job. Idle unload frees VRAM but only 24 MB of RSS (ORT/CUDA host arenas, glibc). A forced 30k reprojection on top would reach ~5.5 GB. | Free the ORT arena on unload, `malloc_trim` after scans/jobs, plus N4 | M | open |
+| N32 | **CPU-heavy writers saturate all 12 threads and starve the GPU.** Scan pool (12) + face detector (spinning) + readers keep 10.5-10.8 cores busy: GPU use 72% -> 40%, tagger prefetch 51 -> 182 ms, face detection 105 -> 256 ms. | N18 + N26, and cap threads while another heavy writer runs | S | done |
+| N33 | **The async write lock serialises face writes and tagger writes.** Lock wait p95 112 ms, max 1.75 s. | Batch face writes, or route them through the AI write-behind | S | done |
+| N34 | **Process memory only ratchets up.** 127 MB at boot, ~550 MB after a scan, ~1.85 GB after a job. Idle unload frees VRAM but only 24 MB of RSS (ORT/CUDA host arenas, glibc). A forced 30k reprojection on top would reach ~5.5 GB. | Free the ORT arena on unload, `malloc_trim` after scans/jobs, plus N4 | M | done |
 
 - **N7 under combined load:** `journal_size_limit` caps where the WAL settles once a checkpoint finds a gap between readers, at no throughput cost. It does not cap a burst's peak, so pair it with `wal_checkpoint(TRUNCATE)` when the writers go quiet.
 - **Untested:** a 30k-raw forced reprojection overlapping a job; the combined base DB had 5.2k raws. Expect the -85% tagging window to last ~77 s or more instead of 25 s.
@@ -299,12 +329,36 @@ Before `cb0df78`, after `278bae3`, 30k `syn` (load 2-3), one suite at a time.
 - Trade-off: an extraction code change reaches existing rows only through a `DERIVE_VERSION` bump or a forced migration entry (CLAUDE.md gotcha). A rule edit makes the next broad run re-derive everything once.
 
 ### 4. Writers
-- [ ] N13: watcher ingests in batches
-- [ ] N12: grouped view walks the recency index with a cursor
-- [ ] N17: AI job writes behind the next inference
-- [ ] N33: face writes batched or routed through the AI write-behind
-- [ ] N32: cap scan and face-detector threads while another heavy writer runs
-- [ ] N34: give memory back after jobs and scans (ORT arena on unload, `malloc_trim`)
+- [x] N13: the watcher ingests a burst as one batch: one shared stability wait (a file still growing waits, never dropped), the scan pool, 200-row commits, one invalidation and one targeted post-scan step per batch (`aa6ab4d..8881bb6`)
+- [x] N12: the grouped view walks the sort index with the feed's keyset cursor; a row is shown if no matching member of its batch sorts before it, counts per page (`3205a9a..2028790`). Probe pinned to new `(gen_group_id, sort...)` indexes with `INDEXED BY`
+- [x] N17: the AI job's writes run behind the next inference: a 4-deep queue, up to 8 images per transaction, an image counted only once committed, the job ends after its last write (`494a3f0`)
+- [x] N33: the face worker stores 8 images per transaction (`fcdd893`)
+- [x] N32: a scan uses about half the cores while tagging or face detection runs, decided at scan start (`fdd98a3`)
+- [x] N34: `malloc_trim` after scans, AI jobs, reprojections and model unloads; the face detector unloads when its queue drains (`46e2a9d`). ORT arena options were tried and did not return memory
+
+#### Section 4 results (2026-11-22)
+
+Before `c2698c1` (same code as `ec33150`), after `a9fd0f4`, back to back, one suite at a time. AI runs on the GTX 1650 (CUDA). Combined: 600-image AI job on the 30k base with a 1,334-file scan and 600 face detections, reads at 10 req/s.
+
+| finding | measure | before | after |
+|---|---|---|---|
+| N13 | 100 PNGs dropped into a watched folder: all listed / all with prompt tags | 62.1 / 62.1 s | 2.1 / 3.9 s |
+| N13 | same: invalidations | 100 | 2 |
+| N12 | grouped view, first page / ~20k groups in (30k) | 299 / 385 ms | 5.3 / 5.5 ms |
+| N17 | AI job, 600 images, alone | 7.21 img/s | 8.53 img/s |
+| N17, N32 | combined: AI job overall | 6.28 img/s | 8.01 img/s |
+| N32 | combined, while the scan runs: tagging / GPU busy | 4.15 img/s / 43% | 8.23 img/s / 88% |
+| N32 | same window: reads p95, feed p95 | 460, 209 ms | 173, 83 ms |
+| N32 | same: scan of 1,334 files | 26 s | 41 s |
+| N33 | combined, AI + faces: async write-lock wait p95 / max | 7.8 / 259 ms | 7.2 / 133 ms |
+| N34 | scan then 600-image job, then 60 s idle unload: RSS at the end | 1,518 MB | 1,047 MB |
+
+- Trade-off (N32): a scan that overlaps an AI job takes longer (here 26 -> 41 s) so the GPU stays fed; a scan alone keeps every core.
+- N34 on CPU tagging: unload with gc alone 351 MB, with trim 62-87 MB. On CUDA most of what stays is the CUDA/cuDNN libraries (~600 MB mapped).
+- Combined WAL peak was higher after (49 -> 250 MB, back to 0.4 MB at the end, vs 49 MB left before); the scan overlapped more of the job. Not investigated.
+- N12 deep `sort=top` page is ~47 ms (few distinct scores, same as N23).
+- Reviewed (/code-review medium), fixes `fc242de..d69bcf8`: the face detector unloads after 2 min idle instead of after every run (a run's last await let newly queued avatars sit with no worker, keeping scans capped); the tagger's unload runs gc and trim in a thread, not on the event loop; a watcher burst reprojects only the ids it wrote (no library-wide sweeps per burst); a watcher removal counts off only rows still there; reprojection trims the heap only after 1,000+ rows; a short page has no next cursor and the client pages on the cursor alone (a removal patched into the last cached page no longer ended infinite scroll; this one predates section 4); the grouped view shows a batch once if its head changed between page fetches. Watcher numbers re-run after: unchanged (100 files 2.0 / 3.8 s).
+- A first AI/combined pass ran with the CPU onnxruntime by mistake (a plain `uv run` swaps it in); numbers above are the GPU rerun.
 
 ### 5. Smaller backend items
 - [ ] N19: no event-loop freeze on model load (GPU: load at start, skip idle unload)

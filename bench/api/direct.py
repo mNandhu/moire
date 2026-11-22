@@ -88,6 +88,12 @@ async def case_fn():
     from moire.services.images.feed import FeedFilter
 
     c = args.case
+    if c.startswith("groups"):
+        # The grouped view pins its batch indexes (INDEXED BY); a dataset
+        # built before them gets them as the app's startup would.
+        from moire.database.db import ensure_schema
+
+        await ensure_schema()
     if c.startswith("browse:"):
         src = c.split(":", 1)[1]
         return lambda: browse.browse(src)
@@ -120,11 +126,15 @@ async def case_fn():
     if c == "rename.merge":
         return rename.merge_suggestions
     if c == "groups":
-        return lambda: feed.list_groups(FeedFilter(), offset=0, limit=100)
+        return lambda: feed.list_groups(FeedFilter(), cursor=None, limit=100)
     if c == "groups:deep":
-        return lambda: feed.list_groups(
-            FeedFilter(), offset=20000 if args.dataset == "syn" else 2000, limit=100
-        )
+        # The cursor ~20k (syn) / 2k (real) groups in, walked in setup.
+        f, cur = FeedFilter(), None
+        for _ in range(100 if args.dataset == "syn" else 10):
+            rows, cur = await feed.list_groups(f, cursor=cur, limit=200)
+            if not cur:
+                break
+        return lambda: feed.list_groups(f, cursor=cur, limit=100)
     if c.startswith("feed:"):
         k = c.split(":", 1)[1]
         if k == "deeptop":

@@ -40,29 +40,27 @@ export function buildImagesQuery(
  */
 export type FeedPage = { items: FeedItem[]; next: string | null };
 
-/** Fetch one page of the Image feed. Throws on non-OK response. */
-export async function fetchImagesPage(
-  filters: Filters,
-  opts: { cursor?: string | null; limit?: number; signal?: AbortSignal } = {},
-): Promise<FeedPage> {
+type PageOpts = { cursor?: string | null; limit?: number; signal?: AbortSignal };
+
+async function fetchPage(path: string, filters: Filters, opts: PageOpts): Promise<FeedPage> {
   const qs = buildImagesQuery(filters, opts);
-  const r = await apiRaw(`/api/v1/images?${qs}`, { signal: opts.signal });
+  const r = await apiRaw(`${path}?${qs}`, { signal: opts.signal });
   return {
     items: (await r.json()) as FeedItem[],
     next: r.headers.get("X-Next-Cursor"),
   };
 }
 
-/** Fetch one page of the grouped (batch-collapsed) view. Offset-paged because
- * grouping is a server-side aggregation, not cursor-pageable. */
-export function fetchGroupsPage(
-  filters: Filters,
-  opts: { offset?: number; limit?: number; signal?: AbortSignal } = {},
-): Promise<FeedItem[]> {
-  const sp = serializeFilters(filters);
-  sp.set("limit", String(opts.limit ?? PAGE_LIMIT));
-  sp.set("offset", String(opts.offset ?? 0));
-  return api<FeedItem[]>(`/api/v1/images/groups?${sp.toString()}`, { signal: opts.signal });
+/** Fetch one page of the Image feed. Throws on non-OK response. */
+export function fetchImagesPage(filters: Filters, opts: PageOpts = {}): Promise<FeedPage> {
+  return fetchPage("/api/v1/images", filters, opts);
+}
+
+/** Fetch one page of the grouped (batch-collapsed) view: batch
+ * representatives, cursor-paged like the feed (the server's cursor is the
+ * last representative's). */
+export function fetchGroupsPage(filters: Filters, opts: PageOpts = {}): Promise<FeedPage> {
+  return fetchPage("/api/v1/images/groups", filters, opts);
 }
 
 /** Fetch a single Image document by id. Throws on non-OK response. */

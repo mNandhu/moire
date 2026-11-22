@@ -152,11 +152,11 @@ def run(name, url, *, cold=False, method="GET", headers=None, note=""):
     return out
 
 
-def walk(params: dict, pages: int, limit=200):
+def walk(params: dict, pages: int, limit=200, path="images"):
     """Cursor for page `pages` (1-based: the cursor that fetches that page)."""
     cur = None
     for i in range(pages - 1):
-        r = cli.get(q("images", limit=limit, cursor=cur, **params))
+        r = cli.get(q(path, limit=limit, cursor=cur, **params))
         cur = r.headers.get("X-Next-Cursor")
         if not cur or not r.json():
             return None, i + 1
@@ -297,10 +297,13 @@ def feed_suite():
         run(f"search q={s}", q("images/search", q=s))
     # grouped view
     run("groups first l100", q("images/groups", limit=100))
-    run(
-        "groups offset deep l100",
-        q("images/groups", limit=100, offset=20000 if syn else 2000),
-    )
+    # ~20k (syn) / 2k (real) groups in, by cursor.
+    cur, got = walk({}, 101 if syn else 11, path="images/groups")
+    if cur:
+        run(
+            f"groups deep{got} l100",
+            q("images/groups", limit=100, cursor=cur),
+        )
     run("groups tag dense", q("images/groups", limit=100, tags=FIX["dense"]))
     run("groups tag rare", q("images/groups", limit=100, tags=FIX["rare"]))
     run("groups lib", q("images/groups", limit=100, library_id=big))

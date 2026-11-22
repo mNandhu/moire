@@ -277,26 +277,28 @@ if __name__ == "__main__":
             AI["load"].append((t0, time.time() - t0))
 
     ai_jobs.AIJobManager._load_image = _load_image
-    _o_tag_one = ai_jobs.AIJobManager._tag_one
+    # "tag_one": inference only; the write runs behind it ("write", one per
+    # transaction of the write-behind).
+    _o_infer_one = ai_jobs.AIJobManager._infer_one
 
-    async def _tag_one(self, **kw):
+    async def _infer_one(self, **kw):
         t0 = time.time()
         try:
-            return await _o_tag_one(self, **kw)
+            return await _o_infer_one(self, **kw)
         finally:
             AI["tag_one"].append((t0, time.time() - t0))
 
-    ai_jobs.AIJobManager._tag_one = _tag_one
-    _o_replace = image_tags.replace_ai
+    ai_jobs.AIJobManager._infer_one = _infer_one
+    _o_replace = image_tags.replace_ai_many
 
-    async def _replace_ai(image_id, *, ai_tags, **kw):
+    async def _replace_ai_many(writes, **kw):
         t0 = time.time()
         try:
-            return await _o_replace(image_id, ai_tags=ai_tags, **kw)
+            return await _o_replace(writes, **kw)
         finally:
             AI["write"].append((t0, time.time() - t0))
 
-    image_tags.replace_ai = _replace_ai
+    image_tags.replace_ai_many = _replace_ai_many
     _o_detect = face_detect.detect
 
     def _detect(path, cache_dir):

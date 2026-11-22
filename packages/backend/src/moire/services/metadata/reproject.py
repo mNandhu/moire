@@ -23,6 +23,7 @@ from collections.abc import Callable, Iterable, Iterator
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+from ...core import memory
 from ...database.db import checkpoint_wal, sync_conn, sync_tx
 from ...database import schema as t
 from .. import activity
@@ -452,12 +453,18 @@ _run_lock = threading.Lock()
 _ID_CHUNK = 500
 
 
+# A run over fewer rows than this leaves the heap alone: malloc_trim walks
+# every arena, not worth it for a watcher burst or one image's re-derive.
+_TRIM_MIN_ROWS = 1000
+
+
 class _Run:
     """One run's writes: whether any batch wrote gen or tags, and whether any
     stamped (the first run after an upgrade stamps every row)."""
 
     wrote = False
     stamped = False
+    rows = 0  # rows flushed (written or stamped)
 
 
 @contextmanager
@@ -473,6 +480,8 @@ def _run_writes(*, checkpoint: bool = True) -> Iterator[_Run]:
             image_tags.end_bulk_writes()
         if checkpoint and (run.wrote or run.stamped):
             checkpoint_wal()
+        if run.rows >= _TRIM_MIN_ROWS:
+            memory.trim()  # the run's raws and parsed graphs are freed
 
 
 def busy() -> bool:
@@ -678,6 +687,7 @@ def _flush(batch: list[_Item], *, force: bool, run: _Run) -> int:
     """:func:`_flush_batch` for a run; returns how many rows derived a gen."""
     run.wrote |= _flush_batch(batch, force=force)
     run.stamped = True
+    run.rows += len(batch)
     return sum(1 for _, g, *_ in batch if g is not None)
 
 

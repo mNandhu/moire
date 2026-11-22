@@ -172,15 +172,25 @@ async def list_groups(
     f: FeedFilter = Depends(feed_filter),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=200, ge=1, le=1000),
+    cursor: str | None = Query(default=None),
 ):
     """Batch-collapsed view of the same feed: images sharing a gen_group_id fold
-    into one entry (the newest member is the representative, plus a count).
-    Prompt-less / ungrouped images stand alone. Grouping spans page boundaries
-    because it's a full aggregation, not a paged-then-grouped pass. group_id is
-    honored like any other filter (it narrows the view to that one batch)."""
-    out = await image_feed.list_groups(f, offset=offset, limit=limit)
+    into one entry (the member first in the sort is the representative, plus
+    the count of members matching the filter). Prompt-less / ungrouped images
+    stand alone. Cursor-paged like `/images` (`X-Next-Cursor`); a batch shows
+    once however its members fall across pages. group_id is honored like any
+    other filter (it narrows the view to that one batch)."""
+    if cursor and len(cursor) > 1024:
+        raise HTTPException(status_code=422, detail="cursor too long")
+    try:
+        out, next_cursor = await image_feed.list_groups(
+            f, cursor=cursor, limit=limit, offset=offset
+        )
+    except FeedFilterError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     await _attach_thumb_urls(out)
-    return out
+    headers = {"X-Next-Cursor": next_cursor} if next_cursor else {}
+    return JSONResponse(out, headers=headers)
 
 
 @router.get("/{image_id:path}/workflow")
