@@ -36,6 +36,11 @@ def max_level() -> int | None:
     return _max
 
 
+# While the filter is on, AI tagging can change whether an image shows: the
+# tag views must not be served stale past such a write (tag_index.invalidate).
+tag_index.refresh_allowed_when(lambda: _max is None)
+
+
 def load_sync() -> None:
     global _max
     _max = _parse(app_settings.read_sync(_ROW))

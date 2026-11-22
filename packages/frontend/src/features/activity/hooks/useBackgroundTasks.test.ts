@@ -17,7 +17,10 @@ function setup(next: unknown) {
 }
 
 describe("useRefreshOnFinish", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
 
   it("refreshes the library list and every image cache once a scan ends", async () => {
     const keys = setup({ items: [], ended: { scan: 3 } });
@@ -31,5 +34,16 @@ describe("useRefreshOnFinish", () => {
     const keys = setup({ items: [{ key: "scan:L", kind: "scan" }], ended: { scan: 2 } });
     await waitFor(() => expect(keys()).toContain(JSON.stringify(["libraries"])));
     expect(keys()).not.toContain(JSON.stringify(["images"]));
+  });
+
+  it("asks for the tag views again once they have had time to rebuild after an AI job", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const keys = setup({ items: [], ended: { scan: 2, ai_job: 1 } });
+    const tags = () => keys().filter((k) => k === JSON.stringify(["tags"])).length;
+    await waitFor(() => expect(tags()).toBe(1));
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(tags()).toBe(2);
+    await vi.advanceTimersByTimeAsync(14000);
+    expect(tags()).toBe(3);
   });
 });

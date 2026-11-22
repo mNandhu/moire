@@ -167,7 +167,9 @@ async def ai_tag(req: TagRequest):
             await image_tags.clear_ai(image_id)
     # Urgent: runs between the images of a long run, and takes over images
     # that run still holds (it skips them once this job has tagged them).
-    job = await jm.enqueue(ids=req.ids, force=bool(req.force), urgent=True)
+    job = await jm.enqueue(
+        ids=req.ids, force=bool(req.force), urgent=True, cleared=req.retag
+    )
     return {"job_id": job.id, "queued": job.total, "skipped": job.skipped}
 
 

@@ -309,3 +309,31 @@ async def test_tag_detail_is_cached_per_filter_state(client, seed):
 
     await _set(client, None)
     assert (await client.get("/tags/detail", params=params)).json() == everything
+
+
+async def _tag_ids(client) -> set[str]:
+    rows = (await client.get("/tags", params={"merge_sources": True})).json()
+    return {r["_id"] for r in rows}
+
+
+async def test_ai_tagging_that_hides_an_image_is_seen_at_once(client, seed):
+    """With the filter on, one image's AI tagging (and a job's end) invalidate
+    strictly: a refresh would serve the view that still counts it."""
+    from moire.services.tags import image_tags, index as tag_index
+
+    seed("L1:a", tags=("1girl",), rating="general")
+    await _set(client, "general")
+    assert await _tag_ids(client) == {"any:1girl"}
+    await image_tags.replace_ai(
+        "L1:a", ai_tags=["1girl"], ai_meta={}, rating="explicit"
+    )
+    assert await _tag_ids(client) == set()
+
+    seed("L1:b", tags=("1girl",), rating="general")
+    tag_index.invalidate()  # the seed writes behind the index's back
+    assert await _tag_ids(client) == {"any:1girl"}
+    await image_tags.replace_ai(
+        "L1:b", ai_tags=["1girl"], ai_meta={}, rating="explicit", bulk=True
+    )
+    image_tags.end_bulk_writes(refresh=True)
+    assert await _tag_ids(client) == set()

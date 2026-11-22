@@ -20,6 +20,10 @@ import { IMAGE_DOC_PREFIX, invalidateFeeds } from "@/features/images/lib/feedCac
 export const BACKGROUND_TASKS_KEY = ["activity"] as const;
 const BUSY_MS = 1500;
 const IDLE_MS = 5000;
+// After an AI job the server answers the tag views from the old ones while
+// one rebuild replaces them (seconds on a large library): ask again then, and
+// once more later for a slow rebuild.
+const TAG_REBUILD_MS = [6000, 20000];
 
 type Activity = { items: BackgroundTask[]; ended: EndedCounts };
 
@@ -59,6 +63,8 @@ export function useRefreshOnFinish() {
   const qc = useQueryClient();
   const { data } = useActivity(selectAll);
   const prev = useRef<Activity | null>(null);
+  const again = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => again.current.forEach(clearTimeout), []);
   useEffect(() => {
     if (!data) return;
     const before = prev.current;
@@ -101,8 +107,15 @@ export function useRefreshOnFinish() {
     }
     // Library work's and a reprojection's tag refresh is in invalidateFeeds above.
     if (["ai_job", "faces", "face_download"].some((k) => ended.has(k))) {
-      void qc.invalidateQueries({ queryKey: TAGS_KEY });
-      void qc.invalidateQueries({ queryKey: TAG_SAMPLES_KEY });
+      const refreshTags = () => {
+        void qc.invalidateQueries({ queryKey: TAGS_KEY });
+        void qc.invalidateQueries({ queryKey: TAG_SAMPLES_KEY });
+      };
+      refreshTags();
+      if (ended.has("ai_job")) {
+        again.current.forEach(clearTimeout);
+        again.current = TAG_REBUILD_MS.map((ms) => setTimeout(refreshTags, ms));
+      }
     }
   }, [data, qc]);
 }

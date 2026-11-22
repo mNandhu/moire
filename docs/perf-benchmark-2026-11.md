@@ -55,8 +55,8 @@ Scanning (68-92 img/s, CPU-bound, scales to all cores), AI tagging (7-7.75 img/s
 | ID | Area | Finding | Gain | Effort | Status |
 |----|------|---------|------|--------|--------|
 | N1 | Frontend | Tailwind v3 `space-y`/`divide` sibling selectors restyle the whole grid on every tile mount | Fast scroll at 15k px/s: blank tiles 95% -> 1%; 10k px/s 49 -> 58 fps; 4x-throttled phone 23 -> 38 fps | S-M | done |
-| N2 | Tags | Tags browse cold is one 4.4 s statement at 30k (D4 still open); character page, recipes and outfit routes run it first | One-pass rewrite prototyped: 4.3 -> 2.5 s, output identical. Stored per-tag stats would go further (L) | S-M | open |
-| N3 | Tags | Hard invalidations land on the next viewer: AI job end, each single re-tag (twice), each reprojection batch | Next browse 4.5-4.8 s, characters 1.2-3 s at 30k -> served stale while rebuilding | M | open |
+| N2 | Tags | Tags browse cold is one 4.4 s statement at 30k (D4 still open); character page, recipes and outfit routes run it first | One-pass rewrite prototyped: 4.3 -> 2.5 s, output identical. Stored per-tag stats would go further (L) | S-M | done |
+| N3 | Tags | Hard invalidations land on the next viewer: AI job end, each single re-tag (twice), each reprojection batch | Next browse 4.5-4.8 s, characters 1.2-3 s at 30k -> served stale while rebuilding | M | done |
 | N4 | Reproject | `_derive_where` `fetchall()`s every gen-raw row | Peak RSS 3.8 GB -> paged; memory is never returned today | S | done |
 | N5 | Reproject | Runs as a thread in the API process: GIL convoy | Reads at 10 req/s: p50 17 ms -> 4 s, /health stalls up to 7 s, even with nothing written | M | open |
 | N6 | Reproject | Hard `tag_index.invalidate()` per 200-row batch | 151 invalidations -> 237 rebuilds (824 s of build time); run 178 s vs 77 s alone | S | done |
@@ -64,7 +64,7 @@ Scanning (68-92 img/s, CPU-bound, scales to all cores), AI tagging (7-7.75 img/s
 | N8 | Sensitivity | With the filter on, tag counts run a correlated EXISTS per `image_tags` row | Cold `/tags` 5.8 s -> ~0.3-1.4 s at 30k (34x slower than filter off today) | S | done |
 | N9 | Tags | Tag detail is never cached and recomputes its image-id subquery ~10 times | Dense tag 2.9 s every call -> ~2 s cold, ~0 warm | S | done |
 | N10 | Frontend | 500 ms thumbnail fade (`ImageThumbnail.tsx:42`, `:147`) | LCP 888 -> 396 ms | S | done |
-| N11 | AI | Soft-rebuild window fixed at 15 s during jobs | ~100 s of view-build CPU per 1,000 images at 30k; scale the window with build cost | S-M | open |
+| N11 | AI | Soft-rebuild window fixed at 15 s during jobs | ~100 s of view-build CPU per 1,000 images at 30k; scale the window with build cost | S-M | done |
 | N12 | Feed | Grouped (batch) view re-aggregates everything on every page, offset paged | 326 ms per page at 30k -> ~12 ms (rewrite tested unfiltered) | M | open |
 | N13 | Library | Watcher ingests strictly one file at a time (0.5 s stability wait each, invalidation each) | 100 dropped files: 60 s -> ~1-2 s | M | open |
 | N14 | Feed | `_RARE`=300 is too low at 30k; `/images/ids` never uses the id path | 301 matches 82 -> ~5 ms; ids 100 -> 2-5 ms | S | done |
@@ -253,9 +253,24 @@ Before (`0bb93d9`) and after (`c9fe948`), same session, one suite at a time, not
 - No regressions seen: `/tags` filter off 553 -> 555 ms, browse 4.3 -> 4.6 s (within this run's load drift), dense-tag feed 4 -> 5 ms (one extra `max(rowid)` read).
 
 ### 2. Tag-view cost
-- [ ] N2: one-pass tags browse (prototype `bench/api/onepass_browse.py`, output identical); later, stored per-tag stats
-- [ ] N3: keep serving the stale view while rebuilding after a hard invalidation
-- [ ] N11: scale the soft-rebuild window with build cost during AI jobs
+- [x] N2: one-pass Tags browse for the all-sources view (`23ad3ed`); the one-source views keep the old plan (one pass was 5-10x slower there). Stored per-tag stats are still open
+- [x] N3: an AI job's end (and a one-image re-tag) bumps the generation but serves the previous view while one build replaces it, `tag_index.invalidate(refresh=True)` (`574e694`); the client asks again 6 s later (`13404e5`). Every other writer stays strict (sensitivity keys depend on it). A re-tag's extra hard invalidate from `clear_ai` is gone
+- [x] N11: the soft window is 10x the view's last build time, 15-60 s (`8cbd0c8`, docs `1b86c4e`)
+
+#### Section 2 results (2026-11-22)
+
+Before `06ccbd5`, after `23ad3ed`, 30k `syn`, back to back (load 2-3). `bench/api/stale_bench.py` ends a job the way `jobs.py` does and simulates a 60 s job (7 soft writes/s, a reader each second).
+
+| finding | measure | before | after |
+|---|---|---|---|
+| N2 | Tags browse, all sources, cold | 4,556 ms | 2,909 ms |
+| N2 | character page, top character, cold | 7,825 ms | 6,178 ms |
+| N3 | first browse / characters list after a job ends | 4,653 / 2,923 ms | 0 / 12 ms (fresh 3.1 s later) |
+| N11 | 60 s job: browse rebuilds (build time) | 4 (18.8 s) | 2 (6.2 s) |
+
+- N2 diffed row for row against the old query (all four sources, `bases` subsets, filter levels 0 and 1, syn and real): 0 mismatches. Real library: 0.83 -> 0.58 s. The prompt view is unchanged at ~5.5 s (30k), and the characters list cold is unchanged at ~3.5 s (it doesn't read the full browse).
+- Reviewed (/code-review medium), fixes in `0b5879f` and the next commit: a refresh is strict while the sensitivity filter is on; a build begun before a refresh is kept (served stale) so back-to-back re-tags can't starve a view; past-TTL entries aren't revived; a re-tag's clear always reaches the views when its job ends however it ends; the packed cover key falls back past rowid 2^30; the client asks again at 6 s and 20 s.
+- Trade-off: a one-image re-tag no longer makes the Tags page wait; its counts trail by one build. Clearing the AI tags of a job that then never writes reaches the views after the soft window.
 
 ### 3. Reprojection
 - [ ] N5: run it outside the API process, or page and yield

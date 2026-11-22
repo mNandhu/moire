@@ -21,6 +21,9 @@ from ..images import visibility as image_visibility
 
 SOURCES = ("all", "ai", "prompt", "manual")
 
+# Packs a cover's shuffle key and rowid into one integer (see `_browse`).
+_PACK = 1 << 30
+
 
 def source_clause(source: str):
     """Restrict ``image_tags`` rows to one source (``all``: no restriction)."""
@@ -153,82 +156,15 @@ async def _browse(
     vocab: tag_categories.Vocab | None = None,
 ) -> list[dict]:
     """:func:`browse`'s rows, uncached; only ``bases`` when given."""
-    it, im, tm = t.image_tags, t.images, t.tag_meta
-    # One pass over the tag rows, feeding both aggregates. The visible images
-    # are materialized first (a few thousand rows), so each of the ~50 tag
-    # rows an image has joins against that small set instead of looking the
-    # image up by its long `_id` again; filtering the tag rows before the
-    # join keeps one source's pass from visiting the others' rows. Twice the
-    # per-row lookups and a plan that scanned every source cost 2-15x more.
-    vis = (
-        sa.select(im.c._id, im.c.mtime, sa.literal_column("rowid").label("rid"))
-        .where(image_visibility.visible())
-        .cte("vis")
-        .prefix_with("MATERIALIZED")
-    )
-    rows_cte = (
-        sa.select(
-            it.c.base,
-            it.c.image_id,
-            vis.c.mtime.label("mtime"),
-            vis.c.rid,
-            (vis.c._id == tm.c.thumb_image_id).label("pinned"),
-        )
-        .select_from(
-            it.join(vis, vis.c._id == it.c.image_id).outerjoin(
-                tm, tm.c.tag == it.c.base
-            )
-        )
-        .where(
-            source_clause(source),
-            it.c.base != "",
-            sa.true() if bases is None else it.c.base.in_(bases),
-        )
-        .cte("r")
-        .prefix_with("MATERIALIZED")
-    )
-    rc = rows_cte.c
-    agg = (
-        sa.select(
-            rc.base,
-            sa.func.count(sa.distinct(rc.image_id)).label("count"),
-            sa.func.max(rc.mtime).label("last_used"),
-        )
-        .group_by(rc.base)
-        .cte("agg")
-        .prefix_with("MATERIALIZED")
-    )
-    # Each tag's shuffle offset, worked out once per tag from the small
-    # per-tag table rather than once per tagged image.
-    seeds = (
-        sa.select(agg.c.base, tag_covers.seed_sql(agg.c.base).label("seed"))
-        .cte("seeds")
-        .prefix_with("MATERIALIZED")
-    )
-    # The cover, by the mosaic's own rule (samples_for_tag): the pinned image
-    # if it is visible and carries the tag, else the first of the shuffle.
-    # The shuffle key is never negative, so a pin's -1 always wins.
-    key = sa.case(
-        (rc.pinned == sa.true(), -1),
-        else_=tag_covers.shuffle_rank(rc.rid, seeds.c.seed),
-    )
-    # SQLite takes a bare column (image_id) from the row holding min() of the
-    # group: the cover without a window sorting every row.
-    cov = (
-        sa.select(rc.base, rc.image_id.label("cover"), sa.func.min(key))
-        .select_from(rows_cte.join(seeds, seeds.c.base == rc.base))
-        .group_by(rc.base)
-        .subquery()
-    )
-    stmt = (
-        sa.select(agg.c.base, agg.c.count, agg.c.last_used, cov.c.cover)
-        .select_from(agg.join(cov, cov.c.base == agg.c.base))
-        .order_by(agg.c.count.desc(), agg.c.base)
-    )
     if vocab is None:
         vocab = await tag_categories.load()  # a file read: before a connection
     async with async_conn() as conn:
-        rows = (await conn.execute(stmt)).fetchall()
+        # The packed cover key needs every rowid below _PACK (see _stmt).
+        top = await conn.scalar(
+            sa.select(sa.func.max(sa.literal_column("rowid"))).select_from(t.images)
+        )
+        one_pass = source == "all" and (top or 0) < _PACK
+        rows = (await conn.execute(_stmt(source, bases, one_pass))).fetchall()
         characters = await character_names.character_names(
             conn, vocab, {r.base for r in rows}
         )
@@ -243,3 +179,132 @@ async def _browse(
         }
         for r in rows
     ]
+
+
+def _stmt(source: str, bases: list[str] | None, one_pass: bool):
+    """The browse aggregate: ``one_pass`` (every source, all rowids below
+    ``_PACK``) or the per-source shape."""
+    it, im, tm = t.image_tags, t.images, t.tag_meta
+    tag_rows = sa.and_(
+        source_clause(source),
+        it.c.base != "",
+        sa.true() if bases is None else it.c.base.in_(bases),
+    )
+    # The visible images are materialized first (a few thousand rows), so
+    # each of the ~50 tag rows an image has joins against that small set
+    # instead of looking the image up by its long `_id` again; the per-tag
+    # seeds likewise, for just the tags found (source and bases applied).
+    vis = (
+        sa.select(im.c._id, im.c.mtime, sa.literal_column("rowid").label("rid"))
+        .where(image_visibility.visible())
+        .cte("vis")
+        .prefix_with("MATERIALIZED")
+    )
+    # The cover, by the mosaic's own rule (samples_for_tag): the pinned image
+    # if it is visible and carries the tag, else the first of the shuffle.
+    # One min() over a packed integer `key * _PACK + rowid` picks it without
+    # leaning on SQLite's bare-column-with-min() behaviour. The shuffle rank
+    # is in [0, _HASH_MOD) < 2^32, a pin's key is -1 (below every rank).
+    # Bounds: rowid < _PACK = 2^30, so rank * 2^30 + rowid < 2^32 * 2^30 =
+    # 2^62 < 2^63, and a pin packs to -2^30 + rowid, in [-2^30, 0). SQLite
+    # turns integer overflow into REAL, so the bound must hold: a rowid of
+    # 2^30 (a billion inserts) would decode to the wrong image, so the caller
+    # takes the other shape past it. Decode: packed >= 0 -> packed % 2^30;
+    # packed < 0 -> packed + 2^30.
+    if one_pass:
+        # Every source: one pass in base-index order, no intermediate rows.
+        wanted = sa.select(it.c.base).where(tag_rows).distinct().subquery()
+        seeds = (
+            sa.select(
+                wanted.c.base,
+                tag_covers.seed_sql(wanted.c.base).label("seed"),
+                tm.c.thumb_image_id.label("pin"),
+            )
+            .select_from(wanted.outerjoin(tm, tm.c.tag == wanted.c.base))
+            .cte("seeds")
+            .prefix_with("MATERIALIZED")
+        )
+        key = sa.case(
+            (vis.c._id == seeds.c.pin, -1),
+            else_=tag_covers.shuffle_rank(vis.c.rid, seeds.c.seed),
+        )
+        agg = (
+            sa.select(
+                it.c.base,
+                sa.func.count(sa.distinct(it.c.image_id)).label("count"),
+                sa.func.max(vis.c.mtime).label("last_used"),
+                sa.func.min(key * _PACK + vis.c.rid).label("packed"),
+            )
+            .select_from(
+                it.join(vis, vis.c._id == it.c.image_id).join(
+                    seeds, seeds.c.base == it.c.base
+                )
+            )
+            .where(tag_rows)
+            .group_by(it.c.base)
+            .subquery()
+        )
+        cover_rid = sa.case(
+            (agg.c.packed < 0, agg.c.packed + _PACK), else_=agg.c.packed % _PACK
+        )
+        stmt = (
+            sa.select(agg.c.base, agg.c.count, agg.c.last_used, im.c._id.label("cover"))
+            .select_from(agg.join(im, sa.literal_column("images.rowid") == cover_rid))
+            .order_by(agg.c.count.desc(), agg.c.base)
+        )
+    else:
+        # One source: the old shape, which SQLite plans through the tag index
+        # (the prefix match) instead of a base-ordered scan that tests every
+        # row of every source: 5-10x slower for a small source, and the
+        # packed one-pass did not beat it on the wide ones.
+        rows_cte = (
+            sa.select(
+                it.c.base,
+                it.c.image_id,
+                vis.c.mtime.label("mtime"),
+                vis.c.rid,
+                (vis.c._id == tm.c.thumb_image_id).label("pinned"),
+            )
+            .select_from(
+                it.join(vis, vis.c._id == it.c.image_id).outerjoin(
+                    tm, tm.c.tag == it.c.base
+                )
+            )
+            .where(tag_rows)
+            .cte("r")
+            .prefix_with("MATERIALIZED")
+        )
+        rc = rows_cte.c
+        agg = (
+            sa.select(
+                rc.base,
+                sa.func.count(sa.distinct(rc.image_id)).label("count"),
+                sa.func.max(rc.mtime).label("last_used"),
+            )
+            .group_by(rc.base)
+            .cte("agg")
+            .prefix_with("MATERIALIZED")
+        )
+        seeds = (
+            sa.select(agg.c.base, tag_covers.seed_sql(agg.c.base).label("seed"))
+            .cte("seeds")
+            .prefix_with("MATERIALIZED")
+        )
+        key = sa.case(
+            (rc.pinned == sa.true(), -1),
+            else_=tag_covers.shuffle_rank(rc.rid, seeds.c.seed),
+        )
+        # SQLite takes a bare column (image_id) from the row holding min() of
+        # the group: the cover without a window sorting every row.
+        cov = (
+            sa.select(rc.base, rc.image_id.label("cover"), sa.func.min(key))
+            .select_from(rows_cte.join(seeds, seeds.c.base == rc.base))
+            .group_by(rc.base)
+            .subquery()
+        )
+        stmt = (
+            sa.select(agg.c.base, agg.c.count, agg.c.last_used, cov.c.cover)
+            .select_from(agg.join(cov, cov.c.base == agg.c.base))
+            .order_by(agg.c.count.desc(), agg.c.base)
+        )
+    return stmt

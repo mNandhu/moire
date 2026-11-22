@@ -120,7 +120,12 @@ def calls(monkeypatch):
     from moire.services.tags import index as tag_index
 
     seen: list[str] = []
-    monkeypatch.setattr(tag_index, "invalidate", lambda: seen.append("hard"))
+    # A run ends strict (a rule change the user waits to see), not refresh.
+    monkeypatch.setattr(
+        tag_index,
+        "invalidate",
+        lambda *, refresh=False: seen.append("refresh" if refresh else "hard"),
+    )
     monkeypatch.setattr(tag_index, "invalidate_soft", lambda: seen.append("soft"))
     return seen
 

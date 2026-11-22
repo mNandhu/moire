@@ -295,6 +295,255 @@ def test_peek_never_builds():
     assert tag_index._inflight == {}
 
 
+# --- invalidate(refresh=True): the previous view while one build replaces it ---
+
+
+async def test_a_refresh_serves_the_old_view_while_one_build_replaces_it():
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    before = tag_index.current_generation()
+    tag_index.invalidate(refresh=True)
+    assert tag_index.current_generation() == before + 1
+    build.gate = asyncio.Event()
+    # Answered at once, twice, with one rebuild started between them.
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    await _settle()
+    assert build.calls == 2
+    build.gate.set()
+    await _settle()
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+    assert build.calls == 2
+
+
+async def test_a_strict_invalidate_after_a_refresh_drops_the_old_view():
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    tag_index.invalidate(refresh=True)
+    tag_index.invalidate()
+    build.gate = asyncio.Event()
+    waiting = asyncio.create_task(tag_index.cached("views", "k", build))
+    await _settle()
+    assert not waiting.done()  # a miss: waits for the build
+    build.gate.set()
+    assert await waiting == [{"_id": "v2"}]
+
+
+async def test_a_refresh_does_not_answer_stale_false_from_the_old_view():
+    build = _Builder()
+    await tag_index.cached("derived", "n", build)
+    tag_index.invalidate(refresh=True)
+    assert await tag_index.cached("derived", "n", build, stale=False) == [
+        {"_id": "v2"}
+    ]
+
+
+async def test_a_build_begun_before_a_refresh_is_kept_but_served_stale():
+    build = _Builder()
+    build.gate = asyncio.Event()
+    early = asyncio.create_task(tag_index.cached("views", "k", build))
+    await _settle()
+    tag_index.invalidate(refresh=True)  # lands mid-build
+    # A miss after it may share the build from before it: no fresher than
+    # stale, which is what a refresh allows.
+    late = asyncio.create_task(tag_index.cached("views", "k", build))
+    await _settle()
+    assert build.calls == 1
+    build.gate.set()
+    assert await early == [{"_id": "v1"}]
+    assert await late == [{"_id": "v1"}]
+    assert tag_index._tags_cache["k"][2] == [{"_id": "v1"}]
+    # Stored, but it read before the refresh: never fresh, rebuilt once.
+    assert tag_index.peek("views", "k") is None
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    await _settle()
+    assert build.calls == 2
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+    assert tag_index.peek("views", "k") == [{"_id": "v2"}]
+
+
+async def test_stale_false_never_joins_a_build_begun_before_a_refresh():
+    build = _Builder()
+    build.gate = asyncio.Event()
+    early = asyncio.create_task(tag_index.cached("derived", "n", build))
+    await _settle()
+    tag_index.invalidate(refresh=True)
+    late = asyncio.create_task(tag_index.cached("derived", "n", build, stale=False))
+    await _settle()
+    assert build.calls == 2
+    build.gate.set()
+    assert await early == [{"_id": "v1"}]
+    assert await late == [{"_id": "v2"}]
+    # The later read is kept, whichever build finished last.
+    assert tag_index._derived_cache["n"][2] == [{"_id": "v2"}]
+    assert tag_index.peek("derived", "n") == [{"_id": "v2"}]
+
+
+async def test_refreshes_faster_than_a_build_still_leave_a_view(monkeypatch):
+    """A user re-tagging images one by one: a refresh every second, a view
+    that takes 3 s to build. Only the first reader waits; every later one is
+    answered at once, one build runs at a time, and once the refreshes stop
+    the view is fresh."""
+    clock = [1000.0]
+    monkeypatch.setattr(tag_index.time, "time", lambda: clock[0])
+    calls = 0
+
+    async def slow() -> list[dict]:
+        nonlocal calls
+        calls += 1
+        n, start = calls, clock[0]
+        while clock[0] < start + 3:
+            await asyncio.sleep(0)
+        return [{"_id": f"v{n}"}]
+
+    async def tick(*, refresh: bool = True) -> None:
+        clock[0] += 1
+        if refresh:
+            tag_index.invalidate(refresh=True)
+        await _settle()
+
+    first = asyncio.create_task(tag_index.cached("views", "k", slow))
+    while not first.done():
+        await tick()
+    assert await first == [{"_id": "v1"}]
+    assert "k" in tag_index._tags_cache  # stored, though refreshes spanned it
+
+    for _ in range(12):
+        await tick()
+        reader = asyncio.create_task(tag_index.cached("views", "k", slow))
+        await _settle()
+        assert reader.done() and reader.result()  # answered at once
+        assert len(tag_index._inflight) <= 1
+
+    for _ in range(10):  # the refreshes stop
+        if tag_index.peek("views", "k") is not None:
+            break
+        await tick(refresh=False)
+        reader = asyncio.create_task(tag_index.cached("views", "k", slow))
+        await _settle()
+        assert reader.done()
+    assert tag_index.peek("views", "k") is not None
+    assert calls <= 9  # about one build per 3 s, not one per refresh
+    await tag_index.cancel_builds()
+
+
+async def test_a_view_past_its_ttl_at_a_refresh_is_a_miss(monkeypatch):
+    """Before the refresh it was already a miss; the refresh doesn't make it
+    servable."""
+    clock = [1000.0]
+    monkeypatch.setattr(tag_index.time, "time", lambda: clock[0])
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    clock[0] += 35  # past the 30 s TTL, no soft write
+    tag_index.invalidate(refresh=True)
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+
+
+async def test_a_view_within_its_ttl_at_a_refresh_is_served_stale_after(monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(tag_index.time, "time", lambda: clock[0])
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    clock[0] += 20
+    tag_index.invalidate(refresh=True)
+    clock[0] += 20  # past the TTL now, but it was within it at the refresh
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+
+
+async def test_a_soft_stale_view_at_a_job_end_is_still_served_stale(monkeypatch):
+    """A view no one read during a job is past its soft window, but servable
+    stale: the job's end refresh keeps it so (N3)."""
+    clock = [1000.0]
+    monkeypatch.setattr(tag_index.time, "time", lambda: clock[0])
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    clock[0] += 1
+    tag_index.invalidate_soft()
+    clock[0] += 50  # past the window and the TTL
+    tag_index.invalidate(refresh=True)
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    await _settle()
+    assert build.calls == 2
+
+
+async def test_an_entry_from_before_a_strict_invalidate_is_never_served():
+    """Even one the dicts still held (the floor rules, not the clear)."""
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    held = tag_index._tags_cache["k"]
+    tag_index.invalidate(refresh=True)
+    tag_index.invalidate()
+    tag_index._tags_cache["k"] = held
+    assert tag_index.peek("views", "k") is None
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+
+
+async def test_a_refresh_is_strict_while_the_predicate_says_no(monkeypatch):
+    """The sensitivity filter's rule (registered by its module)."""
+    monkeypatch.setattr(tag_index, "_refresh_allowed", lambda: False)
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    tag_index.invalidate(refresh=True)
+    assert tag_index._tags_cache == {}
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+
+
+def test_the_sensitivity_filter_registers_its_refresh_rule(monkeypatch):
+    from moire.services.tags import sensitivity_filter
+
+    assert tag_index._refresh_allowed() is True
+    monkeypatch.setattr(sensitivity_filter, "_max", 1)
+    assert tag_index._refresh_allowed() is False
+
+
+async def test_a_refreshed_view_too_old_is_rebuilt_before_answering(monkeypatch):
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    tag_index.invalidate(refresh=True)
+    monkeypatch.setattr(tag_index, "_STALE_MAX_SECONDS", 0.0)
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+
+
+async def test_peek_does_not_return_a_view_a_refresh_left():
+    """Its reader can't start the rebuild, so it reads the database itself
+    rather than build on the old view (module docstring)."""
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    tag_index.invalidate(refresh=True)
+    assert tag_index.peek("views", "k") is None
+    assert tag_index._inflight == {}
+    # cached() still serves it, and once rebuilt peek has it again.
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    await _settle()
+    assert tag_index.peek("views", "k") == [{"_id": "v2"}]
+
+
+async def test_a_build_from_a_refreshed_input_is_never_fresh():
+    """A view built from an input served stale after a refresh takes that
+    input's read, which predates the refresh: served stale and rebuilt, not
+    kept as fresh for a TTL while its input already caught up."""
+    inner = _Builder()
+    await tag_index.cached("views", "inner", inner)
+    tag_index.invalidate(refresh=True)
+    inner.gate = asyncio.Event()
+    outer_calls = 0
+
+    async def outer() -> list[dict]:
+        nonlocal outer_calls
+        outer_calls += 1
+        return await tag_index.cached("views", "inner", inner)
+
+    assert await tag_index.cached("views", "outer", outer) == [{"_id": "v1"}]
+    assert await tag_index.cached("views", "outer", outer) == [{"_id": "v1"}]
+    await _settle()
+    assert outer_calls == 2
+    inner.gate.set()
+    await _settle()
+    assert await tag_index.cached("views", "outer", outer) == [{"_id": "v1"}]
+    await _settle()
+    assert await tag_index.cached("views", "outer", outer) == [{"_id": "v2"}]
+
+
 async def test_cancel_builds_stops_the_ones_under_way():
     build = _Builder()
     build.gate = asyncio.Event()
@@ -360,7 +609,37 @@ async def test_replace_ai_dirties_a_warm_index(temp_db, client, seed):
         "L1:a.jpg", ai_tags=["dog"], ai_meta={}, rating="general"
     )
 
-    assert await _counts(client) == {"dog": 1}
+    # One image's AI tagging refreshes the views: the old one once, while
+    # one build replaces it.
+    assert await _counts(client) == {"cat": 1}
+    assert await _caught_up(client, {"dog": 1})
+
+
+async def _caught_up(client, want: dict[str, int]) -> bool:
+    """Whether the tag counts reach ``want`` once a background build ends."""
+    for _ in range(200):
+        await asyncio.sleep(0.01)
+        if not tag_index._inflight and await _counts(client) == want:
+            return True
+    return False
+
+
+@pytest.mark.asyncio
+async def test_a_retag_invalidates_the_index_once(temp_db, seed, monkeypatch):
+    """The re-tag route clears the AI tags, then a one-image job writes the
+    new ones: one rebuild of the views, not one per write."""
+    seed("L1:a.jpg", tags=("cat",))
+    calls: list[bool] = []
+    monkeypatch.setattr(
+        tag_index, "invalidate", lambda *, refresh=False: calls.append(refresh)
+    )
+
+    await image_tags.clear_ai("L1:a.jpg")
+    await image_tags.replace_ai(
+        "L1:a.jpg", ai_tags=["dog"], ai_meta={}, rating="general"
+    )
+
+    assert calls == [True]
 
 
 @pytest.mark.asyncio
@@ -374,6 +653,21 @@ async def test_bulk_replace_ai_lags_until_the_run_ends(temp_db, client, seed):
     )
     assert await _counts(client) == {"cat": 1}
 
+    image_tags.end_bulk_writes(refresh=True)
+    # The view it lagged with, once more, while one build replaces it.
+    assert await _counts(client) == {"cat": 1}
+    assert await _caught_up(client, {"dog": 1})
+
+
+@pytest.mark.asyncio
+async def test_a_strict_end_of_bulk_writes_is_seen_at_once(temp_db, client, seed):
+    """A reprojection run ends strict: the next reader waits for the views."""
+    seed("L1:a.jpg", tags=("cat",))
+    assert await _counts(client) == {"cat": 1}
+
+    await image_tags.replace_ai(
+        "L1:a.jpg", ai_tags=["dog"], ai_meta={}, rating="general", bulk=True
+    )
     image_tags.end_bulk_writes()
     assert await _counts(client) == {"dog": 1}
 
@@ -524,3 +818,80 @@ async def test_scan_reconcile_dirties_the_index(client, tmp_path):
     _wait_scan(lib_id)
 
     assert await _counts(client) == {}
+
+
+# --- The soft window scales with the view's build time ------------------------
+
+
+async def test_a_build_records_how_long_it_took():
+    async def slow() -> list[dict]:
+        await asyncio.sleep(0.05)
+        return []
+
+    await tag_index.cached("views", "slow", slow)
+    assert tag_index._build_seconds[("views", "slow")] >= 0.04
+
+
+async def test_build_times_are_kept_only_for_stored_builds():
+    build = _Builder()
+    build.gate = asyncio.Event()
+    waiting = asyncio.create_task(tag_index.cached("samples", ("t", 1), build))
+    await _settle()
+    tag_index.invalidate()  # the build is discarded on store
+    build.gate.set()
+    await waiting
+    assert tag_index._build_seconds == {}
+    # A strict invalidate drops them with the entries they time.
+    await tag_index.cached("samples", ("t", 1), build)
+    assert ("samples", ("t", 1)) in tag_index._build_seconds
+    tag_index.invalidate()
+    assert tag_index._build_seconds == {}
+
+
+def test_the_soft_window_is_ten_builds_kept_between_15_and_60_seconds():
+    seconds = tag_index._build_seconds
+    assert tag_index._soft_window("views", "never built") == 15.0
+    seconds[("views", "cheap")] = 0.3
+    assert tag_index._soft_window("views", "cheap") == 15.0
+    seconds[("views", "browse")] = 4.0
+    assert tag_index._soft_window("views", "browse") == 40.0
+    seconds[("views", "huge")] = 30.0
+    assert tag_index._soft_window("views", "huge") == 60.0
+
+
+async def test_a_slow_view_stays_fresh_longer_behind_soft_writes(monkeypatch):
+    """Behind soft writes a cheap view is rebuilt past 15 s; one that took 4 s
+    to build stays fresh for 40 s, past its 30 s TTL, then is served stale
+    while one build replaces it."""
+    clock = [1000.0]
+    monkeypatch.setattr(tag_index.time, "time", lambda: clock[0])
+    cheap, slow = _Builder(), _Builder()
+    await tag_index.cached("views", "cheap", cheap)
+    await tag_index.cached("views", "slow", slow)
+    tag_index._build_seconds[("views", "slow")] = 4.0
+    clock[0] += 1
+    tag_index.invalidate_soft()
+
+    clock[0] += 19  # 20 s after both read
+    assert await tag_index.cached("views", "cheap", cheap) == [{"_id": "v1"}]
+    await _settle()
+    assert cheap.calls == 2  # past its window: rebuilt
+    clock[0] += 15  # 35 s: past the TTL, inside the slow view's window
+    assert await tag_index.cached("views", "slow", slow) == [{"_id": "v1"}]
+    await _settle()
+    assert slow.calls == 1
+    clock[0] += 10  # 45 s: past it
+    assert await tag_index.cached("views", "slow", slow) == [{"_id": "v1"}]
+    await _settle()
+    assert slow.calls == 2
+    assert await tag_index.cached("views", "slow", slow) == [{"_id": "v2"}]
+
+
+async def test_without_soft_writes_the_ttl_still_rules(monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(tag_index.time, "time", lambda: clock[0])
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    tag_index._build_seconds[("views", "k")] = 4.0
+    clock[0] += 35  # past the 30 s TTL, no soft write: a miss
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]

@@ -83,9 +83,9 @@ def _job_manager(
     return mgr
 
 
-async def _run(mgr: AIJobManager, ids: list[str]):
+async def _run(mgr: AIJobManager, ids: list[str], **kw):
     worker = asyncio.create_task(mgr._worker_loop())
-    job = await mgr.enqueue(ids=ids)
+    job = await mgr.enqueue(ids=ids, **kw)
     try:
         for _ in range(500):
             if job.status in ("done", "error", "cancelled"):
@@ -538,3 +538,70 @@ async def test_the_recorded_rate_leaves_out_failures_and_urgent_jobs(monkeypatch
     ((rate, images),) = recorded
     assert images == 2
     assert rate == pytest.approx(2 / (job.finished_at - job.started_at))
+
+
+# --- A re-tag's clear is ended on every path ------------------------------------
+
+
+def _ends(monkeypatch) -> list[bool]:
+    calls: list[bool] = []
+    monkeypatch.setattr(
+        ai_jobs.image_tags,
+        "end_bulk_writes",
+        lambda *, refresh=False: calls.append(refresh),
+    )
+    return calls
+
+
+async def test_a_one_image_retag_that_tags_ends_its_clear_by_its_write(monkeypatch):
+    """Its replace_ai (bulk=False) refreshed the views: no second end."""
+    ends = _ends(monkeypatch)
+    mgr = _job_manager(monkeypatch, [])
+    job = await _run(mgr, ["a"], cleared=True)
+    assert job.status == "done"
+    assert ends == []
+
+
+async def test_a_retag_of_many_ends_its_clear_once(monkeypatch):
+    ends = _ends(monkeypatch)
+    mgr = _job_manager(monkeypatch, [])
+    job = await _run(mgr, ["a", "b"], cleared=True)
+    assert job.status == "done"
+    assert ends == [True]
+
+
+async def test_a_one_image_retag_whose_image_fails_ends_its_clear(monkeypatch):
+    ends = _ends(monkeypatch)
+    mgr = _job_manager(monkeypatch, [], fail_load={"a"})
+    job = await _run(mgr, ["a"], cleared=True)
+    assert job.status == "error"
+    assert ends == [True]
+
+
+async def test_a_retag_whose_model_fails_to_load_ends_its_clear(monkeypatch):
+    ends = _ends(monkeypatch)
+    mgr = _job_manager(monkeypatch, [])
+    monkeypatch.setattr(mgr, "_prepare_model", AIJobManager._prepare_model.__get__(mgr))
+    monkeypatch.setattr(
+        ai_jobs, "get_tagger_manager", lambda: _SlowLoader(0.01, "no network")
+    )
+    for ids in (["a"], ["b", "c"]):  # before any image: started_at never set
+        job = await _run(mgr, ids, cleared=True)
+        assert job.status == "error"
+    assert ends == [True, True]
+
+
+async def test_a_retag_cancelled_while_queued_ends_its_clear(monkeypatch):
+    ends = _ends(monkeypatch)
+    mgr = _job_manager(monkeypatch, [])
+    job = await mgr.enqueue(ids=["a"], cleared=True)  # no worker: stays queued
+    await mgr.cancel(job.id)
+    assert job.status == "cancelled"
+    assert ends == [True]
+
+
+async def test_a_plain_one_image_job_that_fails_leaves_the_views_be(monkeypatch):
+    ends = _ends(monkeypatch)
+    mgr = _job_manager(monkeypatch, [], fail_load={"a"})
+    await _run(mgr, ["a"])
+    assert ends == []

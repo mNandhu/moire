@@ -60,7 +60,14 @@ def _note_end(job: "AIJob") -> None:
     """Count ``job`` as ended. One that tagged more than one image, or the
     images the sensitivity filter hides, also counts as ``ai_job_bulk``: the
     galleries refetch for those (a level may have shown images), not for an
-    image's own re-tag."""
+    image's own re-tag.
+
+    Every way a job ends comes here (run, cancelled while queued, nothing to
+    do), so this is where the soft writes of a re-tag's clear end if the job
+    did not end them itself: a failed model load or image, a cancel."""
+    if job.cleared:
+        job.cleared = False
+        image_tags.end_bulk_writes(refresh=True)
     activity.note_ended("ai_job")
     if job.total > 1 or job.scope == "unknown":
         activity.note_ended("ai_job_bulk")
@@ -98,6 +105,9 @@ class AIJob:
     # Seconds spent running urgent jobs between this job's images: not its
     # own tagging, so left out of the rate it records.
     nested_s: float = 0.0
+    # Its images' AI tags were cleared (a re-tag), a soft write of the tag
+    # views this job must end: set until it has (_note_end).
+    cleared: bool = False
     # The work list. Kept off the API view (hundreds of ids per poll).
     ids: list[str] = field(default_factory=list, repr=False)
 
@@ -259,7 +269,10 @@ class AIJobManager:
         scope: str | None = None,
         urgent: bool = False,
         backlog: bool = False,
+        cleared: bool = False,
     ) -> AIJob:
+        """``cleared``: the caller cleared these images' AI tags first
+        (``image_tags.clear_ai``, a soft write); the job ends it."""
         job_id = uuid.uuid4().hex
 
         # De-dupe within the job while preserving order.
@@ -301,6 +314,7 @@ class AIJobManager:
             urgent=urgent,
             backlog=backlog,
             ids=list(accepted),
+            cleared=cleared,
         )
         self._jobs[job_id] = job
         # Track in-flight ids so we don't queue duplicates across jobs.
@@ -561,12 +575,15 @@ class AIJobManager:
                             image=img,
                             settings=settings,
                             model=model,
-                            # One image (its own re-tag) is an edit the user
-                            # waits on; only a run of many lags the views.
+                            # Only a run of many lags the views; one image
+                            # (its own re-tag) refreshes them at once.
                             bulk=job.total > 1,
                         )
                         if found is False:
                             self._skip_new.add(image_id)
+                        if job.total == 1:
+                            # Its write refreshed the views (bulk=False).
+                            job.cleared = False
                         job.done += 1
                     except Exception as e:
                         logger.warning("AI tagging failed for %s: %s", image_id, e)
@@ -602,8 +619,11 @@ class AIJobManager:
                 # A nested job's writes are part of the run around it, which
                 # ends them and measures the rate.
                 if job.total > 1 and nested is None:
-                    # The tag views lagged this job's writes (bulk=True).
-                    image_tags.end_bulk_writes()
+                    # The tag views lagged this job's writes (bulk=True):
+                    # served once more while each rebuilds, so the first
+                    # reader after a job doesn't wait for the rebuild.
+                    image_tags.end_bulk_writes(refresh=True)
+                    job.cleared = False
                     checkpoint = True
                     # Images tagged a second, failures and urgent jobs left
                     # out: a failure is quick, and neither is tagging.

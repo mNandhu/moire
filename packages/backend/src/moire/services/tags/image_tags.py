@@ -282,22 +282,29 @@ async def find_image(
     return None
 
 
-def _dirty_tag_index(*, bulk: bool = False) -> None:
+def _dirty_tag_index(*, bulk: bool = False, refresh: bool = False) -> None:
     """Mark the derived tag aggregation stale, after our transaction committed.
     Every async tag write funnels through the transaction owners below, so no
     caller has to remember this. ``bulk``: one write of a background run (an AI
     job), which may lag in the cached views until the run ends and calls
-    :func:`end_bulk_writes`."""
+    :func:`end_bulk_writes`. ``refresh``: a write the views may trail for one
+    build, served the previous ones meanwhile (``tag_index.invalidate``, which
+    makes it strict while the sensitivity filter is on)."""
     if bulk:
         tag_index.invalidate_soft()
     else:
-        tag_index.invalidate()
+        tag_index.invalidate(refresh=refresh)
 
 
-def end_bulk_writes() -> None:
+def end_bulk_writes(*, refresh: bool = False) -> None:
     """A background run that wrote with ``bulk=True`` ended: the cached tag
-    views catch up with every write it made."""
-    tag_index.invalidate()
+    views catch up with every write it made. ``refresh``: the next reader of
+    a view gets the one it lagged with while one build replaces it, instead
+    of waiting for that build (an AI job: nobody waits on its last image),
+    unless the sensitivity filter is on (``tag_index.invalidate``). Strict by
+    default, for a run a user edit started (a reprojection after a rule
+    change)."""
+    tag_index.invalidate(refresh=refresh)
 
 
 def _persist_statements(
@@ -342,10 +349,11 @@ async def _mutate_tags(
     *,
     extra: dict[str, Any] | None = None,
     bulk: bool = False,
+    refresh: bool = False,
 ) -> None:
     """Resolve, read the current tag array, apply ``transform``, and persist:
     the one read-modify-write path behind every high-level tag intent. No-op if
-    the image is unknown. ``bulk``: see :func:`_dirty_tag_index`."""
+    the image is unknown. ``bulk``, ``refresh``: see :func:`_dirty_tag_index`."""
     async with async_tx() as conn:
         resolved = await resolve_image_id(conn, image_id)
         if resolved is None:
@@ -356,7 +364,7 @@ async def _mutate_tags(
             )
         ).scalar() or []
         await _persist(conn, resolved, transform(current), extra=extra)
-    _dirty_tag_index(bulk=bulk)
+    _dirty_tag_index(bulk=bulk, refresh=refresh)
 
 
 async def apply_manual(image_id: str, tags: list[str]) -> None:
@@ -552,20 +560,33 @@ async def replace_ai(
     bulk: bool = False,
 ) -> None:
     """``bulk``: written by a background job, which calls
-    :func:`end_bulk_writes` when it ends."""
+    :func:`end_bulk_writes` when it ends. Otherwise one image's AI tagging,
+    whose image view reads the image's own tags: the tag views are refreshed
+    (served the previous ones while they rebuild), not dropped, unless the
+    sensitivity filter is on (the image may now be hidden)."""
     await _mutate_tags(
         image_id,
         lambda current: with_replaced_ai(current, ai_tags),
         extra={"ai": ai_meta, "rating": _ai_rating(rating)},
         bulk=bulk,
+        refresh=not bulk,
     )
 
 
 async def clear_ai(image_id: str) -> None:
     """Drop one image's AI tags, tagger metadata and rating (before a re-tag).
-    Manual and prompt tags stay, and so does a rating picked by hand."""
+    Manual and prompt tags stay, and so does a rating picked by hand.
+
+    Dirties the tag views softly: the re-tag job that follows ends them (its
+    :func:`replace_ai`, or :func:`end_bulk_writes` when it ends), so one
+    re-tag costs one rebuild, not two. That job ends them on every path,
+    including a failed model load, a cancel and a failed image
+    (``ai.jobs._note_end``)."""
     await _mutate_tags(
-        image_id, with_cleared_ai, extra={"ai": None, "rating": _ai_rating("-")}
+        image_id,
+        with_cleared_ai,
+        extra={"ai": None, "rating": _ai_rating("-")},
+        bulk=True,
     )
 
 
