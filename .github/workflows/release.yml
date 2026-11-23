@@ -3,22 +3,31 @@ name: Release
 # Builds the app wheel (backend + built UI) for a vX.Y.Z tag, attaches it to a
 # GitHub Release and publishes it to PyPI as moire-studio. Cut releases with the /moire-release skill.
 #
-# OFF until versioning starts: set the repository variable RELEASE_ENABLED to
-# "true" (Settings > Secrets and variables > Actions > Variables) to turn it on.
-# A manual run (Actions > Release > Run workflow) builds the wheel as an
-# artifact without publishing, to try it out while it is off.
+# A tag publishes only while the repository variable RELEASE_ENABLED is "true"
+# (Settings > Secrets and variables > Actions > Variables). A manual run
+# (Actions > Release > Run workflow) builds the wheel as an artifact, and with
+# "testpypi" chosen also uploads it to test.pypi.org; it never touches PyPI.
+#
+# Uploads use trusted publishing, no token: each index has a publisher for
+# owner mNandhu, repository moire, workflow release.yml, and the environment
+# named in its job below (pypi, testpypi).
 
 on:
   push:
     tags: ["v*.*.*"]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Upload the build to
+        type: choice
+        options: [nowhere, testpypi]
+        default: nowhere
 
 permissions:
-  contents: write
-  id-token: write # PyPI trusted publishing
+  contents: read
 
 jobs:
-  release:
+  build:
     if: vars.RELEASE_ENABLED == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
@@ -51,19 +60,48 @@ jobs:
       - name: Build the wheel and sdist
         run: |
           uv --directory packages/backend build --out-dir "$GITHUB_WORKSPACE/dist"
-          # The wheel is the app: refuse one without the UI in it. (A file,
-          # not a pipe: grep -q exiting early would SIGPIPE unzip.)
+          # The wheel is the app: refuse one without the UI or the license in
+          # it. (A file, not a pipe: grep -q exiting early would SIGPIPE unzip.)
           unzip -l dist/*.whl > wheel-files.txt
           grep -q "moire/web/index.html" wheel-files.txt
+          grep -q "dist-info/licenses/LICENSE" wheel-files.txt
+          uvx twine check --strict dist/*
 
       - name: Upload build
         uses: actions/upload-artifact@v4
         with:
-          name: moire-${{ github.ref_name }}
+          name: dist
           path: dist/
 
+  release:
+    needs: build
+    if: github.ref_type == 'tag' && vars.RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/moire-studio/
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          # A rerun (say the Release step failed) skips what's already up.
+          skip-existing: true
+
+      # After PyPI, so a failed upload leaves no Release pointing at nothing.
       - name: Publish GitHub Release
-        if: github.ref_type == 'tag' && vars.RELEASE_ENABLED == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -72,15 +110,33 @@ jobs:
           awk -v v="$VERSION" '
             $0 ~ "^## \\[" v "\\]" { on = 1; next }
             on && /^## \[/ { exit }
+            on && /^\[[^]]+\]: / { exit }
             on { print }
           ' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "no CHANGELOG section for $VERSION"; exit 1; }
           gh release create "$GITHUB_REF_NAME" dist/* \
             --title "Moiré $VERSION" --notes-file notes.md --verify-tag
 
-      - name: Publish to PyPI
-        if: github.ref_type == 'tag' && vars.RELEASE_ENABLED == 'true'
-        # Trusted publishing: add this repo + workflow (release.yml) as a
-        # trusted publisher for `moire-studio` on pypi.org first; no token.
+  testpypi:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.publish == 'testpypi'
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/moire-studio/
+    permissions:
+      id-token: write
+    steps:
+      - name: Download build
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+          repository-url: https://test.pypi.org/legacy/
+          # A rerun of the same version is a no-op, not a failure.
+          skip-existing: true
