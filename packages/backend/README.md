@@ -85,9 +85,6 @@ The images in these screenshots were made with Moiré's own Generate page.
 
 Moiré installs with [uv](https://docs.astral.sh/uv/getting-started/installation/), which also takes care of Python for you.
 
-> **Note**
-> Moiré isn't on PyPI yet, so the commands below won't work until the first release. Until then, run it from a source checkout (see [CONTRIBUTING.md](https://github.com/mNandhu/moire/blob/v0.1.0/CONTRIBUTING.md#setup)) or with Docker below.
-
 ```bash
 uv tool install --python 3.12 "moire-gallery[cpu]"   # or "moire-gallery[gpu]" for tagging on an NVIDIA GPU
 moire run --open                                     # opens http://localhost:8000
