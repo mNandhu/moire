@@ -183,9 +183,13 @@ describe("syncFeedsFromDoc", () => {
 
   it("leaves pages untouched when nothing changed", () => {
     const qc = seededClient();
-    const before = pagesOf(qc, ["images", 60, { tags: [] }])[0];
+    const key = ["images", 60, { tags: [] }];
+    const before = pagesOf(qc, key)[0];
+    const data = qc.getQueryData(key);
     syncFeedsFromDoc(qc, detail("a"), Date.now() + 1000);
-    expect(pagesOf(qc, ["images", 60, { tags: [] }])[0][0]).toBe(before[0]);
+    expect(pagesOf(qc, key)[0][0]).toBe(before[0]);
+    // The cached data itself, or the gallery re-renders for nothing.
+    expect(qc.getQueryData(key)).toBe(data);
   });
 });
 

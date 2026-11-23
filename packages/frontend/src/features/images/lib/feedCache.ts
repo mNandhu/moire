@@ -91,8 +91,14 @@ export function patchImageInFeeds(
   patch: (doc: FeedItem) => FeedItem,
   when: (q: Query) => boolean = () => true,
 ): void {
-  const inPage = (page: FeedItem[]) =>
-    hasImage(page, id) ? page.map((d) => (d._id === id ? patch(d) : d)) : page;
+  // The page as it was when the patch changes nothing: a new array would
+  // still rewrite the feed and re-render the gallery (each image view step
+  // syncs its document, almost always to the same values).
+  const inPage = (page: FeedItem[]) => {
+    if (!hasImage(page, id)) return page;
+    const next = page.map((d) => (d._id === id ? patch(d) : d));
+    return next.some((d, i) => d !== page[i]) ? next : page;
+  };
   for (const q of feedAndGroupQueries(qc)) {
     const old = q.state.data as FeedData | undefined;
     if (!old || !old.pages.some((p) => hasImage(p.items, id)) || !when(q)) continue;

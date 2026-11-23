@@ -90,7 +90,7 @@ export default function AllImagesPage() {
   // started elsewhere while the gallery stays open.
   const libsQuery = useLibraries({ idleMs: 8000 });
   const libs = useMemo(() => libsQuery.data ?? [], [libsQuery.data]);
-  const filterOptions = useFilterOptions(filters, filtersOpen);
+  const filterOptions = useFilterOptions(filters, filtersOpen, !activeFeed.isPending);
   const { workflowFamilies } = filterOptions;
 
   // The library is shown by the scope tabs, so it isn't repeated as a chip

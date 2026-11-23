@@ -20,6 +20,7 @@
  *   libraries:collapsedFolders   LibrariesPage: JSON array of folder keys
  *   rules:collapsedWorkflows     RulesPage: JSON array of workflow keys
  *   onboarding:shortcut-hint     one-shot flag set by first-run setup
+ *   onboarding:set-up            RootRoutes: the server said setup is over ("1")
  *   ambient:palette              lib/ambient: last wash palette, JSON array
  *   update:dismissed             UpdateNotice: the release "Later" hid
  */

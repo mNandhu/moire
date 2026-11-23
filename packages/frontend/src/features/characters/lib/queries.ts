@@ -19,11 +19,23 @@ export function useCharacters() {
 }
 
 /** Loads the characters at startup: a cold list takes the server a second or
- * more, and the first image opened shouldn't wait on it. */
+ * more, and the first image opened shouldn't wait on it. Not at once: on
+ * boot it held a connection the gallery's first page and thumbnails wanted. */
 export function usePrefetchCharacters() {
   const qc = useQueryClient();
   useEffect(() => {
-    void qc.prefetchQuery(charactersQuery);
+    // A second in, then idle: the page sits idle while the first page is
+    // on the wire, so idle alone came too soon.
+    const load = () => void qc.prefetchQuery(charactersQuery);
+    let idle = 0;
+    const timer = setTimeout(() => {
+      if (typeof requestIdleCallback === "function") idle = requestIdleCallback(load, { timeout: 2000 });
+      else load();
+    }, 1000);
+    return () => {
+      clearTimeout(timer);
+      if (idle) cancelIdleCallback(idle);
+    };
   }, [qc]);
 }
 

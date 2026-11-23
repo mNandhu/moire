@@ -660,9 +660,10 @@ export function useComfyModels() {
 }
 
 /** The built-in, then custom Generators; polls while a test run is going. */
-export function useGenerators() {
+export function useGenerators({ enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: GENERATORS_KEY,
+    enabled,
     queryFn: ({ signal }) => api<Generator[]>(`${BASE}/generators`, { signal }),
     // Fast while a test runs, slower while its image waits for the scan.
     refetchInterval: (q) => {

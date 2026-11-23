@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { SETTINGS_SECTIONS } from "@/features/settings/components/registry";
@@ -33,7 +34,10 @@ export default function SettingsPage() {
           <p className="text-sm text-muted">{active.description}</p>
         )}
         <AiSettingsFormProvider>
-          <ActivePanel />
+          {/* The panels load on first use; the tabs stay meanwhile. */}
+          <Suspense fallback={null}>
+            <ActivePanel />
+          </Suspense>
         </AiSettingsFormProvider>
       </PageBody>
     </>

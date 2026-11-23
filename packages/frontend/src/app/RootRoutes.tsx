@@ -1,4 +1,4 @@
-import { Suspense, lazy, type ComponentType } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Navigate, Routes, Route, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { OverlayOpenContext, getBackgroundLocation } from "@/lib/backgroundLocation";
@@ -8,41 +8,11 @@ import ImageView from "@/pages/ImageView";
 import NotFoundPage from "@/pages/NotFoundPage";
 import { useRefreshOnFinish } from "@/features/activity/hooks/useBackgroundTasks";
 import { useTrackHistory } from "@/app/hooks/useHistoryNav";
-import { ONBOARDING_KEY, fetchOnboarding } from "@/features/onboarding/lib/onboarding";
+import { ONBOARDING_KEY, SET_UP_KEY, fetchOnboarding } from "@/features/onboarding/lib/onboarding";
+import { readLocalPref, writeLocalPref } from "@/lib/localPref";
+import { lazyPage } from "@/lib/lazyPage";
 import { ShortcutHelp } from "@/app/components/ShortcutOverlay";
-
-// A tab opened before a rebuild asks for chunks the build deleted: reload
-// once for the new ones rather than show an error page.
-const RELOADED_KEY = "moire.chunk-reload";
-function lazyPage<T extends ComponentType>(load: () => Promise<{ default: T }>) {
-  return lazy(() =>
-    load().then(
-      (m) => {
-        try {
-          sessionStorage.removeItem(RELOADED_KEY);
-        } catch {
-          // Storage refused: nothing to clear.
-        }
-        return m;
-      },
-      (e) => {
-        // Offline, the chunk may well exist: show the error, keep the tab.
-        let reloaded = !navigator.onLine;
-        try {
-          reloaded ||= sessionStorage.getItem(RELOADED_KEY) === "1";
-          if (!reloaded) sessionStorage.setItem(RELOADED_KEY, "1");
-        } catch {
-          // Without storage a reload could loop; show the error instead.
-        }
-        if (!reloaded) {
-          window.location.reload();
-          return new Promise<never>(() => {});
-        }
-        throw e;
-      },
-    ),
-  );
-}
+import { HoldRoute } from "@/app/components/HoldRoute";
 
 // Pages off the gallery's path load on first visit, so the first paint
 // doesn't wait for Generate's code. The gallery and the image view (it opens
@@ -80,21 +50,39 @@ export default function RootRoutes() {
   // A fresh install (no libraries, setup neither finished nor skipped) opens
   // on the welcome page. Nothing renders until that's known, so the empty
   // gallery doesn't flash first; if the check fails, the app opens as usual.
+  // A browser that has seen setup over doesn't wait: the gallery's first
+  // page was queued behind this check. A server reset behind it (its data
+  // wiped, same address) then shows the empty gallery for that moment before
+  // the welcome page: rare, and accepted.
   const onboarding = useQuery({
     queryKey: ONBOARDING_KEY,
     queryFn: ({ signal }) => fetchOnboarding(signal),
     staleTime: Infinity,
     retry: false,
   });
-  if (onboarding.isPending) return null;
-  if (onboarding.data?.status === "pending" && location.pathname !== "/welcome") {
+  const [setUp] = useState(() => readLocalPref(SET_UP_KEY) === "1");
+  const status = onboarding.data?.status;
+  useEffect(() => {
+    if (status) writeLocalPref(SET_UP_KEY, status === "pending" ? null : "1");
+  }, [status]);
+  if (onboarding.isPending && !setUp) return null;
+  if (status === "pending" && location.pathname !== "/welcome") {
     return <Navigate to="/welcome" replace />;
   }
 
   return (
     <OverlayOpenContext.Provider value={!!backgroundLocation}>
       <Routes location={backgroundLocation ?? location}>
-        <Route path="/" element={<App />}>
+        <Route
+          path="/"
+          element={
+            // Steps through the image view leave the gallery's location as
+            // it was: HoldRoute keeps them from re-rendering it.
+            <HoldRoute>
+              <App />
+            </HoldRoute>
+          }
+        >
           <Route index element={<AllImagesPage />} />
           <Route path="overview" element={<OverviewPage />} />
           <Route path="libraries" element={<LibrariesPage />} />

@@ -64,6 +64,9 @@ Plain summary of the fixes made from this report, updated as each section lands.
 - Filter lists (sizes, LoRAs, embeddings): 57-137 ms -> 1-2 ms after the first load. Workflow signatures on the character page: 272 -> 23 ms (897 ms at the slow end).
 - AI coverage, polled every 3 s during a job: 53 -> ~20 ms.
 - Typing in the search palette: 24 -> 17 ms a key, and its one 95 ms hitch is gone. The Tags page filter's worst key: 67 -> 45 ms.
+- Gallery shows sooner: first thumbnail 323 -> 286 ms on a first visit, 219 -> 193 ms on a reload.
+- Stepping through images in the image view: 66 -> ~49 ms from key press to the next image, and the gallery underneath no longer re-renders each step.
+- Main script 130 -> 121 KB compressed (the Settings panels load with the Settings page).
 
 **Tags pages (30k)**
 - Tags page with the sensitivity filter on: 5.6 s -> 0.4 s.
@@ -112,17 +115,17 @@ Plain summary of the fixes made from this report, updated as each section lands.
 | N17 | AI | DB write runs serially after each inference | 7 -> 8.5-9 img/s | S-M | done |
 | N18 | AI | Face detector session spins all 12 threads | Same 41 ms/img on 3 cores instead of 12 | S | done |
 | N19 | AI | Model load freezes the event loop 0.4-0.9 s (job start, after idle unload, first re-tag) | Load at startup on GPU, skip idle unload there | S | won't do (accepted) |
-| N20 | Frontend | Boot is serialized behind onboarding; the feed competes with 14 eager queries | First tile 319 -> ~200 ms (est.) | M | open |
+| N20 | Frontend | Boot is serialized behind onboarding; the feed competes with 14 eager queries | First tile 319 -> ~200 ms (est.) | M | done |
 | N21 | Tags | Merge suggestions `LIKE 'prompt:%'` reads every row | 1.2-1.6 s -> ~0.1 s cold | S | done |
 | N22 | Tags | Tag samples scan all images once per tag | 60 tags 1.16 s -> ~0.3 s cold | S | done |
 | N23 | Feed | Deep `sort=top` pages still grow with depth when scores tie (D2 gap) | Page 140: 54 -> ~5 ms | S | done |
 | N24 | Frontend | Typing hotspots: palette `toLocaleString` per item, fuzzy re-normalizes, Tags filter sync | Worst key ~95 -> ~30 ms | S | done |
-| N25 | Frontend | Image view step re-renders the gallery underneath; `/activity` refetched per step | 62 -> ~30 ms per step | M | open |
+| N25 | Frontend | Image view step re-renders the gallery underneath; `/activity` refetched per step | 62 -> ~30 ms per step | M | done |
 | N26 | Scan | Two concurrent scans x 12 threads oversubscribe the CPU | Multi-library first scan ~14% | S | done |
 | N27 | Misc | Uncached linear endpoints: `/ai/coverage` (80 ms, polled every 3 s in jobs), loras, embeddings, sizes, search-no-hit, rules signatures (283-333 ms, loaded by the character page) | 50-300 ms each | S | done |
-| N28 | Frontend | Bundle: main chunk 130 KB gz, 68% unused at boot; `SearchPalette` pulls in all Settings sections | ~10-20 ms local, more on WAN | S-M | open |
-| N29 | Frontend | Per-tile render hops (4 renders); `alt=path` builds alt boxes for unloaded tiles | Pushes the blank-tile cliff further | S-M | open |
-| N30 | Frontend | DPR-1 desktops load 768 px thumbs for 221 px tiles | 110 -> 31 MB per 2k tiles; no gain on LAN, helps WAN | S-M | open |
+| N28 | Frontend | Bundle: main chunk 130 KB gz, 68% unused at boot; `SearchPalette` pulls in all Settings sections | ~10-20 ms local, more on WAN | S-M | done |
+| N29 | Frontend | Per-tile render hops (4 renders); `alt=path` builds alt boxes for unloaded tiles | Pushes the blank-tile cliff further | S-M | done |
+| N30 | Frontend | DPR-1 desktops load 768 px thumbs for 221 px tiles | 110 -> 31 MB per 2k tiles; no gain on LAN, helps WAN | S-M | dropped (measured: blank tiles 0% -> 97% cold) |
 
 Not worth doing (measured): batching ONNX inference (0-7%), fp16 WD model (5x slower on CUDA), react-router production alias (no change), more scan workers than cores, a process pool for scanning (scaling is already linear).
 
@@ -402,11 +405,44 @@ Before `c2698c1` (same code as `ec33150`), after `a9fd0f4`, back to back, one su
 - **Build breakage found on the way:** the main checkout's `node_modules` had hoisted links pointing into a removed agent worktree, so `tsc` found two copies of vitest and react-router (53 type errors). Cause: the husky pre-commit hook ran `pnpm exec`, which in a worktree with symlinked `node_modules` reinstalls through the links. Fixed in `0f3204a`: the hook and lint-staged call the binaries directly.
 
 ### 6. Frontend medium items
-- [ ] N20: boot not serialized behind onboarding; defer non-critical queries
-- [ ] N25: image view step without re-rendering the gallery underneath
-- [ ] N28: main bundle (Settings sections out of `SearchPalette`)
-- [ ] N29: fewer render hops per tile; no `alt` boxes for unloaded tiles
-- [ ] N30: `srcset` for the small thumbnail tier on DPR-1 desktops
+- [x] N20: boot not serialized behind onboarding; defer non-critical queries
+- [x] N25: image view step without re-rendering the gallery underneath
+- [x] N28: main bundle (Settings sections out of `SearchPalette`)
+- [x] N29: fewer render hops per tile; no `alt` boxes for unloaded tiles
+- [x] N30: `srcset` for the small thumbnail tier on DPR-1 desktops: built and measured, dropped 2026-11-23 (see below)
+
+#### Section 6 results (2026-11-23)
+
+**Status (2026-11-23): N20, N25, N28, N29 done, reviewed (`/code-review medium f2d40ed..b907303`: one real bug, fixed in `8f3e7ed`: HoldRoute held on path, search and hash only, so a same-path navigation with new state (Remix from the image view over Generate) never reached the page and the sidebar's Back/Forward went stale; it compares the history key too now. Five nits fixed in `ea73d56`). N30 measured and dropped (2026-11-23). Nothing pushed.** Commits `d0c0546..75aa367`, `8f3e7ed`, `ea73d56`. Before at `f2d40ed`, after at `ea73d56`'s code (the image view rows) and `d32f1c0` (the rest; the later commits only touch the image view and the Settings panels' loading). Raw output in `local-setup/bench/runners/s6-before/`, `s6-after/`, `s6-after2/` and `s6-after3/` (image view on `75aa367` and `ea73d56`), `s6-warm/` (reloads), `s6-n30/`; runners `s6.sh <tag>`, `s6prof.sh <tag>` (React commits, profiling build), `s6viewer.sh`, `s6warm.sh`, `s6n30.sh`. Desktop 1440x900, real DB, medians.
+
+| item | measure | before | after |
+|---|---|---|---|
+| N20 | first visit (empty browser storage): first tile / all visible / LCP | 323 / 381 / 548 ms | 286 / 355 / 520 ms |
+| N20 | first visit: feed request time / done at | 59 / 232 ms | 28 / 196 ms |
+| N20 | reload: first tile / all visible / LCP | 219 / 237 / 430 ms | 193 / 221 / 404 ms |
+| N20 | reload: feed starts / done at | 88 / 144 ms | 75 / 103 ms |
+| N25 | image view step, key -> image shown (`viewer-hops`, 20 steps a run) | 66 ms (one run) | 49 ms (four runs: 47-53) |
+| N25 | image view step, shown with fade done (`viewer`) | 70 ms | 61 ms |
+| N25 | API calls per step | 4 | 3 (`/activity` gone) |
+| N25 | React render time, 21 steps (profiling build) / gallery renders | 399 ms / `AllImagesPage` x42 | 216-230 ms / none |
+| N28 | main chunk (raw / gz), unused at boot | 405 / 130 KB, 67.5% | 368 / 121 KB, 64.4% |
+| N29 | `ImageThumbnail` renders per tile (2k-tile scroll) | 4.0 | 3.0 |
+| N29 | scroll 15k px/s: blank tiles / fps | 0.1% / 56.8 | 0% / 57.8 |
+
+- **N20:** a browser that has seen setup over (`onboarding:set-up` in local storage) renders at once while the check still runs; a pending answer still opens the welcome page, and a fresh browser waits as before. The search box's options (merged tags, models, loras, embeddings, outfits, generators) wait for the gallery's first page; cached answers still show. The characters prefetch waits a second, then for idle. The first-visit rows show only the deferred queries; the reload rows show both.
+- **N25:** three causes. (1) `<Routes>` hands new location and route context objects to everything under it on every navigation, so each step re-rendered the gallery: `HoldRoute` keeps them while the gallery's location is the same history entry (key, path, search, hash; the background location's key is always "default"), and `App` is memoized. (2) `patchImageInFeeds` rebuilt a page's item array even when the sync from the open image's document changed nothing, rewriting the cached feed on every step (found with a fiber diff after (1) halved the renders; a test now checks the cached data is left as it was). (3) `/activity` had `staleTime: 0`, so readers the view mounts per step refetched it: its staleTime now follows its poll interval (the app keeps one poll running; invalidations still refetch). Also: a step onto a preloaded neighbour whose decode is done shows it in the same render, without the pending render and promise hop. Left per step: the image view's own renders and the sidebar's five `NavLink`s (they follow router state).
+- **N28:** the settings panels load lazily, in one chunk (`features/settings/components/panels.ts`), with the Settings page. The rest of the unused share is the image view's code (characters, generate) and tailwind-merge; not moved.
+- **N29:** eager tiles start with `shouldLoad` true instead of setting it in an effect. The `<img>` gets its `alt` with its `src`; the button carries the name (`aria-label`).
+- **N30 (dropped 2026-11-23):** a `srcset` with the small copy (`?size=small`, 256 px short side) and `sizes` from the grid's column width, so DPR-1 tiles took the small copy. Measured at 15k px/s on a 1x screen:
+
+  | | blank tiles | thumb request median | MB per 2k tiles |
+  |---|---|---|---|
+  | without (shipped) | 0.1% | 11 ms | 110 |
+  | small copies not yet made | 97% | 87 ms | 18 |
+  | every small copy on disk | 1.3% | 16 ms | 33 |
+
+  Small copies are made on first ask (PIL, four at a time), which cannot keep up with a scroll, and even when they exist the `?size=small` route is slower than the thumbnail fast path (T1; boot thumbnails 11 -> 26-29 ms). Shipping it would need the small copies made at scan time plus the fast path for them (more scan time, and ~30% more thumbnail disk: 17 KB beside 56 KB each), for a gain only on slow links. Patch kept at `local-setup/bench/runners/n30-srcset.patch`.
+- **Bench scripts:** `build-variant.mjs` and `bundle-stats.mjs` now take Vite's CJS entry (`build` sits on `default`), and must run from `packages/frontend` (Tailwind finds its config from the working directory).
 
 ### Follow-ups
 - [ ] T5: cheaper tile mount and earlier first fetch (`docs/perf-findings.md`, T5 section). Re-measure on a quiet box with `bench/web`, then decide.

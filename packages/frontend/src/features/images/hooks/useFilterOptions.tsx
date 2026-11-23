@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui";
 import { generatorFor } from "@/features/generate/components/InGenerate";
 import type { TagSuggestion } from "@/features/tags/components/TagSearchInput";
 import type { Filters } from "@/features/images/lib/imageFilter";
-import { useGenerators, useOutfits } from "@/features/generate/lib/generate";
+import { outfitsQuery, useGenerators } from "@/features/generate/lib/generate";
 import { imageEmbeddingsQueryIn, imageLorasQueryIn, imageModelsQueryIn } from "@/features/images/lib/queries";
 import { mergedTagsQuery } from "@/features/tags/lib/queries";
 import { useSignatures } from "@/features/metadata/lib/rules";
@@ -33,9 +33,11 @@ const countHint = (n: number, inGenerate: boolean) =>
 
 /**
  * What the gallery's search box and filter panel offer: known tags, models,
- * loras, embeddings, outfits and workflows.
+ * loras, embeddings, outfits and workflows. With `ready` false (until the
+ * gallery's first page is in) none is fetched: at boot they took the
+ * browser's connections ahead of the feed. Cached answers still show.
  */
-export function useFilterOptions(filters: Filters, filtersOpen: boolean) {
+export function useFilterOptions(filters: Filters, filtersOpen: boolean, ready: boolean) {
   // Workflows for the filter picker and the chip's name, grouped as the Rules
   // page groups them. Fetched once the panel opens or a workflow is filtered.
   const { data: signatures } = useSignatures({ enabled: filtersOpen || !!filters.workflow || !!filters.workflowSig });
@@ -48,19 +50,19 @@ export function useFilterOptions(filters: Filters, filtersOpen: boolean) {
   // distinct images (a tag applied from two sources isn't double-counted).
   // Selecting it matches images tagged from any source (the backend expands
   // `any:`).
-  const { data: tagOptions = NO_TAGS } = useQuery(mergedTagsQuery);
+  const { data: tagOptions = NO_TAGS } = useQuery({ ...mergedTagsQuery, enabled: ready });
   // Facets count over the view shown (default feed or Quarantined).
   // Distinct checkpoints (with counts) for the model filter dropdown.
-  const { data: modelOptions = NO_MODELS } = useQuery(imageModelsQueryIn(filters.quarantined));
+  const { data: modelOptions = NO_MODELS } = useQuery({ ...imageModelsQueryIn(filters.quarantined), enabled: ready });
   // Distinct embeddings (with counts) for the embedding filter dropdown.
-  const { data: embeddingOptions = NO_LORAS } = useQuery(imageEmbeddingsQueryIn(filters.quarantined));
+  const { data: embeddingOptions = NO_LORAS } = useQuery({ ...imageEmbeddingsQueryIn(filters.quarantined), enabled: ready });
   // Distinct loras (with counts) for the LoRA filter dropdown.
-  const { data: loraOptions = NO_LORAS } = useQuery(imageLorasQueryIn(filters.quarantined));
+  const { data: loraOptions = NO_LORAS } = useQuery({ ...imageLorasQueryIn(filters.quarantined), enabled: ready });
   // Loras and embeddings as search terms: suggested in the search box, and
   // typed names resolved to the library's spelling (matching is exact).
   // Saved outfits too: typing a name offers them, and a plain name that is
   // an outfit (and not a tag) becomes the outfit filter.
-  const { data: outfitList } = useOutfits();
+  const { data: outfitList } = useQuery({ ...outfitsQuery(), enabled: ready });
   const knownOutfits = useMemo(() => (outfitList ?? []).map((o) => ({ id: o._id, name: o.name })), [outfitList]);
   const tagNames = useMemo(() => new Set(tagOptions.map((t) => t._id.slice(t._id.indexOf(":") + 1))), [tagOptions]);
   const resourceSuggestions = useMemo(
@@ -75,7 +77,7 @@ export function useFilterOptions(filters: Filters, filtersOpen: boolean) {
     () => ({ lora: loraOptions.map((o) => o.name), embedding: embeddingOptions.map((o) => o.name) }),
     [loraOptions, embeddingOptions],
   );
-  const { data: generators } = useGenerators();
+  const { data: generators } = useGenerators({ enabled: ready });
   const workflowPickerOptions = useMemo(
     () => buildWorkflowPickerOptions(workflowFamilies, (key) => !!generatorFor(generators, key), countHint),
     [workflowFamilies, generators],

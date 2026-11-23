@@ -6,7 +6,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const WORK = join(process.env.BENCH_WORK || join(REPO, "local-setup", "bench"), "web");
 const FE = join(REPO, "packages", "frontend");
-const { build } = await import(pathToFileURL(createRequire(FE + "/").resolve("vite")).href);
+// Vite may resolve to its CJS entry, whose exports sit on `default`.
+const vite = await import(pathToFileURL(createRequire(FE + "/").resolve("vite")).href);
+const build = vite.build ?? vite.default.build;
 import { writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 const OUT = join(WORK, "statsbuild");

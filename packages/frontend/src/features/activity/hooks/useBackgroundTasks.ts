@@ -33,12 +33,17 @@ async function fetchActivity(signal?: AbortSignal): Promise<Activity> {
   return { items: Array.isArray(r?.items) ? r.items : [], ended: r?.ended ?? {} };
 }
 
+const pollMs = (q: { state: { data?: Activity } }) => (q.state.data?.items.length ? BUSY_MS : IDLE_MS);
+
 function useActivity<T>(select: (a: Activity) => T) {
   return useQuery({
     queryKey: BACKGROUND_TASKS_KEY,
     queryFn: ({ signal }) => fetchActivity(signal),
-    refetchInterval: (q) => (q.state.data?.items.length ? BUSY_MS : IDLE_MS),
-    staleTime: 0,
+    refetchInterval: pollMs,
+    // As fresh as the poll keeps it: a reader mounting (each image view
+    // step mounts some) reuses the last answer instead of asking again.
+    // Invalidations still refetch at once.
+    staleTime: pollMs,
     select,
   });
 }

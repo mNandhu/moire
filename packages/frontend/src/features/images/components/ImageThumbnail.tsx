@@ -121,6 +121,9 @@ export function ImageThumbnail({
         selected && "ring-2 ring-brand-500"
       )}
       onClick={onClick}
+      // Only while the <img> has no alt yet (see below); after, the name
+      // comes from the content again, badges included.
+      aria-label={!assignedSrc && alt ? alt : undefined}
     >
       {/* Placeholder: a decoded BlurHash preview when we have one (no grey
           "loading" state), else a shimmer skeleton. The BlurHash stays mounted
@@ -154,7 +157,9 @@ export function ImageThumbnail({
       <img
         ref={imgRef}
         src={assignedSrc ?? undefined}
-        alt={alt}
+        // With no src yet Chrome lays the alt text out as an inline box, for
+        // every tile still waiting on a slot. The button carries the name.
+        alt={assignedSrc ? alt : ""}
         // A seen tile drops its placeholder once the image is `complete`, which
         // says nothing about decoding: async could paint an empty tile for a
         // frame, the black gaps a scroll-back must not show.

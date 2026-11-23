@@ -49,6 +49,14 @@ export function useImageStepper(filters: Filters, routeId: string | undefined) {
   // decoded-image cache; without a live reference they are collectable and the
   // preload buys nothing but the HTTP hit.
   const preloadedRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  // The preloaded neighbours whose decode has finished.
+  const decodedRef = useRef<Set<string>>(new Set());
+  // A step onto one of those needs no wait: show it in this render. Going
+  // through the commit-on-decode effect below cost a render that only marked
+  // the step pending and a promise hop before the image was shown.
+  if (routeId && displayId && routeId !== displayId && decodedRef.current.has(routeId)) {
+    setDisplayId(routeId);
+  }
 
   const filterQuery = useMemo(
     () => serializeFilters(filters).toString(),
@@ -216,7 +224,17 @@ export function useImageStepper(filters: Filters, routeId: string | undefined) {
       // Low priority: never let a neighbour compete with the image actually on
       // screen. loadImage decodes off the main navigation path; without that
       // the bitmap is only decoded when first painted, which is the stall.
-      loadImage(it._id, { priority: "low", img }).catch(() => {});
+      loadImage(it._id, { priority: "low", img }).then(
+        ({ src: u }) => {
+          // Still wanted: evicted meanwhile, it is no longer held decoded.
+          if (preloadedRef.current.get(it._id) !== img) return;
+          // The URL it decoded from, for a step that shows it at once (as
+          // the commit-on-decode path does).
+          if (u && u !== imageFileUrl(it._id)) setResolvedUrls((prev) => ({ ...prev, [it._id]: u }));
+          decodedRef.current.add(it._id);
+        },
+        () => {},
+      );
     }
 
     // Keep the retained set small: holding every visited bitmap alive would
@@ -228,6 +246,7 @@ export function useImageStepper(filters: Filters, routeId: string | undefined) {
       // blown past should not keep competing for bandwidth.
       if (!img.complete) img.src = "";
       preloadedRef.current.delete(key);
+      decodedRef.current.delete(key);
     }
   }, [index, list, queryClient]);
 

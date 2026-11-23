@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, memo, useCallback, useEffect, useRef, useState } from "react";
 import { useLocalPref } from "@/hooks/useLocalPref";
 import { Outlet, useLocation } from "react-router-dom";
 import { useHotkeys } from "@/hooks/useHotkeys";
@@ -15,7 +15,7 @@ import { restoreAmbient } from "@/lib/ambient";
 import { useQueueTitle } from "@/features/generate/hooks/useQueueTitle";
 import { usePrefetchCharacters } from "@/features/characters/lib/queries";
 
-export default function App() {
+function App() {
   useQueueTitle();
   usePrefetchCharacters();
   const status = useBackendStatus();
@@ -139,3 +139,7 @@ export default function App() {
     </MobileNavContext.Provider>
   );
 }
+
+// Memo: its element is made anew on each RootRoutes render; with no props,
+// it renders again only for its own state, queries or router change.
+export default memo(App);

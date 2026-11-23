@@ -191,7 +191,9 @@ export function useImageLoadSlot({
   // a bare tile for that gap.
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
-  const [shouldLoad, setShouldLoad] = useState(false);
+  // Priority and eager tiles want their slot on mount: start true, rather
+  // than set in the gate effect, which cost every grid tile a render.
+  const [shouldLoad, setShouldLoad] = useState(priority || eager);
   const [assignedSrc, setAssignedSrc] = useState<string | null>(
     instant ? src : null
   );
@@ -254,7 +256,7 @@ export function useImageLoadSlot({
     if (!img) return;
 
     if (priority || eager) {
-      setShouldLoad(true);
+      setShouldLoad(true); // no render if it started true
       return;
     }
 

@@ -8,7 +8,8 @@ import { BACKGROUND_TASKS_KEY, useRefreshOnFinish } from "./useBackgroundTasks";
 function setup(next: unknown) {
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(next), { status: 200 })));
   const qc = new QueryClient();
-  qc.setQueryData(BACKGROUND_TASKS_KEY, { items: [], ended: { scan: 2 } });
+  // An old reply (stale), so mounting asks again, as the next poll would.
+  qc.setQueryData(BACKGROUND_TASKS_KEY, { items: [], ended: { scan: 2 } }, { updatedAt: 0 });
   const spy = vi.spyOn(qc, "invalidateQueries");
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: qc }, children);

@@ -25,6 +25,10 @@ export const fetchOnboarding = (signal?: AbortSignal) =>
 export const putOnboarding = (status: OnboardingStatus) =>
   apiJson<{ status: OnboardingStatus }>("/api/v1/onboarding", "PUT", { status });
 
+/** "1" once the server has said setup is over (done or skipped): the app
+ * then opens without waiting on the check. Cleared if it says pending. */
+export const SET_UP_KEY = "onboarding:set-up";
+
 /** Set once by setup, cleared when the gallery has shown the "?" hint. */
 export const SHORTCUT_HINT_KEY = "onboarding:shortcut-hint";
 
