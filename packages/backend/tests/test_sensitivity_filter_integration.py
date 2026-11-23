@@ -95,6 +95,8 @@ async def test_by_id_routes_hide_what_the_filter_hides(client, seed):
     await _set(client, "sensitive")
     assert (await client.get("/images/L1:explicit")).status_code == 403
     assert (await client.get("/images/L1:unknown")).status_code == 403
+    # Hidden reads as hidden (403), not as missing: only no row is a 404.
+    assert (await client.get("/images/L1:nothing")).status_code == 404
     assert (await client.get("/images/L1:explicit/thumb")).status_code == 404
     assert (await client.head("/images/L1:explicit/file")).status_code == 404
     assert (await client.get("/images/L1:explicit/workflow")).status_code == 404
@@ -165,14 +167,6 @@ async def test_changing_the_setting_drops_cached_tag_lists(client, seed):
     await _set(client, "general")
     again = await client.get("/tags", params={"merge_sources": True})
     assert f"any:{THREE}" not in {row["_id"] for row in again.json()}
-
-
-async def test_a_hidden_image_reads_as_hidden_not_missing(client, seed):
-    _library(seed)
-    await _set(client, "general")
-    resp = await client.get("/images/L1:explicit")
-    assert resp.status_code == 403
-    assert (await client.get("/images/L1:nothing")).status_code == 404
 
 
 async def test_tag_levels_list_and_set(client, seed):

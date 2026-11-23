@@ -7,6 +7,8 @@ recompute, so the invariant has a test surface that needs no database. The
 transactional repo writes are covered separately by the DB integration tests.
 """
 
+import pytest
+
 from moire.services.tags import image_tags as it
 from moire.services.tags import kinds as tk
 
@@ -14,17 +16,17 @@ from moire.services.tags import kinds as tk
 # --- id candidates -----------------------------------------------------------
 
 
-def test_id_candidates_primary_first_then_variants():
-    # POSIX-spelled id tries itself, then the backslash variant.
-    assert it.id_candidates("L1:a/b") == ["L1:a/b", "L1:a\\b"]
-
-
-def test_id_candidates_no_separator_is_just_the_id():
-    assert it.id_candidates("L1:plain") == ["L1:plain"]
-
-
-def test_id_candidates_backslash_spelling():
-    assert it.id_candidates("L1:a\\b") == ["L1:a\\b", "L1:a/b"]
+@pytest.mark.parametrize(
+    "image_id, expected",
+    [
+        # A POSIX-spelled id tries itself, then the backslash variant.
+        ("L1:a/b", ["L1:a/b", "L1:a\\b"]),
+        ("L1:a\\b", ["L1:a\\b", "L1:a/b"]),
+        ("L1:plain", ["L1:plain"]),
+    ],
+)
+def test_id_candidates_primary_first_then_variants(image_id, expected):
+    assert it.id_candidates(image_id) == expected
 
 
 # --- prefix helpers ----------------------------------------------------------
@@ -60,10 +62,6 @@ def test_base_of_strips_kind_prefix():
 # --- any-source search sentinel ----------------------------------------------
 
 
-def test_any_variants_fans_out_to_all_sources():
-    assert tk.any_variants("any:cat") == ["cat", "manual:cat", "prompt:cat"]
-
-
 def test_expand_search_tag_exact_stays_precise():
     # Source-specific (deep-link) entries match only themselves.
     assert tk.expand_search_tag("prompt:cat") == ["prompt:cat"]
@@ -76,30 +74,25 @@ def test_expand_search_tag_exact_stays_precise():
 # --- tag_match_groups: AND-of-EXISTS translation for SQL ----------------------
 
 
-def test_tag_match_groups_single_any():
-    # One group whose ids are the any: fan-out.
-    assert tk.tag_match_groups(["any:cat"], "and") == [
-        ["cat", "manual:cat", "prompt:cat"]
-    ]
-
-
-def test_tag_match_groups_single_exact():
-    assert tk.tag_match_groups(["prompt:cat"], "and") == [["prompt:cat"]]
-
-
-def test_tag_match_groups_two_entries_and_logic():
-    # AND across groups (one group per entry), OR within each group.
-    assert tk.tag_match_groups(["any:cat", "any:dog"], "and") == [
-        ["cat", "manual:cat", "prompt:cat"],
-        ["dog", "manual:dog", "prompt:dog"],
-    ]
-
-
-def test_tag_match_groups_mixed_exact_and_any():
-    assert tk.tag_match_groups(["any:cat", "prompt:dog"], "and") == [
-        ["cat", "manual:cat", "prompt:cat"],
-        ["prompt:dog"],
-    ]
+@pytest.mark.parametrize(
+    "entries, expected",
+    [
+        # One group whose ids are the any: fan-out.
+        (["any:cat"], [["cat", "manual:cat", "prompt:cat"]]),
+        (["prompt:cat"], [["prompt:cat"]]),
+        # AND across groups (one group per entry), OR within each group.
+        (
+            ["any:cat", "any:dog"],
+            [["cat", "manual:cat", "prompt:cat"], ["dog", "manual:dog", "prompt:dog"]],
+        ),
+        (
+            ["any:cat", "prompt:dog"],
+            [["cat", "manual:cat", "prompt:cat"], ["prompt:dog"]],
+        ),
+    ],
+)
+def test_tag_match_groups_and_logic(entries, expected):
+    assert tk.tag_match_groups(entries, "and") == expected
 
 
 def test_tag_match_groups_or_logic_unions_into_one_group_deduped():
@@ -217,18 +210,6 @@ def test_normalize_rating_canonical_and_aliases():
 
 def test_normalize_rating_unknown_is_none():
     assert it.normalize_rating("spicy") is None
-
-
-# --- id variants -------------------------------------------------------------
-
-
-def test_id_variants_swaps_separators():
-    assert it.id_variants("lib:a/b") == ["lib:a\\b"]
-    assert it.id_variants("lib:a\\b") == ["lib:a/b"]
-
-
-def test_id_variants_excludes_primary_when_no_separator():
-    assert it.id_variants("lib:flat") == []
 
 
 # --- bulk manual edit --------------------------------------------------------

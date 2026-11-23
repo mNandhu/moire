@@ -804,40 +804,12 @@ def rewrite_tags_sync(
     """Persist a whole new tag array on a caller-owned sync transaction. For
     one-off data migrations (services/tags/migrations.py) and folding a nested
     library's copies (services/library/nesting.py); like
-    :func:`replace_prompt_many_sync`, the caller invalidates the tag index."""
+    :func:`write_prompt_plans_sync`, the caller invalidates the tag index."""
     statements, rows = _persist_statements(image_id, new_tags, extra)
     for stmt in statements:
         conn.execute(stmt)
     if rows:
         conn.execute(sa.insert(t.image_tags), rows)
-
-
-def replace_prompt_many_sync(
-    conn: Connection,
-    items: list[tuple[str, list[str], list[str]]],
-    *,
-    force: bool = False,
-) -> int:
-    """Replace ``prompt:`` tags on many images at once, on a caller-owned sync
-    transaction so reprojection writes a whole batch per commit. Each item is
-    ``(image_id, its current tags, its new prompt tags)``; images whose tag
-    array comes out the same are not written unless ``force``. Returns how
-    many were written.
-
-    The bulk twin of :func:`_persist_statements` (same columns,
-    :data:`TAG_STATE_COLUMNS` with :func:`tag_state_values`, and the same
-    join rows), as one executemany per
-    statement instead of three per image.
-    Deliberately does *not* invalidate the tag index: the caller owns the
-    transaction, so only the caller knows when the write became visible
-    (:func:`services.metadata.reproject._flush_batch` does, softly per commit,
-    and its run hard once at the end).
-    """
-    return write_prompt_plans_sync(
-        conn,
-        [p for item in items if (p := plan_prompt_write(*item, force=force))],
-        force=force,
-    )
 
 
 @dataclass(frozen=True)
@@ -890,7 +862,13 @@ def write_prompt_plans_sync(
     """Apply planned writes on a caller-owned sync transaction whose stored
     tags are each plan's ``current`` (the caller checks). Only the changed
     join rows are touched, unless ``force`` rebuilds them all (a migration
-    that changed how join rows are made). Returns how many were written."""
+    that changed how join rows are made). Returns how many were written.
+
+    The bulk twin of :func:`_persist_statements` (same columns, same join
+    rows), as one executemany per statement. Deliberately does *not*
+    invalidate the tag index: only the caller knows when its transaction
+    made the write visible (:func:`services.metadata.reproject._flush_batch`
+    does, softly per commit, and its run hard once at the end)."""
     if not plans:
         return 0
     conn.execute(

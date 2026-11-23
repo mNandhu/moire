@@ -127,14 +127,6 @@ def ingest_files(
     return writer.indexed
 
 
-def ingest_single_file(library_id: str, root_path: Path, path: Path) -> bool:
-    """Index one added/modified file (:func:`ingest_files` for one path).
-    Returns ``True`` on success (including "not an image, skipped")."""
-    if not is_image(path):
-        return True
-    return ingest_files(library_id, root_path, [path]) == 1
-
-
 def remove_images(library_id: str, image_ids: Iterable[str]) -> int:
     """Remove images the watcher observed as deleted (files no longer on
     disk). Mirrors the full scan's stale-reconciliation for these ids, in
@@ -174,9 +166,3 @@ def remove_images(library_id: str, image_ids: Iterable[str]) -> int:
         tag_index.invalidate()
         image_delete.drop_thumbs(keys)
     return len(resolved)
-
-
-def remove_single_image(library_id: str, image_id: str) -> None:
-    """Remove one image the watcher observed as deleted
-    (:func:`remove_images` for one id)."""
-    remove_images(library_id, [image_id])

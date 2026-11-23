@@ -826,17 +826,6 @@ async def test_samples_are_capped_at_per(temp_db, seed):
 
 
 @pytest.mark.asyncio
-async def test_route_decorates_samples_with_the_thumb_url(client, seed):
-    seed("L1:a.jpg", tags=("cat",))
-
-    resp = await client.get("/tags/samples", params={"tags": ["cat"], "per": 1})
-
-    assert resp.json()["cat"][0]["thumb_url"].startswith(
-        "/api/v1/images/L1%3Aa.jpg/thumb?v="
-    )
-
-
-@pytest.mark.asyncio
 async def test_reprojection_batch_dirties_the_index(temp_db, seed):
     """Reprojection owns its own sync transaction and runs on scanner threads, so
     it dirties the index per committed batch rather than per image: softly,

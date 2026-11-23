@@ -1,8 +1,7 @@
 """Integration tests for the watcher's ingest/remove path.
 
 The functions it calls: one file in -> one row upserted without touching the
-rest of the library, and one file gone -> exactly that row (and its thumb)
-removed. Then the watch thread itself (`_run_watch`, fed through its queue):
+rest of the library. Then the watch thread itself (`_run_watch`, fed through its queue):
 a burst is ingested as one batch with one tag-view invalidation, a file still
 being written waits for a later pass, and a burst of deletes goes together.
 """
@@ -31,7 +30,7 @@ async def _img(image_id: str):
         ).first()
 
 
-async def test_ingest_single_file_adds_one_row_without_touching_others(
+async def test_ingest_one_file_adds_one_row_without_touching_others(
     temp_db, seed, tmp_path
 ):
     lib_dir = tmp_path / "lib"
@@ -41,8 +40,7 @@ async def test_ingest_single_file_adds_one_row_without_touching_others(
     new_path = lib_dir / "new.png"
     Image.new("RGB", (4, 4)).save(new_path, "PNG")
 
-    ok = scan_incremental.ingest_single_file("L1", lib_dir, new_path)
-    assert ok is True
+    assert scan_incremental.ingest_files("L1", lib_dir, [new_path]) == 1
 
     row = await _img("L1:new.png")
     assert row is not None
@@ -55,15 +53,15 @@ async def test_ingest_single_file_adds_one_row_without_touching_others(
     assert other.tags == ["cat"]
 
 
-async def test_ingest_single_file_refreshes_metadata_on_modify(temp_db, tmp_path):
+async def test_ingest_one_file_refreshes_metadata_on_modify(temp_db, tmp_path):
     lib_dir = tmp_path / "lib"
     lib_dir.mkdir()
     p = lib_dir / "a.png"
     Image.new("RGB", (4, 4)).save(p, "PNG")
-    assert scan_incremental.ingest_single_file("L1", lib_dir, p) is True
+    assert scan_incremental.ingest_files("L1", lib_dir, [p]) == 1
 
     Image.new("RGB", (16, 16)).save(p, "PNG")
-    assert scan_incremental.ingest_single_file("L1", lib_dir, p) is True
+    assert scan_incremental.ingest_files("L1", lib_dir, [p]) == 1
 
     row = await _img("L1:a.png")
     assert row.width == 16 and row.height == 16
@@ -81,7 +79,7 @@ async def test_ingest_updates_a_backslash_stored_row_in_place(client, seed, tmp_
     p = lib_dir / "sub" / "a.png"
     Image.new("RGB", (16, 16)).save(p, "PNG")
 
-    assert scan_incremental.ingest_single_file("L1", lib_dir, p) is True
+    assert scan_incremental.ingest_files("L1", lib_dir, [p]) == 1
 
     async with db.async_conn() as conn:
         ids = (await conn.execute(sa.select(t.images.c._id))).scalars().all()
@@ -97,20 +95,9 @@ async def test_ingest_updates_a_backslash_stored_row_in_place(client, seed, tmp_
     assert resp.status_code == 200, resp.text
 
 
-async def test_remove_single_image_deletes_only_that_row(temp_db, seed):
-    seed("L1:keep.jpg", tags=("cat",))
-    seed("L1:gone.jpg", tags=("dog",), thumb_key=None)
-
-    scan_incremental.remove_single_image("L1", "L1:gone.jpg")
-
-    assert await _img("L1:gone.jpg") is None
-    keep = await _img("L1:keep.jpg")
-    assert keep is not None and keep.tags == ["cat"]
-
-
-async def test_remove_single_image_is_a_noop_for_unknown_id(temp_db):
-    # Should not raise even though the row was never indexed.
-    scan_incremental.remove_single_image("L1", "L1:never-existed.jpg")
+def test_removing_an_unknown_id_is_a_noop(temp_db):
+    # Never indexed: nothing resolves, nothing is counted off.
+    assert scan_incremental.remove_images("L1", ["L1:never-existed.jpg"]) == 0
 
 
 def _wait(pred, timeout=10.0):

@@ -47,9 +47,8 @@ async def test_bulk_and_single_writes_leave_identical_rows(seed, start, prompt):
         image_tags.rewrite_tags_sync(
             conn, "L1:single", image_tags.with_replaced_prompt(list(start), prompt)
         )
-        written = image_tags.replace_prompt_many_sync(
-            conn, [("L1:bulk", list(start), prompt)], force=True
-        )
+        plan = image_tags.plan_prompt_write("L1:bulk", list(start), prompt, force=True)
+        written = image_tags.write_prompt_plans_sync(conn, [plan], force=True)
     assert written == 1
     assert _row("L1:bulk") == _row("L1:single")
 
@@ -57,6 +56,7 @@ async def test_bulk_and_single_writes_leave_identical_rows(seed, start, prompt):
 def test_initial_tag_fields_match_an_empty_tag_state():
     fields = image_tags.initial_tag_fields()
     assert fields["tags"] == []
+    assert fields["tag_level"] is None
     for key, value in tag_kinds.recompute_flags([]).items():
         assert fields[key] == value
 

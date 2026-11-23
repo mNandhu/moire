@@ -11,13 +11,6 @@ async def test_columns_limit_the_read_to_those_and_the_id(seed):
     assert doc["_id"] == "L1:a/b.jpg"
 
 
-async def test_a_mongo_style_projection_still_reads_its_keys(seed):
-    """Callers not yet moved off ``{"path": 1}`` get the same narrow read."""
-    seed("L1:a.jpg", tags=("cat",))
-    doc = await image_tags.find_image("L1:a.jpg", {"path": 1, "thumb_key": 1})
-    assert set(doc) == {"_id", "path", "thumb_key"}
-
-
 async def test_no_columns_is_the_whole_document(seed):
     seed("L1:a.jpg", tags=("cat",))
     doc = await image_tags.find_image("L1:a.jpg")

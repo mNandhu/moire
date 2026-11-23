@@ -62,10 +62,6 @@ def test_tag_level_is_the_highest_by_base_name():
 # --- every tag writer keeps tag_level ------------------------------------------
 
 
-def test_initial_tag_fields_have_no_level():
-    assert image_tags.initial_tag_fields()["tag_level"] is None
-
-
 async def test_single_and_bulk_writes_set_tag_level(seed):
     seed("L1:a", tags=("1girl",))
     seed("L1:b", tags=("1girl",))
@@ -84,9 +80,8 @@ def test_sync_writers_set_tag_level(seed):
     seed("L1:a", tags=("1girl",))
     seed("L1:b")
     with db.sync_tx() as conn:
-        image_tags.replace_prompt_many_sync(
-            conn, [("L1:a", ["1girl"], [f"prompt:{SENSITIVE}"])]
-        )
+        plan = image_tags.plan_prompt_write("L1:a", ["1girl"], [f"prompt:{SENSITIVE}"])
+        image_tags.write_prompt_plans_sync(conn, [plan])
         image_tags.rewrite_tags_sync(conn, "L1:b", [EXPLICIT])
     assert _row("L1:a").tag_level == 1
     assert _row("L1:b").tag_level == 3

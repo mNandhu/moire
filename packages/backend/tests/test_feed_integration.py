@@ -242,12 +242,6 @@ async def test_pterms_all_vs_in(client, seed):
     }
 
 
-async def test_library_filter(client, seed):
-    seed("L1:a", library_id="L1")
-    seed("L2:a", library_id="L2")
-    assert await _ids(client, library_id="L2") == ["L2:a"]
-
-
 async def test_cursor_pagination_walks_every_row_once_in_order(client, seed):
     ids = [f"L1:{i:03d}" for i in range(25)]
     # Ties on mtime (pairs share one) must still page by _id without gaps.

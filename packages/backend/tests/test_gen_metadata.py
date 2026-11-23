@@ -2,6 +2,8 @@
 ComfyUI graph walking, signature stability across id renumbering, tokenisation,
 and grouping."""
 
+import pytest
+
 from moire.services.metadata import gen_metadata as gm
 from moire.services.metadata import workflow_identity as wi
 
@@ -80,10 +82,13 @@ def test_comfyui_structural_extraction():
 
 
 def test_comfyui_positive_negative_disambiguated_by_edge_not_order():
-    # Even though node 7 (negative) could be picked first by class, the edge from
-    # the sampler's `positive` link must select node 6.
-    g = gm.parse_comfyui(COMFY)
+    # The negative encoder comes first in the graph: only the edge from the
+    # sampler's `positive` link tells the two apart.
+    graph = {"7": COMFY["7"], **{k: v for k, v in COMFY.items() if k != "7"}}
+    assert next(iter(graph)) == "7"
+    g = gm.parse_comfyui(graph)
     assert g["prompt"] == "a fox in snow"
+    assert g["negative"] == "ugly, blurry"
 
 
 def test_comfyui_model_via_lora_passthrough():
@@ -128,31 +133,32 @@ def test_signature_none_on_empty():
 # --- Tokenise / group --------------------------------------------------------
 
 
-def test_tokenize_splits_on_commas_lowercase_dedup():
-    # Commas are the tag separator; multi-word tags keep their spaces.
-    terms = gm.tokenize_prompt("Cyberpunk City, neon, NEON")
-    assert terms == ["cyberpunk_city", "neon"]
-
-
-def test_tokenize_preserves_multiword_tag_with_escaped_parens():
-    # The reported bug: "hu tao \\(genshin impact\\)" is ONE tag, not hu + tao.
-    terms = gm.tokenize_prompt(r"1girl, hu tao \(genshin impact\), smile")
-    assert terms == ["1girl", "hu_tao_(genshin_impact)", "smile"]
-
-
-def test_tokenize_keeps_lora_tokens_out_of_terms():
-    # Loras are structured data (gen.loras), not prompt tags.
-    assert gm.tokenize_prompt("1girl, <lora:foo:0.8>") == ["1girl"]
-
-
-def test_tokenize_strips_emphasis_brackets_and_weights():
-    # (tag1:1.1,tag2) -> bracket + trailing :weight stripped
-    assert gm.tokenize_prompt("(tag1:1.1,tag2)") == ["tag1", "tag2"]
-
-
-def test_tokenize_drops_bare_weight_token():
-    # (tag1,tag2,:1.1) -> the orphan :1.1 weight collapses to empty and is dropped
-    assert gm.tokenize_prompt("(tag1,tag2,:1.1)") == ["tag1", "tag2"]
+@pytest.mark.parametrize(
+    "prompt, expected",
+    [
+        # Commas are the tag separator; multi-word tags keep their spaces.
+        ("Cyberpunk City, neon, NEON", ["cyberpunk_city", "neon"]),
+        # The reported bug: "hu tao \\(genshin impact\\)" is ONE tag, not hu + tao.
+        (
+            r"1girl, hu tao \(genshin impact\), smile",
+            ["1girl", "hu_tao_(genshin_impact)", "smile"],
+        ),
+        # Loras are structured data (gen.loras), not prompt tags.
+        ("1girl, <lora:foo:0.8>", ["1girl"]),
+        # Bracket + trailing :weight stripped.
+        ("(tag1:1.1,tag2)", ["tag1", "tag2"]),
+        # The orphan :1.1 weight collapses to empty and is dropped.
+        ("(tag1,tag2,:1.1)", ["tag1", "tag2"]),
+        # name_(series) qualifiers are the dominant wd-tagger tag shape: the
+        # closing paren is part of the tag and must survive.
+        ("hatsune_miku_(vocaloid)", ["hatsune_miku_(vocaloid)"]),
+        # Fully wrapping emphasis, weighted or not, reduces to the bare tag.
+        ("(masterpiece)", ["masterpiece"]),
+        ("(masterpiece:1.2)", ["masterpiece"]),
+    ],
+)
+def test_tokenize_prompt(prompt, expected):
+    assert gm.tokenize_prompt(prompt) == expected
 
 
 def test_tokenize_keeps_numeric_tags():
@@ -160,31 +166,12 @@ def test_tokenize_keeps_numeric_tags():
     assert "1990" in gm.tokenize_prompt("1990, sunset")
 
 
-def test_tokenize_preserves_balanced_danbooru_qualifier():
-    # name_(series) qualifiers are the dominant wd-tagger tag shape: the closing
-    # paren is part of the tag and must survive (regression guard).
-    assert gm.tokenize_prompt("hatsune_miku_(vocaloid)") == ["hatsune_miku_(vocaloid)"]
-
-
-def test_tokenize_peels_fully_wrapping_emphasis():
-    # (masterpiece) and (masterpiece:1.2) emphasis both reduce to the bare tag.
-    assert gm.tokenize_prompt("(masterpiece)") == ["masterpiece"]
-    assert gm.tokenize_prompt("(masterpiece:1.2)") == ["masterpiece"]
-
-
-def test_group_id_same_for_same_sig_and_prompt():
+def test_group_id_is_one_per_signature_and_prompt():
     a = gm.group_id("sigX", "same prompt")
-    b = gm.group_id("sigX", "same prompt")
-    assert a == b and a is not None
-
-
-def test_group_id_none_without_prompt():
+    assert a is not None and a == gm.group_id("sigX", "same prompt")
+    assert gm.group_id("sigX", "p1") != gm.group_id("sigX", "p2")
     assert gm.group_id("sigX", "") is None
     assert gm.group_id("sigX", None) is None
-
-
-def test_group_id_differs_by_prompt():
-    assert gm.group_id("sigX", "p1") != gm.group_id("sigX", "p2")
 
 
 # --- Dispatcher --------------------------------------------------------------
@@ -198,12 +185,6 @@ def test_extract_comfyui_fills_derived_fields():
     assert g["group_id"] is not None
 
 
-def test_extract_a1111():
-    g = gm.extract({"source": "a1111", "parameters": A1111_FULL})
-    assert g["seed"] == 12345
-    assert "a_cyberpunk_city" in g["prompt_terms"]
-
-
 def test_extract_unknown_source_returns_none():
     assert gm.extract({"source": "nope"}) is None
 
@@ -211,6 +192,7 @@ def test_extract_unknown_source_returns_none():
 def test_extract_positive_only_default_excludes_negative_terms():
     # A1111_FULL negative is "blurry, lowres"; default (positive-only) drops them.
     g = gm.extract({"source": "a1111", "parameters": A1111_FULL})
+    assert g["seed"] == 12345
     assert "a_cyberpunk_city" in g["prompt_terms"]
     assert "blurry" not in g["prompt_terms"]
     assert "lowres" not in g["prompt_terms"]
@@ -230,27 +212,21 @@ def test_extract_positive_only_false_includes_negative_terms():
 RAW_COMFY = {"source": "comfyui", "prompt": COMFY}
 
 
-def test_resolve_path_dict_keys():
-    assert gm.resolve_path(RAW_COMFY, "prompt.6.inputs.text") == "a fox in snow"
-
-
-def test_resolve_path_list_index():
-    assert gm.resolve_path(RAW_COMFY, "prompt.3.inputs.positive.0") == "6"
-
-
-def test_resolve_path_missing_returns_none():
-    assert gm.resolve_path(RAW_COMFY, "prompt.999.inputs.text") is None
-    assert gm.resolve_path(RAW_COMFY, "prompt.6.inputs.text.deeper") is None
-
-
-def test_resolve_path_bad_index_returns_none():
-    assert gm.resolve_path(RAW_COMFY, "prompt.3.inputs.positive.99") is None
-    assert gm.resolve_path(RAW_COMFY, "prompt.3.inputs.positive.x") is None
-
-
-def test_resolve_path_empty_or_nonwalkable():
-    assert gm.resolve_path(RAW_COMFY, "") is None
-    assert gm.resolve_path(None, "a.b") is None
+@pytest.mark.parametrize(
+    "raw, path, expected",
+    [
+        (RAW_COMFY, "prompt.6.inputs.text", "a fox in snow"),  # dict keys
+        (RAW_COMFY, "prompt.3.inputs.positive.0", "6"),  # list index
+        (RAW_COMFY, "prompt.999.inputs.text", None),  # missing
+        (RAW_COMFY, "prompt.6.inputs.text.deeper", None),  # past a scalar
+        (RAW_COMFY, "prompt.3.inputs.positive.99", None),  # index out of range
+        (RAW_COMFY, "prompt.3.inputs.positive.x", None),  # not an index
+        (RAW_COMFY, "", None),
+        (None, "a.b", None),
+    ],
+)
+def test_resolve_path(raw, path, expected):
+    assert gm.resolve_path(raw, path) == expected
 
 
 # --- Ruleset application -----------------------------------------------------

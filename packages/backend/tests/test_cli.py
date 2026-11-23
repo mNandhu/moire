@@ -53,22 +53,22 @@ def test_only_an_ipv4_wildcard_gets_a_network_url(kernel, host):
     assert cli._network_url(host, 8001) is None
 
 
-def test_wsl2_nat_has_no_reachable_address(kernel, wslinfo):
-    kernel("6.18.54.1-microsoft-standard-WSL2\n")
-    wslinfo("nat")
-    assert cli._network_url("0.0.0.0", 8001) is None
-
-
-def test_wsl2_mirrored_shares_windows_addresses(kernel, wslinfo):
-    kernel("6.18.54.1-microsoft-standard-WSL2\n")
-    wslinfo("mirrored")
-    assert cli._network_url("0.0.0.0", 8001) == "http://192.168.1.20:8001"
-
-
-def test_wsl2_without_wslinfo_is_treated_as_nat(kernel, wslinfo):
-    kernel("5.15.90.1-microsoft-standard-WSL2\n")
-    wslinfo(None)
-    assert cli._network_url("0.0.0.0", 8001) is None
+@pytest.mark.parametrize(
+    "release, mode, url",
+    [
+        ("6.18.54.1-microsoft-standard-WSL2\n", "nat", None),
+        # Mirrored networking shares the Windows addresses.
+        ("6.18.54.1-microsoft-standard-WSL2\n", "mirrored", "http://192.168.1.20:8001"),
+        # No wslinfo reads as NAT: no reachable address.
+        ("5.15.90.1-microsoft-standard-WSL2\n", None, None),
+    ],
+)
+def test_wsl2_network_url_follows_the_networking_mode(
+    kernel, wslinfo, release, mode, url
+):
+    kernel(release)
+    wslinfo(mode)
+    assert cli._network_url("0.0.0.0", 8001) == url
 
 
 def test_wsl1_uses_windows_networking(kernel):
