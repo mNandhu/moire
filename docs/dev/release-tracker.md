@@ -11,7 +11,7 @@ What has to happen before Moiré is published (PyPI `moire-studio`, first `vX.Y.
 
 - [x] **R3** E2E suite: pick a runner (Playwright, already used for screenshots), seed a small library of fixture images, and cover `docs/dev/e2e-scenarios.md` plus the main paths: onboarding, add library and scan, gallery filter and paging, image view tags and weights, tag panel, AI tagging a few images, Generate prompt keys (Ctrl+Up/Down), against the fake ComfyUI (never the public one). Started 08f412e: harness in `packages/e2e`, onboarding, gallery paging + search, Generate Clear/Undo. Every path named here is covered as of ca74569; first green CI run 40635450671; more scenarios in `docs/dev/e2e-scenarios.md` "Still to cover".
 - [ ] **R4** Performance testing: a repeatable run of the `bench/` suites (`bench/README.md`; `bench/data/make_synth.py` builds the large library, e.g. 50k images) with budgets for feed paging, tag browse, tag detail and a full reprojection; record a baseline beside `docs/dev/perf-benchmark-2026-11.md` and fail CI (or flag) on a big regression.
-- [ ] **R5** Fix flaky tests first so CI is trustworthy: F26 (LibrariesPage delete test under load), F27 (pytest asyncio marks, done f6b9dd2), and the one-off backend failure seen 2026-10-27 under a slow run (not captured).
+- [x] **R5** Fix flaky tests first so CI is trustworthy: F26 (a966aa1), F27 (f6b9dd2), the live-loop flake (71abda0). Checked 2026-11-23: the full backend suite three times in a row (1440 passed each) and the frontend suite (1188) all green, and every CI e2e run since the Python pin (11-14) passed; the late-October `generate-run` failures were the batch rework, not flakes. The 2026-10-27 one-off backend failure never came back.
 
 ## CI
 
