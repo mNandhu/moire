@@ -83,7 +83,9 @@ async def test_the_manual_library_run_is_forced(temp_db, seed, client, monkeypat
         conn.execute(sa.insert(t.libraries).values(_id="L1", path="/x"))
     started = []
     monkeypatch.setattr(
-        reproject, "reproject_library_async", lambda lid, **kw: started.append((lid, kw))
+        reproject,
+        "reproject_library_async",
+        lambda lid, **kw: started.append((lid, kw)),
     )
     assert (await client.post("/libraries/L1/reproject")).status_code == 200
     assert started == [("L1", {"force": True})]
@@ -294,9 +296,7 @@ def test_a_small_rescan_also_derives_rows_left_unstamped(temp_db, seed, monkeypa
     _setup(seed, [_raw_row(f"L1:{i}", "cat") for i in range(6)])
     reproject.reproject_all()
     with db.sync_tx() as conn:  # rewritten, never derived
-        scanner.write_gen_raws(
-            conn, [_raw_row("L1:1", "fox"), _raw_row("L1:2", "fox")]
-        )
+        scanner.write_gen_raws(conn, [_raw_row("L1:1", "fox"), _raw_row("L1:2", "fox")])
 
     whole, some = [], []
     monkeypatch.setattr(reproject, "reproject_library_async", whole.append)

@@ -38,9 +38,7 @@ async def list_signatures() -> list[dict[str, Any]]:
     thumbnail never serves a stale ``?v=``."""
     rows = await tag_index.cached("views", "signatures", _signatures)
     thumbs = await thumb_version.urls(r["sample_image_id"] for r in rows)
-    return [
-        {**r, "sample_thumb_url": thumbs.get(r["sample_image_id"])} for r in rows
-    ]
+    return [{**r, "sample_thumb_url": thumbs.get(r["sample_image_id"])} for r in rows]
 
 
 async def _signatures() -> list[dict[str, Any]]:

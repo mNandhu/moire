@@ -81,7 +81,9 @@ async def test_a_pin_must_carry_the_tag_in_that_source(temp_db, seed):
     seed("L1:b", tags=("cat",))
     seed("L1:p", tags=("prompt:cat",))
     await _pin_directly("cat", "L1:p")
-    assert (await _covers("ai"))["cat"] == await _expected_cover("cat", ["L1:a", "L1:b"])
+    assert (await _covers("ai"))["cat"] == await _expected_cover(
+        "cat", ["L1:a", "L1:b"]
+    )
     assert (await _covers("prompt"))["cat"] == "L1:p"
     assert (await _covers("all"))["cat"] == "L1:p"
     # a pin on an image without the tag at all is ignored
@@ -103,7 +105,8 @@ async def test_covers_survive_rowids_at_the_pack_bound(temp_db, seed):
                 {"r": bound - k, "i": n},
             )
         await conn.execute(
-            sa.text("UPDATE images SET rowid = :r WHERE _id = 'L1:x'"), {"r": bound - 10}
+            sa.text("UPDATE images SET rowid = :r WHERE _id = 'L1:x'"),
+            {"r": bound - 10},
         )
     assert (await _covers())["cat"] == await _expected_cover("cat", names)
     # pinned: a negative packed key decodes back to the same large rowid

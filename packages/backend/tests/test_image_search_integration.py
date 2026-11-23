@@ -92,10 +92,27 @@ async def test_the_id_prefilter_changes_no_result(client, seed, monkeypatch):
     for i, (lib, rel) in enumerate(paths):
         seed(f"{lib}:{rel}", library_id=lib, mtime=i, quarantined=lib == "L2")
     needles = [
-        "comfyui 00123", "ComfyUI_", "sub dir/comfy", "out/sub", "out\\sub",
-        "%", "a%b", "b^c", "c d", "café", "CAFÉ", "été 1",
-        "mixed/case  two", "case two", "sunset", "lib sunset", "plain",
-        "zzqx", "/", " ", "png",
+        "comfyui 00123",
+        "ComfyUI_",
+        "sub dir/comfy",
+        "out/sub",
+        "out\\sub",
+        "%",
+        "a%b",
+        "b^c",
+        "c d",
+        "café",
+        "CAFÉ",
+        "été 1",
+        "mixed/case  two",
+        "case two",
+        "sunset",
+        "lib sunset",
+        "plain",
+        "zzqx",
+        "/",
+        " ",
+        "png",
     ]
     new = {n: await image_search.search(n, 50) for n in needles}
     monkeypatch.setattr(image_search, "_rough", lambda needle: "%")

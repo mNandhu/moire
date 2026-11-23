@@ -566,9 +566,7 @@ async def test_rescan_resumes_a_reprojection_cut_off(client, tmp_path, monkeypat
     assert resumed == [[image_id]]
 
 
-async def test_rescan_reprojects_only_the_rows_it_wrote(
-    client, tmp_path, monkeypatch
-):
+async def test_rescan_reprojects_only_the_rows_it_wrote(client, tmp_path, monkeypatch):
     """A first scan derives the whole library; a rescan touching a few files
     derives just those (plus underived rows), and a mostly rewritten library
     takes the whole-library run again."""

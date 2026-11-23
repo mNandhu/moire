@@ -105,17 +105,19 @@ async def test_samples_unchanged_with_hidden_images(client, seed, monkeypatch, f
             monkeypatch.setattr(
                 covers,
                 "_shuffled_rows",
-                lambda tag, match, cols, limit, window: sa.select(*cols)
-                .where(
-                    image_visibility.visible(),
-                    sa.exists(
-                        sa.select(1).where(
-                            t.image_tags.c.image_id == t.images.c._id, match
-                        )
-                    ),
-                )
-                .order_by(covers._shuffled(tag))
-                .limit(limit),
+                lambda tag, match, cols, limit, window: (
+                    sa.select(*cols)
+                    .where(
+                        image_visibility.visible(),
+                        sa.exists(
+                            sa.select(1).where(
+                                t.image_tags.c.image_id == t.images.c._id, match
+                            )
+                        ),
+                    )
+                    .order_by(covers._shuffled(tag))
+                    .limit(limit)
+                ),
             )
         out = {}
         for tag in TAGS:

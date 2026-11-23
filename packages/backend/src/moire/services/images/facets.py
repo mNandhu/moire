@@ -51,7 +51,9 @@ async def loras(library_id: str | None, quarantined: int | None) -> list[dict]:
             .group_by(t.image_loras.c.name)
             .order_by(sa.func.count().desc(), t.image_loras.c.name)
         )
-        return [{"name": r.name, "count": r.count} for r in await _rows(stmt, library_id)]
+        return [
+            {"name": r.name, "count": r.count} for r in await _rows(stmt, library_id)
+        ]
 
     return await tag_index.cached(
         "views", _key("loras", library_id, quarantined), build
@@ -72,7 +74,9 @@ async def embeddings(library_id: str | None, quarantined: int | None) -> list[di
             .group_by(e.c.name)
             .order_by(count.desc(), e.c.name)
         )
-        return [{"name": r.name, "count": r.count} for r in await _rows(stmt, library_id)]
+        return [
+            {"name": r.name, "count": r.count} for r in await _rows(stmt, library_id)
+        ]
 
     return await tag_index.cached(
         "views", _key("embeddings", library_id, quarantined), build
