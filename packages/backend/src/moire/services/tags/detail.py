@@ -8,6 +8,8 @@ from __future__ import annotations
 import json
 
 import sqlalchemy as sa
+from sqlalchemy.sql import operators
+from sqlalchemy.sql.elements import UnaryExpression
 
 from ...database.db import async_conn
 from ...database import schema as t
@@ -35,6 +37,14 @@ _IDS = sa.Table(
 )
 
 
+def unindexed(column):
+    """``column`` with a unary ``+``: the same value and collation, but
+    SQLite won't look it up in an index, so a filter on it is checked
+    against rows another index finds (for ``image_id IN (...)``: walk the
+    base index and test each row, instead of probing every image)."""
+    return UnaryExpression(column, operator=operators.custom_op("+"), type_=column.type)
+
+
 def image_ids(bases: list[str], source: str = "all"):
     """The visible images carrying any of ``bases``, as a select."""
     it = t.image_tags
@@ -43,7 +53,7 @@ def image_ids(bases: list[str], source: str = "all"):
         .where(
             it.c.base.in_(bases),
             source_clause(source),
-            image_visibility.visible_tag_rows(it),
+            image_visibility.visible_image(it.c.image_id),
         )
         .distinct()
     )
@@ -76,7 +86,7 @@ async def _sources(conn, bases: list[str]) -> dict[str, int]:
     kinds = (
         await conn.execute(
             sa.select(it.c.tag, sa.func.count())
-            .where(it.c.base.in_(bases), image_visibility.visible_tag_rows(it))
+            .where(it.c.base.in_(bases), image_visibility.visible_image(it.c.image_id))
             .group_by(it.c.tag)
         )
     ).fetchall()
@@ -190,15 +200,28 @@ async def _weights(conn, ids, bases: list[str]) -> dict | None:
     }
 
 
-async def _related(conn, ids, bases: list[str]) -> list[dict]:
-    """The other tags on these images, most shared first, untrimmed."""
+# A tag on more than this share of the visible images counts its related
+# tags by walking the whole base index (see _related).
+_WIDE_SHARE = 0.25
+
+
+async def _related(conn, ids, bases: list[str], wide: bool) -> list[dict]:
+    """The other tags on these images, most shared first, untrimmed.
+
+    Per image, the tag rows of each (about 90 us an image at 30k images);
+    for a ``wide`` tag, every row in base order, checked against ``ids``
+    (:func:`unindexed`), which costs the
+    same whatever the tag and counts distinct images without sorting:
+    1.67 -> 0.87 s for a tag on 18.6k of 30k images, but slower below about
+    a quarter of them."""
     it = t.image_tags
+    on = unindexed(it.c.image_id) if wide else it.c.image_id
     rows = (
         await conn.execute(
             sa.select(
                 it.c.base, sa.func.count(sa.distinct(it.c.image_id)).label("count")
             )
-            .where(it.c.image_id.in_(ids), it.c.base.not_in(bases), it.c.base != "")
+            .where(on.in_(ids), it.c.base.not_in(bases), it.c.base != "")
             .group_by(it.c.base)
             .order_by(sa.text("count DESC"), it.c.base)
             .limit(_RELATED)
@@ -250,7 +273,8 @@ async def _detail(base: str, source: str, aliases: tuple[str, ...]) -> dict | No
             embeddings = await _embeddings(conn, ids)
             workflows = await _workflows(conn, in_ids)
             weights = await _weights(conn, ids, bases)
-            related = await _related(conn, ids, bases)
+            wide = span[0] > _WIDE_SHARE * await visible_count(conn)
+            related = await _related(conn, ids, bases, wide)
             pin = (await tag_covers.pins(conn, {base})).get(base)
             characters = await character_names.character_names(conn, vocab, {base})
         finally:

@@ -34,10 +34,13 @@ from . import (
 from ..generate import prompt_board
 
 
-async def library_bases() -> list[str]:
+async def library_bases(*, stale: bool = True) -> list[str]:
     """Every tag name the library's images carry, prefix dropped. Kept until
-    the next tag write."""
-    return await tag_index.cached("derived", "library-bases", _library_bases)
+    the next tag write; ``stale=False`` waits for a build after it (see
+    ``tag_index.cached``)."""
+    return await tag_index.cached(
+        "derived", "library-bases", _library_bases, stale=stale
+    )
 
 
 async def _library_bases() -> list[str]:

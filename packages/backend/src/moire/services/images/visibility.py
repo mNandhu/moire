@@ -86,6 +86,15 @@ def visible_tag_rows(it=None):
     return it.c.image_id.in_(sa.select(t.images.c._id).where(visible()))
 
 
+def visible_image(image_id):
+    """``image_id`` (a column) names a visible image: a lookup by id per row,
+    for rows already narrowed to a few tags, where working out every
+    visible id (:func:`visible_tag_rows`) would cost more than all the
+    lookups (a tag's images: 0.1 s against 0.01 s at 30k images; even the
+    densest tag's are no slower)."""
+    return sa.exists().where(t.images.c._id == image_id, visible())
+
+
 def in_view(quarantined: int | None):
     """The images a gallery view shows: only quarantined ones in the
     Quarantined view (``quarantined == 1``), else the default feed's. The feed

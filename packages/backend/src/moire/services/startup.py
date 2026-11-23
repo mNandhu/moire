@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import anyio  # type: ignore[import-not-found]
@@ -10,7 +11,9 @@ import sqlalchemy as sa
 from ..database import schema as t
 from ..database.db import async_conn, ensure_schema
 from .library import nesting as library_nesting, watch as library_watch
+from .characters import pages as character_pages
 from .tags import (
+    browse as tag_browse,
     sensitivity_filter,
     index as tag_index,
     migrations as tag_migrations,
@@ -26,6 +29,11 @@ from .library.storage_fs import ensure_thumb_root
 from .update_check import checker as update_checker
 
 logger = logging.getLogger("moire")
+
+# How long after startup the tag views are built ahead of the first visit,
+# so they don't compete with the gallery's first load.
+_WARM_DELAY_S = 10.0
+_warm_task: asyncio.Task | None = None
 
 
 async def start() -> None:
@@ -58,6 +66,23 @@ async def start() -> None:
     get_generation_manager().start()
     # Asks PyPI for a newer release at most once a day, in the background.
     update_checker.start()
+    global _warm_task
+    if _warm_task is not None:
+        _warm_task.cancel()
+    _warm_task = asyncio.get_running_loop().create_task(_warm_views())
+
+
+async def _warm_views() -> None:
+    """Build the Tags page list and the character list once, in the
+    background: seconds each on a big library, which the first visit (or the
+    search palette) would otherwise wait for. Kept warm after that by
+    serving them stale while they rebuild (``tag_index``)."""
+    await asyncio.sleep(_WARM_DELAY_S)
+    try:
+        await tag_browse.browse("all")
+        await character_pages.listing()
+    except Exception:
+        logger.warning("Building the tag views at startup failed", exc_info=True)
 
 
 async def _start_ai() -> None:
@@ -101,6 +126,11 @@ async def _start_watchers() -> None:
 
 
 async def stop() -> None:
+    global _warm_task
+    if _warm_task is not None:
+        _warm_task.cancel()
+        await asyncio.gather(_warm_task, return_exceptions=True)
+        _warm_task = None
     # Joins each watcher thread and waits on the watcher process: off the loop.
     await anyio.to_thread.run_sync(library_watch.stop_all)  # type: ignore[attr-defined]
     await update_checker.stop()

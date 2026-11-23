@@ -30,14 +30,30 @@ from ..tags import (
     covers as tag_covers,
     detail as tag_detail,
     index as tag_index,
+    views as tag_views,
 )
 from ..images import visibility as image_visibility
 
-# The tags :func:`character_look.colour_of` reads, in SQL.
-_HAIR_EYES = sa.or_(
-    t.image_tags.c.base.like("%\\_hair", escape="\\"),
-    t.image_tags.c.base.like("%\\_eyes", escape="\\"),
-)
+
+def _hair_eyes(bases) -> list[str]:
+    """The tags :func:`character_look.colour_of` reads, among ``bases`` (it
+    lowercases them first)."""
+    return [b for b in bases if b.lower().endswith(("_hair", "_eyes"))]
+
+
+def _rows_of(ids, bases: list[str], *, ordered: bool = False):
+    """The ``image_tags`` rows of ``bases`` on the images ``ids`` selects.
+    The unary ``+`` keeps SQLite from probing the base index once per base
+    and image: it walks each base's images and checks them against ``ids``
+    (a character's image rows 0.2 s -> 0.02 s at 30k images). In image
+    order (``ordered``), as the old plan read them: a palette's ties go by it."""
+    it = t.image_tags
+    on = tag_detail.unindexed(it.c.image_id)
+    return (
+        sa.select(it.c.image_id, it.c.base)
+        .where(on.in_(ids), it.c.base.in_(bases))
+        .order_by(*((it.c.image_id, it.c.tag) if ordered else ()))
+    )
 
 
 async def signature_counts(
@@ -346,21 +362,19 @@ async def _listing() -> list[dict]:
     hair_eyes: list[tuple[str, str]] = []
     async with async_conn() as conn:
         if key_of:
-            it = t.image_tags
             ids = tag_detail.image_ids(list(key_of))
-            for image_id, base in await conn.execute(
-                sa.select(it.c.image_id, it.c.base).where(
-                    it.c.image_id.in_(ids), it.c.base.in_(list(key_of))
-                )
-            ):
+            for image_id, base in await conn.execute(_rows_of(ids, list(key_of))):
                 images.setdefault(key_of[base], set()).add(image_id)
+            # Not tag_views.library_bases(): a cached input would date this
+            # view to its build. A walk of the base index.
+            colours = _hair_eyes(
+                (
+                    await conn.execute(sa.select(t.image_tags.c.base).distinct())
+                ).scalars()
+            )
             hair_eyes = [
                 (r.image_id, r.base)
-                for r in await conn.execute(
-                    sa.select(it.c.image_id, it.c.base).where(
-                        it.c.image_id.in_(ids), _HAIR_EYES
-                    )
-                )
+                for r in await conn.execute(_rows_of(ids, colours, ordered=True))
             ]
         meta = await _meta(conn, list(found))
         covers = await _covers(conn, found, by)
@@ -378,7 +392,9 @@ async def _listing() -> list[dict]:
             return meta[key]["color"]
         ids = images.get(key, set())
         crowded = {i for i in ids if len(keys_on[i]) > 1}
-        rows = [r for i in ids for r in by_image.get(i, [])]
+        # In image order, like the page's rows: a tie between two colours
+        # goes the same way on both (a set's order changes per process).
+        rows = [r for i in sorted(ids) for r in by_image.get(i, [])]
         found_colours = character_look.solo_palette(rows, len(ids), crowded)
         return found_colours[0] if found_colours else None
 
@@ -508,7 +524,7 @@ async def _page_core(
     images, the best and scored ones, ratings and the LoRAs' scores. Also the
     images another character is on too (for :func:`_page_look`)."""
     ids = tag_detail.image_ids(names)
-    im, it = t.images, t.image_tags
+    im = t.images
     by = {r["tag"]: r for r in rows}
     async with async_conn() as conn:
         cover = (
@@ -517,12 +533,7 @@ async def _page_core(
             )
         )[key]
         others = (
-            await conn.execute(
-                sa.select(it.c.image_id, it.c.base).where(
-                    it.c.image_id.in_(ids),
-                    it.c.base.in_([c for c in key_of if c not in names]),
-                )
-            )
+            await conn.execute(_rows_of(ids, [c for c in key_of if c not in names]))
         ).fetchall()
         best = (
             await conn.execute(
@@ -613,13 +624,13 @@ async def _page_look(
     signature tags of how they're drawn and dressed (:func:`look_of`), over
     their ``n`` images (``crowded``: the ones another character is on too)."""
     look = await look_of(gen, key, names, key_of, rows)
-    it = t.image_tags
+    # Fresh, not served stale behind an AI job's refresh: a colour it just
+    # added must reach the palette as it reaches the list.
+    colours = _hair_eyes(await tag_views.library_bases(stale=False))
     async with async_conn() as conn:
         hair_eyes = (
             await conn.execute(
-                sa.select(it.c.image_id, it.c.base).where(
-                    it.c.image_id.in_(tag_detail.image_ids(names)), _HAIR_EYES
-                )
+                _rows_of(tag_detail.image_ids(names), colours, ordered=True)
             )
         ).fetchall()
     return {

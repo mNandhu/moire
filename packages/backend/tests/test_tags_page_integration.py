@@ -7,6 +7,7 @@ from moire.database import db
 from moire.database import schema as t
 from moire.services.tags import (
     categories as tag_categories,
+    detail as tag_detail,
     index as tag_index,
     migrations as tag_migrations,
 )
@@ -80,6 +81,23 @@ async def test_detail_describes_one_tag(client, seed):
     assert ai["count"] == 1
     missing = await client.get("/tags/detail", params={"tag": "nothing"})
     assert missing.status_code == 404
+
+
+async def test_related_tags_agree_whichever_way_they_are_counted(
+    client, seed, monkeypatch
+):
+    """A wide tag walks the base index, a narrow one reads its images' rows:
+    the same counts, an image counted once per tag whatever its sources."""
+    seed("L1:a", tags=("cat", "night", "prompt:night", "rain"))
+    seed("L1:b", tags=("cat", "prompt:night"))
+    seed("L1:c", tags=("dog", "night"))
+    seed("L1:d", tags=("prompt:cat", "quarantined_tag"), quarantined=True)
+    want = [{"tag": "night", "count": 2}, {"tag": "rain", "count": 1}]
+    for share in (0.0, 1.0):
+        monkeypatch.setattr(tag_detail, "_WIDE_SHARE", share)
+        tag_index.invalidate()
+        got = (await client.get("/tags/detail", params={"tag": "any:cat"})).json()
+        assert got["related"] == want, share
 
 
 async def test_detail_gives_the_prompt_weight_spread(client, seed):

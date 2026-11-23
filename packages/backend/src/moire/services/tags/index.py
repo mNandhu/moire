@@ -15,9 +15,10 @@ This module imports nothing else from the app, so every writer can import it.
 
 Staleness rule
 --------------
-A cached entry is valid only if it is within its TTL *and* was computed in the
-current generation. Every :func:`invalidate` bumps the generation; a strict one
-also raises the floor (``_floor``) to it. An entry, or a build, whose
+A cached entry is fresh only if it is within its TTL *and* was computed in the
+current generation (past the TTL alone, it is served stale: see below).
+Every :func:`invalidate` bumps the generation; a strict one also raises the
+floor (``_floor``) to it. An entry, or a build, whose
 generation is below the floor read before a strict write: it is never served
 and never stored, whether or not the dicts were cleared. The reader captures
 the generation before touching the database and discards its result on store
@@ -59,9 +60,9 @@ A write the views may trail for one build opts in with
 anyway) and one image's AI tagging (the image view reads the image's own
 tags, not these views). It bumps the generation but not the floor, and keeps
 the entries: :func:`cached` serves each as stale while one background build
-replaces it, if it was servable when the refresh came (within its TTL, or
-behind soft writes) and is younger than ``_STALE_MAX_SECONDS``; one already
-past its TTL is a miss, as it would have been without the refresh.
+replaces it, as it was servable when the refresh came: behind soft writes
+while younger than ``_STALE_MAX_SECONDS``, else at any age (see "Past the
+TTL").
 
 A build begun before a refresh still stores its result, under its own (older)
 generation: it is served stale and rebuilt once, so refreshes that come
@@ -83,6 +84,19 @@ here, so no caller can get it wrong.
 the build that ends the staleness, and would stamp its own result with the old
 read for as long as no one opened the view it peeked. It gets ``None`` and
 reads the database itself, in a build whose own stale view is served meanwhile.
+
+Past the TTL
+------------
+Invalidation is structural, so a view past its TTL with no write since is
+still what a build would read. :func:`cached` serves it at once and one
+background build replaces it, however old it is: returning to the Tags page
+after a while away answers from memory instead of rebuilding for seconds,
+and the TTL stays a safety net (a writer that forgot to invalidate shows one
+load late, not a TTL late). Once one is ``_STALE_MAX_SECONDS`` old and
+its last build failed, it is a miss, so the failure isn't hidden for good.
+:func:`peek` doesn't take such a view, for the
+reason it doesn't take a before-refresh one: its reader cannot start the
+build, and what it builds would never come due.
 
 Serving stale, building once
 ----------------------------
@@ -136,9 +150,6 @@ _generation = 0
 # The generation of the last strict invalidate: nothing older is ever served
 # or stored.
 _floor = 0
-# When the last refresh invalidate came (0: none): a before-refresh entry is
-# servable only if it was then (see _lookup).
-_refresh_at = 0.0
 # Whether a refresh invalidate may be one (else it is strict); see
 # refresh_allowed_when. Always, until a predicate is registered.
 _refresh_allowed: Callable[[], bool] = lambda: True  # noqa: E731
@@ -164,13 +175,12 @@ def invalidate(*, refresh: bool = False) -> None:
     for one that changes what a view may show (the sensitivity filter). Also
     strict, whatever the caller asked, while the predicate given to
     :func:`refresh_allowed_when` says no (the filter is on)."""
-    global _generation, _floor, _refresh_at
+    global _generation, _floor
     if refresh and not _refresh_allowed():
         refresh = False
     with _LOCK:
         _generation += 1
         if refresh:
-            _refresh_at = time.time()
             return
         _floor = _generation
         _tags_cache.clear()
@@ -255,10 +265,12 @@ def _lookup(
     valid: Callable[[Any], bool] | None,
     *,
     refreshed: bool = True,
+    idle: bool = True,
 ) -> tuple[str, Any, float, int]:
     """("fresh" | "stale" | "miss", value, read_at, generation). Stale: only
     soft writes and refresh invalidates (``refreshed``: those count) have
-    passed it, and it is young enough to serve while it rebuilds."""
+    passed it, and it is young enough to serve while it rebuilds; or
+    (``idle``) no write at all has, however old it is (see "Past the TTL")."""
     now = time.time()
     ttl = _TTLS[name]
     with _LOCK:
@@ -276,16 +288,19 @@ def _lookup(
             age < _soft_window(name, key) if soft else ttl is None or age < ttl
         ):
             return "fresh", value, read_at, gen
-        if age >= _STALE_MAX_SECONDS:
-            return "miss", None, 0.0, 0
-        if before_refresh:
-            # Servable stale only if it was when the refresh came: behind
-            # soft writes, or within its TTL. One past its TTL by then was
-            # already a miss.
-            if refreshed and (soft or ttl is None or _refresh_at - read_at < ttl):
-                return "stale", value, read_at, gen
+        if before_refresh and not refreshed:
             return "miss", None, 0.0, 0
         if soft:
+            if age >= _STALE_MAX_SECONDS:
+                return "miss", None, 0.0, 0
+            return "stale", value, read_at, gen
+        # No soft write since it read: past its TTL, or read before a refresh
+        # (and so servable when it came). Still what a build would read up to
+        # that refresh, as far as every writer's invalidate says. Not once
+        # it is _STALE_MAX_SECONDS old and its last build failed: a miss, so
+        # the failure reaches a reader instead of an old view hiding it.
+        failing = (name, key) in _failed_at and age >= _STALE_MAX_SECONDS
+        if idle and not failing:
             return "stale", value, read_at, gen
         return "miss", None, 0.0, 0
 
@@ -420,8 +435,11 @@ async def cached(
 def peek(name: str, key: Any) -> Any:
     """``key``'s cached value if one may be served (fresh or soft-stale), else
     ``None``. Never builds: for a reader that can do with less without it.
-    Never one a refresh invalidate left (see the module docstring)."""
-    state, value, read_at, read_gen = _lookup(name, key, None, refreshed=False)
+    Never one a refresh invalidate left, nor one past its TTL with no write
+    since (see the module docstring)."""
+    state, value, read_at, read_gen = _lookup(
+        name, key, None, refreshed=False, idle=False
+    )
     if state == "miss":
         return None
     _note_input(read_at, read_gen)
@@ -441,11 +459,10 @@ async def cancel_builds() -> None:
 def reset_for_tests() -> None:
     """Drop all cached state and the generation counter (not the predicate
     given to :func:`refresh_allowed_when`: its module registers it once)."""
-    global _generation, _floor, _refresh_at, _last_soft_write
+    global _generation, _floor, _last_soft_write
     with _LOCK:
         _generation = 0
         _floor = 0
-        _refresh_at = 0.0
         _last_soft_write = 0.0
         _tags_cache.clear()
         _samples_cache.clear()

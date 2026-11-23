@@ -80,7 +80,7 @@ async def _listed_characters(
                     ),
                 )
             )
-            .where(it.c.base.in_(wanted), image_visibility.visible_tag_rows(it))
+            .where(it.c.base.in_(wanted), image_visibility.visible_image(it.c.image_id))
         )
     ).fetchall()
     images: dict[str, set[str]] = {}

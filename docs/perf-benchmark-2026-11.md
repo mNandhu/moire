@@ -71,9 +71,10 @@ Plain summary of the fixes made from this report, updated as each section lands.
 
 **Tags pages (30k)**
 - Tags page with the sensitivity filter on: 5.6 s -> 0.4 s.
-- Tags browse, first load: 4.6 -> 2.9 s. Character page: 7.8 -> 6.2 s.
-- Opening a tag a second time: 2.8 s -> instant (cached).
-- Merge suggestions: 1.2 -> 0.5 s.
+- Tags browse, first load: 4.6 -> 2.7 s, and built in the background at startup. Character page: 7.8 -> 1.8 s while the Tags list is built (after startup or a recent Tags visit), 4.4 s right after a tag edit; a second time 1.2 -> 0.3 s. Character list: 2.9 -> 0.6-0.9 s.
+- Coming back to the Tags page or the characters after half a minute, with nothing changed since: 3 s -> instant (it used to rebuild each time).
+- Opening a tag a second time: 2.8 s -> instant (cached). A very common tag the first time: 2.9 -> 1.4 s.
+- Merge suggestions: 1.2 -> 0.6 s.
 - Tag mosaics (60 tags at once): 1.16 -> 0.17 s.
 - After an AI job ends, the Tags and Characters pages show at once (were 4.7 s and 2.9 s) and refresh in the background.
 
@@ -291,12 +292,12 @@ Before (`0bb93d9`) and after (`c9fe948`), same session, one suite at a time, not
 | N4-N7 | same: run time / server RSS peak / `/health` max | 165 s / 4.1 GB / 3.7 s | 106 s / 0.46 GB / 0.66 s |
 
 - N18 was not re-measured: it applies the setting `bench/ai/face_spin.py` measured (same speed on 3 cores instead of 12).
-- N9: a dense tag is still ~2.5 s cold; most of it is the related-tags count. Repeat views are cached.
-- N21: the 1.2 s -> 0.1 s estimate covered the grouping statement only; the remaining ~0.4 s is in the other statements of `shown_merge_suggestions`.
+- N9: a dense tag is still ~2.5 s cold; most of it is the related-tags count. Repeat views are cached. (1.4 s since Leftovers.)
+- N21: the 1.2 s -> 0.1 s estimate covered the grouping statement only; the remaining ~0.4 s is in the other statements of `shown_merge_suggestions` (mostly character names, fixed under Leftovers).
 - No regressions seen: `/tags` filter off 553 -> 555 ms, browse 4.3 -> 4.6 s (within this run's load drift), dense-tag feed 4 -> 5 ms (one extra `max(rowid)` read).
 
 ### 2. Tag-view cost
-- [x] N2: one-pass Tags browse for the all-sources view (`23ad3ed`); the one-source views keep the old plan (one pass was 5-10x slower there). Stored per-tag stats are still open
+- [x] N2: one-pass Tags browse for the all-sources view (`23ad3ed`); the one-source views keep the old plan (one pass was 5-10x slower there). Stored per-tag stats: not done, the TTL change under Leftovers covered what they were for
 - [x] N3: an AI job's end (and a one-image re-tag) bumps the generation but serves the previous view while one build replaces it, `tag_index.invalidate(refresh=True)` (`574e694`); the client asks again 6 s later (`13404e5`). Every other writer stays strict (sensitivity keys depend on it). A re-tag's extra hard invalidate from `clear_ai` is gone
 - [x] N11: the soft window is 10x the view's last build time, 15-60 s (`8cbd0c8`, docs `1b86c4e`)
 
@@ -451,4 +452,29 @@ Before `c2698c1` (same code as `ec33150`), after `a9fd0f4`, back to back, one su
 - [x] Find the possible D5 regressions: feed `limit=1000` 18 -> 45.6 ms, warm browse 24 -> 64 ms. Found (2026-11-23): the thumbnail URL versions, though less the stat than building the file path for it (~10 us a row) plus `quote()` and the hash. Each thumbnail's (mtime, size) is now kept in memory and dropped by every write and delete (all go through `storage_fs`); a stat a write overlapped is not kept. Quoted ids and hashes are memoized, and feed rows take their column names once per result. Syn 30k, HTTP warm p50 at load ~1, three runs: feed `limit=1000` 46 -> 21-31 ms, browse 78 -> 25-30 ms; real: 15-23 ms and 23-26 ms. URL building alone, 1,000 rows: 25 -> 3 ms.
 - [x] Measure a 30k-raw forced reprojection overlapping an AI job (only 5.2k raws were measured). Done (2026-11-23, `1046615`, `CLONE_RAW=1 bench/combined/run.sh`, 28.8k raws, tag:600, GTX 1650, load ~1): tagging 8.73 img/s alone -> 8.36 img/s with the reprojection running (-4%; it was -85% with 5.2k raws before section 3). The reprojection ran 96 s, 72 of them beside the job. Reads at 10 req/s while both ran: p50 8 ms, p95 47 ms, max 485 ms, browse p50 39 ms, `/health` max 401 ms; no lock errors. AI write transactions held p50 60 / p95 190 ms (alone 15 / 44), one at 1.7 s. Results `c30-solo-ai`, `c30-ai-reproj`.
 - Follow-ups reviewed (/code-review medium `0329e8f^..2b24b36`, 2026-11-23): no bugs, five nits. Fixed: the stamp cache keys by the resolved thumbnail root (resolved once per list), keeps "no thumbnail" too (those rows were still stat'ed each time), and drops its oldest half at the limit instead of everything; URL building for 1,000 rows 3.3 -> 1.8 ms. Left: a thumbnail changed outside the app keeps its URL until a restart (only `storage_fs` writes them; noted in the code); the prefetch also fires on a fresh install's first load, where the welcome page discards it (gating it on the setup flag would drop the gain for every new browser); lock-free dict reads rely on the GIL (noted in the code).
+### Leftovers (2026-11-23)
+- [x] Tag views past their 30 s TTL are served while one build replaces them (`2231d83`): invalidation is structural, so a view with no write since is current, and the TTL was making every return after half a minute rebuild for seconds. `peek()` still skips such a view, so a view made from a peeked one comes due. The Tags list and the character list are built once in the background 10 s after startup. Stored per-tag stats were not needed for this: a view past its TTL was always a miss, and the client drops these queries after 5 minutes, so any return to these pages after a while rebuilt them.
+- [x] Character pages and the character list read a tag's images with a lookup by id per row (`visibility.visible_image`) instead of an `IN` over every visible image, which scanned all 30k images per statement (`26acee3`). The other characters on a character's images and their hair and eye tags are read base by base against the id set (`tag_detail.unindexed`, a unary `+`). The list's colour no longer depends on a set's order (a tie between two colours went either way per process).
+- [x] N9: a tag on more than a quarter of the visible images counts its related tags along the base index (`b10af08`).
+- [x] N21: character names check a candidate's images by id (`d972dc3`); this was most of the ~0.4 s left.
+- Each diffed against the old code (character list, every character page, three tag details; syn and real, filter off and on): identical but for the colour tie above.
+
+30k `syn`, HTTP, cold after a strict invalidate (browse warm for the character rows), three runs each, load ~1:
+
+| item | measure | before | after |
+|---|---|---|---|
+| TTL | Tags browse / character list, revisit after 36 s | 2.97 / 2.81 s | 0.08 / 0.01 s |
+| `26acee3` | character list | 2.86 s | 0.56 s |
+| `26acee3` | character page, top character / repeat | 3.15 / 1.18 s | 1.81 / 0.32 s |
+| all | same, right after a strict invalidate (browse cold too) / character list | 6.18 (section 2) / 2.9 s | 4.41 / 0.85 s |
+| `26acee3` | tag detail, mid tag | 0.37 s | 0.21 s |
+| N9 | tag detail, dense tag (18.6k images) | 2.40 s | 1.43 s |
+| N21 | merge suggestions, first load | 0.83 s | 0.64 s (0.3 s is the Danbooru list, once) |
+| `d972dc3` | Tags browse all / prompt | 2.85 / 5.37 s | 2.66 / 5.16 s |
+
+- Before the startup warm-up, a first visit after boot paid browse plus the character list; the prompt view (5.2 s) is still cold once per boot, then kept warm.
+- The prompt view's time is the aggregate itself: prompt rows are most of the table, and a `prompt:` range on the tag index read the same rows in the same time.
+- Reviewed (/code-review medium `2231d83^..14b1190`): one bug, six nits. Fixed: the page's hair and eye tags come from the cached tag-name list, which an AI tagging refresh leaves stale, so a colour it just added could miss the palette while the list showed it (the page now waits for a fresh list); an idle view whose build keeps failing is a miss past `_STALE_MAX_SECONDS`, so the error reaches a reader; only the colour reads sort their rows; the startup warm-up task can't be orphaned by a second start; CLAUDE.md's refresh wording. Left: a view built from an idle-stale view is dated by it and rebuilds once more; tag detail counts the visible images once (2-14 ms) to choose its plan.
+- Left: the character page cold (1.8 s) is mostly its look (signature counts, cached until a tag write) and the related tags; the dense tag detail's related count is 0.87 s of its 1.43 s.
+
 - [x] T1-T3 thumbnail work: merged to main 2026-11-15 (`09af796..a5773a1`). Thumbnails 470 -> 2,050 req/s; blank tiles at 15k px/s: going down 94% -> 21-37%, coming back up 29% -> 0%.

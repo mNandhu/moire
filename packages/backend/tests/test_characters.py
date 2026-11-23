@@ -2,9 +2,16 @@
 folded into its full one, and what the user sets."""
 
 import pytest
+import sqlalchemy as sa
+
+from moire.database import db, schema as t
 
 from moire.services.characters import look as character_look, pages as characters
-from moire.services.tags import browse as tag_browse, categories as tag_categories
+from moire.services.tags import (
+    browse as tag_browse,
+    categories as tag_categories,
+    index as tag_index,
+)
 
 
 def _chars(*names, **candidates):
@@ -387,6 +394,42 @@ def test_a_multicolour_tag_makes_room_for_a_second_colour():
     ]
     got = [r["tag"] for r in character_look.one_colour_per_slot(found)]
     assert got == ["red_eyes", "heterochromia", "blue_eyes", "white_hair", "long_hair"]
+
+
+async def test_a_colour_tag_in_any_case_colours_them(client, seed, monkeypatch):
+    """colour_of lowercases what it reads, so the rows read for it must not
+    leave out a capitalised tag (a hand-typed manual one)."""
+    monkeypatch.setattr(tag_categories, "load", _chars("nahida"))
+    for i in range(4):
+        seed(f"L1:n{i}", tags=("nahida", "manual:Green_Eyes"))
+    listed = {c["tag"]: c for c in (await client.get("/tags/characters")).json()}
+    page = (await client.get("/tags/character", params={"tag": "nahida"})).json()
+    assert listed["nahida"]["color"] == page["palette"][0] == "hsl(130 50% 45%)"
+
+
+async def test_a_colour_ai_tagging_just_added_reaches_the_page(
+    client, seed, monkeypatch
+):
+    """The page's colour tags come from the library's tag names, which an AI
+    tagging refresh leaves stale: the page waits for fresh ones, as the list
+    reads them live."""
+    monkeypatch.setattr(tag_categories, "load", _chars("nahida"))
+    for i in range(4):
+        seed(f"L1:n{i}", tags=("nahida",))
+    page = (await client.get("/tags/character", params={"tag": "nahida"})).json()
+    assert page["palette"] == []
+    async with db.async_tx() as conn:
+        await conn.execute(
+            sa.insert(t.image_tags),
+            [
+                {"image_id": f"L1:n{i}", "tag": "green_eyes", "base": "green_eyes"}
+                for i in range(4)
+            ],
+        )
+    tag_index.invalidate(refresh=True)
+    page = (await client.get("/tags/character", params={"tag": "nahida"})).json()
+    listed = {c["tag"]: c for c in (await client.get("/tags/characters")).json()}
+    assert page["palette"][0] == listed["nahida"]["color"] == "hsl(130 50% 45%)"
 
 
 async def test_signature_reads_solo_images_once_there_are_enough(

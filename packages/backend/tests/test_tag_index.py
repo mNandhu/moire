@@ -51,11 +51,61 @@ async def test_a_view_misses_once_the_generation_moved():
     assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
 
 
-async def test_a_view_misses_once_its_ttl_lapsed(monkeypatch):
+async def test_a_view_past_its_ttl_is_served_while_it_rebuilds(monkeypatch):
+    """No write since it read: served at once, however old, and one build
+    replaces it (the TTL is only a safety net)."""
+    clock = [1000.0]
+    monkeypatch.setattr(tag_index.time, "time", lambda: clock[0])
     build = _Builder()
     await tag_index.cached("views", "k", build)
-    monkeypatch.setitem(tag_index._TTLS, "views", 0.0)
+    clock[0] += 3600
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    await _settle()
+    assert build.calls == 2
     assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+
+
+async def test_a_view_past_its_ttl_is_rebuilt_first_when_stale_is_refused(
+    monkeypatch,
+):
+    clock = [1000.0]
+    monkeypatch.setattr(tag_index.time, "time", lambda: clock[0])
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    clock[0] += 35
+    assert await tag_index.cached("views", "k", build, stale=False) == [{"_id": "v2"}]
+
+
+async def test_a_failing_view_past_the_stale_max_raises_instead(monkeypatch):
+    """An old view isn't served for good over a build that keeps failing."""
+    clock = [1000.0]
+    monkeypatch.setattr(tag_index.time, "time", lambda: clock[0])
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+
+    async def broken() -> list[dict]:
+        raise RuntimeError("bad row")
+
+    clock[0] += 35
+    assert await tag_index.cached("views", "k", broken) == [{"_id": "v1"}]
+    await _settle()  # the background build failed
+    clock[0] += tag_index._STALE_MAX_SECONDS
+    with pytest.raises(RuntimeError):
+        await tag_index.cached("views", "k", broken)
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+
+
+async def test_peek_does_not_take_a_view_past_its_ttl(monkeypatch):
+    """Its reader can't start the rebuild, so what it made would never come
+    due."""
+    clock = [1000.0]
+    monkeypatch.setattr(tag_index.time, "time", lambda: clock[0])
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    assert tag_index.peek("views", "k") == [{"_id": "v1"}]
+    clock[0] += 35
+    assert tag_index.peek("views", "k") is None
 
 
 async def test_a_build_is_not_kept_when_a_write_landed_mid_query():
@@ -333,9 +383,7 @@ async def test_a_refresh_does_not_answer_stale_false_from_the_old_view():
     build = _Builder()
     await tag_index.cached("derived", "n", build)
     tag_index.invalidate(refresh=True)
-    assert await tag_index.cached("derived", "n", build, stale=False) == [
-        {"_id": "v2"}
-    ]
+    assert await tag_index.cached("derived", "n", build, stale=False) == [{"_id": "v2"}]
 
 
 async def test_a_build_begun_before_a_refresh_is_kept_but_served_stale():
@@ -427,15 +475,28 @@ async def test_refreshes_faster_than_a_build_still_leave_a_view(monkeypatch):
     await tag_index.cancel_builds()
 
 
-async def test_a_view_past_its_ttl_at_a_refresh_is_a_miss(monkeypatch):
-    """Before the refresh it was already a miss; the refresh doesn't make it
-    servable."""
+async def test_a_view_past_its_ttl_at_a_refresh_is_served_stale(monkeypatch):
+    """It was servable before the refresh (no write since it read), so it
+    still is while one build replaces it."""
     clock = [1000.0]
     monkeypatch.setattr(tag_index.time, "time", lambda: clock[0])
     build = _Builder()
     await tag_index.cached("views", "k", build)
-    clock[0] += 35  # past the 30 s TTL, no soft write
+    clock[0] += 600  # past the TTL and _STALE_MAX_SECONDS, no soft write
     tag_index.invalidate(refresh=True)
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    await _settle()
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+
+
+async def test_a_soft_stale_view_past_the_stale_max_is_a_miss(monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(tag_index.time, "time", lambda: clock[0])
+    build = _Builder()
+    await tag_index.cached("views", "k", build)
+    clock[0] += 1
+    tag_index.invalidate_soft()
+    clock[0] += tag_index._STALE_MAX_SECONDS
     assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
 
 
@@ -497,8 +558,11 @@ def test_the_sensitivity_filter_registers_its_refresh_rule(monkeypatch):
 
 
 async def test_a_refreshed_view_too_old_is_rebuilt_before_answering(monkeypatch):
+    """Behind a job's soft writes: one with none since it read is served at
+    any age (test_a_view_past_its_ttl_at_a_refresh_is_served_stale)."""
     build = _Builder()
     await tag_index.cached("views", "k", build)
+    tag_index.invalidate_soft()
     tag_index.invalidate(refresh=True)
     monkeypatch.setattr(tag_index, "_STALE_MAX_SECONDS", 0.0)
     assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
@@ -783,7 +847,9 @@ async def test_reprojection_batch_dirties_the_index(temp_db, seed):
     before = tag_index.current_generation()
     tag_index._last_soft_write = 0.0
 
-    assert reproject._flush_batch([("L1:a.jpg", {"prompt_terms": ["masterpiece"]}, 0, "k")])
+    assert reproject._flush_batch(
+        [("L1:a.jpg", {"prompt_terms": ["masterpiece"]}, 0, "k")]
+    )
 
     assert tag_index.current_generation() == before
     assert tag_index._last_soft_write > 0
@@ -914,10 +980,14 @@ async def test_a_slow_view_stays_fresh_longer_behind_soft_writes(monkeypatch):
 
 
 async def test_without_soft_writes_the_ttl_still_rules(monkeypatch):
+    """A slow view's longer soft window doesn't stretch its TTL: past it, it
+    is rebuilt (served meanwhile)."""
     clock = [1000.0]
     monkeypatch.setattr(tag_index.time, "time", lambda: clock[0])
     build = _Builder()
     await tag_index.cached("views", "k", build)
     tag_index._build_seconds[("views", "k")] = 4.0
-    clock[0] += 35  # past the 30 s TTL, no soft write: a miss
-    assert await tag_index.cached("views", "k", build) == [{"_id": "v2"}]
+    clock[0] += 35  # past the 30 s TTL, no soft write
+    assert await tag_index.cached("views", "k", build) == [{"_id": "v1"}]
+    await _settle()
+    assert build.calls == 2
