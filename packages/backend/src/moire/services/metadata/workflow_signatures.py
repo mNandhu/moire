@@ -21,13 +21,29 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from ...database import schema as t
 from ...database.db import async_conn, async_tx
 from ..library import thumb_version
+from ..tags import index as tag_index
 from . import workflow_family, workflow_identity
 
 
 async def list_signatures() -> list[dict[str, Any]]:
     """Workflow signatures seen in the library, with image counts, how many still
     need mapping, a sample image to author against, and whether a ruleset exists.
-    Drives the authoring UI's signature picker."""
+    Drives the authoring UI's signature picker.
+
+    Reads every image with a signature, so the list is kept in the tag index's
+    cache (no visibility filter applies: quarantined images count too). Its
+    inputs invalidate it: scans, deletes and reprojection (the ``gen``
+    columns), and here a ruleset, a family name or an imported file. The
+    sample thumbnails' versioned URLs are added per request, so a rewritten
+    thumbnail never serves a stale ``?v=``."""
+    rows = await tag_index.cached("views", "signatures", _signatures)
+    thumbs = await thumb_version.urls(r["sample_image_id"] for r in rows)
+    return [
+        {**r, "sample_thumb_url": thumbs.get(r["sample_image_id"])} for r in rows
+    ]
+
+
+async def _signatures() -> list[dict[str, Any]]:
     needs = sa.case((t.images.c.gen_prompt.is_(None), 1), else_=0)
     guessed = sa.case(
         (sa.func.json_extract(t.images.c.gen, "$.guessed[0]") == "prompt", 1),
@@ -112,7 +128,6 @@ async def list_signatures() -> list[dict[str, Any]]:
         for r in rows
     }
     described = workflow_identity.describe_signatures(types_by_sig)
-    thumbs = await thumb_version.urls(r.sample_image_id for r in rows)
 
     def _family(image_id: str) -> dict:
         s = sample_by_id.get(image_id)
@@ -147,7 +162,6 @@ async def list_signatures() -> list[dict[str, Any]]:
             "has_ruleset": r.workflow_sig in mapped,
             "first_used": r.first_used,
             "last_used": r.last_used,
-            "sample_thumb_url": thumbs.get(r.sample_image_id),
             "model": (
                 sample_by_id[r.sample_image_id].gen_model
                 if r.sample_image_id in sample_by_id
@@ -206,6 +220,7 @@ async def set_workflow_name(workflow_id: str, name: str) -> None:
                 },
             )
             await conn.execute(stmt)
+    tag_index.invalidate()  # the signature list labels families by name
 
 
 async def save_workflow_files(rows: list[dict[str, Any]]) -> list[str]:
@@ -225,6 +240,7 @@ async def save_workflow_files(rows: list[dict[str, Any]]) -> list[str]:
             },
         )
         await conn.execute(stmt)
+    tag_index.invalidate()  # the signature list matches families to files
     async with async_conn() as conn:
         known = await known_workflow_ids(conn, (r["workflow_id"] for r in rows))
     return sorted(known)

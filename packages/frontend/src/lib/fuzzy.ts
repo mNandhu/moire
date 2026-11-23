@@ -20,14 +20,31 @@ export function fuzzyScore(query: string, target: string): number | null {
   const strict = score(query, target);
   if (strict !== null) return strict;
   const q = query.replace(SEPARATORS, "");
-  const t = target.replace(SEPARATORS, "");
+  const t = stripped(target);
   if (q === query && t === target) return null;
   const loose = score(q, t);
   return loose === null ? null : loose - LOOSE_PENALTY;
 }
 
 // Any separator matches any other: `blue eyes` is `blue_eyes`.
-const sameSeparator = (s: string) => s.toLowerCase().replace(/[_-]/g, " ");
+const normalize = (s: string) => s.toLowerCase().replace(/[_-]/g, " ");
+
+// Normalizing is per target string, and a list is searched again on every key,
+// so remember it. Bounded: dropped wholesale past MAX_CACHED strings.
+const MAX_CACHED = 100_000;
+const normCache = new Map<string, string>();
+const stripCache = new Map<string, string>();
+function memo(cache: Map<string, string>, s: string, fn: (s: string) => string): string {
+  let v = cache.get(s);
+  if (v === undefined) {
+    if (cache.size >= MAX_CACHED) cache.clear();
+    v = fn(s);
+    cache.set(s, v);
+  }
+  return v;
+}
+const sameSeparator = (s: string) => memo(normCache, s, normalize);
+const stripped = (s: string) => memo(stripCache, s, (x) => x.replace(SEPARATORS, ""));
 
 function score(query: string, target: string): number | null {
   const q = sameSeparator(query);

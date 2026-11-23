@@ -31,7 +31,7 @@
             "node scripts/uv-backend.mjs run ruff format --check"
         ],
         "packages/frontend/src/**/*.{ts,tsx}": [
-            "pnpm -C packages/frontend exec eslint"
+            "packages/frontend/node_modules/.bin/eslint"
         ]
     }
 }

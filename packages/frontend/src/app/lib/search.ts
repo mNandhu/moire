@@ -80,7 +80,8 @@ export type SearchItem = {
 
 export type SearchSection = { group: SearchGroup; items: SearchItem[] };
 
-const count = (n: number) => n.toLocaleString();
+const numberFormat = new Intl.NumberFormat();
+const count = (n: number) => numberFormat.format(n);
 
 export function characterItems(rows: readonly CharacterEntry[]): SearchItem[] {
   return rows.map((c) => {

@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from ...database import schema as t
 from ...database.db import async_conn, async_tx
+from ..tags import index as tag_index
 from . import gen_metadata, reproject
 
 
@@ -60,6 +61,7 @@ async def put(sig: str, fields: Any) -> dict:
             index_elements=[t.gen_rulesets.c.sig], set_={"doc": stmt.excluded.doc}
         )
         await conn.execute(stmt)
+    tag_index.invalidate()  # the signature list says which have a ruleset
     # Re-derive gen.* for every image of this signature (sig-global).
     reproject.reproject_by_sig_async(sig)
     return public_doc(sig, doc)
@@ -68,4 +70,5 @@ async def put(sig: str, fields: Any) -> dict:
 async def delete(sig: str) -> None:
     async with async_tx() as conn:
         await conn.execute(sa.delete(t.gen_rulesets).where(t.gen_rulesets.c.sig == sig))
+    tag_index.invalidate()
     reproject.reproject_by_sig_async(sig)

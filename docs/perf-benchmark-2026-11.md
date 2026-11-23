@@ -59,12 +59,18 @@ Plain summary of the fixes made from this report, updated as each section lands.
 - Fast scrolling no longer shows blank tiles: 6% -> 0% at 15k px/s, 41 -> 58 fps. On a phone, 40% -> 10% blank.
 - Batch (grouped) view: each page 299 -> 5 ms, and a page deep in the list 385 -> 6 ms.
 - Feed filtered by a rare tag: 71 -> 10 ms.
+- A page deep in "top rated": 42 -> 7 ms.
+- Search with no match: 84 -> 18 ms.
+- Filter lists (sizes, LoRAs, embeddings): 57-137 ms -> 1-2 ms after the first load. Workflow signatures on the character page: 272 -> 23 ms (897 ms at the slow end).
+- AI coverage, polled every 3 s during a job: 53 -> ~20 ms.
+- Typing in the search palette: 24 -> 17 ms a key, and its one 95 ms hitch is gone. The Tags page filter's worst key: 67 -> 45 ms.
 
 **Tags pages (30k)**
 - Tags page with the sensitivity filter on: 5.6 s -> 0.4 s.
 - Tags browse, first load: 4.6 -> 2.9 s. Character page: 7.8 -> 6.2 s.
 - Opening a tag a second time: 2.8 s -> instant (cached).
 - Merge suggestions: 1.2 -> 0.5 s.
+- Tag mosaics (60 tags at once): 1.16 -> 0.17 s.
 - After an AI job ends, the Tags and Characters pages show at once (were 4.7 s and 2.9 s) and refresh in the background.
 
 **Background work no longer makes the app sluggish (30k)**
@@ -79,6 +85,9 @@ Plain summary of the fixes made from this report, updated as each section lands.
 - Tagging while a scan and face detection run at the same time: 6.3 -> 8.0 images/s overall, and during the scan itself 4.2 -> 8.2 (the GPU is kept busy 88% of the time instead of 43%). The scan in that case takes longer (26 -> 41 s for 1,334 files); a scan on its own is unchanged.
 - Page loads during that scan: slowest 5% 460 -> 173 ms.
 - Memory after a scan and a 600-image tagging job: 1.5 GB -> 1.0 GB.
+
+**Scanning**
+- Adding two libraries at once: they now scan one after the other, which finishes both 12% sooner (15.7 -> 13.8 s with prompt tags) and the first in about half the time.
 
 ## Ranked findings
 
@@ -102,15 +111,15 @@ Plain summary of the fixes made from this report, updated as each section lands.
 | N16 | Scan | Post-scan reprojection covers the whole library, not the written ids | 10%-touched rescan 2.7 -> 0.9 s | S | done |
 | N17 | AI | DB write runs serially after each inference | 7 -> 8.5-9 img/s | S-M | done |
 | N18 | AI | Face detector session spins all 12 threads | Same 41 ms/img on 3 cores instead of 12 | S | done |
-| N19 | AI | Model load freezes the event loop 0.4-0.9 s (job start, after idle unload, first re-tag) | Load at startup on GPU, skip idle unload there | S | open |
+| N19 | AI | Model load freezes the event loop 0.4-0.9 s (job start, after idle unload, first re-tag) | Load at startup on GPU, skip idle unload there | S | won't do (accepted) |
 | N20 | Frontend | Boot is serialized behind onboarding; the feed competes with 14 eager queries | First tile 319 -> ~200 ms (est.) | M | open |
 | N21 | Tags | Merge suggestions `LIKE 'prompt:%'` reads every row | 1.2-1.6 s -> ~0.1 s cold | S | done |
-| N22 | Tags | Tag samples scan all images once per tag | 60 tags 1.16 s -> ~0.3 s cold | S | open |
-| N23 | Feed | Deep `sort=top` pages still grow with depth when scores tie (D2 gap) | Page 140: 54 -> ~5 ms | S | open |
-| N24 | Frontend | Typing hotspots: palette `toLocaleString` per item, fuzzy re-normalizes, Tags filter sync | Worst key ~95 -> ~30 ms | S | open |
+| N22 | Tags | Tag samples scan all images once per tag | 60 tags 1.16 s -> ~0.3 s cold | S | done |
+| N23 | Feed | Deep `sort=top` pages still grow with depth when scores tie (D2 gap) | Page 140: 54 -> ~5 ms | S | done |
+| N24 | Frontend | Typing hotspots: palette `toLocaleString` per item, fuzzy re-normalizes, Tags filter sync | Worst key ~95 -> ~30 ms | S | done |
 | N25 | Frontend | Image view step re-renders the gallery underneath; `/activity` refetched per step | 62 -> ~30 ms per step | M | open |
-| N26 | Scan | Two concurrent scans x 12 threads oversubscribe the CPU | Multi-library first scan ~14% | S | open |
-| N27 | Misc | Uncached linear endpoints: `/ai/coverage` (80 ms, polled every 3 s in jobs), loras, embeddings, sizes, search-no-hit, rules signatures (283-333 ms, loaded by the character page) | 50-300 ms each | S | open |
+| N26 | Scan | Two concurrent scans x 12 threads oversubscribe the CPU | Multi-library first scan ~14% | S | done |
+| N27 | Misc | Uncached linear endpoints: `/ai/coverage` (80 ms, polled every 3 s in jobs), loras, embeddings, sizes, search-no-hit, rules signatures (283-333 ms, loaded by the character page) | 50-300 ms each | S | done |
 | N28 | Frontend | Bundle: main chunk 130 KB gz, 68% unused at boot; `SearchPalette` pulls in all Settings sections | ~10-20 ms local, more on WAN | S-M | open |
 | N29 | Frontend | Per-tile render hops (4 renders); `alt=path` builds alt boxes for unloaded tiles | Pushes the blank-tile cliff further | S-M | open |
 | N30 | Frontend | DPR-1 desktops load 768 px thumbs for 221 px tiles | 110 -> 31 MB per 2k tiles; no gain on LAN, helps WAN | S-M | open |
@@ -361,12 +370,36 @@ Before `c2698c1` (same code as `ec33150`), after `a9fd0f4`, back to back, one su
 - A first AI/combined pass ran with the CPU onnxruntime by mistake (a plain `uv run` swaps it in); numbers above are the GPU rerun.
 
 ### 5. Smaller backend items
-- [ ] N19: no event-loop freeze on model load (GPU: load at start, skip idle unload)
-- [ ] N22: tag samples start from the tag's own rows
-- [ ] N23: deep `sort=top` pages split on the score tie
-- [ ] N24: typing hotspots (palette number formatting, fuzzy normalization, Tags filter)
-- [ ] N26: one scan at a time, or one shared pool
-- [ ] N27: cache the linear endpoints (`/ai/coverage`, loras, embeddings, sizes, rules signatures)
+- [x] N19: no event-loop freeze on model load: accepted as is, not changed (see decision below)
+- [x] N22: tag samples start from the tag's own rows
+- [x] N23: deep `sort=top` pages split on the score tie
+- [x] N24: typing hotspots (palette number formatting, fuzzy normalization, Tags filter)
+- [x] N26: one scan at a time
+- [x] N27: cache the linear endpoints (`/ai/coverage`, loras, embeddings, sizes, rules signatures)
+
+**Status (2026-11-23): done (N19 accepted as is), reviewed (`/code-review medium 0f3204a..b240da0`: three nits, fixed in `7d0d467..4e114e8`: the Tags page's hand-made rows and empty state follow the deferred filter; a tag no bigger than its sample window reads every match in one query instead of two; a split top-rated page reads both parts in one read transaction). Nothing pushed.** Commits `3ccce72..b240da0` (plus `0f3204a`, the pre-commit hook fix below). Before at `9ae386e`, after at `b240da0`'s code; raw output in `local-setup/bench/runners/s5-before/`, `s5-after/`, `s5-after2/` (typing rerun on a quieter box), runner `runners/s5.sh <tag>`.
+
+| item | measure | before | after |
+|---|---|---|---|
+| N22 | tag samples, 60 tags, cold (HTTP) | 1,157 ms | 171 ms (each tag's query 90 -> 0.1 ms) |
+| N23 | feed page 140, `sort=top` (direct) | 42.5 ms | 7.2 ms (SQL 1.5 ms) |
+| N27 | `/images/sizes` / loras / embeddings (warm p50) | 57 / 70 / 137 ms | 1.0 / 1.3 / 0.7 ms (cold unchanged, 45-128 ms) |
+| N27 | `rules/signatures` (warm p50 / p95) | 272 / 897 ms | 23 / 26 ms (cold build still ~260 ms) |
+| N27 | `/ai/coverage` (warm p50) | 53 ms | ~20 ms (rerun; 12 ms in-process) |
+| N27 | search with no hit (`zzqx`) | 84 ms | 18 ms |
+| N24 | palette, next frame per key (median / long task) | 23.9 ms / 95 ms | 17.4 ms / none |
+| N24 | Tags filter, next frame (median / worst key) | 21.1 / 67 ms | 24 / 45 ms (median within noise) |
+| N24 | gallery search (not changed) | 23.6 ms | 23.5 ms |
+| N26 | Silly + Illustrious, two at once / one at a time | scan 13.0 s, with reprojection 15.7 s | scan 13.5 s, with reprojection 13.8 s |
+| N19 | model load, longest event-loop freeze | first load 734-1,112 ms, reload ~200 ms | unchanged (accepted) |
+
+- **N22:** `covers._shuffled_rows` ranks the tag's own `image_tags` rows by the shuffle and looks up only the first `limit * 4` in `images`; a second pass over every match runs only when hidden images leave the page short. Equivalence tests compare row for row with the old query, sensitivity filter off and on (`tests/test_tag_samples.py`).
+- **N23:** `_paged` returns statements that `_page_rows` runs in turn: the rest of the cursor's score tie (score left out of the `ORDER BY`, or SQLite sorts the tie in a temp B-tree), then `score < s`. `newest`/`oldest` keep one query. Tests walk every page of every sort against the full sort.
+- **N27:** new `ix_images_coverage` (coverage is not cached: the AI job only soft-invalidates, so a cache would lag its 3 s poll by 15-60 s). Search tests a rough `_id LIKE` first, which reads only the sort index. Facets (`services/images/facets.py`) and signatures go through `tag_index.cached`, keyed by library, quarantined view and filter level. New invalidations, each after its commit: a full scan that wrote rows (on any exit), ruleset save/delete, family naming, workflow file import. Side effect: those writes now also drop the Tags page views, so the next Tags load rebuilds once.
+- **N24:** fuzzy caches each target's normalized forms (bounded map), the palette formats counts with one `Intl.NumberFormat`, and the Tags page filters on `useDeferredValue` with per-row name caching. `tagSuggest` left as is: its boilerplate split needs the full ranking.
+- **N26:** `scanner_max_concurrent_scans` default 2 -> 1. Sharing the cores between two pools was not tried: two at once already scanned no faster than one (73 vs 77 img/s), and their reprojections overlapping is what cost the time.
+- **N19 decision (2026-11-23, accepted):** keep the idle unload (the user does not want the model kept on the GPU). The load runs in a thread, but onnxruntime holds the GIL while building the session. A reload after an unload freezes the loop ~200 ms; a saved optimized graph gives the same, so not added. The first load in a process (0.7-1.1 s, one-time CUDA setup) is left: accept it, or build the session in a child process (M). Accepted: a one-time stall per process plus ~200 ms per reload does not earn a worker process, its lifecycle and crash handling.
+- **Build breakage found on the way:** the main checkout's `node_modules` had hoisted links pointing into a removed agent worktree, so `tsc` found two copies of vitest and react-router (53 type errors). Cause: the husky pre-commit hook ran `pnpm exec`, which in a worktree with symlinked `node_modules` reinstalls through the links. Fixed in `0f3204a`: the hook and lint-staged call the binaries directly.
 
 ### 6. Frontend medium items
 - [ ] N20: boot not serialized behind onboarding; defer non-critical queries

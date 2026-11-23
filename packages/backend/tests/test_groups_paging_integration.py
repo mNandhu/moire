@@ -215,7 +215,7 @@ def test_page_walks_the_sort_index_and_probes_the_batch(sort, lib, walk, probe):
     each row's "earlier member?" probe seeks the batch index."""
     f = FeedFilter(sort=sort, library_id=lib)
     keys = SORTS[sort][0]
-    stmt = image_feed._paged(
+    parts = image_feed._paged(
         sa.select(t.images.c._id).where(feed_where(f), image_feed._group_head(f)),
         f,
         cursor="|".join(["5.0"] * len(keys) + ["L1:x"]),
@@ -223,10 +223,11 @@ def test_page_walks_the_sort_index_and_probes_the_batch(sort, lib, walk, probe):
         offset=0,
     )
     engine = sa.create_engine("sqlite://")
-    sql = str(stmt.compile(engine, compile_kwargs={"literal_binds": True}))
-    plan = _plan(sql)
-    assert f"USING INDEX {walk} " in plan, plan
-    assert f"USING INDEX {probe} (gen_group_id=? AND <expr>>?)" in plan or (
-        f"USING INDEX {probe} (gen_group_id=? AND <expr><?)" in plan
-    ), plan
-    assert "TEMP B-TREE" not in plan, plan
+    for stmt in parts:
+        sql = str(stmt.compile(engine, compile_kwargs={"literal_binds": True}))
+        plan = _plan(sql)
+        assert f"USING INDEX {walk} " in plan, plan
+        assert f"USING INDEX {probe} (gen_group_id=? AND <expr>>?)" in plan or (
+            f"USING INDEX {probe} (gen_group_id=? AND <expr><?)" in plan
+        ), plan
+        assert "TEMP B-TREE" not in plan, plan

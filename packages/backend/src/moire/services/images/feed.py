@@ -469,24 +469,66 @@ async def list_ids(f: FeedFilter, *, limit: int) -> list[str]:
         return list((await conn.execute(stmt)).scalars())
 
 
-def _paged(stmt, f: FeedFilter, *, cursor: str | None, limit: int, offset: int):
+def _paged(stmt, f: FeedFilter, *, cursor: str | None, limit: int, offset: int) -> list:
     """``stmt`` (rows of ``images``) as one page in ``f.sort`` order: the rows
-    after ``cursor`` (or ``offset`` rows in, without one), ``limit`` of them."""
+    after ``cursor`` (or ``offset`` rows in, without one), ``limit`` of them.
+    Returned as the statements to run in turn (:func:`_page_rows`), each
+    continuing where the one before it ends."""
     keys, desc = SORTS[f.sort]
-    if cursor:
-        values, image_id = parse_cursor(cursor, f.sort)
-        row = sa.tuple_(*keys, t.images.c._id)
-        after = sa.tuple_(*(sa.literal(v) for v in values), sa.literal(image_id))
-        stmt = stmt.where(row < after if desc else row > after)
+    order = _directed([*keys, t.images.c._id], f.sort)
+    if not cursor:
+        stmt = stmt.order_by(*order).limit(limit)
+        return [stmt.offset(offset) if offset else stmt]
+    values, image_id = parse_cursor(cursor, f.sort)
+    lits = [sa.literal(v) for v in values]
+
+    def beyond(a, b):
+        return a < b if desc else a > b
+
+    def after(ks, vs):
+        row = sa.tuple_(*ks, t.images.c._id)
         # SQLite won't seek an index from a row-value comparison, so a deep
         # page walked every row above it. The redundant range on the leading
         # key (implied by the row compare) lets it seek straight there.
-        lead = sa.literal(values[0])
-        stmt = stmt.where(keys[0] <= lead if desc else keys[0] >= lead)
-    stmt = stmt.order_by(*_directed([*keys, t.images.c._id], f.sort)).limit(limit)
-    if not cursor and offset:
-        stmt = stmt.offset(offset)
-    return stmt
+        lead = ks[0] <= vs[0] if desc else ks[0] >= vs[0]
+        return sa.and_(beyond(row, sa.tuple_(*vs, sa.literal(image_id))), lead)
+
+    if len(keys) == 1:
+        return [stmt.where(after(keys, lits)).order_by(*order).limit(limit)]
+    # A leading key shared by many rows ("top": every unscored image ties)
+    # would still be walked from its start by that range. Split on it: the
+    # rest of the cursor's own tie (an equality, so the index seeks on the
+    # next key), then everything past the tie. The tie's part leaves the
+    # leading key out of its order: SQLite won't see an expression it holds
+    # equal as constant, and would sort the tie instead of walking the index.
+    rest = _directed([*keys[1:], t.images.c._id], f.sort)
+    return [
+        stmt.where(keys[0] == lits[0], after(keys[1:], lits[1:]))
+        .order_by(*rest)
+        .limit(limit),
+        stmt.where(beyond(keys[0], lits[0])).order_by(*order).limit(limit),
+    ]
+
+
+async def _page_rows(conn, parts: list, limit: int) -> list[dict]:
+    """Run :func:`_paged`'s statements in turn until ``limit`` rows. More
+    than one runs in a read transaction, so a write landing between them
+    can't skip or repeat a row within the page (the driver begins none for
+    a SELECT)."""
+    rows: list[dict] = []
+    split = len(parts) > 1
+    if split:
+        await conn.exec_driver_sql("BEGIN")
+    try:
+        for stmt in parts:
+            if len(rows) >= limit:
+                break
+            res = await conn.execute(stmt.limit(limit - len(rows)))
+            rows += [dict(r._mapping) for r in res.fetchall()]
+    finally:
+        if split:
+            await conn.rollback()
+    return rows
 
 
 async def list_feed(
@@ -501,9 +543,9 @@ async def list_feed(
     stmt = sa.select(
         *FEED_COLUMNS, *(k.label(f"sort_{i}") for i, k in enumerate(keys))
     ).where(feed_where(f))
-    stmt = _paged(stmt, f, cursor=cursor, limit=limit, offset=offset)
+    parts = _paged(stmt, f, cursor=cursor, limit=limit, offset=offset)
     async with async_conn() as conn:
-        rows = [dict(r._mapping) for r in (await conn.execute(stmt)).fetchall()]
+        rows = await _page_rows(conn, parts, limit)
     # A short page is the last: no cursor (the client pages on it alone).
     next_cursor = encode_cursor(rows[-1], f.sort) if len(rows) >= limit else None
     return [{k: r[k] for k in FEED_KEYS} for r in rows], next_cursor
@@ -576,9 +618,9 @@ async def list_groups(
         t.images.c.gen_group_id.label("group_id"),
         *(k.label(f"sort_{i}") for i, k in enumerate(keys)),
     ).where(where, _group_head(f))
-    stmt = _paged(stmt, f, cursor=cursor, limit=limit, offset=offset)
+    parts = _paged(stmt, f, cursor=cursor, limit=limit, offset=offset)
     async with async_conn() as conn:
-        rows = [dict(r._mapping) for r in (await conn.execute(stmt)).fetchall()]
+        rows = await _page_rows(conn, parts, limit)
         # This page's batches' counts: every member matching the filter,
         # whichever page it would sort onto.
         gids = list({r["group_id"] for r in rows} - {None})

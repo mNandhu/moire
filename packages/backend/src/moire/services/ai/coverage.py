@@ -24,13 +24,11 @@ def untagged_clause(library_id: str | None = None):
     return clause
 
 
-async def coverage() -> dict:
-    """AI-tag coverage: how many images carry AI tags, globally and per library.
-
-    ``has_ai_tags`` is the summary flag maintained by ``image_tags``, so a
-    single grouped count is exact.
-    """
-    stmt = (
+def coverage_stmt():
+    """The per-library counts behind :func:`coverage`. Every column it reads
+    is in ``ix_images_coverage``, so it scans that narrow index, not the
+    wide rows: it is polled every few seconds while a job runs."""
+    return (
         sa.select(
             t.images.c.library_id,
             sa.func.count().label("total"),
@@ -53,8 +51,16 @@ async def coverage() -> dict:
         .group_by(t.images.c.library_id)
         .order_by(sa.text("total DESC"))
     )
+
+
+async def coverage() -> dict:
+    """AI-tag coverage: how many images carry AI tags, globally and per library.
+
+    ``has_ai_tags`` is the summary flag maintained by ``image_tags``, so a
+    single grouped count is exact.
+    """
     async with async_conn() as conn:
-        rows = (await conn.execute(stmt)).fetchall()
+        rows = (await conn.execute(coverage_stmt())).fetchall()
     per_library = [
         {
             "library_id": r.library_id,

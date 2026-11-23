@@ -342,3 +342,21 @@ async def test_a_long_run_stores_its_rate_for_the_estimate(client):
     await ai_estimate.record(est["device"], 4.0, images=ai_estimate.MIN_IMAGES)
     est = await ai_estimate.estimate()
     assert est["measured"] is True and est["seconds_per_image"] == 0.25
+
+
+def test_coverage_reads_its_narrow_index():
+    import sqlalchemy as sa
+
+    from moire.database import schema as t
+    from moire.services.ai import coverage
+
+    engine = sa.create_engine("sqlite://")
+    t.metadata.create_all(engine)
+    sql = str(
+        coverage.coverage_stmt().compile(engine, compile_kwargs={"literal_binds": True})
+    )
+    with engine.connect() as conn:
+        plan = " ".join(
+            r[-1] for r in conn.exec_driver_sql("EXPLAIN QUERY PLAN " + sql)
+        )
+    assert "COVERING INDEX ix_images_coverage" in plan, plan

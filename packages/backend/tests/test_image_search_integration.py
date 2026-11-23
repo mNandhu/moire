@@ -76,5 +76,33 @@ async def test_limit_and_blank_query(client, seed):
     assert (await client.get("/images/search", params={"q": ""})).status_code == 422
 
 
+async def test_the_id_prefilter_changes_no_result(client, seed, monkeypatch):
+    # The rough `_id` LIKE only skips rows; with it matching everything (the
+    # old query) every search answers the same.
+    paths = [
+        ("L1", "out\\Sub_Dir/ComfyUI_00123_.png"),
+        ("L1", "out/comfyui 00123 .png"),
+        ("L1", "a%b^c_d.png"),
+        ("L1", "Café/Été_1.png"),
+        ("L1", "MiXeD/CaSe__Two.png"),
+        ("lib_sunset", "x/plain.png"),
+        ("lib_sunset", "sunset/a.png"),
+        ("L2", "hidden_sunset.png"),
+    ]
+    for i, (lib, rel) in enumerate(paths):
+        seed(f"{lib}:{rel}", library_id=lib, mtime=i, quarantined=lib == "L2")
+    needles = [
+        "comfyui 00123", "ComfyUI_", "sub dir/comfy", "out/sub", "out\\sub",
+        "%", "a%b", "b^c", "c d", "café", "CAFÉ", "été 1",
+        "mixed/case  two", "case two", "sunset", "lib sunset", "plain",
+        "zzqx", "/", " ", "png",
+    ]
+    new = {n: await image_search.search(n, 50) for n in needles}
+    monkeypatch.setattr(image_search, "_rough", lambda needle: "%")
+    old = {n: await image_search.search(n, 50) for n in needles}
+    assert new == old
+    assert new["comfyui 00123"] and new["sunset"] and new["café"]
+
+
 def test_normalize():
     assert image_search.normalize("  A__B\\c  ") == "a b/c"

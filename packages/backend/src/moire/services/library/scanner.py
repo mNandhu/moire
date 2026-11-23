@@ -8,7 +8,7 @@ from ...core import memory
 from ...database.db import checkpoint_wal, sync_conn, sync_tx
 from ...database import schema as t
 from .. import activity
-from ..tags import image_tags
+from ..tags import image_tags, index as tag_index
 from ..metadata import workflow_identity
 from . import batch_pool
 from . import nesting as library_nesting
@@ -532,6 +532,9 @@ def scan_library_async(library_id: str, root: str) -> dict:
         failed_samples: list[dict] = []
         scan_note: str | None = None
         has_slot = False
+        # Whether a batch committed: the views over images (tag lists, facet
+        # counts, signatures) are invalidated once, when the scan ends.
+        wrote = False
         try:
             _acquire_slot(library_id)
             has_slot = True
@@ -564,7 +567,9 @@ def scan_library_async(library_id: str, root: str) -> dict:
             written_raw_ids: set[str] = set()
 
             def _commit(imgs: list[dict], raws: list[dict]) -> None:
+                nonlocal wrote
                 _commit_batch(imgs, raws)
+                wrote = True
                 written_raw_ids.update(r["_id"] for r in raws)
 
             writer = ScanWriter(_commit, batch_size=200)
@@ -644,6 +649,10 @@ def scan_library_async(library_id: str, root: str) -> dict:
             logger.exception("Scan failed for library %s", library_id)
             _lib_set(library_id, {"scanning": False, "scan_error": str(e)})
         finally:
+            if wrote:
+                # After the last commit, cancelled or failed too. Strict: a
+                # scan's new images are what its user waits to see.
+                tag_index.invalidate()
             if has_slot:
                 _scan_slots.release()
             activity.note_ended("scan")

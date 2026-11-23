@@ -230,6 +230,41 @@ async def samples_for_tag(tag: str, per: int) -> list[dict]:
     return await tag_index.cached("samples", (tag, per), lambda: _samples(tag, per))
 
 
+# How many of a tag's images, in shuffle order, the first try at a mosaic
+# reads per row it asks for, before the visibility filter.
+_WINDOW = 4
+
+
+def _shuffled_rows(tag: str, match, cols, limit: int, *, window: bool):
+    """The first ``limit`` visible images matching ``match``, in the tag's
+    shuffle. Driven from the tag's own ``image_tags`` rows: the shuffle rank
+    needs only each image's rowid (read from the ``_id`` index), so the images
+    table is read only for the leading ``limit * _WINDOW`` of them (``window``)
+    or every match (not ``window``). ``IN``, not a join: an `any:` match has a
+    row per source, and one image twice would leave the mosaic short. Ranks
+    never tie (the hash is a bijection on rowids below its modulus), so the
+    order is total."""
+    rank = _shuffled(tag).label("rk")
+    ranked = (
+        sa.select(sa.literal_column(f"{t.images.name}.rowid").label("rid"), rank)
+        .select_from(t.images)
+        .where(t.images.c._id.in_(sa.select(t.image_tags.c.image_id).where(match)))
+        .order_by(rank)
+    )
+    if window:
+        ranked = ranked.limit(limit * _WINDOW)
+    m = ranked.subquery("m")
+    return (
+        sa.select(*cols)
+        .select_from(
+            m.join(t.images, sa.literal_column(f"{t.images.name}.rowid") == m.c.rid)
+        )
+        .where(image_visibility.visible())
+        .order_by(m.c.rk)
+        .limit(limit)
+    )
+
+
 async def _samples(tag: str, per: int) -> list[dict]:
     cols = (
         t.images.c._id,
@@ -277,30 +312,38 @@ async def _samples(tag: str, per: int) -> list[dict]:
         batches = {out[0]["gen_group_id"]} - {None} if out else set()
 
         # A fixed per-tag shuffle (`_shuffled`) varies images across tags and
-        # keeps each mosaic put across refreshes. Full scan + sort of the
-        # matching rows, but the result is cached (TTL) and per-tag match sets
-        # are small. Over-fetch to backfill any collision with the pinned image.
-        # Quarantined images never show, pinned or not.
+        # keeps each mosaic put across refreshes. Over-fetch to backfill any
+        # collision with the pinned image. Quarantined images never show,
+        # pinned or not.
         remaining = per - len(out)
         if remaining > 0:
+            # Room to skip a batch's other images.
+            want = (remaining + 1) * SAMPLE_SPREAD
+            # A tag no bigger than the window reads every match at once. Its
+            # `image_tags` rows, capped, bound its images from above (an
+            # `any:` match has a row per source).
+            cap = want * _WINDOW
+            size = (
+                await conn.execute(
+                    sa.select(sa.func.count()).select_from(
+                        sa.select(1).where(match).limit(cap + 1).subquery()
+                    )
+                )
+            ).scalar_one()
+            windowed = size > cap
             rows = (
                 await conn.execute(
-                    # EXISTS, not a join: an `any:` match has a row per
-                    # source, and one image twice would leave the mosaic short.
-                    sa.select(*cols)
-                    .where(
-                        image_visibility.visible(),
-                        sa.exists(
-                            sa.select(1).where(
-                                t.image_tags.c.image_id == t.images.c._id, match
-                            )
-                        ),
-                    )
-                    .order_by(_shuffled(tag))
-                    # Room to skip a batch's other images.
-                    .limit((remaining + 1) * SAMPLE_SPREAD)
+                    _shuffled_rows(tag, match, cols, want, window=windowed)
                 )
             ).fetchall()
+            if windowed and len(rows) < want:
+                # Hidden images ate the window: the same query over every
+                # matching image.
+                rows = (
+                    await conn.execute(
+                        _shuffled_rows(tag, match, cols, want, window=False)
+                    )
+                ).fetchall()
             fresh = [r for r in rows if r._id not in seen]
             again = []
             for row in fresh:

@@ -86,6 +86,18 @@ export function galleryTag(tag: string, source: TagSource): string {
   return tag;
 }
 
+// A row's lowercase display name and its word-break-free form, once per row object.
+const names = new WeakMap<BrowseTag, { name: string; squeezed: string }>();
+function namesOf(r: BrowseTag) {
+  let n = names.get(r);
+  if (!n) {
+    const name = formatTag(r.tag).toLowerCase();
+    n = { name, squeezed: name.replace(/[\s-]+/g, "") };
+    names.set(r, n);
+  }
+  return n;
+}
+
 /** Tags matching the search box, boilerplate dropped unless asked for. */
 export function filterTags(
   rows: readonly BrowseTag[],
@@ -98,8 +110,8 @@ export function filterTags(
   return rows.filter((r) => {
     if (isBoilerplate && isBoilerplate(r.tag)) return false;
     if (!needle) return true;
-    const name = formatTag(r.tag).toLowerCase();
-    return name.includes(needle) || name.replace(/[\s-]+/g, "").includes(squeezed);
+    const { name, squeezed: flat } = namesOf(r);
+    return name.includes(needle) || flat.includes(squeezed);
   });
 }
 

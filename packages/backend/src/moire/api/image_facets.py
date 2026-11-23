@@ -14,8 +14,8 @@ from fastapi import APIRouter, HTTPException, Query
 from ..database import schema as t
 from ..database.db import async_conn
 from ..services.images import (
+    facets as image_facets,
     feed as image_feed,
-    shapes as image_shapes,
     visibility as image_visibility,
 )
 
@@ -49,18 +49,7 @@ async def list_loras(
 ):
     """Distinct loras with image counts, for the LoRA filter dropdown. Sorted
     by frequency."""
-    stmt = (
-        sa.select(t.image_loras.c.name, sa.func.count().label("count"))
-        .join(t.images, t.images.c._id == t.image_loras.c.image_id)
-        .where(image_visibility.in_view(quarantined))
-        .group_by(t.image_loras.c.name)
-        .order_by(sa.func.count().desc(), t.image_loras.c.name)
-    )
-    if library_id:
-        stmt = stmt.where(t.images.c.library_id == library_id)
-    async with async_conn() as conn:
-        rows = (await conn.execute(stmt)).fetchall()
-    return [{"name": r.name, "count": r.count} for r in rows]
+    return await image_facets.loras(library_id, quarantined)
 
 
 @router.get("/embeddings")
@@ -70,20 +59,7 @@ async def list_embeddings(
 ):
     """Distinct embeddings with image counts (either prompt side), for the
     embedding filter dropdown. Sorted by frequency."""
-    e = t.image_embeddings
-    count = sa.func.count(sa.distinct(e.c.image_id))
-    stmt = (
-        sa.select(e.c.name, count.label("count"))
-        .join(t.images, t.images.c._id == e.c.image_id)
-        .where(image_visibility.in_view(quarantined))
-        .group_by(e.c.name)
-        .order_by(count.desc(), e.c.name)
-    )
-    if library_id:
-        stmt = stmt.where(t.images.c.library_id == library_id)
-    async with async_conn() as conn:
-        rows = (await conn.execute(stmt)).fetchall()
-    return [{"name": r.name, "count": r.count} for r in rows]
+    return await image_facets.embeddings(library_id, quarantined)
 
 
 @router.get("/sizes")
@@ -93,30 +69,7 @@ async def list_sizes(
 ):
     """Every size preset with how many images have that shape, for the Size
     filter. Presets come in order (portrait to landscape), empty ones too."""
-    stmt = (
-        sa.select(t.images.c.width, t.images.c.height, sa.func.count().label("count"))
-        .where(image_visibility.in_view(quarantined))
-        .group_by(t.images.c.width, t.images.c.height)
-    )
-    if library_id:
-        stmt = stmt.where(t.images.c.library_id == library_id)
-    async with async_conn() as conn:
-        rows = (await conn.execute(stmt)).fetchall()
-    counts: dict[str, int] = {}
-    for r in rows:
-        name = image_shapes.shape_of(r.width, r.height)
-        if name:
-            counts[name] = counts.get(name, 0) + r.count
-    return [
-        {
-            "shape": s.name,
-            "width": s.width,
-            "height": s.height,
-            "orientation": s.orientation,
-            "count": counts.get(s.name, 0),
-        }
-        for s in image_shapes.SHAPES
-    ]
+    return await image_facets.sizes(library_id, quarantined)
 
 
 # Activity is counted per 15-minute slot, then each slot is placed on a local

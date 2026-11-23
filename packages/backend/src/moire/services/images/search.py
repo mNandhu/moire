@@ -32,6 +32,28 @@ def _relative_path():
     return sa.func.substr(t.images.c._id, sa.func.length(t.images.c.library_id) + 2)
 
 
+_ESC = "^"
+
+
+def _rough(needle: str) -> str:
+    """A LIKE pattern over the raw ``_id`` that every match also matches: a
+    space or ``/`` in the needle is any one character (the stored ``_`` or
+    ``\\`` it may stand for), and LIKE already ignores ASCII case, as far as
+    SQLite's ``lower`` goes. The relative path is a suffix of ``_id`` and the
+    exact match maps it one character for one, so nothing it finds is lost.
+    It reads only ``_id``, which the sort index holds, so a row is fetched
+    only when it may match: a search that finds nothing never reads one."""
+    out = []
+    for ch in needle:
+        if ch in " /":
+            out.append("_")
+        elif ch in ("%", "_", _ESC):
+            out.append(_ESC + ch)
+        else:
+            out.append(ch)
+    return f"%{''.join(out)}%"
+
+
 def _rank(needle: str, name: str) -> int:
     """File names that start with the query, then ones holding it, then
     images found by a folder name only."""
@@ -51,7 +73,12 @@ async def search(query: str, limit: int) -> list[dict]:
     spelled = sa.func.lower(sa.func.replace(sa.func.replace(rel, "_", " "), "\\", "/"))
     stmt = (
         sa.select(t.images.c._id, rel.label("rel"), t.images.c.thumb_key)
-        .where(spelled.contains(needle, autoescape=True), image_visibility.visible())
+        .where(
+            # First, so SQLite tests it before fetching the row.
+            t.images.c._id.like(_rough(needle), escape=_ESC),
+            spelled.contains(needle, autoescape=True),
+            image_visibility.visible(),
+        )
         .order_by(t.SORT_RECENT.desc(), t.images.c._id.desc())
         .limit(SCAN)
     )

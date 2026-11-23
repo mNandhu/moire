@@ -66,8 +66,11 @@ class Settings(BaseSettings):
     thumb_root: str = "./data/thumbs"
 
     scanner_max_workers: int = 0
-    # How many libraries may scan concurrently; the rest wait their turn.
-    scanner_max_concurrent_scans: int = 2
+    # How many libraries may scan concurrently; the rest wait their turn. One:
+    # each scan's pool already takes every core, so two at once scanned no
+    # faster (73 vs 77 img/s) and their reprojections overlapped; one at a
+    # time finished two libraries 12% sooner and the first one in half the time.
+    scanner_max_concurrent_scans: int = 1
     scan_progress_update_ms: int = 500
 
     # Filesystem watcher (near-real-time incremental indexing).

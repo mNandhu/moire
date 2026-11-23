@@ -1,8 +1,11 @@
 #!/bin/sh
-# Run lint-staged for per-file checks (ruff on .py, eslint on .ts/.tsx)
-pnpm exec lint-staged
+# Run lint-staged for per-file checks (ruff on .py, eslint on .ts/.tsx).
+# Binaries are called directly, not through `pnpm exec`: in a worktree whose
+# node_modules are symlinks to the main checkout, pnpm reinstalls through the
+# links and repoints the main checkout's packages at the worktree.
+./node_modules/.bin/lint-staged
 
 # Type-check the frontend if any TS files are staged
 if git diff --cached --name-only | grep -qE '\.(ts|tsx)$'; then
-  pnpm -C packages/frontend exec tsc --noEmit
+  ./packages/frontend/node_modules/.bin/tsc -p packages/frontend --noEmit
 fi

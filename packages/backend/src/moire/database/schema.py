@@ -581,6 +581,15 @@ sa.Index(
 sa.Index("ix_images_model_recent", images.c.gen_model, *_newest)
 # The quarantine count on Overview (and the quarantined view's lookup).
 sa.Index("ix_images_quarantined", images.c.quarantined)
+# AI-tag coverage (services/ai/coverage.py, polled while a job runs): its
+# per-library counts read this narrow index instead of the wide rows.
+sa.Index(
+    "ix_images_coverage",
+    images.c.library_id,
+    images.c.quarantined,
+    images.c.has_ai_tags,
+    images.c.has_tags,
+)
 # Also serves the Rules page's per-signature GROUP BY.
 sa.Index("ix_images_sig_recent", images.c.gen_workflow_sig, *_newest)
 

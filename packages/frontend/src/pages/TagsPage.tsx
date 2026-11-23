@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import { useLocalPref } from "@/hooks/useLocalPref";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Tag as TagIcon, Search, GitMerge, LayoutGrid, List, UserPlus, Wand2, Sparkles } from "lucide-react";
@@ -107,12 +107,13 @@ export default function TagsPage({ group }: { group?: string } = {}) {
     () => (tags ? tags.filter((t) => isBoilerplate(t.tag)).length : 0),
     [tags, isBoilerplate],
   );
+  const deferredQ = useDeferredValue(q);
   const { characters, general } = useMemo(
     () =>
       splitSections(
-        sortTags(filterTags(tags ?? [], q, showBoilerplate ? null : isBoilerplate), sort),
+        sortTags(filterTags(tags ?? [], deferredQ, showBoilerplate ? null : isBoilerplate), sort),
       ),
-    [tags, q, sort, showBoilerplate, isBoilerplate],
+    [tags, deferredQ, sort, showBoilerplate, isBoilerplate],
   );
 
   // Escape closes the panel (the rename dialog handles its own Escape first),
@@ -157,10 +158,10 @@ export default function TagsPage({ group }: { group?: string } = {}) {
           thumb_image_id: null,
           thumb_url: null,
         })),
-        q,
+        deferredQ,
         null,
       ),
-    [made, q, source, group],
+    [made, deferredQ, source, group],
   );
   const shelf = useMemo(() => [...characters, ...madeRows], [characters, madeRows]);
   const shownCount = shelf.length + general.length;
@@ -294,11 +295,11 @@ export default function TagsPage({ group }: { group?: string } = {}) {
             {tags === null ? (
               <LoadingGrid view={view} />
             ) : shownCount === 0 ? (
-              q.trim() ? (
+              deferredQ.trim() ? (
                 <EmptyState
                   compact
                   icon={Search}
-                  title={`No tags match “${q.trim()}”`}
+                  title={`No tags match “${deferredQ.trim()}”`}
                   description={
                     source !== "all"
                       ? `Only ${SOURCE_LABEL[source]} tags are shown. Try All sources.`

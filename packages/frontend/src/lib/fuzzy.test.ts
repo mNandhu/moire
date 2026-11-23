@@ -77,3 +77,21 @@ describe("fuzzyRank", () => {
     expect(out.map((t) => t._id)).toEqual(["masterpiece", "master"]);
   });
 });
+
+describe("fuzzyScore repeated queries", () => {
+  it("scores the same on every call, so a cached target changes nothing", () => {
+    const run = () => [fuzzyScore("high leg", "highleg_leotard"), fuzzyScore("hl", "High-Leg_Leotard")];
+    const first = run();
+    expect(run()).toEqual(first);
+    expect(first[0]).not.toBeNull();
+  });
+
+  it("keeps ranking and order across successive keystrokes", () => {
+    const items = ["blue_eyes", "blue_hair", "bluebell", "red_eyes"];
+    for (const q of ["b", "bl", "blue", "blue e"]) {
+      const a = fuzzyRank(q, items, (s) => s);
+      expect(fuzzyRank(q, items, (s) => s)).toEqual(a);
+    }
+    expect(fuzzyRank("blue e", items, (s) => s)[0]).toBe("blue_eyes");
+  });
+});
