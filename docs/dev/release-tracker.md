@@ -27,6 +27,6 @@ What has to happen before Moiré is published (PyPI `moire-gallery`, first `vX.Y
 
 ## Docs
 
-- [ ] **R13** Workflow actions: `checkout`, `setup-node`, `upload-artifact`, `cache` (v4), `setup-uv` (v6) and `pnpm/action-setup` (v4) run on the deprecated Node 20 and are several majors behind. Bump them together and watch one CI and one manual release run.
+- [x] **R13** Workflow actions bumped off Node 20 (f8d2d03, b5c5930): checkout, setup-node and upload-artifact v7, download-artifact v8, cache v6, setup-uv v10.4.0 (pinned: it has no moving major tag since v8), pnpm/action-setup v6, setup-buildx v4; the release build moved to Node 24 too. CI run 45199043625 and build-only release run 45199059138 green, with no deprecation annotations.
 
 - [x] **R10** Update the README for users, not contributors: what Moiré is, screenshots, install (`uv tool install`, Docker), first run, where data lives (`moire paths`), AI tagging model download, ComfyUI hookup, upgrade notes. Contributor setup moves to a CONTRIBUTING section or file. (4f1a4e2)
