@@ -83,7 +83,7 @@ Skipping at any point lands in the gallery, with whatever was done so far.
 - [ ] GPU detection:
   - [x] Which build is running: the session's providers once loaded, else `get_available_providers()` (`WDTagger.device`). On the GPU build the step drops the CPU/GPU bars and the GPU callout.
   - [ ] Whether an NVIDIA GPU is present when the CPU build is running (for example `nvidia-smi` on PATH). Until then the step shows the recommendation to everyone ("Have an NVIDIA GPU?") without claiming one was found.
-  - [x] Install command by install type, from `IS_CHECKOUT`: `uv tool install --reinstall "moire-studio[gpu]"` for an installed copy, the `UV_NO_GROUP=cpu … --group gpu` command from the README for a checkout.
+  - [x] Install command by install type, from `IS_CHECKOUT`: `uv tool install --reinstall "moire-gallery[gpu]"` for an installed copy, the `UV_NO_GROUP=cpu … --group gpu` command from the README for a checkout.
 - [ ] Sidebar activity shows tagging progress after the scan.
 
 ## Open questions

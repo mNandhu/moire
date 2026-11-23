@@ -87,7 +87,7 @@ Moiré installs with [uv](https://docs.astral.sh/uv/getting-started/installation
 > Moiré isn't on PyPI yet, so the commands below won't work until the first release. Until then, run it from a source checkout (see [CONTRIBUTING.md](CONTRIBUTING.md#setup)) or with Docker below.
 
 ```bash
-uv tool install --python 3.12 "moire-studio[cpu]"   # or "moire-studio[gpu]" for tagging on an NVIDIA GPU
+uv tool install --python 3.12 "moire-gallery[cpu]"   # or "moire-gallery[gpu]" for tagging on an NVIDIA GPU
 moire run --open                                     # opens http://localhost:8000
 ```
 
@@ -159,12 +159,12 @@ Moiré never moves or edits your images. It reads them and keeps its thumbnails 
 ## Upgrading
 
 ```bash
-uv tool upgrade moire-studio
+uv tool upgrade moire-gallery
 ```
 
 The database updates itself on the next start, so there is no migration to run. With Docker, run `git pull` and `docker compose up --build`, and the data volume carries over.
 
-Moiré tells you when a new version is out: an "Update available" line in the sidebar and in the terminal. To know, it asks PyPI once a day for the list of `moire-studio` releases; nothing about your computer or your images is sent. Turn it off under Settings > About, or for good with `UPDATE_CHECK=false` in your `.env`. A source checkout never checks.
+Moiré tells you when a new version is out: an "Update available" line in the sidebar and in the terminal. To know, it asks PyPI once a day for the list of `moire-gallery` releases; nothing about your computer or your images is sent. Turn it off under Settings > About, or for good with `UPDATE_CHECK=false` in your `.env`. A source checkout never checks.
 
 ## Custom workflows and the Rules page
 

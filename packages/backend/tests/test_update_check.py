@@ -176,7 +176,7 @@ def test_install_kind_reads_uv_receipt(tmp_path, monkeypatch):
     monkeypatch.setattr(uc, "IS_CHECKOUT", False)
     monkeypatch.delenv("MOIRE_INSTALL", raising=False)
     # Windows' default uv tool folder has no "/uv/tools/" in it.
-    env = tmp_path / "uv" / "data" / "tools" / "moire-studio"
+    env = tmp_path / "uv" / "data" / "tools" / "moire-gallery"
     env.mkdir(parents=True)
     monkeypatch.setattr(uc.sys, "prefix", str(env))
     assert uc.install_kind() == "pip"
@@ -197,7 +197,7 @@ async def test_version_endpoint(client, installed, pypi):
     body = (await client.post("/version/check")).json()
     assert body["update_available"] is True
     assert body["latest"] == "0.3.0"
-    assert body["command"] == "uv tool upgrade moire-studio"
+    assert body["command"] == "uv tool upgrade moire-gallery"
     assert body["release_url"].endswith("/tag/v0.3.0")
 
     # Switched off: the known release is no longer shown.

@@ -7,7 +7,7 @@ const STATUS = {
   latest: "0.3.0",
   update_available: true,
   release_url: "https://github.com/mNandhu/moire/releases/tag/v0.3.0",
-  command: "uv tool upgrade moire-studio",
+  command: "uv tool upgrade moire-gallery",
   install_kind: "uv",
   can_check: true,
   enabled: true,
@@ -25,7 +25,7 @@ test("the sidebar offers a waiting update until Later", async ({ page }) => {
   await expect(row).toBeVisible();
   await row.click();
   await expect(page.getByText("Moiré 0.3.0 is out")).toBeVisible();
-  await expect(page.getByText("uv tool upgrade moire-studio")).toBeVisible();
+  await expect(page.getByText("uv tool upgrade moire-gallery")).toBeVisible();
   await expect(page.getByRole("link", { name: "What's new" })).toHaveAttribute("href", STATUS.release_url);
 
   await page.getByRole("button", { name: "Later" }).click();

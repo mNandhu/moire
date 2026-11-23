@@ -8,7 +8,7 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 
 The first public release. Moiré is a local gallery and ComfyUI studio for AI art: point it at your output folders and it reads every image's prompt and settings, tags it with a local AI tagger, works out the characters and outfits in it, and lets you generate from your library on your own ComfyUI. It runs on your machine as one process with an embedded database, and nothing is uploaded.
 
-Install with `uv tool install --python 3.12 "moire-studio[cpu]"` (or `[gpu]` for an NVIDIA GPU), then `moire run --open`. Docker works too; see the README.
+Install with `uv tool install --python 3.12 "moire-gallery[cpu]"` (or `[gpu]` for an NVIDIA GPU), then `moire run --open`. Docker works too; see the README.
 
 ### Added
 

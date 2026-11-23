@@ -1,7 +1,7 @@
 name: Release
 
 # Builds the app wheel (backend + built UI) for a vX.Y.Z tag, attaches it to a
-# GitHub Release and publishes it to PyPI as moire-studio. Cut releases with the /moire-release skill.
+# GitHub Release and publishes it to PyPI as moire-gallery. Cut releases with the /moire-release skill.
 #
 # A tag publishes only while the repository variable RELEASE_ENABLED is "true"
 # (Settings > Secrets and variables > Actions > Variables). A manual run
@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/moire-studio/
+      url: https://pypi.org/project/moire-gallery/
     permissions:
       contents: write
       id-token: write
@@ -123,7 +123,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: testpypi
-      url: https://test.pypi.org/project/moire-studio/
+      url: https://test.pypi.org/project/moire-gallery/
     permissions:
       id-token: write
     steps:
