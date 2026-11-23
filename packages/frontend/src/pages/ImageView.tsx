@@ -45,9 +45,7 @@ import { TagsSection } from "@/features/images/components/viewer/TagsSection";
 import { FILMSTRIP_ROOM, FilmStrip } from "@/features/images/components/viewer/FilmStrip";
 import { useLocalPref } from "@/hooks/useLocalPref";
 
-// Round controls floating over the image stage (back, details, prev/next).
-const OVERLAY_BTN =
-  "p-2 rounded-full bg-black/45 border border-white/10 text-white/80 hover:text-white hover:bg-black/65 disabled:opacity-30 disabled:pointer-events-none transition-colors duration-150";
+import { OVERLAY_BTN } from "@/features/images/components/viewer/ImageViewLoading";
 import { imageDocKey, invalidateFeeds, syncFeedsFromDoc, writeImageFields } from "@/features/images/lib/feedCache";
 import { Tooltip } from "@/components/ui/Tooltip";
 

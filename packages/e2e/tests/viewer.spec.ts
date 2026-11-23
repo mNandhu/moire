@@ -229,3 +229,35 @@ test("the filmstrip opens an image, scrubs by drag and wheel, and hides", async 
   await page.getByRole("button", { name: "Show filmstrip" }).click();
   await expect(strip).toBeVisible();
 });
+
+// The image view's code loads in a chunk of its own, a second after boot.
+const viewChunk = /\/assets\/ImageView-[^/]+\.js$/;
+
+test("an image opened while the view's code loads can be closed with Escape", async ({ page }) => {
+  let release = () => {};
+  const held = new Promise<void>((r) => (release = r));
+  await page.route(viewChunk, async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.goto("/");
+  await page.locator("[data-tile-index] img").first().click();
+  await expect(page.getByRole("button", { name: "Back", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/");
+  release();
+});
+
+test("an image view whose code fails to load shows the error over the gallery", async ({ page }) => {
+  await page.route(viewChunk, (route) => route.abort());
+  await page.goto("/");
+  await page.locator("[data-tile-index] img").first().click();
+  // The first failure reloads the tab once (a rebuild may have renamed the
+  // chunk); the second shows.
+  await expect(page.getByText("Something went wrong")).toBeVisible();
+  await expect(page.locator("[data-tile-index]").first()).toBeAttached();
+  await page.unroute(viewChunk);
+  await page.waitForTimeout(600);
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("button", { name: "Show details" }).or(page.getByRole("tab", { name: /^Tags/ }))).toBeVisible();
+});

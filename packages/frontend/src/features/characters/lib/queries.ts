@@ -4,6 +4,7 @@
 import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { afterBoot } from "@/lib/idle";
 import type { CharacterEntry } from "./character";
 import { TAGS_KEY } from "@/features/tags/lib/queries";
 
@@ -23,20 +24,7 @@ export function useCharacters() {
  * boot it held a connection the gallery's first page and thumbnails wanted. */
 export function usePrefetchCharacters() {
   const qc = useQueryClient();
-  useEffect(() => {
-    // A second in, then idle: the page sits idle while the first page is
-    // on the wire, so idle alone came too soon.
-    const load = () => void qc.prefetchQuery(charactersQuery);
-    let idle = 0;
-    const timer = setTimeout(() => {
-      if (typeof requestIdleCallback === "function") idle = requestIdleCallback(load, { timeout: 2000 });
-      else load();
-    }, 1000);
-    return () => {
-      clearTimeout(timer);
-      if (idle) cancelIdleCallback(idle);
-    };
-  }, [qc]);
+  useEffect(() => afterBoot(() => void qc.prefetchQuery(charactersQuery)), [qc]);
 }
 
 /** Every character by each of its names (a bare alias included). */

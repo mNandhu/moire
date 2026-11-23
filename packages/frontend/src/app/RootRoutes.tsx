@@ -4,19 +4,22 @@ import { useQuery } from "@tanstack/react-query";
 import { OverlayOpenContext, getBackgroundLocation } from "@/lib/backgroundLocation";
 import App from "./App";
 import AllImagesPage from "@/pages/AllImagesPage";
-import ImageView from "@/pages/ImageView";
 import NotFoundPage from "@/pages/NotFoundPage";
 import { useRefreshOnFinish } from "@/features/activity/hooks/useBackgroundTasks";
 import { useTrackHistory } from "@/app/hooks/useHistoryNav";
 import { ONBOARDING_KEY, SET_UP_KEY, fetchOnboarding } from "@/features/onboarding/lib/onboarding";
 import { readLocalPref, writeLocalPref } from "@/lib/localPref";
-import { lazyPage } from "@/lib/lazyPage";
+import { lazyPage, preloadablePage } from "@/lib/lazyPage";
+import { afterBoot } from "@/lib/idle";
 import { ShortcutHelp } from "@/app/components/ShortcutOverlay";
 import { HoldRoute } from "@/app/components/HoldRoute";
+import { ImageViewFrame } from "@/app/components/ImageViewFrame";
 
 // Pages off the gallery's path load on first visit, so the first paint
-// doesn't wait for Generate's code. The gallery and the image view (it opens
-// over the gallery, instantly) stay in the main bundle.
+// doesn't wait for Generate's code. The gallery stays in the main bundle.
+// The image view opens over the gallery and should open at once: its code
+// is fetched once the gallery has booted (the afterBoot effect below).
+const { Page: ImageView, preload: preloadImageView } = preloadablePage(() => import("@/pages/ImageView"));
 const OverviewPage = lazyPage(() => import("@/pages/OverviewPage"));
 const LibrariesPage = lazyPage(() => import("@/pages/LibrariesPage"));
 const CharacterPage = lazyPage(() => import("@/pages/CharacterPage"));
@@ -47,6 +50,7 @@ export default function RootRoutes() {
   // without App, and its tags still refresh when its AI tagging ends.
   useRefreshOnFinish();
   useTrackHistory();
+  useEffect(() => afterBoot(() => void preloadImageView().catch(() => {})), []);
   // A fresh install (no libraries, setup neither finished nor skipped) opens
   // on the welcome page. Nothing renders until that's known, so the empty
   // gallery doesn't flash first; if the check fails, the app opens as usual.
@@ -101,7 +105,14 @@ export default function RootRoutes() {
           <Route path="outfits" element={<OutfitsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
-        <Route path="/image/:id" element={<ImageView />} />
+        <Route
+          path="/image/:id"
+          element={
+            <ImageViewFrame>
+              <ImageView />
+            </ImageViewFrame>
+          }
+        />
         <Route
           path="/welcome"
           element={
@@ -113,7 +124,14 @@ export default function RootRoutes() {
       </Routes>
       {backgroundLocation && (
         <Routes>
-          <Route path="/image/:id" element={<ImageView />} />
+          <Route
+            path="/image/:id"
+            element={
+              <ImageViewFrame>
+                <ImageView />
+              </ImageViewFrame>
+            }
+          />
         </Routes>
       )}
       <ShortcutHelp />

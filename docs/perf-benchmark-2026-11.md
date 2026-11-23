@@ -66,7 +66,7 @@ Plain summary of the fixes made from this report, updated as each section lands.
 - Typing in the search palette: 24 -> 17 ms a key, and its one 95 ms hitch is gone. The Tags page filter's worst key: 67 -> 45 ms.
 - Gallery shows sooner: first thumbnail 323 -> 286 ms on a first visit, 219 -> 193 ms on a reload; then 299 -> 229 ms and 190 -> 160 ms (the feed starts before the page renders, blurred placeholders draw 3x faster).
 - Stepping through images in the image view: 66 -> ~49 ms from key press to the next image, and the gallery underneath no longer re-renders each step.
-- Main script 130 -> 121 KB compressed (the Settings panels load with the Settings page).
+- Main script 130 -> 121 KB compressed (the Settings panels load with the Settings page), then 120 -> 80 KB (the image view loads a second after boot). An image opened in the first second takes up to ~60 ms longer here.
 - Big lists of thumbnails (1,000-image feed pages, the Tags page): 46 -> ~25 ms and 78 -> ~27 ms warm, back to where they were in October.
 
 **Tags pages (30k)**
@@ -476,5 +476,23 @@ Before `c2698c1` (same code as `ec33150`), after `a9fd0f4`, back to back, one su
 - The prompt view's time is the aggregate itself: prompt rows are most of the table, and a `prompt:` range on the tag index read the same rows in the same time.
 - Reviewed (/code-review medium `2231d83^..14b1190`): one bug, six nits. Fixed: the page's hair and eye tags come from the cached tag-name list, which an AI tagging refresh leaves stale, so a colour it just added could miss the palette while the list showed it (the page now waits for a fresh list); an idle view whose build keeps failing is a miss past `_STALE_MAX_SECONDS`, so the error reaches a reader; only the colour reads sort their rows; the startup warm-up task can't be orphaned by a second start; CLAUDE.md's refresh wording. Left: a view built from an idle-stale view is dated by it and rebuilds once more; tag detail counts the visible images once (2-14 ms) to choose its plan.
 - Left: the character page cold (1.8 s) is mostly its look (signature counts, cached until a tag write) and the related tags; the dense tag detail's related count is 0.87 s of its 1.43 s.
+
+### Main bundle (2026-11-23)
+- [x] The image view loads in its own chunk, fetched a second after boot once the page is idle (`lib/idle.ts` `afterBoot`, the same delay the character list's prefetch uses), so the main script no longer carries it, Remix or the dialogs it opens. Once fetched, the view mounts without suspending (`lazyPage.ts` `preloadablePage`).
+- tailwind-merge stays: it is 26 KB minified, 8 KB compressed (the 90 KB in the module list is before minification), and `cn` runs on every render from the first, so it cannot wait. Replacing it would risk class conflicts for 8 KB.
+
+Real DB, desktop 1440x900, 3 interleaved rounds (reloads: 6), medians. Runners `local-setup/bench/runners/split.sh`, `split-warm.sh`, `early-open.cjs`; output `split/`.
+
+| measure | before | after |
+|---|---|---|
+| main script (raw / gz) | 367 / 120 KB | 244 / 80 KB |
+| first visit: scripts done / first tile | 63 / 230 ms | 57 / 227 ms |
+| reload: first tile / LCP | 163 / 374 ms | 163 / 380 ms |
+| image view, opened after boot: image shown | 177 ms | 160 ms |
+| opened 300 ms after the first tile (code not fetched yet): view up / image shown | 96 / 187 ms | 156 / 218 ms |
+| opened at the first tile | 315 / 396 ms | 378 / 394 ms |
+
+- On this machine the gain is small (the scripts come from localhost); the 40 KB less to download before the first paint matters on a slow link. An image opened within the first second waits for the view's code: up to ~60 ms more before it shows here, more on a slow link.
+- Reviewed (/code-review medium `a6db7bf..636a063`): two bugs, one rough edge, two nits, all fixed. The view rendered outside the pages' error boundary, so a failed load of its code replaced the whole app; it now loads inside a frame of its own (`app/components/ImageViewFrame.tsx`) that shows the error over the gallery. React.lazy keeps its first failure, so one failed load broke the view until a reload; a later mount now starts a fresh one (only 500 ms after the failure: React renders again at once when a load rejects, and that render must reach the boundary, or offline it would fetch without end). While the code loads the frame shows a Back button and answers Escape (the gallery's keys already stand down for the overlay). `preloadablePage` passes props through; a comment pointed at its own file.
 
 - [x] T1-T3 thumbnail work: merged to main 2026-11-15 (`09af796..a5773a1`). Thumbnails 470 -> 2,050 req/s; blank tiles at 15k px/s: going down 94% -> 21-37%, coming back up 29% -> 0%.

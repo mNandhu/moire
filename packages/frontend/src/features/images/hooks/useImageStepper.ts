@@ -6,7 +6,7 @@ import { imageHref, PAGE_LIMIT, serializeFilters, type Filters } from "@/feature
 import { useSteps } from "@/lib/stepList";
 import { fetchImage } from "@/features/images/lib/imageApi";
 import { imageDocKey } from "@/features/images/lib/feedCache";
-import { getBackgroundLocation } from "@/lib/backgroundLocation";
+import { useCloseImageView } from "@/features/images/components/viewer/ImageViewLoading";
 import { imageFileUrl, loadImage, resolveMediaUrl } from "@/lib/media";
 
 // How long a fetched image doc stays fresh. Shared by the current-image query
@@ -79,19 +79,7 @@ export function useImageStepper(filters: Filters, routeId: string | undefined) {
       navigate(toImage(imgId), { replace: true, state: location.state }),
     [navigate, toImage, location.state],
   );
-  // Set when opened over the gallery (see RootRoutes); absent on a direct
-  // link or refresh, where this view is the only thing on the page.
-  const backgroundLocation = getBackgroundLocation(location);
-  // Closing the view: if it was opened over the gallery, go back to that exact
-  // history entry (cheap, the gallery never unmounted) instead of pushing a
-  // fresh navigation to it.
-  const goBack = useCallback(() => {
-    if (backgroundLocation) {
-      navigate(-1);
-    } else {
-      navigate(`/${filterQuery ? `?${filterQuery}` : ""}`);
-    }
-  }, [backgroundLocation, navigate, filterQuery]);
+  const goBack = useCloseImageView(filterQuery);
 
   // A page's own list replaces the feed, which then stays idle: paging it
   // looking for an image that is not there would walk the whole library.
