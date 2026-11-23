@@ -108,7 +108,8 @@ unzip -l /tmp/moire-dist/*.whl | grep moire/web/index.html   # the UI is inside
 
 One commit on `main`, `Release vX.Y.Z`, holding only the version files and
 `CHANGELOG.md`; check `git diff --cached --stat` lists `pyproject.toml`,
-`uv.lock`, both `package.json` files and `CHANGELOG.md`. Then an annotated tag
+`uv.lock`, both `package.json` files, `packages/backend/README.md` (PyPI's
+page, whose links name the tag) and `CHANGELOG.md`. Then an annotated tag
 on that commit:
 
 ```bash
