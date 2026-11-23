@@ -27,7 +27,7 @@ pnpm build                                              # writes the UI into pac
 uv --directory packages/backend run moire run --open    # http://localhost:8000
 ```
 
-A stale build there doesn't affect `pnpm dev`. To try the wheel before a release: `uv --directory packages/backend build`, then `uv tool install "moire-studio[cpu] @ file:///path/to/moire_studio-X.Y.Z-py3-none-any.whl"`.
+A stale build there doesn't affect `pnpm dev`. To try the wheel before a release: `uv --directory packages/backend build`, then `uv tool install --python 3.12 "moire-studio[cpu] @ file:///path/to/moire_studio-X.Y.Z-py3-none-any.whl"`.
 
 ### GPU tagging in a checkout
 

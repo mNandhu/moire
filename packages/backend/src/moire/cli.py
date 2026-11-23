@@ -101,7 +101,8 @@ def _run(args: argparse.Namespace) -> None:
     if importlib.util.find_spec("onnxruntime") is None:
         print(
             "  AI tagging is off: onnxruntime isn't installed. Reinstall with\n"
-            f'  `uv tool install "{DIST_NAME}[cpu]"` (or [gpu] for an NVIDIA GPU).'
+            f'  `uv tool install --reinstall --python 3.12 "{DIST_NAME}[cpu]"`'
+            " (or [gpu] for an NVIDIA GPU)."
         )
     print(f"  Open {url}  (Ctrl+C to stop)")
     if network_url := _network_url(args.host, args.port):

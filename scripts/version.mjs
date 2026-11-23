@@ -11,10 +11,14 @@
 // without it breaks `uv sync --locked`. Only that line, so a release never
 // re-resolves dependencies. Plain x.y.z only; npm and PEP 440 spell
 // prereleases differently.
+//
+// The packaged README links to GitHub at the version's tag, so `set` rewrites
+// it and `check` checks it, with the packaged LICENSE (package-files.mjs).
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkFiles, writeFiles } from "./package-files.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const backend = join(root, "packages/backend");
@@ -71,6 +75,7 @@ function set(version) {
   for (const p of packageJsons) {
     rewrite(join(root, p), /("version"\s*:\s*")[^"]*(")/, version);
   }
+  writeFiles();
   check(version);
 }
 
@@ -81,10 +86,9 @@ function check(expected) {
   for (const [file, v] of Object.entries(found)) {
     console.log(`${v === want ? "ok " : "BAD"} ${file}: ${v}`);
   }
-  if (wrong.length) {
-    console.error(`expected ${want} everywhere`);
-    process.exit(1);
-  }
+  if (wrong.length) console.error(`expected ${want} everywhere`);
+  const filesOk = checkFiles();
+  if (wrong.length || !filesOk) process.exit(1);
 }
 
 const [cmd, arg] = process.argv.slice(2);

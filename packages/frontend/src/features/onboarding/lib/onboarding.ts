@@ -129,7 +129,7 @@ export const GPU_SECONDS_PER_IMAGE = 0.1;
 export function gpuInstallCommand(checkout: boolean): string {
   return checkout
     ? "UV_NO_GROUP=cpu uv --directory packages/backend sync --group gpu"
-    : 'uv tool install --reinstall "moire-studio[gpu]"';
+    : 'uv tool install --reinstall --python 3.12 "moire-studio[gpu]"';
 }
 
 export const plural = (n: number, one: string, many = `${one}s`) =>

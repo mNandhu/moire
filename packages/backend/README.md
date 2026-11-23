@@ -1,78 +1,183 @@
-# Moiré Backend (FastAPI + uv)
+<!-- Made from the root README.md by scripts/package-files.mjs: edit that one. -->
 
-## Development
+# Moiré
 
-- Manage Python deps with uv.
-- Run dev server:
+![Moiré on desktop and phone](https://raw.githubusercontent.com/mNandhu/moire/v0.1.0/docs/images/hero.webp)
 
+**A local gallery and ComfyUI studio for your AI art, built around characters, outfits and Danbooru tags.**
+
+Point Moiré at the folders your ComfyUI or Automatic1111 output lands in. It reads every image's prompt and settings, tags it with a local AI tagger, works out which characters and outfits are in it, and gives you a fast gallery to sort through thousands of generations. Hook it up to ComfyUI and you can generate straight from your library.
+
+Everything runs on your machine as a single process with an embedded database, and nothing gets uploaded.
+
+<p align="center">
+  <a href="https://github.com/mNandhu/moire/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/mNandhu/moire/ci.yml?branch=main&label=CI" alt="CI"></a>
+  <a href="https://github.com/mNandhu/moire/blob/v0.1.0/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="AGPL-3.0 license"></a>
+  <img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Windows, macOS, Linux">
+  <a href="https://github.com/mNandhu/moire/stargazers"><img src="https://img.shields.io/github/stars/mNandhu/moire?style=flat" alt="GitHub stars"></a>
+  <a href="https://github.com/mNandhu/moire/commits/main"><img src="https://img.shields.io/github/last-commit/mNandhu/moire" alt="Last commit"></a>
+</p>
+
+<p align="center">Leave a star if you like the project! ⭐️</p>
+
+<p align="center">
+  <a href="https://github.com/mNandhu/moire/blob/v0.1.0/README.md#install"><b>Install</b></a> ·
+  <a href="https://github.com/mNandhu/moire/blob/v0.1.0/README.md#first-run">First run</a> ·
+  <a href="https://github.com/mNandhu/moire/blob/v0.1.0/README.md#generate-from-your-library">Generate</a> ·
+  <a href="https://github.com/mNandhu/moire/blob/v0.1.0/README.md#ai-tagging">AI tagging</a> ·
+  <a href="https://github.com/mNandhu/moire/blob/v0.1.0/README.md#screenshots">Screenshots</a> ·
+  <a href="https://github.com/mNandhu/moire/blob/v0.1.0/README.md#generating-with-comfyui">ComfyUI setup</a> ·
+  <a href="https://github.com/mNandhu/moire/blob/v0.1.0/README.md#custom-workflows-and-the-rules-page">Custom workflows</a> ·
+  <a href="https://github.com/mNandhu/moire/blob/v0.1.0/README.md#where-your-data-lives">Your data</a> ·
+  <a href="https://github.com/mNandhu/moire/blob/v0.1.0/README.md#contributing">Contributing</a>
+</p>
+
+---
+
+## Generate from your library
+
+![Generate: the prompt sorted into parts, with a tag preview and suggestions open](https://raw.githubusercontent.com/mNandhu/moire/v0.1.0/docs/images/generate.webp)
+
+Pick a character from your library, dress them in a saved outfit, write the scene, and queue it on your ComfyUI. **Tags by part** sorts the prompt into subject, hair, eyes, attire, pose, framing, background and lighting, so a missing part or a stray tag shows at a glance. Tags are colour-coded by part, and a tag that appears twice is flagged. Hover a tag to see what it means and the images in your library that have it; type into a part to get suggestions for that part only. The results land back in the gallery, prompt and all.
+
+Hit Remix on any image to start from its prompt and settings. Characters Moiré knows move out of the prompt into their own blocks, name and look tags included, so swapping in someone else doesn't leave the old hair and eyes behind.
+
+## AI tagging
+
+<img src="https://raw.githubusercontent.com/mNandhu/moire/v0.1.0/docs/images/ai-tags.webp" align="right" width="300" alt="The viewer's Tags tab: prompted and seen, seen but not prompted, prompted but not seen">
+
+Moiré ships with a WD tagger that runs locally, on the CPU or an NVIDIA GPU. It reads every image and writes down what it actually sees: the characters, hair and eyes, clothes, pose and setting, plus a content rating. Images you didn't make with a prompt get tags too, and search, character pages and outfits all work from them.
+
+The viewer's Tags tab puts the tagger's view next to your prompt. It shows which prompted tags made it into the picture, what the model added on its own, and which prompted tags it couldn't find, so a tag that does nothing or a detail that crept in is easy to spot.
+
+Tagging a library is one click on the AI Tagging page. The model (about 380 MB) downloads from Hugging Face the first time.
+
+<br clear="right">
+
+## What it does
+
+- It reads the prompt, negative prompt, seed, sampler, checkpoint and LoRAs out of ComfyUI and A1111 PNGs. Prompt weights like `(foreshortening:1.2)` are kept, and every prompt term becomes a tag you can search.
+- A built-in WD tagger (ONNX, on the CPU or an NVIDIA GPU) adds AI tags and a content rating. It needs no cloud service or API key.
+- It spots characters from the tagger's list and gives each one a page with their face, look, best images and the outfits they wear, plus a recipe for generating them again.
+- You can filter by tags (AND or OR), characters, outfits, LoRAs, embeddings, rating, stars or library, and `Ctrl+K` searches across all of it.
+- You can rate images 1 to 5 stars, quarantine them without deleting, tag by hand and select in bulk.
+- With a ComfyUI connected, you pick characters and outfits, write the scene and queue. Use the built-in workflow, or set up your own from an exported workflow file or any image it made. Any image in the viewer can be remixed.
+- A virtualized masonry grid and keyset paging keep scrolling smooth with tens of thousands of images, and the app tints itself to the colours of the images on screen. Libraries are watched, so new images show up by themselves.
+- Run it on your LAN and it works on your phone too.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Image viewer](https://raw.githubusercontent.com/mNandhu/moire/v0.1.0/docs/images/viewer.webp) | ![The viewer's Tags tab](https://raw.githubusercontent.com/mNandhu/moire/v0.1.0/docs/images/viewer-tags.webp) |
+| The viewer, with characters, outfit, rating, generation data and Remix | Its Tags tab: what the prompt asked for next to what the tagger saw |
+| ![Tags](https://raw.githubusercontent.com/mNandhu/moire/v0.1.0/docs/images/tags.webp) | ![Outfits](https://raw.githubusercontent.com/mNandhu/moire/v0.1.0/docs/images/outfits.webp) |
+| Tags, with characters first and a cover for every tag | Outfits saved per character, ready to reuse in Generate |
+| ![Character page](https://raw.githubusercontent.com/mNandhu/moire/v0.1.0/docs/images/character.webp) | ![Generations](https://raw.githubusercontent.com/mNandhu/moire/v0.1.0/docs/images/generations.webp) |
+| A character page: look, best images, outfits and recipe | Generations, every batch you queued |
+
+![Moiré on a phone](https://raw.githubusercontent.com/mNandhu/moire/v0.1.0/docs/images/phone.webp)
+
+The images in these screenshots were made with Moiré's own Generate page.
+
+## Install
+
+Moiré installs with [uv](https://docs.astral.sh/uv/getting-started/installation/), which also takes care of Python for you.
+
+> **Note**
+> Moiré isn't on PyPI yet, so the commands below won't work until the first release. Until then, run it from a source checkout (see [CONTRIBUTING.md](https://github.com/mNandhu/moire/blob/v0.1.0/CONTRIBUTING.md#setup)) or with Docker below.
+
+```bash
+uv tool install --python 3.12 "moire-studio[cpu]"   # or "moire-studio[gpu]" for tagging on an NVIDIA GPU
+moire run --open                                     # opens http://localhost:8000
 ```
-uv run moire run --reload        # or: uv run uvicorn moire.main:app --reload
+
+`--python 3.12` is the version Moiré is tested on; uv downloads it if you don't have it.
+
+That's the whole app: the API and the UI on one port. To reach it from other devices on your network, use `moire run --host 0.0.0.0`.
+
+The GPU build (Linux and Windows) pulls the CUDA and cuDNN runtime from pip, about 2 GB, and needs only the NVIDIA driver. Tagging is roughly 9x faster than on the CPU.
+
+### Docker
+
+```bash
+git clone https://github.com/mNandhu/moire.git
+cd moire
+docker compose up --build              # UI on http://localhost:5173
 ```
 
-- Env: copy `.env.example` to `.env` and fill values.
-- AI tagging uses the CPU build of onnxruntime (the default `cpu` dependency
-  group). For an NVIDIA GPU, swap in the `gpu` group instead:
-  `UV_NO_GROUP=cpu uv sync --group gpu`, and keep `UV_NO_GROUP=cpu` set for
-  later `uv run`s. See "GPU tagging" in the root README.
+Moiré can only see folders mounted into the container. Add yours in `docker-compose.override.yml`, then add the library in the UI by its path inside the container:
 
-## Build
-
-The backend is the installable app: PyPI name `moire-studio`, import package
-`moire` (src layout, `src/moire`), command `moire`. Run `pnpm build` first so
-the wheel carries the UI (`src/moire/web`, gitignored but included):
-
-```
-uv build            # sdist + wheel into dist/
+```yaml
+services:
+  backend:
+    volumes:
+      - /absolute/path/to/your/images:/mnt/images:ro
 ```
 
-The AI tagger's onnxruntime is an extra (`[cpu]` or `[gpu]`) for installs, and
-a dependency group of the same name in a checkout. Keep the two lists in step.
+[docs/docker-guide.md](https://github.com/mNandhu/moire/blob/v0.1.0/docs/docker-guide.md) covers the data volume, logs and settings.
 
-## Configuration
+## First run
 
-Environment variables (see `.env.example`). Relative paths resolve against
-`MOIRE_HOME`, not the process working directory: the repo root in a checkout,
-the OS app-data folder for an installed copy (`moire paths` shows it).
+The welcome screen has three steps, and each one can be skipped:
 
-- Storage
-  - `SQLITE_PATH` SQLite database file (default: `./data/moire.db`)
-  - `SQLITE_BUSY_TIMEOUT_MS` wait for the SQLite write lock (default: 5000)
-  - `THUMB_ROOT` thumbnail directory (default: `./data/thumbs`)
-  - `MODEL_CACHE_DIR` downloaded tagger models (default: `./.cache/moire/models`)
+1. Folders: add the folders your images are in. Tick "each subfolder becomes its own library" to split a big output folder. Moiré previews what it will add, then scans in the background.
+2. AI tagging: download the tagger model (about 380 MB, from Hugging Face, once) and tag what you have. Later, the AI Tagging page tags whatever is still untagged in one click.
+3. ComfyUI: enter your ComfyUI address (`127.0.0.1:8188`). Generate shows up in the sidebar once it connects.
 
-- Scanner / watcher
-  - `SCANNER_MAX_WORKERS` worker threads per scan (0 = auto)
-  - `SCANNER_MAX_CONCURRENT_SCANS` libraries scanning at once; others queue (default: 2)
-  - `WATCH_ENABLED_DEFAULT`, `WATCH_RECONCILE_INTERVAL_S` filesystem watching of new libraries
+All of it can be changed later in Settings.
 
-- Thumbnails
-  - `THUMB_MAX_SIZE` longest edge in px (default: 768)
+## Generating with ComfyUI
 
-- Logging
-  - `LOG_LEVEL` (default: `INFO`)
-  - `LOG_TO_FILE` / `LOG_DIR` rotating `moire.log` (default: on, `./data/logs`)
-  - `LOG_SLOW_REQUESTS_MS` warn on requests slower than this (default: 1000)
+Moiré talks to ComfyUI over its normal API, so it works with a ComfyUI on the same machine, on another box, or behind a reverse proxy. Besides the address, you can give it a certificate path for a self-signed HTTPS setup and extra headers, such as an `Authorization` token, if your ComfyUI needs them.
 
-- Ops / safety
-  - `RATE_LIMIT_ENABLED`: `true` to enable a simple per-process rate limiter (default: false)
-  - `RATE_LIMIT_RESCAN_PER_MINUTE`: max `POST /api/v1/libraries/{id}/rescan` per IP per minute (default: 1)
+Tell Moiré where ComfyUI saves its output. If Moiré can read that folder, it links new images where they already are. If it can't, as with a remote ComfyUI, turn on "Download images from ComfyUI" and they get downloaded into a library.
 
-Media (thumbnails and originals) is streamed from the local filesystem; originals
-honor `Range` requests.
+The built-in workflow is ComfyUI's default text-to-image graph with your checkpoint. To use your own, pick an image it made or upload an *Export (API)* file. Moiré finds the prompt, seed, size and sampler inputs, and the workflow is ready once a test image comes through.
 
-## API highlights
+A character you pick in Generate brings their recipe (the tags that make them look right) and whichever outfit you choose. Prefixes, negative prompts and style LoRAs can be saved as presets.
 
-All routes are served under `/api/v1` (e.g. `GET /api/v1/images`); `GET /health` is also available at the root.
+If a custom workflow's prompt or model doesn't come through in the viewer, the [Rules page](https://github.com/mNandhu/moire/blob/v0.1.0/README.md#custom-workflows-and-the-rules-page) maps it by hand.
 
-- `GET /images` list images
+## Where your data lives
 
-  - Filters: `tags[]=...`, `logic=and|or`, `library_id`, `no_tags=1`
-  - Pagination: `limit`, `cursor` (string `_id`) for stable paging by `_id` descending
-  - Returns minimal fields for grid: `_id`, `path`, `width`, `height`
+```bash
+moire paths
+```
 
-- `GET /images/{id}/file`: streams the original from disk; supports `Range` (HEAD too)
+prints the database, thumbnails, tagger models and logs. An installed Moiré keeps them in your app-data folder:
 
-- `GET /images/{id}/thumb`: streams the WebP thumbnail from `THUMB_ROOT` (HEAD too)
+| OS | Folder |
+|---|---|
+| Windows | `%LOCALAPPDATA%\Moire` |
+| macOS | `~/Library/Application Support/Moire` |
+| Linux | `~/.local/share/moire` |
 
-- `GET /tags`
-  - Server-side TTL cache for 30s to avoid heavy aggregations on every request
+Set `MOIRE_HOME` to put them somewhere else. A `.env` file in that folder holds optional settings (see [`.env.example`](https://github.com/mNandhu/moire/blob/v0.1.0/packages/backend/.env.example)).
+
+Moiré never moves or edits your images. It reads them and keeps its thumbnails next to its own database, and deleting an image from disk asks you to confirm first. The file worth backing up is the database (`moire.db`), since a rescan rebuilds the thumbnails.
+
+## Upgrading
+
+```bash
+uv tool upgrade moire-studio
+```
+
+The database updates itself on the next start, so there is no migration to run. With Docker, run `git pull` and `docker compose up --build`, and the data volume carries over.
+
+Moiré tells you when a new version is out: an "Update available" line in the sidebar and in the terminal. To know, it asks PyPI once a day for the list of `moire-studio` releases; nothing about your computer or your images is sent. Turn it off under Settings > About, or for good with `UPDATE_CHECK=false` in your `.env`. A source checkout never checks.
+
+## Custom workflows and the Rules page
+
+Moiré parses standard ComfyUI graphs by itself, but a workflow with unusual nodes can come through with the prompt or model empty. On the Rules page, pick that workflow, point each field at the node it comes from, check the preview and save. Moiré then re-reads every image from that workflow in every library.
+
+## Contributing
+
+Setup, tests and the project layout are in [CONTRIBUTING.md](https://github.com/mNandhu/moire/blob/v0.1.0/CONTRIBUTING.md). See [CHANGELOG.md](https://github.com/mNandhu/moire/blob/v0.1.0/CHANGELOG.md) for what changed and [ROADMAP.md](https://github.com/mNandhu/moire/blob/v0.1.0/ROADMAP.md) for what's next.
+
+## License
+
+Moiré is licensed under the GNU Affero General Public License, version 3 or later (AGPL-3.0-or-later). If you change Moiré and let other people use your version, over a network or otherwise, you have to give them its source under the same license. The full text is in [LICENSE](https://github.com/mNandhu/moire/blob/v0.1.0/LICENSE).
+
+Copyright (C) 2025-2026 Moiré Contributors.

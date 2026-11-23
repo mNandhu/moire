@@ -20,9 +20,13 @@ What has to happen before Moiré is published (PyPI `moire-studio`, first `vX.Y.
 
 ## Versioning and publishing
 
-- [ ] **R8** Versioning: semver from `0.1.0`, one version across `pyproject.toml`, `uv.lock` and both `package.json` (`pnpm version:set` / `version:check`, the `moire-release` skill). Decide what the first public version is and turn `[Unreleased]` in `CHANGELOG.md` into it. The unreleased Tagify-era `0.1.0`/`0.1.1` entries are gone from the CHANGELOG, so `0.1.0` is free for the first release.
+- [ ] **R8** Versioning: semver from `0.1.0`, one version across `pyproject.toml`, `uv.lock` and both `package.json` (`pnpm version:set` / `version:check`, the `moire-release` skill). Decide what the first public version is and turn `[Unreleased]` in `CHANGELOG.md` into it. Once the package is on PyPI, drop the README's "isn't on PyPI yet" note (and run `pnpm package-files`). The unreleased Tagify-era `0.1.0`/`0.1.1` entries are gone from the CHANGELOG, so `0.1.0` is free for the first release.
+- [x] **R11** Package metadata: the wheel and sdist carry LICENSE (AGPL), PyPI's page is the root README with links pinned to the tag (`scripts/package-files.mjs`, kept in step by `version:check` and the pre-commit hook), project URLs, keywords and classifiers, `uv_build` 0.13. Install commands pin `--python 3.12` (README, CLI hint, onboarding's GPU command): uv doesn't pick an interpreter from `requires-python`, and the `[gpu]` extra has no Python 3.14 wheels.
+- [ ] **R12** `[gpu]` on Python 3.14: `onnxruntime-gpu<1.24` (CUDA 12) has no cp314 wheels, so installs pin 3.12 for now. Moving to a newer onnxruntime-gpu means checking which CUDA and cuDNN it wants and testing on a GPU box. Not a release blocker.
 - [ ] **R9** Publish to PyPI: reserve `moire-studio`, set up trusted publishing (OIDC) from `release.yml`, try TestPyPI first, then the real upload from a tag.
 
 ## Docs
+
+- [ ] **R13** Workflow actions: `checkout`, `setup-node`, `upload-artifact`, `cache` (v4), `setup-uv` (v6) and `pnpm/action-setup` (v4) run on the deprecated Node 20 and are several majors behind. Bump them together and watch one CI and one manual release run.
 
 - [x] **R10** Update the README for users, not contributors: what Moiré is, screenshots, install (`uv tool install`, Docker), first run, where data lives (`moire paths`), AI tagging model download, ComfyUI hookup, upgrade notes. Contributor setup moves to a CONTRIBUTING section or file. (4f1a4e2)

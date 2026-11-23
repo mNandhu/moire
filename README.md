@@ -87,9 +87,11 @@ Moiré installs with [uv](https://docs.astral.sh/uv/getting-started/installation
 > Moiré isn't on PyPI yet, so the commands below won't work until the first release. Until then, run it from a source checkout (see [CONTRIBUTING.md](CONTRIBUTING.md#setup)) or with Docker below.
 
 ```bash
-uv tool install "moire-studio[cpu]"   # or "moire-studio[gpu]" for tagging on an NVIDIA GPU
-moire run --open                       # opens http://localhost:8000
+uv tool install --python 3.12 "moire-studio[cpu]"   # or "moire-studio[gpu]" for tagging on an NVIDIA GPU
+moire run --open                                     # opens http://localhost:8000
 ```
+
+`--python 3.12` is the version Moiré is tested on; uv downloads it if you don't have it.
 
 That's the whole app: the API and the UI on one port. To reach it from other devices on your network, use `moire run --host 0.0.0.0`.
 

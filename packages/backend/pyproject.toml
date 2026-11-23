@@ -2,8 +2,26 @@
 name = "moire-studio"
 version = "0.1.0"
 description = "Organize, tag and generate AI images: a local gallery for your ComfyUI outputs"
+# README.md and LICENSE are copies of the root ones (scripts/package-files.mjs).
 readme = "README.md"
 license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "Moiré Contributors" }]
+keywords = ["comfyui", "stable-diffusion", "image-gallery", "danbooru", "ai-art", "tagger"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Web Environment",
+  "Framework :: FastAPI",
+  "Intended Audience :: End Users/Desktop",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Multimedia :: Graphics :: Viewers",
+]
 requires-python = ">=3.11"
 dependencies = [
   "fastapi[standard]",
@@ -37,11 +55,17 @@ gpu = [
     "nvidia-cuda-nvrtc-cu12; sys_platform != 'darwin'",
 ]
 
+[project.urls]
+Homepage = "https://github.com/mNandhu/moire"
+Repository = "https://github.com/mNandhu/moire"
+Issues = "https://github.com/mNandhu/moire/issues"
+Changelog = "https://github.com/mNandhu/moire/blob/main/CHANGELOG.md"
+
 [project.scripts]
 moire = "moire.cli:main"
 
 [build-system]
-requires = ["uv_build>=0.11,<0.12"]
+requires = ["uv_build>=0.13,<0.14"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
