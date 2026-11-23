@@ -1,4 +1,89 @@
-import { decode } from "blurhash";
+const DIGITS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#$%*+,-.:;=?@[]^_{|}~";
+
+const base83 = (s: string, from: number, to: number) => {
+  let v = 0;
+  for (let i = from; i < to; i++) v = v * 83 + DIGITS.indexOf(s[i]);
+  return v;
+};
+const toLinear = (v: number) => {
+  const c = v / 255;
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+};
+const toSrgb = (v: number) => {
+  const c = Math.max(0, Math.min(1, v));
+  return c <= 0.0031308
+    ? Math.trunc(c * 12.92 * 255 + 0.5)
+    : Math.trunc((1.055 * Math.pow(c, 1 / 2.4) - 0.055) * 255 + 0.5);
+};
+const signPow = (v: number, e: number) => (v < 0 ? -1 : 1) * Math.pow(Math.abs(v), e);
+
+// cos(PI * x * i / size) for each component i and pixel x, by size and count.
+const cosines = new Map<number, Float64Array>();
+function cosTable(size: number, comps: number): Float64Array {
+  const key = size * 16 + comps;
+  let t = cosines.get(key);
+  if (!t) {
+    t = new Float64Array(size * comps);
+    for (let i = 0; i < comps; i++) {
+      for (let x = 0; x < size; x++) t[i * size + x] = Math.cos((Math.PI * x * i) / size);
+    }
+    cosines.set(key, t);
+  }
+  return t;
+}
+
+/**
+ * The `blurhash` package's `decode`, pixel for pixel, with the cosines
+ * looked up instead of computed twice per pixel per component: every gallery
+ * tile decodes one as it mounts, ~3x faster this way. Throws on a malformed
+ * hash, as the package does.
+ */
+export function decodeBlurhash(hash: string, width: number, height: number): Uint8ClampedArray {
+  if (!hash || hash.length < 6) throw new Error("The blurhash string must be at least 6 characters");
+  const size = base83(hash, 0, 1);
+  const ny = Math.floor(size / 9) + 1;
+  const nx = (size % 9) + 1;
+  if (hash.length !== 4 + 2 * nx * ny) throw new Error("blurhash length mismatch");
+  const max = (base83(hash, 1, 2) + 1) / 166;
+  const colors = new Float64Array(nx * ny * 3);
+  const dc = base83(hash, 2, 6);
+  colors[0] = toLinear(dc >> 16);
+  colors[1] = toLinear((dc >> 8) & 255);
+  colors[2] = toLinear(dc & 255);
+  for (let i = 1; i < nx * ny; i++) {
+    const ac = base83(hash, 4 + i * 2, 6 + i * 2);
+    colors[i * 3] = signPow((Math.floor(ac / 361) - 9) / 9, 2) * max;
+    colors[i * 3 + 1] = signPow(((Math.floor(ac / 19) % 19) - 9) / 9, 2) * max;
+    colors[i * 3 + 2] = signPow(((ac % 19) - 9) / 9, 2) * max;
+  }
+  const cx = cosTable(width, nx);
+  const cy = cosTable(height, ny);
+  const out = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      for (let j = 0; j < ny; j++) {
+        const fy = cy[j * height + y];
+        for (let i = 0; i < nx; i++) {
+          // Same operands, same order as the package: identical rounding.
+          const basis = cx[i * width + x] * fy;
+          const c = (i + j * nx) * 3;
+          r += colors[c] * basis;
+          g += colors[c + 1] * basis;
+          b += colors[c + 2] * basis;
+        }
+      }
+      const o = 4 * x + y * width * 4;
+      out[o] = toSrgb(r);
+      out[o + 1] = toSrgb(g);
+      out[o + 2] = toSrgb(b);
+      out[o + 3] = 255;
+    }
+  }
+  return out;
+}
 
 /**
  * The colour an image glows with (CSS `rgb(...)`): its most prominent vivid
@@ -14,7 +99,7 @@ export function accentFromBlurhash(hash?: string | null): string | null {
   const N = 8;
   let px: Uint8ClampedArray;
   try {
-    px = decode(hash, N, N);
+    px = decodeBlurhash(hash, N, N);
   } catch {
     return null;
   }
@@ -65,7 +150,7 @@ function hueChroma(hash: string): { hue: number; chroma: number } | null {
   try {
     // Array.from first: mapping the Uint8ClampedArray itself would clamp
     // every channel back to an integer, i.e. 0 or 1.
-    const [r, g, b] = Array.from(decode(hash, 1, 1), (v) => v / 255);
+    const [r, g, b] = Array.from(decodeBlurhash(hash, 1, 1), (v) => v / 255);
     return hueChromaOf(r, g, b);
   } catch {
     return null;

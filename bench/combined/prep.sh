@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# usage: prep.sh   fresh run DB (backup-API copy of $BENCH_WORK/ai/db/syn.base.db, made safe) + hardlinked
+# usage: [CLONE_RAW=1] prep.sh   fresh run DB (backup-API copy of $BENCH_WORK/ai/db/syn.base.db, made safe) + hardlinked
 # thumbs; drops the page cache of the 600 originals a tag run reads first and of $BENCH_WORK/scan/lib.
 set -e
 S="$(cd "$(dirname "$0")" && pwd)"; source "$S/../env.sh" combined
@@ -8,6 +8,8 @@ mkdir -p "$B/db"; db="$B/db/run.db"; th="$B/db/thumbs"
 rm -f "$db" "$db-wal" "$db-shm"; rm -rf "$th"
 "$PY" "$S/../data/snapshot.py" "$W/ai/db/syn.base.db" "$db" >/dev/null
 "$PY" "$S/../data/make_safe.py" "$db"
+# CLONE_RAW=1: every 30k clone gets its own gen raw, so a forced reprojection derives 30k rows.
+if [ -n "${CLONE_RAW:-}" ]; then "$PY" "$S/../data/clone_raw.py" "$db"; fi
 cp -al "$W/ai/db/syn-thumbs" "$th"
 "$PY" - "$db" "$W/scan/lib" <<'PY'
 import os, sqlite3, sys

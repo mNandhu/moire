@@ -5,6 +5,16 @@ import { parseFilters, serializeFilters, type Filters } from "@/features/images/
 
 const GROUP_PREF_KEY = "gallery_group_pref";
 
+/** The gallery's filter for a URL's search params: what `useFilters` reads.
+ * The `group` setting falls back to the last saved preference. */
+export function filtersFrom(searchParams: URLSearchParams): Filters {
+  const parsed = parseFilters(searchParams);
+  if (!searchParams.has("group") && readLocalPref(GROUP_PREF_KEY) === "1") {
+    parsed.group = true;
+  }
+  return parsed;
+}
+
 /**
  * Bind the Image filter to the URL with the URL as the single source of truth:
  * `filters` is derived from the search params, and `setFilters` writes them
@@ -16,16 +26,7 @@ const GROUP_PREF_KEY = "gallery_group_pref";
  */
 export function useFilters(): [Filters, (next: Filters) => void] {
   const [searchParams, setSearchParams] = useSearchParams();
-  const filters = useMemo(() => {
-    const parsed = parseFilters(searchParams);
-    // If group is not explicitly in URL, restore from localStorage
-    if (!searchParams.has("group")) {
-      if (readLocalPref(GROUP_PREF_KEY) === "1") {
-        parsed.group = true;
-      }
-    }
-    return parsed;
-  }, [searchParams]);
+  const filters = useMemo(() => filtersFrom(searchParams), [searchParams]);
 
   const setFilters = useCallback(
     (next: Filters) => {

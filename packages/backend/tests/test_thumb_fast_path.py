@@ -137,7 +137,7 @@ async def test_failed_rethumb_removes_the_old_picture(
     )
     result = scanner.process_image("L1", tmp_path, src)
     assert result.doc["thumb_key"] is None
-    assert storage_fs.thumb_stat(storage_fs.thumb_key(image_id)) is None
+    assert storage_fs.thumb_stamp(storage_fs.thumb_key(image_id)) is None
 
 
 HOSTILE = [

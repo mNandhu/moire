@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import stat
+import threading
 import uuid
 from io import BytesIO
 from pathlib import Path
@@ -64,6 +65,7 @@ def put_thumb(library_id: str, image_id: str, data: bytes) -> str:
     except FileNotFoundError:
         pass
     _write_atomic(dst, data)
+    _forget(key)
     # A rescan rewrites the thumbnail: its small copy is remade on next ask.
     _safe_path(small_key(key)).unlink(missing_ok=True)
     return key
@@ -115,14 +117,62 @@ def _lexical_path(key: str) -> str:
     return p
 
 
-def thumb_stat(key: str) -> os.stat_result | None:
-    """The thumbnail file's stat, or None if it isn't on disk. Run for every
-    thumbnail URL in a list, so the traversal guard is lexical: `resolve()`
-    walks each path component and costs ~15x the stat."""
+# Each thumbnail's (mtime_ns, size) as last seen, or None for no file, by
+# root and key: a list of thumbnail URLs (a feed page, the Tags page's ~5k
+# covers) would otherwise stat every file, every time, and build its path,
+# which costs more than the stat. Only this module writes thumbnails, and
+# every write or delete drops its entry (`_forget`); a stat that a write
+# overlapped is not kept. A thumbnail changed behind the app's back keeps
+# its old URL until a restart. Relies on the GIL for lock-free reads.
+_stamps: dict[tuple[str, str], tuple[int, int] | None] = {}
+_STAMPS_MAX = 200_000
+_stamps_lock = threading.Lock()
+_writes = 0
+
+
+def stamp_root() -> str:
+    """The root `thumb_stamp` keys by: resolve it once per list, not per row."""
+    return os.path.abspath(_root())
+
+
+def _forget(key: str | None = None) -> None:
+    """Drop one thumbnail's stamp, or every stamp (None), after it changed on
+    disk."""
+    global _writes
+    slot = None if key is None else (stamp_root(), key)
+    with _stamps_lock:
+        _writes += 1
+        if slot is None:
+            _stamps.clear()
+        else:
+            _stamps.pop(slot, None)
+
+
+def thumb_stamp(key: str, root: str | None = None) -> tuple[int, int] | None:
+    """The thumbnail file's (mtime_ns, size), or None if it isn't on disk.
+    Run for every thumbnail URL in a list (pass `stamp_root()` as `root`),
+    so a file already seen isn't stat'ed again, and the traversal guard is
+    lexical (`resolve()` walks each path component and costs ~15x the
+    stat)."""
+    slot = (root or stamp_root(), key)
     try:
-        return os.stat(_lexical_path(key))
+        return _stamps[slot]
+    except KeyError:
+        pass
+    seen = _writes
+    try:
+        st = os.stat(_lexical_path(key))
+        got: tuple[int, int] | None = (st.st_mtime_ns, st.st_size)
     except FileNotFoundError:
-        return None
+        got = None
+    with _stamps_lock:
+        if seen == _writes:
+            if len(_stamps) >= _STAMPS_MAX:
+                # Oldest half out (dicts keep insertion order).
+                for old in list(_stamps)[: _STAMPS_MAX // 2]:
+                    del _stamps[old]
+            _stamps[slot] = got
+    return got
 
 
 def read_thumb(
@@ -198,6 +248,7 @@ def small_thumb_path(key: str) -> Path | None:
 def delete_thumb(key: str) -> None:
     """Delete a single thumbnail file and its small copy (best-effort)."""
     _safe_path(key).unlink(missing_ok=True)
+    _forget(key)
     _safe_path(small_key(key)).unlink(missing_ok=True)
 
 
@@ -205,3 +256,4 @@ def delete_by_prefix(prefix: str) -> None:
     """Delete all thumbnails under a prefix (e.g. `library_id/`)."""
     target = _safe_path(prefix.rstrip("/"))
     shutil.rmtree(target, ignore_errors=True)
+    _forget()

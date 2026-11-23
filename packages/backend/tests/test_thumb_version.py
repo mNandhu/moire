@@ -156,3 +156,75 @@ async def test_an_original_is_revalidated_not_kept(client, temp_db, seed, tmp_pa
     assert head.headers["etag"] == new.headers["etag"]
     assert head.headers["cache-control"] == "no-cache"
     assert head.headers["content-length"] == "4" and head.content == b""
+
+
+# -- Version cache ---------------------------------------------------------------
+
+
+def test_a_version_is_stat_once_and_follows_every_write(temp_db, monkeypatch):
+    import os
+
+    key = storage_fs.put_thumb("L1", "L1:a.png", _webp())
+    stats = []
+    real = os.stat
+    monkeypatch.setattr(
+        storage_fs.os, "stat", lambda p, *a, **k: stats.append(p) or real(p, *a, **k)
+    )
+    first = thumb_version.version(key)
+    assert thumb_version.version(key) == first and len(stats) == 1
+
+    storage_fs.put_thumb("L1", "L1:a.png", _webp_of((1, 2, 3)))
+    second = thumb_version.version(key)
+    assert second != first
+    storage_fs.delete_thumb(key)
+    assert thumb_version.version(key) == "0"
+    storage_fs.put_thumb("L1", "L1:a.png", _webp())
+    assert thumb_version.version(key) not in ("0", second)
+    storage_fs.delete_by_prefix("L1/")
+    assert thumb_version.version(key) == "0"
+
+
+def test_a_stat_a_write_overlapped_is_not_kept(temp_db, monkeypatch):
+    import os
+
+    key = storage_fs.put_thumb("L1", "L1:a.png", _webp())
+    real = os.stat
+
+    def stat_then_rewrite(p, *a, **k):
+        # The old file's stat, then a rescan replaces it before it is kept.
+        st = real(p, *a, **k)
+        monkeypatch.setattr(storage_fs.os, "stat", real)
+        storage_fs.put_thumb("L1", "L1:a.png", _webp_of((1, 2, 3)))
+        return st
+
+    monkeypatch.setattr(storage_fs.os, "stat", stat_then_rewrite)
+    stale = thumb_version.version(key)
+    assert thumb_version.version(key) != stale
+
+
+def test_a_missing_thumbnail_is_stat_once_and_roots_stay_apart(
+    temp_db, monkeypatch, tmp_path
+):
+    import os
+    from pathlib import Path
+
+    key = storage_fs.thumb_key("L1:none.png")
+    stats = []
+    real = os.stat
+    monkeypatch.setattr(
+        storage_fs.os, "stat", lambda p, *a, **k: stats.append(p) or real(p, *a, **k)
+    )
+    assert thumb_version.version(key) == "0"
+    assert thumb_version.version(key) == "0" and len(stats) == 1
+    monkeypatch.setattr(storage_fs.os, "stat", real)
+
+    # Same key under another root (the property patched, the setting not):
+    # its own entry, not the first root's.
+    storage_fs.put_thumb("L1", "L1:none.png", _webp())
+    made = thumb_version.version(key)
+    assert made != "0"
+    other = tmp_path / "other-thumbs"
+    monkeypatch.setattr(
+        type(storage_fs.settings), "thumb_root_path", property(lambda s: Path(other))
+    )
+    assert thumb_version.version(key) == "0"

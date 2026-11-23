@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { PAGE_LIMIT, type Filters, type FeedItem } from "@/features/images/lib/imageFilter";
+import { infiniteQueryOptions, useInfiniteQuery, type QueryClient } from "@tanstack/react-query";
+import { PAGE_LIMIT, isGroupedView, type Filters, type FeedItem } from "@/features/images/lib/imageFilter";
+import { filtersFrom } from "@/features/images/hooks/useFilters";
 import { IMAGE_FEED_PREFIX, IMAGE_GROUPS_PREFIX, fetchImagesPage, fetchGroupsPage, type FeedPage } from "@/features/images/lib/imageApi";
 
 /**
@@ -15,6 +16,31 @@ export function imageFeedKey(filters: Filters, limit: number) {
   return [...IMAGE_FEED_PREFIX, limit, { ...filters, group: false }] as const;
 }
 
+function imageFeedOptions(filters: Filters, limit: number) {
+  return infiniteQueryOptions({
+    queryKey: imageFeedKey(filters, limit),
+    queryFn: ({ pageParam, signal }) =>
+      fetchImagesPage(filters, { cursor: pageParam, limit, signal }),
+    initialPageParam: null as string | null,
+    // The server sends no cursor after its last page. Not the page's length:
+    // a removal patched into a cached page shortens it without ending the list.
+    getNextPageParam: (lastPage: FeedPage) => lastPage.next ?? undefined,
+  });
+}
+
+/**
+ * Starts the gallery's first feed page before React renders, when the app
+ * opens on the gallery: otherwise it waits for the first render and the
+ * startup requests queued ahead of it. The gallery's own query picks up
+ * this one in flight (same key and options).
+ */
+export function prefetchGalleryFeed(qc: QueryClient, url: Location = window.location) {
+  if (url.pathname !== "/") return;
+  const filters = filtersFrom(new URLSearchParams(url.search));
+  if (isGroupedView(filters)) return;
+  void qc.prefetchInfiniteQuery(imageFeedOptions(filters, PAGE_LIMIT));
+}
+
 /**
  * The Image feed: a cursor-paged stream of Images matching `filters`.
  * Wraps TanStack `useInfiniteQuery`; exposes the flattened `items` alongside
@@ -26,17 +52,7 @@ export function useImageFeed(
   limit: number = PAGE_LIMIT,
   enabled: boolean = true,
 ) {
-  const query = useInfiniteQuery({
-    queryKey: imageFeedKey(filters, limit),
-    enabled,
-    queryFn: ({ pageParam, signal }) =>
-      fetchImagesPage(filters, { cursor: pageParam, limit, signal }),
-    initialPageParam: null as string | null,
-    // A short page means the end; otherwise page on the server's cursor.
-    // The server sends no cursor after its last page. Not the page's length:
-    // a removal patched into a cached page shortens it without ending the list.
-    getNextPageParam: (lastPage: FeedPage) => lastPage.next ?? undefined,
-  });
+  const query = useInfiniteQuery({ ...imageFeedOptions(filters, limit), enabled });
 
   const items = useMemo<FeedItem[]>(
     () => query.data?.pages.flatMap((p) => p.items) ?? [],

@@ -10,6 +10,7 @@ import RootRoutes from "@/app/RootRoutes";
 import { ToastProvider } from "@/components/ui/Toasts";
 import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
 import { RouteError } from "@/app/components/ErrorScreen";
+import { prefetchGalleryFeed } from "@/features/images/hooks/useImageFeed";
 
 const router = createBrowserRouter([
   { path: "*", element: <RootRoutes />, errorElement: <RouteError /> },
@@ -26,6 +27,8 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+prefetchGalleryFeed(queryClient);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

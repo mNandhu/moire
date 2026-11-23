@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { encode } from "blurhash";
-import { accentFromBlurhash, ambientPalette } from "./blurhash";
+import { decode, encode } from "blurhash";
+import { accentFromBlurhash, ambientPalette, decodeBlurhash } from "./blurhash";
 
 describe("accentFromBlurhash", () => {
   it("returns null for a missing hash", () => {
@@ -75,5 +75,26 @@ describe("ambientPalette", () => {
   it("returns at most n colours", () => {
     const hashes = [solid(230, 20, 20), solid(20, 230, 20), solid(20, 20, 230)];
     expect(ambientPalette(hashes, 2)).toHaveLength(2);
+  });
+});
+
+describe("decodeBlurhash", () => {
+  it("matches the blurhash package pixel for pixel", () => {
+    let seed = 7;
+    const rand = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+    for (let n = 0; n < 60; n++) {
+      const w = 16;
+      const h = 12;
+      const px = new Uint8ClampedArray(w * h * 4).map((_, i) => (i % 4 === 3 ? 255 : rand() * 256));
+      const hash = encode(px, w, h, 1 + (n % 9), 1 + ((n * 4) % 9));
+      for (const [dw, dh] of [[32, 32], [8, 8], [1, 1], [20, 13]]) {
+        expect(decodeBlurhash(hash, dw, dh)).toEqual(decode(hash, dw, dh));
+      }
+    }
+  });
+
+  it("throws on a malformed hash, as the package does", () => {
+    expect(() => decodeBlurhash("abc", 4, 4)).toThrow();
+    expect(() => decodeBlurhash("LEHV6nWB2yk8pyo0adR*.7kCMdn", 4, 4)).toThrow();
   });
 });

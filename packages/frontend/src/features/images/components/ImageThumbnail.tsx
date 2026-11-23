@@ -2,7 +2,7 @@ import { cn } from "@/lib/cn";
 import { LOAD_AHEAD_PX } from "@/features/images/lib/masonryLayout";
 import type { Span } from "@/features/images/lib/loadOrder";
 import { useImageLoadSlot } from "@/features/images/hooks/useImageLoadSlot";
-import { decode } from "blurhash";
+import { decodeBlurhash } from "@/lib/blurhash";
 import React, { useEffect, useRef } from "react";
 
 // Decodes a BlurHash to a canvas, scaled up by CSS to fill the tile. A hash
@@ -29,7 +29,7 @@ const BlurhashCanvas = React.memo(function BlurhashCanvas({
     const canvas = ref.current;
     if (!canvas || hold) return;
     try {
-      const pixels = decode(hash, BLUR_PX, BLUR_PX);
+      const pixels = decodeBlurhash(hash, BLUR_PX, BLUR_PX);
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       const imageData = ctx.createImageData(BLUR_PX, BLUR_PX);

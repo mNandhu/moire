@@ -38,7 +38,7 @@ Effort: S (hours) · M (a day or so) · L (more)
 | T2 | Thumbnails | A tile whose image already loaded this session still queues for a slot, decodes its BlurHash and fades for 500 ms | Scroll-back to fully visible 909 -> 31 ms (with T1) | S | in progress (branch `perf/thumbnails`, `dd1d305`, `621c1a2`, `38c2c44`; reviewed and fixed; e2e and benchmark not run) |
 | T3 | Thumbnails | The slot queue is FIFO, so tiles already scrolled past load before the visible ones | With T2: blank tiles during a flick 32 -> 17%, settle 151 -> 87 ms; split between T2 and T3 unresolved | S | in progress (branch `perf/thumbnails`, `a7b8eac`, `621c1a2`, `38c2c44`; reviewed and fixed; e2e and benchmark not run) |
 | T4 | Thumbnails | Other levers: event-loop reads, ASGI bypass, HTTP/2, 24 slots, `setswitchinterval`, `RWF_NOWAIT` | None worth taking | - | dropped (measured), see section |
-| T5 | Thumbnails | First tile takes ~730 ms in every variant, and the feed is only 7-20 ms | First thumbnail request -44 to -62% (prototype, box under load) | S-M | open (prototype measured, see section; re-measure on a quiet box) |
+| T5 | Thumbnails | First tile takes ~730 ms in every variant, and the feed is only 7-20 ms | First thumbnail request -44 to -62% (prototype, box under load) | S-M | done 2026-11-23: P1 + P2a shipped (first tile 299 -> 229 ms first visit, 190 -> 160 ms reload), P2c in N29; P2b not done. See `perf-benchmark-2026-11.md` follow-ups |
 | T6 | Thumbnails | WebP `method=6` instead of the default 4 | 3.2% smaller, encode ~2.3x slower | S + rebuild | dropped (measured), see section |
 
 ## Next steps (agreed order)

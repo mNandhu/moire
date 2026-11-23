@@ -524,7 +524,9 @@ async def _page_rows(conn, parts: list, limit: int) -> list[dict]:
             if len(rows) >= limit:
                 break
             res = await conn.execute(stmt.limit(limit - len(rows)))
-            rows += [dict(r._mapping) for r in res.fetchall()]
+            # Column names once per result, not once per row.
+            cols = tuple(res.keys())
+            rows += [dict(zip(cols, r)) for r in res.fetchall()]
     finally:
         if split:
             await conn.rollback()
