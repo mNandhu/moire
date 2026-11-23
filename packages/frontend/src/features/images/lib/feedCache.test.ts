@@ -32,28 +32,6 @@ function seededClient() {
 const pagesOf = (qc: QueryClient, key: unknown[]) =>
   (qc.getQueryData(key) as { pages: FeedPage[] }).pages.map((p) => p.items);
 
-describe("removeImagesFromFeeds, one id", () => {
-  it("drops the image from every cached feed, not just one", () => {
-    const qc = seededClient();
-
-    removeImagesFromFeeds(qc, ["a"]);
-
-    expect(pagesOf(qc, ["images", 60, { tags: [] }])[0].map((d) => d._id)).toEqual(["b"]);
-    expect(pagesOf(qc, ["images", 60, { tags: ["cat"] }])[0]).toEqual([]);
-  });
-
-  it("leaves other images alone", () => {
-    const qc = seededClient();
-    removeImagesFromFeeds(qc, ["zzz"]);
-    expect(pagesOf(qc, ["images", 60, { tags: [] }])[0]).toHaveLength(2);
-  });
-
-  it("is a no-op when nothing is cached", () => {
-    const qc = new QueryClient();
-    expect(() => removeImagesFromFeeds(qc, ["a"])).not.toThrow();
-  });
-});
-
 describe("patchImageInFeeds", () => {
   it("replaces one image everywhere it is cached", () => {
     const qc = seededClient();
@@ -116,16 +94,27 @@ describe("removeImagesFromFeeds", () => {
     expect(pagesOf(qc, ["images", 60, { tags: ["cat"] }])[0]).toEqual([]);
   });
 
-  it("keeps images that were not selected", () => {
+  it("drops one image from every cached feed, not just one, and keeps the rest", () => {
     const qc = seededClient();
+
     removeImagesFromFeeds(qc, ["a"]);
+
     expect(pagesOf(qc, ["images", 60, { tags: [] }])[0].map((d) => d._id)).toEqual(["b"]);
+    expect(pagesOf(qc, ["images", 60, { tags: ["cat"] }])[0]).toEqual([]);
   });
 
-  it("is a no-op for an empty selection", () => {
+  it.each([
+    ["an id no feed holds", ["zzz"]],
+    ["an empty selection", []],
+  ])("is a no-op for %s", (_label, ids) => {
     const qc = seededClient();
-    removeImagesFromFeeds(qc, []);
+    removeImagesFromFeeds(qc, ids);
     expect(pagesOf(qc, ["images", 60, { tags: [] }])[0]).toHaveLength(2);
+  });
+
+  it("is a no-op when nothing is cached", () => {
+    const qc = new QueryClient();
+    expect(() => removeImagesFromFeeds(qc, ["a"])).not.toThrow();
   });
 
   it("drops them from the grouped view too", () => {

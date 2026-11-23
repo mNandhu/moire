@@ -1,4 +1,3 @@
-import { roughDuration } from "@/lib/format";
 import { describe, expect, it } from "vitest";
 import {
   cleanPath,
@@ -110,16 +109,6 @@ describe("librariesToAdd and sourceTotals", () => {
   });
   it("totals what will be added", () => {
     expect(sourceTotals(s)).toEqual({ images: 5005, capped: true, libraries: 3 });
-  });
-});
-
-describe("roughDuration", () => {
-  it("uses minutes, then hours", () => {
-    expect(roughDuration(10)).toBe("1 min");
-    expect(roughDuration(7 * 60)).toBe("7 min");
-    expect(roughDuration(2 * 3600)).toBe("2 h");
-    expect(roughDuration(4212 / 0.6)).toBe("1.9 h");
-    expect(roughDuration(3 * 3600 + 1200)).toBe("3.3 h");
   });
 });
 

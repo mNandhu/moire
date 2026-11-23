@@ -22,6 +22,8 @@ describe("clockText modes", () => {
     expect(clockText(7.1, "ceil")).toBe("0:08");
   });
   it("shows hours past 59:59 and never goes negative", () => {
+    expect(clockText(150)).toBe("2:30");
+    expect(clockText(545, "round")).toBe("9:05");
     expect(clockText(3723)).toBe("1:02:03");
     expect(clockText(3729, "round")).toBe("1:02:09");
     expect(clockText(-3, "round")).toBe("0:00");
@@ -32,8 +34,13 @@ describe("clockText modes", () => {
 describe("roughDuration and durationWords", () => {
   it("keep their own styles", () => {
     expect(roughDuration(10)).toBe("1 min");
+    expect(roughDuration(7 * 60)).toBe("7 min");
     expect(roughDuration(2 * 3600)).toBe("2 h");
+    expect(roughDuration(4212 / 0.6)).toBe("1.9 h");
+    expect(roughDuration(3 * 3600 + 1200)).toBe("3.3 h");
     expect(durationWords(8.43)).toBe("8.4s");
+    expect(durationWords(42.4)).toBe("42s");
+    expect(durationWords(65)).toBe("1m 05s");
     expect(durationWords(3720)).toBe("1h 02m");
   });
 });

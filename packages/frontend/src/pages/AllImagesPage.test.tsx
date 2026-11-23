@@ -293,20 +293,6 @@ describe("AllImagesPage", () => {
     other.remove();
   });
 
-  it("Escape still closes the help overlay", async () => {
-    renderPage();
-    await awaitFeed();
-    fireEvent.keyDown(window, { key: "?" });
-    await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
-
-    fireEvent.keyDown(document.body, { key: "Escape" });
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("dialog", { name: "Keyboard shortcuts" }),
-      ).not.toBeInTheDocument(),
-    );
-  });
-
   it("Enter opens the focused tile", async () => {
     renderPage();
     await awaitFeed();

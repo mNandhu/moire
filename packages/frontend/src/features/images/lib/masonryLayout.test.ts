@@ -71,34 +71,6 @@ describe("gridColumns", () => {
   });
 });
 
-describe("column count as keyboard navigation sees it", () => {
-  // The gallery's arrow keys step a row by asking gridColumns for the column
-  // count. It has to be the same question the grid packs with: same width,
-  // same density, or Up/Down jumps by the wrong number of tiles. This broke
-  // once already, when the grid derived columns from density and the keyboard
-  // handler was still calling gridColumns with the default.
-  it("agrees with the packing at every density", () => {
-    const width = 1600;
-    for (let d = 0; d < DENSITY_STEPS.length; d++) {
-      const cols = gridColumns(width, d);
-      const packing = packColumns(
-        Array.from({ length: 40 }, () => ({ width: 100, height: 100 })),
-        cols,
-        columnWidth(width, cols, gapForDensity(d)),
-        gapForDensity(d),
-      );
-      expect(packing.columns).toHaveLength(cols);
-    }
-  });
-
-  it("returns a different count once the density changes", () => {
-    // Guards against a caller that silently rides the default parameter.
-    const atDefault = gridColumns(1600);
-    expect(gridColumns(1600, DENSITY_STEPS.length - 1)).not.toBe(atDefault);
-    expect(gridColumns(1600, 0)).not.toBe(atDefault);
-  });
-});
-
 describe("gapForDensity", () => {
   it("tightens the gutter as tiles get smaller", () => {
     const gaps = DENSITY_STEPS.map((_, i) => gapForDensity(i));

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { batchLeft, leftLabel, queueTitle, runProgress } from "./eta";
-import { clockText, etaLabel, etaShort, roundEta } from "@/lib/format";
+import { etaLabel, etaShort, roundEta } from "@/lib/format";
 
 describe("roundEta", () => {
   it("rounds to 5s under a minute, 10s under ten, else the minute", () => {
@@ -36,15 +36,6 @@ describe("runProgress", () => {
   it("needs an estimate", () => {
     expect(runProgress(null, 3)).toBeNull();
     expect(runProgress(0, 3)).toBeNull();
-  });
-});
-
-describe("clockText", () => {
-  it("reads to the second", () => {
-    expect(clockText(7.9)).toBe("0:07");
-    expect(clockText(150)).toBe("2:30");
-    expect(clockText(3723)).toBe("1:02:03");
-    expect(clockText(-4)).toBe("0:00");
   });
 });
 

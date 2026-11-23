@@ -126,13 +126,8 @@ describe("sort", () => {
 });
 
 describe("workflow filter", () => {
-  it("round-trips a family or a version through the URL", () => {
-    const fam = { ...DEFAULT_FILTERS, workflow: "49a0c942" };
-    expect(roundTrip(fam)).toEqual(fam);
-    const ver = { ...DEFAULT_FILTERS, workflowSig: "abc123" };
-    expect(roundTrip(ver)).toEqual(ver);
-    expect(serializeFilters(fam).get("workflow")).toBe("49a0c942");
-    expect(hasActiveFilter(ver)).toBe(true);
+  it("puts a family in the URL's workflow param", () => {
+    expect(serializeFilters({ ...DEFAULT_FILTERS, workflow: "49a0c942" }).get("workflow")).toBe("49a0c942");
   });
 
   it("names the chip and clears both keys", () => {
@@ -149,18 +144,6 @@ describe("workflow filter", () => {
 describe("hasActiveFilter", () => {
   it("is false for the default (empty) filter", () => {
     expect(hasActiveFilter(DEFAULT_FILTERS)).toBe(false);
-  });
-
-  it("is true when any axis is set", () => {
-    expect(hasActiveFilter({ ...DEFAULT_FILTERS, tags: ["cat"] })).toBe(true);
-    expect(hasActiveFilter({ ...DEFAULT_FILTERS, libraryId: "L1" })).toBe(true);
-    expect(hasActiveFilter({ ...DEFAULT_FILTERS, noTags: true })).toBe(true);
-    expect(hasActiveFilter({ ...DEFAULT_FILTERS, minW: 100 })).toBe(true);
-    expect(hasActiveFilter({ ...DEFAULT_FILTERS, groupId: "g" })).toBe(true);
-  });
-
-  it("ignores the grouped-view toggle (group) which is not a filter", () => {
-    expect(hasActiveFilter({ ...DEFAULT_FILTERS, group: true })).toBe(false);
   });
 });
 

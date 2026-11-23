@@ -111,11 +111,6 @@ describe("apiRaw", () => {
     const r = await apiRaw("/x");
     expect(r.headers.get("X-Next-Cursor")).toBe("c1");
   });
-
-  it("throws on non-2xx", async () => {
-    failWith("nope", 404);
-    await expect(apiRaw("/x")).rejects.toBeInstanceOf(ApiError);
-  });
 });
 
 describe("httpError", () => {

@@ -1,4 +1,3 @@
-import { durationWords } from "@/lib/format";
 import { describe, expect, it } from "vitest";
 import type { BatchInputs } from "./generate";
 import {
@@ -63,12 +62,6 @@ describe("result grid", () => {
 });
 
 describe("run time", () => {
-  it("reads like a stopwatch", () => {
-    expect(durationWords(8.43)).toBe("8.4s");
-    expect(durationWords(42.4)).toBe("42s");
-    expect(durationWords(65)).toBe("1m 05s");
-    expect(durationWords(3720)).toBe("1h 02m");
-  });
   it("adds up timed requests and divides by their images", () => {
     const out = { idx: 0 } as never;
     const done = "done" as const;

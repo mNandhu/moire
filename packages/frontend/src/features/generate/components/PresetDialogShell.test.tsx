@@ -56,13 +56,11 @@ describe("PresetDialogShell", () => {
     expect(remove).toHaveBeenCalledOnce();
   });
 
-  it("will not save without a name or valid fields", () => {
-    shell({ name: "  " });
-    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it("will not save when the kind's fields are invalid", () => {
-    shell({ canSave: false });
+  it.each([
+    ["without a name", { name: "  " }],
+    ["when the kind's fields are invalid", { canSave: false }],
+  ])("will not save %s", (_label, props) => {
+    shell(props);
     expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
   });
 

@@ -58,7 +58,7 @@ describe("ThumbnailTile triage state", () => {
     expect(screen.getByLabelText("Rating: explicit")).toBeInTheDocument();
     unmount();
     renderTile(doc({ rating: "general" }));
-    expect(screen.queryByTitle("Rating: general")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Rating: general")).not.toBeInTheDocument();
   });
 
   it("shows the batch size for a collapsed batch", () => {
@@ -83,11 +83,6 @@ describe("ThumbnailTile selection", () => {
     fireEvent.click(pictureButton());
     expect(onOpen).toHaveBeenCalledWith("L1:x.png");
     expect(onToggle).not.toHaveBeenCalled();
-  });
-
-  it("shows a checkbox in selection mode", () => {
-    renderTile(doc({}), { selectionMode: true });
-    expect(screen.getByLabelText("Select")).toBeInTheDocument();
   });
 
   it("selects from the checkbox in selection mode", () => {
