@@ -39,7 +39,7 @@ Everything runs on your machine as a single process with an embedded database, a
 
 ![Generate: the prompt sorted into parts, with a tag preview and suggestions open](https://raw.githubusercontent.com/mNandhu/moire/v0.1.0/docs/images/generate.webp)
 
-Pick a character from your library, dress them in a saved outfit, write the scene, and queue it on your ComfyUI. **Tags by part** sorts the prompt into subject, hair, eyes, attire, pose, framing, background and lighting, so a missing part or a stray tag shows at a glance. Tags are colour-coded by part, and a tag that appears twice is flagged. Hover a tag to see what it means and the images in your library that have it; type into a part to get suggestions for that part only. The results land back in the gallery, prompt and all.
+Pick a character from your library, dress them in a saved outfit, write the scene, and queue it on your ComfyUI. **Tags by part** sorts the prompt into subject, hair, eyes, attire, pose, framing, background and lighting, so a missing part or a stray tag shows at a glance. Tags are colour-coded by part, and Moiré flags a tag that appears twice. Hover a tag to see what it means and the images in your library that have it; type into a part to get suggestions for that part only. The results land back in the gallery, prompt and all.
 
 Hit Remix on any image to start from its prompt and settings. Characters Moiré knows move out of the prompt into their own blocks, name and look tags included, so swapping in someone else doesn't leave the old hair and eyes behind.
 
@@ -63,7 +63,7 @@ Tagging a library is one click on the AI Tagging page. The model (about 380 MB) 
 - You can filter by tags (AND or OR), characters, outfits, LoRAs, embeddings, rating, stars or library, and `Ctrl+K` searches across all of it.
 - You can rate images 1 to 5 stars, quarantine them without deleting, tag by hand and select in bulk.
 - With a ComfyUI connected, you pick characters and outfits, write the scene and queue. Use the built-in workflow, or set up your own from an exported workflow file or any image it made. Any image in the viewer can be remixed.
-- A virtualized masonry grid and keyset paging keep scrolling smooth with tens of thousands of images, and the app tints itself to the colours of the images on screen. Libraries are watched, so new images show up by themselves.
+- A virtualized masonry grid and keyset paging keep scrolling smooth with tens of thousands of images, and the app tints itself to the colours of the images on screen. Moiré watches your libraries, so new images show up by themselves.
 - Run it on your LAN and it works on your phone too.
 
 ## Screenshots
@@ -90,7 +90,7 @@ uv tool install --python 3.12 "moire-gallery[cpu]"   # or "moire-gallery[gpu]" f
 moire run --open                                     # opens http://localhost:8000
 ```
 
-`--python 3.12` is the version Moiré is tested on; uv downloads it if you don't have it.
+Moiré is tested on Python 3.12, which is what `--python 3.12` asks for. uv downloads it if you don't have it.
 
 That's the whole app: the API and the UI on one port. To reach it from other devices on your network, use `moire run --host 0.0.0.0`.
 
@@ -123,17 +123,17 @@ The welcome screen has three steps, and each one can be skipped:
 2. AI tagging: download the tagger model (about 380 MB, from Hugging Face, once) and tag what you have. Later, the AI Tagging page tags whatever is still untagged in one click.
 3. ComfyUI: enter your ComfyUI address (`127.0.0.1:8188`). Generate shows up in the sidebar once it connects.
 
-All of it can be changed later in Settings.
+You can change all of it later in Settings.
 
 ## Generating with ComfyUI
 
 Moiré talks to ComfyUI over its normal API, so it works with a ComfyUI on the same machine, on another box, or behind a reverse proxy. Besides the address, you can give it a certificate path for a self-signed HTTPS setup and extra headers, such as an `Authorization` token, if your ComfyUI needs them.
 
-Tell Moiré where ComfyUI saves its output. If Moiré can read that folder, it links new images where they already are. If it can't, as with a remote ComfyUI, turn on "Download images from ComfyUI" and they get downloaded into a library.
+Tell Moiré where ComfyUI saves its output. If Moiré can read that folder, it links new images where they already are. If it can't, as with a remote ComfyUI, turn on "Download images from ComfyUI" and Moiré downloads them into a library.
 
 The built-in workflow is ComfyUI's default text-to-image graph with your checkpoint. To use your own, pick an image it made or upload an *Export (API)* file. Moiré finds the prompt, seed, size and sampler inputs, and the workflow is ready once a test image comes through.
 
-A character you pick in Generate brings their recipe (the tags that make them look right) and whichever outfit you choose. Prefixes, negative prompts and style LoRAs can be saved as presets.
+A character you pick in Generate brings their recipe (the tags that make them look right) and whichever outfit you choose. You can save prefixes, negative prompts and style LoRAs as presets.
 
 If a custom workflow's prompt or model doesn't come through in the viewer, the [Rules page](https://github.com/mNandhu/moire/blob/v0.1.0/README.md#custom-workflows-and-the-rules-page) maps it by hand.
 
@@ -163,7 +163,7 @@ uv tool upgrade moire-gallery
 
 The database updates itself on the next start, so there is no migration to run. With Docker, run `git pull` and `docker compose up --build`, and the data volume carries over.
 
-Moiré tells you when a new version is out: an "Update available" line in the sidebar and in the terminal. To know, it asks PyPI once a day for the list of `moire-gallery` releases; nothing about your computer or your images is sent. Turn it off under Settings > About, or for good with `UPDATE_CHECK=false` in your `.env`. A source checkout never checks.
+Moiré tells you when a new version is out: an "Update available" line in the sidebar and in the terminal. It finds out by asking PyPI once a day for the list of `moire-gallery` releases, and it sends nothing about your computer or your images. Turn it off under Settings > About, or for good with `UPDATE_CHECK=false` in your `.env`. A source checkout never checks.
 
 ## Custom workflows and the Rules page
 
