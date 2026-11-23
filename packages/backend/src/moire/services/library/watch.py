@@ -1,6 +1,6 @@
 """Per-library filesystem watcher: near-real-time incremental indexing.
 
-Hybrid model (see docs/phase-functional-features.md #4): this module gives the
+Hybrid model (see docs/dev/phase-functional-features.md #4): this module gives the
 "near real-time" half: a `watchfiles` thread per watched library that feeds
 bursts of adds/modifies/deletes to `scan_incremental.ingest_files` /
 `scan_incremental.remove_images`. The "periodic reconciliation" half is just the

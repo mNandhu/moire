@@ -48,7 +48,7 @@ So the weight stays out of the tag string and is stored beside it.
 
 ## Prerequisites from the refactor pass (2026-10-22)
 
-The refactor pass (`docs/refactor-pass/findings-wave1.json`) found these in this plan's path. Do them before, or at the start of, the weights session:
+The refactor pass (`docs/dev/refactor-pass/findings-wave1.json`) found these in this plan's path. Do them before, or at the start of, the weights session:
 
 - **One bulk tag write path.** `image_tags.replace_prompt_many_sync` (the reproject path, the one that would carry weights) builds its own UPDATE with hard-coded flag bindparams, beside `_persist_statements`; `initial_tag_fields` hard-codes the flags a third time. A `prompt_weights` column added to the single-image path would silently be skipped by reproject. Derive all three from one column source, with a test that bulk and single writes produce identical rows.
 - **One prompt splitter per side.** Besides `promptOutline`, the frontend splits prompts in `countTags.terms`, `promptRepeats.topTerms`, `compose.promptTerms` and `promptEdit.termAt`, each with different bracket and escape rules. The backend has a second, regex-based parser in `generation_compose.prompt_terms` (it mangles escaped parens in batch auto-names). Fold these onto `promptOutline.promptTerms` and `prompt_parse.parse_prompt` before adding weights, or `bumpWeight` becomes a fifth copy.

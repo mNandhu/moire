@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { API } from "./helpers";
 
-// docs/e2e-scenarios.md, "Generate: the viewer steps through the output
+// docs/dev/e2e-scenarios.md, "Generate: the viewer steps through the output
 // column". Runs after generate-run.spec.ts, which sets the output folder and
 // passes the test run.
 

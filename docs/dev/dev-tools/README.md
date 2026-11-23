@@ -8,7 +8,7 @@ Throwaway helpers used while building the ComfyUI integration. Not part of the a
 - `cdp_shot.py`: screenshots a page through headless Chrome's DevTools protocol,
   after seeding the Generate draft in localStorage and running JS steps.
   Start Chrome: `google-chrome --headless=new --no-sandbox --remote-debugging-port=9333 --user-data-dir=/tmp/x/profile about:blank &`
-  Run: `uv --directory packages/backend run python docs/dev-tools/cdp_shot.py <url> '<draft json>' out.png ["js step" ...]`
+  Run: `uv --directory packages/backend run python docs/dev/dev-tools/cdp_shot.py <url> '<draft json>' out.png ["js step" ...]`
   Window size: `SHOT_W` / `SHOT_H` (default 1440×1300).
   Picker options react to `mousedown`, not `click`.
 

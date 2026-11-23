@@ -7,7 +7,7 @@ Scripts that measure Moiré's performance:
 - AI tagging and face detection
 - all of the writers running at once
 
-They only measure and change no app code. Findings and numbers are in `docs/perf-benchmark-2026-11.md` (latest round) and `docs/perf-findings.md` (Oct 2026).
+They only measure and change no app code. Findings and numbers are in `docs/dev/perf-benchmark-2026-11.md` (latest round) and `docs/dev/perf-findings.md` (Oct 2026).
 
 These are developer tools, not part of the app or of CI. They assume Linux with:
 - `/proc`

@@ -24,7 +24,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Make the three entry points (_persist_statements, replace_prompt_many_sync, initial_tag_fields) all derive their column set from one source: have recompute_flags return a dict whose keys drive the bindparams (values(**{k: bindparam('b_'+k) for k in FLAG_KEYS})) and initial_tag_fields = {k: False for k in FLAG_KEYS}. Before the weights work, give the bulk function a single row-builder (image_id, tags, extras) -> dict so a new prompt_weights column is added once. Add a test asserting bulk and single paths produce identical rows for the same input.
 
-**Evidence.** `packages/backend/src/moire/services/tags/image_tags.py:331-350`, `packages/backend/src/moire/services/tags/image_tags.py:595-621`, `packages/backend/src/moire/services/tags/image_tags.py:43-52`, `packages/backend/src/moire/services/tags/image_tags.py:197-207`, `packages/backend/src/moire/services/metadata/reproject.py:65-100`, `docs/tag-weights-plan.md:23-27`
+**Evidence.** `packages/backend/src/moire/services/tags/image_tags.py:331-350`, `packages/backend/src/moire/services/tags/image_tags.py:595-621`, `packages/backend/src/moire/services/tags/image_tags.py:43-52`, `packages/backend/src/moire/services/tags/image_tags.py:197-207`, `packages/backend/src/moire/services/metadata/reproject.py:65-100`, `docs/dev/tag-weights-plan.md:23-27`
 
 ### L4.3 find_image ignores its projection, so every thumb/file request loads the whole image row
 
@@ -238,7 +238,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Problem.** Both sides are meant to produce the same term names (the board matches its terms to the backend's prompt tags via /tags/place and the prompt: tags). Verified differences: (1) FE splitSpans does depth++ on every '(' / '[' and only splits at depth 0, so one unclosed '(' (or the emoticon ';(' / '>:(' that the backend knows whole) swallows every later comma into one piece; backend _scan always cuts at separators whatever the stack holds. (2) Backend also splits on '|', BREAK and AND and treats '{}' as a group and emoticons (:d, ^_^, ;)) as whole tags; FE knows none of these. (3) FE prose = 5+ words with no underscore; backend is_prose needs 9+ words, or 5+ with a sentence end or a pronoun/article/verb marker, so a 5-word spaced tag is 'prose' on the board and a tag in the DB. (4) Backend strips a bare decimal weight ('smile:1.05') and edge punctuation ('smile.'); FE keeps both in the name (the test at promptOutline.test.ts:49 pins the colon case), so the board term name differs from the stored tag. (5) Weight rule: neither side computes it (already reported), so this is the same gap seen from the name side.
 
-**Proposal.** Put one table of cases in packages/backend/tests/fixtures/prompt_terms.json: {text, terms:[{name, kind, weight?}]}. Read it from test_prompt_parse.py (parse_prompt -> names/kinds) and from a promptOutline vitest. Start by listing today's disagreements as the expected output, decide per row which side is right (backend is the one that writes tags, so default to backend), then make promptOutline.splitSpans cut at separators regardless of depth, add '|'/BREAK/AND and the emoticon whole-token rule, and replace PROSE_WORDS with a port of is_prose (or serve it). Merge with the existing 'prompt weight' fixture proposed in docs/tag-weights-plan.md so there is one fixture file with names, kinds and weights. Longer term, expose a POST /tags/parse-prompt and let the board call it instead of a second parser.
+**Proposal.** Put one table of cases in packages/backend/tests/fixtures/prompt_terms.json: {text, terms:[{name, kind, weight?}]}. Read it from test_prompt_parse.py (parse_prompt -> names/kinds) and from a promptOutline vitest. Start by listing today's disagreements as the expected output, decide per row which side is right (backend is the one that writes tags, so default to backend), then make promptOutline.splitSpans cut at separators regardless of depth, add '|'/BREAK/AND and the emoticon whole-token rule, and replace PROSE_WORDS with a port of is_prose (or serve it). Merge with the existing 'prompt weight' fixture proposed in docs/dev/tag-weights-plan.md so there is one fixture file with names, kinds and weights. Longer term, expose a POST /tags/parse-prompt and let the board call it instead of a second parser.
 
 **Depends on.** Wave1 'Three more ad-hoc prompt splitters' and 'Decompose prompt_parse._scan'; do together so the fixture covers the new Piece.weight.
 
@@ -585,7 +585,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Create components/tagstats/ with PinnableImageGrid({filters, pinned, noun, onPin(id,unpin), pageSize, cols}) (absorbs TagImages, CharacterPage.Images and useOpenImage, which becomes a hook in features/images/hooks/useOpenImage.ts), MadeWithChips({loras, embeddings, workflows, baseFilter, share}) and move Chip, ChipRow, MonthChart there. Put one galleryHref(patch) in features/images/lib/imageFilter.ts and use it in all three places. TagPanel and CharacterPage then import from tagstats/. Keep CharacterPage's extra lora tooltip as a render prop or title formatter on the lora entries.
 
-**Evidence.** `packages/frontend/src/features/tags/components/TagPanel.tsx:230-273`, `packages/frontend/src/features/tags/components/TagPanel.tsx:301-367`, `packages/frontend/src/features/tags/components/TagPanel.tsx:374-443`, `packages/frontend/src/pages/CharacterPage.tsx:11`, `packages/frontend/src/pages/CharacterPage.tsx:46`, `packages/frontend/src/pages/CharacterPage.tsx:260-267`, `packages/frontend/src/pages/CharacterPage.tsx:288-340`, `packages/frontend/src/pages/CharacterPage.tsx:481-535`, `docs/refactor-pass/leads.txt:95-96`
+**Evidence.** `packages/frontend/src/features/tags/components/TagPanel.tsx:230-273`, `packages/frontend/src/features/tags/components/TagPanel.tsx:301-367`, `packages/frontend/src/features/tags/components/TagPanel.tsx:374-443`, `packages/frontend/src/pages/CharacterPage.tsx:11`, `packages/frontend/src/pages/CharacterPage.tsx:46`, `packages/frontend/src/pages/CharacterPage.tsx:260-267`, `packages/frontend/src/pages/CharacterPage.tsx:288-340`, `packages/frontend/src/pages/CharacterPage.tsx:481-535`, `docs/dev/refactor-pass/leads.txt:95-96`
 
 ### S2.5 countTags re-implements prompt term splitting and weight stripping beside promptOutline
 
@@ -595,7 +595,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Rebuild countTags.terms() on promptOutline.promptTerms(): filter kind==='tag' and group-wrapped terms out via a flag, use term.name for normalise (adding the digit-underscore fix `2_girls` to 2girls only), and keep offsets from start/end. Delete groupTracker, normalise's bracket/weight regexes and terms(). Keep fixCountTags/followCast, which only need ranges. Then the shared-fixture test for the weight rule covers both.
 
-**Evidence.** `packages/frontend/src/features/tags/lib/countTags.ts:44-54`, `packages/frontend/src/features/tags/lib/countTags.ts:71-97`, `packages/frontend/src/features/generate/lib/prompt/promptOutline.ts:28-60`, `packages/frontend/src/features/generate/lib/prompt/promptOutline.ts:62-135`, `packages/frontend/src/pages/GeneratePage.tsx:70`, `docs/tag-weights-plan.md:21`
+**Evidence.** `packages/frontend/src/features/tags/lib/countTags.ts:44-54`, `packages/frontend/src/features/tags/lib/countTags.ts:71-97`, `packages/frontend/src/features/generate/lib/prompt/promptOutline.ts:28-60`, `packages/frontend/src/features/generate/lib/prompt/promptOutline.ts:62-135`, `packages/frontend/src/pages/GeneratePage.tsx:70`, `docs/dev/tag-weights-plan.md:21`
 
 ### S2.6 Global keydown ignores modifier keys: Ctrl/Cmd+1..5, Alt+Arrow hijacked
 
@@ -767,7 +767,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 - packages/backend/src/moire/services/characters/pages.py:537 calls the private tag_index._pins; characters.py:446-450 uses tag_index.read_view/store_view as a side cache (only caller), so a split of tag_index must keep those two seams.
 - packages/backend/src/moire/services/tags/names.py:21 KAOMOJIS is the only non-name content of tag_names and is consumed by prompt_parse.py:38; consider living in prompt_parse or a shared vocab since tag_names should stay the one spelling rule.
-- packages/backend/src/moire/services/metadata/reproject.py:44-52 and 206 read tag_rules with a second sync loader (see tag_rules.py proposal); the extraction-config finding in docs/tag-weights-plan.md should include it.
+- packages/backend/src/moire/services/metadata/reproject.py:44-52 and 206 read tag_rules with a second sync loader (see tag_rules.py proposal); the extraction-config finding in docs/dev/tag-weights-plan.md should include it.
 - packages/backend/src/moire/services/tags/migrations.py:44-60 is another hand-written app_settings JSON row read/upsert (part of the already reported 8-module duplication); tag_settings.py:496-522 is a ninth.
 
 ## S4-tagsui-rules
@@ -852,9 +852,9 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Before the weights session decide the shape in features/tags/lib/tags.ts: `tagFlow(tags, ai, weights?: Record<string, number>)` sets `FlowTag.weight` from the prompt tag's weight whether the entry is listed as `prompt` or folded into `also` (so the label shows the weight on the AI tag too), and `toPromptText(tags, weights?)` writes `(name:w)` when a weight exists, escaping parens inside the name only. Add the cases to tags.test.ts first. Reserve `weights?: {min, max, mode}` on TagDetail in tagBrowse.ts.
 
-**Depends on.** Storage choice in docs/tag-weights-plan.md step 2
+**Depends on.** Storage choice in docs/dev/tag-weights-plan.md step 2
 
-**Evidence.** `packages/frontend/src/features/tags/lib/tags.ts:108-150`, `packages/frontend/src/features/tags/lib/tags.ts:41-46`, `packages/frontend/src/features/tags/lib/tags.ts:89-99`, `packages/frontend/src/features/tags/lib/tagBrowse.ts:28-52`, `docs/tag-weights-plan.md`
+**Evidence.** `packages/frontend/src/features/tags/lib/tags.ts:108-150`, `packages/frontend/src/features/tags/lib/tags.ts:41-46`, `packages/frontend/src/features/tags/lib/tags.ts:89-99`, `packages/frontend/src/features/tags/lib/tagBrowse.ts:28-52`, `docs/dev/tag-weights-plan.md`
 
 ### S4.9 Merge rules are called 'aliases' in the frontend (useTagAliases, TAG_ALIASES_KEY, /tags/aliases) but 'Merge rule' in CONTEXT.md
 
@@ -1118,7 +1118,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Depends on.** Finding 'Decompose _scan' makes this much easier; do together.
 
-**Evidence.** `docs/tag-weights-plan.md:25`, `packages/frontend/src/features/generate/lib/prompt/promptOutline.ts:77-90`, `packages/frontend/src/features/generate/lib/prompt/promptOutline.ts:104-131`, `packages/backend/src/moire/services/metadata/prompt_parse.py:160-266`, `packages/backend/src/moire/services/metadata/prompt_parse.py:269-284`, `packages/backend/src/moire/services/metadata/gen_metadata.py:243-257`
+**Evidence.** `docs/dev/tag-weights-plan.md:25`, `packages/frontend/src/features/generate/lib/prompt/promptOutline.ts:77-90`, `packages/frontend/src/features/generate/lib/prompt/promptOutline.ts:104-131`, `packages/backend/src/moire/services/metadata/prompt_parse.py:160-266`, `packages/backend/src/moire/services/metadata/prompt_parse.py:269-284`, `packages/backend/src/moire/services/metadata/gen_metadata.py:243-257`
 
 ### S7.2 Three more ad-hoc prompt splitters in the frontend duplicate promptOutline
 
@@ -1140,7 +1140,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Depends on.** pairs with the weight-rule finding
 
-**Evidence.** `packages/backend/src/moire/services/metadata/prompt_parse.py:160-266`, `docs/refactor-pass/leads.txt:67-70`, `packages/backend/src/moire/services/metadata/prompt_parse.py:322-339`
+**Evidence.** `packages/backend/src/moire/services/metadata/prompt_parse.py:160-266`, `docs/dev/refactor-pass/leads.txt:67-70`, `packages/backend/src/moire/services/metadata/prompt_parse.py:322-339`
 
 ### S7.4 Extraction inputs assembled by hand in two places; preview and reprojection can disagree; positive_only read by raw SQL
 
@@ -1243,7 +1243,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Reimplement prompt_terms(text, limit) as `[p.text for p in parse_prompt(text) if p.kind == 'tag'][:limit]` (parse_prompt already drops weights/brackets and handles escapes), then display via a shared kaomoji-aware `display_tag` (put it in services/tags/names.py as the backend twin of formatTag). Move without_terms and _top_level_pieces to prompt_parse.py (or a prompt_edit.py) and keep generation_compose to compose_parts/compose/auto_name. Update the frontend promptTerms to the same rule and the shared test cases (compose.test.ts / test_generation_compose.py) with an escaped-paren and a kaomoji case. When the weights session starts, the weight reading belongs in prompt_parse next to this.
 
-**Evidence.** `packages/backend/src/moire/services/generate/compose.py:57-74`, `packages/backend/src/moire/services/generate/compose.py:77-81`, `packages/backend/src/moire/services/generate/compose.py:103-134`, `packages/backend/src/moire/services/metadata/prompt_parse.py:41`, `packages/backend/src/moire/services/metadata/prompt_parse.py:122`, `packages/backend/src/moire/services/generate/remix.py:22`, `packages/backend/src/moire/services/generate/generator_setup.py:25`, `packages/frontend/src/features/generate/lib/compose.ts:57-70`, `docs/tag-weights-plan.md:1-43`
+**Evidence.** `packages/backend/src/moire/services/generate/compose.py:57-74`, `packages/backend/src/moire/services/generate/compose.py:77-81`, `packages/backend/src/moire/services/generate/compose.py:103-134`, `packages/backend/src/moire/services/metadata/prompt_parse.py:41`, `packages/backend/src/moire/services/metadata/prompt_parse.py:122`, `packages/backend/src/moire/services/generate/remix.py:22`, `packages/backend/src/moire/services/generate/generator_setup.py:25`, `packages/frontend/src/features/generate/lib/compose.ts:57-70`, `docs/dev/tag-weights-plan.md:1-43`
 
 ### S8.4 api/generate.py is eight routers in one file, with service logic in put_comfyui and quadruplicated error mapping
 
@@ -1313,7 +1313,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Delete the two wrappers and point the tests at plan() or the underscore functions (or rename _warm to a public name if the tests really want the ladder alone). Drop on_state from events() and its test, or use it in _ws_loop to set `connected` earlier than the poll.
 
-**Evidence.** `packages/backend/src/moire/services/generate/estimate.py:135-145`, `packages/backend/src/moire/services/generate/comfy_client.py:239-274`, `docs/refactor-pass/leads.txt:27-28`
+**Evidence.** `packages/backend/src/moire/services/generate/estimate.py:135-145`, `packages/backend/src/moire/services/generate/comfy_client.py:239-274`, `docs/dev/refactor-pass/leads.txt:27-28`
 
 **Cross-cutting hints.**
 
@@ -1447,7 +1447,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Pure move first: extract `PromptOverlay.tsx` (props: value, marks, flash, textareaRef, className; owns backRef/markRefs/bubble/note/syncBack, exposes `markAt` handlers via a small hook `usePromptMarks`) and `usePromptSuggest.ts` (term, matches, at, pick, covers/thumbOf, returns {open, onKeyDown, listProps}). Leave PromptInput as ~100 lines composing them. Then add the weight keys in PromptInput's onKeyDown BEFORE the `open` branch with `if ((e.ctrlKey||e.metaKey) && (ArrowUp||ArrowDown)) { e.preventDefault(); apply(bumpWeight(...)) }` and make the list's arrow branch require !ctrlKey/metaKey. Move the covers `useTagBrowse`->thumbs map into one shared hook (see PromptBoard finding).
 
-**Evidence.** `packages/frontend/src/features/generate/components/PromptInput.tsx:60-411`, `packages/frontend/src/features/generate/components/PromptInput.tsx:236-252`, `packages/frontend/src/features/generate/components/PromptInput.tsx:30-37`, `docs/tag-weights-plan.md`
+**Evidence.** `packages/frontend/src/features/generate/components/PromptInput.tsx:60-411`, `packages/frontend/src/features/generate/components/PromptInput.tsx:236-252`, `packages/frontend/src/features/generate/components/PromptInput.tsx:30-37`, `docs/dev/tag-weights-plan.md`
 
 ### S10.2 Pure form logic and board-layer building live inside the 680-line GeneratePage component
 
@@ -1487,7 +1487,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Add `services/generate/preset_store.py` with `class PresetError(ValueError)` and `class Store(table, clean_fields, order_by, seed=None)` providing listing/create/update/delete; each module becomes its field validator (`clean`) plus `store = Store(...)`. Share `clean_name`/`clean_text`. In api/generate.py register both route sets from one helper (`preset_routes(prefix, store)`) mapping PresetError once. Keep prompt_presets' seed-once-flag in its module.
 
-**Evidence.** `packages/backend/src/moire/services/generate/prompt_presets.py:21-128`, `packages/backend/src/moire/services/generate/lora_presets.py:41-117`, `packages/backend/src/moire/api/generate.py:590-655`, `docs/refactor-pass/leads.txt:61-62`
+**Evidence.** `packages/backend/src/moire/services/generate/prompt_presets.py:21-128`, `packages/backend/src/moire/services/generate/lora_presets.py:41-117`, `packages/backend/src/moire/api/generate.py:590-655`, `docs/dev/refactor-pass/leads.txt:61-62`
 
 ### S10.6 lora_presets.py mixes CRUD with library analytics SQL and keeps its own ad-hoc TTL cache beside tag_index
 
@@ -1507,7 +1507,7 @@ Every finding from both discovery waves, by unit. IDs (`S2.3` = slice S2, findin
 
 **Proposal.** Make `attire.key`, `attire.entry`, `attire.groups_of`, `attire.facet_of_entry` public (rename, no behavior change). In prompt_board split `_section` into named steps tried in order: `_identity_section` (overrides, characters, artist, meta), `_face_section`, `_pose_section` (holding, looking), `_facet_section(facet,...)` with the framing sub-ladder as its own function, `_entry_section`; `_section` becomes `for step in STEPS: if (s := step(ctx)) is not None: return s`. Test_prompt_board's parametrized test_sections already pins behavior.
 
-**Evidence.** `packages/backend/src/moire/services/generate/prompt_board.py:93-160`, `packages/backend/src/moire/services/generate/prompt_board.py:106`, `packages/backend/src/moire/services/generate/prompt_board.py:118`, `packages/backend/src/moire/services/generate/prompt_board.py:168-178`, `packages/backend/src/moire/services/generate/prompt_board.py:228-237`, `docs/refactor-pass/leads.txt:64-66`
+**Evidence.** `packages/backend/src/moire/services/generate/prompt_board.py:93-160`, `packages/backend/src/moire/services/generate/prompt_board.py:106`, `packages/backend/src/moire/services/generate/prompt_board.py:118`, `packages/backend/src/moire/services/generate/prompt_board.py:168-178`, `packages/backend/src/moire/services/generate/prompt_board.py:228-237`, `docs/dev/refactor-pass/leads.txt:64-66`
 
 ### S10.8 generateForm.ts (548 lines) fuses form model, stored-draft validation, remix conversion and sampling display labels
 

@@ -3,7 +3,7 @@ import { API, COMFY_PORT, FAKE_COMFY_RUN } from "./helpers";
 
 const COMFY = `http://127.0.0.1:${COMFY_PORT}`;
 
-// docs/e2e-scenarios.md, "Generate: keys and Clear". Runs after
+// docs/dev/e2e-scenarios.md, "Generate: keys and Clear". Runs after
 // generate-run.spec.ts, which sets the output folder and passes the test run.
 
 /** Until no batch is still running or paused (one queued by an earlier

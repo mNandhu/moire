@@ -22,7 +22,7 @@ A read-only discovery pass over the whole codebase, ahead of a refactor / dedupe
 ## Priorities
 
 - **P0. Bugs** (`bugs.md`). Fix first, one commit each, test first.
-- **P1. Tag-weights prerequisites** (theme A, and B's write path). They block the next feature; see `docs/tag-weights-plan.md` "Prerequisites".
+- **P1. Tag-weights prerequisites** (theme A, and B's write path). They block the next feature; see `docs/dev/tag-weights-plan.md` "Prerequisites".
 - **P2. Shared primitives with many call sites** (themes D, E). Mechanical, low risk, high leverage: each removes a pattern repeated 5 to 25 times.
 - **P3. Backend dedupe and job systems** (themes C, G).
 - **P4. Big-file splits** (theme F). Pure moves, but high churn, and the frontend ones need the app running to check.

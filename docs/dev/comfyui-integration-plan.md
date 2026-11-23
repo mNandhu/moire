@@ -821,7 +821,7 @@ Phase 2 is done and fast-forwarded to main. Open:
 - Next: phase 3 (custom Generators). Undrawn: Remix entry in the viewer.
   Setup should offer the sampling slots (found from the sampler walk).
 - Dev helpers (fake ComfyUI, headless screenshots, sandbox ports):
-  `docs/dev-tools/README.md`.
+  `docs/dev/dev-tools/README.md`.
 
 ### Next session (from 2026-10-20 late; phase 3)
 

@@ -66,7 +66,7 @@ A husky pre-commit hook runs ruff and eslint on staged files. Generate-related t
 
 The AI tagging spec runs the real WD tagger, last, on three images of the fixture library. Its model lives in `packages/e2e/.models` (or `E2E_MODEL_CACHE_DIR`), kept between runs; the first run copies it from the checkout's `.cache/moire/models` if it is there, else downloads about 360 MB. To watch a run: `E2E_SLOWMO=300 pnpm -C packages/e2e test --headed`.
 
-Specs share one app and run in order: `onboarding.setup.ts` walks the welcome flow (adds the library, connects the fake ComfyUI) and every other spec depends on it. Scenarios still to cover are listed in `docs/e2e-scenarios.md`.
+Specs share one app and run in order: `onboarding.setup.ts` walks the welcome flow (adds the library, connects the fake ComfyUI) and every other spec depends on it. Scenarios still to cover are listed in `docs/dev/e2e-scenarios.md`.
 
 ## Layout
 

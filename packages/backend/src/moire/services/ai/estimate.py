@@ -1,7 +1,7 @@
 """How long AI tagging takes here: seconds an image, for the time estimates.
 
 The rate a real run measured on this machine wins; until one has, the
-documented rates for the device the tagger runs on (docs/perf-findings.md:
+documented rates for the device the tagger runs on (docs/dev/perf-findings.md:
 ~0.6 images/s in a CPU job, ~0.1 s an image on a GTX 1650). Measured rates
 are kept per device, so switching to the GPU build doesn't quote the CPU's.
 """

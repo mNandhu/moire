@@ -4,7 +4,7 @@ What Moiré shows the first time it opens, and the work to build it. This file
 is the tracker: tick items as they land, and add new ones under the phase they
 belong to.
 
-Mockup: [`docs/onboarding-mockup.html`](onboarding-mockup.html) (open it in a
+Mockup: [`docs/dev/onboarding-mockup.html`](onboarding-mockup.html) (open it in a
 browser; the pale bar at the top toggles ComfyUI, GPU and remote-server states).
 
 ## The flow
@@ -78,7 +78,7 @@ Skipping at any point lands in the gallery, with whatever was done so far.
 - [x] Order: newest first by file `mtime` (what the user looks at first).
 - [x] Onboarding step UI: switch (off by default), CPU vs GPU time for this library, GPU callout.
 - [x] Switch enabled (it shipped disabled until the backlog could run whole).
-- [x] Time estimate from the documented rates (CPU ~0.6 images/s in a real job, GPU ~0.1 s an image on a GTX 1650, see `docs/perf-findings.md`), in `features/onboarding/lib/onboarding.ts`.
+- [x] Time estimate from the documented rates (CPU ~0.6 images/s in a real job, GPU ~0.1 s an image on a GTX 1650, see `docs/dev/perf-findings.md`), in `features/onboarding/lib/onboarding.ts`.
 - [x] Measured rate: a run of 20+ images stores its rate per device (`services/ai/estimate.py`, app_settings row `ai_rate`); `/ai/status` `estimate` serves it, else the documented rate for the device. The AI Tagging page shows it for the backlog and each library.
 - [ ] GPU detection:
   - [x] Which build is running: the session's providers once loaded, else `get_available_providers()` (`WDTagger.device`). On the GPU build the step drops the CPU/GPU bars and the GPU callout.

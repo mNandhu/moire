@@ -119,7 +119,7 @@ export function sourceTotals(s: DiscoverSource): { images: number; capped: boole
   };
 }
 
-// Measured rates (docs/perf-findings.md): ~0.6 images/s in a real CPU job,
+// Measured rates (docs/dev/perf-findings.md): ~0.6 images/s in a real CPU job,
 // ~0.1 s an image on a GTX 1650.
 export const CPU_SECONDS_PER_IMAGE = 1 / 0.6;
 export const GPU_SECONDS_PER_IMAGE = 0.1;

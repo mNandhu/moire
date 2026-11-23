@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { API } from "./helpers";
 
-// docs/e2e-scenarios.md, "Generate: Tags by part, Clear and Undo".
+// docs/dev/e2e-scenarios.md, "Generate: Tags by part, Clear and Undo".
 
 const START = "1girl, red hair, blue eyes";
 
