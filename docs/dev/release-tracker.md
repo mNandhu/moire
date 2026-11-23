@@ -4,7 +4,7 @@ What has to happen before Moiré is published (PyPI `moire-studio`, first `vX.Y.
 
 ## Code
 
-- [ ] **R1** Prune one-off data migrations only the dev DB needed. Keep the mechanism (`tag_migrations.run_pending`, the `migrations` app_settings row, one-line reprojection-only entries): installs still need it for parser changes after release. Remove the step functions and their tests: `tag_underscores`, `tag_meta_base`, `image_faces_mtime`, `tag_rules`, `gen_term_weights` (~120 lines). Fold the reprojection-only names into nothing (a new install's first scan derives everything). Do it last, just before tagging, so later dev-DB changes don't need it redone.
+- [x] **R1** Prune one-off data migrations only the dev DB needed. The mechanism stays (`run_pending`, the `migrations` app_settings row, entries of `(name, step, needs reprojection)`), the list starts empty, and the step functions, `covers.rekey_pins_sync` and their tests are gone. A new install records nothing; the dev DB already has every name recorded, so it skips nothing it needs.
 - [x] **R2** Dev docs out of the way: plans, trackers, the refactor pass, perf reports, e2e scenarios and dev tools live in `docs/dev/`; `docs/` keeps only what users read (`docker-guide.md`, README images). Nothing in the wheel points at them (only code comments do).
 
 ## Tests

@@ -9,7 +9,6 @@ from moire.services.tags import (
     categories as tag_categories,
     detail as tag_detail,
     index as tag_index,
-    migrations as tag_migrations,
 )
 
 
@@ -139,27 +138,6 @@ async def test_a_pin_belongs_to_the_name_whichever_source(client, seed):
     await client.delete("/tags/thumbnail/any:cat")
     async with db.async_conn() as conn:
         assert (await conn.execute(sa.select(t.tag_meta))).fetchall() == []
-
-
-async def test_migration_keys_old_pins_by_name(temp_db):
-    with db.sync_tx() as conn:
-        conn.execute(
-            sa.insert(t.tag_meta),
-            [
-                {"tag": "prompt:cat", "thumb_image_id": "L1:old", "updated_at": 1},
-                {"tag": "manual:cat", "thumb_image_id": "L1:new", "updated_at": 2},
-                {"tag": "dog", "thumb_image_id": "L1:d", "updated_at": 1},
-            ],
-        )
-    tag_migrations.migrate_tag_meta_base()
-    tag_index.invalidate()
-    with db.sync_conn() as conn:
-        pins = dict(
-            conn.execute(
-                sa.select(t.tag_meta.c.tag, t.tag_meta.c.thumb_image_id)
-            ).fetchall()
-        )
-    assert pins == {"cat": "L1:new", "dog": "L1:d"}
 
 
 async def test_any_samples_are_distinct_images(client, seed):

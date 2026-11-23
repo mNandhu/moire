@@ -328,31 +328,6 @@ async def test_a_failing_image_is_tried_once(client, seed, monkeypatch, tmp_path
     assert calls == [1] and not face_worker.get_face_worker()._pending
 
 
-async def test_the_mtime_migration_replaces_the_cache(client, seed):
-    import sqlalchemy as sa
-
-    from moire.database import db
-    from moire.database import schema as t
-    from moire.services.tags import migrations as tag_migrations
-
-    seed("L1:a")
-    async with db.async_tx() as conn:
-        await conn.execute(
-            sa.insert(t.image_faces).values(image_id="L1:a", model="old", conf=None)
-        )
-    tag_migrations.migrate_image_faces_mtime()
-    async with db.async_conn() as conn:
-        assert (
-            await conn.execute(sa.select(sa.func.count()).select_from(t.image_faces))
-        ).scalar() == 0
-        assert "mtime" in [
-            c["name"]
-            for c in await conn.run_sync(
-                lambda c: sa.inspect(c).get_columns("image_faces")
-            )
-        ]
-
-
 def test_session_options_cap_threads_and_disable_spinning():
     import onnxruntime as ort
 

@@ -12,7 +12,6 @@ from moire.services import app_settings
 from moire.services.tags import (
     image_tags,
     index as tag_index,
-    migrations as tag_migrations,
     sensitivity as ts,
 )
 import pytest
@@ -150,35 +149,6 @@ async def test_unrated_without_ai_scores_is_unrated(client, seed):
     seed("L1:a", rating="explicit", rating_manual=True)
     resp = await client.post("/images/L1:a/rating", json={"rating": "-"})
     assert resp.json()["rating"] == "-"
-
-
-# --- migration ----------------------------------------------------------------
-
-
-def test_rating_manual_migration_marks_ratings_the_ai_did_not_pick(seed):
-    seed("L1:ai", rating="questionable")
-    seed("L1:changed", rating="general")
-    seed("L1:no_scores", rating="sensitive")
-    seed("L1:unrated", rating="-")
-    seed("L1:null")
-    with db.sync_tx() as conn:
-        conn.execute(
-            sa.update(t.images)
-            .where(t.images.c._id.in_(["L1:ai", "L1:changed"]))
-            .values(ai={"rating": _SCORES})
-        )
-    tag_migrations.migrate_rating_manual()
-    manual = {
-        i: bool(_row(i).rating_manual)
-        for i in ("L1:ai", "L1:changed", "L1:no_scores", "L1:unrated", "L1:null")
-    }
-    assert manual == {
-        "L1:ai": False,
-        "L1:changed": True,
-        "L1:no_scores": True,
-        "L1:unrated": False,
-        "L1:null": False,
-    }
 
 
 def test_columns_added_to_the_schema_reach_an_older_database(temp_db):
