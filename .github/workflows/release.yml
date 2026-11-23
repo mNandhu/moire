@@ -50,7 +50,7 @@ jobs:
           cache: pnpm
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v10.4.0  # no moving major tag since v8: pin a release
 
       - name: Build the UI into the backend
         run: |
