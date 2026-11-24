@@ -125,8 +125,10 @@ export const CARD_ZOOM = 4.5;
  * image's size and offset in percent of the frame. A found face is zoomed
  * to (its box grown `zoom` times, the frame's short side); the user's focus
  * point moves the centre and keeps that zoom; with neither, as much as fits,
- * centred a third of the way down (portraits put the face high). Null
- * without the image's shape: plain `object-cover` then.
+ * centred a third of the way down (portraits put the face high). `at` is
+ * where in the frame that centre lands (0..1 across and down; the middle by
+ * default), as far as the image reaches. Null without the image's shape:
+ * plain `object-cover` then.
  */
 export function avatarCrop(
   a: {
@@ -136,6 +138,7 @@ export function avatarCrop(
   },
   frame = 1,
   zoom = FACE_ZOOM,
+  at: readonly [number, number] = [0.5, 0.5],
 ): { width: string; height: string; left: string; top: string } | null {
   const ratio = a.aspect;
   if (!ratio || !Number.isFinite(ratio) || ratio <= 0) return null;
@@ -147,8 +150,8 @@ export function avatarCrop(
   const w = h * frame;
   const cx = (a.focus?.[0] ?? a.face?.[0] ?? 0.5) * ratio;
   const cy = a.focus?.[1] ?? a.face?.[1] ?? 1 / 3;
-  const left = Math.min(ratio - w, Math.max(0, cx - w / 2));
-  const top = Math.min(1 - h, Math.max(0, cy - h / 2));
+  const left = Math.min(ratio - w, Math.max(0, cx - w * at[0]));
+  const top = Math.min(1 - h, Math.max(0, cy - h * at[1]));
   const pct = (v: number) => `${+(v * 100).toFixed(2)}%`;
   return { width: pct(ratio / w), height: pct(1 / h), left: pct(-left / w), top: pct(-top / h) };
 }

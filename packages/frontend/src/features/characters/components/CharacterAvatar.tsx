@@ -26,11 +26,12 @@ export function FaceCrop({
   aspect,
   frame = 1,
   zoom = FACE_ZOOM,
+  at,
   className,
   style,
   letter,
-}: FaceCropProps & { frame?: number; zoom?: number }) {
-  const crop = avatarCrop({ face, focus, aspect }, frame, zoom);
+}: FaceCropProps & { frame?: number; zoom?: number; at?: readonly [number, number] }) {
+  const crop = avatarCrop({ face, focus, aspect }, frame, zoom, at);
   return (
     <div className={cn("relative shrink-0 overflow-hidden bg-raised", className)} style={style}>
       {!src && letter && (

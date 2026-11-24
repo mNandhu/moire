@@ -84,6 +84,16 @@ describe("avatarCrop", () => {
     // side = max(0.14, 0.14) * 2.5 = 0.35 of the height
     expect(crop).toEqual({ width: "200%", height: "285.71%", left: "-50%", top: "-7.14%" });
   });
+  it("puts the face where it is asked to land in the frame", () => {
+    // A wide 2:1 frame on a square image, face mid-image: landing it 70%
+    // across leaves more of the image left of it than right.
+    const a = { face: [0.5, 0.5, 0.1, 0.1] as [number, number, number, number], focus: null, aspect: 1 };
+    const mid = avatarCrop(a, 2, 4);
+    const right = avatarCrop(a, 2, 4, [0.7, 0.5]);
+    // The crop is 0.8 wide: centred it starts 0.1 in; landed at 70%, 0.5 - 0.56 clamps to 0.
+    expect(mid?.left).toBe("-12.5%");
+    expect(right?.left).toBe("0%");
+  });
   it("keeps the crop inside the image", () => {
     const crop = avatarCrop({ face: [0.02, 0.01, 0.1, 0.07], focus: null, aspect: 0.7 });
     expect(crop?.left).toBe("0%");
