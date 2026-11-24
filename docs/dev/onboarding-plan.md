@@ -85,6 +85,7 @@ Skipping at any point lands in the gallery, with whatever was done so far.
   - [ ] Whether an NVIDIA GPU is present when the CPU build is running (for example `nvidia-smi` on PATH). Until then the step shows the recommendation to everyone ("Have an NVIDIA GPU?") without claiming one was found.
   - [x] Install command by install type, from `IS_CHECKOUT`: `uv tool install --reinstall "moire-gallery[gpu]"` for an installed copy, the `UV_NO_GROUP=cpu … --group gpu` command from the README for a checkout.
 - [ ] Sidebar activity shows tagging progress after the scan.
+- [ ] Offer the face model (`services/ai/face_detect.py`, ~12 MB, CPU, about 0.15 s an avatar) in the AI step, so character avatars and Discover's banner frame the face from the start. Today it only downloads from Settings > Characters, and nothing points there: a library set up without it has no face data at all, and the banner falls back to the image's upper part.
 
 ## Open questions
 
