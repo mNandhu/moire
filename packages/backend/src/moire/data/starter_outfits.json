@@ -1,0 +1,1588 @@
+{
+  "version": 1,
+  "outfits": [
+    {
+      "id": "sailor-school-uniform",
+      "name": "Sailor school uniform",
+      "category": "school",
+      "tags": [
+        "serafuku",
+        "sailor_collar",
+        "red_neckerchief",
+        "pleated_skirt",
+        "kneehighs",
+        "loafers"
+      ],
+      "wearer": [
+        "1girl",
+        "black_hair",
+        "long_hair",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, blue_background"
+    },
+    {
+      "id": "blazer-school-uniform",
+      "name": "Blazer school uniform",
+      "category": "school",
+      "tags": [
+        "school_uniform",
+        "blazer",
+        "collared_shirt",
+        "red_necktie",
+        "plaid_skirt",
+        "kneehighs",
+        "loafers"
+      ],
+      "wearer": [
+        "1girl",
+        "brown_hair",
+        "medium_hair",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, brown_background"
+    },
+    {
+      "id": "gakuran-school-uniform",
+      "name": "Gakuran school uniform",
+      "category": "school",
+      "tags": [
+        "gakuran",
+        "school_uniform",
+        "pants",
+        "shoes",
+        "buttons"
+      ],
+      "wearer": [
+        "1boy",
+        "black_hair",
+        "bowl_cut",
+        "black_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "boys-blazer-uniform",
+      "name": "Boys blazer uniform",
+      "category": "school",
+      "tags": [
+        "school_uniform",
+        "blazer",
+        "dress_shirt",
+        "blue_necktie",
+        "pants",
+        "loafers"
+      ],
+      "wearer": [
+        "1boy",
+        "brown_hair",
+        "messy_hair",
+        "green_eyes"
+      ],
+      "backdrop": "simple_background, white_background"
+    },
+    {
+      "id": "cardigan-school-uniform",
+      "name": "Cardigan school uniform",
+      "category": "school",
+      "tags": [
+        "school_uniform",
+        "cardigan",
+        "collared_shirt",
+        "green_bowtie",
+        "plaid_skirt",
+        "socks",
+        "loafers"
+      ],
+      "wearer": [
+        "1girl",
+        "blonde_hair",
+        "twintails",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, pink_background"
+    },
+    {
+      "id": "sweater-vest-uniform",
+      "name": "Sweater vest uniform",
+      "category": "school",
+      "tags": [
+        "sweater_vest",
+        "collared_shirt",
+        "grey_necktie",
+        "pants",
+        "loafers"
+      ],
+      "wearer": [
+        "1boy",
+        "white_hair",
+        "short_hair",
+        "purple_eyes"
+      ],
+      "backdrop": "simple_background, green_background"
+    },
+    {
+      "id": "gym-uniform",
+      "name": "Gym uniform",
+      "category": "school",
+      "tags": [
+        "gym_uniform",
+        "t-shirt",
+        "gym_shorts",
+        "socks",
+        "sneakers",
+        "sweatband"
+      ],
+      "wearer": [
+        "1girl",
+        "red_hair",
+        "high_ponytail",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, yellow_background"
+    },
+    {
+      "id": "kogal-school-style",
+      "name": "Kogal school style",
+      "category": "school",
+      "tags": [
+        "kogal",
+        "school_uniform",
+        "cardigan",
+        "loose_socks",
+        "plaid_skirt",
+        "sleeves_past_wrists"
+      ],
+      "wearer": [
+        "1girl",
+        "blonde_hair",
+        "long_hair",
+        "tan",
+        "pink_eyes"
+      ],
+      "backdrop": "simple_background, orange_background"
+    },
+    {
+      "id": "office-skirt-suit",
+      "name": "Office skirt suit",
+      "category": "work",
+      "tags": [
+        "skirt_suit",
+        "blouse",
+        "pantyhose",
+        "high_heels",
+        "wristwatch",
+        "lanyard"
+      ],
+      "wearer": [
+        "1girl",
+        "brown_hair",
+        "low_ponytail",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "business-suit",
+      "name": "Business suit",
+      "category": "work",
+      "tags": [
+        "business_suit",
+        "suit_jacket",
+        "dress_shirt",
+        "necktie",
+        "pants",
+        "dress_shoes",
+        "tie_clip"
+      ],
+      "wearer": [
+        "1boy",
+        "black_hair",
+        "hair_slicked_back",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "nurse-uniform",
+      "name": "Nurse uniform",
+      "category": "work",
+      "tags": [
+        "nurse_cap",
+        "dress",
+        "apron",
+        "short_sleeves",
+        "pantyhose",
+        "shoes",
+        "wristwatch"
+      ],
+      "wearer": [
+        "1girl",
+        "pink_hair",
+        "medium_hair",
+        "pink_eyes"
+      ],
+      "backdrop": "simple_background, white_background"
+    },
+    {
+      "id": "chef-whites",
+      "name": "Chef whites",
+      "category": "work",
+      "tags": [
+        "chef_hat",
+        "double-breasted",
+        "neckerchief",
+        "apron",
+        "pants",
+        "sleeves_rolled_up"
+      ],
+      "wearer": [
+        "1boy",
+        "blonde_hair",
+        "curly_hair",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, brown_background"
+    },
+    {
+      "id": "maid-dress",
+      "name": "Maid dress",
+      "category": "work",
+      "tags": [
+        "maid",
+        "maid_headdress",
+        "dress",
+        "apron",
+        "puffy_short_sleeves",
+        "frills",
+        "thighhighs",
+        "mary_janes"
+      ],
+      "wearer": [
+        "1girl",
+        "white_hair",
+        "long_hair",
+        "red_eyes"
+      ],
+      "backdrop": "simple_background, pink_background"
+    },
+    {
+      "id": "butler-suit",
+      "name": "Butler suit",
+      "category": "work",
+      "tags": [
+        "tailcoat",
+        "waistcoat",
+        "dress_shirt",
+        "black_bowtie",
+        "white_gloves",
+        "pants",
+        "dress_shoes"
+      ],
+      "wearer": [
+        "1boy",
+        "black_hair",
+        "hair_slicked_back",
+        "red_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "police-uniform",
+      "name": "Police uniform",
+      "category": "work",
+      "tags": [
+        "police_hat",
+        "collared_shirt",
+        "black_necktie",
+        "epaulettes",
+        "badge",
+        "belt",
+        "pants"
+      ],
+      "wearer": [
+        "1girl",
+        "blue_hair",
+        "high_ponytail",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, blue_background"
+    },
+    {
+      "id": "military-dress-uniform",
+      "name": "Military dress uniform",
+      "category": "work",
+      "tags": [
+        "military_uniform",
+        "military_hat",
+        "epaulettes",
+        "aiguillette",
+        "white_gloves",
+        "belt",
+        "pants"
+      ],
+      "wearer": [
+        "1boy",
+        "grey_hair",
+        "short_hair",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "flight-attendant",
+      "name": "Flight attendant uniform",
+      "category": "work",
+      "tags": [
+        "skirt_suit",
+        "red_neckerchief",
+        "pillbox_hat",
+        "white_gloves",
+        "pantyhose",
+        "high_heels"
+      ],
+      "wearer": [
+        "1girl",
+        "blonde_hair",
+        "single_hair_bun",
+        "green_eyes"
+      ],
+      "backdrop": "simple_background, aqua_background"
+    },
+    {
+      "id": "mechanic-jumpsuit",
+      "name": "Mechanic jumpsuit",
+      "category": "work",
+      "tags": [
+        "jumpsuit",
+        "hard_hat",
+        "gloves",
+        "boots",
+        "safety_glasses",
+        "belt"
+      ],
+      "wearer": [
+        "1boy",
+        "orange_hair",
+        "messy_hair",
+        "green_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "aviator-jacket",
+      "name": "Aviator outfit",
+      "category": "work",
+      "tags": [
+        "aviator_cap",
+        "goggles",
+        "jacket",
+        "leather_gloves",
+        "red_scarf",
+        "pants",
+        "boots"
+      ],
+      "wearer": [
+        "1girl",
+        "brown_hair",
+        "short_hair",
+        "orange_eyes"
+      ],
+      "backdrop": "simple_background, blue_background"
+    },
+    {
+      "id": "librarian-cardigan",
+      "name": "Librarian outfit",
+      "category": "work",
+      "tags": [
+        "glasses",
+        "blouse",
+        "cardigan",
+        "long_skirt",
+        "necklace",
+        "flats"
+      ],
+      "wearer": [
+        "1girl",
+        "black_hair",
+        "single_braid",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, brown_background"
+    },
+    {
+      "id": "tuxedo",
+      "name": "Tuxedo",
+      "category": "formal",
+      "tags": [
+        "tuxedo",
+        "black_bowtie",
+        "dress_shirt",
+        "waistcoat",
+        "white_gloves",
+        "pants",
+        "dress_shoes"
+      ],
+      "wearer": [
+        "1boy",
+        "black_hair",
+        "short_hair",
+        "grey_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "evening-gown",
+      "name": "Evening gown",
+      "category": "formal",
+      "tags": [
+        "dress",
+        "sleeveless_dress",
+        "elbow_gloves",
+        "pearl_necklace",
+        "earrings",
+        "high_heels"
+      ],
+      "wearer": [
+        "1girl",
+        "black_hair",
+        "long_hair",
+        "wavy_hair",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, purple_background"
+    },
+    {
+      "id": "wedding-dress",
+      "name": "Wedding dress",
+      "category": "formal",
+      "tags": [
+        "dress",
+        "veil",
+        "tiara",
+        "elbow_gloves",
+        "lace_gloves",
+        "bridal_legwear",
+        "pearl_necklace"
+      ],
+      "wearer": [
+        "1girl",
+        "white_hair",
+        "long_hair",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, white_background"
+    },
+    {
+      "id": "three-piece-suit",
+      "name": "Three-piece suit",
+      "category": "formal",
+      "tags": [
+        "suit_jacket",
+        "waistcoat",
+        "dress_shirt",
+        "necktie",
+        "pants",
+        "pocket_watch",
+        "dress_shoes"
+      ],
+      "wearer": [
+        "1boy",
+        "brown_hair",
+        "undercut",
+        "green_eyes"
+      ],
+      "backdrop": "simple_background, brown_background"
+    },
+    {
+      "id": "pantsuit",
+      "name": "Pantsuit",
+      "category": "formal",
+      "tags": [
+        "pant_suit",
+        "blouse",
+        "suit_jacket",
+        "high_heels",
+        "earrings",
+        "necklace"
+      ],
+      "wearer": [
+        "1girl",
+        "purple_hair",
+        "medium_hair",
+        "purple_eyes"
+      ],
+      "backdrop": "simple_background, pink_background"
+    },
+    {
+      "id": "hoodie-and-jeans",
+      "name": "Hoodie and jeans",
+      "category": "casual",
+      "tags": [
+        "hoodie",
+        "jeans",
+        "sneakers",
+        "sleeves_past_wrists"
+      ],
+      "wearer": [
+        "1boy",
+        "black_hair",
+        "messy_hair",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "cozy-sweater-long-skirt",
+      "name": "Cozy sweater and long skirt",
+      "category": "casual",
+      "tags": [
+        "sweater",
+        "long_skirt",
+        "scarf",
+        "socks",
+        "boots"
+      ],
+      "wearer": [
+        "1girl",
+        "brown_hair",
+        "medium_hair",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, brown_background"
+    },
+    {
+      "id": "sundress-straw-hat",
+      "name": "Sundress and straw hat",
+      "category": "casual",
+      "tags": [
+        "sleeveless_dress",
+        "straw_hat",
+        "sandals",
+        "hat_ribbon",
+        "bracelet"
+      ],
+      "wearer": [
+        "1girl",
+        "blonde_hair",
+        "long_hair",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, blue_background"
+    },
+    {
+      "id": "overalls",
+      "name": "Overalls",
+      "category": "casual",
+      "tags": [
+        "overalls",
+        "t-shirt",
+        "sneakers",
+        "bandana"
+      ],
+      "wearer": [
+        "1girl",
+        "orange_hair",
+        "twintails",
+        "green_eyes"
+      ],
+      "backdrop": "simple_background, yellow_background"
+    },
+    {
+      "id": "tee-and-denim-shorts",
+      "name": "Tee and denim shorts",
+      "category": "casual",
+      "tags": [
+        "t-shirt",
+        "denim_shorts",
+        "sneakers",
+        "baseball_cap",
+        "wristband"
+      ],
+      "wearer": [
+        "1girl",
+        "aqua_hair",
+        "short_hair",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, green_background"
+    },
+    {
+      "id": "varsity-jacket",
+      "name": "Varsity jacket",
+      "category": "casual",
+      "tags": [
+        "letterman_jacket",
+        "t-shirt",
+        "jeans",
+        "sneakers"
+      ],
+      "wearer": [
+        "1boy",
+        "red_hair",
+        "spiked_hair",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, blue_background"
+    },
+    {
+      "id": "pajamas",
+      "name": "Pajamas",
+      "category": "casual",
+      "tags": [
+        "pajamas",
+        "nightcap",
+        "slippers",
+        "sleeves_past_fingers"
+      ],
+      "wearer": [
+        "1girl",
+        "pink_hair",
+        "twintails",
+        "purple_eyes"
+      ],
+      "backdrop": "simple_background, purple_background"
+    },
+    {
+      "id": "sweater-dress-leggings",
+      "name": "Sweater dress and leggings",
+      "category": "casual",
+      "tags": [
+        "sweater_dress",
+        "leggings",
+        "ankle_boots",
+        "scarf"
+      ],
+      "wearer": [
+        "1girl",
+        "grey_hair",
+        "bob_cut",
+        "grey_eyes"
+      ],
+      "backdrop": "simple_background, orange_background"
+    },
+    {
+      "id": "sweet-lolita",
+      "name": "Sweet lolita",
+      "category": "street",
+      "tags": [
+        "sweet_lolita",
+        "lolita_fashion",
+        "dress",
+        "bonnet",
+        "petticoat",
+        "frills",
+        "ribbon",
+        "mary_janes"
+      ],
+      "wearer": [
+        "1girl",
+        "pink_hair",
+        "twintails",
+        "pink_eyes"
+      ],
+      "backdrop": "simple_background, pink_background"
+    },
+    {
+      "id": "gothic-lolita",
+      "name": "Gothic lolita",
+      "category": "street",
+      "tags": [
+        "gothic_lolita",
+        "lolita_fashion",
+        "dress",
+        "choker",
+        "lace_trim",
+        "petticoat",
+        "platform_boots"
+      ],
+      "wearer": [
+        "1girl",
+        "black_hair",
+        "long_hair",
+        "hime_cut",
+        "red_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "punk-style",
+      "name": "Punk style",
+      "category": "street",
+      "tags": [
+        "punk",
+        "spiked_bracelet",
+        "spiked_choker",
+        "plaid_skirt",
+        "boots",
+        "jacket"
+      ],
+      "wearer": [
+        "1girl",
+        "red_hair",
+        "short_hair",
+        "green_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "techwear",
+      "name": "Techwear",
+      "category": "street",
+      "tags": [
+        "streetwear",
+        "jacket",
+        "hood",
+        "pants",
+        "boots",
+        "belt",
+        "gloves",
+        "surgical_mask"
+      ],
+      "wearer": [
+        "1boy",
+        "grey_hair",
+        "short_hair",
+        "yellow_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "jirai-kei",
+      "name": "Jirai kei",
+      "category": "street",
+      "tags": [
+        "jirai_kei",
+        "blouse",
+        "skirt",
+        "choker",
+        "ribbon",
+        "bow",
+        "platform_boots"
+      ],
+      "wearer": [
+        "1girl",
+        "black_hair",
+        "twintails",
+        "purple_eyes"
+      ],
+      "backdrop": "simple_background, purple_background"
+    },
+    {
+      "id": "biker-jacket",
+      "name": "Biker style",
+      "category": "street",
+      "tags": [
+        "biker_clothes",
+        "jacket",
+        "jeans",
+        "boots",
+        "gloves",
+        "motorcycle_helmet"
+      ],
+      "wearer": [
+        "1boy",
+        "black_hair",
+        "undercut",
+        "grey_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "sukajan-streetwear",
+      "name": "Sukajan streetwear",
+      "category": "street",
+      "tags": [
+        "sukajan",
+        "t-shirt",
+        "pants",
+        "sneakers",
+        "headphones"
+      ],
+      "wearer": [
+        "1boy",
+        "blonde_hair",
+        "medium_hair",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, blue_background"
+    },
+    {
+      "id": "furisode",
+      "name": "Furisode",
+      "category": "traditional",
+      "tags": [
+        "furisode",
+        "obi",
+        "obiage",
+        "obijime",
+        "zouri",
+        "tabi",
+        "kanzashi"
+      ],
+      "wearer": [
+        "1girl",
+        "black_hair",
+        "single_hair_bun",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, pink_background"
+    },
+    {
+      "id": "yukata-girl",
+      "name": "Yukata",
+      "category": "traditional",
+      "tags": [
+        "yukata",
+        "obi",
+        "sandals",
+        "geta",
+        "hair_flower"
+      ],
+      "wearer": [
+        "1girl",
+        "blue_hair",
+        "medium_hair",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, blue_background"
+    },
+    {
+      "id": "yukata-boy",
+      "name": "Yukata for boys",
+      "category": "traditional",
+      "tags": [
+        "yukata",
+        "obi",
+        "geta",
+        "wide_sleeves"
+      ],
+      "wearer": [
+        "1boy",
+        "black_hair",
+        "short_hair",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "graduation-hakama",
+      "name": "Hakama graduation outfit",
+      "category": "traditional",
+      "tags": [
+        "hakama",
+        "kimono",
+        "hakama_skirt",
+        "boots",
+        "hair_ribbon"
+      ],
+      "wearer": [
+        "1girl",
+        "brown_hair",
+        "long_hair",
+        "green_eyes"
+      ],
+      "backdrop": "simple_background, pink_background"
+    },
+    {
+      "id": "kimono-and-haori",
+      "name": "Kimono and haori",
+      "category": "traditional",
+      "tags": [
+        "kimono",
+        "haori",
+        "hakama",
+        "geta",
+        "sash"
+      ],
+      "wearer": [
+        "1boy",
+        "black_hair",
+        "long_hair",
+        "low_ponytail",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, brown_background"
+    },
+    {
+      "id": "shrine-maiden",
+      "name": "Shrine maiden outfit",
+      "category": "traditional",
+      "tags": [
+        "miko",
+        "hakama",
+        "detached_sleeves",
+        "wide_sleeves",
+        "tabi",
+        "zouri",
+        "hair_tubes"
+      ],
+      "wearer": [
+        "1girl",
+        "brown_hair",
+        "hime_cut",
+        "red_eyes"
+      ],
+      "backdrop": "simple_background, white_background"
+    },
+    {
+      "id": "hanfu",
+      "name": "Hanfu",
+      "category": "traditional",
+      "tags": [
+        "hanfu",
+        "chinese_clothes",
+        "wide_sleeves",
+        "sash",
+        "hair_stick"
+      ],
+      "wearer": [
+        "1girl",
+        "black_hair",
+        "long_hair",
+        "single_hair_bun",
+        "red_eyes"
+      ],
+      "backdrop": "simple_background, blue_background"
+    },
+    {
+      "id": "china-dress",
+      "name": "Chinese dress",
+      "category": "traditional",
+      "tags": [
+        "chinese_clothes",
+        "mandarin_collar",
+        "chinese_knot",
+        "dress",
+        "short_sleeves",
+        "flats"
+      ],
+      "wearer": [
+        "1girl",
+        "black_hair",
+        "double_bun",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, pink_background"
+    },
+    {
+      "id": "tangzhuang",
+      "name": "Tangzhuang",
+      "category": "traditional",
+      "tags": [
+        "tangzhuang",
+        "chinese_clothes",
+        "mandarin_collar",
+        "pants",
+        "chinese_knot"
+      ],
+      "wearer": [
+        "1boy",
+        "brown_hair",
+        "short_hair",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, brown_background"
+    },
+    {
+      "id": "hanbok",
+      "name": "Hanbok",
+      "category": "traditional",
+      "tags": [
+        "hanbok",
+        "korean_clothes",
+        "hair_ribbon",
+        "sash"
+      ],
+      "wearer": [
+        "1girl",
+        "brown_hair",
+        "single_braid",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, blue_background"
+    },
+    {
+      "id": "dirndl",
+      "name": "Dirndl",
+      "category": "traditional",
+      "tags": [
+        "dirndl",
+        "german_clothes",
+        "apron",
+        "blouse",
+        "puffy_short_sleeves",
+        "hair_ribbon"
+      ],
+      "wearer": [
+        "1girl",
+        "blonde_hair",
+        "twin_braids",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, green_background"
+    },
+    {
+      "id": "festival-happi",
+      "name": "Festival happi",
+      "category": "traditional",
+      "tags": [
+        "happi",
+        "hachimaki",
+        "pants",
+        "tabi",
+        "zouri"
+      ],
+      "wearer": [
+        "1boy",
+        "brown_hair",
+        "short_hair",
+        "black_eyes"
+      ],
+      "backdrop": "simple_background, yellow_background"
+    },
+    {
+      "id": "arabian-outfit",
+      "name": "Arabian outfit",
+      "category": "traditional",
+      "tags": [
+        "arabian_clothes",
+        "veil",
+        "turban",
+        "sash",
+        "pants",
+        "sandals"
+      ],
+      "wearer": [
+        "1boy",
+        "dark-skinned_male",
+        "black_hair",
+        "short_hair",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, brown_background"
+    },
+    {
+      "id": "knight-armor",
+      "name": "Knight armor",
+      "category": "fantasy",
+      "tags": [
+        "armor",
+        "gauntlets",
+        "armored_boots",
+        "cape",
+        "belt"
+      ],
+      "wearer": [
+        "1boy",
+        "blonde_hair",
+        "short_hair",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "witch-outfit",
+      "name": "Witch outfit",
+      "category": "fantasy",
+      "tags": [
+        "witch_hat",
+        "dress",
+        "cape",
+        "boots",
+        "gloves",
+        "ribbon"
+      ],
+      "wearer": [
+        "1girl",
+        "white_hair",
+        "long_hair",
+        "purple_eyes"
+      ],
+      "backdrop": "simple_background, purple_background"
+    },
+    {
+      "id": "wizard-robe",
+      "name": "Wizard robe",
+      "category": "fantasy",
+      "tags": [
+        "wizard_hat",
+        "robe",
+        "hood",
+        "belt",
+        "boots",
+        "gloves"
+      ],
+      "wearer": [
+        "1boy",
+        "grey_hair",
+        "long_hair",
+        "facial_hair",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, blue_background"
+    },
+    {
+      "id": "priestess-robes",
+      "name": "Priestess robes",
+      "category": "fantasy",
+      "tags": [
+        "robe",
+        "veil",
+        "wide_sleeves",
+        "sash",
+        "capelet",
+        "necklace"
+      ],
+      "wearer": [
+        "1girl",
+        "blonde_hair",
+        "long_hair",
+        "green_eyes"
+      ],
+      "backdrop": "simple_background, white_background"
+    },
+    {
+      "id": "idol-stage-outfit",
+      "name": "Idol stage outfit",
+      "category": "fantasy",
+      "tags": [
+        "idol_clothes",
+        "dress",
+        "hairband",
+        "gloves",
+        "thighhighs",
+        "boots",
+        "ribbon"
+      ],
+      "wearer": [
+        "1girl",
+        "pink_hair",
+        "high_ponytail",
+        "pink_eyes"
+      ],
+      "backdrop": "simple_background, pink_background"
+    },
+    {
+      "id": "magical-girl",
+      "name": "Magical girl outfit",
+      "category": "fantasy",
+      "tags": [
+        "dress",
+        "puffy_short_sleeves",
+        "gloves",
+        "boots",
+        "hat",
+        "bow",
+        "choker",
+        "brooch"
+      ],
+      "wearer": [
+        "1girl",
+        "blue_hair",
+        "twintails",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, pink_background"
+    },
+    {
+      "id": "pirate-captain",
+      "name": "Pirate captain",
+      "category": "fantasy",
+      "tags": [
+        "pirate_hat",
+        "coat",
+        "belt",
+        "boots",
+        "gloves",
+        "cape"
+      ],
+      "wearer": [
+        "1boy",
+        "brown_hair",
+        "long_hair",
+        "tan",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, brown_background"
+    },
+    {
+      "id": "hooded-ranger",
+      "name": "Hooded ranger",
+      "category": "fantasy",
+      "tags": [
+        "hood",
+        "cloak",
+        "belt",
+        "gloves",
+        "boots",
+        "tunic"
+      ],
+      "wearer": [
+        "1girl",
+        "green_hair",
+        "side_braid",
+        "pointy_ears",
+        "green_eyes"
+      ],
+      "backdrop": "simple_background, green_background"
+    },
+    {
+      "id": "royal-prince",
+      "name": "Royal prince",
+      "category": "fantasy",
+      "tags": [
+        "crown",
+        "cape",
+        "coat",
+        "gloves",
+        "boots",
+        "epaulettes",
+        "brooch"
+      ],
+      "wearer": [
+        "1boy",
+        "white_hair",
+        "short_hair",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, blue_background"
+    },
+    {
+      "id": "winter-coat-and-scarf",
+      "name": "Winter coat and scarf",
+      "category": "seasonal",
+      "tags": [
+        "winter_coat",
+        "red_scarf",
+        "mittens",
+        "boots",
+        "earmuffs"
+      ],
+      "wearer": [
+        "1girl",
+        "brown_hair",
+        "medium_hair",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, blue_background"
+    },
+    {
+      "id": "yellow-raincoat",
+      "name": "Raincoat",
+      "category": "seasonal",
+      "tags": [
+        "yellow_raincoat",
+        "hood",
+        "rubber_boots",
+        "hat",
+        "gloves"
+      ],
+      "wearer": [
+        "1girl",
+        "black_hair",
+        "short_hair",
+        "yellow_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "santa-outfit",
+      "name": "Santa outfit",
+      "category": "seasonal",
+      "tags": [
+        "santa_costume",
+        "santa_hat",
+        "gloves",
+        "boots",
+        "belt",
+        "fur_trim"
+      ],
+      "wearer": [
+        "1girl",
+        "red_hair",
+        "long_hair",
+        "green_eyes"
+      ],
+      "backdrop": "simple_background, white_background"
+    },
+    {
+      "id": "fur-hat-winter-coat",
+      "name": "Fur hat and long coat",
+      "category": "seasonal",
+      "tags": [
+        "ushanka",
+        "long_coat",
+        "fur-trimmed_coat",
+        "gloves",
+        "scarf",
+        "boots"
+      ],
+      "wearer": [
+        "1boy",
+        "white_hair",
+        "short_hair",
+        "grey_eyes"
+      ],
+      "backdrop": "simple_background, grey_background"
+    },
+    {
+      "id": "autumn-trench-coat",
+      "name": "Autumn trench coat",
+      "category": "seasonal",
+      "tags": [
+        "trench_coat",
+        "scarf",
+        "boots",
+        "beret",
+        "gloves"
+      ],
+      "wearer": [
+        "1girl",
+        "orange_hair",
+        "wavy_hair",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, orange_background"
+    },
+    {
+      "id": "knit-beanie-and-mittens",
+      "name": "Beanie, parka and mittens",
+      "category": "seasonal",
+      "tags": [
+        "beanie",
+        "jacket",
+        "mittens",
+        "scarf",
+        "jeans",
+        "boots"
+      ],
+      "wearer": [
+        "1girl",
+        "purple_hair",
+        "medium_hair",
+        "green_eyes"
+      ],
+      "backdrop": "simple_background, blue_background"
+    },
+    {
+      "id": "halloween-costume",
+      "name": "Halloween pumpkin costume",
+      "category": "seasonal",
+      "tags": [
+        "pumpkin_hat",
+        "dress",
+        "cape",
+        "gloves",
+        "thighhighs",
+        "boots"
+      ],
+      "wearer": [
+        "1girl",
+        "orange_hair",
+        "twintails",
+        "yellow_eyes"
+      ],
+      "backdrop": "simple_background, orange_background"
+    },
+    {
+      "id": "track-suit",
+      "name": "Track suit",
+      "category": "sports",
+      "tags": [
+        "track_suit",
+        "sneakers",
+        "wristband",
+        "sweatband"
+      ],
+      "wearer": [
+        "1girl",
+        "black_hair",
+        "high_ponytail",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, green_background"
+    },
+    {
+      "id": "baseball-uniform",
+      "name": "Baseball uniform",
+      "category": "sports",
+      "tags": [
+        "baseball_cap",
+        "baseball_mitt",
+        "sportswear",
+        "pants",
+        "socks",
+        "sneakers"
+      ],
+      "wearer": [
+        "1girl",
+        "brown_hair",
+        "side_ponytail",
+        "pink_eyes"
+      ],
+      "backdrop": "simple_background, blue_background"
+    },
+    {
+      "id": "cheer-uniform",
+      "name": "Cheer uniform",
+      "category": "sports",
+      "tags": [
+        "cheerleader",
+        "pom_pom_(clothes)",
+        "skirt",
+        "sneakers",
+        "socks",
+        "hair_ribbon"
+      ],
+      "wearer": [
+        "1girl",
+        "blonde_hair",
+        "high_ponytail",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, pink_background"
+    },
+    {
+      "id": "ski-outfit",
+      "name": "Ski outfit",
+      "category": "sports",
+      "tags": [
+        "ski_goggles",
+        "jacket",
+        "beanie",
+        "gloves",
+        "pants",
+        "boots",
+        "scarf"
+      ],
+      "wearer": [
+        "1girl",
+        "white_hair",
+        "low_twintails",
+        "purple_eyes"
+      ],
+      "backdrop": "simple_background, white_background"
+    },
+    {
+      "id": "kyudo-uniform",
+      "name": "Kyudo archery uniform",
+      "category": "sports",
+      "tags": [
+        "yugake",
+        "hakama",
+        "muneate",
+        "kimono",
+        "tabi"
+      ],
+      "wearer": [
+        "1girl",
+        "black_hair",
+        "high_ponytail",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, brown_background"
+    },
+    {
+      "id": "soccer-kit",
+      "name": "Soccer kit",
+      "category": "sports",
+      "tags": [
+        "sportswear",
+        "shorts",
+        "shin_guards",
+        "socks",
+        "sneakers",
+        "sweatband"
+      ],
+      "wearer": [
+        "1boy",
+        "brown_hair",
+        "short_hair",
+        "dark-skinned_male",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, green_background"
+    },
+    {
+      "id": "victorian-dress",
+      "name": "Victorian dress",
+      "category": "historical",
+      "tags": [
+        "dress",
+        "bonnet",
+        "gloves",
+        "long_skirt",
+        "petticoat",
+        "cape",
+        "brooch"
+      ],
+      "wearer": [
+        "1girl",
+        "brown_hair",
+        "curly_hair",
+        "green_eyes"
+      ],
+      "backdrop": "simple_background, brown_background"
+    },
+    {
+      "id": "meiji-schoolgirl",
+      "name": "Meiji schoolgirl",
+      "category": "historical",
+      "tags": [
+        "meiji_schoolgirl_uniform",
+        "hakama_skirt",
+        "hair_ribbon",
+        "boots"
+      ],
+      "wearer": [
+        "1girl",
+        "black_hair",
+        "long_hair",
+        "brown_eyes"
+      ],
+      "backdrop": "simple_background, pink_background"
+    },
+    {
+      "id": "regency-gentleman",
+      "name": "Gentleman's tailcoat",
+      "category": "historical",
+      "tags": [
+        "tailcoat",
+        "top_hat",
+        "cane",
+        "waistcoat",
+        "gloves",
+        "dress_shirt",
+        "pants",
+        "dress_shoes"
+      ],
+      "wearer": [
+        "1boy",
+        "blonde_hair",
+        "curly_hair",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, brown_background"
+    },
+    {
+      "id": "ancient-greek-chiton",
+      "name": "Ancient Greek robes",
+      "category": "historical",
+      "tags": [
+        "ancient_greek_clothes",
+        "greco-roman_clothes",
+        "laurel_crown",
+        "sandals",
+        "sash"
+      ],
+      "wearer": [
+        "1girl",
+        "blonde_hair",
+        "single_braid",
+        "blue_eyes"
+      ],
+      "backdrop": "simple_background, blue_background"
+    }
+  ]
+}
