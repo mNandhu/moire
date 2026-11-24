@@ -317,10 +317,12 @@ belongs in this file.
   longer than 45 minutes; cut client-side from the newest 400 Images of the
   feed (`features/overview/lib/sessions.ts`), whatever prompts or batches
   they held. Overview (`pages/OverviewPage.tsx`) leads with the latest day's
-  sessions as one banner (its best scored Image, named for a character found
-  in its tags, else the day), shows the days before as one stack per session,
-  then a calendar of a year's activity and the library's state (AI-tagged
-  share, quarantined, scanning). Each opens with its own step list.
+  sessions as one banner (its best scored Image, named for the character most
+  of its Images show, `GET /tags/characters/made`, else the day), shows the
+  days before as one stack per session, who the last 30 days went on, then a
+  calendar of a year's activity (a day opens the gallery filtered to it,
+  `made_from` / `made_to`, epoch seconds by mtime) and the library's state
+  (AI-tagged share, quarantined, scanning). Each opens with its own step list.
 - **Last viewed**: when the image view last showed an Image
   (`images.last_viewed_at`, stamped once it has been on screen a moment, so
   stepping past doesn't count). Null until first opened after views began

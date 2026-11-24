@@ -90,17 +90,6 @@ export function byDay<T>(
   return out;
 }
 
-/** The character an image shows: the first of its tags naming a known
- * character (`names`: every character by each of its names, as
- * `useCharacterLookup` builds it), whatever the tag's source prefix. */
-export function characterIn<C>(tags: readonly string[], names: ReadonlyMap<string, C>): C | undefined {
-  for (const t of tags) {
-    const c = names.get(t.replace(/^(prompt|manual):/, ""));
-    if (c) return c;
-  }
-  return undefined;
-}
-
 /** The latest day's sessions as one (what the banner shows: a day's work,
  * not its last few minutes), and the sessions of the days before it. */
 export function latestDay<T>(sessions: readonly Session<T>[], now: Date = new Date()): {
@@ -127,4 +116,15 @@ export function bestOf<T extends { score: number | null }>(items: readonly T[]):
   let best: T | undefined;
   for (const it of items) if (!best || (it.score ?? -1) > (best.score ?? -1)) best = it;
   return best;
+}
+
+/** Who a session is named for: the character in at least half of its
+ * images (`made`, most first, with their image ids), else nobody. A
+ * character in two images of forty doesn't make it theirs. */
+export function sessionCharacter<M extends { tag: string; count: number; image_ids?: string[] }>(
+  made: readonly M[] | undefined,
+  size: number,
+): M | undefined {
+  const top = made?.[0];
+  return top && size > 0 && top.count * 2 >= size ? top : undefined;
 }

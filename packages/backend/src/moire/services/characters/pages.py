@@ -349,6 +349,53 @@ async def listing() -> list[dict]:
     ]
 
 
+_NAMES_PER_QUERY = 500
+
+
+async def made_between(
+    since: float, until: float | None, limit: int, *, with_ids: bool = False
+) -> list[dict]:
+    """The characters in the visible images made (file mtime, the feed's
+    order) from ``since`` to before ``until``, by page key with their image
+    counts, most first: who an evening or a month was spent on. With
+    ``with_ids``, each one's image ids too (a session's few). Walks the
+    images in the range (``ix_images_recent``), then each one's tag rows."""
+    rows = await tag_index.cached("views", "characters", _listing)
+    # A name two characters share (a bare alias) counts for both.
+    keys_of: dict[str, set[str]] = {}
+    for r in rows:
+        for n in (r["tag"], *r["aliases"]):
+            keys_of.setdefault(n, set()).add(r["tag"])
+    if not keys_of:
+        return []
+    it = t.image_tags
+    when = t.SORT_RECENT
+    conds = [when >= since, image_visibility.visible()]
+    if until is not None:
+        conds.append(when < until)
+    names = sorted(keys_of)
+    images: dict[str, set[str]] = {}
+    async with async_conn() as conn:
+        # In chunks: one bound parameter per name, and a library's names can
+        # pass SQLite's limit on them.
+        for i in range(0, len(names), _NAMES_PER_QUERY):
+            chunk = names[i : i + _NAMES_PER_QUERY]
+            stmt = (
+                sa.select(it.c.image_id, it.c.base)
+                .select_from(t.images.join(it, it.c.image_id == t.images.c._id))
+                .where(*conds, tag_detail.unindexed(it.c.base).in_(chunk))
+            )
+            for image_id, base in await conn.execute(stmt):
+                for key in keys_of[base]:
+                    images.setdefault(key, set()).add(image_id)
+    out = [
+        {"tag": k, "count": len(v), **({"image_ids": sorted(v)} if with_ids else {})}
+        for k, v in images.items()
+    ]
+    out.sort(key=lambda r: (-r["count"], r["tag"]))
+    return out[:limit]
+
+
 async def _listing() -> list[dict]:
     # Only the tags that may be characters: the full Tags list is most of a
     # second on a big library, and the character list is rebuilt after every

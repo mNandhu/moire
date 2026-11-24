@@ -73,6 +73,8 @@ def feed_filter(
     min_score: int | None = Query(default=None),
     unscored: int | None = Query(default=None),
     unviewed_days: int | None = Query(default=None),
+    made_from: float | None = Query(default=None),
+    made_to: float | None = Query(default=None),
     sort: str = Query(default="newest"),
 ) -> FeedFilter:
     """The gallery filter from the query string: one parameter set for every
@@ -105,6 +107,8 @@ def feed_filter(
             min_score=min_score,
             unscored=unscored,
             unviewed_days=unviewed_days,
+            made_from=made_from,
+            made_to=made_to,
             sort=sort,
         )
     except FeedFilterError as exc:

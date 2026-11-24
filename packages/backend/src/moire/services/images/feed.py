@@ -158,6 +158,10 @@ class FeedFilter:
     # Not opened in the image view for this many days (or never, since views
     # were recorded).
     unviewed_days: int | None = None
+    # Made (file mtime, the feed's own order) at or after `made_from` and
+    # before `made_to`, epoch seconds: a day of the Overview calendar.
+    made_from: float | None = None
+    made_to: float | None = None
     sort: str = "newest"
     # `unviewed_days`' cutoff (epoch seconds), fixed when the filter is made
     # so every query of one request agrees on it (not a user input).
@@ -195,6 +199,12 @@ class FeedFilter:
         if self.unviewed_days is not None and self.viewed_before is None:
             cutoff = time.time() - self.unviewed_days * 86400
             object.__setattr__(self, "viewed_before", cutoff)
+        if (
+            self.made_from is not None
+            and self.made_to is not None
+            and self.made_to <= self.made_from
+        ):
+            raise FeedFilterError("made_to must be after made_from")
         if self.outfit and len(self.outfit) > 10:
             raise FeedFilterError("too many outfits (max 10)")
         if self.tags:
@@ -325,6 +335,17 @@ def _score_conds(f: FeedFilter) -> list:
     return conds
 
 
+def _made_conds(f: FeedFilter) -> list:
+    # The sort expression itself, so a newest-first page walks the range on
+    # ix_images_recent.
+    conds: list = []
+    if f.made_from is not None:
+        conds.append(SORT_KEY >= f.made_from)
+    if f.made_to is not None:
+        conds.append(SORT_KEY < f.made_to)
+    return conds
+
+
 def _size_conds(f: FeedFilter) -> list:
     conds: list = []
     if f.shape:
@@ -386,6 +407,7 @@ def feed_where(f: FeedFilter):
     conds += _outfit_conds(f)
     conds += _size_conds(f)
     conds += _score_conds(f)
+    conds += _made_conds(f)
     conds += _workflow_conds(f)
     return sa.and_(*conds) if conds else sa.true()
 

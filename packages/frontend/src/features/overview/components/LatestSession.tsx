@@ -1,17 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { FolderPlus, Images, RotateCw, UserRound, Wand2 } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { withBackgroundLocation } from "@/lib/backgroundLocation";
 import { stepsState } from "@/lib/stepList";
 import { DEFAULT_FILTERS, imageHref, type FeedItem } from "@/features/images/lib/imageFilter";
-import { fetchImage, imageDocKey } from "@/features/images/lib/imageApi";
-import { useCharacterLookup, useCharacters } from "@/features/characters/lib/queries";
+import { useCharacters } from "@/features/characters/lib/queries";
 import { characterHref, displayName } from "@/features/characters/lib/character";
 import { Banner } from "@/features/discover/components/Banner";
 import { ImageStrip } from "@/features/discover/components/DiscoverSection";
 import { STRIP_SIZE } from "@/features/discover/lib/queries";
-import { bestOf, characterIn, sessionDay, sessionSpan, type Session } from "@/features/overview/lib/sessions";
+import { bestOf, sessionCharacter, sessionDay, sessionSpan, type Session } from "@/features/overview/lib/sessions";
+import { useCharactersMade } from "@/features/overview/lib/queries";
 
 /** The link that opens `img` stepping through `items` (a session). */
 export function useOpenIn(name: string, items: readonly FeedItem[] | undefined) {
@@ -24,8 +24,8 @@ export function useOpenIn(name: string, items: readonly FeedItem[] | undefined) 
 
 /**
  * Overview's banner: the latest day's work, shown by its best image and
- * named for the character in it (else for the day), with the rest of it as
- * a shelf. With no images at all, the ways to get some.
+ * named for the character most of it shows (else for the day), with the
+ * rest of it as a shelf. With no images at all, the ways to get some.
  */
 export function LatestSession({
   session,
@@ -39,16 +39,22 @@ export function LatestSession({
   failed?: boolean;
   onRetry?: () => void;
 }) {
-  const best = session ? bestOf(session.items) : undefined;
-  const doc = useQuery({
-    queryKey: imageDocKey(best?._id ?? ""),
-    queryFn: ({ signal }) => fetchImage(best!._id, { signal }),
-    enabled: !!best,
-    staleTime: 60_000,
-  });
+  // Who the session's images show, all of them asked at once: named for
+  // the character in at least half of them, and pictured by their best.
+  const made = useCharactersMade(session?.start ?? null, session?.end != null ? session.end + 1 : null, 1, true);
   const characters = useCharacters();
-  const names = useCharacterLookup();
-  const who = doc.data && characters.data ? characterIn(doc.data.tags, names) : undefined;
+  const top = sessionCharacter(made.data, session?.items.length ?? 0);
+  const who = top ? characters.data?.find((c) => c.tag === top.tag) : undefined;
+  const theirs = useMemo(() => {
+    if (!session || !who || !top?.image_ids) return undefined;
+    const ids = new Set(top.image_ids);
+    return session.items.filter((it) => ids.has(it._id));
+  }, [session, who, top]);
+  // Until the character check is in, the picture waits: it may be theirs.
+  // A disabled check (a session with no start time) is never coming.
+  const checking = made.isPending && made.fetchStatus !== "idle";
+  const settled = !checking && !(top && characters.isPending);
+  const best = session && settled ? bestOf(theirs?.length ? theirs : session.items) : undefined;
   const open = useOpenIn("overview:latest", session?.items);
 
   if (failed && !session) {
@@ -103,7 +109,7 @@ export function LatestSession({
   const count = session?.items.length ?? 0;
   const rest = session?.items.filter((it) => it._id !== best?._id).slice(0, STRIP_SIZE);
   // Named once the character check is in, so the title doesn't change under the eye.
-  const ready = session && best && !doc.isPending && !characters.isPending;
+  const ready = session && best && settled;
   const when = session ? sessionDay(session.end) : "";
   return (
     <Banner

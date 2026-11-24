@@ -11,6 +11,7 @@ import { LatestSession } from "@/features/overview/components/LatestSession";
 import { RecentSessions } from "@/features/overview/components/RecentSessions";
 import { ActivityPanel } from "@/features/overview/components/ActivityPanel";
 import { LibraryHealth } from "@/features/overview/components/LibraryHealth";
+import { CharactersLately } from "@/features/overview/components/CharactersLately";
 import { latestDay, splitSessions } from "@/features/overview/lib/sessions";
 
 // The newest images the sessions are cut from: weeks of work for most, and
@@ -21,8 +22,8 @@ const SHELF_SESSIONS = 20;
 
 /**
  * Overview: what was made lately and what is waiting. The latest day's work
- * leads, then the sessions before it by day; activity and the library's
- * state close the page. (Discover is for wandering; this is for catching up.)
+ * leads, then the sessions before it by day and who the month went on;
+ * activity and the library's state close the page. (Discover is for wandering; this is for catching up.)
  */
 export default function OverviewPage() {
   const libsQuery = useLibraries();
@@ -57,6 +58,7 @@ export default function OverviewPage() {
             onRetry={() => void feed.refetch()}
           />
           <RecentSessions sessions={earlier.slice(0, SHELF_SESSIONS)} pending={feed.isPending} />
+          <CharactersLately />
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <ActivityPanel days={stats?.activity} total={total} className="lg:col-span-2" />
             <LibraryHealth libs={libs} tagCount={tagsQuery.isError ? null : tagsQuery.data?.length} />

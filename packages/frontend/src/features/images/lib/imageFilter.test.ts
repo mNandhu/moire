@@ -351,6 +351,8 @@ const SAMPLES: Record<keyof Filters, Partial<Filters>> = {
   minScore: { minScore: 4 },
   unscored: { unscored: true },
   unviewedDays: { unviewedDays: 30 },
+  madeFrom: { madeFrom: 1_800_000_000 },
+  madeTo: { madeTo: 1_800_086_400 },
   group: { group: true },
   groupId: { groupId: "g" },
   genBatch: { genBatch: 120 },
@@ -468,5 +470,19 @@ describe("galleryTitle", () => {
     expect(galleryTitle({ ...DEFAULT_FILTERS, genBatch: 3 })).toBe("Batch Images");
     expect(galleryTitle({ ...DEFAULT_FILTERS, genBatch: 3 }, { batch: () => "hu tao" })).toBe("hu tao");
     expect(galleryTitle({ ...DEFAULT_FILTERS, libraryId: "gone" })).toBe("Library Images");
+  });
+});
+
+describe("made range", () => {
+  const from = new Date(2026, 10, 12).getTime() / 1000;
+  const next = new Date(2026, 10, 13).getTime() / 1000;
+  it("names one day, or the range", () => {
+    const chip = (f: Partial<Filters>) => activeFilterChips({ ...DEFAULT_FILTERS, ...f }).find((c) => c.key === "made");
+    expect(chip({ madeFrom: from, madeTo: next })?.label).toMatch(/^Made Nov 12(, 2026)?$/);
+    expect(chip({ madeFrom: from, madeTo: next + 2 * 86400 })?.label).toMatch(/^Made Nov 12(, 2026)? to Nov 14/);
+    expect(chip({ madeFrom: from, madeTo: next })?.without.madeFrom).toBeUndefined();
+  });
+  it("drops an end before the start", () => {
+    expect(parseFilters(new URLSearchParams(`made_from=${next}&made_to=${from}`)).madeTo).toBeUndefined();
   });
 });

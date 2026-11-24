@@ -161,6 +161,10 @@ export type Filters = {
   unscored: boolean;
   /** Not opened in the image view for this many days (1 to 3650), or never. */
   unviewedDays?: number;
+  /** Made (file mtime, the feed's order) at or after this, and before
+   * `madeTo`: epoch seconds. A day of the Overview calendar. */
+  madeFrom?: number;
+  madeTo?: number;
   // Batch grouping: `group` is the grouping setting (the grouped view, and the
   // saved choice); `groupId` drills into one batch's members, shown ungrouped.
   // Both can be set: a drill from the grouped view keeps `group`, so leaving
@@ -203,6 +207,8 @@ export const DEFAULT_FILTERS: Filters = {
   minScore: undefined,
   unscored: false,
   unviewedDays: undefined,
+  madeFrom: undefined,
+  madeTo: undefined,
   group: false,
   groupId: undefined,
   genBatch: undefined,
@@ -229,15 +235,18 @@ export function normalizeFilters(f: Filters): Filters {
   const unscored = f.unscored && minScore == null;
   const d = f.unviewedDays;
   const unviewedDays = d != null && Number.isInteger(d) && d >= 1 && d <= 3650 ? d : undefined;
+  // A range that ends before it starts matches nothing: drop its end.
+  const madeTo = f.madeTo != null && f.madeFrom != null && f.madeTo <= f.madeFrom ? undefined : f.madeTo;
   if (
     aiTagged === f.aiTagged &&
     workflow === f.workflow &&
     minScore === f.minScore &&
     unscored === f.unscored &&
-    unviewedDays === f.unviewedDays
+    unviewedDays === f.unviewedDays &&
+    madeTo === f.madeTo
   )
     return f;
-  return { ...f, aiTagged, workflow, minScore, unscored, unviewedDays };
+  return { ...f, aiTagged, workflow, minScore, unscored, unviewedDays, madeTo };
 }
 
 /**
@@ -273,6 +282,8 @@ export function parseFilters(sp: URLSearchParams): Filters {
     minScore: numOrUndef(sp.get("min_score")),
     unscored: sp.get("unscored") === "1",
     unviewedDays: numOrUndef(sp.get("unviewed_days")),
+    madeFrom: numOrUndef(sp.get("made_from")),
+    madeTo: numOrUndef(sp.get("made_to")),
     group: sp.get("group") === "1",
     groupId: sp.get("group_id") || undefined,
     genBatch: batchIdOrUndef(sp.get("gen_batch")),
@@ -323,6 +334,8 @@ export function serializeFilters(f: Filters): URLSearchParams {
   if (filters.minScore != null) sp.set("min_score", String(filters.minScore));
   if (filters.unscored) sp.set("unscored", "1");
   if (filters.unviewedDays != null) sp.set("unviewed_days", String(filters.unviewedDays));
+  if (filters.madeFrom != null) sp.set("made_from", String(filters.madeFrom));
+  if (filters.madeTo != null) sp.set("made_to", String(filters.madeTo));
   if (filters.group) sp.set("group", "1");
   if (filters.groupId) sp.set("group_id", filters.groupId);
   if (filters.genBatch != null) sp.set("gen_batch", String(filters.genBatch));
@@ -457,6 +470,25 @@ export type FilterChip = {
   without: Filters;
 };
 
+const shortDate = (s: number) => {
+  const d = new Date(s * 1000);
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = "numeric";
+  return d.toLocaleDateString("en-US", opts);
+};
+
+/** "Made Nov 12" for one local day, else its range ("Made Nov 12 to Nov 14",
+ * "Made since Nov 12", "Made before Nov 12"); `to` is exclusive. */
+function madeLabel(from?: number, to?: number): string {
+  if (from != null && to != null) {
+    const a = shortDate(from);
+    const b = shortDate(to - 1);
+    return a === b ? `Made ${a}` : `Made ${a} to ${b}`;
+  }
+  if (from != null) return `Made since ${shortDate(from)}`;
+  return `Made before ${shortDate(to!)}`;
+}
+
 function rangeLabel(name: string, min?: number, max?: number): string {
   if (min != null && max != null) return `${name} ${min}–${max}`;
   if (min != null) return `${name} ≥ ${min}`;
@@ -527,5 +559,8 @@ export function activeFilterChips(
     add("unviewedDays", `Not opened in ${f.unviewedDays} ${f.unviewedDays === 1 ? "day" : "days"}`, {
       unviewedDays: undefined,
     });
+  if (f.madeFrom != null || f.madeTo != null) {
+    add("made", madeLabel(f.madeFrom, f.madeTo), { madeFrom: undefined, madeTo: undefined });
+  }
   return chips;
 }

@@ -86,9 +86,10 @@ async def image_stats(
     tz_offset: int | None = Query(default=None, ge=-14 * 60, le=14 * 60),
 ):
     """Overview numbers: images per local calendar day over the last ``days``
-    (by file mtime, the generation-time proxy the feed sorts on), and the
-    quarantine backlog. ``tz`` is the viewer's IANA zone ("Asia/Kolkata"), so
-    days break at their midnight on each date. A zone this server doesn't know
+    (by file mtime, the generation-time proxy the feed sorts on; only the
+    images the default feed shows), and the quarantine backlog. ``tz`` is the
+    viewer's IANA zone ("Asia/Kolkata"), so days break at their midnight on
+    each date. A zone this server doesn't know
     falls back to ``tz_offset`` (minutes east of UTC, the viewer's current
     offset): right except across DST, better than no chart. Days with no
     images are omitted."""
@@ -104,7 +105,8 @@ async def image_stats(
     since = time.time() - days * 86400
     activity = (
         sa.select(slot.label("slot"), sa.func.count().label("count"))
-        .where(when >= since)
+        # What the gallery shows, so a day opens to the images it counted.
+        .where(when >= since, image_visibility.visible())
         .group_by(slot)
     )
     quarantined = sa.select(sa.func.count()).where(t.images.c.quarantined.is_(True))

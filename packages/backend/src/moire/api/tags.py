@@ -200,6 +200,22 @@ async def list_characters():
     return [{**r, "thumb_url": thumbs.get(r["thumb_image_id"] or "")} for r in rows]
 
 
+@router.get("/characters/made")
+async def characters_made(
+    since: float = Query(...),
+    until: float | None = Query(default=None),
+    limit: int = Query(default=12, ge=1, le=100),
+    ids: int = Query(default=0),
+):
+    """Who the images made from ``since`` to before ``until`` (epoch seconds,
+    by file mtime) show, most images first: ``[{tag, count}]``, each tag a
+    character page's key, with ``ids=1`` its ``image_ids`` too. Overview's
+    session titles and its month of characters."""
+    if until is not None and until <= since:
+        raise HTTPException(status_code=422, detail="until must be after since")
+    return await characters.made_between(since, until, limit, with_ids=ids == 1)
+
+
 @router.get("/character")
 async def character_page(base: str = Depends(_base)):
     """A character page, by any of the character's names. Any other tag gets

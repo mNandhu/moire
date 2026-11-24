@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Activity } from "lucide-react";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/cn";
 import { DiscoverSection } from "@/features/discover/components/DiscoverSection";
+import { galleryHref } from "@/features/images/lib/imageFilter";
 import {
   activityCalendar,
   busiestDay,
@@ -38,6 +40,12 @@ function Calendar({ days, now }: { days: DayCount[]; now: Date }) {
   const wide = useMediaQuery("(min-width: 640px)");
   const weeks = useMemo(() => activityCalendar(days, now, wide ? 53 : 26), [days, now, wide]);
   const [hover, setHover] = useState<CalendarCell | null>(null);
+  // A day with images opens the gallery of that day.
+  const dayHref = (c: CalendarCell) => {
+    const next = new Date(c.date.getFullYear(), c.date.getMonth(), c.date.getDate() + 1);
+    return galleryHref({ madeFrom: c.date.getTime() / 1000, madeTo: next.getTime() / 1000 });
+  };
+  const images = (n: number) => `${n.toLocaleString()} ${n === 1 ? "image" : "images"}`;
   // A month's name over the first week that starts in it.
   const months = weeks.map((w, i) => {
     const m = w[0]?.date.getMonth();
@@ -62,15 +70,30 @@ function Calendar({ days, now }: { days: DayCount[]; now: Date }) {
           <div
             className="grid grid-flow-col grid-rows-7 gap-[3px]"
             style={cols}
-            role="img"
+            role="group"
             aria-label="Images generated per day"
             onMouseLeave={() => setHover(null)}
           >
             {weeks.flatMap((w, i) =>
               w.map((c, d) =>
-                c ? (
+                c && c.count > 0 ? (
+                  // A day with images: a link to them, by keyboard too.
+                  <Link
+                    key={`${i}-${d}`}
+                    to={dayHref(c)}
+                    aria-label={`${dayLabel(c.date, now)}: ${images(c.count)}`}
+                    onMouseEnter={() => setHover(c)}
+                    onFocus={() => setHover(c)}
+                    onBlur={() => setHover(null)}
+                    className={cn(
+                      "aspect-square rounded-[3px] transition-[outline] hover:outline hover:outline-1 hover:outline-neutral-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-300",
+                      LEVEL[c.level],
+                    )}
+                  />
+                ) : c ? (
                   <span
                     key={`${i}-${d}`}
+                    aria-hidden
                     onMouseEnter={() => setHover(c)}
                     className={cn(
                       "aspect-square rounded-[3px] transition-[outline] hover:outline hover:outline-1 hover:outline-neutral-200",
@@ -91,7 +114,7 @@ function Calendar({ days, now }: { days: DayCount[]; now: Date }) {
             <>
               <span className="font-medium text-neutral-100">{dayLabel(hover.date, now)}</span>
               {": "}
-              {hover.count ? `${hover.count.toLocaleString()} ${hover.count === 1 ? "image" : "images"}` : "none"}
+              {hover.count ? images(hover.count) : "none"}
             </>
           ) : (
             " "

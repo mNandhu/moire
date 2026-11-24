@@ -140,9 +140,11 @@ async def test_tag_untagged_skips_quarantined_like_coverage(client, seed, monkey
 async def test_stats_counts_images_per_local_day_and_quarantine(client, seed):
 
     now = time.time()
-    # Two on one day, one a day later, one far outside the window.
+    # Two on one day, one a day later, one far outside the window; a
+    # quarantined one isn't counted (the gallery a day opens won't show it).
     day0 = (now // 86400 - 3) * 86400 + 3600  # 01:00 UTC, three days ago
     seed("L1:a", mtime=day0)
+    seed("L1:a2", mtime=day0 + 30)
     seed("L1:b", mtime=day0 + 60, quarantined=True)
     seed("L2:c", library_id="L2", mtime=day0 + 86400)
     seed("L1:old", mtime=now - 400 * 86400)

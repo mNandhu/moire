@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { bestOf, byDay, characterIn, latestDay, sessionSpan, sessionDay, splitSessions } from "./sessions";
+import { bestOf, byDay, latestDay, sessionCharacter, sessionSpan, sessionDay, splitSessions } from "./sessions";
 
 const now = new Date(2026, 10, 24, 15, 0); // Tue Nov 24 2026
 const at = (y: number, m: number, d: number, h = 12) => new Date(y, m, d, h).getTime() / 1000;
@@ -25,20 +25,6 @@ describe("byDay", () => {
       ["Yesterday", 1],
       ["Nov 12", 1],
     ]);
-  });
-});
-
-describe("characterIn", () => {
-  const chars = new Map(
-    [
-      { tag: "rosalina", aliases: [] },
-      { tag: "kasumi_(doa)", aliases: ["kasumi"] },
-    ].flatMap((c) => [c.tag, ...c.aliases].map((n) => [n, c] as const)),
-  );
-  it("finds a character by tag or alias, whatever the prefix", () => {
-    expect(characterIn(["1girl", "prompt:kasumi"], chars)?.tag).toBe("kasumi_(doa)");
-    expect(characterIn(["rosalina"], chars)?.tag).toBe("rosalina");
-    expect(characterIn(["1girl", "solo"], chars)).toBeUndefined();
   });
 });
 
@@ -78,5 +64,14 @@ describe("bestOf", () => {
     expect(bestOf([a, b, c])?.id).toBe("b");
     expect(bestOf([a, { id: "d", score: null }])?.id).toBe("a");
     expect(bestOf([])).toBeUndefined();
+  });
+});
+
+describe("sessionCharacter", () => {
+  it("names a session for a character in at least half of it", () => {
+    expect(sessionCharacter([{ tag: "may", count: 2 }], 38)).toBeUndefined();
+    expect(sessionCharacter([{ tag: "yuzuriha", count: 19 }], 38)?.tag).toBe("yuzuriha");
+    expect(sessionCharacter([], 38)).toBeUndefined();
+    expect(sessionCharacter(undefined, 0)).toBeUndefined();
   });
 });
