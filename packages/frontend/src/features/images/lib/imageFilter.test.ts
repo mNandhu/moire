@@ -51,6 +51,9 @@ describe("Image filter URL round-trip", () => {
       maxW: 2048,
       minH: 768,
       maxH: undefined,
+      minScore: 3,
+      unscored: false,
+      unviewedDays: 30,
       group: true,
       groupId: "abc123",
       workflow: "wf1",
@@ -122,6 +125,38 @@ describe("sort", () => {
     expect(parseFilters(new URLSearchParams("sort=bogus")).sort).toBe("newest");
     expect(hasActiveFilter(top)).toBe(false);
     expect(activeFilterChips(top)).toEqual([]);
+  });
+
+  it("round-trips shuffle", () => {
+    const shuffled = { ...DEFAULT_FILTERS, sort: "shuffle" as const };
+    expect(serializeFilters(shuffled).get("sort")).toBe("shuffle");
+    expect(roundTrip(shuffled)).toEqual(shuffled);
+    expect(hasActiveFilter(shuffled)).toBe(false);
+  });
+});
+
+describe("score filter", () => {
+  it("round-trips, chips, and drops what the server would reject", () => {
+    const top = { ...DEFAULT_FILTERS, minScore: 4 };
+    expect(serializeFilters(top).get("min_score")).toBe("4");
+    expect(roundTrip(top)).toEqual(top);
+    expect(activeFilterChips(top).map((c) => c.label)).toEqual(["Score 4+"]);
+    const unscored = { ...DEFAULT_FILTERS, unscored: true };
+    expect(roundTrip(unscored)).toEqual(unscored);
+    expect(activeFilterChips(unscored)[0].without).toEqual(DEFAULT_FILTERS);
+    expect(parseFilters(new URLSearchParams("min_score=4&unscored=1")).unscored).toBe(false);
+    expect(parseFilters(new URLSearchParams("min_score=9")).minScore).toBeUndefined();
+  });
+});
+
+describe("not opened lately filter", () => {
+  it("round-trips, chips, and drops a value out of range", () => {
+    const stale = { ...DEFAULT_FILTERS, unviewedDays: 30 };
+    expect(serializeFilters(stale).get("unviewed_days")).toBe("30");
+    expect(roundTrip(stale)).toEqual(stale);
+    expect(activeFilterChips(stale).map((c) => c.label)).toEqual(["Not opened in 30 days"]);
+    expect(activeFilterChips(stale)[0].without).toEqual(DEFAULT_FILTERS);
+    expect(parseFilters(new URLSearchParams("unviewed_days=0")).unviewedDays).toBeUndefined();
   });
 });
 
@@ -313,6 +348,9 @@ const SAMPLES: Record<keyof Filters, Partial<Filters>> = {
   maxW: { maxW: 2 },
   minH: { minH: 3 },
   maxH: { maxH: 4 },
+  minScore: { minScore: 4 },
+  unscored: { unscored: true },
+  unviewedDays: { unviewedDays: 30 },
   group: { group: true },
   groupId: { groupId: "g" },
   genBatch: { genBatch: 120 },

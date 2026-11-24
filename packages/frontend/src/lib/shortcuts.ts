@@ -50,6 +50,7 @@ export const GALLERY = {
   scrollEnds: { keys: ["Home", "End"], label: "Home / End", desc: "Jump to start or end" },
   search: { keys: ["/", "f", "F"], label: "/ or F", desc: "Focus the tag search" },
   zoom: { keys: [...ZOOM_IN_KEYS, ...ZOOM_OUT_KEYS], label: "+ / -", desc: "Larger / smaller thumbnails" },
+  lucky: { keys: ["r", "R"], label: "R", desc: "Open a random image" },
 } satisfies Record<string, ShortcutSpec>;
 
 /** Whether a zoom key zooms in (the rest zoom out). */

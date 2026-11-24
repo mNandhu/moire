@@ -27,6 +27,8 @@ they never assemble SQL.
 
 from __future__ import annotations
 
+import time
+
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Iterator
 
@@ -679,6 +681,11 @@ async def set_rating(image_id: str, rating: str) -> tuple[str, str] | None:
 async def set_score(image_id: str, score: int) -> str | None:
     """Set the 0-5 quality score (caller validates the range)."""
     return await _set_columns(image_id, score=score)
+
+
+async def set_viewed(image_id: str) -> str | None:
+    """Stamp when the image view last showed the image (epoch seconds)."""
+    return await _set_columns(image_id, last_viewed_at=time.time())
 
 
 async def set_quarantine(image_id: str, quarantined: bool) -> str | None:

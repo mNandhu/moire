@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Compass,
   FolderOpen,
   History,
   Home,
@@ -22,6 +23,7 @@ export const NAV: { section: string | null; items: NavPage[] }[] = [
     items: [
       { label: "Overview", path: "/overview", icon: Home },
       { label: "All Images", path: "/", icon: Images },
+      { label: "Discover", path: "/discover", icon: Compass },
       { label: "Tags", path: "/tags", icon: Tags },
     ],
   },

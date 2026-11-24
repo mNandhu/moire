@@ -297,7 +297,24 @@ belongs in this file.
   by the filter); the gallery (`AllImagesPage`) and `ImageView` read the same
   cache, so paging done in one is visible to the other. Ordered newest first
   by file mtime (the generation-time proxy; a copy or move can reset it), or
-  oldest first / top rated by the filter's `sort`; `_id` breaks ties.
+  oldest first / top rated / shuffled by the filter's `sort`; `_id` breaks ties.
+- **Shuffle**: the `shuffle` order walks each Image's random `shuffle_key`
+  (set when it is first indexed, kept by rescans), so it pages like any other
+  order on its own index. Reshuffle re-rolls every key at once
+  (`services/images/shuffle.py`). Random image ("I'm feeling lucky", R in
+  the gallery) reads a run of that order from a random point
+  (`feed.random_run`) and opens the first with the rest as its step list, as
+  a random Image sits anywhere in the feed.
+- **Discover**: a page of random picks (`pages/DiscoverPage.tsx`): unscored
+  and top rated Images, forgotten favorites (top rated, not opened in 30
+  days), rare AI tags, one workflow family, one character, one model. Each
+  strip opens with its own step list; "View all" is the gallery with the
+  same filter, shuffled.
+- **Last viewed**: when the image view last showed an Image
+  (`images.last_viewed_at`, stamped once it has been on screen a moment, so
+  stepping past doesn't count). Null until first opened after views began
+  being recorded. The gallery filter `unviewed_days` keeps Images not opened
+  in that many days, or never.
 
 ## Persistence
 

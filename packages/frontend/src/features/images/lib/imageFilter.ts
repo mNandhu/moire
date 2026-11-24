@@ -120,8 +120,8 @@ export const IMAGE_DETAIL_KEYS = keysOf<ImageDetail>()([
 type TagLogic = "and" | "or";
 
 /** Feed order; see services/images/feed.py `SORTS`. */
-export type FeedSort = "newest" | "oldest" | "top";
-const SORTS: readonly FeedSort[] = ["newest", "oldest", "top"];
+export type FeedSort = "newest" | "oldest" | "top" | "shuffle";
+const SORTS: readonly FeedSort[] = ["newest", "oldest", "top", "shuffle"];
 
 export type Filters = {
   tags: string[];
@@ -155,6 +155,12 @@ export type Filters = {
   maxW?: number;
   minH?: number;
   maxH?: number;
+  /** Scored at least this (1 to 5). */
+  minScore?: number;
+  /** Not scored at all; ignored beside minScore. */
+  unscored: boolean;
+  /** Not opened in the image view for this many days (1 to 3650), or never. */
+  unviewedDays?: number;
   // Batch grouping: `group` is the grouping setting (the grouped view, and the
   // saved choice); `groupId` drills into one batch's members, shown ungrouped.
   // Both can be set: a drill from the grouped view keeps `group`, so leaving
@@ -194,6 +200,9 @@ export const DEFAULT_FILTERS: Filters = {
   maxW: undefined,
   minH: undefined,
   maxH: undefined,
+  minScore: undefined,
+  unscored: false,
+  unviewedDays: undefined,
   group: false,
   groupId: undefined,
   genBatch: undefined,
@@ -207,7 +216,8 @@ export const PAGE_LIMIT = 100;
 
 /**
  * `f` with its mutually exclusive axes made consistent: `aiTagged` is
- * dropped beside `noTags` / `noAiTags` (the server rejects the pair), and a
+ * dropped beside `noTags` / `noAiTags` (the server rejects the pair), as is
+ * `unscored` beside a `minScore` (one out of range goes too), and a
  * workflow version (`workflowSig`) replaces a workflow family. The one place
  * these rules live: parse and serialize apply it, so a hand-built URL is
  * repaired and no call site repeats the rule.
@@ -215,8 +225,19 @@ export const PAGE_LIMIT = 100;
 export function normalizeFilters(f: Filters): Filters {
   const aiTagged = f.aiTagged && !f.noTags && !f.noAiTags;
   const workflow = f.workflowSig ? undefined : f.workflow;
-  if (aiTagged === f.aiTagged && workflow === f.workflow) return f;
-  return { ...f, aiTagged, workflow };
+  const minScore = f.minScore != null && Number.isInteger(f.minScore) && f.minScore >= 1 && f.minScore <= 5 ? f.minScore : undefined;
+  const unscored = f.unscored && minScore == null;
+  const d = f.unviewedDays;
+  const unviewedDays = d != null && Number.isInteger(d) && d >= 1 && d <= 3650 ? d : undefined;
+  if (
+    aiTagged === f.aiTagged &&
+    workflow === f.workflow &&
+    minScore === f.minScore &&
+    unscored === f.unscored &&
+    unviewedDays === f.unviewedDays
+  )
+    return f;
+  return { ...f, aiTagged, workflow, minScore, unscored, unviewedDays };
 }
 
 /**
@@ -249,6 +270,9 @@ export function parseFilters(sp: URLSearchParams): Filters {
     maxW: numOrUndef(sp.get("max_w")),
     minH: numOrUndef(sp.get("min_h")),
     maxH: numOrUndef(sp.get("max_h")),
+    minScore: numOrUndef(sp.get("min_score")),
+    unscored: sp.get("unscored") === "1",
+    unviewedDays: numOrUndef(sp.get("unviewed_days")),
     group: sp.get("group") === "1",
     groupId: sp.get("group_id") || undefined,
     genBatch: batchIdOrUndef(sp.get("gen_batch")),
@@ -296,6 +320,9 @@ export function serializeFilters(f: Filters): URLSearchParams {
   if (filters.maxW != null) sp.set("max_w", String(filters.maxW));
   if (filters.minH != null) sp.set("min_h", String(filters.minH));
   if (filters.maxH != null) sp.set("max_h", String(filters.maxH));
+  if (filters.minScore != null) sp.set("min_score", String(filters.minScore));
+  if (filters.unscored) sp.set("unscored", "1");
+  if (filters.unviewedDays != null) sp.set("unviewed_days", String(filters.unviewedDays));
   if (filters.group) sp.set("group", "1");
   if (filters.groupId) sp.set("group_id", filters.groupId);
   if (filters.genBatch != null) sp.set("gen_batch", String(filters.genBatch));
@@ -494,5 +521,11 @@ export function activeFilterChips(
   if (f.minH != null || f.maxH != null) {
     add("height", rangeLabel("Height", f.minH, f.maxH), { minH: undefined, maxH: undefined });
   }
+  if (f.minScore != null) add("minScore", `Score ${f.minScore}+`, { minScore: undefined });
+  if (f.unscored) add("unscored", "Unscored", { unscored: false });
+  if (f.unviewedDays != null)
+    add("unviewedDays", `Not opened in ${f.unviewedDays} ${f.unviewedDays === 1 ? "day" : "days"}`, {
+      unviewedDays: undefined,
+    });
   return chips;
 }

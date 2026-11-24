@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import random
 from pathlib import Path
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -55,8 +56,10 @@ _SCANNER_IMG_COLS = (
 
 
 def image_upsert_values(doc: dict) -> dict:
-    """Insert payload for one scanned image: file metadata + initial tag-state."""
-    return {**doc, **image_tags.initial_tag_fields()}
+    """Insert payload for one scanned image: file metadata + initial tag-state
+    and its shuffle key. None of those are in ``_SCANNER_IMG_COLS``, so a
+    rescan leaves them as they are."""
+    return {**doc, **image_tags.initial_tag_fields(), "shuffle_key": random.random()}
 
 
 def image_upsert_stmt():

@@ -208,6 +208,8 @@ def _plan(sql: str) -> str:
         # The library's index ties with the batch's for the probe: pinned.
         ("newest", "L1", "ix_images_lib_recent", "ix_images_group_recent"),
         ("top", "L1", "ix_images_lib_top", "ix_images_group_top"),
+        ("shuffle", None, "ix_images_shuffle", "ix_images_group_shuffle"),
+        ("shuffle", "L1", "ix_images_lib_shuffle", "ix_images_group_shuffle"),
     ],
 )
 def test_page_walks_the_sort_index_and_probes_the_batch(sort, lib, walk, probe):

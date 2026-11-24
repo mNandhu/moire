@@ -501,3 +501,21 @@ async def test_a_test_run_is_no_batch(client, seed):
         bid = _gen_batch(conn, ["OUT:t.png"], test=True)
     assert (await client.get("/images/OUT:t.png")).json()["gen_batch"] is None
     assert await _ids(client, gen_batch=bid) == []
+
+
+async def test_score_filter(client, seed):
+    seed("L1:none", score=0)
+    seed("L1:null", score=None)
+    seed("L1:three", score=3)
+    seed("L1:five", score=5)
+
+    async def ids(**params):
+        resp = await client.get("/images", params=params)
+        assert resp.status_code == 200, resp.text
+        return {r["_id"] for r in resp.json()}
+
+    assert await ids(min_score=4) == {"L1:five"}
+    assert await ids(min_score=3) == {"L1:three", "L1:five"}
+    assert await ids(unscored=1) == {"L1:none", "L1:null"}
+    for bad in ({"min_score": 0}, {"min_score": 6}, {"min_score": 4, "unscored": 1}):
+        assert (await client.get("/images", params=bad)).status_code == 422

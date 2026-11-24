@@ -15,6 +15,7 @@ router because it knows the media route shape; everything else lives here.
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass, replace
 
 import sqlalchemy as sa
@@ -70,6 +71,7 @@ FEED_KEYS = tuple(c.name for c in FEED_COLUMNS)
 # live in schema.py beside the indexes they must match character for character.
 SORT_KEY = t.SORT_RECENT
 SCORE_KEY = t.SORT_SCORE
+SHUFFLE_KEY = t.SORT_SHUFFLE
 
 # name -> (sort keys before _id, descending?). "top" is best scored first,
 # newest first among equals (so unscored images read as the newest feed).
@@ -77,6 +79,9 @@ SORTS: dict[str, tuple[tuple, bool]] = {
     "newest": ((SORT_KEY,), True),
     "oldest": ((SORT_KEY,), False),
     "top": ((SCORE_KEY, SORT_KEY), True),
+    # Each image's random key (services/images/shuffle.py): a fixed random
+    # order until the next reshuffle.
+    "shuffle": ((SHUFFLE_KEY,), False),
 }
 
 
@@ -147,7 +152,16 @@ class FeedFilter:
     workflow_sig: str | None = None
     # Outfits the image wears (saved ids, or `default:<character>`), each.
     outfit: list[str] | None = None
+    # Scored at least this (0..5), or (`unscored=1`) not scored at all.
+    min_score: int | None = None
+    unscored: int | None = None
+    # Not opened in the image view for this many days (or never, since views
+    # were recorded).
+    unviewed_days: int | None = None
     sort: str = "newest"
+    # `unviewed_days`' cutoff (epoch seconds), fixed when the filter is made
+    # so every query of one request agrees on it (not a user input).
+    viewed_before: float | None = None
     # The family's signatures, resolved from `workflow_id` by `_resolved`
     # before the query is built (not a user input).
     family_sigs: tuple[str, ...] | None = None
@@ -172,6 +186,15 @@ class FeedFilter:
             raise FeedFilterError(
                 "ai_tagged=1 cannot be combined with no_ai_tags or no_tags"
             )
+        if self.min_score is not None and not 1 <= self.min_score <= 5:
+            raise FeedFilterError("min_score must be 1 to 5")
+        if self.unscored == 1 and self.min_score is not None:
+            raise FeedFilterError("unscored=1 cannot be combined with min_score")
+        if self.unviewed_days is not None and not 1 <= self.unviewed_days <= 3650:
+            raise FeedFilterError("unviewed_days must be 1 to 3650")
+        if self.unviewed_days is not None and self.viewed_before is None:
+            cutoff = time.time() - self.unviewed_days * 86400
+            object.__setattr__(self, "viewed_before", cutoff)
         if self.outfit and len(self.outfit) > 10:
             raise FeedFilterError("too many outfits (max 10)")
         if self.tags:
@@ -290,6 +313,18 @@ def _outfit_conds(f: FeedFilter) -> list:
     return [wear_condition(r) if r else sa.false() for r in f.outfit_rules]
 
 
+def _score_conds(f: FeedFilter) -> list:
+    conds: list = []
+    if f.min_score is not None:
+        conds.append(t.images.c.score >= f.min_score)
+    if f.unscored == 1:
+        conds.append(SCORE_KEY == 0)
+    if f.viewed_before is not None:
+        seen = t.images.c.last_viewed_at
+        conds.append(sa.or_(seen.is_(None), seen < f.viewed_before))
+    return conds
+
+
 def _size_conds(f: FeedFilter) -> list:
     conds: list = []
     if f.shape:
@@ -350,6 +385,7 @@ def feed_where(f: FeedFilter):
     conds += _gen_conds(f)
     conds += _outfit_conds(f)
     conds += _size_conds(f)
+    conds += _score_conds(f)
     conds += _workflow_conds(f)
     return sa.and_(*conds) if conds else sa.true()
 
@@ -469,6 +505,32 @@ async def list_ids(f: FeedFilter, *, limit: int) -> list[str]:
         return list((await conn.execute(stmt)).scalars())
 
 
+# The most random picks one call returns.
+RANDOM_RUN_CAP = 200
+
+
+async def random_run(f: FeedFilter, *, limit: int, start: float) -> list[dict]:
+    """Up to ``limit`` random images ``f`` matches ("I'm feeling lucky"): the
+    shuffle order's run from ``start`` (a point in [0, 1)), wrapping round to
+    the lowest keys once it runs out. The keys are random, so any run is a
+    random sample; a new ``start`` makes another. Feed rows, whatever
+    ``f.sort`` says.
+
+    Not exactly uniform: the first image is the one after a random point,
+    so one after a wide gap between keys comes first more often, and the
+    run after it is the same until a reshuffle. Close enough for "show me
+    something", and one index seek however large the library."""
+    async with async_conn() as conn:
+        f = await _resolved(conn, replace(f, sort="shuffle"))
+        order = (SHUFFLE_KEY, t.images.c._id)
+        base = sa.select(*FEED_COLUMNS).where(feed_where(f)).order_by(*order)
+        # In one read transaction: a reshuffle committing between the run
+        # and its wrap could otherwise return an image twice.
+        parts = [base.where(SHUFFLE_KEY >= start), base.where(SHUFFLE_KEY < start)]
+        rows = await _page_rows(conn, parts, limit)
+    return [{k: r[k] for k in FEED_KEYS} for r in rows]
+
+
 def _paged(stmt, f: FeedFilter, *, cursor: str | None, limit: int, offset: int) -> list:
     """``stmt`` (rows of ``images``) as one page in ``f.sort`` order: the rows
     after ``cursor`` (or ``offset`` rows in, without one), ``limit`` of them.
@@ -566,6 +628,7 @@ _GROUP_INDEX = {
     "newest": "ix_images_group_recent",
     "oldest": "ix_images_group_recent",
     "top": "ix_images_group_top",
+    "shuffle": "ix_images_group_shuffle",
 }
 
 

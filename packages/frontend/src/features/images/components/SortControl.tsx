@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Clock, History, Star, type LucideIcon } from "lucide-react";
+import { Clock, History, RefreshCw, Shuffle, Star, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/Tooltip";
 import type { FeedSort } from "@/features/images/lib/imageFilter";
@@ -8,6 +8,7 @@ export const SORT_OPTIONS: Array<{ value: FeedSort; label: string; hint: string;
   { value: "newest", label: "Newest", hint: "Newest first", icon: Clock },
   { value: "oldest", label: "Oldest", hint: "Oldest first", icon: History },
   { value: "top", label: "Top", hint: "Top rated first", icon: Star },
+  { value: "shuffle", label: "Shuffle", hint: "Shuffled", icon: Shuffle },
 ];
 
 /**
@@ -19,9 +20,14 @@ export const SORT_OPTIONS: Array<{ value: FeedSort; label: string; hint: string;
 export function SortControl({
   value,
   onChange,
+  onReshuffle,
+  reshuffling = false,
 }: {
   value: FeedSort;
   onChange: (sort: FeedSort) => void;
+  /** Deal a new shuffled order: what Shuffle does when it is already on. */
+  onReshuffle?: () => void;
+  reshuffling?: boolean;
 }) {
   const index = Math.max(0, SORT_OPTIONS.findIndex((o) => o.value === value));
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -43,18 +49,23 @@ export function SortControl({
       role="radiogroup"
       aria-label="Sort"
       onKeyDown={onKeyDown}
-      className="relative grid grid-cols-3 h-9 p-0.5 rounded-lg bg-raised border border-line shrink-0"
+      style={{ gridTemplateColumns: `repeat(${SORT_OPTIONS.length}, minmax(0, 1fr))` }}
+      className="relative grid h-9 p-0.5 rounded-lg bg-raised border border-line shrink-0"
     >
       <span
         aria-hidden="true"
         className="absolute inset-y-0.5 left-0.5 rounded-md bg-brand-600/25 border border-brand-500/60 transition-transform duration-200 ease-out motion-reduce:transition-none"
-        style={{ width: "calc((100% - 4px) / 3)", transform: `translateX(${index * 100}%)` }}
+        style={{ width: `calc((100% - 4px) / ${SORT_OPTIONS.length})`, transform: `translateX(${index * 100}%)` }}
       />
       {SORT_OPTIONS.map((o, i) => {
         const on = i === index;
-        const Icon = o.icon;
+        // Shuffle, once on, deals again in place: no extra button that
+        // would widen the toolbar only in this order.
+        const deal = on && o.value === "shuffle" && onReshuffle;
+        const Icon = deal ? RefreshCw : o.icon;
+        const hint = deal ? "Reshuffle" : o.hint;
         return (
-          <Tooltip key={o.value} content={o.hint} bubble>
+          <Tooltip key={o.value} content={hint} bubble>
             <button
               ref={(el) => {
                 refs.current[i] = el;
@@ -62,15 +73,15 @@ export function SortControl({
               type="button"
               role="radio"
               aria-checked={on}
-              aria-label={o.hint}
+              aria-label={hint}
               tabIndex={on ? 0 : -1}
-              onClick={() => onChange(o.value)}
+              onClick={() => (deal ? !reshuffling && onReshuffle() : onChange(o.value))}
               className={cn(
                 "relative z-[1] inline-flex items-center justify-center gap-1.5 w-8 xl:w-auto xl:px-2.5 rounded-md text-sm font-medium transition-colors",
                 on ? "text-brand-100" : "text-muted hover:text-neutral-100",
               )}
             >
-              <Icon size={16} className="shrink-0" />
+              <Icon size={16} className={cn("shrink-0", deal && reshuffling && "animate-spin")} />
               <span className="hidden xl:inline">{o.label}</span>
             </button>
           </Tooltip>

@@ -21,6 +21,7 @@ import { ImageViewFrame } from "@/app/components/ImageViewFrame";
 // is fetched once the gallery has booted (the afterBoot effect below).
 const { Page: ImageView, preload: preloadImageView } = preloadablePage(() => import("@/pages/ImageView"));
 const OverviewPage = lazyPage(() => import("@/pages/OverviewPage"));
+const DiscoverPage = lazyPage(() => import("@/pages/DiscoverPage"));
 const LibrariesPage = lazyPage(() => import("@/pages/LibrariesPage"));
 const CharacterPage = lazyPage(() => import("@/pages/CharacterPage"));
 const SettingsPage = lazyPage(() => import("@/pages/SettingsPage"));
@@ -89,6 +90,7 @@ export default function RootRoutes() {
         >
           <Route index element={<AllImagesPage />} />
           <Route path="overview" element={<OverviewPage />} />
+          <Route path="discover" element={<DiscoverPage />} />
           <Route path="libraries" element={<LibrariesPage />} />
           <Route path="tags" element={<TagsPage />} />
           <Route path="tags/groups/:group" element={<TagGroupPage />} />

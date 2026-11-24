@@ -28,7 +28,17 @@ logger = logging.getLogger("moire.migrations")
 
 _ROW = "migrations"
 
-_MIGRATIONS: tuple[tuple[str, Callable[[], None] | None, bool], ...] = ()
+
+def _fill_shuffle_keys() -> None:
+    from ..images import shuffle
+
+    shuffle.fill_missing()
+
+
+_MIGRATIONS: tuple[tuple[str, Callable[[], None] | None, bool], ...] = (
+    # Images indexed before the shuffle order existed get their random key.
+    ("shuffle_keys", _fill_shuffle_keys, False),
+)
 
 
 def _done() -> dict[str, Any]:

@@ -46,6 +46,7 @@ def test_bad_filters_are_rejected(kwargs):
         ("newest", "ix_images_recent"),
         ("oldest", "ix_images_recent"),
         ("top", "ix_images_top"),
+        ("shuffle", "ix_images_shuffle"),
     ],
 )
 def test_first_page_walks_the_sort_index(sort, index):
@@ -80,6 +81,8 @@ def _seed_ties(seed):
             score=rnd.choice((0, 0, 0, 0, 0, None, 1, 2.5)),
             mtime=rnd.choice((None, 50.0, 50.0, *range(i * 3, i * 3 + 3))),
             quarantined=i % 17 == 0,
+            # Some unkeyed rows (indexed before keys existed) and a shared key.
+            shuffle_key=rnd.choice((None, 0.5, rnd.random(), rnd.random())),
         )
 
 
@@ -103,7 +106,7 @@ async def test_deep_page_in_a_tie_walks_the_sort_index(temp_db, seed, sort, lib)
         offset=0,
     )
     index = ("ix_images_lib_" if lib else "ix_images_") + (
-        "top" if sort == "top" else "recent"
+        sort if sort in ("top", "shuffle") else "recent"
     )
     assert len(parts) == len(SORTS[sort][0])
     with db.sync_conn() as conn:

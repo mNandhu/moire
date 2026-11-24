@@ -129,9 +129,13 @@ class GenerationManager:
             self._loop_task = asyncio.create_task(self._run())
 
     async def stop(self) -> None:
-        for task in (self._loop_task, self._ws_task):
-            if task:
-                task.cancel()
+        tasks = [t for t in (self._loop_task, self._ws_task) if t]
+        for task in tasks:
+            task.cancel()
+        # Wait for them to end: one caught mid-configure could otherwise be
+        # cancelled again by the loop's shutdown and never finish (it hung
+        # the test suite's teardown).
+        await asyncio.gather(*tasks, return_exceptions=True)
         if self.client:
             await self.client.aclose()
 

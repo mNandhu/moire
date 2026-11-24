@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import anyio  # type: ignore[import-not-found]
 import os
+import random
 
 from ..database.db import async_conn, async_tx
 from ..database import schema as t
@@ -12,6 +13,7 @@ from ..services.images import feed as image_feed
 from ..services.tags import index as tag_index
 from ..services.generate import batches as generation_batches
 from ..services.images import delete as image_delete, search as image_search
+from ..services.images import shuffle as image_shuffle
 from ..services.library import thumb_version
 from ..services.images.feed import FeedFilter, FeedFilterError
 from ..services.tags.image_tags import find_image as _find_image_doc  # type: ignore
@@ -68,6 +70,9 @@ def feed_filter(
     workflow: str | None = Query(default=None, max_length=256),
     workflow_sig: str | None = Query(default=None, max_length=256),
     outfit: list[str] | None = Query(default=None),
+    min_score: int | None = Query(default=None),
+    unscored: int | None = Query(default=None),
+    unviewed_days: int | None = Query(default=None),
     sort: str = Query(default="newest"),
 ) -> FeedFilter:
     """The gallery filter from the query string: one parameter set for every
@@ -97,6 +102,9 @@ def feed_filter(
             workflow_id=workflow,
             workflow_sig=workflow_sig,
             outfit=outfit,
+            min_score=min_score,
+            unscored=unscored,
+            unviewed_days=unviewed_days,
             sort=sort,
         )
     except FeedFilterError as exc:
@@ -146,6 +154,24 @@ async def list_image_ids(f: FeedFilter = Depends(feed_filter)):
     return JSONResponse(
         {"ids": ids[:SELECT_ALL_CAP], "truncated": len(ids) > SELECT_ALL_CAP}
     )
+
+
+@router.get("/random", **documents(list[FeedRow]))
+async def random_images(
+    f: FeedFilter = Depends(feed_filter),
+    limit: int = Query(default=50, ge=1, le=image_feed.RANDOM_RUN_CAP),
+):
+    """Random images matching the gallery filter ("I'm feeling lucky"), a
+    new pick each call. Hidden images stay out, as in the feed."""
+    items = await image_feed.random_run(f, limit=limit, start=random.random())
+    await _attach_thumb_urls(items)
+    return JSONResponse(items)
+
+
+@router.post("/reshuffle")
+async def reshuffle_images():
+    """Re-roll every image's shuffle key: the shuffled feed's next order."""
+    return {"images": await image_shuffle.reshuffle()}
 
 
 @router.get("/search")
@@ -237,6 +263,10 @@ async def get_image(image_id: str):
                 status_code=403, detail="Hidden by the sensitivity filter"
             )
         raise HTTPException(status_code=404, detail="Image not found")
+    # Bookkeeping (the shuffle order's key, when it was last opened), nothing
+    # the image view shows.
+    img.pop("shuffle_key", None)
+    img.pop("last_viewed_at", None)
     await thumb_version.urls_for_rows([img])
     return img
 
@@ -266,6 +296,17 @@ async def set_image_score(image_id: str, body: ScorePatch):
     if rid is None:
         raise HTTPException(status_code=404, detail="Image not found")
     return {"_id": rid, "score": body.score}
+
+
+@router.post("/{image_id:path}/viewed", status_code=204)
+async def mark_image_viewed(image_id: str):
+    """Note that the image view showed the image now (the "not opened
+    lately" filter reads it). An image the sensitivity filter hides is not
+    found, as the view can't show it."""
+    if not await _find_image_doc(image_id, ()):
+        raise HTTPException(status_code=404, detail="Image not found")
+    if await image_tags.set_viewed(image_id) is None:
+        raise HTTPException(status_code=404, detail="Image not found")
 
 
 @router.post("/{image_id:path}/quarantine")

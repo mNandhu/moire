@@ -2,8 +2,10 @@ import type { Dispatch, Ref, SetStateAction } from "react";
 import {
   Check,
   CheckSquare,
+  Dices,
   Filter,
   Layers,
+  RefreshCw,
   ShieldCheck,
   ShieldOff,
   SlidersHorizontal,
@@ -46,6 +48,10 @@ export function GalleryToolbar({
   onEditTags,
   runBulkTag,
   runBulkQuarantine,
+  onLucky,
+  luckyBusy,
+  onReshuffle,
+  reshuffling,
 }: {
   filters: Filters;
   setFilters: (f: Filters) => void;
@@ -71,6 +77,12 @@ export function GalleryToolbar({
   onEditTags: () => void;
   runBulkTag: (ids: string[]) => Promise<void>;
   runBulkQuarantine: (ids: string[], next: boolean) => Promise<void>;
+  /** Open a random image the filter matches. */
+  onLucky: () => void;
+  luckyBusy: boolean;
+  /** Re-roll the shuffled order (shown while the gallery is shuffled). */
+  onReshuffle: () => void;
+  reshuffling: boolean;
 }) {
   const { tagOptions, resourceSuggestions, knownOutfits, knownResources, tagNames } = options;
   // Grouping and selection, one definition for the phone menu and the
@@ -96,6 +108,28 @@ export function GalleryToolbar({
       on: selectionMode,
       pressed: undefined,
       toggle: () => setSelectionMode((v) => !v),
+    },
+  ];
+  // One-off actions beside the order, in the phone menu and as buttons.
+  const actions = [
+    ...(filters.sort === "shuffle"
+      ? [
+          {
+            key: "reshuffle",
+            label: "Reshuffle",
+            Icon: RefreshCw,
+            busy: reshuffling,
+            run: onReshuffle,
+          },
+        ]
+      : []),
+    {
+      key: "lucky",
+      label: "Random image",
+      tip: "Random image (R)",
+      Icon: Dices,
+      busy: luckyBusy,
+      run: onLucky,
     },
   ];
   return (
@@ -142,6 +176,12 @@ export function GalleryToolbar({
               hint: filters.sort === o.value ? <Check size={15} /> : undefined,
               onClick: () => setFilters({ ...filters, sort: o.value }),
             })),
+            ...actions.map((a) => ({
+              group: "Sort",
+              label: a.label,
+              icon: <a.Icon size={15} />,
+              onClick: a.run,
+            })),
             ...toggles.map((t) => ({
               group: "View",
               label: t.label,
@@ -156,7 +196,23 @@ export function GalleryToolbar({
       <SortControl
         value={filters.sort}
         onChange={(sort) => setFilters({ ...filters, sort })}
+        onReshuffle={onReshuffle}
+        reshuffling={reshuffling}
       />
+      {/* Reshuffle lives in the sort control on wider screens. */}
+      {actions.filter((a) => a.key !== "reshuffle").map((a) => (
+        <Tooltip key={a.key} content={a.tip ?? a.label} bubble>
+          <Button
+            size="icon"
+            variant="secondary"
+            onClick={a.run}
+            disabled={a.busy}
+            aria-label={a.label}
+          >
+            <a.Icon size={18} />
+          </Button>
+        </Tooltip>
+      ))}
       {toggles.map((t) => (
         <Tooltip key={t.key} content={t.tip} bubble>
           <Button

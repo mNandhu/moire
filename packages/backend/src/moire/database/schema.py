@@ -67,6 +67,14 @@ images = sa.Table(
     sa.Column("gen_workflow_sig", sa.Text),
     sa.Column("gen_group_id", sa.Text),
     sa.Column("gen_prompt", sa.Text),
+    # A random key in [0, 1), set when the image is first indexed: the
+    # "shuffle" feed order and the random picks walk it. Re-rolled for every
+    # image at once by a reshuffle (services/images/shuffle.py). Nullable, as
+    # SQLite won't add a column with a random default; NULL sorts as 0.
+    sa.Column("shuffle_key", sa.Float),
+    # When the image view last showed it (epoch seconds); null: not since
+    # views were recorded. Read by the "not opened lately" filter.
+    sa.Column("last_viewed_at", sa.Float),
 )
 
 # Derived from images.tags. `base` is the prefix-stripped form used by the
@@ -560,13 +568,17 @@ generation_outputs = sa.Table(
 # newest-first indexes backwards.
 SORT_RECENT = sa.func.coalesce(images.c.mtime, sa.literal_column("0"))
 SORT_SCORE = sa.func.coalesce(images.c.score, sa.literal_column("0"))
+SORT_SHUFFLE = sa.func.coalesce(images.c.shuffle_key, sa.literal_column("0"))
 _newest = (SORT_RECENT.desc(), images.c._id.desc())
 _top = (SORT_SCORE.desc(), *_newest)
+_shuffle = (SORT_SHUFFLE, images.c._id)
 
 sa.Index("ix_images_recent", *_newest)
 sa.Index("ix_images_top", *_top)
 sa.Index("ix_images_lib_recent", images.c.library_id, *_newest)
 sa.Index("ix_images_lib_top", images.c.library_id, *_top)
+sa.Index("ix_images_shuffle", *_shuffle)
+sa.Index("ix_images_lib_shuffle", images.c.library_id, *_shuffle)
 sa.Index("ix_images_has_tags_recent", images.c.has_tags, *_newest)
 sa.Index("ix_images_has_ai_tags_recent", images.c.has_ai_tags, *_newest)
 sa.Index(
@@ -612,6 +624,7 @@ RETIRED_INDEXES = (
 # The leading column alone serves every other lookup by batch.
 sa.Index("ix_images_group_recent", images.c.gen_group_id, *_newest)
 sa.Index("ix_images_group_top", images.c.gen_group_id, *_top)
+sa.Index("ix_images_group_shuffle", images.c.gen_group_id, *_shuffle)
 # Covering (x, image_id): tag counts and `$in` lookups read the index alone.
 sa.Index("ix_image_tags_tag_img", image_tags.c.tag, image_tags.c.image_id)
 sa.Index("ix_image_tags_base_img", image_tags.c.base, image_tags.c.image_id)

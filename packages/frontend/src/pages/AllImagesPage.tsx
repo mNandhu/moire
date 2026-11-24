@@ -46,6 +46,7 @@ import { useTriage } from "@/features/images/hooks/useTriage";
 import { useBulkActions } from "@/features/images/hooks/useBulkActions";
 import { useSelectionMode } from "@/features/images/hooks/useSelectionMode";
 import { useDensity } from "@/features/images/hooks/useDensity";
+import { useLucky, useReshuffle } from "@/features/images/hooks/useLucky";
 import {
   useImageFeed,
   useImageGroups,
@@ -230,7 +231,11 @@ export default function AllImagesPage() {
   // Close filters on outside click / ESC.
   useDismiss([filtersPanelRef, filterButtonRef], () => setFiltersOpen(false), filtersOpen);
 
+  const { feelLucky, busy: luckyBusy } = useLucky(filters);
+  const { reshuffle, busy: reshuffling } = useReshuffle();
+
   useGalleryShortcuts({
+    onLucky: feelLucky,
     filters,
     setFilters,
     density,
@@ -405,6 +410,10 @@ export default function AllImagesPage() {
           onEditTags={() => setBulkTagOpen(true)}
           runBulkTag={runBulkTag}
           runBulkQuarantine={runBulkQuarantine}
+          onLucky={() => void feelLucky()}
+          luckyBusy={luckyBusy}
+          onReshuffle={() => void reshuffle()}
+          reshuffling={reshuffling}
         />
 
       </PageHeader>

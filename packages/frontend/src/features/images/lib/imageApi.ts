@@ -2,7 +2,7 @@
 // Image, every id a filter matches. The filter itself (and its URL form) is
 // features/images/lib/imageFilter.ts.
 
-import { api, apiRaw } from "@/lib/api";
+import { api, apiJson, apiRaw } from "@/lib/api";
 import { PAGE_LIMIT, serializeFilters, type Filters, type FeedItem, type ImageDetail } from "./imageFilter";
 
 /**
@@ -75,4 +75,24 @@ export function fetchImage(
  * server-side: `truncated` says so). */
 export function fetchImageIds(filters: Filters): Promise<{ ids: string[]; truncated: boolean }> {
   return api(`/api/v1/images/ids?${serializeFilters(filters)}`);
+}
+
+/** Random images the filter matches, a new pick each call ("I'm feeling
+ * lucky"). Any order the filter sets is ignored. */
+export function fetchRandomImages(filters: Filters, limit = 50): Promise<FeedItem[]> {
+  const sp = serializeFilters(filters);
+  sp.delete("sort");
+  sp.set("limit", String(limit));
+  return api<FeedItem[]>(`/api/v1/images/random?${sp}`);
+}
+
+/** Note that the image view showed the image (the "not opened lately"
+ * filter, Discover's Forgotten favorites, reads it). */
+export async function markImageViewed(id: string): Promise<void> {
+  await apiRaw(`/api/v1/images/${encodeURIComponent(id)}/viewed`, { method: "POST" });
+}
+
+/** Re-roll the shuffled order (every image's shuffle key). */
+export function reshuffleImages(): Promise<{ images: number }> {
+  return apiJson(`/api/v1/images/reshuffle`, "POST");
 }

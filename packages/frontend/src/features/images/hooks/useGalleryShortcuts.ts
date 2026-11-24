@@ -9,11 +9,13 @@ import { useHotkeys } from "@/hooks/useHotkeys";
 
 /**
  * The gallery's page-wide shortcuts: S selection mode, F/"/" focus search,
- * N no-tags, A no-AI-tags, Q quarantined, +/- zoom, Escape backs out (? help
+ * N no-tags, A no-AI-tags, Q quarantined, R a random image, +/- zoom,
+ * Escape backs out (? help
  * is global: ShortcutHelp). Also says where the shortcuts are, once, right
  * after first-run setup.
  */
 export function useGalleryShortcuts({
+  onLucky,
   filters,
   setFilters,
   density,
@@ -22,6 +24,8 @@ export function useGalleryShortcuts({
   setSelectionMode,
   setFocusedIndex,
 }: {
+  /** Open a random image the filter matches. */
+  onLucky: () => void;
   filters: Filters;
   setFilters: (f: Filters) => void;
   density: ReturnType<typeof useDensity>;
@@ -48,6 +52,13 @@ export function useGalleryShortcuts({
         e.preventDefault();
         if (isZoomIn(e.key)) density.zoomIn();
         else density.zoomOut();
+      },
+    },
+    {
+      ...GALLERY.lucky,
+      run: (e) => {
+        e.preventDefault();
+        onLucky();
       },
     },
     {

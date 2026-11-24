@@ -153,6 +153,7 @@ def seed(temp_db):
         rating_manual: bool = False,
         thumb_key: str | None = None,
         mtime: float | None = None,
+        shuffle_key: float | None = None,
     ) -> None:
         tag_list = list(tags)
         flags = tag_kinds.recompute_flags(tag_list)
@@ -171,6 +172,7 @@ def seed(temp_db):
                     tag_level=tag_sensitivity.tag_level(tag_list),
                     thumb_key=thumb_key,
                     mtime=mtime,
+                    shuffle_key=shuffle_key,
                     **flags,
                     **_gen_cols(gen),
                 )

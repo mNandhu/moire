@@ -18,7 +18,7 @@ import { imageFileUrl } from "@/lib/media";
 import { useToast } from "@/components/ui/Toasts";
 import { ImageCharacters } from "@/features/images/components/viewer/ImageCharacters";
 import { parseFilters, serializeFiltersForPeek } from "@/features/images/lib/imageFilter";
-import { fetchImage } from "@/features/images/lib/imageApi";
+import { fetchImage, markImageViewed } from "@/features/images/lib/imageApi";
 import { IMAGE_DOC_STALE_MS, useImageStepper } from "@/features/images/hooks/useImageStepper";
 import { fetchWorkflow, workflowClipboardText } from "@/features/metadata/lib/rules";
 import {
@@ -48,6 +48,9 @@ import { useLocalPref } from "@/hooks/useLocalPref";
 import { OVERLAY_BTN } from "@/features/images/components/viewer/ImageViewLoading";
 import { imageDocKey, invalidateFeeds, syncFeedsFromDoc, writeImageFields } from "@/features/images/lib/feedCache";
 import { Tooltip } from "@/components/ui/Tooltip";
+
+/** How long an image is on screen before it counts as opened. */
+const VIEW_DWELL_MS = 1500;
 
 export default function ImageView() {
   // `routeId` is where the URL points; `id` is the image actually on screen
@@ -94,6 +97,15 @@ export default function ImageView() {
     // reuses the doc instead of refetching it.
     staleTime: IMAGE_DOC_STALE_MS,
   });
+  // An image counts as opened once it has loaded and stayed a moment, so
+  // stepping past it with the arrow keys doesn't. Fire and forget: nothing
+  // on screen reads it.
+  const viewedId = data?._id;
+  useEffect(() => {
+    if (!viewedId) return;
+    const timer = setTimeout(() => void markImageViewed(viewedId).catch(() => {}), VIEW_DWELL_MS);
+    return () => clearTimeout(timer);
+  }, [viewedId]);
   const refreshImage = useCallback(() => {
     void refetch();
   }, [refetch]);
