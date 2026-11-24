@@ -37,6 +37,8 @@ export function DiscoverSection({
   tint = "violet",
   cover,
   viewAll,
+  actions,
+  className,
   children,
 }: {
   /** The section's name (its region's, and the title unless one is given). */
@@ -48,14 +50,20 @@ export function DiscoverSection({
   tint?: Tint;
   /** An image of the pick, the section's light. */
   cover?: string | null;
-  /** Where "View all" goes. */
-  viewAll: string;
+  /** Where "View all" goes; none, no link. */
+  viewAll?: string;
+  /** Beside "View all": the section's own controls. */
+  actions?: React.ReactNode;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
     <section
       aria-label={label}
-      className="relative isolate overflow-hidden rounded-2xl border border-white/5 bg-surface p-4 shadow-panel sm:p-5"
+      className={cn(
+        "relative isolate overflow-hidden rounded-2xl border border-white/5 bg-surface p-4 shadow-panel sm:p-5",
+        className,
+      )}
     >
       {cover && (
         <img
@@ -76,12 +84,15 @@ export function DiscoverSection({
             ))}
           <span className="min-w-0 truncate">{title}</span>
         </h2>
-        <Link
-          to={viewAll}
-          className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-sm text-muted hover:text-neutral-100"
-        >
-          View all <ArrowRight size={14} />
-        </Link>
+        {actions}
+        {viewAll && (
+          <Link
+            to={viewAll}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-sm text-muted hover:text-neutral-100"
+          >
+            View all <ArrowRight size={14} />
+          </Link>
+        )}
       </div>
       {children}
     </section>
@@ -90,7 +101,7 @@ export function DiscoverSection({
 
 /** A shelf image: its blurhash in the tile's first paint (never a dark tile
  * first), the image fading in over it. */
-function ShelfImage({ src, blurhash }: { src: string; blurhash: string | null }) {
+export function ShelfImage({ src, blurhash }: { src: string; blurhash: string | null }) {
   const [loaded, setLoaded] = useState(false);
   const blur = useMemo(() => (blurhash ? blurhashDataUrl(blurhash) : null), [blurhash]);
   return (
@@ -138,6 +149,7 @@ export function ImageStrip({
   filters,
   size = "md",
   placeholders = STRIP_SIZE,
+  steps,
 }: {
   name: string;
   items: FeedItem[] | undefined;
@@ -147,6 +159,8 @@ export function ImageStrip({
   size?: keyof typeof TILE_WIDTH;
   /** Tiles to hold while loading: as many as are likely to come. */
   placeholders?: number;
+  /** What an opened image steps through, when more than the strip shows. */
+  steps?: FeedItem[];
 }) {
   const tile = cn(TILE, TILE_WIDTH[size]);
   const location = useLocation();
@@ -159,7 +173,7 @@ export function ImageStrip({
       </div>
     );
   }
-  const state = { ...withBackgroundLocation(location), ...stepsState({ name, items }) };
+  const state = { ...withBackgroundLocation(location), ...stepsState({ name, items: steps ?? items }) };
   return (
     <div className={SHELF}>
       {items.map((img) => (

@@ -1,201 +1,67 @@
 import { useMemo } from "react";
-import { Link } from "react-router-dom";
-import {
-  Images,
-  Tags as TagsIcon,
-  FolderOpen,
-  Sparkles,
-  Plus,
-  Loader2,
-} from "lucide-react";
-import { StatCard } from "@/components/ui/StatCard";
+import { Plus } from "lucide-react";
 import { PageHeader, PageBody } from "@/app/components/PageHeader";
 import { ButtonLink } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { useAiStatus } from "@/features/ai/hooks/useAiStatus";
-import { coveragePct, isActiveJob } from "@/features/ai/lib/ai";
-import { ProgressBar } from "@/components/ui/ProgressBar";
-import { useAiCoverage, useImageStats } from "@/features/images/lib/queries";
+import { useImageStats } from "@/features/images/lib/queries";
+import { DEFAULT_FILTERS } from "@/features/images/lib/imageFilter";
+import { useImageFeed } from "@/features/images/hooks/useImageFeed";
 import { useLibraries } from "@/features/library/lib/libraries";
 import { useTagAggregate } from "@/features/tags/lib/queries";
-import { ActivityChart } from "@/features/overview/components/ActivityChart";
-import { RecentImages } from "@/features/overview/components/RecentImages";
-import { ToReview } from "@/features/overview/components/ToReview";
-import { isManual } from "@/features/tags/lib/tags";
+import { LatestSession } from "@/features/overview/components/LatestSession";
+import { RecentSessions } from "@/features/overview/components/RecentSessions";
+import { ActivityPanel } from "@/features/overview/components/ActivityPanel";
+import { LibraryHealth } from "@/features/overview/components/LibraryHealth";
+import { latestDay, splitSessions } from "@/features/overview/lib/sessions";
 
+// The newest images the sessions are cut from: weeks of work for most, and
+// one request. The oldest session, likely cut short, is left out.
+const RECENT = 400;
+// Stacks on the Earlier sessions shelf.
+const SHELF_SESSIONS = 20;
+
+/**
+ * Overview: what was made lately and what is waiting. The latest day's work
+ * leads, then the sessions before it by day; activity and the library's
+ * state close the page. (Discover is for wandering; this is for catching up.)
+ */
 export default function OverviewPage() {
   const libsQuery = useLibraries();
+  // null = still loading; a failed load reads as empty.
+  const libs = libsQuery.data ?? (libsQuery.isError ? [] : null);
   const tagsQuery = useTagAggregate();
-  // null = still loading; a failed load reads as empty, as before.
-  const libs = useMemo(
-    () => libsQuery.data ?? (libsQuery.isError ? [] : null),
-    [libsQuery.data, libsQuery.isError],
-  );
-  const tags = useMemo(
-    () => tagsQuery.data ?? (tagsQuery.isError ? [] : null),
-    [tagsQuery.data, tagsQuery.isError],
-  );
-  const { data: ai } = useAiStatus();
-
-  const totalImages = useMemo(
-    () => (libs ? libs.reduce((n, l) => n + (l.indexed_count || 0), 0) : undefined),
-    [libs],
-  );
-  const manualCount = useMemo(
-    () => (tags ? tags.filter((t) => isManual(t._id)).length : 0),
-    [tags],
-  );
-  const scanning = useMemo(() => (libs || []).filter((l) => l.scanning), [libs]);
-  const latestJob = ai?.jobs?.recent?.[0];
-  // Progress, not plumbing: whether the model happens to be resident is an
-  // implementation detail (it loads on demand); how much is tagged is not.
-  const { data: cov } = useAiCoverage();
-  const aiPct = cov ? coveragePct(cov.ai_tagged, cov.total) : 0;
   const { data: stats } = useImageStats();
-
+  const feed = useImageFeed(DEFAULT_FILTERS, RECENT);
+  const firstPage = feed.data?.pages[0];
+  const { latest, earlier } = useMemo(
+    () => latestDay(firstPage ? splitSessions(firstPage.items, !firstPage.next) : []),
+    [firstPage],
+  );
+  const total = libs ? libs.reduce((n, l) => n + (l.indexed_count || 0), 0) : undefined;
   return (
     <>
       <PageHeader
         title="Overview"
         width="wide"
         actions={
-          <ButtonLink variant="primary" to="/libraries">
-            <Plus size={16} /> Add library
+          <ButtonLink to="/libraries" aria-label="Add library">
+            <Plus size={16} /> <span className="hidden sm:inline">Add library</span>
           </ButtonLink>
         }
       />
       <PageBody width="wide">
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <StatCard
-          icon={Images}
-          label="Images indexed"
-          loading={totalImages === undefined}
-          value={totalImages?.toLocaleString()}
-          to="/"
-        />
-        <StatCard
-          icon={TagsIcon}
-          // Prompt tags are excluded from this aggregate (they're long-tail
-          // and live on the Tags page behind a toggle); say so, or an image
-          // full of prompt tags sits beside a "0 Tags" card.
-          label="AI & manual tags"
-          loading={tags === null}
-          value={tags?.length.toLocaleString()}
-          hint={manualCount ? `${manualCount} manual` : undefined}
-          to="/tags"
-        />
-        <StatCard
-          icon={FolderOpen}
-          label="Libraries"
-          loading={libs === null}
-          value={libs?.length.toLocaleString()}
-          hint={scanning.length ? `${scanning.length} scanning` : undefined}
-          to="/libraries"
-        />
-        <StatCard
-          icon={Sparkles}
-          label="AI-tagged"
-          loading={!cov}
-          value={`${aiPct}%`}
-          hint={cov?.untagged ? `${cov.untagged.toLocaleString()} to go` : undefined}
-          to="/ai-tagging"
-        />
-      </div>
-
-      {/* What's new first (the daily question), then how much and what's
-          waiting, then the plumbing. */}
-      <div className="space-y-4">
-      <RecentImages />
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <ActivityChart days={stats?.activity} className="lg:col-span-2" />
-        <ToReview />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Sparkles size={16} className="text-faint" />
-            <h3 className="font-semibold text-neutral-100">AI tagging</h3>
+        <div className="space-y-6">
+          <LatestSession
+            session={latest}
+            pending={feed.isPending}
+            failed={feed.isError}
+            onRetry={() => void feed.refetch()}
+          />
+          <RecentSessions sessions={earlier.slice(0, SHELF_SESSIONS)} pending={feed.isPending} />
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <ActivityPanel days={stats?.activity} total={total} className="lg:col-span-2" />
+            <LibraryHealth libs={libs} tagCount={tagsQuery.isError ? null : tagsQuery.data?.length} />
           </div>
-          {latestJob ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-neutral-300">Latest job</span>
-                <Badge
-                  tone={
-                    isActiveJob(latestJob.status)
-                      ? "brand"
-                      : latestJob.status === "error"
-                        ? "danger"
-                        : "success"
-                  }
-                >
-                  {latestJob.status}
-                </Badge>
-              </div>
-              <ProgressBar
-                value={latestJob.done + latestJob.failed}
-                max={Math.max(1, latestJob.total)}
-                aria-label="Latest job progress"
-              />
-              <div className="text-xs text-neutral-400 tabular-nums">
-                {latestJob.done + latestJob.failed} / {latestJob.total} processed
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-faint">
-              No AI jobs yet. Head to{" "}
-              <Link className="text-brand-300 hover:underline" to="/ai-tagging">
-                AI Tagging
-              </Link>{" "}
-              to tag your images.
-            </p>
-          )}
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <FolderOpen size={16} className="text-faint" />
-            <h3 className="font-semibold text-neutral-100">Libraries</h3>
-          </div>
-          {libs === null ? (
-            <p className="text-sm text-faint">Loading…</p>
-          ) : libs.length === 0 ? (
-            <p className="text-sm text-faint">
-              No libraries yet.{" "}
-              <Link className="text-brand-300 hover:underline" to="/libraries">
-                Add one
-              </Link>{" "}
-              to start indexing.
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {libs.slice(0, 4).map((l) => (
-                <li
-                  key={l._id}
-                  className="flex items-center justify-between gap-3 text-sm"
-                >
-                  <span className="truncate text-neutral-200">
-                    {l.name || l.path}
-                  </span>
-                  {l.scanning ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-brand-300 shrink-0">
-                      <Loader2 size={12} className="animate-spin" /> scanning
-                    </span>
-                  ) : (
-                    <span className="text-xs text-faint tabular-nums shrink-0">
-                      {(l.indexed_count || 0).toLocaleString()} images
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
-      </div>
+        </div>
       </PageBody>
     </>
   );

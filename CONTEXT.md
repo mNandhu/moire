@@ -313,6 +313,14 @@ belongs in this file.
   a shelf with fewer than four Images hides. Each shelf opens with its own
   step list; "View all" is the gallery with the same filter, shuffled (not
   seen in a while: favorites first).
+- **Session**: Images made one after another, by file mtime, with no pause
+  longer than 45 minutes; cut client-side from the newest 400 Images of the
+  feed (`features/overview/lib/sessions.ts`), whatever prompts or batches
+  they held. Overview (`pages/OverviewPage.tsx`) leads with the latest day's
+  sessions as one banner (its best scored Image, named for a character found
+  in its tags, else the day), shows the days before as one stack per session,
+  then a calendar of a year's activity and the library's state (AI-tagged
+  share, quarantined, scanning). Each opens with its own step list.
 - **Last viewed**: when the image view last showed an Image
   (`images.last_viewed_at`, stamped once it has been on screen a moment, so
   stepping past doesn't count). Null until first opened after views began
