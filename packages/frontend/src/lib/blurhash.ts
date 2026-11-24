@@ -184,3 +184,35 @@ export function ambientPalette(hashes: (string | null | undefined)[], n = 3): st
     .slice(0, n)
     .map((b) => `hsl(${Math.round(b.hueSum / b.weight)} 70% 55%)`);
 }
+
+const dataUrls = new Map<string, string | null>();
+const DATA_URL_PX = 32;
+const DATA_URL_CACHE = 500;
+
+/**
+ * A BlurHash as a small PNG data URL, decoded at once (not in an effect), so
+ * a placeholder can be in an element's very first paint: one painted a
+ * frame later shows the background under it first. Cached; null where there
+ * is no canvas or the hash is malformed.
+ */
+export function blurhashDataUrl(hash: string): string | null {
+  const hit = dataUrls.get(hash);
+  if (hit !== undefined) return hit;
+  let url: string | null = null;
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = DATA_URL_PX;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      const image = ctx.createImageData(DATA_URL_PX, DATA_URL_PX);
+      image.data.set(decodeBlurhash(hash, DATA_URL_PX, DATA_URL_PX));
+      ctx.putImageData(image, 0, 0);
+      url = canvas.toDataURL();
+    }
+  } catch {
+    url = null;
+  }
+  if (dataUrls.size >= DATA_URL_CACHE) dataUrls.delete(dataUrls.keys().next().value!);
+  dataUrls.set(hash, url);
+  return url;
+}

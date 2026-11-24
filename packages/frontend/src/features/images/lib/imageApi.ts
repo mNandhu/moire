@@ -12,6 +12,9 @@ import { PAGE_LIMIT, serializeFilters, type Filters, type FeedItem, type ImageDe
 export const IMAGE_FEED_PREFIX = ["images"] as const;
 /** Every grouped (batch-collapsed) view's key starts with this. */
 export const IMAGE_GROUPS_PREFIX = ["image-groups"] as const;
+/** Every flat, unpaged list of feed rows (Discover's random picks) starts
+ * with this, so edits made in the image view reach those tiles too. */
+export const IMAGE_PICKS_PREFIX = ["image-picks"] as const;
 /** Every single-Image document's key starts with this. */
 export const IMAGE_DOC_PREFIX = ["image"] as const;
 

@@ -1,63 +1,134 @@
+import { useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ArrowRight, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import { Section } from "@/components/ui/Card";
+import { ArrowRight, type LucideIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Tooltip } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/cn";
 import { withBackgroundLocation } from "@/lib/backgroundLocation";
 import { stepsState } from "@/lib/stepList";
 import { imageHref, type FeedItem, type Filters } from "@/features/images/lib/imageFilter";
 import { STRIP_SIZE } from "@/features/discover/lib/queries";
+import { blurhashDataUrl } from "@/lib/blurhash";
 
-// Two rows at every breakpoint; the last four only show at xl.
-const BASE = 8;
-const DISCOVER_GRID = "grid grid-cols-4 xl:grid-cols-6 gap-2";
+/** Each section's colour: its badge, and the light it casts. */
+const TINTS = {
+  sky: { badge: "bg-sky-400/15 text-sky-300 ring-sky-400/30", glow: "from-sky-500/25" },
+  amber: { badge: "bg-amber-400/15 text-amber-300 ring-amber-400/30", glow: "from-amber-500/25" },
+  rose: { badge: "bg-rose-400/15 text-rose-300 ring-rose-400/30", glow: "from-rose-500/25" },
+  emerald: { badge: "bg-emerald-400/15 text-emerald-300 ring-emerald-400/30", glow: "from-emerald-500/25" },
+  cyan: { badge: "bg-cyan-400/15 text-cyan-300 ring-cyan-400/30", glow: "from-cyan-500/25" },
+  violet: { badge: "bg-brand-400/15 text-brand-200 ring-brand-400/30", glow: "from-brand-500/25" },
+  fuchsia: { badge: "bg-fuchsia-400/15 text-fuchsia-300 ring-fuchsia-400/30", glow: "from-fuchsia-500/25" },
+} as const;
+type Tint = keyof typeof TINTS;
 
-/** A Discover section: its title, a new pick and a way to see all of it. */
+/** A row of tiles that scrolls sideways (images and tag cards alike), by
+ * trackpad, swipe, Shift+wheel or keyboard, with no scrollbar. */
+export const SHELF = "flex gap-3 overflow-x-auto pb-2 snap-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+
+/**
+ * A Discover section: a box lit by its own pick (a blurred, enlarged copy of
+ * its first image), its title with an icon and a way to see all of it.
+ */
 export function DiscoverSection({
   label,
   title = label,
-  onDeal,
+  icon: Icon,
+  badge,
+  tint = "violet",
+  cover,
   viewAll,
   children,
 }: {
   /** The section's name (its region's, and the title unless one is given). */
   label: string;
   title?: React.ReactNode;
-  onDeal: () => void;
+  icon?: LucideIcon;
+  /** In place of the icon (a character's avatar). */
+  badge?: React.ReactNode;
+  tint?: Tint;
+  /** An image of the pick, the section's light. */
+  cover?: string | null;
   /** Where "View all" goes. */
   viewAll: string;
   children: React.ReactNode;
 }) {
   return (
-    <section aria-label={label}>
-    <Section
-      title={title}
-      actions={
-        <div className="flex items-center gap-1">
-          <Tooltip content="Pick again" bubble>
-            <Button size="iconSm" variant="ghost" onClick={onDeal} aria-label={`Pick again: ${label}`}>
-              <RefreshCw size={14} />
-            </Button>
-          </Tooltip>
-          <Link
-            to={viewAll}
-            className="inline-flex items-center gap-1 text-sm text-muted hover:text-neutral-100"
-          >
-            View all <ArrowRight size={14} />
-          </Link>
-        </div>
-      }
+    <section
+      aria-label={label}
+      className="relative isolate overflow-hidden rounded-2xl border border-white/5 bg-surface p-4 shadow-panel sm:p-5"
     >
+      {cover && (
+        <img
+          src={cover}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 h-full w-full scale-125 object-cover opacity-35 blur-3xl saturate-150"
+        />
+      )}
+      <div className={cn("pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br to-surface/90", TINTS[tint].glow)} />
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="flex min-w-0 items-center gap-2.5 text-xl font-semibold tracking-tight text-neutral-50">
+          {badge ??
+            (Icon && (
+              <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg ring-1", TINTS[tint].badge)}>
+                <Icon size={18} strokeWidth={2.2} />
+              </span>
+            ))}
+          <span className="min-w-0 truncate">{title}</span>
+        </h2>
+        <Link
+          to={viewAll}
+          className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-sm text-muted hover:text-neutral-100"
+        >
+          View all <ArrowRight size={14} />
+        </Link>
+      </div>
       {children}
-    </Section>
     </section>
   );
 }
 
+/** A shelf image: its blurhash in the tile's first paint (never a dark tile
+ * first), the image fading in over it. */
+function ShelfImage({ src, blurhash }: { src: string; blurhash: string | null }) {
+  const [loaded, setLoaded] = useState(false);
+  const blur = useMemo(() => (blurhash ? blurhashDataUrl(blurhash) : null), [blurhash]);
+  return (
+    <>
+      {blur && (
+        <span
+          aria-hidden
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${blur})` }}
+        />
+      )}
+      <img
+        // A cached image can be complete before the load handler is on.
+        ref={(el) => {
+          if (el?.complete && el.naturalWidth) setLoaded(true);
+        }}
+        src={src}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        className={cn(
+          "relative h-full w-full object-cover transition-[opacity,transform] duration-300 ease-out group-hover:scale-[1.03] motion-reduce:transition-none",
+          loaded ? "opacity-100" : "opacity-0",
+        )}
+      />
+    </>
+  );
+}
+
+// A faint glass tile, not a dark one, under the blurhash and as the
+// placeholder: on a lit box a black tile reads as a black image.
+const TILE =
+  "relative block aspect-[3/4] shrink-0 snap-start overflow-hidden rounded-xl bg-white/[0.06] shadow-tile ring-brand-400 focus-visible:outline-none focus-visible:ring-2";
+const TILE_WIDTH = { md: "w-40 sm:w-48", sm: "w-28 sm:w-32" } as const;
+
 /**
- * A strip of random images. Opening one steps through the strip's images
+ * A shelf of random images. Opening one steps through the shelf's images
  * (a step list named `name`), not the gallery feed.
  */
 export function ImageStrip({
@@ -65,46 +136,35 @@ export function ImageStrip({
   items,
   pending,
   filters,
+  size = "md",
+  placeholders = STRIP_SIZE,
 }: {
   name: string;
   items: FeedItem[] | undefined;
   pending: boolean;
   /** The filter the strip picked from: the view's way back to a gallery. */
   filters: Filters;
+  size?: keyof typeof TILE_WIDTH;
+  /** Tiles to hold while loading: as many as are likely to come. */
+  placeholders?: number;
 }) {
+  const tile = cn(TILE, TILE_WIDTH[size]);
   const location = useLocation();
   if (pending || !items) {
     return (
-      <div className={DISCOVER_GRID}>
-        {Array.from({ length: STRIP_SIZE }, (_, i) => (
-          <Skeleton key={i} className={cn("aspect-square w-full rounded-lg", i >= BASE && "hidden xl:block")} />
+      <div className={SHELF}>
+        {Array.from({ length: placeholders }, (_, i) => (
+          <Skeleton key={i} className={tile} />
         ))}
       </div>
     );
   }
   const state = { ...withBackgroundLocation(location), ...stepsState({ name, items }) };
   return (
-    <div className={DISCOVER_GRID}>
-      {items.map((img, i) => (
-        <Link
-          key={img._id}
-          to={imageHref(img._id, filters)}
-          state={state}
-          className={cn(
-            "block aspect-square overflow-hidden rounded-lg bg-sunken ring-brand-400 focus-visible:outline-none focus-visible:ring-2",
-            i >= BASE && "hidden xl:block",
-          )}
-          aria-label={img.path}
-        >
-          {img.thumb_url && (
-            <img
-              src={img.thumb_url}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              className="h-full w-full object-cover transition-transform duration-200 hover:scale-[1.03]"
-            />
-          )}
+    <div className={SHELF}>
+      {items.map((img) => (
+        <Link key={img._id} to={imageHref(img._id, filters)} state={state} className={cn("group", tile)} aria-label={img.path}>
+          {img.thumb_url && <ShelfImage src={img.thumb_url} blurhash={img.blurhash} />}
         </Link>
       ))}
     </div>

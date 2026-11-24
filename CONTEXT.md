@@ -305,11 +305,14 @@ belongs in this file.
   the gallery) reads a run of that order from a random point
   (`feed.random_run`) and opens the first with the rest as its step list, as
   a random Image sits anywhere in the feed.
-- **Discover**: a page of random picks (`pages/DiscoverPage.tsx`): unscored
-  and top rated Images, forgotten favorites (top rated, not opened in 30
-  days), rare AI tags, one workflow family, one character, one model. Each
-  strip opens with its own step list; "View all" is the gallery with the
-  same filter, shuffled.
+- **Discover**: a page of random picks (`pages/DiscoverPage.tsx`) under a
+  banner featuring one character (their avatar image, framed on the
+  detected face): more of that character, Images not seen in a while (not
+  opened in 30 days, favorites first), top rated and unscored Images, rare
+  AI tags, one workflow family, one model. One Shuffle deals them all again;
+  a shelf with fewer than four Images hides. Each shelf opens with its own
+  step list; "View all" is the gallery with the same filter, shuffled (not
+  seen in a while: favorites first).
 - **Last viewed**: when the image view last showed an Image
   (`images.last_viewed_at`, stamped once it has been on screen a moment, so
   stepping past doesn't count). Null until first opened after views began

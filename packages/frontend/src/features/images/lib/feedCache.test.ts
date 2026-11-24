@@ -328,3 +328,32 @@ describe("patches never fake freshness", () => {
     expect(pagesOf(qc, key)[0][0].score).toBe(0);
   });
 });
+
+describe("flat pick lists (Discover)", () => {
+  const PICKS = ["image-picks", "discover", "unscored=1", 12, 0];
+
+  it("take the open image's edits, quarantine included", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(PICKS, [doc("a"), doc("b")]);
+    syncFeedsFromDoc(qc, { ...detail("a"), quarantined: true }, Date.now() + 1000);
+    const rows = qc.getQueryData(PICKS) as ReturnType<typeof doc>[];
+    expect(rows.map((r) => [r._id, r.quarantined])).toEqual([
+      ["a", true],
+      ["b", doc("b").quarantined],
+    ]);
+  });
+
+  it("roll back a failed write to an image only they hold", async () => {
+    const qc = new QueryClient();
+    qc.setQueryData(PICKS, [doc("a", 3)]);
+    await expect(writeImageFields(qc, "a", { score: 1 }, () => Promise.reject(new Error("boom")))).rejects.toThrow();
+    expect((qc.getQueryData(PICKS) as ReturnType<typeof doc>[])[0].score).toBe(3);
+  });
+
+  it("lose removed images", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(PICKS, [doc("a"), doc("b")]);
+    removeImagesFromFeeds(qc, ["a"]);
+    expect((qc.getQueryData(PICKS) as ReturnType<typeof doc>[]).map((r) => r._id)).toEqual(["b"]);
+  });
+});

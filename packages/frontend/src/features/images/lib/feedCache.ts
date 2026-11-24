@@ -16,7 +16,7 @@ import type { InfiniteData, Query, QueryClient } from "@tanstack/react-query";
 import { IMAGE_SIZES_KEY, IMAGE_STATS_KEY, imageEmbeddingsQuery, imageLorasQuery, imageModelsQuery } from "./queries";
 import { TAGS_KEY } from "@/features/tags/lib/queries";
 import type { FeedItem, ImageDetail, ImageFields } from "./imageFilter";
-import { IMAGE_FEED_PREFIX, IMAGE_GROUPS_PREFIX, imageDocKey, type FeedPage } from "./imageApi";
+import { IMAGE_FEED_PREFIX, IMAGE_GROUPS_PREFIX, IMAGE_PICKS_PREFIX, imageDocKey, type FeedPage } from "./imageApi";
 
 // The cache keys live with the fetchers (imageApi.ts); re-exported for
 // the readers that patch through here.
@@ -41,6 +41,9 @@ const feedQueries = (qc: QueryClient) =>
 const groupQueries = (qc: QueryClient) =>
   qc.getQueryCache().findAll({ queryKey: IMAGE_GROUPS_PREFIX });
 const feedAndGroupQueries = (qc: QueryClient) => [...feedQueries(qc), ...groupQueries(qc)];
+// Flat lists of feed rows, one fetch each (no pages, no cursor).
+const pickQueries = (qc: QueryClient) =>
+  qc.getQueryCache().findAll({ queryKey: IMAGE_PICKS_PREFIX });
 
 /** Apply `keep` to each page's items of `q`, writing only what changed. */
 function patchPages(q: Query, keep: (items: FeedItem[]) => FeedItem[]): void {
@@ -104,6 +107,11 @@ export function patchImageInFeeds(
     if (!old || !old.pages.some((p) => hasImage(p.items, id)) || !when(q)) continue;
     patchPages(q, inPage);
   }
+  for (const q of pickQueries(qc)) {
+    const old = q.state.data as FeedItem[] | undefined;
+    if (!old || !hasImage(old, id) || !when(q)) continue;
+    patchData(q, inPage(old));
+  }
 }
 
 // What a gallery tile draws from an image (see image_feed.FEED_COLUMNS); a
@@ -156,6 +164,11 @@ function writesOf(qc: QueryClient): Map<string, FieldWrites> {
 function cachedTile(qc: QueryClient, id: string): FeedItem | undefined {
   for (const q of feedAndGroupQueries(qc)) {
     const hit = (q.state.data as FeedData | undefined)?.pages.flatMap((p) => p.items).find((d) => d._id === id);
+    if (hit) return hit;
+  }
+  // Only in a pick list (opened from Discover): its value to roll back to.
+  for (const q of pickQueries(qc)) {
+    const hit = (q.state.data as FeedItem[] | undefined)?.find((d) => d._id === id);
     if (hit) return hit;
   }
   return undefined;
@@ -269,6 +282,10 @@ export function removeImagesFromFeeds(
       ? page.filter((d) => !drop.has(d._id) || (d.group_count ?? 1) > 1)
       : page;
   for (const q of groupQueries(qc)) patchPages(q, keepGroup);
+  for (const q of pickQueries(qc)) {
+    const old = q.state.data as FeedItem[] | undefined;
+    if (old) patchData(q, keep(old));
+  }
 }
 
 /** The image view's batch strip: a batch's members under the viewer's filters.
