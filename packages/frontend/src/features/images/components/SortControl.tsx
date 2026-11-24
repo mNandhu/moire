@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Clock, History, RefreshCw, Shuffle, Star, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/Tooltip";
@@ -31,6 +31,18 @@ export function SortControl({
 }) {
   const index = Math.max(0, SORT_OPTIONS.findIndex((o) => o.value === value));
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  // Each option is as wide as its own label (equal columns left "Top"
+  // floating in a gap), so the highlight measures the one it sits under.
+  const [box, setBox] = useState<{ left: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = refs.current[index];
+    if (!el) return;
+    const measure = () => setBox({ left: el.offsetLeft, width: el.offsetWidth });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [index]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
@@ -49,13 +61,15 @@ export function SortControl({
       role="radiogroup"
       aria-label="Sort"
       onKeyDown={onKeyDown}
-      style={{ gridTemplateColumns: `repeat(${SORT_OPTIONS.length}, minmax(0, 1fr))` }}
-      className="relative grid h-9 p-0.5 rounded-lg bg-raised border border-line shrink-0"
+      className="relative flex h-9 p-0.5 rounded-lg bg-raised border border-line shrink-0"
     >
       <span
         aria-hidden="true"
-        className="absolute inset-y-0.5 left-0.5 rounded-md bg-brand-600/25 border border-brand-500/60 transition-transform duration-200 ease-out motion-reduce:transition-none"
-        style={{ width: `calc((100% - 4px) / ${SORT_OPTIONS.length})`, transform: `translateX(${index * 100}%)` }}
+        className={cn(
+          "absolute inset-y-0.5 left-0 rounded-md bg-brand-600/25 border border-brand-500/60 transition-[transform,width] duration-200 ease-out motion-reduce:transition-none",
+          !box && "hidden",
+        )}
+        style={box ? { width: box.width, transform: `translateX(${box.left}px)` } : undefined}
       />
       {SORT_OPTIONS.map((o, i) => {
         const on = i === index;
