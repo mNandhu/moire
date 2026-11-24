@@ -30,20 +30,35 @@ export function useDismiss(
 
   useEffect(() => {
     if (!open) return;
+    const inside = (target: Node) => {
+      const list = Array.isArray(refsRef.current) ? refsRef.current : [refsRef.current];
+      return list.some((r) => r.current?.contains(target));
+    };
+    // Where the press landed, read before any handler runs: a press can
+    // remove what it pressed (a Picker's option, picked, inside a panel),
+    // and by the time it bubbles here the node is gone from both.
+    let pressedInside = false;
+    const onCapture = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node | null;
+      pressedInside = !!target && inside(target);
+    };
     const onDown = (e: MouseEvent | TouchEvent) => {
       const target = e.target as Node | null;
       if (!target) return;
-      const list = Array.isArray(refsRef.current) ? refsRef.current : [refsRef.current];
-      if (list.some((r) => r.current?.contains(target))) return;
+      if (target.isConnected ? inside(target) : pressedInside) return;
       onCloseRef.current();
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !e.defaultPrevented) onCloseRef.current();
     };
+    document.addEventListener("mousedown", onCapture, true);
+    document.addEventListener("touchstart", onCapture, { capture: true, passive: true });
     document.addEventListener("mousedown", onDown);
     document.addEventListener("touchstart", onDown, { passive: true });
     if (escape) document.addEventListener("keydown", onKey);
     return () => {
+      document.removeEventListener("mousedown", onCapture, true);
+      document.removeEventListener("touchstart", onCapture, true);
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("touchstart", onDown);
       if (escape) document.removeEventListener("keydown", onKey);

@@ -174,3 +174,33 @@ test("Random image opens a random image and steps through more of them", async (
   await page.keyboard.press("r");
   await expect(page).toHaveURL(/\/image\//);
 });
+
+test("the filter panel stays open while filters are picked, a Made range among them", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Show filters" }).click();
+  const panel = page.getByRole("dialog", { name: "Filters" });
+
+  // Picking an option leaves the panel open for the next filter.
+  await panel.getByRole("button", { name: "Tag logic" }).click();
+  await page.getByRole("option", { name: /Match any/ }).click();
+  await expect(panel).toBeVisible();
+
+  await panel.getByRole("button", { name: "Made filter" }).click();
+  await page.getByRole("option", { name: /Custom range/ }).click();
+  await expect(panel).toBeVisible();
+
+  // From: today, by keyboard (the month opens on it).
+  await panel.getByRole("button", { name: "Made from" }).click();
+  await expect(page.getByRole("dialog", { name: "Made from" })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/[?&]made_from=\d+/);
+  await expect(panel.getByRole("button", { name: /^Made from: / })).toBeVisible();
+
+  // To: today too, by mouse, through Today.
+  await panel.getByRole("button", { name: "Made to" }).click();
+  await page.getByRole("dialog", { name: "Made to" }).getByRole("button", { name: "Today" }).click();
+  await expect(page).toHaveURL(/[?&]made_to=\d+/);
+
+  await page.getByRole("button", { name: "Hide filters" }).click();
+  await expect(page.getByRole("button", { name: /^Remove filter: Made [A-Z][a-z]{2} \d+/ })).toBeVisible();
+});

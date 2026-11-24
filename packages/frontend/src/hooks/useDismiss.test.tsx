@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { Dialog } from "@/components/ui/Dialog";
 import { useDismiss } from "./useDismiss";
 
@@ -33,6 +34,44 @@ describe("useDismiss", () => {
     fireEvent.mouseDown(screen.getByText("outside"));
     fireEvent.touchStart(screen.getByText("outside"));
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps open on a press that removed what it pressed (a picked option)", () => {
+    const onClose = vi.fn();
+    function Panel() {
+      const ref = useRef<HTMLDivElement>(null);
+      const [listOpen, setListOpen] = useState(true);
+      useDismiss(ref, onClose, true);
+      return (
+        <div ref={ref}>
+          {listOpen && (
+            <button onMouseDown={() => flushSync(() => setListOpen(false))}>option</button>
+          )}
+        </div>
+      );
+    }
+    render(<Panel />);
+    fireEvent.mouseDown(screen.getByText("option"));
+    expect(screen.queryByText("option")).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("still closes on a press outside that removed what it pressed", () => {
+    const onClose = vi.fn();
+    function Page() {
+      const ref = useRef<HTMLDivElement>(null);
+      const [chip, setChip] = useState(true);
+      useDismiss(ref, onClose, true);
+      return (
+        <div>
+          <div ref={ref}>popover</div>
+          {chip && <button onMouseDown={() => flushSync(() => setChip(false))}>chip</button>}
+        </div>
+      );
+    }
+    render(<Page />);
+    fireEvent.mouseDown(screen.getByText("chip"));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("closes on Escape, but not when it was already handled", () => {

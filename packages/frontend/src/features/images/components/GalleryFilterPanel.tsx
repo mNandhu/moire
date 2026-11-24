@@ -6,6 +6,7 @@ import type { FilterOptions } from "@/features/images/hooks/useFilterOptions";
 import { Button } from "@/components/ui/Button";
 import { Picker } from "@/components/ui/Picker";
 import { SizeFilter } from "./SizeFilter";
+import { MadeFilter } from "./MadeFilter";
 import { TagSearchInput } from "@/features/tags/components/TagSearchInput";
 
 const LOGIC_OPTIONS = {
@@ -145,6 +146,7 @@ export function GalleryFilterPanel({
             </Button>
           </div>
         </div>
+        <MadeFilter filters={filters} setFilters={setFilters} />
       </div>
 
       {/* Generation-metadata search */}
