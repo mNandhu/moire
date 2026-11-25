@@ -153,6 +153,8 @@ async def test_nothing_runs_until_switched_on_and_downloaded(client, seed, monke
     monkeypatch.setattr(
         face_detect, "detect", lambda *a: (_ for _ in ()).throw(AssertionError)
     )
+    # The real model may be cached on this machine: pin "not downloaded".
+    monkeypatch.setattr(face_detect, "downloaded", lambda cache_dir: False)
     await client.get("/tags/characters")  # not downloaded: nothing queued
     assert not face_worker.get_face_worker()._pending
     status = (await client.get("/ai/faces")).json()
