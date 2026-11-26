@@ -224,6 +224,10 @@ class WDTagger:
         self._labels: LabelIndex | None = None
         self._target_size: int | None = None
         self._repo: str | None = None
+        # The device the last session ran on, kept past an unload: a GPU
+        # build whose CUDA failed ran on the CPU, and must not read "gpu"
+        # again once idle (the measured rate is looked up by device).
+        self._last_device: str | None = None
 
     @property
     def repo(self) -> str | None:
@@ -236,11 +240,13 @@ class WDTagger:
     @property
     def device(self) -> str:
         """ "gpu" when tagging runs on CUDA, else "cpu": the loaded session's
-        own providers, or before a load, the ones this onnxruntime build has
-        (a GPU build whose CUDA libraries fail to load still says "gpu" until
-        a session is made)."""
+        own providers, else the last session's, or before any load, the ones
+        this onnxruntime build has (a GPU build whose CUDA libraries fail to
+        load says "gpu" until a session is made)."""
         if self._session is not None:
             providers = self._session.get_providers()
+        elif self._last_device is not None:
+            return self._last_device
         else:
             try:
                 providers = rt.get_available_providers() if rt is not None else []
@@ -250,6 +256,8 @@ class WDTagger:
 
     def drop(self) -> None:
         """Drop every reference to the model (cheap; no memory handed back)."""
+        if self._session is not None:
+            self._last_device = self.device
         self._session = None
         self._labels = None
         self._target_size = None

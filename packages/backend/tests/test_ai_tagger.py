@@ -224,6 +224,24 @@ def _fake_tagger(size: int) -> tuple[WDTagger, _FakeSession]:
     return tagger, sess
 
 
+def test_an_unloaded_tagger_keeps_the_device_it_ran_on(monkeypatch):
+    """A GPU build whose CUDA failed ran on the CPU: still "cpu" once the
+    model is unloaded, not the build's "gpu" (rates are kept by device)."""
+    from moire.services.ai import tagger as ai_tagger
+
+    class _Build:
+        def get_available_providers(self):
+            return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+
+    monkeypatch.setattr(ai_tagger, "rt", _Build())
+    assert WDTagger().device == "gpu"  # nothing loaded yet: the build's guess
+    tagger, sess = _fake_tagger(8)
+    sess.get_providers = lambda: ["CPUExecutionProvider"]
+    assert tagger.device == "cpu"
+    tagger.drop()
+    assert tagger.device == "cpu"
+
+
 def test_predict_uses_a_prepared_tensor_of_the_right_size():
     from PIL import Image
 
