@@ -29,7 +29,7 @@ export function TaggingStep({
   checkout: boolean;
   on: boolean;
   onChange: (on: boolean) => void;
-  estimate: AiEstimate | undefined;
+  estimate: AiEstimate | undefined | null;
 }) {
   // This computer's measured rate, else the typical one for its device
   // (CPU without the status: an older backend). Only for the bars.

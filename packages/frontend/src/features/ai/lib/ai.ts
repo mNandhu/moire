@@ -108,8 +108,9 @@ export type AIStatus = {
     }>;
   };
   jobs: { recent: AiJob[]; queue_depth: number };
-  /** Absent from older backends. */
-  estimate?: AiEstimate;
+  /** Absent from older backends; null when the stored rates couldn't be
+   * read (unknown, not unmeasured). */
+  estimate?: AiEstimate | null;
   settings: AISettings;
 };
 

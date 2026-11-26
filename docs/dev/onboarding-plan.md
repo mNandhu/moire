@@ -78,10 +78,10 @@ Skipping at any point lands in the gallery, with whatever was done so far.
 - [x] Order: newest first by file `mtime` (what the user looks at first).
 - [x] Onboarding step UI: switch (off by default), CPU vs GPU time for this library, GPU callout.
 - [x] Switch enabled (it shipped disabled until the backlog could run whole).
-- [x] Time estimate from the documented rates (CPU ~0.6 images/s in a real job, GPU ~0.1 s an image on a GTX 1650, see `docs/dev/perf-findings.md`), in `features/onboarding/lib/onboarding.ts`.
-- [x] Measured rate: a run of 20+ images stores its rate per device (`services/ai/estimate.py`, app_settings row `ai_rate`); `/ai/status` `estimate` serves it, else the documented rate for the device. The AI Tagging page shows it for the backlog and each library.
+- [x] CPU vs GPU bars from the documented rates (CPU ~0.6 images/s in a real job, GPU ~0.1 s an image, see `docs/dev/perf-findings.md`), in `features/onboarding/lib/onboarding.ts`. The switch shows no time: nothing is measured yet.
+- [x] Measured rate: a run of 20+ images blends its rate into the stored one for its device and model (`services/ai/estimate.py`, app_settings row `ai_rate`); `/ai/status` `estimate` serves it, `seconds_per_image` null until a run has (no built-in rate). The AI Tagging page shows it for the backlog and each library, and offers a 25-image timing run until then.
 - [ ] GPU detection:
-  - [x] Which build is running: the session's providers once loaded, else `get_available_providers()` (`WDTagger.device`). On the GPU build the step drops the CPU/GPU bars and the GPU callout.
+  - [x] Which build is running: the session's providers once loaded, else the last session's, else `get_available_providers()` (`WDTagger.device`). On the GPU build the step drops the CPU/GPU bars and the GPU callout.
   - [ ] Whether an NVIDIA GPU is present when the CPU build is running (for example `nvidia-smi` on PATH). Until then the step shows the recommendation to everyone ("Have an NVIDIA GPU?") without claiming one was found.
   - [x] Install command by install type, from `IS_CHECKOUT`: `uv tool install --reinstall "moire-gallery[gpu]"` for an installed copy, the `UV_NO_GROUP=cpu … --group gpu` command from the README for a checkout.
 - [ ] Sidebar activity shows tagging progress after the scan.

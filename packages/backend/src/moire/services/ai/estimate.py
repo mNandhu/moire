@@ -75,15 +75,18 @@ async def record(device: str, model: str, rate: float, images: int) -> None:
         logger.debug("Could not store the tagging rate", exc_info=True)
 
 
-async def estimate(model: str) -> dict[str, Any]:
+async def estimate(model: str) -> dict[str, Any] | None:
     """``device`` ("cpu" or "gpu") and ``seconds_per_image`` with ``model``
-    as measured on this machine, None until a run has."""
+    as measured on this machine, None until a run has. None for the whole
+    estimate when the stored rates can't be read: unknown, which the UI must
+    not take for never measured (it would offer a timing run)."""
     global _rates
     device = current_device()
     if _rates is None:
         try:
             _rates = dict(await app_settings.read(ROW) or {})
         except Exception:
-            return {"device": device, "seconds_per_image": None}
+            logger.warning("Could not read the tagging rates", exc_info=True)
+            return None
     rate = _stored_rate(_rates, device, model)
     return {"device": device, "seconds_per_image": 1 / rate if rate else None}

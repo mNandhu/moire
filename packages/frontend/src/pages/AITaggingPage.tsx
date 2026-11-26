@@ -34,7 +34,7 @@ function CoverageBar({ tagged, total }: { tagged: number; total: number }) {
 const DEVICE = { cpu: "CPU", gpu: "GPU" } as const;
 
 /** "about 22 min" at the rate this computer measured; nothing before it has. */
-function Estimate({ images, est, device = false }: { images: number; est: AiEstimate | undefined; device?: boolean }) {
+function Estimate({ images, est, device = false }: { images: number; est: AiEstimate | undefined | null; device?: boolean }) {
   const secs = taggingSeconds(images, est);
   if (secs == null || !est) return null;
   return <span>{`${aboutDuration(secs)}${device ? ` on the ${DEVICE[est.device]}` : ""}`}</span>;
@@ -51,7 +51,7 @@ function parseCount(text: string): number | null {
  * 2,511 images". The box starts at the whole backlog and follows it until
  * edited; its estimate follows the box.
  */
-function RunControl({ remaining, est }: { remaining: number; est: AiEstimate | undefined }) {
+function RunControl({ remaining, est }: { remaining: number; est: AiEstimate | undefined | null }) {
   const { running, runUntagged } = useAiController();
   const [typed, setTyped] = useState<string | null>(null);
   const asked = typed == null ? remaining : parseCount(typed);
@@ -204,7 +204,7 @@ function LibraryCoverage({
 }: {
   perLibrary: AiLibraryCoverage[];
   nameOf: (id: string) => string;
-  est: AiEstimate | undefined;
+  est: AiEstimate | undefined | null;
 }) {
   const { running, runUntagged, latestJob } = useAiController();
   // A job running now holds the untagged images: another run would get none.

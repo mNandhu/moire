@@ -17,6 +17,7 @@ Scenarios worth testing end to end, for the Playwright suite in `packages/e2e` (
 - AI tagging: the real WD tagger on one library's row from the AI Tagging page, cancelled after three images, and on a picture in New character, filling identity and Default outfit (`tagging-ai.spec.ts`); the run box's count becoming the run's limit, none for every image left, no time estimate before a measured rate but a Time 25 images run in its place, and Settings saving the auto-tag switch (`ai-tagging-page.spec.ts`); the onboarding AI tagging switch turning on and off (`onboarding.setup.ts`)
 - Update notice: the sidebar's Update available row with the command and What's new link, Later hiding it across a reload, Settings > About showing the version, the update and the last check, the check switch, and a source checkout showing no check (`update-notice.spec.ts`)
 - Settings tabs: the ones past the row's width under More, More naming the open one (`settings-tabs.spec.ts`)
+- ComfyUI settings: saving one output folder keeps what is typed in the other, and a saved folder shows the stored spelling even when the stored value didn't change (`comfy-settings.spec.ts`)
 
 ## Still to cover
 

@@ -118,8 +118,11 @@ export function ComfySection() {
     setCaCert(s.ca_cert ?? "");
     setHeaders(Object.entries(s.headers).map(([name, value]) => ({ name, value })));
   };
-  // Each field follows only its own stored value. A save of one field (and
-  // the refetch after it) must not wipe what is being typed in another.
+  // Each field follows only its own stored value: a save of one field (and
+  // the refetch after it) must not wipe what is being typed in another. The
+  // fields a save sent are set from its answer instead (onSuccess below),
+  // which also covers a value the server stored unchanged (a cleaned-up
+  // path, a clamped count, a masked header).
   const synced = useRef<ComfySettings | null>(null);
   useEffect(() => {
     if (!settings) return;
@@ -147,7 +150,10 @@ export function ComfySection() {
 
   const save = useMutation({
     mutationFn: (patch: Partial<ComfySettings> & { output_path?: string | null }) => putSettings(patch),
-    onSuccess: (s) => {
+    onSuccess: (s, patch) => {
+      if ("output_path" in patch) setOutputPath(s.output_path ?? "");
+      if ("output_root" in patch) setOutputRoot(s.output_root ?? "");
+      if ("builtin_per_request" in patch) setPerRequest(s.builtin_per_request);
       qc.setQueryData(SETTINGS_KEY, s);
       void qc.invalidateQueries({ queryKey: GEN_KEY });
       toast.push("Saved", "success");
@@ -158,6 +164,7 @@ export function ComfySection() {
   const test = useMutation({
     mutationFn: () => connect(dirty ? { address: address.trim(), ca_cert: caCert.trim(), headers: headerMap() } : null),
     onSuccess: ({ saved, result: r }) => {
+      if (saved) resetConnection(saved);
       const prefix = saved ? "Saved. " : "";
       toast.push(
         r.ok ? `${prefix}Connected` : `${prefix}Can't reach ComfyUI${r.error ? `: ${r.error}` : ""}`,
