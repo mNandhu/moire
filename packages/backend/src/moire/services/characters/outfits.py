@@ -123,7 +123,12 @@ def rule_of(o: dict[str, Any]) -> WearRule:
 
 async def wear_rule(outfit_id: str) -> WearRule | None:
     """The gallery filter's view of an outfit (:func:`rule_of`). ``outfit_id``
-    is a saved id or ``default:<character>``. None when it is unknown."""
+    is a saved id, ``default:<character>`` or ``starter:<id>``. None when it
+    is unknown."""
+    from . import starters  # starters builds on this module
+
+    if starters.is_starter(outfit_id):
+        return await starters.wear_rule(outfit_id)
     if outfit_id.startswith(f"{DEFAULT_ID}:"):
         o = await default(outfit_id.split(":", 1)[1])
     else:

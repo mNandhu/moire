@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from ...services.characters import outfits
+from ...services.characters import outfits, starters
 from ...services.tags import categories as tag_categories
 from ...services.library import thumb_version
 
@@ -78,6 +79,29 @@ async def outfit_covers(
     if found is None:
         raise HTTPException(status_code=404, detail="Character or outfit not found")
     return await _thumbs(found)
+
+
+@router.get("/outfits/starters")
+async def starter_outfits(character: str | None = None):
+    """The starter outfits; for ``character``, a cover is their best image
+    wearing it, where they have one, else the shipped cover."""
+    found = await starters.listing(character)
+    await thumb_version.attach(found)
+    starters.fill_covers(found)
+    return found
+
+
+_IMMUTABLE = {"Cache-Control": "public, max-age=31536000, immutable"}
+
+
+@router.api_route("/outfits/starters/{starter_id}/cover", methods=["GET", "HEAD"])
+async def starter_cover(starter_id: str):
+    """A starter's shipped cover (HEAD: the same headers, no body)."""
+    path = starters.cover_path(starter_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Starter outfit not found")
+    # Versioned by its bytes (?v=), so it never changes under one URL.
+    return FileResponse(path, media_type="image/webp", headers=_IMMUTABLE)
 
 
 @router.get("/outfits/worn")

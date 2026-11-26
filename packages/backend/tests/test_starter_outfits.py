@@ -80,3 +80,110 @@ def test_no_low_angle_under_a_skirt():
     for o in OUTFITS:
         if "from_below" in o["cover"]["moment"]:
             assert not any(t.split("_")[-1] in hems for t in o["tags"]), o["id"]
+
+
+# -- In the app ------------------------------------------------------------------
+
+import asyncio  # noqa: E402
+
+from moire.services.characters import starters  # noqa: E402
+from moire.services.tags import categories as tag_categories  # noqa: E402
+from tests.test_characters import _chars  # noqa: E402
+from tests.test_generate_integration import comfy, make_ready  # noqa: E402,F401
+from tests.test_recipes import _library  # noqa: E402
+
+HU = "hu_tao_(genshin_impact)"
+MAID = [
+    "maid", "maid_headdress", "dress", "apron",
+    "puffy_short_sleeves", "frills", "thighhighs", "mary_janes",
+]  # fmt: skip
+
+
+def test_every_listed_starter_has_its_cover():
+    listed = starters.entries()
+    assert len(listed) == len(OUTFITS)
+    assert all(s.cover_version for s in listed.values())
+    # Only a listed id names a file: nothing else becomes a path.
+    assert starters.cover_path("../starter_outfits") is None
+    assert starters.find("starter:maid-dress").tags == tuple(MAID)
+
+
+async def test_starters_in_the_app(client, comfy, seed, monkeypatch):  # noqa: F811
+    listed = (await client.get("/generate/outfits/starters")).json()
+    assert len(listed) == len(OUTFITS)
+    maid = next(o for o in listed if o["_id"] == "starter:maid-dress")
+    assert maid["starter"] is True and maid["category"] == "work"
+    assert [x["tag"] for x in maid["tags"]] == MAID
+    cover = maid["thumb_url"]
+    assert cover.startswith("/api/v1/generate/outfits/starters/maid-dress/cover?v=")
+
+    path = cover.removeprefix("/api/v1")
+    got = await client.get(path)
+    assert got.status_code == 200 and got.headers["content-type"] == "image/webp"
+    assert "immutable" in got.headers["cache-control"]
+    head = await client.head(path)
+    assert head.status_code == 200 and not head.content
+    assert head.headers["content-length"] == str(len(got.content))
+    assert head.headers["etag"] == got.headers["etag"]
+    assert head.headers["last-modified"] == got.headers["last-modified"]
+    assert (
+        await client.get("/generate/outfits/starters/nope/cover")
+    ).status_code == 404
+
+    # For a character, their best image wearing it takes over the cover:
+    # never a quarantined one, whatever its score.
+    monkeypatch.setattr(tag_categories, "load", _chars(HU, hu_tao="genshin_impact"))
+    await asyncio.to_thread(_library, seed)
+    seed("L1:maid", tags=(HU, *MAID[:6]), score=3)
+    seed("L1:maid_more", tags=(HU, *MAID), score=1)
+    seed("L1:maid_hidden", tags=(HU, *MAID), score=5, quarantined=True)
+    seed("L1:maid_few", tags=(HU, *MAID[:5]), score=5)
+    seed("L1:other", tags=("someone_else", *MAID), score=5)
+    mine = (
+        await client.get("/generate/outfits/starters", params={"character": HU})
+    ).json()
+    maid = next(o for o in mine if o["_id"] == "starter:maid-dress")
+    assert maid["image_id"] == "L1:maid_more"
+    assert "/images/L1%3Amaid_more/thumb?v=" in maid["thumb_url"]
+    # One they don't wear keeps the shipped cover.
+    gown = next(o for o in mine if o["_id"] == "starter:evening-gown")
+    assert (
+        gown["image_id"] is None and "/starters/evening-gown/cover" in gown["thumb_url"]
+    )
+    # A character the library doesn't know yet still gets every starter.
+    new = await client.get("/generate/outfits/starters", params={"character": "nobody"})
+    assert new.status_code == 200 and len(new.json()) == len(listed)
+    assert all(o["image_id"] is None for o in new.json())
+
+    # The gallery's outfit filter takes a starter.
+    feed = (
+        await client.get(
+            "/images", params={"outfit": "starter:maid-dress", "limit": 50}
+        )
+    ).json()
+    assert {i["_id"] for i in feed} >= {"L1:maid", "L1:maid_more", "L1:other"}
+    assert "L1:maid_few" not in {i["_id"] for i in feed}
+
+    # Worn in a batch as it is, recorded by its id.
+    await make_ready(client, comfy, seed)
+    body = {
+        "positive": [{"kind": "character"}],
+        "characters": [
+            {
+                "tag": HU,
+                "label": "Hu Tao",
+                "tags": [HU],
+                "outfit": {
+                    "id": "starter:maid-dress",
+                    "name": "Maid dress",
+                    "tags": MAID,
+                },
+            }
+        ],
+        "count": 1,
+    }
+    res = await client.post("/generate/batches", json=body)
+    assert res.status_code == 200, res.text
+    assert res.json()["name"] == "Hu Tao, Maid dress"
+    got = (await client.get(f"/generate/batches/{res.json()['_id']}")).json()
+    assert got["inputs"]["characters"][0]["outfit"]["id"] == "starter:maid-dress"
