@@ -44,7 +44,7 @@ export function ImagePath({ path, onCopy }: { path: string; onCopy: () => void }
         type="button"
         onClick={onCopy}
         aria-label="Copy path"
-        className="mt-px shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:text-neutral-200 focus-visible:opacity-100 group-hover:opacity-100 touch:opacity-100"
+        className="mt-px shrink-0 rounded p-0.5 opacity-50 transition-opacity hover:text-neutral-200 hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
       >
         <Copy size={11} />
       </button>

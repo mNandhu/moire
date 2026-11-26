@@ -68,9 +68,9 @@ test("with the details panel shut, a score set lands on the image and fades", as
   try {
     await page.goto(viewerUrl(_id));
     await page.getByRole("button", { name: "Collapse panel" }).click();
-    const mark = page.getByRole("status").getByLabel(/^Score \d of 5$/);
+    const mark = page.getByRole("status").filter({ hasText: /^Score \d of 5$/ });
     await page.keyboard.press("3");
-    await expect(mark).toHaveAccessibleName("Score 3 of 5");
+    await expect(mark).toHaveText("Score 3 of 5");
     await expect.poll(async () => (await imageById(request, _id)).score).toBe(3);
     // It doesn't stay.
     await expect(mark).toHaveCount(0);

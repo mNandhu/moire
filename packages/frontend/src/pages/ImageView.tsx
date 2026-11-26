@@ -142,9 +142,10 @@ export default function ImageView() {
   const quarantined = !!data?.quarantined;
 
   // With the panel shut, a score set here lands on the image's corner as the
-  // gallery tile's mark, holds a moment, then fades. Keyed by a count so a
-  // repeat pops it in again.
-  const [scoreMark, setScoreMark] = useState<{ key: number; leaving: boolean } | null>(null);
+  // gallery tile's mark, holds a moment, then fades. It carries the score
+  // being set (the cache takes it a tick later); keyed by a count so a repeat
+  // pops it in again.
+  const [scoreMark, setScoreMark] = useState<{ n: number; key: number; leaving: boolean } | null>(null);
   useEffect(() => {
     if (!scoreMark) return;
     const timer = scoreMark.leaving
@@ -152,23 +153,24 @@ export default function ImageView() {
       : setTimeout(() => setScoreMark((m) => m && { ...m, leaving: true }), MARK_HOLD_MS);
     return () => clearTimeout(timer);
   }, [scoreMark]);
-  // It belongs to the image it was set on.
-  useEffect(() => setScoreMark(null), [id]);
+  // It belongs to the image it was set on, and to the panel staying shut.
+  useEffect(() => setScoreMark(null), [id, infoOpen]);
 
   const applyScore = useCallback(
     async (n: number) => {
       if (!id) return;
-      setScoreMark((m) => ({ key: (m?.key ?? 0) + 1, leaving: false }));
+      if (!infoOpen) setScoreMark((m) => (n > 0 ? { n, key: (m?.key ?? 0) + 1, leaving: false } : null));
       const canonical = data?._id ?? id;
       // Shown at once, here and on the gallery tile; undone if the write fails.
       try {
         await writeImageFields(queryClient, canonical, { score: n }, () => apiSetScore(id, n), id);
         refreshImage();
       } catch (e) {
+        setScoreMark(null);
         push(`Failed to set score: ${errorText(e)}`, "error");
       }
     },
-    [id, data?._id, push, refreshImage, queryClient],
+    [id, data?._id, infoOpen, push, refreshImage, queryClient],
   );
 
   const toggleQuarantine = useCallback(async () => {
@@ -490,15 +492,20 @@ export default function ImageView() {
               !imgLoaded ? "opacity-0" : pending ? "opacity-40" : "opacity-100"
             }`}
           />
-          {!infoOpen && scoreMark && score > 0 && (
+          {/* One live region, mounted for good: a region that appears with
+              its text already in is often not read out. */}
+          <span role="status" className="sr-only">
+            {scoreMark ? `Score ${scoreMark.n} of 5` : ""}
+          </span>
+          {!infoOpen && scoreMark && (
             <div
               key={scoreMark.key}
-              role="status"
+              aria-hidden="true"
               className={`score-stamp pointer-events-none absolute bottom-3 right-4 z-30 transition-opacity duration-300 ${
                 scoreMark.leaving ? "opacity-0" : ""
               }`}
             >
-              <ScoreMark score={score} className="text-[44px]" />
+              <ScoreMark score={scoreMark.n} className="text-[44px]" />
             </div>
           )}
           {/* Busy hint for the cases that can still make you wait: opening
