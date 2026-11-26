@@ -118,12 +118,23 @@ export function ComfySection() {
     setCaCert(s.ca_cert ?? "");
     setHeaders(Object.entries(s.headers).map(([name, value]) => ({ name, value })));
   };
+  // Each field follows only its own stored value. A save of one field (and
+  // the refetch after it) must not wipe what is being typed in another.
+  const synced = useRef<ComfySettings | null>(null);
   useEffect(() => {
     if (!settings) return;
-    resetConnection(settings);
-    setOutputPath(settings.output_path ?? "");
-    setOutputRoot(settings.output_root ?? "");
-    setPerRequest(settings.builtin_per_request);
+    const prev = synced.current;
+    synced.current = settings;
+    if (
+      !prev ||
+      prev.address !== settings.address ||
+      prev.ca_cert !== settings.ca_cert ||
+      JSON.stringify(prev.headers) !== JSON.stringify(settings.headers)
+    )
+      resetConnection(settings);
+    if (!prev || prev.output_path !== settings.output_path) setOutputPath(settings.output_path ?? "");
+    if (!prev || prev.output_root !== settings.output_root) setOutputRoot(settings.output_root ?? "");
+    if (!prev || prev.builtin_per_request !== settings.builtin_per_request) setPerRequest(settings.builtin_per_request);
   }, [settings]);
 
   const headerMap = () => Object.fromEntries(headers.filter((h) => h.name.trim()).map((h) => [h.name.trim(), h.value]));

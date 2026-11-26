@@ -15,8 +15,14 @@ test("a Generate run lands its images in the output library", async ({ page, req
     const box = page.getByRole("textbox", { name });
     const save = box.locator("xpath=following-sibling::button[1]");
     await box.fill(comfy_out);
-    // Enabled only when the value changed.
-    if (await save.isEnabled()) await save.click();
+    // Enabled only when the value changed. Wait on the save itself: Save is
+    // also disabled while any save is in flight, so the next box's Save
+    // reads disabled before this one lands.
+    if (await save.isEnabled()) {
+      const saved = page.waitForResponse((r) => r.request().method() === "PUT" && new URL(r.url()).pathname === `${API}/generate/comfyui`);
+      await save.click();
+      expect((await saved).ok()).toBeTruthy();
+    }
     await expect(save).toBeDisabled();
   }
   await expect
