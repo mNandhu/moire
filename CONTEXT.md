@@ -219,6 +219,13 @@ belongs in this file.
 - **Outfit**: a named set of attire tags saved from an image (that image is
   its thumbnail), for the character it was saved under, or shared with all
   characters. User-made; suggested groupings come later.
+- **Starter outfit**: one of the general outfits that ship with Moiré
+  (`data/starter_outfits.json`, a cover each), listed under Starter in the
+  Outfit picker and on the Outfits page so a new library has outfits to pick
+  before any are saved. Worn as it is (outfit id `starter:<id>`); "Save as my
+  outfit" copies it into an ordinary Outfit. For a character, its cover is
+  their best image wearing it, if any, else the shipped one
+  (`services/characters/starters.py`).
 - **Character recipe**: what picking a character puts in a prompt: the
   character tag (full name), its **identity tags** (signature tags that are
   body features, not attire, expressions or passing eye states), a default outfit (its attire signature tags, swappable

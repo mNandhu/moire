@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui";
 import { generatorFor } from "@/features/generate/components/InGenerate";
 import type { TagSuggestion } from "@/features/tags/components/TagSearchInput";
 import type { Filters } from "@/features/images/lib/imageFilter";
-import { outfitsQuery, useGenerators } from "@/features/generate/lib/generate";
+import { outfitsQuery, useGenerators, useStarterOutfits } from "@/features/generate/lib/generate";
 import { imageEmbeddingsQueryIn, imageLorasQueryIn, imageModelsQueryIn } from "@/features/images/lib/queries";
 import { mergedTagsQuery } from "@/features/tags/lib/queries";
 import { useSignatures } from "@/features/metadata/lib/rules";
@@ -62,8 +62,13 @@ export function useFilterOptions(filters: Filters, filtersOpen: boolean, ready: 
   // typed names resolved to the library's spelling (matching is exact).
   // Saved outfits too: typing a name offers them, and a plain name that is
   // an outfit (and not a tag) becomes the outfit filter.
+  // Starter outfits after them, so a saved outfit wins a name they share.
   const { data: outfitList } = useQuery({ ...outfitsQuery(), enabled: ready });
-  const knownOutfits = useMemo(() => (outfitList ?? []).map((o) => ({ id: o._id, name: o.name })), [outfitList]);
+  const { data: starterList } = useStarterOutfits(null, ready);
+  const knownOutfits = useMemo(
+    () => [...(outfitList ?? []), ...(starterList ?? [])].map((o) => ({ id: o._id, name: o.name })),
+    [outfitList, starterList],
+  );
   const tagNames = useMemo(() => new Set(tagOptions.map((t) => t._id.slice(t._id.indexOf(":") + 1))), [tagOptions]);
   const resourceSuggestions = useMemo(
     () => [

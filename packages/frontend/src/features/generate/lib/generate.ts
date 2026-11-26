@@ -310,6 +310,10 @@ export type Outfit = {
   chips?: (OutfitTag & { dropped: boolean; added: boolean })[];
   /** Default only: renamed or its tags changed. */
   edited?: boolean;
+  /** A starter outfit (`_id` "starter:<id>"): shipped, worn as it is. */
+  starter?: boolean;
+  /** Starter only: its category (school, work, ...). */
+  category?: string;
 };
 
 /** An image that could be an outfit's cover, with the outfit's tags it lacks. */
@@ -791,6 +795,19 @@ export const outfitsQuery = (character: string | null = null) => ({
 
 export function useOutfits(character: string | null = null) {
   return useQuery(outfitsQuery(character));
+}
+
+/** The starter outfits; for `character`, a cover is their own image wearing
+ * it where they have one. */
+const starterOutfitsQuery = (character: string | null = null) => ({
+  queryKey: [...OUTFITS_KEY, "starters", character ?? ""] as const,
+  queryFn: ({ signal }: { signal?: AbortSignal }) =>
+    api<Outfit[]>(`${BASE}/outfits/starters${character ? `?character=${encodeURIComponent(character)}` : ""}`, { signal }),
+  staleTime: 5 * 60_000,
+});
+
+export function useStarterOutfits(character: string | null = null, enabled = true) {
+  return useQuery({ ...starterOutfitsQuery(character), enabled });
 }
 
 /** Images `character` wears `outfit` in ("default": their usual clothes),

@@ -14,6 +14,7 @@ import {
   deleteOutfit,
   fetchOutfitPrefill,
   useDefaultOutfit,
+  useStarterOutfits,
   fetchOutfitTagInfo,
   updateOutfit,
   type Outfit,
@@ -51,6 +52,11 @@ function Key({ source, children }: { source: Source; children: React.ReactNode }
   );
 }
 
+/** The character's own image wearing starter `id`, from their starter list. */
+function takeoverOf(list: readonly Outfit[] | undefined, id: string | undefined): string | null {
+  return list?.find((o) => o._id === id)?.image_id ?? null;
+}
+
 /**
  * Save an image's attire as an outfit for a character (from the viewer), or
  * edit one (`outfit`): a saved one (with Delete), or a character's Default
@@ -59,7 +65,9 @@ function Key({ source, children }: { source: Source; children: React.ReactNode }
  * marked by where it came from; the image is the thumbnail. Editing, Change
  * opens a grid of the character's images wearing it. With `onCharacter`
  * (the Outfits page's New outfit) the dialog picks who it is for itself;
- * `character` is "" until one is picked.
+ * `character` is "" until one is picked. With `starter`, it saves a copy of
+ * that starter outfit (its tags, and the character's image wearing it as
+ * the cover); `onSaved` gets the new outfit.
  */
 export function SaveOutfitDialog({
   open,
@@ -68,7 +76,9 @@ export function SaveOutfitDialog({
   characterName,
   imageId,
   outfit,
+  starter,
   onCharacter,
+  onSaved,
 }: {
   open: boolean;
   onClose: () => void;
@@ -76,7 +86,9 @@ export function SaveOutfitDialog({
   characterName: string;
   imageId: string | null;
   outfit?: Outfit;
+  starter?: Outfit;
   onCharacter?: (tag: string) => void;
+  onSaved?: (o: Outfit) => void;
 }) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -96,14 +108,23 @@ export function SaveOutfitDialog({
   // Editing: the cover picked in the Change strip (shown open), saved with the rest.
   const [cover, setCover] = useState<string | null>(null);
   const [changing, setChanging] = useState(false);
-  const mode = outfitModeOf(outfit, imageId);
+  const mode = outfitModeOf(outfit, imageId, starter);
+  // Where the dialog picks the thumbnail itself (with Change).
+  const picksCover = !!outfit || mode === "blank" || mode === "from-starter";
   // A new outfit with no image (a character page's New outfit) starts from
   // their usual clothes and picks its thumbnail with Change.
-  const shown = outfit || mode === "blank" ? cover : imageId;
+  const shown = picksCover ? cover : imageId;
   // The outfit's own cover comes with it; only another one is looked up.
   const lookedUp = useThumbUrl(shown && shown === outfit?.image_id ? null : shown);
   const coverUrl = shown && shown === outfit?.image_id ? (outfit?.thumb_url ?? null) : lookedUp;
   const { data: usual, isError: noUsual } = useDefaultOutfit(open && mode === "blank" && character ? character : null);
+  // A starter's cover is the character's own image wearing it, where they
+  // have one: looked up here, since the opener may hold the plain list.
+  const { data: starterCovers, isError: noStarterCovers } = useStarterOutfits(
+    character || null,
+    open && mode === "from-starter" && !!character,
+  );
+  const starterId = starter?._id;
   // Picked in the dialog: the last one's usual clothes make way for the new
   // one's (once loaded); the name, your own tags and Shared stay.
   const [usualFor, setUsualFor] = useState<string | null>(null);
@@ -116,6 +137,11 @@ export function SaveOutfitDialog({
     onCharacter?.(tag);
   };
   useEffect(() => {
+    if (mode !== "from-starter" || !usualFor || usualFor !== character) return;
+    if (starterCovers) setCover(takeoverOf(starterCovers, starterId));
+    if (starterCovers || noStarterCovers) setUsualFor(null);
+  }, [mode, usualFor, character, starterCovers, noStarterCovers, starterId]);
+  useEffect(() => {
     if (!usualFor || usualFor !== character) return;
     if (usual) setRows((x) => swapUsual(x, usual.tags));
     if (usual || noUsual) setUsualFor(null);
@@ -123,10 +149,18 @@ export function SaveOutfitDialog({
   useEffect(() => {
     if (!open) return setSeeded(false);
     if (seeded) return;
-    setTyped(!!outfit);
+    // A starter keeps its own name unless you type one.
+    setTyped(!!outfit || mode === "from-starter");
     // Without a prefill (the image or character is gone): start empty.
-    if (!outfit && (mode === "blank" ? !!character && !usual && !noUsual : !prefill && !noPrefill)) return;
-    const seed = seedOutfit(mode, { outfit, prefill, usual });
+    const waiting =
+      mode === "blank"
+        ? !!character && !usual && !noUsual
+        : mode === "from-image"
+          ? !prefill && !noPrefill
+          : mode === "from-starter" && !!character && !starterCovers && !noStarterCovers;
+    if (waiting) return;
+    const mine = starter && character ? { ...starter, image_id: takeoverOf(starterCovers, starterId) } : starter;
+    const seed = seedOutfit(mode, { outfit, prefill, usual, starter: mine });
     setName(seed.name);
     setShared(seed.shared);
     setRows(seed.rows);
@@ -135,7 +169,7 @@ export function SaveOutfitDialog({
       setChanging(false);
     }
     setSeeded(true);
-  }, [open, outfit, prefill, noPrefill, usual, noUsual, seeded, mode, character]);
+  }, [open, outfit, prefill, noPrefill, usual, noUsual, seeded, mode, character, starter, starterCovers, noStarterCovers, starterId]);
 
   const taken = useMemo(() => new Set(rows.map((r) => r.tag)), [rows]);
   const shownName = typed ? name : suggestOutfitName(rows);
@@ -155,6 +189,7 @@ export function SaveOutfitDialog({
     onSuccess: (o) => {
       if (mode === "default") qc.setQueryData(defaultOutfitKey(character), o);
       toast.push(`Saved ${o.name}`, "success");
+      onSaved?.(o);
       done();
     },
     onError: (e) => toast.push(e.message, "error"),
@@ -229,14 +264,14 @@ export function SaveOutfitDialog({
       <div className="flex flex-wrap gap-5">
         <div className="relative h-[140px] w-24 shrink-0">
           <OutfitThumb url={coverUrl} className="h-full w-full rounded-lg border border-line-strong" />
-          {(outfit || mode === "blank") && !!character && (
+          {picksCover && !!character && (
             <button
               type="button"
               onClick={() => setChanging((x) => !x)}
               aria-expanded={changing}
               className="absolute inset-x-1.5 bottom-1.5 inline-flex h-[26px] items-center justify-center gap-1.5 rounded-md border border-line-strong bg-surface/90 text-xs text-neutral-100 hover:bg-raised"
             >
-              <ImageIcon size={12} /> {(outfit || mode === "blank" ? cover : imageId) ? "Change" : "Set"}
+              <ImageIcon size={12} /> {(picksCover ? cover : imageId) ? "Change" : "Set"}
             </button>
           )}
         </div>
@@ -266,8 +301,14 @@ export function SaveOutfitDialog({
               <span className="text-xs font-medium text-muted">Attire tags</span>
               {!outfit && (
                 <>
-                  {mode !== "blank" && <Key source="image">in this image</Key>}
-                  {characterName && <Key source="usual">{characterName} usually wears</Key>}
+                  {mode === "from-starter" ? (
+                    <Key source="image">in the starter outfit</Key>
+                  ) : (
+                    <>
+                      {mode !== "blank" && <Key source="image">in this image</Key>}
+                      {characterName && <Key source="usual">{characterName} usually wears</Key>}
+                    </>
+                  )}
                 </>
               )}
               <Key source="added">added by you</Key>
@@ -324,7 +365,7 @@ export function SaveOutfitDialog({
           )}
         </div>
       </div>
-      {(outfit || mode === "blank") && changing && !!character && (
+      {picksCover && changing && !!character && (
         <div className="mt-5 flex flex-col gap-2 border-t border-line pt-4">
           <span className="text-xs font-medium text-muted">Thumbnail</span>
           <CoverGrid

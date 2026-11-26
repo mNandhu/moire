@@ -167,15 +167,21 @@ export function suggestOutfitName(
 }
 
 /** What the save dialog is doing: saving an image's attire as a new outfit,
- * a New outfit with no image (from their usual clothes), editing a saved
- * outfit, or editing a character's Default. */
-export type OutfitMode = "from-image" | "blank" | "edit" | "default";
+ * a New outfit with no image (from their usual clothes), a copy of a starter
+ * outfit, editing a saved outfit, or editing a character's Default. */
+export type OutfitMode = "from-image" | "blank" | "from-starter" | "edit" | "default";
 
-/** The dialog's mode for `outfit` (being edited) and `imageId` (saved from). Pure. */
-export function outfitModeOf(outfit: Pick<Outfit, "_id"> | undefined, imageId: string | null): OutfitMode {
+/** The dialog's mode for `outfit` (being edited), `imageId` (saved from)
+ * and `starter` (copied). Pure. */
+export function outfitModeOf(outfit: Pick<Outfit, "_id"> | undefined, imageId: string | null, starter?: unknown): OutfitMode {
   if (outfit) return outfit._id === DEFAULT_OUTFIT ? "default" : "edit";
+  if (starter) return "from-starter";
   return imageId ? "from-image" : "blank";
 }
+
+/** A starter outfit's id prefix: worn as it is, saved as a copy. */
+const STARTER_PREFIX = "starter:";
+export const isStarter = (id: string | undefined | null): boolean => !!id?.startsWith(STARTER_PREFIX);
 
 /** Where a dialog row came from; the chips are styled by it. */
 export type OutfitRowSource = "image" | "usual" | "added";
@@ -187,12 +193,16 @@ export type OutfitRow = { tag: string; group: string | null; checkable: boolean;
 export type OutfitSeed = { name: string; shared: boolean; rows: OutfitRow[]; cover?: string | null };
 
 /** The dialog's starting fields for `mode`, from the outfit being edited,
+ * the starter copied (its cover: the character's image wearing it, if any),
  * the image's prefill or the character's usual clothes (either may be
  * missing: then no tags). Pure. */
 export function seedOutfit(
   mode: OutfitMode,
-  { outfit, prefill, usual }: { outfit?: Outfit; prefill?: OutfitPrefill; usual?: Outfit },
+  { outfit, prefill, usual, starter }: { outfit?: Outfit; prefill?: OutfitPrefill; usual?: Outfit; starter?: Outfit },
 ): OutfitSeed {
+  if (mode === "from-starter" && starter) {
+    return { name: starter.name, shared: false, cover: starter.image_id, rows: starter.tags.map((t) => ({ ...t, source: "image" })) };
+  }
   if ((mode === "edit" || mode === "default") && outfit) {
     return {
       name: outfit._id === DEFAULT_OUTFIT && outfit.name === DEFAULT_OUTFIT_NAME ? "" : outfit.name,

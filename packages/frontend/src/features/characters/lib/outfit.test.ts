@@ -4,6 +4,7 @@ import {
   keepPicked,
   outfitGalleryHref,
   outfitInput,
+  isStarter,
   outfitModeOf,
   outfitSavePlan,
   outfitsHref,
@@ -250,11 +251,40 @@ describe("save dialog", () => {
     ],
   };
 
-  it("tells the four modes apart", () => {
+  const starter: Outfit = { ...saved, _id: "starter:coat", name: "Long coat", character: "", image_id: null, starter: true };
+
+  it("tells the five modes apart", () => {
     expect(outfitModeOf(undefined, "L:1.png")).toBe("from-image");
     expect(outfitModeOf(undefined, null)).toBe("blank");
+    expect(outfitModeOf(undefined, null, starter)).toBe("from-starter");
     expect(outfitModeOf(saved, "L:1.png")).toBe("edit");
     expect(outfitModeOf(dflt, null)).toBe("default");
+  });
+
+  it("copies a starter: its name and tags, not shared, the character's image of it as the cover", () => {
+    expect(seedOutfit("from-starter", { starter })).toEqual({
+      name: "Long coat",
+      shared: false,
+      cover: null,
+      rows: [{ ...tag("coat"), source: "image" }],
+    });
+    expect(seedOutfit("from-starter", { starter: { ...starter, image_id: "L:9.png" } }).cover).toBe("L:9.png");
+    // Saved as a new outfit for the character, never an update of the starter.
+    const plan = outfitSavePlan("from-starter", {
+      character: "a",
+      imageId: null,
+      name: "",
+      shownName: "Long coat",
+      rows: [{ ...tag("coat"), source: "image" }],
+      shared: false,
+      cover: "L:9.png",
+    });
+    expect(plan).toEqual({
+      kind: "create",
+      body: { name: "Long coat", tags: ["coat"], shared: false, character: "a", image_id: "L:9.png" },
+    });
+    expect(isStarter("starter:coat")).toBe(true);
+    expect(isStarter("o1")).toBe(false);
   });
 
   it("seeds each mode from its own data", () => {

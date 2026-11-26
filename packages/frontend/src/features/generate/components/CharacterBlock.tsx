@@ -1,17 +1,17 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeftRight, ArrowUpRight, Ban, CircleAlert, Pencil, UserRound, X } from "lucide-react";
-import { Card } from "@/components/ui";
+import { Button, Card } from "@/components/ui";
 import { Dialog } from "@/components/ui/Dialog";
 import { ButtonLink } from "@/components/ui/Button";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { CharacterAvatar } from "@/features/characters/components/CharacterAvatar";
 import { CharacterPicker } from "@/features/characters/components/CharacterPicker";
-import { useCharacters } from "@/features/characters/lib/queries";
+import { useCharacterLookup, useCharacters } from "@/features/characters/lib/queries";
 import { cn } from "@/lib/cn";
 import { characterHref, displayName } from "@/features/characters/lib/character";
 import { displayWord } from "@/features/generate/lib/compose";
-import { recipeStuck, useRecipe } from "@/features/generate/lib/generate";
+import { recipeStuck, useRecipe, useStarterOutfits, type Outfit } from "@/features/generate/lib/generate";
 import { isNotFound } from "@/lib/api";
 import { characterTags } from "@/features/generate/lib/recipe";
 import { tagRepeats } from "@/features/generate/lib/prompt/promptRepeats";
@@ -23,7 +23,8 @@ import { replaceCharacter } from "@/features/generate/lib/generateForm";
 import { MAX_CHARACTERS } from "@/features/generate/lib/generationLimits";
 import { OutfitChips, OutfitPicker } from "@/features/characters/components/outfits/Outfit";
 import { useCharacterOutfits } from "@/features/characters/hooks/useOutfitData";
-import { toggleWorn, wornTags, type OutfitPick, type Outfits } from "@/features/characters/lib/outfit";
+import { isStarter, pickOf, toggleWorn, wornTags, type OutfitPick, type Outfits } from "@/features/characters/lib/outfit";
+import { SaveOutfitDialog } from "@/features/characters/components/outfits/SaveOutfitDialog";
 import { useAttireGroups } from "@/features/tags/lib/queries";
 
 /** An amber dashed badge on the Character line: something left out or wrong. */
@@ -314,9 +315,65 @@ function OutfitFold({
   );
   return (
     <div>
-      <FieldLabel>Outfit tags</FieldLabel>
+      <div className="flex items-center justify-between gap-3">
+        <FieldLabel>Outfit tags</FieldLabel>
+        {isStarter(outfit.id) && <SaveStarter character={character} outfit={outfit} groups={groups} onOutfit={onOutfit} />}
+      </div>
       <OutfitChips pick={outfit} groups={groups} onChange={onOutfit} />
     </div>
+  );
+}
+
+/** A starter outfit worn as it is, saved as the character's own: the dialog
+ * starts from the tags worn now (this batch's edits too); once saved, the
+ * character wears the saved one. */
+function SaveStarter({
+  character,
+  outfit,
+  groups,
+  onOutfit,
+}: {
+  character: string;
+  outfit: OutfitPick;
+  groups: ReadonlyMap<string, string | null>;
+  onOutfit: (pick: OutfitPick | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const { data: starters } = useStarterOutfits(character);
+  const lookup = useCharacterLookup();
+  const shipped = starters?.find((o) => o._id === outfit.id);
+  const starter: Outfit = {
+    _id: outfit.id,
+    name: outfit.name,
+    character: "",
+    shared: true,
+    starter: true,
+    hidden: false,
+    image_id: shipped?.image_id ?? null,
+    thumb_url: shipped?.thumb_url ?? null,
+    tags: wornTags(outfit).map((tag) => ({
+      tag,
+      group: groups.get(tag) ?? groups.get(tag.toLowerCase()) ?? null,
+      checkable: shipped?.tags.find((x) => x.tag === tag)?.checkable ?? true,
+    })),
+  };
+  return (
+    <>
+      <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
+        Save as my outfit
+      </Button>
+      {open && (
+        <SaveOutfitDialog
+          open
+          onClose={() => setOpen(false)}
+          character={character}
+          characterName={displayName(lookup.get(character) ?? { tag: character }).name}
+          imageId={null}
+          starter={starter}
+          onSaved={(o) => onOutfit(pickOf(o))}
+        />
+      )}
+    </>
   );
 }
 

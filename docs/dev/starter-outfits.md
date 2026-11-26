@@ -11,7 +11,7 @@ Checked 2026-11-24 against ComfyUI Anima-Tools (`nregret/Comfyui-Anima-Tools`): 
 - `src/moire/data/starter_outfits.json`: per outfit `id` (kebab-case, stable), `name`, `category`, `tags` (attire only, canonical), `cover`: who the cover shows and how (`subject` `1girl` or `1boy`; `character`, the Danbooru tag of a known character who suits the outfit, ideally one whose own clothes are that outfit, plus their series when the tag doesn't name it; `moment`, scene, action and angle tags; `avoid`, the character's own signature clothes, sent as negatives so they don't replace the outfit).
 - `src/moire/data/starter_outfits/<id>.webp`: the cover, 384 x 576 WebP, about 50 KB.
 - Rules, enforced by `tests/test_starter_outfits.py`: tags are attire, every cover prompt is general level (the covers are made on a ComfyUI that may be public), one subject and a different character per cover, moment tags never attire, never a low angle on a skirt or dress, no cover without an outfit. No adult tag names anywhere in the file.
-- In the app: a read-only Starter section in the Wears picker. Adding one copies it into an ordinary saved outfit (for one character, or shared), so nothing floods the lists. A starter's cover is the shipped image until the library holds an image wearing it; then the best-scored such image takes over (`outfit_wear.wears_most`, the same pick as the Default outfit's cover).
+- In the app: a Starter group per category in Generate's Outfit picker and a Starter outfits section on the Outfits page. A starter is worn as it is, by its id `starter:<id>` (the gallery's outfit filter takes it too); "Save as my outfit" (or Save as outfit on the page) copies it into an ordinary saved outfit, for one character or shared, so nothing floods the lists. For a character, a starter's cover is their best image wearing it (`outfit_wear.wears_most`, the same pick as the Default outfit's cover, never a hidden image); elsewhere, and where they have none, the shipped one.
 
 ## Covers
 
@@ -22,7 +22,7 @@ Checked 2026-11-24 against ComfyUI Anima-Tools (`nregret/Comfyui-Anima-Tools`): 
 ### Data
 
 - [x] **O1** Outfit list drafted and validated: attire-only tags, general level.
-- [ ] **O2** Read through the list by hand: names, nothing near-duplicate, each outfit reads as itself.
+- [x] **O2** Read through the list by hand: names, nothing near-duplicate, each outfit reads as itself. Done 2026-11-26 against a page of each cover beside its outfit.
 
 ### Covers
 
@@ -39,7 +39,7 @@ Checked 2026-11-24 against ComfyUI Anima-Tools (`nregret/Comfyui-Anima-Tools`): 
 
 ### App
 
-- [ ] **O7** Backend: load the starter list (cached, like `tag_groups.json`), a route listing it with tag info, and a cover endpoint with a HEAD counterpart, served from the package data with a versioned `?v=` URL and `immutable` (CLAUDE.md media rules).
-- [ ] **O8** Cover takeover: once an image in the library wears a starter outfit, list that image as its cover instead of the shipped one.
-- [ ] **O9** Frontend: a Starter section in the Wears picker; adding one opens the save flow prefilled (name, tags, character or shared). Copy reviewed against the no-subtext and no-em-dash rules.
-- [ ] **O10** E2E spec for adding a starter outfit, and `docs/dev/e2e-scenarios.md` updated. `CONTEXT.md`: add **Starter outfit** to the glossary.
+- [x] **O7** Backend: load the starter list (cached, like `tag_groups.json`), a route listing it with tag info, and a cover endpoint with a HEAD counterpart, served from the package data with a versioned `?v=` URL and `immutable` (CLAUDE.md media rules). `services/characters/starters.py`, `GET /generate/outfits/starters`, `GET|HEAD /generate/outfits/starters/{id}/cover` (`?v=` a hash of the cover's bytes: a wheel install resets mtimes); `wear_rule` takes `starter:<id>`.
+- [x] **O8** Cover takeover: per character (decided 2026-11-26: library-wide would put any image of a generic outfit on every list). `?character=` on the list gives each starter that character's best visible image wearing it; without it, the shipped covers.
+- [x] **O9** Frontend: Starter groups in the Outfit picker, worn as it is (decided 2026-11-26, over opening the save dialog first); "Save as my outfit" in the unfolded character opens the save dialog seeded from the worn tags, then wears the saved copy. The Outfits page lists the starters by category below the saved ones (with All), searched with them; a card saves a copy, and with a character picked, wears it in Generate.
+- [x] **O10** E2E spec for adding a starter outfit, and `docs/dev/e2e-scenarios.md` updated. `CONTEXT.md`: add **Starter outfit** to the glossary. `outfits.spec.ts`: wearing one in Generate then saving it, and saving one from the Outfits page.

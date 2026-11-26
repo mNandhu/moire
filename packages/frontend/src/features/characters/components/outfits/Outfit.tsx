@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import {
   DEFAULT_OUTFIT,
   useOutfits,
+  useStarterOutfits,
   type Outfit,
 } from "@/features/generate/lib/generate";
 import { displayName } from "@/features/characters/lib/character";
@@ -41,9 +42,16 @@ function option(o: Outfit, group: string): PickerOption {
   };
 }
 
+/** A starter's heading in the picker: "Starter: School". */
+const starterGroup = (category: string | undefined): string => {
+  const c = category || "other";
+  return `Starter: ${c.charAt(0).toUpperCase()}${c.slice(1)}`;
+};
+
 /** What one character wears: Default, their own outfits, the shared ones
  * (the ones they have worn first), then every other character's, each under
- * "For" its owner (series too, so two Rins stay apart), or nothing. The closed button shows the pick's
+ * "For" its owner (series too, so two Rins stay apart), then the starter
+ * outfits by category, or nothing. The closed button shows the pick's
  * thumbnail. */
 export function OutfitPicker({
   character,
@@ -56,6 +64,7 @@ export function OutfitPicker({
 }) {
   const { def, own, shared, unworn } = useCharacterOutfits(character);
   const { data: everyone } = useOutfits();
+  const { data: starters } = useStarterOutfits(character);
   const lookup = useCharacterLookup();
   const others = useMemo(() => {
     const listed = new Set([...own, ...shared, ...unworn].map((o) => o._id));
@@ -69,13 +78,14 @@ export function OutfitPicker({
       // By owner then tag, so one owner's outfits sit under one heading.
       .sort((a, b) => a.owner.localeCompare(b.owner) || a.o.character.localeCompare(b.o.character) || a.o.name.localeCompare(b.o.name));
   }, [everyone, lookup, character, own, shared, unworn]);
-  const all = [...(def ? [def] : []), ...own, ...shared, ...unworn, ...others.map((x) => x.o)];
+  const all = [...(def ? [def] : []), ...own, ...shared, ...unworn, ...others.map((x) => x.o), ...(starters ?? [])];
   const options: PickerOption[] = [
     { value: NO_OUTFIT, label: "Not set" },
     ...(def ? [option(def, "Usual clothes")] : []),
     ...own.map((o) => option(o, "Their outfits")),
     ...[...shared, ...unworn].map((o) => option(o, "Shared")),
     ...others.map(({ o, owner }) => option(o, owner)),
+    ...(starters ?? []).map((o) => option(o, starterGroup(o.category))),
   ];
   const thumb = value ? (all.find((o) => o._id === value.id)?.thumb_url ?? null) : null;
   return (
