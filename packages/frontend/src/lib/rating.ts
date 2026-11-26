@@ -40,33 +40,16 @@ export function pickRating(doc: RatedImage | null | undefined): string {
   return "-";
 }
 
-/** Badge and tile-dot colours per rating (see ratingBadgeClass/ratingDotClass). */
-const RATING_STYLE: Record<Rating, { badge: string; dot: string | null }> = {
-  general: { badge: "bg-emerald-900/30 border-emerald-800 text-emerald-100", dot: null },
-  sensitive: { badge: "bg-amber-900/30 border-amber-800 text-amber-100", dot: "bg-amber-400" },
-  questionable: { badge: "bg-orange-900/30 border-orange-800 text-orange-100", dot: "bg-orange-400" },
-  explicit: { badge: "bg-red-900/30 border-red-800 text-red-100", dot: "bg-red-400" },
+/** Badge colours per rating (see ratingBadgeClass). */
+const RATING_BADGE: Record<Rating, string> = {
+  general: "bg-emerald-900/30 border-emerald-800 text-emerald-100",
+  sensitive: "bg-amber-900/30 border-amber-800 text-amber-100",
+  questionable: "bg-orange-900/30 border-orange-800 text-orange-100",
+  explicit: "bg-red-900/30 border-red-800 text-red-100",
 };
-
-function styleOf(rating: string | null | undefined) {
-  const r = (rating || "").trim();
-  return isRating(r) ? RATING_STYLE[r] : undefined;
-}
 
 /** Tailwind classes for a rating badge. */
 export function ratingBadgeClass(rating: string): string {
-  return styleOf(rating)?.badge ?? "bg-neutral-800 border-neutral-700 text-neutral-100";
-}
-
-/**
- * Tailwind background for the small rating dot drawn on a gallery tile. A
- * badge with text is too heavy at thumbnail scale, so the tile shows colour
- * only and puts the label in the tooltip; the palette matches
- * `ratingBadgeClass` so the two readings of the same field agree.
- *
- * Returns null for ratings that aren't worth marking ("general" is the
- * unremarkable default, "-" means unrated). The tile draws nothing.
- */
-export function ratingDotClass(rating: string | null | undefined): string | null {
-  return styleOf(rating)?.dot ?? null;
+  const r = (rating || "").trim();
+  return isRating(r) ? RATING_BADGE[r] : "bg-neutral-800 border-neutral-700 text-neutral-100";
 }

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { Check, Layers, ShieldOff, Sparkles } from "lucide-react";
 import { ImageThumbnail } from "./ImageThumbnail";
 import { cn } from "@/lib/cn";
-import { ratingDotClass } from "@/lib/rating";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import { useBatchScrub } from "@/features/images/hooks/useBatchScrub";
 import { useCrossfade } from "@/features/images/hooks/useCrossfade";
@@ -17,7 +16,8 @@ import type { Span } from "@/features/images/lib/loadOrder";
  * tile that renders only the picture makes the work invisible. You score an
  * image, nothing changes on screen, and you can't tell what you've already
  * been through when you come back. The overlays here are that feedback:
- * score pips, an untagged marker, a rating dot, quarantine state.
+ * score pips, an untagged marker, quarantine state. Not the content rating:
+ * on a tagged library its dot sat on most tiles and read as noise.
  *
  * Overlay visibility follows one rule: **state that is set is always visible;
  * affordances appear on hover.** A scored image shows its score at rest; an
@@ -93,7 +93,6 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
   const quarantined = !!item.quarantined;
   // Null (a row with no flag yet) must not paint the tile as untagged.
   const untagged = item.has_ai_tags === false;
-  const ratingDot = ratingDotClass(item.rating);
 
   const chipVisibility = (always: boolean) =>
     always
@@ -204,7 +203,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
           // the marker sat on every tile and read as noise, so it shows on
           // hover only. Finding untagged images is the "Show only: Untagged"
           // filter's job.
-          chipVisibility(hasScore || quarantined || !!ratingDot),
+          chipVisibility(hasScore || quarantined),
         )}
       >
         {/* No score, no bar: blank pips aren't state. The empty span keeps
@@ -219,13 +218,6 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
             >
               <Sparkles size={13} />
             </span>
-          )}
-          {ratingDot && (
-            <span
-              className={cn("h-2 w-2 rounded-full", ratingDot)}
-              role="img"
-              aria-label={`Rating: ${item.rating}`}
-            />
           )}
           {quarantined && (
             <span className="text-red-300" role="img" aria-label="Quarantined">
