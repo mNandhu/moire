@@ -42,7 +42,6 @@ export function GalleryToolbar({
   selectionMode,
   setSelectionMode,
   selectionActive,
-  clearSelection,
   selectAll,
   selectingAll,
   onEditTags,
@@ -71,7 +70,6 @@ export function GalleryToolbar({
   selectionMode: boolean;
   setSelectionMode: Dispatch<SetStateAction<boolean>>;
   selectionActive: boolean;
-  clearSelection: () => void;
   selectAll: () => Promise<void>;
   selectingAll: boolean;
   onEditTags: () => void;
@@ -242,10 +240,10 @@ export function GalleryToolbar({
       {!grouped && (
         <Button
           variant="secondary"
-          onClick={() => (selectionActive ? clearSelection() : void selectAll())}
+          onClick={() => void selectAll()}
           disabled={selectingAll}
         >
-          {selectingAll ? "Selecting…" : selectionActive ? "Select none" : "Select all"}
+          {selectingAll ? "Selecting…" : "Select all"}
         </Button>
       )}
       {selectionActive && (

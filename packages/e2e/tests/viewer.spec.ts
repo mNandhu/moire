@@ -62,6 +62,44 @@ test("a score set in the viewer sticks", async ({ page, request }) => {
   await expect.poll(async () => (await imageById(request, _id)).score).toBe(4);
 });
 
+test("with the details panel shut, a score set lands on the image and fades", async ({ page, request }) => {
+  const { _id } = await imageByPath(request, "frieren/frieren_31.png");
+  const before = (await imageById(request, _id)).score ?? 0;
+  try {
+    await page.goto(viewerUrl(_id));
+    await page.getByRole("button", { name: "Collapse panel" }).click();
+    const mark = page.getByRole("status").getByLabel(/^Score \d of 5$/);
+    await page.keyboard.press("3");
+    await expect(mark).toHaveAccessibleName("Score 3 of 5");
+    await expect.poll(async () => (await imageById(request, _id)).score).toBe(3);
+    // It doesn't stay.
+    await expect(mark).toHaveCount(0);
+    // The open panel shows the score itself: no mark.
+    await page.getByRole("button", { name: "Show details" }).click();
+    await page.keyboard.press("4");
+    await expect.poll(async () => (await imageById(request, _id)).score).toBe(4);
+    await expect(mark).toHaveCount(0);
+  } finally {
+    await request.post(`${API}/images/${encodeURIComponent(_id)}/score`, { data: { score: before } });
+  }
+});
+
+test("a path too long for two lines unfolds on a click", async ({ page, request }) => {
+  const { _id } = await imageByPath(request, "frieren/frieren_31.png");
+  await page.goto(viewerUrl(_id));
+  const panel = page.getByRole("region", { name: "Image details" });
+  await panel.getByRole("button", { name: "Collapse panel" }).waitFor();
+  // A narrow panel stands in for a deep folder: the sandbox path wraps past two lines.
+  await page.addStyleTag({ content: "aside[aria-label='Image details'] { width: 230px !important; }" });
+  const path = panel.getByRole("button", { name: /frieren_31\.png$/ });
+  await expect(path).toHaveAttribute("aria-expanded", "false");
+  await path.click();
+  await expect(path).toHaveAttribute("aria-expanded", "true");
+  await path.click();
+  await expect(path).toHaveAttribute("aria-expanded", "false");
+  await expect(panel.getByRole("button", { name: "Copy path" })).toBeAttached();
+});
+
 test("arrow keys pressed back to back each take a step", async ({ page, request }) => {
   const { _id } = await imageByPath(request, "furina/furina_41.png");
   const { _id: twoOn } = await imageByPath(request, "shinobu/shinobu_23.png");
@@ -90,6 +128,8 @@ test("arrow keys step through the feed, also past a quarantined image", async ({
     await expect(page.getByText("furina_63.png", { exact: true })).toBeVisible();
     await page.keyboard.press("x");
     await expect(page.getByRole("button", { name: "Restore" })).toBeVisible();
+    // The toast names the image, so a keypress can't quarantine the wrong one unseen.
+    await expect(page.getByText("Quarantined furina_63.png")).toBeVisible();
 
     // Newest first: furina_41, furina_63, shinobu_23. It keeps its place
     // while the viewer is open.

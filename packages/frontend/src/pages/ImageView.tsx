@@ -13,7 +13,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { errorText } from "@/lib/api";
 import { isHiddenBySensitivity } from "@/features/tags/lib/sensitivityQueries";
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Ban, Download, EyeOff, FolderOpen, GalleryHorizontal, PanelRight } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Ban, Download, EyeOff, FolderOpen, GalleryHorizontal, PanelRight } from "lucide-react";
 import { imageFileUrl } from "@/lib/media";
 import { useToast } from "@/components/ui/Toasts";
 import { ImageCharacters } from "@/features/images/components/viewer/ImageCharacters";
@@ -36,12 +36,13 @@ import { SHEET_PEEK, useDetailsSheet } from "@/features/images/hooks/useDetailsS
 import { IMAGE, isPrevImage } from "@/lib/shortcuts";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import { ScorePicker } from "@/components/ui/ScoreMark";
+import { ScoreMark, ScorePicker } from "@/components/ui/ScoreMark";
 import { GenPanel, PanelFit } from "@/features/images/components/viewer/GenPanel";
 import { RatingEditor } from "@/features/images/components/viewer/RatingEditor";
 import { DetailTabs } from "@/features/images/components/viewer/DetailTabs";
 import { CharacterHoverProvider } from "@/features/images/components/viewer/CharacterHover";
 import { TagsSection } from "@/features/images/components/viewer/TagsSection";
+import { ImagePath } from "@/features/images/components/viewer/ImagePath";
 import { FILMSTRIP_ROOM, FilmStrip } from "@/features/images/components/viewer/FilmStrip";
 import { useLocalPref } from "@/hooks/useLocalPref";
 
@@ -51,6 +52,9 @@ import { Tooltip } from "@/components/ui/Tooltip";
 
 /** How long an image is on screen before it counts as opened. */
 const VIEW_DWELL_MS = 1500;
+/** How long a score set with the panel shut stays on the image, then fades. */
+const MARK_HOLD_MS = 1200;
+const MARK_FADE_MS = 300;
 
 export default function ImageView() {
   // `routeId` is where the URL points; `id` is the image actually on screen
@@ -137,9 +141,24 @@ export default function ImageView() {
   const score = data?.score ?? 0;
   const quarantined = !!data?.quarantined;
 
+  // With the panel shut, a score set here lands on the image's corner as the
+  // gallery tile's mark, holds a moment, then fades. Keyed by a count so a
+  // repeat pops it in again.
+  const [scoreMark, setScoreMark] = useState<{ key: number; leaving: boolean } | null>(null);
+  useEffect(() => {
+    if (!scoreMark) return;
+    const timer = scoreMark.leaving
+      ? setTimeout(() => setScoreMark(null), MARK_FADE_MS)
+      : setTimeout(() => setScoreMark((m) => m && { ...m, leaving: true }), MARK_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [scoreMark]);
+  // It belongs to the image it was set on.
+  useEffect(() => setScoreMark(null), [id]);
+
   const applyScore = useCallback(
     async (n: number) => {
       if (!id) return;
+      setScoreMark((m) => ({ key: (m?.key ?? 0) + 1, leaving: false }));
       const canonical = data?._id ?? id;
       // Shown at once, here and on the gallery tile; undone if the write fails.
       try {
@@ -157,7 +176,8 @@ export default function ImageView() {
     const next = !quarantined;
     try {
       await apiSetQuarantine(id, next);
-      push(next ? "Quarantined" : "Restored", "info");
+      const name = data?.path?.split(/[\\/]/).pop();
+      push(`${next ? "Quarantined" : "Restored"}${name ? ` ${name}` : ""}`, "info");
       // It stays in the feed this view steps through (dropping it would
       // strand the arrows: the open image no longer has a place in the
       // list); the tile takes the flag from the doc, and the feeds refetch
@@ -167,7 +187,7 @@ export default function ImageView() {
     } catch (e) {
       push(`Failed to update quarantine: ${errorText(e)}`, "error");
     }
-  }, [id, quarantined, push, refreshImage]);
+  }, [id, quarantined, data?.path, push, refreshImage]);
 
   const copyWorkflow = useCallback(async () => {
     if (!id) return;
@@ -470,6 +490,17 @@ export default function ImageView() {
               !imgLoaded ? "opacity-0" : pending ? "opacity-40" : "opacity-100"
             }`}
           />
+          {!infoOpen && scoreMark && score > 0 && (
+            <div
+              key={scoreMark.key}
+              role="status"
+              className={`score-stamp pointer-events-none absolute bottom-3 right-4 z-30 transition-opacity duration-300 ${
+                scoreMark.leaving ? "opacity-0" : ""
+              }`}
+            >
+              <ScoreMark score={score} className="text-[44px]" />
+            </div>
+          )}
           {/* Busy hint for the cases that can still make you wait: opening
                 the view cold, or stepping past the preload window. The delayed
                 transition means an instant swap never flashes a spinner. */}
@@ -576,15 +607,7 @@ export default function ImageView() {
                     <span className="truncate">{library.name || library.path}</span>
                   </Link>
                 )}
-                <button
-                  type="button"
-                  onClick={() => void copyPath()}
-                  className="group mt-1 flex max-w-full items-center gap-1 text-left text-xs text-faint hover:text-neutral-200"
-                >
-                  {/* One line: the file name it ends on is the header above. */}
-                  <span className="truncate">{data.path}</span>
-                  <Copy size={11} className="shrink-0 opacity-0 group-hover:opacity-100 touch:opacity-100" />
-                </button>
+                <ImagePath key={data._id} path={data.path} onCopy={() => void copyPath()} />
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <a

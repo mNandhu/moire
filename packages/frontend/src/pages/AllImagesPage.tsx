@@ -404,7 +404,6 @@ export default function AllImagesPage() {
           selectionMode={selectionMode}
           setSelectionMode={setSelectionMode}
           selectionActive={selectionActive}
-          clearSelection={clearSelection}
           selectAll={selectAll}
           selectingAll={selectingAll}
           onEditTags={() => setBulkTagOpen(true)}

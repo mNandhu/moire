@@ -178,13 +178,17 @@ export function Sidebar({
           <CollapsedTip collapsed={collapsed} content="Can't reach the Moiré backend">
             <div
               className={cn(
-                "flex items-center gap-2 py-1.5 text-xs text-red-300",
+                "flex w-full items-center gap-3 py-2 text-xs text-red-300",
                 collapsed ? "justify-center" : "px-3",
               )}
               role="status"
               aria-label={collapsed ? "Backend offline" : undefined}
             >
-              <span className="h-2 w-2 rounded-full bg-red-400 shrink-0" />
+              {/* The dot sits in the nav rows' 18px icon column, so it and
+                  its label line up with Settings below. */}
+              <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center">
+                <span className="h-2 w-2 rounded-full bg-red-400" />
+              </span>
               {!collapsed && <span>Backend offline</span>}
             </div>
           </CollapsedTip>
