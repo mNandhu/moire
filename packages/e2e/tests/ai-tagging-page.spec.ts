@@ -49,3 +49,34 @@ test("Settings saves the auto-tag switch", async ({ page }) => {
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect.poll(() => saved?.auto_tag).toBe(true);
 });
+
+// No time until this computer has measured a run: in its place, a run of 20
+// that measures it. Once measured, the time shows and the offer goes.
+test("AI Tagging times a run before it estimates", async ({ page }) => {
+  let measured = false;
+  await page.route("**/api/v1/ai/status", async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    body.estimate = { device: "cpu", seconds_per_image: 2, measured };
+    await route.fulfill({ response: res, json: body });
+  });
+  const sent: Record<string, unknown>[] = [];
+  await page.route("**/api/v1/ai/tag-untagged", async (route) => {
+    sent.push(route.request().postDataJSON());
+    await route.fulfill({ json: { job_id: null, queued: 0 } });
+  });
+
+  await page.goto("/ai-tagging");
+  await expect(page.getByRole("textbox", { name: "Images to tag" })).toBeVisible();
+  const timeRun = page.getByRole("button", { name: "Time 20 images" });
+  await expect(timeRun).toBeVisible();
+  await expect(page.getByText(/^about .* on the CPU$/)).toHaveCount(0);
+  await timeRun.click();
+  await expect.poll(() => sent.length).toBe(1);
+  expect(sent[0]).toMatchObject({ limit: 20 });
+
+  measured = true;
+  await page.reload();
+  await expect(page.getByText(/^about .* on the CPU$/)).toBeVisible();
+  await expect(timeRun).toHaveCount(0);
+});

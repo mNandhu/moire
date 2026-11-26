@@ -246,10 +246,20 @@ export function jobThroughput(job: Pick<AiJob, "rate" | "eta_s" | "elapsed_s">):
   return parts.join(" · ");
 }
 
-/** Seconds to AI-tag `images` at the estimated rate; null without one. */
+/** Seconds to AI-tag `images` at the rate a run measured on this computer;
+ * null until one has (a typical device rate can be well off). */
 export function taggingSeconds(images: number, est: AiEstimate | undefined | null): number | null {
-  if (!est || !(est.seconds_per_image > 0) || images <= 0) return null;
+  if (!est?.measured || !(est.seconds_per_image > 0) || images <= 0) return null;
   return images * est.seconds_per_image;
+}
+
+/** Images a timing run tags: the fewest a run records its rate from
+ * (`services/ai/estimate.py` `MIN_IMAGES`). */
+export const TIMING_RUN = 20;
+
+/** Offer a timing run: no measured rate yet, and enough images left for one. */
+export function canTimeRun(est: AiEstimate | undefined | null, untagged: number): boolean {
+  return est != null && !est.measured && untagged >= TIMING_RUN;
 }
 
 /** "about 3 min", "about 2.4 h": rough on purpose (the rate varies). */

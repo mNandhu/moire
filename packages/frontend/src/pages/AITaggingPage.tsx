@@ -10,11 +10,13 @@ import { Switch } from "@/components/ui/Switch";
 import { Tooltip } from "@/components/ui/Tooltip";
 import {
   aboutDuration,
+  canTimeRun,
   coveragePct,
   isActiveJob,
   isStatusBusy,
   libraryCoverageRows,
   taggingSeconds,
+  TIMING_RUN,
   type AiEstimate,
   type AiLibraryCoverage,
 } from "@/features/ai/lib/ai";
@@ -31,18 +33,11 @@ function CoverageBar({ tagged, total }: { tagged: number; total: number }) {
 
 const DEVICE = { cpu: "CPU", gpu: "GPU" } as const;
 
-/** "about 22 min", with how it was worked out when this computer hasn't
- * measured a run yet. */
+/** "about 22 min" at the rate this computer measured; nothing before it has. */
 function Estimate({ images, est, device = false }: { images: number; est: AiEstimate | undefined; device?: boolean }) {
   const secs = taggingSeconds(images, est);
   if (secs == null || !est) return null;
-  const text = `${aboutDuration(secs)}${device ? ` on the ${DEVICE[est.device]}` : ""}`;
-  if (est.measured) return <span>{text}</span>;
-  return (
-    <Tooltip content={`From a typical ${DEVICE[est.device]} speed. Your first long run measures this computer.`}>
-      <span className="cursor-help underline decoration-line-strong decoration-dotted underline-offset-[3px]">{text}</span>
-    </Tooltip>
-  );
+  return <span>{`${aboutDuration(secs)}${device ? ` on the ${DEVICE[est.device]}` : ""}`}</span>;
 }
 
 /** Digits only, so a pasted "1,000" reads as 1000; empty is null. */
@@ -85,6 +80,18 @@ function RunControl({ remaining, est }: { remaining: number; est: AiEstimate | u
         <span className="text-sm text-faint tabular-nums">
           <Estimate images={count} est={est} device />
         </span>
+      )}
+      {canTimeRun(est, remaining) && (
+        <Tooltip content="Tags the newest 20 and measures this computer, for the time estimates">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => void runUntagged(undefined, TIMING_RUN)}
+            disabled={running}
+          >
+            Time {TIMING_RUN} images
+          </Button>
+        </Tooltip>
       )}
     </div>
   );

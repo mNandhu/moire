@@ -25,6 +25,8 @@ import {
   postTagUntagged,
   saveAiSettings,
   taggingSeconds,
+  canTimeRun,
+  TIMING_RUN,
   aboutDuration,
   type AIStatus,
 } from "./ai";
@@ -328,13 +330,22 @@ describe("imageFileName", () => {
 });
 
 describe("taggingSeconds", () => {
-  const est = { device: "cpu" as const, seconds_per_image: 2, measured: false };
+  const est = { device: "cpu" as const, seconds_per_image: 2, measured: true };
   it("scales the per-image rate", () => {
     expect(taggingSeconds(30, est)).toBe(60);
   });
   it("has nothing to say without a rate or images", () => {
     expect(taggingSeconds(30, undefined)).toBeNull();
     expect(taggingSeconds(0, est)).toBeNull();
+  });
+  it("says nothing from a typical rate this computer hasn't measured", () => {
+    expect(taggingSeconds(30, { ...est, measured: false })).toBeNull();
+  });
+  it("offers a timing run only before a measured rate, with enough images", () => {
+    expect(canTimeRun({ ...est, measured: false }, TIMING_RUN)).toBe(true);
+    expect(canTimeRun({ ...est, measured: false }, TIMING_RUN - 1)).toBe(false);
+    expect(canTimeRun(est, 500)).toBe(false);
+    expect(canTimeRun(undefined, 500)).toBe(false);
   });
   it("words it roughly", () => {
     expect(aboutDuration(60)).toBe("about 1 min");

@@ -7,14 +7,14 @@ import {
   GPU_SECONDS_PER_IMAGE,
   gpuInstallCommand,
 } from "@/features/onboarding/lib/onboarding";
-import { aboutDuration, type AiEstimate } from "@/features/ai/lib/ai";
+import { type AiEstimate } from "@/features/ai/lib/ai";
 import { Group, StatusLine, StepHeading, SwitchRow } from "./parts";
 
 /**
  * Step 3: switch on auto-tag, which tags every image once the scan is done
- * and each new one as it arrives. The time it would take is worked out for
- * the device the tagger runs on; on the CPU build, next to the GPU build's,
- * with how to switch.
+ * and each new one as it arrives. No time on the switch: nothing is measured
+ * yet. On the CPU build, typical CPU and GPU times side by side, with how to
+ * switch.
  */
 export function TaggingStep({
   images,
@@ -63,7 +63,7 @@ export function TaggingStep({
           checked={on}
           onChange={onChange}
           title="Tag images with AI"
-          detail={images > 0 ? `${count}, ${aboutDuration(here)} on the ${device === "gpu" ? "GPU" : "CPU"}` : undefined}
+          detail={images > 0 ? count : undefined}
         />
       </Group>
       {device === "gpu" ? (
