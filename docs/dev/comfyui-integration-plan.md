@@ -918,6 +918,19 @@ Open:
 - Only 5 of ~3.8k images have AI tags; tagging the library improves
   Defaults, prefill, thumbnails and the outfit filter.
 - Deferred from phase 2: the weak-recipe warning.
+- Queue estimate runs short, and ComfyUI idles between jobs (measured
+  2026-11-25, to investigate and fix). Starter covers: 79 one-job batches,
+  4 images a job, remote ComfyUI (A100, through an SSH tunnel). ComfyUI ran
+  each job in 31.4 s, but a batch took 51.7 s end to end, so the Generate
+  queue card showed about 39 min for a run that took about 68 min
+  (`generation_estimate.queue_plan`, served by `/generate/status`, counts run
+  time only). The rest is the gap from one job finishing to the next being
+  sent: median 10 s, mean 19.5 s, longest 151.5 s, while the outputs download
+  over /view and are written to the library. Two fixes: count the measured
+  gap in the estimate (small), and keep the next job queued on ComfyUI before
+  the last one's outputs arrive, so the GPU never waits (about 40 min instead
+  of 68 for that run). The same gap made one image per job cost about 17 s
+  against 7.5 s of GPU time.
 - Later (the user's next big item): adherence stats, settings recall,
   learned negatives, X/Y batches, coverage gaps, reference images, img2img
   workflows.

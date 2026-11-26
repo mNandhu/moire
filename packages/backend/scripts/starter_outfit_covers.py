@@ -14,16 +14,21 @@ tagger build, and paths are relative to ``packages/backend``)::
 
     S="node scripts/uv-backend.mjs run python scripts/starter_outfit_covers.py"
     $S check                                # validate the outfit file, queue nothing
-    $S queue --base "<quality tags>"        # one batch of candidates per outfit
+    $S queue --base "<quality tags>" --style "<style tags>"   # a batch per outfit
     $S status                               # how far the batches are
     $S sheet                                # contact sheet: pick one cover per outfit
     $S export --picks <downloaded picks.json>   # write the chosen covers
 
 ``queue`` skips outfits it queued before (``--redo id,...`` queues them again
 with a new seed). Its record and the sheet live in ``--work`` (default
-``.cache/starter-covers`` at the repo root, gitignored). Model, quality tags,
-negative prompt and size are the caller's: nothing about one setup is kept
-here.
+``.cache/starter-covers`` at the repo root, gitignored). Model, quality and
+style tags, negative prompt and size are the caller's: nothing about one setup
+is kept here.
+
+A cover is a moment, not a catalogue shot: a known character who suits the
+outfit (``cover.character``, Danbooru tags), caught in a scene that fits both
+(``cover.moment``), with ``cover.avoid`` keeping the character's own clothes
+from replacing the outfit.
 """
 
 from __future__ import annotations
@@ -50,9 +55,6 @@ DATA = BACKEND / "src" / "moire" / "data"
 OUTFITS = DATA / "starter_outfits.json"
 COVERS = DATA / "starter_outfits"
 
-# Same framing on every cover, so the picker reads as one set even though the
-# wearer and backdrop change with the outfit.
-FRAMING = ["solo", "full_body", "standing", "looking_at_viewer"]
 # Cover size as shipped: portrait, the outfit tile's shape.
 COVER_W, COVER_H = 384, 576
 COVER_QUALITY = 82
@@ -61,19 +63,27 @@ COVER_QUALITY = 82
 # -- outfit file -------------------------------------------------------------
 
 
-def split_tags(value: str | list[str]) -> list[str]:
-    items = value.split(",") if isinstance(value, str) else value
-    return [x.strip() for x in items if x and x.strip()]
-
-
 def load_outfits() -> list[dict[str, Any]]:
     return json.loads(OUTFITS.read_text(encoding="utf-8"))["outfits"]
 
 
 def prompt_tags(o: dict[str, Any]) -> list[str]:
-    """What one cover asks for, after the caller's base: wearer, outfit,
-    framing, backdrop."""
-    return [*o["wearer"], *o["tags"], *FRAMING, *split_tags(o.get("backdrop", ""))]
+    """What one cover asks for, between the caller's head and style: the
+    character, their outfit, then the moment they're caught in."""
+    c = o["cover"]
+    return [c["subject"], "solo", *c["character"], *o["tags"], *c["moment"]]
+
+
+def prompt_text(tags: list[str]) -> str:
+    """Tags as a prompt: spaces for underscores, brackets escaped (a bare
+    bracket is ComfyUI's weight syntax)."""
+    return ", ".join(
+        t.replace("_", " ").replace("(", r"\(").replace(")", r"\)") for t in tags
+    )
+
+
+def join(*parts: str) -> str:
+    return ", ".join(p.strip().strip(",") for p in parts if p.strip())
 
 
 def problems(o: dict[str, Any]) -> list[str]:
@@ -84,7 +94,7 @@ def problems(o: dict[str, Any]) -> list[str]:
             out.append(f"{tag!r} is not canonical")
         elif not attire.is_attire(tag):
             out.append(f"{tag} is not attire")
-    level = sensitivity.tag_level(prompt_tags(o))
+    level = sensitivity.tag_level([*prompt_tags(o), *o["cover"].get("avoid", [])])
     if level:
         out.append(f"prompt is {sensitivity.level_name(level)}, not general")
     return out
@@ -178,14 +188,15 @@ def cmd_queue(args: argparse.Namespace) -> None:
         seed = seed_for(o["id"], attempt)
         body: dict[str, Any] = {
             "generator_id": args.generator,
-            "base": args.base,
-            "extra": prompt_tags(o),
-            "negative_base": args.negative,
+            "base": join(args.base, prompt_text(prompt_tags(o)), args.style),
+            "negative_base": join(
+                args.negative, prompt_text(o["cover"].get("avoid", []))
+            ),
             "seed": {"mode": "fixed", "value": seed},
             "count": args.count,
             "name": f"Starter cover: {o['name']}",
         }
-        for key in ("checkpoint", "width", "height"):
+        for key in ("checkpoint", "width", "height", "per_request"):
             if getattr(args, key) is not None:
                 body[key] = getattr(args, key)
         if args.dry_run:
@@ -260,7 +271,7 @@ def cmd_sheet(args: argparse.Namespace) -> None:
         rec = state.get(o["id"])
         head = (
             f"<h2>{html.escape(o['name'])} <small>({html.escape(o['id'])})</small></h2>"
-            f"<p class=tags>{html.escape(', '.join(o['tags']))}</p>"
+            f"<p class=tags>{html.escape(', '.join([*o['cover']['character'], *o['tags']]))}</p>"
         )
         if rec is None:
             parts.append(f"<section>{head}<p class=miss>not queued</p></section>")
@@ -346,12 +357,14 @@ def main() -> None:
 
     q = sub.add_parser("queue", help="queue one batch of candidates per outfit")
     q.add_argument("--base", default="", help="quality tags put first in every prompt")
+    q.add_argument("--style", default="", help="style tags put last in every prompt")
     q.add_argument("--negative", default="", help="negative prompt")
     q.add_argument("--generator", default="builtin")
     q.add_argument("--checkpoint")
     q.add_argument("--width", type=int)
     q.add_argument("--height", type=int)
     q.add_argument("--count", type=int, default=4, help="candidates per outfit")
+    q.add_argument("--per-request", type=int, help="images per ComfyUI job")
     q.add_argument("--only", help="comma-separated outfit ids")
     q.add_argument("--redo", help="comma-separated outfit ids to queue again, new seed")
     q.add_argument(

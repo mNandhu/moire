@@ -13,13 +13,27 @@
         "kneehighs",
         "loafers"
       ],
-      "wearer": [
-        "1girl",
-        "black_hair",
-        "long_hair",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, blue_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "akebi_komichi",
+          "akebi-chan_no_sailor-fuku"
+        ],
+        "moment": [
+          "countryside",
+          "rice_paddy",
+          "summer",
+          "blue_sky",
+          "clouds",
+          "wind",
+          "smile",
+          "cowboy_shot",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "cardigan"
+        ]
+      }
     },
     {
       "id": "blazer-school-uniform",
@@ -34,13 +48,25 @@
         "kneehighs",
         "loafers"
       ],
-      "wearer": [
-        "1girl",
-        "brown_hair",
-        "medium_hair",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, brown_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "kirisaki_chitoge",
+          "nisekoi"
+        ],
+        "moment": [
+          "school_rooftop",
+          "afternoon",
+          "blue_sky",
+          "wind",
+          "hair_blowing",
+          "hand_on_hip",
+          "smile",
+          "sunlight",
+          "from_side"
+        ],
+        "avoid": []
+      }
     },
     {
       "id": "gakuran-school-uniform",
@@ -53,13 +79,29 @@
         "shoes",
         "buttons"
       ],
-      "wearer": [
-        "1boy",
-        "black_hair",
-        "bowl_cut",
-        "black_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "kujo_jotaro",
+          "jojo's_bizarre_adventure"
+        ],
+        "moment": [
+          "school_rooftop",
+          "chain-link_fence",
+          "blue_sky",
+          "clouds",
+          "afternoon",
+          "wind",
+          "hands_in_pockets",
+          "serious",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "hat",
+          "cap",
+          "gold_chain"
+        ]
+      }
     },
     {
       "id": "boys-blazer-uniform",
@@ -73,13 +115,28 @@
         "pants",
         "loafers"
       ],
-      "wearer": [
-        "1boy",
-        "brown_hair",
-        "messy_hair",
-        "green_eyes"
-      ],
-      "backdrop": "simple_background, white_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "hikigaya_hachiman",
+          "oregairu"
+        ],
+        "moment": [
+          "empty_classroom",
+          "window",
+          "afternoon",
+          "sunlight",
+          "dust",
+          "chin_rest",
+          "sitting",
+          "looking_outside",
+          "curtains",
+          "wide_shot"
+        ],
+        "avoid": [
+          "sobu_high_school_uniform"
+        ]
+      }
     },
     {
       "id": "cardigan-school-uniform",
@@ -94,13 +151,28 @@
         "socks",
         "loafers"
       ],
-      "wearer": [
-        "1girl",
-        "blonde_hair",
-        "twintails",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, pink_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "yuigahama_yui",
+          "oregairu"
+        ],
+        "moment": [
+          "cherry_blossom_path",
+          "spring",
+          "petals",
+          "wind",
+          "walking",
+          "looking_back",
+          "smile",
+          "waving",
+          "from_above"
+        ],
+        "avoid": [
+          "sobu_high_school_uniform",
+          "red_ribbon"
+        ]
+      }
     },
     {
       "id": "sweater-vest-uniform",
@@ -113,13 +185,28 @@
         "pants",
         "loafers"
       ],
-      "wearer": [
-        "1boy",
-        "white_hair",
-        "short_hair",
-        "purple_eyes"
-      ],
-      "backdrop": "simple_background, green_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "todoroki_shoto",
+          "boku_no_hero_academia"
+        ],
+        "moment": [
+          "schoolyard",
+          "winter",
+          "falling_snow",
+          "ice",
+          "frost",
+          "breath",
+          "hand_raised",
+          "serious",
+          "cowboy_shot",
+          "looking_at_viewer"
+        ],
+        "avoid": [
+          "u.a._school_uniform"
+        ]
+      }
     },
     {
       "id": "gym-uniform",
@@ -133,13 +220,27 @@
         "sneakers",
         "sweatband"
       ],
-      "wearer": [
-        "1girl",
-        "red_hair",
-        "high_ponytail",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, yellow_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "takagi-san",
+          "karakai_jouzu_no_takagi-san"
+        ],
+        "moment": [
+          "school_track",
+          "summer",
+          "cumulonimbus",
+          "blue_sky",
+          "running",
+          "wind",
+          "smile",
+          "lens_flare",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "school_uniform"
+        ]
+      }
     },
     {
       "id": "kogal-school-style",
@@ -153,14 +254,25 @@
         "plaid_skirt",
         "sleeves_past_wrists"
       ],
-      "wearer": [
-        "1girl",
-        "blonde_hair",
-        "long_hair",
-        "tan",
-        "pink_eyes"
-      ],
-      "backdrop": "simple_background, orange_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "kitagawa_marin",
+          "sono_bisque_doll_wa_koi_wo_suru"
+        ],
+        "moment": [
+          "pedestrian_overpass",
+          "dusk",
+          "city_lights",
+          "peace_sign",
+          "wind",
+          "smile",
+          "looking_at_viewer",
+          "cowboy_shot",
+          "three_quarter_view"
+        ],
+        "avoid": []
+      }
     },
     {
       "id": "office-skirt-suit",
@@ -174,13 +286,30 @@
         "wristwatch",
         "lanyard"
       ],
-      "wearer": [
-        "1girl",
-        "brown_hair",
-        "low_ponytail",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "yor_briar",
+          "spy_x_family"
+        ],
+        "moment": [
+          "city_street",
+          "night",
+          "rain",
+          "umbrella",
+          "reflections",
+          "walking",
+          "looking_back",
+          "serious",
+          "from_side"
+        ],
+        "avoid": [
+          "black_dress",
+          "gold_hairband",
+          "red_sweater",
+          "dagger"
+        ]
+      }
     },
     {
       "id": "business-suit",
@@ -195,13 +324,25 @@
         "dress_shoes",
         "tie_clip"
       ],
-      "wearer": [
-        "1boy",
-        "black_hair",
-        "hair_slicked_back",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "nanami_kento",
+          "jujutsu_kaisen"
+        ],
+        "moment": [
+          "evening_street",
+          "orange_sky",
+          "adjusting_necktie",
+          "briefcase",
+          "tired",
+          "walking",
+          "wind",
+          "from_behind",
+          "looking_back"
+        ],
+        "avoid": []
+      }
     },
     {
       "id": "nurse-uniform",
@@ -216,13 +357,26 @@
         "shoes",
         "wristwatch"
       ],
-      "wearer": [
-        "1girl",
-        "pink_hair",
-        "medium_hair",
-        "pink_eyes"
-      ],
-      "backdrop": "simple_background, white_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "nurse_joy",
+          "pokemon"
+        ],
+        "moment": [
+          "clinic",
+          "morning",
+          "window",
+          "sunlight",
+          "pastel_colors",
+          "holding_clipboard",
+          "smile",
+          "standing",
+          "flowers",
+          "wide_shot"
+        ],
+        "avoid": []
+      }
     },
     {
       "id": "chef-whites",
@@ -236,13 +390,27 @@
         "pants",
         "sleeves_rolled_up"
       ],
-      "wearer": [
-        "1boy",
-        "blonde_hair",
-        "curly_hair",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, brown_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "sanji_(one_piece)"
+        ],
+        "moment": [
+          "restaurant_kitchen",
+          "steam",
+          "warm_light",
+          "holding_frying_pan",
+          "flames",
+          "smirk",
+          "cooking",
+          "motion_blur",
+          "from_above"
+        ],
+        "avoid": [
+          "black_suit",
+          "cigarette"
+        ]
+      }
     },
     {
       "id": "maid-dress",
@@ -258,13 +426,26 @@
         "thighhighs",
         "mary_janes"
       ],
-      "wearer": [
-        "1girl",
-        "white_hair",
-        "long_hair",
-        "red_eyes"
-      ],
-      "backdrop": "simple_background, pink_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "rem_(re:zero)"
+        ],
+        "moment": [
+          "mansion_hallway",
+          "morning",
+          "sunbeams",
+          "curtains",
+          "holding_broom",
+          "smile",
+          "petals",
+          "cowboy_shot",
+          "looking_at_viewer"
+        ],
+        "avoid": [
+          "detached_sleeves"
+        ]
+      }
     },
     {
       "id": "butler-suit",
@@ -279,13 +460,24 @@
         "pants",
         "dress_shoes"
       ],
-      "wearer": [
-        "1boy",
-        "black_hair",
-        "hair_slicked_back",
-        "red_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "sebastian_michaelis",
+          "kuroshitsuji"
+        ],
+        "moment": [
+          "gothic_mansion",
+          "night",
+          "candlelight",
+          "moon",
+          "holding_silver_tray",
+          "bowing",
+          "smirk",
+          "three_quarter_view"
+        ],
+        "avoid": []
+      }
     },
     {
       "id": "police-uniform",
@@ -300,13 +492,29 @@
         "belt",
         "pants"
       ],
-      "wearer": [
-        "1girl",
-        "blue_hair",
-        "high_ponytail",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, blue_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "zhu_yuan",
+          "zenless_zone_zero"
+        ],
+        "moment": [
+          "city_street",
+          "night",
+          "rain",
+          "flashing_lights",
+          "red_and_blue_light",
+          "standing",
+          "saluting",
+          "serious",
+          "cowboy_shot",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "shorts",
+          "gun"
+        ]
+      }
     },
     {
       "id": "military-dress-uniform",
@@ -321,13 +529,25 @@
         "belt",
         "pants"
       ],
-      "wearer": [
-        "1boy",
-        "grey_hair",
-        "short_hair",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "roy_mustang",
+          "fullmetal_alchemist"
+        ],
+        "moment": [
+          "ruined_city",
+          "dusk",
+          "smoke",
+          "snapping_fingers",
+          "flame",
+          "wind",
+          "coat_flapping",
+          "serious",
+          "from_below"
+        ],
+        "avoid": []
+      }
     },
     {
       "id": "flight-attendant",
@@ -341,13 +561,26 @@
         "pantyhose",
         "high_heels"
       ],
-      "wearer": [
-        "1girl",
-        "blonde_hair",
-        "single_hair_bun",
-        "green_eyes"
-      ],
-      "backdrop": "simple_background, aqua_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "sakurajima_mai",
+          "seishun_buta_yarou"
+        ],
+        "moment": [
+          "airport_terminal",
+          "large_windows",
+          "sunrise",
+          "airplane",
+          "pulling_suitcase",
+          "walking",
+          "smile",
+          "from_side"
+        ],
+        "avoid": [
+          "school_uniform"
+        ]
+      }
     },
     {
       "id": "mechanic-jumpsuit",
@@ -361,13 +594,26 @@
         "safety_glasses",
         "belt"
       ],
-      "wearer": [
-        "1boy",
-        "orange_hair",
-        "messy_hair",
-        "green_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "winry_rockbell",
+          "fullmetal_alchemist"
+        ],
+        "moment": [
+          "workshop",
+          "afternoon",
+          "sunlight",
+          "dust",
+          "holding_wrench",
+          "tools",
+          "smile",
+          "wind",
+          "from_behind",
+          "looking_back"
+        ],
+        "avoid": []
+      }
     },
     {
       "id": "aviator-jacket",
@@ -382,13 +628,29 @@
         "pants",
         "boots"
       ],
-      "wearer": [
-        "1girl",
-        "brown_hair",
-        "short_hair",
-        "orange_eyes"
-      ],
-      "backdrop": "simple_background, blue_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "nausicaa",
+          "kaze_no_tani_no_nausicaa"
+        ],
+        "moment": [
+          "airfield",
+          "biplane",
+          "grass",
+          "blue_sky",
+          "clouds",
+          "morning",
+          "wind",
+          "smile",
+          "cowboy_shot",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "blue_dress",
+          "blue_clothes"
+        ]
+      }
     },
     {
       "id": "librarian-cardigan",
@@ -402,13 +664,28 @@
         "necklace",
         "flats"
       ],
-      "wearer": [
-        "1girl",
-        "black_hair",
-        "single_braid",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, brown_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "hanekawa_tsubasa",
+          "monogatari_(series)"
+        ],
+        "moment": [
+          "library",
+          "bookshelves",
+          "warm_light",
+          "dust_motes",
+          "holding_book",
+          "reaching_for_book",
+          "standing",
+          "smile",
+          "from_above"
+        ],
+        "avoid": [
+          "school_uniform",
+          "naoetsu_high_school_uniform"
+        ]
+      }
     },
     {
       "id": "tuxedo",
@@ -423,13 +700,30 @@
         "pants",
         "dress_shoes"
       ],
-      "wearer": [
-        "1boy",
-        "black_hair",
-        "short_hair",
-        "grey_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "gojo_satoru",
+          "jujutsu_kaisen"
+        ],
+        "moment": [
+          "rooftop",
+          "night",
+          "city_lights",
+          "wind",
+          "adjusting_bowtie",
+          "smirk",
+          "moon",
+          "cowboy_shot",
+          "looking_at_viewer"
+        ],
+        "avoid": [
+          "blindfold",
+          "sunglasses",
+          "high_collar",
+          "jujutsu_tech_uniform"
+        ]
+      }
     },
     {
       "id": "evening-gown",
@@ -443,14 +737,28 @@
         "earrings",
         "high_heels"
       ],
-      "wearer": [
-        "1girl",
-        "black_hair",
-        "long_hair",
-        "wavy_hair",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, purple_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "tohsaka_rin",
+          "fate/stay_night"
+        ],
+        "moment": [
+          "grand_staircase",
+          "chandelier",
+          "ballroom",
+          "night",
+          "descending_stairs",
+          "holding_skirt",
+          "looking_back",
+          "elegant",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "red_sweater",
+          "black_skirt"
+        ]
+      }
     },
     {
       "id": "wedding-dress",
@@ -465,13 +773,30 @@
         "bridal_legwear",
         "pearl_necklace"
       ],
-      "wearer": [
-        "1girl",
-        "white_hair",
-        "long_hair",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, white_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "nakano_miku",
+          "gotoubun_no_hanayome"
+        ],
+        "moment": [
+          "flower_field",
+          "spring",
+          "petals",
+          "sunlight",
+          "wind",
+          "holding_bouquet",
+          "smile",
+          "blue_sky",
+          "cowboy_shot",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "headphones",
+          "school_uniform",
+          "cardigan"
+        ]
+      }
     },
     {
       "id": "three-piece-suit",
@@ -486,13 +811,29 @@
         "pocket_watch",
         "dress_shoes"
       ],
-      "wearer": [
-        "1boy",
-        "brown_hair",
-        "undercut",
-        "green_eyes"
-      ],
-      "backdrop": "simple_background, brown_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "levi_(shingeki_no_kyojin)"
+        ],
+        "moment": [
+          "cafe",
+          "indoors",
+          "window",
+          "morning",
+          "sunlight",
+          "holding_teacup",
+          "sitting",
+          "serious",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "scout_regiment_uniform",
+          "green_cloak",
+          "cravat",
+          "3d_maneuver_gear"
+        ]
+      }
     },
     {
       "id": "pantsuit",
@@ -506,13 +847,25 @@
         "earrings",
         "necklace"
       ],
-      "wearer": [
-        "1girl",
-        "purple_hair",
-        "medium_hair",
-        "purple_eyes"
-      ],
-      "backdrop": "simple_background, pink_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "makima_(chainsaw_man)"
+        ],
+        "moment": [
+          "high-rise_window",
+          "night",
+          "city_lights",
+          "hands_behind_back",
+          "looking_at_viewer",
+          "shadow",
+          "from_side"
+        ],
+        "avoid": [
+          "necktie",
+          "black_necktie"
+        ]
+      }
     },
     {
       "id": "hoodie-and-jeans",
@@ -524,13 +877,29 @@
         "sneakers",
         "sleeves_past_wrists"
       ],
-      "wearer": [
-        "1boy",
-        "black_hair",
-        "messy_hair",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "kozume_kenma",
+          "haikyuu!!"
+        ],
+        "moment": [
+          "dim_room",
+          "night",
+          "window",
+          "city_lights",
+          "holding_handheld_game_console",
+          "sitting",
+          "glow",
+          "from_behind",
+          "looking_back"
+        ],
+        "avoid": [
+          "volleyball_uniform",
+          "track_jacket",
+          "nekoma_uniform"
+        ]
+      }
     },
     {
       "id": "cozy-sweater-long-skirt",
@@ -543,13 +912,27 @@
         "socks",
         "boots"
       ],
-      "wearer": [
-        "1girl",
-        "brown_hair",
-        "medium_hair",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, brown_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "frieren",
+          "sousou_no_frieren"
+        ],
+        "moment": [
+          "winter_forest",
+          "falling_snow",
+          "dusk",
+          "holding_staff",
+          "looking_up",
+          "wind",
+          "breath",
+          "wide_shot"
+        ],
+        "avoid": [
+          "capelet",
+          "white_coat"
+        ]
+      }
     },
     {
       "id": "sundress-straw-hat",
@@ -562,13 +945,26 @@
         "hat_ribbon",
         "bracelet"
       ],
-      "wearer": [
-        "1girl",
-        "blonde_hair",
-        "long_hair",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, blue_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "naruse_shiroha",
+          "summer_pockets"
+        ],
+        "moment": [
+          "sunflower_field",
+          "summer",
+          "blue_sky",
+          "cumulonimbus",
+          "wind",
+          "hand_on_headwear",
+          "smile",
+          "from_above"
+        ],
+        "avoid": [
+          "school_uniform"
+        ]
+      }
     },
     {
       "id": "overalls",
@@ -580,13 +976,28 @@
         "sneakers",
         "bandana"
       ],
-      "wearer": [
-        "1girl",
-        "orange_hair",
-        "twintails",
-        "green_eyes"
-      ],
-      "backdrop": "simple_background, yellow_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "ijichi_nijika",
+          "bocchi_the_rock!"
+        ],
+        "moment": [
+          "bridge",
+          "daytime",
+          "summer",
+          "blue_sky",
+          "spinning_drumsticks",
+          "holding_drumsticks",
+          "grin",
+          "wind",
+          "cowboy_shot",
+          "looking_at_viewer"
+        ],
+        "avoid": [
+          "school_uniform"
+        ]
+      }
     },
     {
       "id": "tee-and-denim-shorts",
@@ -599,13 +1010,26 @@
         "baseball_cap",
         "wristband"
       ],
-      "wearer": [
-        "1girl",
-        "aqua_hair",
-        "short_hair",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, green_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "nagatoro_hayase",
+          "ijiranaide_nagatoro-san"
+        ],
+        "moment": [
+          "bridge",
+          "sunset",
+          "summer",
+          "holding_ice_cream",
+          "grin",
+          "wind",
+          "orange_sky",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "school_uniform"
+        ]
+      }
     },
     {
       "id": "varsity-jacket",
@@ -617,13 +1041,30 @@
         "jeans",
         "sneakers"
       ],
-      "wearer": [
-        "1boy",
-        "red_hair",
-        "spiked_hair",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, blue_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "kurosaki_ichigo",
+          "bleach"
+        ],
+        "moment": [
+          "autumn_riverbank",
+          "sunset",
+          "falling_leaves",
+          "hands_in_pockets",
+          "looking_back",
+          "serious",
+          "wind",
+          "cowboy_shot",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "shinigami",
+          "black_kimono",
+          "sword",
+          "zanpakuto"
+        ]
+      }
     },
     {
       "id": "pajamas",
@@ -635,13 +1076,29 @@
         "slippers",
         "sleeves_past_fingers"
       ],
-      "wearer": [
-        "1girl",
-        "pink_hair",
-        "twintails",
-        "purple_eyes"
-      ],
-      "backdrop": "simple_background, purple_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "gotoh_hitori",
+          "bocchi_the_rock!"
+        ],
+        "moment": [
+          "windowsill",
+          "night",
+          "moonlight",
+          "stars",
+          "holding_guitar",
+          "sitting",
+          "hugging_own_legs",
+          "quiet",
+          "from_side"
+        ],
+        "avoid": [
+          "pink_jacket",
+          "track_suit",
+          "cube_hair_ornament"
+        ]
+      }
     },
     {
       "id": "sweater-dress-leggings",
@@ -653,13 +1110,25 @@
         "ankle_boots",
         "scarf"
       ],
-      "wearer": [
-        "1girl",
-        "grey_hair",
-        "bob_cut",
-        "grey_eyes"
-      ],
-      "backdrop": "simple_background, orange_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "mizuhara_chizuru",
+          "kanojo_okarishimasu"
+        ],
+        "moment": [
+          "autumn_park",
+          "ginkgo_leaves",
+          "afternoon",
+          "falling_leaves",
+          "walking",
+          "smile",
+          "wind",
+          "from_behind",
+          "looking_back"
+        ],
+        "avoid": []
+      }
     },
     {
       "id": "sweet-lolita",
@@ -675,13 +1144,27 @@
         "ribbon",
         "mary_janes"
       ],
-      "wearer": [
-        "1girl",
-        "pink_hair",
-        "twintails",
-        "pink_eyes"
-      ],
-      "backdrop": "simple_background, pink_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "alice_(alice_in_wonderland)"
+        ],
+        "moment": [
+          "hedge_maze",
+          "dusk",
+          "holding_teacup",
+          "floating_playing_cards",
+          "whimsical",
+          "smile",
+          "rose",
+          "wide_shot"
+        ],
+        "avoid": [
+          "blue_dress",
+          "white_apron",
+          "black_hairband"
+        ]
+      }
     },
     {
       "id": "gothic-lolita",
@@ -696,14 +1179,24 @@
         "petticoat",
         "platform_boots"
       ],
-      "wearer": [
-        "1girl",
-        "black_hair",
-        "long_hair",
-        "hime_cut",
-        "red_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "kanzaki_ranko",
+          "idolmaster_cinderella_girls"
+        ],
+        "moment": [
+          "ruined_cathedral",
+          "night",
+          "moonlight",
+          "stained_glass",
+          "crows",
+          "hand_on_own_cheek",
+          "dramatic",
+          "from_above"
+        ],
+        "avoid": []
+      }
     },
     {
       "id": "punk-style",
@@ -717,13 +1210,26 @@
         "boots",
         "jacket"
       ],
-      "wearer": [
-        "1girl",
-        "red_hair",
-        "short_hair",
-        "green_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "jiro_kyoka",
+          "boku_no_hero_academia"
+        ],
+        "moment": [
+          "train_tracks",
+          "sunset",
+          "holding_guitar",
+          "smirk",
+          "wind",
+          "lens_flare",
+          "cowboy_shot",
+          "looking_at_viewer"
+        ],
+        "avoid": [
+          "u.a._school_uniform"
+        ]
+      }
     },
     {
       "id": "techwear",
@@ -739,13 +1245,29 @@
         "gloves",
         "surgical_mask"
       ],
-      "wearer": [
-        "1boy",
-        "grey_hair",
-        "short_hair",
-        "yellow_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "david_martinez",
+          "cyberpunk_edgerunners"
+        ],
+        "moment": [
+          "city_street",
+          "night",
+          "rain",
+          "wet_ground",
+          "puddle",
+          "street_light",
+          "hood_up",
+          "hands_in_pockets",
+          "walking",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "yellow_jacket",
+          "yellow_clothes"
+        ]
+      }
     },
     {
       "id": "jirai-kei",
@@ -760,13 +1282,28 @@
         "bow",
         "platform_boots"
       ],
-      "wearer": [
-        "1girl",
-        "black_hair",
-        "twintails",
-        "purple_eyes"
-      ],
-      "backdrop": "simple_background, purple_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "ame-chan_(needy_girl_overdose)"
+        ],
+        "moment": [
+          "night",
+          "pink_neon",
+          "pedestrian_bridge",
+          "holding_smartphone",
+          "looking_back",
+          "petals",
+          "wind",
+          "cowboy_shot",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "bandages",
+          "pills",
+          "blood"
+        ]
+      }
     },
     {
       "id": "biker-jacket",
@@ -780,13 +1317,29 @@
         "gloves",
         "motorcycle_helmet"
       ],
-      "wearer": [
-        "1boy",
-        "black_hair",
-        "undercut",
-        "grey_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "spike_spiegel",
+          "cowboy_bebop"
+        ],
+        "moment": [
+          "desert",
+          "highway",
+          "blue_sky",
+          "afternoon",
+          "leaning_on_motorcycle",
+          "holding_helmet",
+          "smirk",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "blue_suit",
+          "yellow_shirt",
+          "necktie",
+          "cigarette"
+        ]
+      }
     },
     {
       "id": "sukajan-streetwear",
@@ -794,18 +1347,32 @@
       "category": "street",
       "tags": [
         "sukajan",
+        "open_jacket",
         "t-shirt",
         "pants",
-        "sneakers",
-        "headphones"
+        "sneakers"
       ],
-      "wearer": [
-        "1boy",
-        "blonde_hair",
-        "medium_hair",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, blue_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "denji_(chainsaw_man)"
+        ],
+        "moment": [
+          "city_street",
+          "evening",
+          "orange_sky",
+          "grin",
+          "walking",
+          "hands_in_pockets",
+          "cowboy_shot",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "chainsaw",
+          "necktie",
+          "black_suit"
+        ]
+      }
     },
     {
       "id": "furisode",
@@ -820,13 +1387,28 @@
         "tabi",
         "kanzashi"
       ],
-      "wearer": [
-        "1girl",
-        "black_hair",
-        "single_hair_bun",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, pink_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "shinomiya_kaguya",
+          "kaguya-sama_wa_kokurasetai"
+        ],
+        "moment": [
+          "shrine",
+          "new_year",
+          "snow",
+          "torii",
+          "dawn",
+          "holding_oil-paper_umbrella",
+          "falling_snow",
+          "from_behind",
+          "looking_back"
+        ],
+        "avoid": [
+          "shuchiin_academy_uniform",
+          "red_ribbon"
+        ]
+      }
     },
     {
       "id": "yukata-girl",
@@ -839,13 +1421,29 @@
         "geta",
         "hair_flower"
       ],
-      "wearer": [
-        "1girl",
-        "blue_hair",
-        "medium_hair",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, blue_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "hyuuga_hinata",
+          "naruto"
+        ],
+        "moment": [
+          "riverbank",
+          "summer_night",
+          "fireworks",
+          "paper_lanterns",
+          "holding_uchiwa",
+          "looking_up",
+          "smile",
+          "wind",
+          "wide_shot"
+        ],
+        "avoid": [
+          "forehead_protector",
+          "hooded_jacket",
+          "ninja_clothes"
+        ]
+      }
     },
     {
       "id": "yukata-boy",
@@ -857,13 +1455,28 @@
         "geta",
         "wide_sleeves"
       ],
-      "wearer": [
-        "1boy",
-        "black_hair",
-        "short_hair",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "uzumaki_naruto",
+          "naruto"
+        ],
+        "moment": [
+          "fireflies",
+          "summer_night",
+          "riverbank",
+          "tall_grass",
+          "hands_behind_head",
+          "grin",
+          "looking_up",
+          "from_above"
+        ],
+        "avoid": [
+          "orange_jumpsuit",
+          "forehead_protector",
+          "ninja_clothes"
+        ]
+      }
     },
     {
       "id": "graduation-hakama",
@@ -876,13 +1489,29 @@
         "boots",
         "hair_ribbon"
       ],
-      "wearer": [
-        "1girl",
-        "brown_hair",
-        "long_hair",
-        "green_eyes"
-      ],
-      "backdrop": "simple_background, pink_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "sonoda_umi",
+          "love_live!"
+        ],
+        "moment": [
+          "school_gate",
+          "cherry_blossoms",
+          "spring",
+          "falling_petals",
+          "holding_diploma",
+          "walking",
+          "looking_back",
+          "smile",
+          "cowboy_shot",
+          "looking_at_viewer"
+        ],
+        "avoid": [
+          "otonokizaka_school_uniform",
+          "school_uniform"
+        ]
+      }
     },
     {
       "id": "kimono-and-haori",
@@ -895,14 +1524,30 @@
         "geta",
         "sash"
       ],
-      "wearer": [
-        "1boy",
-        "black_hair",
-        "long_hair",
-        "low_ponytail",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, brown_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "kamado_tanjirou",
+          "kimetsu_no_yaiba"
+        ],
+        "moment": [
+          "snowy_mountain",
+          "aurora",
+          "night",
+          "stars",
+          "falling_snow",
+          "looking_up",
+          "standing",
+          "wind",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "checkered_haori",
+          "demon_slayer_uniform",
+          "hanafuda_earrings",
+          "sword"
+        ]
+      }
     },
     {
       "id": "shrine-maiden",
@@ -917,13 +1562,26 @@
         "zouri",
         "hair_tubes"
       ],
-      "wearer": [
-        "1girl",
-        "brown_hair",
-        "hime_cut",
-        "red_eyes"
-      ],
-      "backdrop": "simple_background, white_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "hakurei_reimu",
+          "touhou"
+        ],
+        "moment": [
+          "shrine",
+          "stone_steps",
+          "autumn_leaves",
+          "sunset",
+          "holding_gohei",
+          "sweeping",
+          "wind",
+          "red_leaves",
+          "cowboy_shot",
+          "three_quarter_view"
+        ],
+        "avoid": []
+      }
     },
     {
       "id": "hanfu",
@@ -936,14 +1594,27 @@
         "sash",
         "hair_stick"
       ],
-      "wearer": [
-        "1girl",
-        "black_hair",
-        "long_hair",
-        "single_hair_bun",
-        "red_eyes"
-      ],
-      "backdrop": "simple_background, blue_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "maomao_(kusuriya_no_hitorigoto)"
+        ],
+        "moment": [
+          "palace_courtyard",
+          "night",
+          "moon",
+          "paper_lanterns",
+          "holding_teacup",
+          "sitting",
+          "bored",
+          "looking_at_viewer",
+          "from_side"
+        ],
+        "avoid": [
+          "maid",
+          "head_scarf"
+        ]
+      }
     },
     {
       "id": "china-dress",
@@ -957,13 +1628,24 @@
         "short_sleeves",
         "flats"
       ],
-      "wearer": [
-        "1girl",
-        "black_hair",
-        "double_bun",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, pink_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "kagura_(gintama)"
+        ],
+        "moment": [
+          "chinatown",
+          "street",
+          "paper_lantern",
+          "day",
+          "red_umbrella",
+          "holding_umbrella",
+          "smile",
+          "cowboy_shot",
+          "three_quarter_view"
+        ],
+        "avoid": []
+      }
     },
     {
       "id": "tangzhuang",
@@ -976,13 +1658,26 @@
         "pants",
         "chinese_knot"
       ],
-      "wearer": [
-        "1boy",
-        "brown_hair",
-        "short_hair",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, brown_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "zhongli_(genshin_impact)"
+        ],
+        "moment": [
+          "teahouse",
+          "indoors",
+          "wooden_table",
+          "window",
+          "holding_teacup",
+          "sitting",
+          "smile",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "long_coat",
+          "tassel"
+        ]
+      }
     },
     {
       "id": "hanbok",
@@ -994,13 +1689,28 @@
         "hair_ribbon",
         "sash"
       ],
-      "wearer": [
-        "1girl",
-        "brown_hair",
-        "single_braid",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, blue_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "d.va_(overwatch)"
+        ],
+        "moment": [
+          "traditional_palace",
+          "autumn",
+          "ginkgo_leaves",
+          "afternoon",
+          "wind",
+          "holding_folding_fan",
+          "smile",
+          "hair_blowing",
+          "from_above"
+        ],
+        "avoid": [
+          "bodysuit",
+          "headset",
+          "whisker_markings"
+        ]
+      }
     },
     {
       "id": "dirndl",
@@ -1014,13 +1724,30 @@
         "puffy_short_sleeves",
         "hair_ribbon"
       ],
-      "wearer": [
-        "1girl",
-        "blonde_hair",
-        "twin_braids",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, green_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "krista_lenz",
+          "shingeki_no_kyojin"
+        ],
+        "moment": [
+          "alpine_meadow",
+          "mountains",
+          "morning",
+          "wind",
+          "wildflowers",
+          "holding_basket",
+          "smile",
+          "hair_blowing",
+          "cowboy_shot",
+          "looking_at_viewer"
+        ],
+        "avoid": [
+          "cadet_uniform",
+          "scout_regiment",
+          "jacket"
+        ]
+      }
     },
     {
       "id": "festival-happi",
@@ -1033,13 +1760,29 @@
         "tabi",
         "zouri"
       ],
-      "wearer": [
-        "1boy",
-        "brown_hair",
-        "short_hair",
-        "black_eyes"
-      ],
-      "backdrop": "simple_background, yellow_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "hinata_shouyou",
+          "haikyuu!!"
+        ],
+        "moment": [
+          "summer_festival",
+          "food_stand",
+          "paper_lantern",
+          "crowd",
+          "evening",
+          "jumping",
+          "holding_volleyball",
+          "laughing",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "volleyball_uniform",
+          "jersey",
+          "school_uniform"
+        ]
+      }
     },
     {
       "id": "arabian-outfit",
@@ -1053,14 +1796,27 @@
         "pants",
         "sandals"
       ],
-      "wearer": [
-        "1boy",
-        "dark-skinned_male",
-        "black_hair",
-        "short_hair",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, brown_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "kaveh_(genshin_impact)"
+        ],
+        "moment": [
+          "bazaar",
+          "market_stall",
+          "awning",
+          "day",
+          "holding_scroll",
+          "walking",
+          "smile",
+          "cowboy_shot",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "red_cape",
+          "earrings"
+        ]
+      }
     },
     {
       "id": "knight-armor",
@@ -1073,13 +1829,28 @@
         "cape",
         "belt"
       ],
-      "wearer": [
-        "1boy",
-        "blonde_hair",
-        "short_hair",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "artoria_pendragon_(fate)"
+        ],
+        "moment": [
+          "castle",
+          "courtyard",
+          "grass",
+          "morning",
+          "holding_sword",
+          "planted_sword",
+          "standing",
+          "serious",
+          "wind",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "blue_dress",
+          "blue_ribbon"
+        ]
+      }
     },
     {
       "id": "witch-outfit",
@@ -1093,13 +1864,25 @@
         "gloves",
         "ribbon"
       ],
-      "wearer": [
-        "1girl",
-        "white_hair",
-        "long_hair",
-        "purple_eyes"
-      ],
-      "backdrop": "simple_background, purple_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "elaina_(majo_no_tabitabi)"
+        ],
+        "moment": [
+          "above_clouds",
+          "sunset",
+          "riding_broom",
+          "wind",
+          "skirt_flowing",
+          "smile",
+          "from_side"
+        ],
+        "avoid": [
+          "black_robe",
+          "brooch"
+        ]
+      }
     },
     {
       "id": "wizard-robe",
@@ -1113,14 +1896,26 @@
         "boots",
         "gloves"
       ],
-      "wearer": [
-        "1boy",
-        "grey_hair",
-        "long_hair",
-        "facial_hair",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, blue_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "rudeus_greyrat",
+          "mushoku_tensei"
+        ],
+        "moment": [
+          "ancient_ruins",
+          "night",
+          "magic_circle",
+          "holding_staff",
+          "glowing",
+          "blue_magic",
+          "floating_particles",
+          "determined",
+          "from_behind",
+          "looking_back"
+        ],
+        "avoid": []
+      }
     },
     {
       "id": "priestess-robes",
@@ -1134,13 +1929,27 @@
         "capelet",
         "necklace"
       ],
-      "wearer": [
-        "1girl",
-        "blonde_hair",
-        "long_hair",
-        "green_eyes"
-      ],
-      "backdrop": "simple_background, white_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "priestess_(goblin_slayer!)"
+        ],
+        "moment": [
+          "temple",
+          "morning",
+          "light_shafts",
+          "stained_glass",
+          "praying",
+          "holding_staff",
+          "kneeling",
+          "soft_smile",
+          "wide_shot"
+        ],
+        "avoid": [
+          "chainmail",
+          "helmet"
+        ]
+      }
     },
     {
       "id": "idol-stage-outfit",
@@ -1155,13 +1964,29 @@
         "boots",
         "ribbon"
       ],
-      "wearer": [
-        "1girl",
-        "pink_hair",
-        "high_ponytail",
-        "pink_eyes"
-      ],
-      "backdrop": "simple_background, pink_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "hatsune_miku",
+          "vocaloid"
+        ],
+        "moment": [
+          "stage",
+          "spotlight",
+          "light_beams",
+          "confetti",
+          "singing",
+          "holding_microphone",
+          "arms_up",
+          "glowing",
+          "from_above"
+        ],
+        "avoid": [
+          "necktie",
+          "detached_sleeves",
+          "headset"
+        ]
+      }
     },
     {
       "id": "magical-girl",
@@ -1177,13 +2002,29 @@
         "choker",
         "brooch"
       ],
-      "wearer": [
-        "1girl",
-        "blue_hair",
-        "twintails",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, pink_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "kaname_madoka",
+          "mahou_shoujo_madoka_magica"
+        ],
+        "moment": [
+          "twilight_sky",
+          "floating",
+          "starry_sky",
+          "pink_magic",
+          "drawing_bow",
+          "arrow",
+          "wind",
+          "determined",
+          "cowboy_shot",
+          "looking_at_viewer"
+        ],
+        "avoid": [
+          "school_uniform",
+          "red_ribbon"
+        ]
+      }
     },
     {
       "id": "pirate-captain",
@@ -1197,14 +2038,27 @@
         "gloves",
         "cape"
       ],
-      "wearer": [
-        "1boy",
-        "brown_hair",
-        "long_hair",
-        "tan",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, brown_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "shanks_(one_piece)"
+        ],
+        "moment": [
+          "ship_deck",
+          "sea",
+          "sunset",
+          "sails",
+          "wind",
+          "cape_flowing",
+          "laughing",
+          "hand_on_hat",
+          "from_below"
+        ],
+        "avoid": [
+          "straw_hat",
+          "black_cloak"
+        ]
+      }
     },
     {
       "id": "hooded-ranger",
@@ -1218,14 +2072,27 @@
         "boots",
         "tunic"
       ],
-      "wearer": [
-        "1girl",
-        "green_hair",
-        "side_braid",
-        "pointy_ears",
-        "green_eyes"
-      ],
-      "backdrop": "simple_background, green_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "sylphiette_(mushoku_tensei)"
+        ],
+        "moment": [
+          "forest",
+          "morning",
+          "sunbeams",
+          "mist",
+          "holding_bow",
+          "cloak_flowing",
+          "looking_back",
+          "leaves",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "robe",
+          "staff"
+        ]
+      }
     },
     {
       "id": "royal-prince",
@@ -1240,13 +2107,28 @@
         "epaulettes",
         "brooch"
       ],
-      "wearer": [
-        "1boy",
-        "white_hair",
-        "short_hair",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, blue_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "lelouch_vi_britannia",
+          "code_geass"
+        ],
+        "moment": [
+          "throne_room",
+          "indoors",
+          "chandelier",
+          "red_carpet",
+          "standing",
+          "hand_outstretched",
+          "smirk",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "zero_mask",
+          "mask",
+          "ashford_academy_uniform"
+        ]
+      }
     },
     {
       "id": "winter-coat-and-scarf",
@@ -1259,13 +2141,28 @@
         "boots",
         "earmuffs"
       ],
-      "wearer": [
-        "1girl",
-        "brown_hair",
-        "medium_hair",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, blue_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "fujiwara_chika",
+          "kaguya-sama_wa_kokurasetai"
+        ],
+        "moment": [
+          "snowy_street",
+          "evening",
+          "falling_snow",
+          "streetlight",
+          "breath",
+          "catching_snowflakes",
+          "smile",
+          "cowboy_shot",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "shuchiin_academy_uniform",
+          "school_uniform"
+        ]
+      }
     },
     {
       "id": "yellow-raincoat",
@@ -1278,13 +2175,28 @@
         "hat",
         "gloves"
       ],
-      "wearer": [
-        "1girl",
-        "black_hair",
-        "short_hair",
-        "yellow_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "kanbaru_suruga",
+          "monogatari_(series)"
+        ],
+        "moment": [
+          "rain",
+          "puddles",
+          "hydrangea",
+          "empty_street",
+          "overcast",
+          "holding_umbrella",
+          "looking_up",
+          "from_side"
+        ],
+        "avoid": [
+          "school_uniform",
+          "bandages",
+          "naoetsu_high_school_uniform"
+        ]
+      }
     },
     {
       "id": "santa-outfit",
@@ -1298,13 +2210,26 @@
         "belt",
         "fur_trim"
       ],
-      "wearer": [
-        "1girl",
-        "red_hair",
-        "long_hair",
-        "green_eyes"
-      ],
-      "backdrop": "simple_background, white_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "nakano_itsuki",
+          "gotoubun_no_hanayome"
+        ],
+        "moment": [
+          "christmas_night",
+          "snow",
+          "christmas_tree",
+          "string_lights",
+          "holding_gift",
+          "smile",
+          "from_behind",
+          "looking_back"
+        ],
+        "avoid": [
+          "school_uniform"
+        ]
+      }
     },
     {
       "id": "fur-hat-winter-coat",
@@ -1318,13 +2243,28 @@
         "scarf",
         "boots"
       ],
-      "wearer": [
-        "1boy",
-        "white_hair",
-        "short_hair",
-        "grey_eyes"
-      ],
-      "backdrop": "simple_background, grey_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "viktor_nikiforov",
+          "yuri!!!_on_ice"
+        ],
+        "moment": [
+          "frozen_lake",
+          "snowfall",
+          "dusk",
+          "bare_trees",
+          "breath",
+          "hand_raised",
+          "looking_back",
+          "wind",
+          "wide_shot"
+        ],
+        "avoid": [
+          "figure_skating_costume",
+          "suit"
+        ]
+      }
     },
     {
       "id": "autumn-trench-coat",
@@ -1337,13 +2277,27 @@
         "beret",
         "gloves"
       ],
-      "wearer": [
-        "1girl",
-        "orange_hair",
-        "wavy_hair",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, orange_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "akiyama_mio",
+          "k-on!"
+        ],
+        "moment": [
+          "autumn_street",
+          "ginkgo_leaves",
+          "falling_leaves",
+          "sunset",
+          "holding_guitar_case",
+          "looking_back",
+          "wind",
+          "from_above"
+        ],
+        "avoid": [
+          "sakuragaoka_high_school_uniform",
+          "school_uniform"
+        ]
+      }
     },
     {
       "id": "knit-beanie-and-mittens",
@@ -1357,33 +2311,30 @@
         "jeans",
         "boots"
       ],
-      "wearer": [
-        "1girl",
-        "purple_hair",
-        "medium_hair",
-        "green_eyes"
-      ],
-      "backdrop": "simple_background, blue_background"
-    },
-    {
-      "id": "halloween-costume",
-      "name": "Halloween pumpkin costume",
-      "category": "seasonal",
-      "tags": [
-        "pumpkin_hat",
-        "dress",
-        "cape",
-        "gloves",
-        "thighhighs",
-        "boots"
-      ],
-      "wearer": [
-        "1girl",
-        "orange_hair",
-        "twintails",
-        "yellow_eyes"
-      ],
-      "backdrop": "simple_background, orange_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "shima_rin",
+          "yurucamp"
+        ],
+        "moment": [
+          "lake",
+          "mount_fuji",
+          "dawn",
+          "winter",
+          "camping",
+          "tent",
+          "steam",
+          "holding_mug",
+          "sitting",
+          "breath",
+          "cowboy_shot",
+          "looking_at_viewer"
+        ],
+        "avoid": [
+          "school_uniform"
+        ]
+      }
     },
     {
       "id": "track-suit",
@@ -1395,13 +2346,29 @@
         "wristband",
         "sweatband"
       ],
-      "wearer": [
-        "1girl",
-        "black_hair",
-        "high_ponytail",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, green_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "uraraka_ochaco",
+          "boku_no_hero_academia"
+        ],
+        "moment": [
+          "park",
+          "trees",
+          "path",
+          "blue_sky",
+          "morning",
+          "jogging",
+          "smile",
+          "cowboy_shot",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "u.a._gym_uniform",
+          "hero_costume",
+          "bodysuit"
+        ]
+      }
     },
     {
       "id": "baseball-uniform",
@@ -1415,13 +2382,27 @@
         "socks",
         "sneakers"
       ],
-      "wearer": [
-        "1girl",
-        "brown_hair",
-        "side_ponytail",
-        "pink_eyes"
-      ],
-      "backdrop": "simple_background, blue_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "suzumiya_haruhi",
+          "suzumiya_haruhi_no_yuuutsu"
+        ],
+        "moment": [
+          "baseball_field",
+          "golden_hour",
+          "dust",
+          "batting_stance",
+          "holding_baseball_bat",
+          "grin",
+          "from_side"
+        ],
+        "avoid": [
+          "kita_high_school_uniform",
+          "school_uniform",
+          "yellow_ribbon"
+        ]
+      }
     },
     {
       "id": "cheer-uniform",
@@ -1435,13 +2416,28 @@
         "socks",
         "hair_ribbon"
       ],
-      "wearer": [
-        "1girl",
-        "blonde_hair",
-        "high_ponytail",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, pink_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "hoshino_ai",
+          "oshi_no_ko"
+        ],
+        "moment": [
+          "sports_field",
+          "afternoon",
+          "blue_sky",
+          "confetti",
+          "cheering",
+          "arms_up",
+          "smile",
+          "wind",
+          "cowboy_shot",
+          "looking_at_viewer"
+        ],
+        "avoid": [
+          "idol_clothes"
+        ]
+      }
     },
     {
       "id": "ski-outfit",
@@ -1456,13 +2452,27 @@
         "boots",
         "scarf"
       ],
-      "wearer": [
-        "1girl",
-        "white_hair",
-        "low_twintails",
-        "purple_eyes"
-      ],
-      "backdrop": "simple_background, white_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "nakano_ichika",
+          "gotoubun_no_hanayome"
+        ],
+        "moment": [
+          "ski_slope",
+          "sunny",
+          "blue_sky",
+          "snow_spray",
+          "powder_snow",
+          "holding_ski_poles",
+          "skiing",
+          "smile",
+          "wide_shot"
+        ],
+        "avoid": [
+          "school_uniform"
+        ]
+      }
     },
     {
       "id": "kyudo-uniform",
@@ -1475,13 +2485,29 @@
         "kimono",
         "tabi"
       ],
-      "wearer": [
-        "1girl",
-        "black_hair",
-        "high_ponytail",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, brown_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "matou_sakura",
+          "fate/stay_night"
+        ],
+        "moment": [
+          "dojo",
+          "dawn",
+          "wooden_floor",
+          "sunbeams",
+          "dust",
+          "holding_bow",
+          "drawing_bow",
+          "arrow",
+          "focused",
+          "from_above"
+        ],
+        "avoid": [
+          "school_uniform",
+          "homurahara_academy_uniform"
+        ]
+      }
     },
     {
       "id": "soccer-kit",
@@ -1495,14 +2521,28 @@
         "sneakers",
         "sweatband"
       ],
-      "wearer": [
-        "1boy",
-        "brown_hair",
-        "short_hair",
-        "dark-skinned_male",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, green_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "isagi_yoichi",
+          "blue_lock"
+        ],
+        "moment": [
+          "soccer_field",
+          "night",
+          "floodlights",
+          "kicking_ball",
+          "soccer_ball",
+          "dynamic_pose",
+          "determined",
+          "cowboy_shot",
+          "looking_at_viewer"
+        ],
+        "avoid": [
+          "blue_lock_jersey",
+          "blue_uniform"
+        ]
+      }
     },
     {
       "id": "victorian-dress",
@@ -1517,13 +2557,25 @@
         "cape",
         "brooch"
       ],
-      "wearer": [
-        "1girl",
-        "brown_hair",
-        "curly_hair",
-        "green_eyes"
-      ],
-      "backdrop": "simple_background, brown_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "violet_evergarden"
+        ],
+        "moment": [
+          "greenhouse",
+          "morning",
+          "sunlight",
+          "flowers",
+          "holding_flower",
+          "walking",
+          "soft_smile",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "blue_jacket"
+        ]
+      }
     },
     {
       "id": "meiji-schoolgirl",
@@ -1535,13 +2587,29 @@
         "hair_ribbon",
         "boots"
       ],
-      "wearer": [
-        "1girl",
-        "black_hair",
-        "long_hair",
-        "brown_eyes"
-      ],
-      "backdrop": "simple_background, pink_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "shinguuji_sakura",
+          "sakura_taisen"
+        ],
+        "moment": [
+          "cherry_blossom_street",
+          "spring",
+          "falling_petals",
+          "gas_lamp",
+          "holding_katana",
+          "sheath",
+          "wind",
+          "smile",
+          "cowboy_shot",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "imperial_combat_revue_uniform",
+          "white_jacket"
+        ]
+      }
     },
     {
       "id": "regency-gentleman",
@@ -1557,13 +2625,28 @@
         "pants",
         "dress_shoes"
       ],
-      "wearer": [
-        "1boy",
-        "blonde_hair",
-        "curly_hair",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, brown_background"
+      "cover": {
+        "subject": "1boy",
+        "character": [
+          "ciel_phantomhive",
+          "kuroshitsuji"
+        ],
+        "moment": [
+          "manor_balcony",
+          "dusk",
+          "dramatic_sky",
+          "hand_on_railing",
+          "holding_cane",
+          "cold_stare",
+          "wind",
+          "from_side"
+        ],
+        "avoid": [
+          "eyepatch",
+          "ring",
+          "shorts"
+        ]
+      }
     },
     {
       "id": "ancient-greek-chiton",
@@ -1572,17 +2655,33 @@
       "tags": [
         "ancient_greek_clothes",
         "greco-roman_clothes",
+        "long_dress",
         "laurel_crown",
         "sandals",
         "sash"
       ],
-      "wearer": [
-        "1girl",
-        "blonde_hair",
-        "single_braid",
-        "blue_eyes"
-      ],
-      "backdrop": "simple_background, blue_background"
+      "cover": {
+        "subject": "1girl",
+        "character": [
+          "kido_saori",
+          "saint_seiya"
+        ],
+        "moment": [
+          "ancient_greek_temple",
+          "marble_columns",
+          "ocean",
+          "golden_hour",
+          "wind",
+          "cloth_flowing",
+          "holding_staff",
+          "standing",
+          "serene",
+          "three_quarter_view"
+        ],
+        "avoid": [
+          "short_dress"
+        ]
+      }
     }
   ]
 }

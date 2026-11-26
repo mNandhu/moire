@@ -8,28 +8,34 @@ Checked 2026-11-24 against ComfyUI Anima-Tools (`nregret/Comfyui-Anima-Tools`): 
 
 ## Shape
 
-- `src/moire/data/starter_outfits.json`: per outfit `id` (kebab-case, stable), `name`, `category`, `tags` (attire only, canonical), `wearer` (the cover model: `1girl` or `1boy` plus a few hair/eye tags picked to suit the outfit, varied so the picker isn't repetitive; never a named character) and `backdrop` (simple background plus a color).
-- `src/moire/data/starter_outfits/<id>.webp`: the cover, 384 x 576 WebP, about 25 KB.
-- Rules, enforced by `tests/test_starter_outfits.py`: tags are attire, every cover prompt is general level (the covers are made on a ComfyUI that may be public), one subject per wearer, no cover without an outfit. No adult tag names anywhere in the file.
+- `src/moire/data/starter_outfits.json`: per outfit `id` (kebab-case, stable), `name`, `category`, `tags` (attire only, canonical), `cover`: who the cover shows and how (`subject` `1girl` or `1boy`; `character`, the Danbooru tag of a known character who suits the outfit, ideally one whose own clothes are that outfit, plus their series when the tag doesn't name it; `moment`, scene, action and angle tags; `avoid`, the character's own signature clothes, sent as negatives so they don't replace the outfit).
+- `src/moire/data/starter_outfits/<id>.webp`: the cover, 384 x 576 WebP, about 50 KB.
+- Rules, enforced by `tests/test_starter_outfits.py`: tags are attire, every cover prompt is general level (the covers are made on a ComfyUI that may be public), one subject and a different character per cover, moment tags never attire, never a low angle on a skirt or dress, no cover without an outfit. No adult tag names anywhere in the file.
 - In the app: a read-only Starter section in the Wears picker. Adding one copies it into an ordinary saved outfit (for one character, or shared), so nothing floods the lists. A starter's cover is the shipped image until the library holds an image wearing it; then the best-scored such image takes over (`outfit_wear.wears_most`, the same pick as the Default outfit's cover).
 
 ## Covers
 
-`packages/backend/scripts/starter_outfit_covers.py` makes them through a running Moiré's Generate (`check`, `queue`, `status`, `sheet`, `export`; usage in its docstring). The quality tags, negative prompt, checkpoint and size are passed on the command line and never written to the repo. Every prompt is the caller's base, then wearer, outfit tags, `solo, full_body, standing, looking_at_viewer` and the backdrop, at a fixed seed per outfit.
+`packages/backend/scripts/starter_outfit_covers.py` makes them through a running Moiré's Generate (`check`, `queue`, `status`, `sheet`, `export`; usage in its docstring). The quality and style tags, negative prompt, checkpoint and size are passed on the command line and never written to the repo. Every prompt is the caller's base, then subject, `solo`, character, outfit tags and moment, then the caller's style, written as prompt text (spaces, escaped brackets), at a fixed seed per outfit. A cover is a moment, not a catalogue shot: the first plain full-body pilots read as generic, and the outfit stays recognisable without forcing `full_body`.
 
 ## Tracker
 
 ### Data
 
-- [x] **O1** Outfit list drafted and validated: attire-only tags, general level, varied wearers.
+- [x] **O1** Outfit list drafted and validated: attire-only tags, general level.
 - [ ] **O2** Read through the list by hand: names, nothing near-duplicate, each outfit reads as itself.
 
 ### Covers
 
 - [x] **O3** Cover script (`scripts/starter_outfit_covers.py`): validate, queue one batch per outfit, status, contact sheet to pick from, export to WebP.
-- [ ] **O4** Run it once ComfyUI is reachable: `check`, then `queue --dry-run` to see the prompts, then `queue` with the chosen base and negative.
-- [ ] **O5** Review the candidates on the contact sheet. Every pick looked at for sensitivity before export, whatever the prompt said. Redo (`queue --redo id,...`) outfits whose tags didn't come through, and fix their tags in O2 if the model can't draw them.
-- [ ] **O6** Export the picks and commit the covers once (git keeps every version, so don't churn them). Check the package size stays reasonable and the wheel carries the WebPs (`uv build`, list the wheel).
+- [x] **O4** Run it once ComfyUI is reachable: `check`, then `queue --dry-run` to see the prompts, then `queue` with the chosen base, style and negative. Ran 2026-11-25, 4 candidates per outfit, `--per-request 4` (one ComfyUI job per outfit: the GPU time per image is flat, and each job costs Moiré about 10 s of overhead, so 4 per job took 8.4 s an image against about 17 s one at a time).
+- [x] **O4a** Covers are moments with known characters (`cover` block), after three pilots: plain full-body shots on simple backdrops read as generic. Camera angles are spread across the set, `from_below` on six outfits at most: with half the moments low and a strong foreshortening style, most covers came out as the same shot, a shoe in the lens. Run with foreshortening and dynamic-angle style tags left out, and `from below, fisheye, foreshortening` in the negative.
+- [x] **O5** Review the candidates on the contact sheet. Every pick looked at for sensitivity before export, whatever the prompt said. Redo (`queue --redo id,...`) outfits whose tags didn't come through, and fix their tags in O2 if the model can't draw them. Picked 2026-11-26 by Claude (the maintainer was away), every pick checked at full size: all general level, modest framings chosen for skirts and dresses.
+- [x] **O5a** Follow-ups from that review, settled with the maintainer 2026-11-26:
+  - Redone: `cheer-uniform` (the camera was too far out: now `cowboy_shot`, arms up, looking at the viewer), `ancient-greek-chiton` (Euryale's own chiton is very short: now Saori Kido with `long_dress`), `sukajan-streetwear` (Denji drew in a t-shirt: `open_jacket` added; the model still leans to a varsity jacket, the pick is the one with an embroidered patch).
+  - Looked at and fine: `hooded-ranger`, `police-uniform`, `evening-gown`.
+  - Second pass, redone: twelve covers whose backgrounds came out as abstract patterns (mandala, spiral, stained glass) now sit in concrete everyday places at eye level: `gakuran-school-uniform`, `aviator-jacket`, `three-piece-suit`, `techwear`, `biker-jacket`, `festival-happi`, `knight-armor`, `royal-prince`, `track-suit`, `china-dress`, `tangzhuang`, `arabian-outfit`. The pattern came from scenes that were mostly sky, glow or a low camera; the redo also put `abstract background, mandala, kaleidoscope, patterned background` in the run's negative. `sailor-school-uniform` read as a generic girl: now Akebi Komichi.
+  - Dropped `halloween-costume`: the cover didn't look good.
+- [x] **O6** Export the picks and commit the covers once (git keeps every version, so don't churn them). Check the package size stays reasonable and the wheel carries the WebPs (`uv build`, list the wheel). 78 covers, 3.5 MB (about 44 KB each, not the 25 KB guessed: busy scenes compress worse; quality 75 would save only 20%); the wheel carries them, 5.1 MB in all.
 
 ### App
 
