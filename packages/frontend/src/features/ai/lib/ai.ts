@@ -24,11 +24,11 @@ export type AISettings = {
 };
 
 /** How long tagging takes here: the rate a run measured on this machine,
- * else the documented one for the device the tagger runs on. */
+ * and the device the tagger runs on. */
 export type AiEstimate = {
   device: "cpu" | "gpu";
-  seconds_per_image: number;
-  measured: boolean;
+  /** Null until a run has measured this machine with this model. */
+  seconds_per_image: number | null;
 };
 
 /** The face detector that crops character avatars: its model download and
@@ -249,8 +249,9 @@ export function jobThroughput(job: Pick<AiJob, "rate" | "eta_s" | "elapsed_s">):
 /** Seconds to AI-tag `images` at the rate a run measured on this computer;
  * null until one has (a typical device rate can be well off). */
 export function taggingSeconds(images: number, est: AiEstimate | undefined | null): number | null {
-  if (!est?.measured || !(est.seconds_per_image > 0) || images <= 0) return null;
-  return images * est.seconds_per_image;
+  const perImage = est?.seconds_per_image;
+  if (perImage == null || !(perImage > 0) || images <= 0) return null;
+  return images * perImage;
 }
 
 /** Images a timing run tags: a few over the fewest a run records its rate
@@ -260,7 +261,7 @@ export const TIMING_RUN = 25;
 
 /** Offer a timing run: no measured rate yet, and enough images left for one. */
 export function canTimeRun(est: AiEstimate | undefined | null, untagged: number): boolean {
-  return est != null && !est.measured && untagged >= TIMING_RUN;
+  return est != null && est.seconds_per_image == null && untagged >= TIMING_RUN;
 }
 
 /** "about 3 min", "about 2.4 h": rough on purpose (the rate varies). */

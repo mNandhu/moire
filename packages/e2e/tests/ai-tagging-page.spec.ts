@@ -57,7 +57,7 @@ test("AI Tagging times a run before it estimates", async ({ page }) => {
   await page.route("**/api/v1/ai/status", async (route) => {
     const res = await route.fetch();
     const body = await res.json();
-    body.estimate = { device: "cpu", seconds_per_image: 2, measured };
+    body.estimate = { device: "cpu", seconds_per_image: measured ? 2 : null };
     await route.fulfill({ response: res, json: body });
   });
   const sent: Record<string, unknown>[] = [];

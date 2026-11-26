@@ -1,10 +1,9 @@
 """How long AI tagging takes here: seconds an image, for the time estimates.
 
-The rate a real run measured on this machine wins; until one has, the
-documented rates for the device the tagger runs on (docs/dev/perf-findings.md:
-~0.6 images/s in a CPU job, ~0.1 s an image on a GTX 1650), which the UI
-shows no time for. Measured rates are kept per device and model, so neither
-switching to the GPU build nor to a heavier model quotes the old one's.
+Only the rate a real run measured on this machine: until one has, no rate,
+since a typical device's can be well off. Measured rates are kept per device
+and model, so neither switching to the GPU build nor to a heavier model
+quotes the old one's.
 """
 
 from __future__ import annotations
@@ -26,7 +25,6 @@ ROW = "ai_rate"
 # at most this many, so a later long run still moves it and a short one
 # barely does.
 MAX_WEIGHT = 1000
-DEFAULT_SECONDS_PER_IMAGE = {"cpu": 1 / 0.6, "gpu": 0.1}
 # A run shorter than this says more about warm-up than about the rate.
 MIN_IMAGES = 20
 
@@ -78,25 +76,14 @@ async def record(device: str, model: str, rate: float, images: int) -> None:
 
 
 async def estimate(model: str) -> dict[str, Any]:
-    """``device`` ("cpu" or "gpu"), ``seconds_per_image`` with ``model`` and
-    whether that was ``measured`` on this machine or is the documented
-    default."""
+    """``device`` ("cpu" or "gpu") and ``seconds_per_image`` with ``model``
+    as measured on this machine, None until a run has."""
     global _rates
     device = current_device()
     if _rates is None:
         try:
             _rates = dict(await app_settings.read(ROW) or {})
         except Exception:
-            return _default(device)
+            return {"device": device, "seconds_per_image": None}
     rate = _stored_rate(_rates, device, model)
-    if rate:
-        return {"device": device, "seconds_per_image": 1 / rate, "measured": True}
-    return _default(device)
-
-
-def _default(device: str) -> dict[str, Any]:
-    return {
-        "device": device,
-        "seconds_per_image": DEFAULT_SECONDS_PER_IMAGE[device],
-        "measured": False,
-    }
+    return {"device": device, "seconds_per_image": 1 / rate if rate else None}

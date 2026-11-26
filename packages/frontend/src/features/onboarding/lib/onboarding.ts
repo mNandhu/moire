@@ -119,8 +119,9 @@ export function sourceTotals(s: DiscoverSource): { images: number; capped: boole
   };
 }
 
-// Measured rates (docs/dev/perf-findings.md): ~0.6 images/s in a real CPU job,
-// ~0.1 s an image on a GTX 1650.
+// Typical rates (docs/dev/perf-findings.md), for onboarding's CPU vs GPU bars
+// only: ~0.6 images/s in a real CPU job, ~0.1 s an image on a GPU. The AI
+// page shows no time before a run measured this computer.
 export const CPU_SECONDS_PER_IMAGE = 1 / 0.6;
 export const GPU_SECONDS_PER_IMAGE = 0.1;
 

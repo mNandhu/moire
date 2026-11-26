@@ -31,9 +31,11 @@ export function TaggingStep({
   onChange: (on: boolean) => void;
   estimate: AiEstimate | undefined;
 }) {
-  // Without the status (an older backend), the documented CPU rate.
+  // This computer's measured rate, else the typical one for its device
+  // (CPU without the status: an older backend). Only for the bars.
   const device = estimate?.device ?? "cpu";
-  const perImage = estimate?.seconds_per_image ?? CPU_SECONDS_PER_IMAGE;
+  const perImage =
+    estimate?.seconds_per_image ?? (device === "gpu" ? GPU_SECONDS_PER_IMAGE : CPU_SECONDS_PER_IMAGE);
   const here = images * perImage;
   const gpu = images * GPU_SECONDS_PER_IMAGE;
   // From the same rates as the bars, so the claim and the bars agree.
