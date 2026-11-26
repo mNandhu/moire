@@ -253,9 +253,10 @@ export function taggingSeconds(images: number, est: AiEstimate | undefined | nul
   return images * est.seconds_per_image;
 }
 
-/** Images a timing run tags: the fewest a run records its rate from
- * (`services/ai/estimate.py` `MIN_IMAGES`). */
-export const TIMING_RUN = 20;
+/** Images a timing run tags: a few over the fewest a run records its rate
+ * from (`services/ai/estimate.py` `MIN_IMAGES`, 20), so an image that fails
+ * or another job holds still leaves enough. */
+export const TIMING_RUN = 25;
 
 /** Offer a timing run: no measured rate yet, and enough images left for one. */
 export function canTimeRun(est: AiEstimate | undefined | null, untagged: number): boolean {

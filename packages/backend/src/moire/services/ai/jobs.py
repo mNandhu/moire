@@ -123,38 +123,66 @@ class AIJob:
     cleared: bool = False
     # The work list. Kept off the API view (hundreds of ids per poll).
     ids: list[str] = field(default_factory=list, repr=False)
-    # (time, images processed) as it went, for the recent rate: one a second
-    # at most, the oldest kept being the one the window starts from.
-    # Kept off the API view too.
+    # Images an urgent job tagged first: counted done, but they took no time
+    # here, so left out of the rates.
+    passed: int = 0
+    # (time, images worked, nested_s) as it went, for the recent rate: one
+    # a second at most, the oldest kept being the one the window starts
+    # from. ``first`` is the first one: the rate recorded is measured from
+    # it, past the first image's warm-up. Both kept off the API view.
     progress: deque = field(default_factory=deque, repr=False)
+    first: tuple[float, int, float] | None = field(default=None, repr=False)
 
     def image_ids(self) -> list[str]:
         return list(self.ids)
 
+    def _worked(self) -> int:
+        """Images through that took this job's time (failures included)."""
+        return self.done + self.failed - self.passed
+
     def mark_progress(self, now: float | None = None) -> None:
-        """Note the images processed so far, for the recent rate."""
+        """Note the images processed so far, for the rates."""
         now = time.time() if now is None else now
+        if self.first is None:
+            self.first = (now, self.done - self.passed, self.nested_s)
         samples = self.progress
         if samples and now - samples[-1][0] < 1.0:
             return
-        samples.append((now, self.done + self.failed))
+        samples.append((now, self._worked(), self.nested_s))
         # Drop what the window no longer needs: keep the newest sample at
         # least a window old, the one it starts from.
         while len(samples) > 1 and now - samples[1][0] >= _RECENT_S:
             samples.popleft()
 
-    def _recent_rate(self, now: float, processed: int) -> float | None:
-        """Images a second over about the last ``_RECENT_S``; None while
-        that covers too little time, or nothing went through in it (a
-        stall: the whole-run rate then, not a time left of forever)."""
+    def _recent_rate(self, now: float) -> float | None:
+        """Images a second over about the last ``_RECENT_S``, the time urgent
+        jobs took left out; None while that covers too little time, or
+        nothing went through in it (a stall: the whole-run rate then, not a
+        time left of forever)."""
         start = next(
             (s for s in reversed(self.progress) if now - s[0] >= _RECENT_S),
             self.progress[0] if self.progress else None,
         )
-        if start is None or now - start[0] < _RECENT_MIN_S:
+        if start is None:
             return None
-        through = processed - start[1]
-        return through / (now - start[0]) if through > 0 else None
+        span = now - start[0] - (self.nested_s - start[2])
+        through = self._worked() - start[1]
+        if span < _RECENT_MIN_S or through <= 0:
+            return None
+        return through / span
+
+    def own_rate(self) -> tuple[float, int] | None:
+        """An ended job's images tagged a second, measured from its first
+        image on (past the warm-up), urgent jobs and the images they tagged
+        left out, with the images it tagged; None if it can't say."""
+        if self.first is None or self.finished_at is None:
+            return None
+        t0, tagged0, nested0 = self.first
+        tagged = self.done - self.passed
+        own = self.finished_at - t0 - (self.nested_s - nested0)
+        if own <= 0 or tagged <= tagged0:
+            return None
+        return (tagged - tagged0) / own, tagged
 
     def throughput(self, now: float | None = None) -> dict[str, float]:
         """``rate`` (images a second) and, while running, ``eta_s``; empty
@@ -176,7 +204,7 @@ class AIJob:
             and self.status == "running"
             and elapsed >= _RECENT_MIN_S
         ):
-            rate = self._recent_rate(end, processed) or rate
+            rate = self._recent_rate(end) or rate
             out["eta_s"] = round(max(0, self.total - processed) / rate, 1)
         return {"rate": round(rate, 4), **out}
 
@@ -199,7 +227,11 @@ class AIJob:
 
     def public(self) -> dict[str, Any]:
         """Serializable view for the API, without the ``ids`` work list."""
-        out = {k: v for k, v in self.__dict__.items() if k not in ("ids", "progress")}
+        out = {
+            k: v
+            for k, v in self.__dict__.items()
+            if k not in ("ids", "progress", "first")
+        }
         return {**out, **self.throughput()}
 
 
@@ -781,6 +813,7 @@ class AIJobManager:
                             _discard(pending)
                             pending = None
                         job.done += 1
+                        job.passed += 1
                         finish(i)
                         job.mark_progress()
                         continue
@@ -849,15 +882,11 @@ class AIJobManager:
                     image_tags.end_bulk_writes(refresh=True)
                     job.cleared = False
                     checkpoint = True
-                    # Images tagged a second, failures and urgent jobs left
-                    # out: a failure is quick, and neither is tagging.
-                    own = job.finished_at - job.started_at - job.nested_s
-                    if own > 0:
+                    # Failures and urgent jobs left out: a failure is quick,
+                    # and neither is tagging.
+                    if (measured := job.own_rate()) is not None:
                         await ai_estimate.record(
-                            ai_estimate.current_device(),
-                            model[0],
-                            job.done / own,
-                            job.done,
+                            ai_estimate.current_device(), model[0], *measured
                         )
             _note_end(job)
             self._release([x for i, x in enumerate(ids) if i not in finished])

@@ -50,7 +50,7 @@ test("Settings saves the auto-tag switch", async ({ page }) => {
   await expect.poll(() => saved?.auto_tag).toBe(true);
 });
 
-// No time until this computer has measured a run: in its place, a run of 20
+// No time until this computer has measured a run: in its place, a run of 25
 // that measures it. Once measured, the time shows and the offer goes.
 test("AI Tagging times a run before it estimates", async ({ page }) => {
   let measured = false;
@@ -68,12 +68,12 @@ test("AI Tagging times a run before it estimates", async ({ page }) => {
 
   await page.goto("/ai-tagging");
   await expect(page.getByRole("textbox", { name: "Images to tag" })).toBeVisible();
-  const timeRun = page.getByRole("button", { name: "Time 20 images" });
+  const timeRun = page.getByRole("button", { name: "Time 25 images" });
   await expect(timeRun).toBeVisible();
   await expect(page.getByText(/^about .* on the CPU$/)).toHaveCount(0);
   await timeRun.click();
   await expect.poll(() => sent.length).toBe(1);
-  expect(sent[0]).toMatchObject({ limit: 20 });
+  expect(sent[0]).toMatchObject({ limit: 25 });
 
   measured = true;
   await page.reload();

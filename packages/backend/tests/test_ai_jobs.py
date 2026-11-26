@@ -353,10 +353,43 @@ def test_a_young_or_stalled_job_falls_back_to_its_whole_run_rate():
     assert view["eta_s"] == pytest.approx(900)
 
 
+def test_the_recent_rate_leaves_out_urgent_jobs_and_their_images():
+    job = ai_jobs.AIJob(id="j", created_at=0, total=10_000, status="running")
+    job.started_at = 0
+    for sec in range(1, 61):
+        job.done += 5
+        job.mark_progress(now=sec)
+    # An urgent job runs 50 s and tags 200 of this job's images first.
+    job.nested_s += 50
+    job.done += 200
+    job.passed += 200
+    job.mark_progress(now=110)
+    for sec in range(111, 121):
+        job.done += 5
+        job.mark_progress(now=sec)
+    assert job.throughput(now=120)["rate"] == pytest.approx(5.0)
+
+
+def test_the_recorded_rate_starts_past_the_first_image():
+    """A slow first image (warm-up) is left out of the rate a run records."""
+    job = ai_jobs.AIJob(id="j", created_at=0, total=21, status="running")
+    job.started_at = 0
+    job.done = 1
+    job.mark_progress(now=3.0)  # the first image: 3 s of warm-up
+    for n in range(2, 22):
+        job.done = n
+        job.mark_progress(now=3.0 + 0.1 * (n - 1))
+    job.status, job.finished_at = "done", 5.0
+    rate, images = job.own_rate()
+    assert images == 21
+    assert rate == pytest.approx(10.0)
+
+
 def test_the_progress_samples_stay_off_the_api_view():
     job = ai_jobs.AIJob(id="j", created_at=0, total=2, status="running")
     job.mark_progress(now=1)
-    assert "progress" not in job.public() and "ids" not in job.public()
+    view = job.public()
+    assert not {"progress", "first", "ids"} & set(view)
 
 
 async def test_a_finished_job_reports_its_rate(monkeypatch):
@@ -612,7 +645,7 @@ async def test_the_recorded_rate_leaves_out_failures_and_urgent_jobs(monkeypatch
     await mgr._run_job(job)
     ((_model, rate, images),) = recorded
     assert images == 2
-    assert rate == pytest.approx(2 / (job.finished_at - job.started_at))
+    assert (rate, images) == job.own_rate()
 
 
 # --- A re-tag's clear is ended on every path ------------------------------------

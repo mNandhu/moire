@@ -349,22 +349,31 @@ async def test_a_long_run_stores_its_rate_for_the_estimate(client):
     assert (await ai_estimate.estimate("org/heavier-tagger"))["measured"] is False
 
 
-async def test_a_rate_kept_before_models_counts_for_the_default_model(client):
+async def test_a_rate_kept_by_device_alone_is_dropped(client):
+    """From before rates were kept per model: of no known model."""
     from moire.services import app_settings
     from moire.services.ai import estimate as ai_estimate
-    from moire.services.ai.settings import DEFAULT_AI_SETTINGS
 
-    default = DEFAULT_AI_SETTINGS["model_repo"]
+    model = "org/tagger"
     device = ai_estimate.current_device()
     await app_settings.write(ai_estimate.ROW, {device: {"rate": 5.0, "images": 100}})
     ai_estimate._rates = None
-    est = await ai_estimate.estimate(default)
-    assert est["measured"] is True and est["seconds_per_image"] == 0.2
-    assert (await ai_estimate.estimate("org/other"))["measured"] is False
+    assert (await ai_estimate.estimate(model))["measured"] is False
 
-    # A new run of the default model supersedes the old key.
-    await ai_estimate.record(device, default, 10.0, images=ai_estimate.MIN_IMAGES)
-    assert set(await app_settings.read(ai_estimate.ROW)) == {f"{device}|{default}"}
+    await ai_estimate.record(device, model, 10.0, images=ai_estimate.MIN_IMAGES)
+    assert set(await app_settings.read(ai_estimate.ROW)) == {f"{device}|{model}"}
+
+
+def test_a_short_run_barely_moves_a_long_runs_rate():
+    from moire.services.ai import estimate as ai_estimate
+
+    long = ai_estimate.blend(None, 6.0, 5000)
+    assert long["rate"] == 6.0 and long["images"] == 5000
+    after = ai_estimate.blend(long, 2.0, 20)  # a short, cold run
+    assert 5.5 < after["rate"] < 6.0
+    # Weighed at most MAX_WEIGHT: a later long run still moves it.
+    moved = ai_estimate.blend(long, 3.0, ai_estimate.MAX_WEIGHT)
+    assert abs(moved["rate"] - 4.0) < 1e-9
 
 
 def test_coverage_reads_its_narrow_index():

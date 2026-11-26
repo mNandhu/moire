@@ -82,7 +82,7 @@ function RunControl({ remaining, est }: { remaining: number; est: AiEstimate | u
         </span>
       )}
       {canTimeRun(est, remaining) && (
-        <Tooltip content="Tags the newest 20 and measures this computer, for the time estimates">
+        <Tooltip content={`Tags the newest ${TIMING_RUN} and measures this computer, for the time estimates`}>
           <Button
             size="sm"
             variant="ghost"
