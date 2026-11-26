@@ -311,11 +311,52 @@ def test_throughput_while_running_and_after():
     job.started_at = 100
     assert job.throughput(now=104) == {}  # nothing through yet
     job.done, job.failed = 3, 1
-    assert job.throughput(now=104) == {"rate": 1.0, "elapsed_s": 4.0, "eta_s": 6.0}
+    # Warm-up: a rate, but no time left yet.
+    assert job.throughput(now=104) == {"rate": 1.0, "elapsed_s": 4.0}
+    job.done = 9
+    assert job.throughput(now=120) == {"rate": 0.5, "elapsed_s": 20.0, "eta_s": 0.0}
+    job.done, job.failed = 3, 1
+    assert job.throughput(now=120) == {"rate": 0.2, "elapsed_s": 20.0, "eta_s": 30.0}
     job.status = "cancelling"
-    assert "eta_s" not in job.throughput(now=104)
+    assert "eta_s" not in job.throughput(now=120)
     job.done, job.finished_at = 9, 105
     assert job.throughput(now=999) == {"rate": 2.0, "elapsed_s": 5.0}
+
+
+def test_a_running_jobs_time_left_follows_its_recent_rate():
+    """A run that slows: 10 images a second for its first two minutes, then
+    5. The time left goes by the last minute, the ended job by the whole."""
+    job = ai_jobs.AIJob(id="j", created_at=0, total=3000, status="running")
+    job.started_at = 0
+    for sec in range(1, 241):
+        job.done += 10 if sec <= 120 else 5
+        job.mark_progress(now=sec)
+    view = job.throughput(now=240)
+    assert view["rate"] == pytest.approx(5.0)
+    assert view["eta_s"] == pytest.approx((3000 - 1800) / 5.0)
+    # The whole-run average (7.5 a second) would have said 160 s.
+    assert len(job.progress) <= ai_jobs._RECENT_S + 2  # trimmed as it goes
+    job.status, job.finished_at = "done", 240
+    assert job.throughput()["rate"] == pytest.approx(7.5)
+
+
+def test_a_young_or_stalled_job_falls_back_to_its_whole_run_rate():
+    job = ai_jobs.AIJob(id="j", created_at=0, total=100, status="running")
+    job.started_at = 0
+    for sec in range(1, 6):  # 5 s in: too little for a recent rate
+        job.done += 2
+        job.mark_progress(now=sec)
+    assert job.throughput(now=5)["rate"] == pytest.approx(2.0)
+    # Nothing through for over a minute: not a time left of forever.
+    view = job.throughput(now=100)
+    assert view["rate"] == pytest.approx(0.1)
+    assert view["eta_s"] == pytest.approx(900)
+
+
+def test_the_progress_samples_stay_off_the_api_view():
+    job = ai_jobs.AIJob(id="j", created_at=0, total=2, status="running")
+    job.mark_progress(now=1)
+    assert "progress" not in job.public() and "ids" not in job.public()
 
 
 async def test_a_finished_job_reports_its_rate(monkeypatch):
@@ -558,10 +599,10 @@ async def test_a_nudge_during_an_auto_tag_pass_runs_one_more(monkeypatch):
 
 
 async def test_the_recorded_rate_leaves_out_failures_and_urgent_jobs(monkeypatch):
-    recorded: list[tuple[float, int]] = []
+    recorded: list[tuple[str, float, int]] = []
 
-    async def record(device, rate, images):
-        recorded.append((rate, images))
+    async def record(device, model, rate, images):
+        recorded.append((model, rate, images))
 
     mgr = _job_manager(monkeypatch, [], fail_load=frozenset({"bad"}))
     monkeypatch.setattr(ai_jobs.ai_estimate, "record", record)
@@ -569,7 +610,7 @@ async def test_the_recorded_rate_leaves_out_failures_and_urgent_jobs(monkeypatch
     job = await mgr.enqueue(ids=["a", "b", "bad"])
     job.nested_s = 0.0
     await mgr._run_job(job)
-    ((rate, images),) = recorded
+    ((_model, rate, images),) = recorded
     assert images == 2
     assert rate == pytest.approx(2 / (job.finished_at - job.started_at))
 

@@ -336,14 +336,35 @@ async def test_status_carries_a_time_estimate(client):
 async def test_a_long_run_stores_its_rate_for_the_estimate(client):
     from moire.services.ai import estimate as ai_estimate
 
-    await ai_estimate.record("cpu", 2.0, images=5)  # too short to count
-    await ai_estimate.record("gpu", 8.0, images=5)
-    est = await ai_estimate.estimate()
+    model = "org/tagger"
+    await ai_estimate.record("cpu", model, 2.0, images=5)  # too short to count
+    await ai_estimate.record("gpu", model, 8.0, images=5)
+    est = await ai_estimate.estimate(model)
     assert est["measured"] is False
 
-    await ai_estimate.record(est["device"], 4.0, images=ai_estimate.MIN_IMAGES)
-    est = await ai_estimate.estimate()
+    await ai_estimate.record(est["device"], model, 4.0, images=ai_estimate.MIN_IMAGES)
+    est = await ai_estimate.estimate(model)
     assert est["measured"] is True and est["seconds_per_image"] == 0.25
+    # Another model is its own speed: not measured yet.
+    assert (await ai_estimate.estimate("org/heavier-tagger"))["measured"] is False
+
+
+async def test_a_rate_kept_before_models_counts_for_the_default_model(client):
+    from moire.services import app_settings
+    from moire.services.ai import estimate as ai_estimate
+    from moire.services.ai.settings import DEFAULT_AI_SETTINGS
+
+    default = DEFAULT_AI_SETTINGS["model_repo"]
+    device = ai_estimate.current_device()
+    await app_settings.write(ai_estimate.ROW, {device: {"rate": 5.0, "images": 100}})
+    ai_estimate._rates = None
+    est = await ai_estimate.estimate(default)
+    assert est["measured"] is True and est["seconds_per_image"] == 0.2
+    assert (await ai_estimate.estimate("org/other"))["measured"] is False
+
+    # A new run of the default model supersedes the old key.
+    await ai_estimate.record(device, default, 10.0, images=ai_estimate.MIN_IMAGES)
+    assert set(await app_settings.read(ai_estimate.ROW)) == {f"{device}|{default}"}
 
 
 def test_coverage_reads_its_narrow_index():

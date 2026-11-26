@@ -48,6 +48,13 @@ _CHUNK = 500
 # before inference waits for it (memory stays bounded: tags, not pixels),
 # and how many of those one write transaction takes at most.
 _WRITE_DEPTH = 4
+# A running job's rate and time left come from about its last minute: the
+# whole-run average lags a rate that drifts (a GPU warming up, older and
+# larger files last), so a long run's time left reads short.
+_RECENT_S = 60.0
+# Fewer seconds than this say more about warm-up than about the rate: the
+# whole-run average until then.
+_RECENT_MIN_S = 10.0
 _WRITE_BATCH = 8
 
 __all__ = [
@@ -116,13 +123,43 @@ class AIJob:
     cleared: bool = False
     # The work list. Kept off the API view (hundreds of ids per poll).
     ids: list[str] = field(default_factory=list, repr=False)
+    # (time, images processed) as it went, for the recent rate: one a second
+    # at most, the oldest kept being the one the window starts from.
+    # Kept off the API view too.
+    progress: deque = field(default_factory=deque, repr=False)
 
     def image_ids(self) -> list[str]:
         return list(self.ids)
 
+    def mark_progress(self, now: float | None = None) -> None:
+        """Note the images processed so far, for the recent rate."""
+        now = time.time() if now is None else now
+        samples = self.progress
+        if samples and now - samples[-1][0] < 1.0:
+            return
+        samples.append((now, self.done + self.failed))
+        # Drop what the window no longer needs: keep the newest sample at
+        # least a window old, the one it starts from.
+        while len(samples) > 1 and now - samples[1][0] >= _RECENT_S:
+            samples.popleft()
+
+    def _recent_rate(self, now: float, processed: int) -> float | None:
+        """Images a second over about the last ``_RECENT_S``; None while
+        that covers too little time, or nothing went through in it (a
+        stall: the whole-run rate then, not a time left of forever)."""
+        start = next(
+            (s for s in reversed(self.progress) if now - s[0] >= _RECENT_S),
+            self.progress[0] if self.progress else None,
+        )
+        if start is None or now - start[0] < _RECENT_MIN_S:
+            return None
+        through = processed - start[1]
+        return through / (now - start[0]) if through > 0 else None
+
     def throughput(self, now: float | None = None) -> dict[str, float]:
         """``rate`` (images a second) and, while running, ``eta_s``; empty
-        until an image is through."""
+        until an image is through. A running job's rate is its recent one
+        (``_RECENT_S``); an ended job's is over the whole run."""
         processed = self.done + self.failed
         if self.started_at is None or processed == 0:
             return {}
@@ -131,11 +168,17 @@ class AIJob:
         if elapsed <= 0:
             return {}
         rate = processed / elapsed
-        out = {"rate": round(rate, 4), "elapsed_s": round(elapsed, 1)}
-        # No time left for a job that is stopping.
-        if self.finished_at is None and self.status == "running":
+        out = {"elapsed_s": round(elapsed, 1)}
+        # No time left for a job that is stopping, nor in its first seconds
+        # (warm-up reads slow).
+        if (
+            self.finished_at is None
+            and self.status == "running"
+            and elapsed >= _RECENT_MIN_S
+        ):
+            rate = self._recent_rate(end, processed) or rate
             out["eta_s"] = round(max(0, self.total - processed) / rate, 1)
-        return out
+        return {"rate": round(rate, 4), **out}
 
     def activity_item(self) -> dict[str, Any]:
         """This job as an activity-list item (``api/activity``)."""
@@ -156,7 +199,7 @@ class AIJob:
 
     def public(self) -> dict[str, Any]:
         """Serializable view for the API, without the ``ids`` work list."""
-        out = {k: v for k, v in self.__dict__.items() if k != "ids"}
+        out = {k: v for k, v in self.__dict__.items() if k not in ("ids", "progress")}
         return {**out, **self.throughput()}
 
 
@@ -673,6 +716,7 @@ class AIJobManager:
             job.errors.append({"image_id": ids[i], "error": str(e)})
             self._skip_new.add(ids[i])
             finish(i)
+            job.mark_progress()
 
         def written(item: _Tagged) -> None:
             if not item.found:
@@ -682,6 +726,7 @@ class AIJobManager:
                 job.cleared = False
             job.done += 1
             finish(item.index)
+            job.mark_progress()
 
         try:
             if nested is not None:
@@ -737,6 +782,7 @@ class AIJobManager:
                             pending = None
                         job.done += 1
                         finish(i)
+                        job.mark_progress()
                         continue
                     job.current = image_id
                     load = pending or asyncio.create_task(self._load_image(image_id))
@@ -808,7 +854,10 @@ class AIJobManager:
                     own = job.finished_at - job.started_at - job.nested_s
                     if own > 0:
                         await ai_estimate.record(
-                            ai_estimate.current_device(), job.done / own, job.done
+                            ai_estimate.current_device(),
+                            model[0],
+                            job.done / own,
+                            job.done,
                         )
             _note_end(job)
             self._release([x for i, x in enumerate(ids) if i not in finished])

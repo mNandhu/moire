@@ -83,7 +83,7 @@ async def ai_status():
             "recent": [j.public() for j in jm.list_jobs(limit=10)],
             "queue_depth": jm.queue_depth(),
         },
-        "estimate": await ai_estimate.estimate(),
+        "estimate": await ai_estimate.estimate(resolved_model_target(s)[0]),
         "settings": s,
     }
 
