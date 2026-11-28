@@ -53,12 +53,9 @@ describe("ThumbnailTile triage state", () => {
     expect(screen.getByLabelText("Quarantined")).toBeInTheDocument();
   });
 
-  it("flags a rating worth noticing but stays quiet for 'general'", () => {
-    const { unmount } = renderTile(doc({ rating: "explicit" }));
-    expect(screen.getByLabelText("Rating: explicit")).toBeInTheDocument();
-    unmount();
-    renderTile(doc({ rating: "general" }));
-    expect(screen.queryByLabelText("Rating: general")).not.toBeInTheDocument();
+  it("shows no content rating mark", () => {
+    renderTile(doc({ rating: "explicit" }));
+    expect(screen.queryByLabelText(/^Rating:/)).not.toBeInTheDocument();
   });
 
   it("shows the batch size for a collapsed batch", () => {
