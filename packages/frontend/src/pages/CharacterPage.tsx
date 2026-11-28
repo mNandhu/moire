@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { BookOpen, Copy, ExternalLink, Pencil, Tag as TagIcon, UserRound, Wand2 } from "lucide-react";
+import { Copy, ExternalLink, Pencil, Tag as TagIcon, UserRound, Wand2 } from "lucide-react";
 import { PageHeader } from "@/app/components/PageHeader";
+import { DanbooruIcon } from "@/components/ui/DanbooruIcon";
 import { Button, ButtonAnchor, ButtonLink } from "@/components/ui/Button";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -113,7 +114,7 @@ export default function CharacterPage({ route = "character" }: { route?: "charac
               </Button>
               {detail && onDanbooru(detail.sources.ai, description) && (
                 <ButtonAnchor size="sm" href={danbooruWikiUrl(c.tag)}>
-                  <BookOpen size={14} /> Danbooru
+                  <DanbooruIcon size={14} /> Danbooru
                 </ButtonAnchor>
               )}
               {!c.made && (

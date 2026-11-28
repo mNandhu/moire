@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { BookOpen, ExternalLink, Pencil, Tag as TagIcon, UserRound, X } from "lucide-react";
+import { ExternalLink, Pencil, Tag as TagIcon, UserRound, X } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { DanbooruIcon } from "@/components/ui/DanbooruIcon";
 import { Button, ButtonAnchor, ButtonLink } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Tooltip } from "@/components/ui/Tooltip";
@@ -191,7 +192,7 @@ export function TagPanel({
           })}
         {detail && onDanbooru(detail.sources.ai, description) && (
           <ButtonAnchor size="sm" href={danbooruWikiUrl(tag)}>
-            <BookOpen size={14} /> Danbooru
+            <DanbooruIcon size={14} /> Danbooru
           </ButtonAnchor>
         )}
       </div>
