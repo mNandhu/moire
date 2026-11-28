@@ -310,6 +310,90 @@ describe("AllImagesPage", () => {
     );
   });
 
+  describe("score and quarantine the hovered tile", () => {
+    // jsdom has no layout, so the tile "under the pointer" is whatever this
+    // says is at the point.
+    let under: string | null = null;
+    beforeEach(() => {
+      under = null;
+      document.elementFromPoint = vi.fn(() =>
+        under ? document.querySelector(`[data-tile-id="${under}"]`) : null,
+      );
+    });
+    afterEach(() => {
+      delete (document as { elementFromPoint?: unknown }).elementFromPoint;
+    });
+
+    let at = 0;
+    const pointTo = (id: string, pointerType = "mouse", moved = true) => {
+      under = id;
+      if (moved) at += 10;
+      const e = new MouseEvent("pointermove", { clientX: at, clientY: at, bubbles: true });
+      Object.defineProperty(e, "pointerType", { value: pointerType });
+      window.dispatchEvent(e);
+    };
+    /** The body of each POST to an image's `action` endpoint, by image id. */
+    const posts = (action: string) =>
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([url, init]) => String(url).endsWith(`/${action}`) && init?.method === "POST")
+        .map(([url, init]) => ({
+          id: decodeURIComponent(String(url).split("/images/")[1].replace(`/${action}`, "")),
+          body: JSON.parse(String(init?.body)),
+        }));
+
+    it("scores the tile under the pointer, no focus needed", async () => {
+      renderPage();
+      await awaitFeed();
+      pointTo("L1:img-3.png");
+      fireEvent.keyDown(window, { key: "5" });
+      await waitFor(() => expect(posts("score")).toEqual([{ id: "L1:img-3.png", body: { score: 5 } }]));
+    });
+
+    it("quarantines the tile under the pointer and names it", async () => {
+      renderPage();
+      await awaitFeed();
+      pointTo("L1:img-2.png");
+      fireEvent.keyDown(window, { key: "x" });
+      expect(await screen.findByText("Quarantined img-2.png")).toBeInTheDocument();
+      expect(posts("quarantine")).toEqual([{ id: "L1:img-2.png", body: { quarantined: true } }]);
+      expect(document.querySelector('[data-tile-id="L1:img-2.png"]')).toBeNull();
+    });
+
+    it("an arrow key takes over from the pointer, starting on the hovered tile", async () => {
+      renderPage();
+      await awaitFeed();
+      pointTo("L1:img-3.png");
+      fireEvent.keyDown(window, { key: "ArrowRight" }); // lands on img-3
+      fireEvent.keyDown(window, { key: "ArrowRight" }); // then img-4
+      // Tiles scrolled under a pointer that did not move: the keys keep it.
+      pointTo("L1:img-1.png", "mouse", false);
+      fireEvent.keyDown(window, { key: "2" });
+      await waitFor(() => expect(posts("score")).toEqual([{ id: "L1:img-4.png", body: { score: 2 } }]));
+    });
+
+    it("moving the mouse clears the focus ring and aims the keys at the hovered tile", async () => {
+      renderPage();
+      await awaitFeed();
+      fireEvent.keyDown(window, { key: "ArrowRight" });
+      const ringed = () => document.querySelectorAll("[data-tile-id].ring-brand-400").length;
+      await waitFor(() => expect(ringed()).toBe(1));
+      pointTo("L1:img-3.png");
+      await waitFor(() => expect(ringed()).toBe(0));
+      fireEvent.keyDown(window, { key: "1" });
+      await waitFor(() => expect(posts("score")).toEqual([{ id: "L1:img-3.png", body: { score: 1 } }]));
+    });
+
+    it("a touch is no hover", async () => {
+      renderPage();
+      await awaitFeed();
+      pointTo("L1:img-3.png", "touch");
+      fireEvent.keyDown(window, { key: "4" });
+      await new Promise((r) => setTimeout(r, 20));
+      expect(posts("score")).toEqual([]);
+    });
+  });
+
   it("ignores shortcuts typed into the search field", async () => {
     renderPage();
     await awaitFeed();

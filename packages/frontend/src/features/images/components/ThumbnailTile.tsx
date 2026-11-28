@@ -107,6 +107,7 @@ export const ThumbnailTile = React.memo(function ThumbnailTile({
         selected && "ring-2 ring-brand-500",
       )}
       data-tile-index={index}
+      data-tile-id={item._id}
       tabIndex={-1}
       onMouseEnter={isBatch && !selectionMode ? () => setScrubbing(true) : undefined}
       onMouseLeave={isBatch && !selectionMode ? () => setScrubbing(false) : undefined}

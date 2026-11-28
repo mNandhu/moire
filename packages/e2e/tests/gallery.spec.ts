@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { API, sandbox } from "./helpers";
+import { API, imageById, imageByPath, sandbox } from "./helpers";
 
 const tiles = "[data-tile-index]";
 
@@ -203,4 +203,56 @@ test("the filter panel stays open while filters are picked, a Made range among t
 
   await page.getByRole("button", { name: "Hide filters" }).click();
   await expect(page.getByRole("button", { name: /^Remove filter: Made [A-Z][a-z]{2} \d+/ })).toBeVisible();
+});
+
+test("pointing at a tile and pressing 1-5 or X scores or quarantines it in place", async ({ page, request }) => {
+  await page.goto("/");
+  await expect(page.locator(tiles).nth(2)).toBeVisible();
+  const scoredId = (await page.locator(tiles).nth(1).getAttribute("data-tile-id"))!;
+  const droppedId = (await page.locator(tiles).nth(2).getAttribute("data-tile-id"))!;
+  // By id: the tiles' indexes shift once one leaves the feed.
+  const scored = page.locator(`[data-tile-id="${scoredId}"]`);
+  const dropped = page.locator(`[data-tile-id="${droppedId}"]`);
+  const before = (await imageById(request, scoredId)).score ?? 0;
+  try {
+    await scored.hover();
+    await page.keyboard.press("3");
+    await expect.poll(async () => (await imageById(request, scoredId)).score).toBe(3);
+    // The tile shows it, still in the gallery: no image view opened.
+    await expect(scored.getByLabel("Score 3 of 5")).toBeVisible();
+    await expect(page).not.toHaveURL(/\/image\//);
+
+    await dropped.hover();
+    await page.keyboard.press("x");
+    const name = droppedId.split(/[\\/]/).pop()!;
+    await expect(page.getByText(`Quarantined ${name}`)).toBeVisible();
+    await expect(dropped).toHaveCount(0);
+    await expect.poll(async () => (await request.get(`${API}/images/${encodeURIComponent(droppedId)}`)).json()).toMatchObject({
+      quarantined: true,
+    });
+  } finally {
+    await request.post(`${API}/images/${encodeURIComponent(scoredId)}/score`, { data: { score: before } });
+    await request.post(`${API}/images/${encodeURIComponent(droppedId)}/quarantine`, { data: { quarantined: false } });
+  }
+});
+
+test("in the quarantined view, pointing at a tile and pressing X restores it", async ({ page, request }) => {
+  const { _id } = await imageByPath(request, "filler_010");
+  const flag = (q: boolean) =>
+    request.post(`${API}/images/${encodeURIComponent(_id)}/quarantine`, { data: { quarantined: q } });
+  expect((await flag(true)).ok()).toBeTruthy();
+  try {
+    await page.goto("/?quarantined=1");
+    const tile = page.locator(`[data-tile-id="${_id}"]`);
+    await expect(tile).toBeVisible();
+    await tile.hover();
+    await page.keyboard.press("x");
+    await expect(page.getByText(`Restored ${_id.split(/[\\/]/).pop()}`)).toBeVisible();
+    await expect(tile).toHaveCount(0);
+    await expect.poll(async () => (await request.get(`${API}/images/${encodeURIComponent(_id)}`)).json()).toMatchObject({
+      quarantined: false,
+    });
+  } finally {
+    await flag(false);
+  }
 });

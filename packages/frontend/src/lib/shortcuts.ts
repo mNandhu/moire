@@ -57,7 +57,7 @@ export const GALLERY = {
 export const isZoomIn = (key: string) => ZOOM_IN_KEYS.includes(key);
 
 export const TRIAGE = {
-  score: { keys: DIGITS_0_5, label: "0 – 5", desc: "Score the focused image" },
+  score: { keys: DIGITS_0_5, label: "0 – 5", desc: "Score the hovered or focused image" },
   quarantine: { keys: QUARANTINE_KEYS, label: "X / Del", desc: "Quarantine (or restore) it" },
 } satisfies Record<string, ShortcutSpec>;
 
