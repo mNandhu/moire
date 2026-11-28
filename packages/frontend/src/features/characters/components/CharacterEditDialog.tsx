@@ -10,7 +10,10 @@ import { useToast } from "@/components/ui/Toasts";
 import { CharacterAvatar } from "./CharacterAvatar";
 import { FocusPicker } from "./FocusPicker";
 import { cn } from "@/lib/cn";
-import { deleteCharacter, updateCharacter } from "@/features/tags/lib/tagMutations";
+import {
+  deleteCharacter,
+  updateCharacter,
+} from "@/features/tags/lib/tagMutations";
 import { TAGS_KEY } from "@/features/tags/lib/queries";
 import { useComfyModels, useRecipe } from "@/features/generate/lib/generate";
 import { RecipeEditor } from "@/features/generate/components/RecipeEditor";
@@ -64,7 +67,11 @@ export function CharacterEditDialog({
       await deleteCharacter(c.tag);
       // Not left picked in the composer.
       const draft = loadDraft();
-      if (draft.characters.includes(c.tag)) saveDraft({ ...draft, characters: draft.characters.filter((t) => t !== c.tag) });
+      if (draft.characters.includes(c.tag))
+        saveDraft({
+          ...draft,
+          characters: draft.characters.filter((t) => t !== c.tag),
+        });
       await qc.invalidateQueries({ queryKey: TAGS_KEY });
     },
     onSuccess: () => {
@@ -76,7 +83,8 @@ export function CharacterEditDialog({
   const remove = async () => {
     const ok = await confirm({
       title: `Delete ${name || fromTag.name}?`,
-      message: "Their identity tags, LoRA and own outfits go too. Shared outfits stay.",
+      message:
+        "Their identity tags, LoRA and own outfits go too. Shared outfits stay.",
       confirmLabel: "Delete",
       tone: "danger",
     });
@@ -93,14 +101,16 @@ export function CharacterEditDialog({
         patch.focus_x = focus ? focus[0] : "";
         patch.focus_y = focus ? focus[1] : "";
       }
-      if (notCharacter !== (c.kind === "general")) patch.kind = notCharacter ? "general" : "";
+      if (notCharacter !== (c.kind === "general"))
+        patch.kind = notCharacter ? "general" : "";
       if (Object.keys(patch).length) await updateCharacter(c.tag, patch);
       await qc.invalidateQueries({ queryKey: TAGS_KEY });
       return patch;
     },
     onSuccess: (patch) => {
       onClose();
-      if (patch.kind === "general") navigate(`/tags?${new URLSearchParams({ tag: c.tag })}`);
+      if (patch.kind === "general")
+        navigate(`/tags?${new URLSearchParams({ tag: c.tag })}`);
     },
     onError: (e) => push(`Couldn't save: ${errorText(e)}`, "error"),
   });
@@ -115,7 +125,7 @@ export function CharacterEditDialog({
       open={open}
       onClose={close}
       title="Edit character"
-      className="max-w-lg"
+      className={recipe ? "max-w-4xl" : "max-w-lg"}
       footer={
         <DialogFooter
           onCancel={close}
@@ -138,81 +148,107 @@ export function CharacterEditDialog({
         />
       }
     >
-      <div className="space-y-5">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Name" htmlFor="character-name">
-            <Input id="character-name" value={name} placeholder={fromTag.name} onChange={(e) => setName(e.target.value)} />
-          </Field>
-          <Field label="Series" htmlFor="character-series">
-            <Input
-              id="character-series"
-              value={series}
-              placeholder={fromTag.series ?? "None"}
-              onChange={(e) => setSeries(e.target.value)}
-            />
-          </Field>
-        </div>
+      <div className={recipe ? "grid gap-x-8 gap-y-5 md:grid-cols-2" : ""}>
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Name" htmlFor="character-name">
+              <Input
+                id="character-name"
+                value={name}
+                placeholder={fromTag.name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </Field>
+            <Field label="Series" htmlFor="character-series">
+              <Input
+                id="character-series"
+                value={series}
+                placeholder={fromTag.series ?? "None"}
+                onChange={(e) => setSeries(e.target.value)}
+              />
+            </Field>
+          </div>
 
-        {c.thumb_url && (
-          <Field
-            label="Avatar"
-            hint={
-              c.face
-                ? "Cropped to the face Moiré found. Click elsewhere to centre it there instead."
-                : "Click the face to centre the avatar on it."
-            }
-          >
-            <div className="flex items-center gap-4">
-              <FocusPicker src={c.thumb_url} aspect={c.aspect} face={c.face} focus={focus} onChange={setFocus} />
-              <div className="flex flex-col items-center gap-2">
-                <CharacterAvatar
+          {c.thumb_url && (
+            <Field
+              label="Avatar"
+              hint={
+                c.face
+                  ? "Cropped to the face Moiré found. Click elsewhere to centre it there instead."
+                  : "Click the face to centre the avatar on it."
+              }
+            >
+              <div className="flex items-center gap-4">
+                <FocusPicker
                   src={c.thumb_url}
+                  aspect={c.aspect}
                   face={c.face}
                   focus={focus}
-                  aspect={c.aspect}
-                  className="h-20 w-20 ring-1 ring-line"
+                  onChange={setFocus}
                 />
-                {focus && (
-                  <Button size="sm" variant="ghost" onClick={() => setFocus(null)}>
-                    {c.face ? "Back to face" : "Reset"}
-                  </Button>
-                )}
+                <div className="flex flex-col items-center gap-2">
+                  <CharacterAvatar
+                    src={c.thumb_url}
+                    face={c.face}
+                    focus={focus}
+                    aspect={c.aspect}
+                    className="h-20 w-20 ring-1 ring-line"
+                  />
+                  {focus && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setFocus(null)}
+                    >
+                      {c.face ? "Back to face" : "Reset"}
+                    </Button>
+                  )}
+                </div>
               </div>
+            </Field>
+          )}
+
+          <Field
+            label="Colour"
+            hint="Lights the page. Auto reads it from their hair and eye tags."
+          >
+            <div className="flex flex-wrap gap-2">
+              <Swatch
+                colour={auto}
+                label="Auto"
+                on={color === null}
+                onPick={() => setColor(null)}
+              />
+              {SWATCHES.map((s) => (
+                <Swatch
+                  key={s}
+                  colour={s}
+                  on={color === s}
+                  onPick={() => setColor(s)}
+                />
+              ))}
             </div>
           </Field>
-        )}
 
-        <Field label="Colour" hint="Lights the page. Auto reads it from their hair and eye tags.">
-          <div className="flex flex-wrap gap-2">
-            <Swatch
-              colour={auto}
-              label="Auto"
-              on={color === null}
-              onPick={() => setColor(null)}
+          {!c.made && (
+            <Checkbox
+              id="character-not"
+              checked={notCharacter}
+              onChange={setNotCharacter}
+              label="Not a character"
+              hint="Treat this tag as an ordinary tag: no character page, no avatar on images."
             />
-            {SWATCHES.map((s) => (
-              <Swatch key={s} colour={s} on={color === s} onPick={() => setColor(s)} />
-            ))}
-          </div>
-        </Field>
-
+          )}
+        </div>
         {recipe && (
-          <section className="space-y-4 rounded-lg border border-line p-4">
-            <h3 className="text-xs font-medium text-muted">
-              For Generate
-            </h3>
-            <RecipeEditor recipe={recipe} label={name || fromTag.name} installedLoras={models?.loras ?? []} />
+          <section className="space-y-4 self-start rounded-lg border border-line p-4">
+            <h3 className="text-xs font-medium text-muted">For Generate</h3>
+            <RecipeEditor
+              recipe={recipe}
+              label={name || fromTag.name}
+              installedLoras={models?.loras ?? []}
+            />
           </section>
-        )}
-
-        {!c.made && (
-        <Checkbox
-          id="character-not"
-          checked={notCharacter}
-          onChange={setNotCharacter}
-          label="Not a character"
-          hint="Treat this tag as an ordinary tag: no character page, no avatar on images."
-        />
         )}
       </div>
     </Dialog>

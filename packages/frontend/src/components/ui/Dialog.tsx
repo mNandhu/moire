@@ -136,7 +136,7 @@ export function Dialog({
         aria-label={title ? undefined : ariaLabel}
         tabIndex={-1}
         className={cn(
-          "w-full max-w-md rounded-xl border border-neutral-800 bg-neutral-900 p-5 shadow-xl outline-none",
+          "max-h-full w-full max-w-md overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-900 p-5 shadow-xl outline-none",
           className,
         )}
       >
