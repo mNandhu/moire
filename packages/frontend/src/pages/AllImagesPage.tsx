@@ -57,6 +57,9 @@ import { FETCH_AHEAD_PX } from "@/features/images/lib/masonryLayout";
 import { errorText } from "@/lib/api";
 import { useDismiss } from "@/hooks/useDismiss";
 import { withBackgroundLocation } from "@/lib/backgroundLocation";
+import { contextState } from "@/lib/viewContext";
+import { galleryContext } from "@/features/images/lib/galleryContext";
+import { searchTerms } from "@/features/tags/lib/searchTerms";
 
 /** `f` without its library scope (a tab, not a filter). */
 const withoutLibrary = (f: Filters): Filters => ({ ...f, libraryId: undefined });
@@ -92,7 +95,7 @@ export default function AllImagesPage() {
   const libsQuery = useLibraries({ idleMs: 8000 });
   const libs = useMemo(() => libsQuery.data ?? [], [libsQuery.data]);
   const filterOptions = useFilterOptions(filters, filtersOpen, !activeFeed.isPending);
-  const { workflowFamilies } = filterOptions;
+  const { workflowFamilies, knownOutfits } = filterOptions;
 
   // The library is shown by the scope tabs, so it isn't repeated as a chip
   // (or counted on the filter button), unless no tab can show it: the tabs
@@ -126,6 +129,17 @@ export default function AllImagesPage() {
       batch: () => genBatchName,
     }),
     [libs, genBatchName],
+  );
+  // The filter, named in the corner of an image opened here: the library
+  // tab and a drilled-into batch too, which the chips leave to the tabs and
+  // the Back control.
+  const viewContext = useMemo(
+    () =>
+      galleryContext(searchTerms(filters, knownOutfits), filterChips, {
+        library: scopeInTabs && filters.libraryId ? galleryNames.library?.(filters.libraryId) : undefined,
+        batch: !!filters.groupId,
+      }),
+    [filters, knownOutfits, filterChips, scopeInTabs, galleryNames],
   );
 
   // An empty feed while its library is still scanning (or queued) is not
@@ -231,7 +245,7 @@ export default function AllImagesPage() {
   // Close filters on outside click / ESC.
   useDismiss([filtersPanelRef, filterButtonRef], () => setFiltersOpen(false), filtersOpen);
 
-  const { feelLucky, busy: luckyBusy } = useLucky(filters);
+  const { feelLucky, busy: luckyBusy } = useLucky(filters, viewContext);
   const { reshuffle, busy: reshuffling } = useReshuffle();
 
   useGalleryShortcuts({
@@ -264,10 +278,10 @@ export default function AllImagesPage() {
     (id: string) => {
       saveScroll();
       navigate(imageHref(id, filters), {
-        state: withBackgroundLocation(location),
+        state: { ...withBackgroundLocation(location), ...contextState(viewContext) },
       });
     },
-    [filters, navigate, location, saveScroll],
+    [filters, navigate, location, saveScroll, viewContext],
   );
 
 

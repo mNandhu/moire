@@ -4,21 +4,27 @@ import { FolderPlus, Images, RotateCw, UserRound, Wand2 } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { withBackgroundLocation } from "@/lib/backgroundLocation";
 import { stepsState } from "@/lib/stepList";
+import { contextState } from "@/lib/viewContext";
 import { DEFAULT_FILTERS, imageHref, type FeedItem } from "@/features/images/lib/imageFilter";
 import { useCharacters } from "@/features/characters/lib/queries";
 import { characterHref, displayName } from "@/features/characters/lib/character";
 import { Banner } from "@/features/discover/components/Banner";
 import { ImageStrip } from "@/features/discover/components/DiscoverSection";
 import { STRIP_SIZE } from "@/features/discover/lib/queries";
-import { bestOf, sessionCharacter, sessionDay, sessionSpan, type Session } from "@/features/overview/lib/sessions";
+import { bestOf, sessionCharacter, sessionContext, sessionDay, sessionSpan, type Session } from "@/features/overview/lib/sessions";
 import { useCharactersMade } from "@/features/overview/lib/queries";
 
-/** The link that opens `img` stepping through `items` (a session). */
-export function useOpenIn(name: string, items: readonly FeedItem[] | undefined) {
+/** The link that opens `img` stepping through `items` (a session), named
+ * `context` in the view. */
+export function useOpenIn(name: string, items: readonly FeedItem[] | undefined, context: string | undefined) {
   const location = useLocation();
   return (img: FeedItem) => ({
     to: imageHref(img._id, DEFAULT_FILTERS),
-    state: { ...withBackgroundLocation(location), ...stepsState({ name, items: [...(items ?? [])] }) },
+    state: {
+      ...withBackgroundLocation(location),
+      ...stepsState({ name, items: [...(items ?? [])] }),
+      ...contextState(context),
+    },
   });
 }
 
@@ -55,7 +61,10 @@ export function LatestSession({
   const checking = made.isPending && made.fetchStatus !== "idle";
   const settled = !checking && !(top && characters.isPending);
   const best = session && settled ? bestOf(theirs?.length ? theirs : session.items) : undefined;
-  const open = useOpenIn("overview:latest", session?.items);
+  // Named by its date: "latest" goes stale with the next session, and the
+  // name is kept across a reload.
+  const context = session ? sessionContext(session) : undefined;
+  const open = useOpenIn("overview:latest", session?.items, context);
 
   if (failed && !session) {
     return (
@@ -160,6 +169,7 @@ export function LatestSession({
       {(pending || !!rest?.length) && (
         <ImageStrip
           name="overview:latest"
+          context={context}
           items={rest}
           pending={pending}
           filters={DEFAULT_FILTERS}

@@ -35,3 +35,17 @@ test("an image opened from Discover's Top rated says so, image after image, and 
   await context(page).getByRole("button", { name: "Discover", exact: true }).click();
   await expect(page).toHaveURL(/\/discover$/);
 });
+
+test("an image opened from a filtered gallery names the filter, an unfiltered one nothing", async ({ page }) => {
+  await page.goto("/?tags=any%3Asmile");
+  await page.locator("[data-tile-index]").first().click();
+  await expect(page).toHaveURL(/\/image\//);
+  await expect(context(page)).toHaveText(/^All Images\s*\/\s*smile$/);
+  await page.keyboard.press("Escape");
+
+  await page.goto("/");
+  await page.locator("[data-tile-index]").first().click();
+  await expect(page).toHaveURL(/\/image\//);
+  await expect(page.getByRole("button", { name: "Back", exact: true })).toBeVisible();
+  await expect(context(page)).toHaveCount(0);
+});

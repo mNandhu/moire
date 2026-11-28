@@ -139,9 +139,9 @@ export default function CharacterPage({ route = "character" }: { route?: "charac
             <Profile c={c} accent={colours[0]} person={person} name={name} subtitle={series ?? groupLine} description={description} />
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
               <div className="space-y-8 min-w-0">
-                {c.best.length > 0 && <BestOf c={c} />}
+                {c.best.length > 0 && <BestOf c={c} name={name} />}
                 {person && <CharacterOutfits character={c.tag} name={displayName(c).name} />}
-                {c.made ? <NoImagesYet c={c} /> : <Images c={c} person={person} />}
+                {c.made ? <NoImagesYet c={c} /> : <Images c={c} person={person} name={name} />}
               </div>
               <Sidebar c={c} accent={colours[0]} onEdit={() => setEditing(true)} person={person} />
             </div>
@@ -262,8 +262,8 @@ function Profile({
 }
 
 /** Their best-scored images; only shown once some are scored. */
-function BestOf({ c }: { c: Character }) {
-  const open = useOpenImage(characterFilters(c.tag, c.aliases));
+function BestOf({ c, name }: { c: Character; name: string }) {
+  const open = useOpenImage(characterFilters(c.tag, c.aliases), name);
   return (
     <section>
       <h2 className="text-2xs uppercase tracking-wider text-faint mb-2">
@@ -290,11 +290,12 @@ function BestOf({ c }: { c: Character }) {
 
 /** Every image of theirs, newest first; the pin makes one their avatar (a
  * tag's cover). */
-function Images({ c, person }: { c: Character; person: boolean }) {
+function Images({ c, person, name }: { c: Character; person: boolean; name: string }) {
   const filters = useMemo(() => characterFilters(c.tag, c.aliases), [c.tag, c.aliases]);
   return (
     <PinnableImageGrid
       filters={filters}
+      context={name}
       pinTag={c.tag}
       pinned={c.thumb_image_id}
       noun={person ? "avatar" : "cover"}

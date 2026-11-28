@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/Toasts";
 import { errorText } from "@/lib/api";
 import { withBackgroundLocation } from "@/lib/backgroundLocation";
 import { stepsState } from "@/lib/stepList";
+import { contextState } from "@/lib/viewContext";
 import { imageHref, type Filters } from "@/features/images/lib/imageFilter";
 import {
   IMAGE_FEED_PREFIX,
@@ -20,9 +21,9 @@ const LUCKY_STEPS = "lucky";
  * "I'm feeling lucky": open a random image the gallery filter matches. The
  * view steps through a run of random picks (a step list of its own), not the
  * feed: a random image sits anywhere in it, and finding it there would page
- * through the feed up to it.
+ * through the feed up to it. `context` names the filter in the view.
  */
-export function useLucky(filters: Filters) {
+export function useLucky(filters: Filters, context?: string) {
   const navigate = useNavigate();
   const location = useLocation();
   const { push } = useToast();
@@ -41,6 +42,7 @@ export function useLucky(filters: Filters) {
         state: {
           ...withBackgroundLocation(location),
           ...stepsState({ name: LUCKY_STEPS, items }),
+          ...contextState(context),
         },
       });
     } catch (e) {
@@ -48,7 +50,7 @@ export function useLucky(filters: Filters) {
     } finally {
       setBusy(false);
     }
-  }, [busy, filters, location, navigate, push]);
+  }, [busy, filters, context, location, navigate, push]);
 
   return { feelLucky, busy };
 }

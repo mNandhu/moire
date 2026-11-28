@@ -54,6 +54,11 @@ export function sessionDay(mtime: number | null, now: Date = new Date()): string
   if (ago <= 0) return "Today";
   if (ago === 1) return "Yesterday";
   if (ago < 7) return d.toLocaleDateString("en-US", { weekday: "long" });
+  return sessionDate(d, now);
+}
+
+/** "Nov 12", with the year when it isn't this one. */
+function sessionDate(d: Date, now: Date): string {
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
   if (d.getFullYear() !== now.getFullYear()) opts.year = "numeric";
   return d.toLocaleDateString("en-US", opts);
@@ -63,6 +68,17 @@ export function sessionDay(mtime: number | null, now: Date = new Date()): string
 function sessionTime(mtime: number | null): string {
   if (mtime == null) return "";
   return new Date(mtime * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+/** A session as the image view names it: "Nov 12, 5:10 PM to 6:58 PM".
+ * Its date, never "Today": the name is kept in the history entry, which
+ * a reload days later restores. */
+export function sessionContext(
+  s: { start: number | null; end: number | null; partial?: boolean },
+  now: Date = new Date(),
+): string {
+  if (s.end == null) return "Earlier session";
+  return `${sessionDate(new Date(s.end * 1000), now)}, ${sessionSpan(s)}`;
 }
 
 /** "5:10 PM to 6:58 PM", or one time when it was a moment; "until 6:58 PM"

@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 import type { FeedItem } from "@/features/images/lib/imageFilter";
 import { DiscoverSection, SHELF, ShelfImage } from "@/features/discover/components/DiscoverSection";
 import { useOpenIn } from "@/features/overview/components/LatestSession";
-import { bestOf, byDay, sessionSpan, type Session } from "@/features/overview/lib/sessions";
+import { bestOf, byDay, sessionContext, sessionSpan, type Session } from "@/features/overview/lib/sessions";
 
 const TILE =
   "group relative block aspect-[3/4] w-36 shrink-0 overflow-hidden rounded-xl bg-white/[0.06] shadow-tile ring-brand-400 focus-visible:outline-none focus-visible:ring-2 sm:w-40";
@@ -16,7 +16,7 @@ const TILE =
 function SessionTile({ session }: { session: Session<FeedItem> }) {
   const n = session.items.length;
   const best = bestOf(session.items)!;
-  const open = useOpenIn(`overview:session:${session.end}`, session.items);
+  const open = useOpenIn(`overview:session:${session.end}`, session.items, sessionContext(session));
   return (
     <div className="relative shrink-0 snap-start pt-2">
       {/* The rest of the session behind its best image: two cards, fanned up. */}

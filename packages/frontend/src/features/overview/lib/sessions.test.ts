@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { bestOf, byDay, latestDay, sessionCharacter, sessionSpan, sessionDay, splitSessions } from "./sessions";
+import { bestOf, byDay, latestDay, sessionCharacter, sessionContext, sessionSpan, sessionDay, splitSessions } from "./sessions";
 
 const now = new Date(2026, 10, 24, 15, 0); // Tue Nov 24 2026
 const at = (y: number, m: number, d: number, h = 12) => new Date(y, m, d, h).getTime() / 1000;
@@ -14,6 +14,15 @@ describe("sessionDay", () => {
     expect(sessionDay(at(2026, 10, 12), now)).toBe("Nov 12");
     expect(sessionDay(at(2025, 11, 30), now)).toBe("Dec 30, 2025");
     expect(sessionDay(null, now)).toBe("Earlier");
+  });
+});
+
+describe("sessionContext", () => {
+  it("dates a session, never Today: it outlives the day", () => {
+    const today = { start: at(2026, 10, 24, 10), end: at(2026, 10, 24, 11) };
+    expect(sessionContext(today, now)).toMatch(/^Nov 24, \S.* to \S/);
+    expect(sessionContext({ start: null, end: at(2025, 11, 30) }, now)).toMatch(/^Dec 30, 2025, /);
+    expect(sessionContext({ start: null, end: null }, now)).toBe("Earlier session");
   });
 });
 

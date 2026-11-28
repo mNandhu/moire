@@ -199,6 +199,7 @@ export function TagPanel({
       {detail && (
         <PinnableImageGrid
           filters={imageFilters}
+          context={formatTag(tag)}
           pinTag={tag}
           pinned={detail.thumb_image_id}
           noun="cover"

@@ -29,6 +29,7 @@ const LOOKS = {
  */
 export function PinnableImageGrid({
   filters,
+  context,
   pinTag,
   pinned,
   noun,
@@ -37,6 +38,8 @@ export function PinnableImageGrid({
   variant,
 }: {
   filters: Filters;
+  /** What the images are, named in the view's corner (the tag, the character). */
+  context: string;
   /** The tag whose cover the pin sets. */
   pinTag: string;
   pinned: string | null;
@@ -47,7 +50,7 @@ export function PinnableImageGrid({
 }) {
   const look = LOOKS[variant];
   const { pin, pending } = usePinCover(noun);
-  const open = useOpenImage(filters);
+  const open = useOpenImage(filters, context);
   const { items, hasNextPage, fetchNextPage, isFetchingNextPage, isLoading } = useImageFeed(filters, pageSize);
 
   return (
