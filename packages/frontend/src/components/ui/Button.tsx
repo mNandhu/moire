@@ -44,7 +44,7 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
 
 function buttonClasses({ variant = "secondary", size = "md", active }: Look, className?: string) {
   return cn(
-    "inline-flex items-center justify-center rounded-lg font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none",
+    "inline-flex items-center justify-center whitespace-nowrap rounded-lg font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none",
     SIZES[size],
     active
       ? "bg-brand-600/20 hover:bg-brand-600/30 text-brand-100 border border-brand-500/60"

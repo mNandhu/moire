@@ -85,7 +85,7 @@ export function PageHeader({
         )}
         {/* Phones: the title takes what the actions leave and truncates,
             instead of pushing them onto a row of their own. */}
-        <div className="min-w-0 max-md:flex-1 flex items-baseline gap-2.5">
+        <div className="min-w-0 max-md:min-w-24 max-md:flex-1 flex items-baseline gap-2.5">
           <h1 className="text-lg font-semibold text-neutral-50 truncate">
             {title}
           </h1>
@@ -106,10 +106,11 @@ export function PageHeader({
             {children}
           </div>
         )}
-        {/* Never wider than the row: on a row of their own (a phone), long
-            actions wrap inside it instead of widening the page. The Global
-            Sensitivity Filter's shield closes every header. */}
-        <div className="ml-auto flex items-center gap-2 shrink-0 max-w-full min-w-0">
+        {/* From md up: one block pinned right, never wider than the row. On a
+            phone it dissolves, so each action flows in the header's own wrap
+            and fills the space beside the title before starting a new row.
+            The Global Sensitivity Filter's shield closes every header. */}
+        <div className="max-md:contents ml-auto flex items-center gap-2 shrink-0 max-w-full min-w-0">
           {actions}
           <SensitivityControl />
         </div>
