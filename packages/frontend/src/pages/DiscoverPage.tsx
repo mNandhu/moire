@@ -158,6 +158,8 @@ export default function DiscoverPage() {
               {characterFilters && (characterImages.isPending ? (character?.count ?? 0) > 1 : !!moreOfCharacter?.length) && (
                 <ImageStrip
                   name="discover:character"
+                  // As the banner names them.
+                  context={character ? (character.name ?? formatTag(character.tag)) : undefined}
                   items={moreOfCharacter}
                   pending={characterImages.isPending}
                   filters={characterFilters}
@@ -178,7 +180,7 @@ export default function DiscoverPage() {
               // The gallery of them, favorites first.
               viewAll={galleryHref({ ...UNSEEN, sort: "top" })}
             >
-              <ImageStrip name="discover:unseen" items={unseen.data} pending={unseen.isPending} filters={UNSEEN} placeholders={expected(lastCount.get("unseen"))} />
+              <ImageStrip name="discover:unseen" context="Not seen in a while" items={unseen.data} pending={unseen.isPending} filters={UNSEEN} placeholders={expected(lastCount.get("unseen"))} />
             </DiscoverSection>
           )}
 
@@ -190,7 +192,7 @@ export default function DiscoverPage() {
               cover={top.data?.[0]?.thumb_url}
               viewAll={shuffled(TOP_RATED)}
             >
-              <ImageStrip name="discover:top" items={top.data} pending={top.isPending} filters={TOP_RATED} placeholders={expected(lastCount.get("top"))} />
+              <ImageStrip name="discover:top" context="Top rated" items={top.data} pending={top.isPending} filters={TOP_RATED} placeholders={expected(lastCount.get("top"))} />
             </DiscoverSection>
           )}
 
@@ -241,7 +243,7 @@ export default function DiscoverPage() {
               cover={unscored.data?.[0]?.thumb_url}
               viewAll={shuffled(UNSCORED)}
             >
-              <ImageStrip name="discover:unscored" items={unscored.data} pending={unscored.isPending} filters={UNSCORED} placeholders={expected(lastCount.get("unscored"))} />
+              <ImageStrip name="discover:unscored" context="Unscored" items={unscored.data} pending={unscored.isPending} filters={UNSCORED} placeholders={expected(lastCount.get("unscored"))} />
             </DiscoverSection>
           )}
 
@@ -254,7 +256,7 @@ export default function DiscoverPage() {
               cover={workflowImages.data?.[0]?.thumb_url}
               viewAll={shuffled(workflowFilters)}
             >
-              <ImageStrip name="discover:workflow" items={workflowImages.data} pending={workflowImages.isPending} filters={workflowFilters} placeholders={expected(workflow.images)} />
+              <ImageStrip name="discover:workflow" context={workflow.name} items={workflowImages.data} pending={workflowImages.isPending} filters={workflowFilters} placeholders={expected(workflow.images)} />
             </DiscoverSection>
           )}
 
@@ -267,7 +269,7 @@ export default function DiscoverPage() {
               cover={modelImages.data?.[0]?.thumb_url}
               viewAll={shuffled(modelFilters)}
             >
-              <ImageStrip name="discover:model" items={modelImages.data} pending={modelImages.isPending} filters={modelFilters} placeholders={expected(model.count)} />
+              <ImageStrip name="discover:model" context={model.model} items={modelImages.data} pending={modelImages.isPending} filters={modelFilters} placeholders={expected(model.count)} />
             </DiscoverSection>
           )}
         </div>

@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { BATCH_STRIP_KEY } from "@/features/images/lib/feedCache";
 import { imageHref, type FeedItem } from "@/features/images/lib/imageFilter";
 import { smallThumb } from "@/lib/media";
+import { withoutContext } from "@/lib/viewContext";
 import { batchStripQuery, type BatchOf } from "@/features/images/lib/batchStrip";
 
 const BATCH_STRIP_MAX = 40;
@@ -95,9 +96,10 @@ export function BatchStrip({
               key={m._id}
               ref={here ? current : undefined}
               to={imageHref(m._id, query)}
-              // Like the arrows: in place, and still over the gallery.
+              // Like the arrows: in place, and still over the gallery; a
+              // batch-mate is no longer what the context names.
               replace
-              state={location.state}
+              state={withoutContext(location.state)}
               aria-current={here ? "true" : undefined}
               aria-label={m.path?.split(/[\\/]/).pop()}
               className={`relative h-16 w-12 shrink-0 overflow-hidden rounded-md bg-raised transition-opacity ${

@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/cn";
 import { withBackgroundLocation } from "@/lib/backgroundLocation";
 import { stepsState } from "@/lib/stepList";
+import { contextState } from "@/lib/viewContext";
 import { imageHref, type FeedItem, type Filters } from "@/features/images/lib/imageFilter";
 import { STRIP_SIZE } from "@/features/discover/lib/queries";
 import { blurhashDataUrl } from "@/lib/blurhash";
@@ -144,6 +145,7 @@ const TILE_WIDTH = { md: "w-40 sm:w-48", sm: "w-28 sm:w-32" } as const;
  */
 export function ImageStrip({
   name,
+  context,
   items,
   pending,
   filters,
@@ -152,6 +154,8 @@ export function ImageStrip({
   steps,
 }: {
   name: string;
+  /** What the shelf is, named in the view's corner ("Top rated"). */
+  context?: string;
   items: FeedItem[] | undefined;
   pending: boolean;
   /** The filter the strip picked from: the view's way back to a gallery. */
@@ -173,7 +177,11 @@ export function ImageStrip({
       </div>
     );
   }
-  const state = { ...withBackgroundLocation(location), ...stepsState({ name, items: steps ?? items }) };
+  const state = {
+    ...withBackgroundLocation(location),
+    ...stepsState({ name, items: steps ?? items }),
+    ...contextState(context),
+  };
   return (
     <div className={SHELF}>
       {items.map((img) => (

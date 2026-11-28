@@ -46,7 +46,7 @@ import { ImagePath } from "@/features/images/components/viewer/ImagePath";
 import { FILMSTRIP_ROOM, FilmStrip } from "@/features/images/components/viewer/FilmStrip";
 import { useLocalPref } from "@/hooks/useLocalPref";
 
-import { OVERLAY_BTN } from "@/features/images/components/viewer/ImageViewLoading";
+import { OVERLAY_BTN, ViewContext } from "@/features/images/components/viewer/ImageViewLoading";
 import { imageDocKey, invalidateFeeds, syncFeedsFromDoc, writeImageFields } from "@/features/images/lib/feedCache";
 import { Tooltip } from "@/components/ui/Tooltip";
 
@@ -396,6 +396,7 @@ export default function ImageView() {
         >
           <ArrowLeft />
         </button>
+        <ViewContext onBack={goBack} />
         {/* Reopen details panel (overlay when collapsed) */}
         {!infoOpen && (
           <button
